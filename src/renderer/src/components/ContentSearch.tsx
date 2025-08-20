@@ -282,6 +282,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             implementation.searchNext()
           }
         } else if (event.key === 'Escape') {
+          event.stopPropagation()
           implementation.disable()
         }
       },

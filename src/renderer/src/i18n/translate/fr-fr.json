@@ -654,6 +654,8 @@
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
+    "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
     "install_bun": "Installer Bun",
     "installing_bun": "Installation en cours...",
@@ -2278,8 +2280,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Lorsque cette option est activée, le modèle de dénomination thématique sera utilisé pour créer les titres des messages exportés. Cette option affectera également toutes les méthodes d'exportation au format Markdown.",
-          "title": "Utiliser le modèle de dénomination thématique pour créer les titres des messages exportés"
+          "help": "Activé, utilise un modèle rapide pour nommer les titres des messages exportés. Cette option affecte également toutes les méthodes d'exportation via Markdown.",
+          "title": "Utiliser le modèle rapide pour nommer le titre des messages exportés"
         }
       },
       "minute_interval_one": "{{count}} minute",
@@ -2980,7 +2982,6 @@
         "label": "Déclencheur de popover de la grille"
       },
       "input": {
-        "enable_delete_model": "Activer la touche Supprimer pour effacer le modèle/pièce jointe saisie",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
         "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
         "paste_long_text_threshold": "Seuil de longueur de texte",
@@ -3118,7 +3119,6 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Modèle utilisé pour créer de nouveaux assistants, si aucun modèle n'est défini pour l'assistant, ce modèle sera utilisé",
       "empty": "Aucun modèle",
-      "enable_topic_naming": "Renommage automatique des sujets",
       "manage": {
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
@@ -3144,10 +3144,17 @@
       "quick_assistant_default_tag": "Par défaut",
       "quick_assistant_model": "Modèle de l'assistant rapide",
       "quick_assistant_selection": "Sélectionner l'assistant",
-      "topic_naming_model": "Modèle de renommage des sujets",
-      "topic_naming_model_description": "Modèle utilisé pour le renommage automatique des nouveaux sujets",
-      "topic_naming_model_setting_title": "Paramètres du modèle de renommage des sujets",
-      "topic_naming_prompt": "Mot-clé de renommage des sujets",
+      "quick_model": {
+        "description": "modèle utilisé pour effectuer des tâches simples telles que la nomination de sujets, l'extraction de mots-clés de recherche, etc.",
+        "label": "Modèle rapide",
+        "setting_title": "Configuration rapide du modèle",
+        "tooltip": "Il est recommandé de choisir un modèle léger et déconseillé de choisir un modèle de réflexion."
+      },
+      "topic_naming": {
+        "auto": "Renommage automatique des sujets",
+        "label": "Nom de sujet",
+        "prompt": "Mot-clé de renommage des sujets"
+      },
       "translate_model": "Modèle de traduction",
       "translate_model_description": "Modèle utilisé pour le service de traduction",
       "translate_model_prompt_message": "Entrez le mot-clé du modèle de traduction",
@@ -3686,7 +3693,7 @@
         },
         "label": "Méthode de détection automatique",
         "llm": {
-          "tip": "Utiliser un modèle de traduction pour la détection de langue, ce qui consomme peu de jetons. (QwenMT ne prend pas en charge la détection de langue et revient automatiquement au modèle assistant par défaut.)"
+          "tip": "Utilisation d'un modèle rapide pour la détection linguistique, consommant peu de jetons."
         },
         "placeholder": "Sélectionner la méthode de détection automatique",
         "tip": "Méthode utilisée pour la détection automatique de la langue d'entrée"
@@ -3699,7 +3706,8 @@
     "error": {
       "detect": {
         "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues",
-        "unknown": "Langue inconnue détectée"
+        "unknown": "Langue inconnue détectée",
+        "update_setting": "Échec du paramétrage"
       },
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",

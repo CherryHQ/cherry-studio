@@ -19,6 +19,7 @@ import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
+  FileTypes,
   GenerateImageParams,
   MCPCallToolResponse,
   MCPTool,
@@ -53,7 +54,7 @@ import {
   mcpToolCallResponseToAwsBedrockMessage,
   mcpToolsToAwsBedrockTools
 } from '@renderer/utils/mcp-tools'
-import { findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { findImageBlocks, findFileBlocks } from '@renderer/utils/messageUtils/find'
 import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
@@ -679,6 +680,30 @@ export class AwsBedrockAPIClient extends BaseApiClient<
         } catch (error) {
           logger.error('Error processing base64 image:', error as Error)
           parts.push({ text: '[Image processing failed]' })
+        }
+      }
+    }
+
+    // 处理文件内容
+    const fileBlocks = findFileBlocks(message)
+    for (const fileBlock of fileBlocks) {
+      const file = fileBlock.file
+      if (!file) {
+        logger.warn(`No file in the file block. Passed.`, { fileBlock })
+        continue
+      }
+
+      if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
+        try {
+          const fileContent = (await window.api.file.read(file.id + file.ext, true)).trim()
+          if (fileContent) {
+            parts.push({
+              text: `${file.origin_name}\n${fileContent}`
+            })
+          }
+        } catch (error) {
+          logger.error('Error reading file content:', error as Error)
+          parts.push({ text: `[File: ${file.origin_name} - Failed to read content]` })
         }
       }
     }

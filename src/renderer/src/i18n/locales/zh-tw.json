@@ -654,6 +654,8 @@
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "選擇要使用的 CLI 工具",
     "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "env_vars_help": "輸入自定義環境變數（每行一個，格式：KEY=value）",
+    "environment_variables": "環境變數",
     "folder_placeholder": "選擇工作目錄",
     "install_bun": "安裝 Bun",
     "installing_bun": "安裝中...",
@@ -2278,8 +2280,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "此設定會影響所有通過 Markdown 導出的方式，如 Notion、語雀等",
-          "title": "使用話題命名模型為導出的消息創建標題"
+          "help": "開啟後，使用快速模型為導出的消息命名標題。該項也會影響所有透過 Markdown 導出的方式",
+          "title": "使用快速模型為導出的消息命名標題"
         }
       },
       "minute_interval_one": "{{count}} 分鐘",
@@ -2980,7 +2982,6 @@
         "label": "網格詳細資訊觸發"
       },
       "input": {
-        "enable_delete_model": "啟用刪除鍵刪除模型 / 附件",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
         "paste_long_text_as_file": "將長文字貼上為檔案",
         "paste_long_text_threshold": "長文字長度",
@@ -3118,7 +3119,6 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
-      "enable_topic_naming": "話題自動重新命名",
       "manage": {
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
@@ -3144,10 +3144,17 @@
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "選擇助手",
-      "topic_naming_model": "話題命名模型",
-      "topic_naming_model_description": "自動命名新話題時使用的模型",
-      "topic_naming_model_setting_title": "話題命名模型設定",
-      "topic_naming_prompt": "話題命名提示詞",
+      "quick_model": {
+        "description": "用於執行話題命名、搜尋關鍵字提煉等簡單任務的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型設定",
+        "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
+      },
+      "topic_naming": {
+        "auto": "話題自動重新命名",
+        "label": "話題命名",
+        "prompt": "話題命名提示詞"
+      },
       "translate_model": "翻譯模型",
       "translate_model_description": "翻譯服務使用的模型",
       "translate_model_prompt_message": "請輸入翻譯模型提示詞",
@@ -3686,7 +3693,7 @@
         },
         "label": "自動檢測方法",
         "llm": {
-          "tip": "使用翻譯模型進行語言檢測，消耗少量token。（QwenMT不支持進行語言檢測，會自動回退到預設助手模型）"
+          "tip": "使用快速模型進行語言檢測，消耗少量token。"
         },
         "placeholder": "選擇自動偵測方法",
         "tip": "自動檢測輸入語言時使用的方法"
@@ -3699,7 +3706,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMT模型不能用於語言檢測",
-        "unknown": "檢測到未知語言"
+        "unknown": "檢測到未知語言",
+        "update_setting": "設定失敗"
       },
       "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",

@@ -6,6 +6,7 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNutstoreSSO } from '@renderer/hooks/useNutstoreSSO'
+import { useTimer } from '@renderer/hooks/useTimer'
 import {
   backupToNutstore,
   checkConnection,
@@ -51,17 +52,14 @@ const NutstoreSettings: FC = () => {
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
   const [nutstorePass, setNutstorePass] = useState<string | undefined>(undefined)
   const [storagePath, setStoragePath] = useState<string | undefined>(nutstorePath)
-
   const [checkConnectionLoading, setCheckConnectionLoading] = useState(false)
   const [nsConnected, setNsConnected] = useState<boolean>(false)
-
   const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
-
   const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
+  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const nutstoreSSOHandler = useNutstoreSSO()
-
-  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
@@ -120,7 +118,7 @@ const NutstoreSettings: FC = () => {
     setNsConnected(isConnectedToNutstore)
     setCheckConnectionLoading(false)
 
-    setTimeout(() => setNsConnected(false), 3000)
+    setTimeoutTimer('handleCheckConnection', () => setNsConnected(false), 3000)
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =

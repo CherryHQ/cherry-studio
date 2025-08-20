@@ -6,6 +6,7 @@ import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProviderId } from '@renderer/types'
@@ -33,6 +34,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   const [basicAuthUsername, setBasicAuthUsername] = useState(provider.basicAuthUsername || '')
   const [basicAuthPassword, setBasicAuthPassword] = useState(provider.basicAuthPassword || '')
   const [apiValid, setApiValid] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const webSearchProviderConfig = WEB_SEARCH_PROVIDER_CONFIG[provider.id]
   const apiKeyWebsite = webSearchProviderConfig?.websites?.apiKey
@@ -125,7 +127,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       })
     } finally {
       setApiChecking(false)
-      setTimeout(() => setApiValid(false), 2500)
+      setTimeoutTimer('checkSearch', () => setApiValid(false), 2500)
     }
   }
 

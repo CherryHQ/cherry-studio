@@ -654,6 +654,8 @@
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
+    "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
     "install_bun": "Bun をインストール",
     "installing_bun": "インストール中...",
@@ -2278,8 +2280,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "この設定は、すべてのMarkdownエクスポート方法に影響します。",
-          "title": "トピック命名モデルを使用してメッセージのタイトルを作成"
+          "help": "有効にすると、エクスポートされたメッセージのタイトル名に高速モデルを使用します。この設定はMarkdownによるエクスポート方法全般にも影響します。",
+          "title": "高速モデルを使用してエクスポートされたメッセージのタイトルを命名"
         }
       },
       "minute_interval_one": "{{count}} 分",
@@ -2980,7 +2982,6 @@
         "label": "グリッド詳細トリガー"
       },
       "input": {
-        "enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
         "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
         "paste_long_text_threshold": "長いテキストの長さ",
@@ -3118,7 +3119,6 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
-      "enable_topic_naming": "トピックの自動命名",
       "manage": {
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
@@ -3144,10 +3144,17 @@
       "quick_assistant_default_tag": "デフォルト",
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
-      "topic_naming_model": "トピック命名モデル",
-      "topic_naming_model_description": "新しいトピックを自動的に命名する際に使用されるモデル",
-      "topic_naming_model_setting_title": "トピック命名モデルの設定",
-      "topic_naming_prompt": "トピック命名プロンプト",
+      "quick_model": {
+        "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
+        "label": "高速モデル",
+        "setting_title": "高速モデル設定",
+        "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
+      "topic_naming": {
+        "auto": "トピックの自動命名",
+        "label": "トピック名",
+        "prompt": "トピック命名プロンプト"
+      },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",
       "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
@@ -3686,7 +3693,7 @@
         },
         "label": "自動検出方法",
         "llm": {
-          "tip": "翻訳モデルを使用して言語検出を行うと、少量のトークンを消費します。（QwenMTは言語検出をサポートしておらず、自動的にデフォルトのアシスタントモデルにフォールバックします）"
+          "tip": "高速モデルを使用して言語検出を行い、少量のトークンを消費します。"
         },
         "placeholder": "自動検出方法を選択してください",
         "tip": "入力言語を自動検出する際に使用する方法"
@@ -3699,7 +3706,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMTモデルは言語検出に使用できません",
-        "unknown": "検出された言語は不明です"
+        "unknown": "検出された言語は不明です",
+        "update_setting": "設定に失敗しました"
       },
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",

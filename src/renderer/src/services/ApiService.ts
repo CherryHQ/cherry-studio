@@ -65,8 +65,7 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getQuickModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
@@ -135,7 +134,7 @@ async function fetchExternalTool(
     }
 
     const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
+    summaryAssistant.model = getQuickModel() || assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
     const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
@@ -621,14 +620,13 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
   const listLang = translateLanguageOptions.map((item) => item.langCode)
   const listLangText = JSON.stringify(listLang)
 
-  let model = getTranslateModel()
+  const model = getQuickModel() || getDefaultModel()
   if (!model) {
     throw new Error(i18n.t('error.model.not_exists'))
   }
 
   if (isQwenMTModel(model)) {
-    logger.info('QwenMT cannot be used for language detection. Fallback to default model.')
-    model = getDefaultModel()
+    logger.info('QwenMT cannot be used for language detection.')
     if (isQwenMTModel(model)) {
       throw new Error(i18n.t('translate.error.detect.qwen_mt'))
     }
@@ -677,7 +675,7 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -747,7 +745,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {

@@ -331,12 +331,14 @@ export const makeSvgSizeAdaptive = (element: Element): Element => {
     }
   }
 
-  // 设置 max-width
+  // 如果没有则设置 max-width
   // 优先使用测量得到的宽度值，否则回退到 width 属性值
-  if (measuredWidth !== undefined) {
-    element.style.setProperty('max-width', `${measuredWidth}px`)
-  } else if (widthStr) {
-    element.style.setProperty('max-width', widthStr)
+  if (!element.style.getPropertyValue('max-width')) {
+    if (measuredWidth !== undefined) {
+      element.style.setProperty('max-width', `${measuredWidth}px`)
+    } else if (widthStr) {
+      element.style.setProperty('max-width', widthStr)
+    }
   }
 
   // 调整 width 和 height
