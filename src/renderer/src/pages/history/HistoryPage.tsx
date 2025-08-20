@@ -22,7 +22,7 @@ let _stack: Route[] = ['topics']
 let _topic: Topic | undefined
 let _message: Message | undefined
 
-const TopicsPage: FC = () => {
+const HistoryPage: FC = () => {
   const { t } = useTranslation()
   const [search, setSearch] = useState(_search)
   const [searchKeywords, setSearchKeywords] = useState(_search)
@@ -146,4 +146,4 @@ const SearchIcon = styled.div`
   }
 `
 
-export default TopicsPage
+export default HistoryPage

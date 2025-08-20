@@ -1,10 +1,10 @@
+import { LoadingIcon } from '@renderer/components/Icons'
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { List, Typography } from 'antd'
+import { List, Spin, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { FC, memo, useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
@@ -19,7 +19,6 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 
 const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
-  const { setTimeoutTimer } = useTimer()
 
   const [searchTerms, setSearchTerms] = useState<string[]>(
     keywords
@@ -32,6 +31,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
 
   const [searchResults, setSearchResults] = useState<{ message: Message; topic: Topic; content: string }[]>([])
   const [searchStats, setSearchStats] = useState({ count: 0, time: 0 })
+  const [isLoading, setIsLoading] = useState(false)
 
   const removeMarkdown = (text: string) => {
     return text
@@ -46,10 +46,12 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
 
   const onSearch = useCallback(async () => {
     setSearchResults([])
+    setIsLoading(true)
 
     if (keywords.length === 0) {
       setSearchStats({ count: 0, time: 0 })
       setSearchTerms([])
+      setIsLoading(false)
       return
     }
 
@@ -81,6 +83,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       time: (endTime - startTime) / 1000
     })
     setSearchTerms(newSearchTerms)
+    setIsLoading(false)
   }, [keywords, topics])
 
   const highlightText = (text: string) => {
@@ -102,7 +105,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
 
   return (
     <Container ref={containerRef} {...props} onScroll={handleScroll}>
-      <ContainerWrapper>
+      <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {searchResults.length > 0 && (
           <SearchStats>
             Found {searchStats.count} results in {searchStats.time.toFixed(3)} seconds
@@ -114,9 +117,10 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
           pagination={{
             pageSize: 10,
             onChange: () => {
-              setTimeoutTimer('scroll', () => containerRef.current?.scrollTo({ top: 0 }), 0)
+              requestAnimationFrame(() => containerRef.current?.scrollTo({ top: 0 }))
             }
           }}
+          style={{ opacity: isLoading ? 0 : 1 }}
           renderItem={({ message, topic, content }) => (
             <List.Item>
               <Title
@@ -138,23 +142,16 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
           )}
         />
         <div style={{ minHeight: 30 }}></div>
-      </ContainerWrapper>
+      </Spin>
     </Container>
   )
 }
 
 const Container = styled.div`
   width: 100%;
-  padding: 20px;
+  height: 100%;
+  padding: 20px 36px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-`
-
-const ContainerWrapper = styled.div`
-  width: 100%;
-  padding: 0 16px;
   display: flex;
   flex-direction: column;
 `
@@ -166,6 +163,7 @@ const SearchStats = styled.div`
 
 const SearchResultTime = styled.div`
   margin-top: 10px;
+  text-align: right;
 `
 
 export default memo(SearchResults)
