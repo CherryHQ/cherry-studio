@@ -390,7 +390,8 @@
       },
       "warning": {
         "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}"
+        "no_tool": "No matching MCP tool found for {{tool}}",
+        "url_context": "Gemini does not support using url context and MCP tools simultaneously"
       }
     },
     "message": {

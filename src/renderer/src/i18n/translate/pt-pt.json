@@ -390,7 +390,8 @@
       },
       "warning": {
         "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
-        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}"
+        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}",
+        "url_context": "O Gemini não suporta o uso simultâneo de contexto da rede e ferramentas MCP."
       }
     },
     "message": {

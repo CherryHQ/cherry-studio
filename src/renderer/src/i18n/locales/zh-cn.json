@@ -390,7 +390,8 @@
       },
       "warning": {
         "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
-        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}",
+        "url_context": "Gemini 不支持同时使用网页上下文与MCP工具"
       }
     },
     "message": {

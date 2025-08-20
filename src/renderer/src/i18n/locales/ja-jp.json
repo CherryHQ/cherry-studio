@@ -390,7 +390,8 @@
       },
       "warning": {
         "multiple_tools": "複数の一致するMCPツールが存在するため、{{tool}} が選択されました",
-        "no_tool": "必要なMCPツール {{tool}} が見つかりません"
+        "no_tool": "必要なMCPツール {{tool}} が見つかりません",
+        "url_context": "GeminiはURLコンテキストとMCPツールを同時に使用することをサポートしていません"
       }
     },
     "message": {

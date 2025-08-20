@@ -27,11 +27,18 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
     setTimeoutTimer(
       'handleToggle',
       () => {
-        updateAssistant({ ...assistant, enableUrlContext: urlContentNewState })
+        const update = { ...assistant }
+        if (assistant.mcpServers && assistant.mcpServers.length > 0 && urlContentNewState === true) {
+          update.enableUrlContext = false
+          window.message.warning(t('chat.mcp.warning.url_context'))
+        } else {
+          update.enableUrlContext = urlContentNewState
+        }
+        updateAssistant(update)
       },
       100
     )
-  }, [setTimeoutTimer, updateAssistant, assistant, urlContentNewState])
+  }, [setTimeoutTimer, assistant, urlContentNewState, updateAssistant, t])
 
   return (
     <Tooltip placement="top" title={t('chat.input.url_context')} arrow>
