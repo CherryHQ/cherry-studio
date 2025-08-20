@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
-import { documentExts, imageExts, MB } from '@shared/config/constant'
+import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
 import chardet from 'chardet'
 import * as crypto from 'crypto'
@@ -23,7 +23,6 @@ import { PDFDocument } from 'pdf-lib'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
-import { KB } from '@shared/config/constant'
 
 const logger = loggerService.withContext('FileStorage')
 
