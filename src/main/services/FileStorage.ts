@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
+import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding, scanDir } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
 import * as crypto from 'crypto'
@@ -207,7 +207,7 @@ class FileStorage {
     const ext = path.extname(filePath)
     const fileType = getFileType(ext)
 
-    const fileInfo: FileMetadata = {
+    return {
       id: uuidv4(),
       origin_name: path.basename(filePath),
       name: path.basename(filePath),
@@ -218,8 +218,6 @@ class FileStorage {
       type: fileType,
       count: 1
     }
-
-    return fileInfo
   }
 
   // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
@@ -338,7 +336,7 @@ class FileStorage {
 
       await fs.promises.writeFile(destPath, buffer)
 
-      const fileMetadata: FileMetadata = {
+      return {
         id: uuid,
         origin_name: uuid + ext,
         name: uuid + ext,
@@ -349,8 +347,6 @@ class FileStorage {
         type: getFileType(ext),
         count: 1
       }
-
-      return fileMetadata
     } catch (error) {
       logger.error('Failed to save base64 image:', error as Error)
       throw error
@@ -390,7 +386,7 @@ class FileStorage {
 
       const stats = await fs.promises.stat(destPath)
 
-      const fileMetadata: FileMetadata = {
+      return {
         id: uuid,
         origin_name: `pasted_image_${uuid}${ext}`,
         name: uuid + ext,
@@ -401,8 +397,6 @@ class FileStorage {
         type: getFileType(ext),
         count: 1
       }
-
-      return fileMetadata
     } catch (error) {
       logger.error('Failed to save pasted image:', error as Error)
       throw error
@@ -504,6 +498,7 @@ class FileStorage {
 
   /**
    * 通过相对路径打开文件，跨设备时使用
+   * @param _
    * @param file
    */
   public openFileWithRelativePath = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<void> => {
@@ -512,6 +507,27 @@ class FileStorage {
       shell.openPath(filePath).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
     } else {
       logger.warn(`[IPC - Warning] File does not exist: ${filePath}`)
+    }
+  }
+
+  public getDirectoryStructure = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    options: {
+      includeFiles: boolean
+      includeDirectories: boolean
+      fileExtensions: string[]
+      ignoreHiddenFiles: boolean
+      recursive?: boolean
+      maxDepth?: number
+    }
+  ): Promise<FileMetadata[]> => {
+    try {
+      const basePath = dirPath || this.storageDir
+      return await scanDir(basePath, options)
+    } catch (error) {
+      logger.error('Failed to get directory structure:', error as Error)
+      throw error
     }
   }
 
@@ -624,7 +640,7 @@ class FileStorage {
       const stats = await fs.promises.stat(destPath)
       const fileType = getFileType(ext)
 
-      const fileMetadata: FileMetadata = {
+      return {
         id: uuid,
         origin_name: filename,
         name: uuid + ext,
@@ -635,8 +651,6 @@ class FileStorage {
         type: fileType,
         count: 1
       }
-
-      return fileMetadata
     } catch (error) {
       logger.error('Download file error:', error as Error)
       throw error

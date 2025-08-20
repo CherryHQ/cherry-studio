@@ -12,101 +12,67 @@ const NOTES_TREE_ID = 'notes-tree-structure'
 const logger = loggerService.withContext('NotesService')
 
 /**
- * 获取外部文件夹结构
+ * 将外部文件夹中的文件转换为笔记树结构并覆盖
  */
-export async function getExternalNotesTree(
-  folderPath: string,
-  options: {
-    recursive?: boolean
-    fileExtensions?: string[]
-    ignoreHiddenFiles?: boolean
-  } = {}
-): Promise<NotesTreeNode[]> {
+export async function getExternalNotesTree(files: FileMetadata[]): Promise<NotesTreeNode[]> {
   try {
-    const { recursive = true, fileExtensions = ['.md'], ignoreHiddenFiles = true } = options
+    const tree: NotesTreeNode[] = []
+    const folderMap = new Map<string, NotesTreeNode>()
 
-    const directoryStructure = await window.api.file.getDirectoryStructure(folderPath, {
-      recursive,
-      includeFiles: true,
-      includeDirectories: true,
-      fileExtensions
-    })
-
-    if (!directoryStructure || !Array.isArray(directoryStructure)) {
-      logger.error('Failed to get external directory structure')
-      return []
+    // 首先创建所有文件夹节点
+    for (const file of files) {
+      if (file.type === FileTypes.OTHER) {
+        const folderNode: NotesTreeNode = {
+          id: file.id,
+          name: file.name,
+          createdAt: file.created_at,
+          updatedAt: file.created_at,
+          type: 'folder',
+          isExternal: true,
+          externalPath: file.path,
+          children: []
+        }
+        folderMap.set(file.path, folderNode)
+        tree.push(folderNode)
+      }
     }
 
-    const tree = convertToNotesTree(directoryStructure, folderPath, ignoreHiddenFiles)
+    for (const file of files) {
+      if (file.ext === '.md') {
+        const fileNode: NotesTreeNode = {
+          id: file.id,
+          name: file.name,
+          createdAt: file.created_at,
+          updatedAt: file.created_at,
+          type: 'file',
+          isExternal: true,
+          externalPath: file.path
+        }
 
-    logger.debug('External notes tree loaded:', tree)
+        const parentPath = file.path.substring(0, file.path.lastIndexOf('/'))
+        const parentFolder = folderMap.get(parentPath)
+
+        if (parentFolder) {
+          parentFolder.children = parentFolder.children || []
+          parentFolder.children.push(fileNode)
+        } else {
+          tree.push(fileNode)
+        }
+      }
+    }
+
+    // 覆盖现有的笔记树结构
+    logger.debug('Generated external notes tree:', tree)
+    await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
     return tree
   } catch (error) {
-    logger.error('Failed to get external notes tree:', error as Error)
+    logger.error('Failed to generate external notes tree:', error as Error)
     return []
   }
 }
 
 /**
- * 将目录结构转换为笔记树结构
- * @param items 目录项目
- * @param basePath 基础路径
- * @param ignoreHiddenFiles 是否忽略隐藏文件
- * @returns 笔记树结构
- */
-function convertToNotesTree(items: any[], basePath: string, ignoreHiddenFiles: boolean): NotesTreeNode[] {
-  const tree: NotesTreeNode[] = []
-
-  for (const item of items) {
-    if (ignoreHiddenFiles && item.name.startsWith('.')) {
-      continue
-    }
-
-    const folderId = uuidv4()
-    const isDirectory = item.type === 'directory'
-    const node: NotesTreeNode = {
-      id: folderId,
-      name: item.name,
-      type: isDirectory ? 'folder' : 'file',
-      externalPath: item.path,
-      isExternal: true,
-      createdAt: item.createdAt || new Date().toISOString(),
-      updatedAt: item.modifiedAt || new Date().toISOString()
-    }
-
-    node.treePath = getExternalNodePath(item.path, basePath)
-
-    if (isDirectory && item.children && Array.isArray(item.children)) {
-      node.children = convertToNotesTree(item.children, basePath, ignoreHiddenFiles)
-      node.expanded = false
-    }
-
-    tree.push(node)
-  }
-
-  return tree
-}
-
-/**
- * 获取外部节点的树路径
- */
-function getExternalNodePath(fullPath: string, basePath: string): string {
-  const normalizedFullPath = fullPath.replace(/\\/g, '/')
-  const normalizedBasePath = basePath.replace(/\\/g, '/')
-
-  let relativePath = normalizedFullPath
-  if (normalizedFullPath.startsWith(normalizedBasePath)) {
-    relativePath = normalizedFullPath.slice(normalizedBasePath.length)
-  }
-
-  if (!relativePath.startsWith('/')) {
-    relativePath = '/' + relativePath
-  }
-
-  return relativePath
-}
-
-/**
+ * FIXME 需要和内部文件系统区分
  * 获取笔记树结构
  */
 export async function getNotesTree(): Promise<NotesTreeNode[]> {

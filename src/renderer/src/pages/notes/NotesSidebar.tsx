@@ -4,6 +4,7 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { getExternalNotesTree } from '@renderer/services/NotesService'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps, Tooltip } from 'antd'
 import {
@@ -72,10 +73,32 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [sortType, setSortType] = useState<NotesSortType>('sort_a2z')
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
 
-  // FIXME
-  const handleOpenFolder = useCallback(() => {
-    onCreateFolder(t('notes.untitled_folder'))
-  }, [onCreateFolder, t])
+  // FIXME getExternalNotesTree之后需要刷新笔记树
+  const handleOpenFolder = useCallback(async () => {
+    try {
+      const folderPath = await window.api.file.selectFolder()
+      logger.debug(folderPath)
+      if (!folderPath) {
+        return
+      }
+      const externalTree = await window.api.file.getDirectoryStructure(folderPath, {
+        includeFiles: true,
+        includeDirectories: true,
+        fileExtensions: ['.md'],
+        ignoreHiddenFiles: true
+      })
+      getExternalNotesTree(externalTree)
+
+      if (externalTree.length > 0) {
+        window.message.success(t('notes.folder_opened_success'))
+      } else {
+        window.message.info(t('notes.no_markdown_files_found'))
+      }
+    } catch (error) {
+      logger.error('Failed to open external folder:', error as Error)
+      window.message.error(t('notes.folder_open_failed'))
+    }
+  }, [t])
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))

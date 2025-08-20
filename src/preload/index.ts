@@ -175,11 +175,13 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     getDirectoryStructure: (
       dirPath: string,
-      options?: {
+      options: {
+        includeDirectories: boolean
+        fileExtensions: string[]
+        ignoreHiddenFiles: boolean
         recursive?: boolean
         includeFiles?: boolean
-        includeDirectories?: boolean
-        fileExtensions?: string[]
+        maxDepth?: number
       }
     ) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath, options)
   },

@@ -194,3 +194,91 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
   return iconv.decode(data, 'UTF-8')
 }
+
+/**
+ * 递归扫描目录，获取符合条件的文件和目录结构
+ * @param currentPath 当前要扫描的路径
+ * @param options 扫描选项
+ * @param depth 当前扫描深度
+ * @returns 文件元数据数组
+ */
+export async function scanDir(
+  currentPath: string,
+  options: {
+    includeFiles: boolean
+    includeDirectories: boolean
+    fileExtensions: string[]
+    ignoreHiddenFiles: boolean
+    recursive?: boolean
+    maxDepth?: number
+  } = {
+    includeFiles: true,
+    includeDirectories: true,
+    fileExtensions: ['.md'],
+    ignoreHiddenFiles: true
+  },
+  depth: number = 0
+): Promise<FileMetadata[]> {
+  if (options.maxDepth && depth > options.maxDepth) {
+    return []
+  }
+
+  if (!fs.existsSync(currentPath)) {
+    loggerService.withContext('Utils:File').warn(`Dir not exist: ${currentPath}`)
+    return []
+  }
+
+  const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
+  const result: FileMetadata[] = []
+  logger.debug('!!!', { entries, options })
+  for (const entry of entries) {
+    if (options.ignoreHiddenFiles && entry.name.startsWith('.')) {
+      continue
+    }
+
+    const entryPath = path.join(currentPath, entry.name)
+
+    if (entry.isDirectory() && options.includeDirectories) {
+      const stats = await fs.promises.stat(entryPath)
+      const directoryMetadata: FileMetadata = {
+        id: uuidv4(),
+        origin_name: entry.name,
+        name: entry.name,
+        path: entryPath,
+        created_at: stats.birthtime.toISOString(),
+        size: stats.size,
+        ext: '',
+        type: FileTypes.OTHER,
+        count: 1
+      }
+      result.push(directoryMetadata)
+
+      // 如果启用递归选项，递归扫描子目录
+      if (options.recursive) {
+        const children = await scanDir(entryPath, options, depth + 1)
+        result.push(...children)
+      }
+    } else if (entry.isFile() && options.includeFiles) {
+      const ext = path.extname(entry.name).toLowerCase()
+      if (options.fileExtensions.length > 0 && !options.fileExtensions.includes(ext)) {
+        continue
+      }
+
+      const stats = await fs.promises.stat(entryPath)
+      const fileMetadata: FileMetadata = {
+        id: uuidv4(),
+        origin_name: entry.name,
+        name: entry.name,
+        path: entryPath,
+        created_at: stats.birthtime.toISOString(),
+        size: stats.size,
+        ext,
+        type: getFileType(ext),
+        count: 1
+      }
+      result.push(fileMetadata)
+    }
+  }
+
+  return result
+}
