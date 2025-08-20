@@ -389,9 +389,10 @@
         "parse_tool_call": "有効なツール呼び出し形式に変換できません：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。",
         "multiple_tools": "複数の一致するMCPツールが存在するため、{{tool}} が選択されました",
         "no_tool": "必要なMCPツール {{tool}} が見つかりません",
-        "url_context": "GeminiはURLコンテキストとMCPツールを同時に使用することをサポートしていません"
+        "url_context": "Geminiは、URLコンテキストと関数呼び出しを同時に使用することをサポートしていません。"
       }
     },
     "message": {

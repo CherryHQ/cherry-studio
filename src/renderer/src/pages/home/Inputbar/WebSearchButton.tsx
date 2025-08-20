@@ -1,10 +1,13 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isWebSearchModel } from '@renderer/config/models'
+import { isGeminiModel, isWebSearchModel } from '@renderer/config/models'
+import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
@@ -22,6 +25,8 @@ interface Props {
   assistant: Assistant
   ToolbarButton: any
 }
+
+const logger = loggerService.withContext('WebSearchButton')
 
 const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const { t } = useTranslation()
@@ -78,8 +83,25 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       webSearchProviderId: undefined,
       enableWebSearch: !assistant.enableWebSearch
     }
+    const model = assistant.model
+    const provider = getProviderByModel(model)
+    if (!model) {
+      logger.error('Model does not exist.')
+      window.message.error(t('error.model.not_exists'))
+      return
+    }
+    if (
+      isGeminiWebSearchProvider(provider) &&
+      isGeminiModel(model) &&
+      update.enableWebSearch &&
+      assistant.mcpServers &&
+      assistant.mcpServers.length > 0
+    ) {
+      update.enableWebSearch = false
+      window.message.warning(t('chat.mcp.warning.gemini_web_search'))
+    }
     setTimeoutTimer('updateSelectedWebSearchBuiltin', () => updateAssistant(update), 200)
-  }, [assistant, setTimeoutTimer, updateAssistant])
+  }, [assistant, setTimeoutTimer, t, updateAssistant])
 
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)

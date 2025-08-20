@@ -1,6 +1,6 @@
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
-import { isSupportUrlContextProvider } from '@renderer/config/providers'
+import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -145,15 +145,28 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       } else {
         update.mcpServers = [...mcpServers, server]
       }
+
       // only for gemini
-      if (
-        update.mcpServers.length > 0 &&
-        isSupportUrlContextProvider(getProviderByModel(model)) &&
-        isGeminiModel(model) &&
-        assistant.enableUrlContext
-      ) {
-        window.message.warning(t('chat.mcp.warning.url_context'))
-        update.enableUrlContext = false
+      if (update.mcpServers.length > 0 && isGeminiModel(model)) {
+        const provider = getProviderByModel(model)
+        if (
+          isSupportUrlContextProvider(provider) &&
+          assistant.enableUrlContext &&
+          assistant.settings?.toolUseMode === 'function'
+        ) {
+          window.message.warning(t('chat.mcp.warning.url_context'))
+          update.enableUrlContext = false
+        }
+        if (
+          // 非官方 API (openrouter etc.) 可能支持同时启用内置搜索和函数调用
+          // 这里先假设 gemini type 和 vertexai type 不支持
+          isGeminiWebSearchProvider(provider) &&
+          assistant.enableWebSearch &&
+          assistant.settings?.toolUseMode === 'function'
+        ) {
+          window.message.warning(t('chat.mcp.warning.gemini_web_search'))
+          update.enableWebSearch = false
+        }
       }
       updateAssistant(update)
     },

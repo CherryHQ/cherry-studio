@@ -28,7 +28,12 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
       'handleToggle',
       () => {
         const update = { ...assistant }
-        if (assistant.mcpServers && assistant.mcpServers.length > 0 && urlContentNewState === true) {
+        if (
+          assistant.mcpServers &&
+          assistant.mcpServers.length > 0 &&
+          urlContentNewState === true &&
+          assistant.settings?.toolUseMode === 'function'
+        ) {
           update.enableUrlContext = false
           window.message.warning(t('chat.mcp.warning.url_context'))
         } else {

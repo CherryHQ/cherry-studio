@@ -389,9 +389,10 @@
         "parse_tool_call": "無法轉換為有效的工具呼叫格式：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函數呼叫",
         "multiple_tools": "存在多個匹配的MCP工具，已選擇 {{tool}}",
         "no_tool": "未匹配到所需的MCP工具 {{tool}}",
-        "url_context": "Gemini 不支援同時使用網頁上下文與 MCP 工具"
+        "url_context": "Gemini 不支援同時使用網頁內容與函數呼叫"
       }
     },
     "message": {
