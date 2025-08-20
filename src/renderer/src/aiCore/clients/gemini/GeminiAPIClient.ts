@@ -476,7 +476,7 @@ export class GeminiAPIClient extends BaseApiClient<
           }
         }
 
-        if (tools.length === 0) {
+        if (tools.length === 0 || assistant.settings?.toolUseMode !== 'function') {
           if (enableWebSearch) {
             tools.push({
               googleSearch: {}
