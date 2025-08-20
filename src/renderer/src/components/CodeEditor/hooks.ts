@@ -24,6 +24,11 @@ const specialLanguageLoaders: Record<string, () => Promise<Extension>> = {
   dot: async () => {
     const mod = await import('@viz-js/lang-dot')
     return mod.dot()
+  },
+  // @uiw/codemirror-extensions-langs 4.25.1 移除了 mermaid 支持，这里加回来
+  mmd: async () => {
+    const mod = await import('codemirror-lang-mermaid')
+    return mod.mermaid()
   }
 }
 
