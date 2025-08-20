@@ -132,6 +132,19 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       )
     },
     {
+      key: 'builtin',
+      label: (
+        <div
+          style={{ width: '100%', textAlign: 'center' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            setDropdownOpen(false)
+          }}>
+          {t('settings.general.avatar.builtin')}
+        </div>
+      )
+    },
+    {
       key: 'reset',
       label: (
         <div

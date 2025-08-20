@@ -2677,6 +2677,7 @@
         "title": "自动更新"
       },
       "avatar": {
+        "builtin": "内置头像",
         "reset": "重置头像"
       },
       "backup": {

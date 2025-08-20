@@ -2677,6 +2677,7 @@
         "title": "自動更新"
       },
       "avatar": {
+        "builtin": "内蔵アバター",
         "reset": "アバターをリセット"
       },
       "backup": {
