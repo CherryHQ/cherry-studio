@@ -655,6 +655,8 @@
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
+    "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
     "install_bun": "Installer Bun",
     "installing_bun": "Installation en cours...",
@@ -3688,7 +3690,7 @@
         },
         "label": "Méthode de détection automatique",
         "llm": {
-          "tip": "Utiliser un modèle de traduction pour la détection de langue, ce qui consomme peu de jetons. (QwenMT ne prend pas en charge la détection de langue et revient automatiquement au modèle assistant par défaut.)"
+          "tip": "Utilisation d'un modèle rapide pour la détection linguistique, consommant peu de jetons."
         },
         "placeholder": "Sélectionner la méthode de détection automatique",
         "tip": "Méthode utilisée pour la détection automatique de la langue d'entrée"
