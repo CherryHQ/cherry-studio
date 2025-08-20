@@ -689,6 +689,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     for (const fileBlock of fileBlocks) {
       const file = fileBlock.file
       if (!file) {
+        logger.warn(`No file in the file block. Passed.`, { fileBlock })
         continue
       }
 
