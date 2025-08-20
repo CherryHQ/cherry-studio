@@ -10,12 +10,12 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-import { codeTools } from '@shared/config/constant'
 
 // CLI 工具选项
 const CLI_TOOLS = [

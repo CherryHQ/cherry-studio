@@ -7,9 +7,9 @@ import { isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
+import { codeTools } from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
-import { codeTools } from '@shared/config/constant'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')

@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { codeTools } from '@shared/config/constant'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 
 // 常量定义
 const MAX_DIRECTORIES = 10 // 最多保存10个目录
