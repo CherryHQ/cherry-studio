@@ -3,13 +3,14 @@ import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo } from '@renderer
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, memo, startTransition, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface WebSearchButtonRef {
@@ -27,6 +28,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
   const { updateAssistant } = useAssistant(assistant.id)
+  const { setTimeoutTimer } = useTimer()
 
   const enableWebSearch = assistant?.webSearchProviderId || assistant.enableWebSearch
 
@@ -59,22 +61,25 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   const updateSelectedWebSearchProvider = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
-      // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
       const currentWebSearchProviderId = assistant.webSearchProviderId
       const newWebSearchProviderId = currentWebSearchProviderId === providerId ? undefined : providerId
-      startTransition(() => {
-        updateAssistant({ ...assistant, webSearchProviderId: newWebSearchProviderId, enableWebSearch: false })
-      })
+      setTimeoutTimer(
+        'updateSelectedWebSearchProvider',
+        () => updateAssistant({ ...assistant, webSearchProviderId: newWebSearchProviderId, enableWebSearch: false }),
+        200
+      )
     },
-    [assistant, updateAssistant]
+    [assistant, setTimeoutTimer, updateAssistant]
   )
 
   const updateSelectedWebSearchBuiltin = useCallback(async () => {
-    // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-    startTransition(() => {
-      updateAssistant({ ...assistant, webSearchProviderId: undefined, enableWebSearch: !assistant.enableWebSearch })
-    })
-  }, [assistant, updateAssistant])
+    const update = {
+      ...assistant,
+      webSearchProviderId: undefined,
+      enableWebSearch: !assistant.enableWebSearch
+    }
+    setTimeoutTimer('updateSelectedWebSearchBuiltin', () => updateAssistant(update), 200)
+  }, [assistant, setTimeoutTimer, updateAssistant])
 
   const providerItems = useMemo<QuickPanelListItem[]>(() => {
     const isWebSearchModelEnabled = assistant.model && isWebSearchModel(assistant.model)
