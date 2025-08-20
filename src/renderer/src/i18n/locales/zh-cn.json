@@ -2276,8 +2276,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过 Markdown 导出的方式",
-          "title": "使用话题命名模型为导出的消息创建标题"
+          "help": "开启后，使用快速模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
+          "title": "使用快速模型为导出的消息命名标题"
         }
       },
       "minute_interval_one": "{{count}} 分钟",
@@ -3115,7 +3115,6 @@
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "empty": "没有模型",
-      "enable_topic_naming": "话题自动重命名",
       "manage": {
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
@@ -3141,10 +3140,17 @@
       "quick_assistant_default_tag": "默认",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "选择助手",
-      "topic_naming_model": "话题命名模型",
-      "topic_naming_model_description": "自动命名新话题时使用的模型",
-      "topic_naming_model_setting_title": "话题命名模型设置",
-      "topic_naming_prompt": "话题命名提示词",
+      "quick_model": {
+        "description": "执行话题命名、搜索关键字提炼等简单任务时使用的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型设置",
+        "tooltip": "建议选择轻量模型，不建议选择思考模型"
+      },
+      "topic_naming": {
+        "auto": "话题自动重命名",
+        "label": "话题命名",
+        "prompt": "话题命名提示词"
+      },
       "translate_model": "翻译模型",
       "translate_model_description": "翻译服务使用的模型",
       "translate_model_prompt_message": "请输入翻译模型提示词",
@@ -3683,7 +3689,7 @@
         },
         "label": "自动检测方法",
         "llm": {
-          "tip": "使用翻译模型进行语言检测，消耗少量token。（QwenMT不支持进行语言检测，会自动回退到默认助手模型）"
+          "tip": "使用快速模型进行语言检测，消耗少量token。"
         },
         "placeholder": "选择自动检测方法",
         "tip": "自动检测输入语言时使用的方法"
@@ -3696,7 +3702,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMT模型不能用于语言检测",
-        "unknown": "检测到未知语言"
+        "unknown": "检测到未知语言",
+        "update_setting": "设置失败"
       },
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",

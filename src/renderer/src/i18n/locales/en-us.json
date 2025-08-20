@@ -2276,8 +2276,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "When enabled, use topic naming model to create titles for exported messages. This will also affect all Markdown export methods.",
-          "title": "Use topic naming model to create titles for exported messages"
+          "help": "When enabled, use the quick model to name the title for exported messages. This setting also affects all export methods through Markdown.",
+          "title": "Use the quick model to name the title for the exported message"
         }
       },
       "minute_interval_one": "{{count}} minute",
@@ -3115,7 +3115,6 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
-      "enable_topic_naming": "Topic Auto Naming",
       "manage": {
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
@@ -3141,10 +3140,17 @@
       "quick_assistant_default_tag": "Default",
       "quick_assistant_model": "Quick Assistant Model",
       "quick_assistant_selection": "Select Assistant",
-      "topic_naming_model": "Topic Naming Model",
-      "topic_naming_model_description": "Model used when automatically naming a new topic",
-      "topic_naming_model_setting_title": "Topic Naming Model Settings",
-      "topic_naming_prompt": "Topic Naming Prompt",
+      "quick_model": {
+        "description": "Model used for simple tasks such as topic naming and keyword extraction",
+        "label": "Quick Model",
+        "setting_title": "Quick model setup",
+        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+      },
+      "topic_naming": {
+        "auto": "Topic Auto Naming",
+        "label": "Topic naming",
+        "prompt": "Topic Naming Prompt"
+      },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",
       "translate_model_prompt_message": "Please enter the translate model prompt",
@@ -3683,7 +3689,7 @@
         },
         "label": "Automatic detection method",
         "llm": {
-          "tip": "Using a translation model for language detection consumes a small number of tokens. (QwenMT does not support language detection and will automatically fall back to the default assistant model.)"
+          "tip": "Using the quick model for language detection consumes fewer tokens."
         },
         "placeholder": "Select automatic detection method",
         "tip": "Method used when automatically detecting the input language"
@@ -3696,7 +3702,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMT model cannot be used for language detection",
-        "unknown": "Unknown language detected"
+        "unknown": "Unknown language detected",
+        "update_setting": "Setting failed"
       },
       "empty": "The translation result is empty content",
       "failed": "Translation failed",

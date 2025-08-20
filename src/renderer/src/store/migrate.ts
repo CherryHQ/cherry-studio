@@ -2138,6 +2138,16 @@ const migrateConfig = {
   },
   '134': (state: RootState) => {
     try {
+      state.llm.quickModel = state.llm.topicNamingModel
+
+      return state
+    } catch (error) {
+      logger.error('migrate 134 error', error as Error)
+      return state
+    }
+  },
+  '135': (state: RootState) => {
+    try {
       if (!state.assistants.defaultAssistant.settings) {
         state.assistants.defaultAssistant.settings = {
           temperature: DEFAULT_TEMPERATURE,
@@ -2163,6 +2173,7 @@ const migrateConfig = {
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
+// file://./index.ts
 
 const migrate = createMigrate(migrateConfig as any)
 

@@ -20,6 +20,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -87,7 +88,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     enableQuickPanelTriggers,
     enableSpellCheck
   } = useSettings()
-  const [expended, setExpend] = useState(false)
+  const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const textareaRef = useRef<TextAreaRef>(null)
@@ -114,6 +115,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+  const { setTimeoutTimer } = useTimer()
 
   const isVisionSupported = useMemo(
     () =>
@@ -254,14 +256,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       // Clear input
       setText('')
       setFiles([])
-      setTimeout(() => setText(''), 500)
-      setTimeout(() => resizeTextArea(true), 0)
-      setExpend(false)
+      setTimeoutTimer('sendMessage_1', () => setText(''), 500)
+      setTimeoutTimer('sendMessage_2', () => resizeTextArea(true), 0)
+      setExpand(false)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, topic])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, setTimeoutTimer, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -272,13 +274,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setIsTranslating(true)
       const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
       translatedText && setText(translatedText)
-      setTimeout(() => resizeTextArea(), 0)
+      setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
       logger.warn('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, resizeTextArea])
+  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
@@ -396,9 +398,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (expended) {
+    if (expanded) {
       if (event.key === 'Escape') {
-        return onToggleExpended()
+        event.stopPropagation()
+        return onToggleExpanded()
       }
     }
 
@@ -427,10 +430,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             setText(newText)
 
             // set cursor position in the next render cycle
-            setTimeout(() => {
-              textArea.selectionStart = textArea.selectionEnd = start + 1
-              onInput() // trigger resizeTextArea
-            }, 0)
+            setTimeoutTimer(
+              'handleKeyDown',
+              () => {
+                textArea.selectionStart = textArea.selectionEnd = start + 1
+                onInput() // trigger resizeTextArea
+              },
+              0
+            )
           }
         }
       }
@@ -456,20 +463,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     addTopic(topic)
     setActiveTopic(topic)
 
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant, setActiveTopic, setModel])
+    setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
 
   const onQuote = useCallback(
     (text: string) => {
       const quotedText = formatQuotedText(text)
       setText((prevText) => {
         const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-        setTimeout(() => resizeTextArea(), 0)
+        setTimeoutTimer('onQuote', () => resizeTextArea(), 0)
         return newText
       })
       focusTextarea()
     },
-    [resizeTextArea, focusTextarea]
+    [focusTextarea, setTimeoutTimer, resizeTextArea]
   )
 
   const onPause = async () => {
@@ -493,7 +500,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
-  const onInput = () => !expended && resizeTextArea()
+  const onInput = () => !expanded && resizeTextArea()
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -607,7 +614,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onTranslated = (translatedText: string) => {
     setText(translatedText)
-    setTimeout(() => resizeTextArea(), 0)
+    setTimeoutTimer('onTranslated', () => resizeTextArea(), 0)
   }
 
   const handleDragStart = (e: React.MouseEvent) => {
@@ -633,7 +640,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       if (textArea) {
         textArea.style.height = `${newHeight}px`
-        setExpend(newHeight == maxHeightInPixels)
+        setExpand(newHeight == maxHeightInPixels)
         setTextareaHeight(newHeight)
       }
     },
@@ -795,10 +802,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
 
-  const onToggleExpended = () => {
-    const currentlyExpanded = expended || !!textareaHeight
+  const onToggleExpanded = () => {
+    const currentlyExpanded = expanded || !!textareaHeight
     const shouldExpand = !currentlyExpanded
-    setExpend(shouldExpand)
+    setExpand(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (!textArea) return
     if (shouldExpand) {
@@ -818,7 +825,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     focusTextarea()
   }
 
-  const isExpended = expended || !!textareaHeight
+  const isExpanded = expanded || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   if (isMultiSelectMode) {
@@ -899,8 +906,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}
-              isExpended={isExpended}
-              onToggleExpended={onToggleExpended}
+              isExpanded={isExpanded}
+              onToggleExpanded={onToggleExpanded}
               addNewTopic={addNewTopic}
               clearTopic={clearTopic}
               onNewContext={onNewContext}

@@ -5,7 +5,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
 import { Button, Flex, Modal, Radio, Space, Switch, Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
-import { Dispatch, FC, memo, SetStateAction, useEffect, useState } from 'react'
+import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateSettingsPopup from '../settings/TranslateSettingsPopup/TranslateSettingsPopup'
@@ -23,7 +23,7 @@ const TranslateSettings: FC<{
   setBidirectionalPair: (value: [TranslateLanguage, TranslateLanguage]) => void
   translateModel: Model | undefined
   autoDetectionMethod: AutoDetectionMethod
-  setAutoDetectionMethod: Dispatch<SetStateAction<AutoDetectionMethod>>
+  setAutoDetectionMethod: (method: AutoDetectionMethod) => void
 }> = ({
   visible,
   onClose,

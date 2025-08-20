@@ -223,26 +223,26 @@ export class WindowService {
     })
 
     // 添加Escape键退出全屏的支持
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      // 当按下Escape键且窗口处于全屏状态时退出全屏
-      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-        if (mainWindow.isFullScreen()) {
-          // 获取 shortcuts 配置
-          const shortcuts = configManager.getShortcuts()
-          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-          if (exitFullscreenShortcut == undefined) {
-            mainWindow.setFullScreen(false)
-            return
-          }
-          if (exitFullscreenShortcut?.enabled) {
-            event.preventDefault()
-            mainWindow.setFullScreen(false)
-            return
-          }
-        }
-      }
-      return
-    })
+    // mainWindow.webContents.on('before-input-event', (event, input) => {
+    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
+    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+    //     if (mainWindow.isFullScreen()) {
+    //       // 获取 shortcuts 配置
+    //       const shortcuts = configManager.getShortcuts()
+    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+    //       if (exitFullscreenShortcut == undefined) {
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //       if (exitFullscreenShortcut?.enabled) {
+    //         event.preventDefault()
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //     }
+    //   }
+    //   return
+    // })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {

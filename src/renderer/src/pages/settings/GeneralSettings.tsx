@@ -4,6 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
@@ -48,6 +49,7 @@ const GeneralSettings: FC = () => {
   const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
   const { theme } = useTheme()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
+  const { setTimeoutTimer } = useTimer()
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
@@ -171,9 +173,13 @@ const GeneralSettings: FC = () => {
         }
 
         // 重启应用
-        setTimeout(() => {
-          window.api.relaunchApp()
-        }, 500)
+        setTimeoutTimer(
+          'handleHardwareAccelerationChange',
+          () => {
+            window.api.relaunchApp()
+          },
+          500
+        )
       }
     })
   }

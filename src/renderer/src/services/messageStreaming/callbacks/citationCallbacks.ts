@@ -40,7 +40,6 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
           status: MessageBlockStatus.SUCCESS
         }
         blockManager.smartBlockUpdate(citationBlockId, changes, MessageBlockType.CITATION, true)
-        citationBlockId = null
       } else {
         logger.error('[onExternalToolComplete] citationBlockId is null. Cannot update.')
       }
@@ -121,6 +120,9 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
     },
 
     // 暴露给外部的方法，用于textCallbacks中获取citationBlockId
-    getCitationBlockId: () => citationBlockId
+    getCitationBlockId: () => citationBlockId,
+    setCitationBlockId: (id: string | null) => {
+      citationBlockId = id
+    }
   }
 }
