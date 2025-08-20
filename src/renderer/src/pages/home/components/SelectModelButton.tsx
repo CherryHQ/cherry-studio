@@ -7,7 +7,7 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { Assistant } from '@renderer/types'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -18,17 +18,15 @@ interface Props {
 const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { model, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
-
-  if (isLocalAi) {
-    return null
-  }
+  const timerRef = useRef<NodeJS.Timeout>(undefined)
 
   const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
     const selectedModel = await SelectModelPopup.show({ model })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
-      setTimeout(() => {
+      clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
         const enabledWebSearch = isWebSearchModel(selectedModel)
         updateAssistant({
           ...assistant,
@@ -37,6 +35,16 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
         })
       }, 200)
     }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  if (isLocalAi) {
+    return null
   }
 
   const providerName = getProviderName(model?.provider)

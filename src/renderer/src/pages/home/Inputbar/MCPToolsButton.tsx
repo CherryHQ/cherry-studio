@@ -1,6 +1,7 @@
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { Form, Input, Tooltip } from 'antd'
@@ -116,6 +117,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   const [form] = Form.useForm()
 
   const { updateAssistant, assistant } = useAssistant(props.assistant.id)
+  const { setTimeoutTimer } = useTimer()
 
   // 使用 useRef 存储不需要触发重渲染的值
   const isMountedRef = useRef(true)
@@ -154,14 +156,18 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
   const updateMcpEnabled = useCallback(
     (enabled: boolean) => {
-      setTimeout(() => {
-        updateAssistant({
-          ...assistant,
-          mcpServers: enabled ? assistant.mcpServers || [] : []
-        })
-      }, 200)
+      setTimeoutTimer(
+        'updateMcpEnabled',
+        () => {
+          updateAssistant({
+            ...assistant,
+            mcpServers: enabled ? assistant.mcpServers || [] : []
+          })
+        },
+        200
+      )
     },
-    [assistant, updateAssistant]
+    [assistant, setTimeoutTimer, updateAssistant]
   )
 
   const menuItems = useMemo(() => {

@@ -4,12 +4,14 @@ import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useState } from 'react'
@@ -18,9 +20,10 @@ import styled from 'styled-components'
 
 // CLI 工具选项
 const CLI_TOOLS = [
-  { value: 'qwen-code', label: 'Qwen Code' },
-  { value: 'claude-code', label: 'Claude Code' },
-  { value: 'gemini-cli', label: 'Gemini CLI' }
+  { value: codeTools.qwenCode, label: 'Qwen Code' },
+  { value: codeTools.claudeCode, label: 'Claude Code' },
+  { value: codeTools.geminiCli, label: 'Gemini CLI' },
+  { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
 ]
 
 const SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
@@ -46,6 +49,7 @@ const CodeToolsPage: FC = () => {
     removeDir,
     selectFolder
   } = useCodeTools()
+  const { setTimeoutTimer } = useTimer()
 
   // 状态管理
   const [isLaunching, setIsLaunching] = useState(false)
@@ -53,7 +57,7 @@ const CodeToolsPage: FC = () => {
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
 
   // 处理 CLI 工具选择
-  const handleCliToolChange = (value: string) => {
+  const handleCliToolChange = (value: codeTools) => {
     setCliTool(value)
     // 不再清空模型选择，因为每个工具都会记住自己的模型
   }
@@ -79,9 +83,9 @@ const CodeToolsPage: FC = () => {
   )
 
   const availableProviders =
-    selectedCliTool === 'claude-code'
+    selectedCliTool === codeTools.claudeCode
       ? claudeProviders
-      : selectedCliTool === 'gemini-cli'
+      : selectedCliTool === codeTools.geminiCli
         ? geminiProviders
         : openAiProviders
 
@@ -157,7 +161,7 @@ const CodeToolsPage: FC = () => {
     } finally {
       setIsInstallingBun(false)
       // 重新检查安装状态
-      setTimeout(checkBunInstallation, 1000)
+      setTimeoutTimer('handleInstallBun', checkBunInstallation, 1000)
     }
   }
 
@@ -194,7 +198,7 @@ const CodeToolsPage: FC = () => {
     const apiKey = await aiProvider.getApiKey()
 
     let env: Record<string, string> = {}
-    if (selectedCliTool === 'claude-code') {
+    if (selectedCliTool === codeTools.claudeCode) {
       env = {
         ANTHROPIC_API_KEY: apiKey,
         ANTHROPIC_BASE_URL: modelProvider.apiHost,
@@ -202,7 +206,7 @@ const CodeToolsPage: FC = () => {
       }
     }
 
-    if (selectedCliTool === 'gemini-cli') {
+    if (selectedCliTool === codeTools.geminiCli) {
       const apiSuffix = modelProvider.id === 'aihubmix' ? '/gemini' : ''
       const apiBaseUrl = modelProvider.apiHost + apiSuffix
       env = {
@@ -213,7 +217,7 @@ const CodeToolsPage: FC = () => {
       }
     }
 
-    if (selectedCliTool === 'qwen-code') {
+    if (selectedCliTool === codeTools.qwenCode || selectedCliTool === codeTools.openaiCodex) {
       env = {
         OPENAI_API_KEY: apiKey,
         OPENAI_BASE_URL: baseUrl,

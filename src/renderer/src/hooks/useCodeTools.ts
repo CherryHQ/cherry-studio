@@ -11,6 +11,7 @@ import {
   setSelectedModel
 } from '@renderer/store/codeTools'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 import { useCallback } from 'react'
 
 export const useCodeTools = () => {
@@ -20,7 +21,7 @@ export const useCodeTools = () => {
 
   // 设置选择的 CLI 工具
   const setCliTool = useCallback(
-    (tool: string) => {
+    (tool: codeTools) => {
       dispatch(setSelectedCliTool(tool))
     },
     [dispatch]

@@ -65,8 +65,7 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getQuickModel,
-  getTranslateModel
+  getQuickModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
@@ -621,14 +620,13 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
   const listLang = translateLanguageOptions.map((item) => item.langCode)
   const listLangText = JSON.stringify(listLang)
 
-  let model = getTranslateModel()
+  const model = getQuickModel() || getDefaultModel()
   if (!model) {
     throw new Error(i18n.t('error.model.not_exists'))
   }
 
   if (isQwenMTModel(model)) {
-    logger.info('QwenMT cannot be used for language detection. Fallback to default model.')
-    model = getDefaultModel()
+    logger.info('QwenMT cannot be used for language detection.')
     if (isQwenMTModel(model)) {
       throw new Error(i18n.t('translate.error.detect.qwen_mt'))
     }
