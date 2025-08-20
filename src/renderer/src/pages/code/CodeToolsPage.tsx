@@ -4,6 +4,7 @@ import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -48,6 +49,7 @@ const CodeToolsPage: FC = () => {
     removeDir,
     selectFolder
   } = useCodeTools()
+  const { setTimeoutTimer } = useTimer()
 
   // 状态管理
   const [isLaunching, setIsLaunching] = useState(false)
@@ -159,7 +161,7 @@ const CodeToolsPage: FC = () => {
     } finally {
       setIsInstallingBun(false)
       // 重新检查安装状态
-      setTimeout(checkBunInstallation, 1000)
+      setTimeoutTimer('handleInstallBun', checkBunInstallation, 1000)
     }
   }
 
