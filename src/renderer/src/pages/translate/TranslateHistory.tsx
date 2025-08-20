@@ -1,14 +1,16 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { HStack } from '@renderer/components/Layout'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { clearHistory, deleteHistory } from '@renderer/services/TranslateService'
 import { TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { Button, Drawer, Dropdown, Empty, Flex, Popconfirm } from 'antd'
+import { Button, Drawer, Dropdown, Empty, Flex, Input, InputRef, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
-import { FC, useMemo } from 'react'
+import { SearchIcon } from 'lucide-react'
+import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -30,6 +32,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const { t } = useTranslation()
   const { getLanguageByLangcode } = useTranslate()
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
+  const inputRef = useRef<InputRef>(null)
+  const [search, setSearch] = useState('')
 
   const translateHistory: DisplayedTranslateHistory[] = useMemo(() => {
     if (!_translateHistory) return []
@@ -40,6 +44,30 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       _targetLanguage: getLanguageByLangcode(item.targetLanguage)
     }))
   }, [_translateHistory, getLanguageByLangcode])
+
+  const SearchBar = useCallback(() => {
+    return (
+      <HStack style={{ padding: '0 12px', borderBottom: '1px solid var(--ant-color-split)' }}>
+        <Input
+          prefix={
+            <IconWrapper>
+              <SearchIcon size={18} />
+            </IconWrapper>
+          }
+          ref={inputRef}
+          placeholder={t('translate.history.search.placeholder')}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          allowClear
+          autoFocus
+          spellCheck={false}
+          style={{ paddingLeft: 0, height: '3em' }}
+          variant="borderless"
+          size="middle"
+        />
+      </HStack>
+    )
+  }, [search, t])
 
   return (
     <Drawer
@@ -71,6 +99,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
         }
       }}>
       <HistoryContainer>
+        <SearchBar />
         {translateHistory && translateHistory.length ? (
           <HistoryList>
             <DynamicVirtualList list={translateHistory} estimateSize={() => ITEM_HEIGHT}>
@@ -190,6 +219,16 @@ const HistoryListItemDate = styled.div`
 const HistoryListItemLanguage = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
+`
+
+const IconWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 30px;
+  width: 30px;
+  border-radius: 15px;
+  background-color: var(--color-background-soft);
 `
 
 export default TranslateHistoryList
