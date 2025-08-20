@@ -57,6 +57,7 @@ import {
   isSystemProvider,
   OpenAIServiceTiers,
   Provider,
+  ProviderType,
   SystemProvider,
   SystemProviderId
 } from '@renderer/types'
@@ -1299,4 +1300,10 @@ export const isSupportServiceTierProvider = (provider: Provider) => {
     provider.apiOptions?.isSupportServiceTier === true ||
     (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
+}
+
+const SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES = ['gemini', 'vertexai'] as const satisfies ProviderType[]
+
+export const isSupportUrlContextProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
 }
