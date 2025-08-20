@@ -1,6 +1,8 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { isGenerateImageModel } from '@renderer/config/models'
+import { isSupportUrlContextProvider } from '@renderer/config/providers'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
@@ -346,7 +348,7 @@ const InputbarTools = ({
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
-        condition: model.id.toLowerCase().includes('gemini')
+        condition: model.id.toLowerCase().includes('gemini') && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
         key: 'knowledge_base',
