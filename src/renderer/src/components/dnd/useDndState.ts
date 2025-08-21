@@ -12,7 +12,7 @@ interface DndState {
 }
 
 /**
- * 提供 dnd-kit 的拖拽状态管理，作为 DraggableList 的 onDragStart/onDragEnd 回调的替代方案。
+ * 提供 dnd-kit 的全局拖拽状态管理
  *
  * @returns 当前拖拽状态信息
  */

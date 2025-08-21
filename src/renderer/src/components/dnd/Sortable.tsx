@@ -1,9 +1,11 @@
 import {
+  Active,
   defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
   DropAnimation,
   KeyboardSensor,
+  Over,
   PointerSensor,
   TouchSensor,
   UniqueIdentifier,
@@ -25,14 +27,27 @@ import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
 
 interface SortableProps<T> {
+  /** Array of sortable items */
   items: T[]
+  /** Function or key to get unique identifier for each item */
   itemKey: keyof T | ((item: T) => string | number)
+  /** Callback when sorting is complete, receives old and new indices */
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
+  /** Callback when drag starts, will be passed to dnd-kit's onDragStart */
+  onDragStart?: (event: { active: Active }) => void
+  /** Callback when drag ends, will be passed to dnd-kit's onDragEnd */
+  onDragEnd?: (event: { over: Over }) => void
+  /** Function to render individual item, receives item data and drag state */
   renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
+  /** Layout type - 'list' for vertical/horizontal list, 'grid' for grid layout */
   layout?: 'list' | 'grid'
+  /** Whether sorting is horizontal */
   horizontal?: boolean
+  /** Container class name */
   className?: string
+  /** Whether to use drag overlay */
   useDragOverlay?: boolean
+  /** Drop animation configuration */
   dropAnimation?: DropAnimation
 }
 
@@ -50,6 +65,8 @@ function Sortable<T>({
   items,
   itemKey,
   onSortEnd,
+  onDragStart: customOnDragStart,
+  onDragEnd: customOnDragEnd,
   renderItem,
   layout = 'list',
   horizontal = false,
@@ -79,24 +96,18 @@ function Sortable<T>({
     [itemKey]
   )
 
-  const itemIds = useMemo(() => {
-    return items.map(getId)
-  }, [items, getId])
+  const itemIds = useMemo(() => items.map(getId), [items, getId])
 
   const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
 
-  const activeItem = activeId
-    ? items.find((item) => {
-        const id = typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as string | number)
-        return id === activeId
-      })
-    : null
+  const activeItem = activeId ? items.find((item) => getId(item) === activeId) : null
 
   const getIndex = (id: UniqueIdentifier) => itemIds.indexOf(id)
 
   const activeIndex = activeId ? getIndex(activeId) : -1
 
   const handleDragStart = ({ active }) => {
+    customOnDragStart?.({ active })
     if (active) {
       setActiveId(active.id)
     }
@@ -105,6 +116,7 @@ function Sortable<T>({
   const handleDragEnd = ({ over }) => {
     setActiveId(null)
 
+    customOnDragEnd?.({ over })
     if (over) {
       const overIndex = getIndex(over.id)
       if (activeIndex !== overIndex) {
