@@ -1,6 +1,7 @@
 import { RightOutlined } from '@ant-design/icons'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
@@ -72,7 +73,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   // 跟踪上一次的搜索文本和符号，用于判断是否需要重置index
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
-
+  const { setTimeoutTimer } = useTimer()
   // 处理搜索，过滤列表
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
@@ -166,14 +167,18 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         newText = inputText.slice(0, start) + inputText.slice(end)
         setInputText(newText)
 
-        setTimeout(() => {
-          textArea.focus()
-          textArea.setSelectionRange(start, start)
-        }, 0)
+        setTimeoutTimer(
+          'quickpanel_focus',
+          () => {
+            textArea.focus()
+            textArea.setSelectionRange(start, start)
+          },
+          0
+        )
       }
       setSearchText('')
     },
-    [setInputText]
+    [setInputText, setTimeoutTimer]
   )
 
   const handleClose = useCallback(
@@ -308,9 +313,13 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
       setSearchTextDebounced.cancel()
-      setTimeout(() => {
-        setSearchText('')
-      }, 200) // 等待面板关闭动画结束后，再清空搜索词
+      setTimeoutTimer(
+        'quickpanel_clear_search',
+        () => {
+          setSearchText('')
+        },
+        200
+      ) // 等待面板关闭动画结束后，再清空搜索词
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ctx.isVisible])

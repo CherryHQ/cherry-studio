@@ -6,6 +6,7 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelUniqId } from '@renderer/services/ModelService'
@@ -71,6 +72,7 @@ const MessageItem: FC<Props> = ({
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
   const { editingMessageId, stopEditing } = useMessageEditing()
+  const { setTimeoutTimer } = useTimer()
   const isEditing = editingMessageId === message.id
 
   useEffect(() => {
@@ -119,18 +121,31 @@ const MessageItem: FC<Props> = ({
   const isAssistantMessage = message.role === 'assistant'
   const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
 
-  const messageHighlightHandler = useCallback((highlight: boolean = true) => {
-    if (messageContainerRef.current) {
-      messageContainerRef.current.scrollIntoView({ behavior: 'smooth' })
-      if (highlight) {
-        setTimeout(() => {
-          const classList = messageContainerRef.current?.classList
-          classList?.add('message-highlight')
-          setTimeout(() => classList?.remove('message-highlight'), 2500)
-        }, 500)
+  const messageHighlightHandler = useCallback(
+    (highlight: boolean = true) => {
+      if (messageContainerRef.current) {
+        messageContainerRef.current.scrollIntoView({ behavior: 'smooth' })
+        if (highlight) {
+          setTimeoutTimer(
+            'messageHighlightHandler',
+            () => {
+              const classList = messageContainerRef.current?.classList
+              classList?.add('animation-locate-highlight')
+
+              const handleAnimationEnd = () => {
+                classList?.remove('animation-locate-highlight')
+                messageContainerRef.current?.removeEventListener('animationend', handleAnimationEnd)
+              }
+
+              messageContainerRef.current?.addEventListener('animationend', handleAnimationEnd)
+            },
+            500
+          )
+        }
       }
-    }
-  }, [])
+    },
+    [setTimeoutTimer]
+  )
 
   useEffect(() => {
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, messageHighlightHandler)]
@@ -233,9 +248,6 @@ const MessageContainer = styled.div`
   padding: 10px;
   padding-bottom: 0;
   border-radius: 10px;
-  &.message-highlight {
-    background-color: var(--color-primary-mute);
-  }
   .menubar {
     opacity: 0;
     transition: opacity 0.2s ease;

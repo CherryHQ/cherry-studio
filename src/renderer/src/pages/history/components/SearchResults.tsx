@@ -1,5 +1,6 @@
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
@@ -18,6 +19,7 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 
 const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
+  const { setTimeoutTimer } = useTimer()
 
   const [searchTerms, setSearchTerms] = useState<string[]>(
     keywords
@@ -112,7 +114,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
           pagination={{
             pageSize: 10,
             onChange: () => {
-              setTimeout(() => containerRef.current?.scrollTo({ top: 0 }), 0)
+              setTimeoutTimer('scroll', () => containerRef.current?.scrollTo({ top: 0 }), 0)
             }
           }}
           renderItem={({ message, topic, content }) => (
