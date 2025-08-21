@@ -78,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }
 
   const getInitials = () => {
-    return name.charAt(0).toUpperCase() || 'P'
+    return name.charAt(0) || 'P'
   }
 
   const items = [
