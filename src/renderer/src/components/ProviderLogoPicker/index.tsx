@@ -10,8 +10,8 @@ interface Props {
 }
 
 const Container = styled.div`
-  width: 400px;
-  max-height: 400px;
+  width: 350px;
+  max-height: 300px;
   display: flex;
   flex-direction: column;
   padding: 12px;
@@ -25,7 +25,7 @@ const SearchContainer = styled.div`
 
 const LogoGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   overflow-y: auto;
   flex: 1;
