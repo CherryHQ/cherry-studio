@@ -3010,13 +3010,13 @@ export function isMandatoryWebSearchModel(model: Model): boolean {
   }
 
   const provider = getProviderByModel(model)
+  const modelId = getLowerBaseModelName(model.id)
 
-  if (provider.id !== 'perplexity') {
-    return false
+  if (provider.id === 'perplexity') {
+    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
-  const modelId = getLowerBaseModelName(model.id)
-  return PERPLEXITY_SEARCH_MODELS.includes(modelId)
+  return false
 }
 
 export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
