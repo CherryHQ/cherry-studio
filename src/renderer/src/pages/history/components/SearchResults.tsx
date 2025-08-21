@@ -6,7 +6,7 @@ import { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { List, Spin, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { FC, memo, useCallback, useEffect, useState } from 'react'
+import { FC, memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
@@ -26,6 +26,7 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 
 const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
+  const observerRef = useRef<MutationObserver | null>(null)
 
   const [searchTerms, setSearchTerms] = useState<string[]>(
     keywords
@@ -117,6 +118,21 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     onSearch()
   }, [onSearch])
 
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    observerRef.current = new MutationObserver(() => {
+      containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+
+    observerRef.current.observe(containerRef.current, {
+      childList: true,
+      subtree: true
+    })
+
+    return () => observerRef.current?.disconnect()
+  }, [containerRef])
+
   return (
     <Container ref={containerRef} {...props} onScroll={handleScroll}>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
@@ -130,12 +146,9 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
           dataSource={searchResults}
           pagination={{
             pageSize: 10,
-            hideOnSinglePage: true,
-            onChange: () => {
-              requestAnimationFrame(() => containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }))
-            }
+            hideOnSinglePage: true
           }}
-          style={{ opacity: isLoading ? 0 : 1, overflowY: 'visible' }}
+          style={{ opacity: isLoading ? 0 : 1 }}
           renderItem={({ message, topic, content }) => (
             <List.Item>
               <Title
