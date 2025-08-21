@@ -385,8 +385,6 @@ export async function updateNote(node: NotesTreeNode, content: string): Promise<
         size: content.length,
         count: fileMetadata.count + 1
       })
-    } else {
-      throw new Error('Invalid note node: missing id or externalPath')
     }
     const tree = await getNotesTree()
     const targetNode = findNodeInTree(tree, node.id)
@@ -574,6 +572,56 @@ export async function moveNode(
       return false
     }
 
+    if (sourceNode.isExternal && sourceNode.externalPath) {
+      let targetPath = ''
+      if (position === 'inside' && targetNode.isExternal && targetNode.externalPath) {
+        // 目标是文件夹内部
+        if (targetNode.type === 'folder') {
+          targetPath = targetNode.externalPath
+        } else {
+          logger.error('Cannot move node inside a file node')
+          return false
+        }
+      } else {
+        const targetParent = findParentNode(tree, targetNodeId)
+        if (targetParent && targetParent.isExternal && targetParent.externalPath) {
+          targetPath = targetParent.externalPath
+        } else if (!targetParent && targetNode.isExternal) {
+          // 目标节点在根级别，取其所在目录
+          const pathParts = targetNode.externalPath!.split('/')
+          pathParts.pop() // 移除最后一个部分（文件名或文件夹名）
+          targetPath = pathParts.join('/')
+        } else {
+          logger.error('Cannot determine target path for external file move')
+          return false
+        }
+      }
+
+      // 构建新的文件路径
+      const sourceName = sourceNode.externalPath!.split('/').pop()!
+      const newPath = `${targetPath}/${sourceName}`
+
+      // 检查路径是否相同，避免不必要的移动
+      if (sourceNode.externalPath === newPath) {
+        logger.debug('Source and target paths are the same, skipping file system operation')
+      } else {
+        try {
+          // 移动文件或文件夹
+          if (sourceNode.type === 'folder') {
+            await window.api.file.moveDir(sourceNode.externalPath, newPath)
+          } else {
+            await window.api.file.move(sourceNode.externalPath, newPath)
+          }
+          // 更新节点的外部路径
+          sourceNode.externalPath = newPath
+          logger.debug(`Moved external ${sourceNode.type} to: ${newPath}`)
+        } catch (error) {
+          logger.error(`Failed to move external ${sourceNode.type}:`, error as Error)
+          return false
+        }
+      }
+    }
+
     // 首先从原位置移除节点
     removeNodeFromTree(tree, sourceNodeId)
 
@@ -585,8 +633,8 @@ export async function moveNode(
       targetNode.children.push(sourceNode)
       targetNode.expanded = true
 
-      // 更新节点路径（如果是文件类型）
-      if (sourceNode.type === 'file') {
+      // 更新节点路径（如果是内部文件类型）
+      if (sourceNode.type === 'file' && !sourceNode.isExternal) {
         sourceNode.treePath = getNodePath(sourceNode.name, targetNode.id)
       }
     } else {
@@ -604,8 +652,8 @@ export async function moveNode(
       const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
       targetList.splice(insertIndex, 0, sourceNode)
 
-      // 更新节点路径（如果是文件类型）
-      if (sourceNode.type === 'file') {
+      // 更新节点路径（如果是内部文件类型）
+      if (sourceNode.type === 'file' && !sourceNode.isExternal) {
         sourceNode.treePath = getNodePath(sourceNode.name, targetParent?.id)
       }
     }

@@ -251,6 +251,48 @@ class FileStorage {
     await fs.promises.rm(dirPath, { recursive: true })
   }
 
+  public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`源文件不存在: ${filePath}`)
+      }
+
+      // 确保目标目录存在
+      const destDir = path.dirname(newPath)
+      if (!fs.existsSync(destDir)) {
+        await fs.promises.mkdir(destDir, { recursive: true })
+      }
+
+      // 移动文件
+      await fs.promises.rename(filePath, newPath)
+      logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
+    } catch (error) {
+      logger.error('Move file failed:', error as Error)
+      throw error
+    }
+  }
+
+  public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(dirPath)) {
+        throw new Error(`源目录不存在: ${dirPath}`)
+      }
+
+      // 确保目标父目录存在
+      const parentDir = path.dirname(newDirPath)
+      if (!fs.existsSync(parentDir)) {
+        await fs.promises.mkdir(parentDir, { recursive: true })
+      }
+
+      // 移动目录
+      await fs.promises.rename(dirPath, newDirPath)
+      logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
+    } catch (error) {
+      logger.error('Move directory failed:', error as Error)
+      throw error
+    }
+  }
+
   public readFile = async (
     _: Electron.IpcMainInvokeEvent,
     id: string,
