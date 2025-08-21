@@ -61,6 +61,30 @@ const dropAnimationConfig: DropAnimation = {
   })
 }
 
+const PORTAL_NO_DND_SELECTORS = ['.ant-tooltip', '.ant-dropdown', '.ant-modal'].join(',')
+
+/**
+ * Prevent drag on elements with specific classes or data-no-dnd attribute
+ */
+export class CustomPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: 'onPointerDown',
+      handler: ({ nativeEvent: event }) => {
+        let target = event.target as HTMLElement
+
+        while (target) {
+          if (target.closest(PORTAL_NO_DND_SELECTORS) || target.dataset?.noDnd) {
+            return false
+          }
+          target = target.parentElement as HTMLElement
+        }
+        return true
+      }
+    }
+  ] as (typeof PointerSensor)['activators']
+}
+
 function Sortable<T>({
   items,
   itemKey,
@@ -75,7 +99,7 @@ function Sortable<T>({
   dropAnimation = dropAnimationConfig
 }: SortableProps<T>) {
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(CustomPointerSensor, {
       activationConstraint: {
         distance: 8
       }
