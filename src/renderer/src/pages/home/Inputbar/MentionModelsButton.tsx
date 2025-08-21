@@ -53,6 +53,39 @@ const MentionModelsButton: FC<Props> = ({
     undefined
   )
 
+  // 提取的通用函数：删除 @ 符号和相关文本
+  const removeAtSymbolAndText = useCallback(
+    (currentText: string, position: number, searchText?: string) => {
+      // 验证位置是否是 @ 符号
+      if (currentText[position] !== '@') {
+        return currentText
+      }
+
+      let endPos: number
+      if (searchText !== undefined) {
+        // 精确删除模式：使用提供的 searchText
+        const deleteLength = 1 + searchText.length
+        const expectedText = '@' + searchText
+        const actualText = currentText.slice(position, position + deleteLength)
+
+        if (actualText !== expectedText) {
+          // 如果实际文本不匹配，只删除 @ 字符
+          return currentText.slice(0, position) + currentText.slice(position + 1)
+        }
+        endPos = position + deleteLength
+      } else {
+        // 自动查找模式：找到下一个空格或换行
+        endPos = position + 1
+        while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
+          endPos++
+        }
+      }
+
+      return currentText.slice(0, position) + currentText.slice(endPos)
+    },
+    []
+  )
+
   const pinnedModels = useLiveQuery(
     async () => {
       const setting = await db.settings.get('pinned:models')
@@ -152,13 +185,8 @@ const MentionModelsButton: FC<Props> = ({
         if (triggerInfoRef.current?.type === 'input' && triggerInfoRef.current?.position !== undefined) {
           setText((currentText) => {
             const position = triggerInfoRef.current!.position!
-            // 从 @ 位置开始，找到下一个空格或字符串结尾
-            let endPos = position + 1
-            while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
-              endPos++
-            }
-            // 删除 @ 符号和搜索文本
-            return currentText.slice(0, position) + currentText.slice(endPos)
+            // 使用通用函数，不传 searchText 参数（自动查找模式）
+            return removeAtSymbolAndText(currentText, position)
           })
         }
 
@@ -177,7 +205,8 @@ const MentionModelsButton: FC<Props> = ({
     navigate,
     quickPanel,
     onClearMentionModels,
-    setText
+    setText,
+    removeAtSymbolAndText
   ])
 
   const openQuickPanel = useCallback(
@@ -205,28 +234,9 @@ const MentionModelsButton: FC<Props> = ({
               closeTriggerInfo?.type === 'input' &&
               closeTriggerInfo?.position !== undefined
             ) {
-              // 使用React的setText来更新状态
+              // 使用通用函数，传入 searchText 参数（精确删除模式）
               setText((currentText) => {
-                const position = closeTriggerInfo.position!
-                // 验证位置的字符是否仍是 @
-                if (currentText[position] !== '@') {
-                  return currentText
-                }
-
-                // 计算删除范围：@ + searchText
-                const deleteLength = 1 + (searchText?.length || 0)
-
-                // 验证要删除的内容是否匹配预期
-                const expectedText = '@' + (searchText || '')
-                const actualText = currentText.slice(position, position + deleteLength)
-
-                if (actualText !== expectedText) {
-                  // 如果实际文本不匹配，只删除 @ 字符
-                  return currentText.slice(0, position) + currentText.slice(position + 1)
-                }
-
-                // 删除 @ 和搜索文本
-                return currentText.slice(0, position) + currentText.slice(position + deleteLength)
+                return removeAtSymbolAndText(currentText, closeTriggerInfo.position!, searchText || '')
               })
             }
           }
@@ -235,7 +245,7 @@ const MentionModelsButton: FC<Props> = ({
         }
       })
     },
-    [modelItems, quickPanel, t, setText]
+    [modelItems, quickPanel, t, setText, removeAtSymbolAndText]
   )
 
   const handleOpenQuickPanel = useCallback(() => {
