@@ -5,6 +5,7 @@ import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { t } from 'i18next'
+import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
@@ -62,18 +63,28 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const searchText = useDeferredValue(_searchText)
   const searchTextRef = useRef('')
 
+  // 缓存：按 item 缓存拼音文本，避免重复转换
+  const pinyinCacheRef = useRef<WeakMap<QuickPanelListItem, string>>(new WeakMap())
+
+  // 轻量防抖：减少高频输入时的过滤调用
+  const setSearchTextDebounced = useMemo(() => debounce((val: string) => setSearchText(val), 50), [])
+
   // 跟踪上一次的搜索文本和符号，用于判断是否需要重置index
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
 
-  // 无匹配项自动关闭的定时器
-  const noMatchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-
   // 处理搜索，过滤列表
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
+    const _searchText = searchText.replace(/^[/@]/, '')
+    const lowerSearchText = _searchText.toLowerCase()
+    const fuzzyPattern = lowerSearchText
+      .split('')
+      .map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.*')
+    const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
+
     const newList = ctx.list?.filter((item) => {
-      const _searchText = searchText.replace(/^[/@]/, '')
       if (!_searchText) return true
 
       let filterText = item.filterText || ''
@@ -85,29 +96,24 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
 
       const lowerFilterText = filterText.toLowerCase()
-      const lowerSearchText = _searchText.toLowerCase()
 
       if (lowerFilterText.includes(lowerSearchText)) {
         return true
       }
 
-      const pattern = lowerSearchText
-        .split('')
-        .map((char) => {
-          return char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        })
-        .join('.*')
       if (tinyPinyin.isSupported() && /[\u4e00-\u9fa5]/.test(filterText)) {
         try {
-          const pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
-          const regex = new RegExp(pattern, 'ig')
-          return regex.test(pinyinText)
+          let pinyinText = pinyinCacheRef.current.get(item)
+          if (!pinyinText) {
+            pinyinText = tinyPinyin.convertToPinyin(filterText, '', true).toLowerCase()
+            pinyinCacheRef.current.set(item, pinyinText)
+          }
+          return fuzzyRegex.test(pinyinText)
         } catch (error) {
           return true
         }
       } else {
-        const regex = new RegExp(pattern, 'ig')
-        return regex.test(filterText.toLowerCase())
+        return fuzzyRegex.test(filterText.toLowerCase())
       }
     })
 
@@ -136,38 +142,6 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const canForwardAndBackward = useMemo(() => {
     return list.some((item) => item.isMenu) || historyPanel.length > 0
   }, [list, historyPanel])
-
-  // 智能关闭逻辑：当有搜索文本但无匹配项时，延迟关闭面板
-  useEffect(() => {
-    const _searchText = searchText.replace(/^[/@]/, '')
-
-    // 清除之前的定时器（无论面板是否可见都要清理）
-    if (noMatchTimeoutRef.current) {
-      clearTimeout(noMatchTimeoutRef.current)
-      noMatchTimeoutRef.current = null
-    }
-
-    // 面板不可见时不设置新定时器
-    if (!ctx.isVisible) {
-      return
-    }
-
-    // 只有在有搜索文本但无匹配项时才设置延迟关闭
-    if (_searchText && _searchText.length > 0 && list.length === 0) {
-      noMatchTimeoutRef.current = setTimeout(() => {
-        ctx.close('no-matches')
-      }, 300)
-    }
-
-    // 清理函数
-    return () => {
-      if (noMatchTimeoutRef.current) {
-        clearTimeout(noMatchTimeoutRef.current)
-        noMatchTimeoutRef.current = null
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ctx对象引用不稳定，使用具体属性避免过度重渲染
-  }, [ctx.isVisible, searchText, list.length, ctx.close])
 
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
@@ -310,7 +284,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
       if (lastSymbolIndex !== -1) {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
-        setSearchText(newSearchText)
+        setSearchTextDebounced(newSearchText)
       } else {
         ctx.close('delete-symbol')
       }
@@ -333,6 +307,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('input', handleInput)
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
+      setSearchTextDebounced.cancel()
       setTimeout(() => {
         setSearchText('')
       }, 200) // 等待面板关闭动画结束后，再清空搜索词
@@ -349,9 +324,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     scrollTriggerRef.current = 'none'
   }, [index])
 
-  // 处理键盘事件
+  // 处理键盘事件（折叠时不拦截全局键盘）
   useEffect(() => {
-    if (!ctx.isVisible) return
+    const hasSearchTextFlag = searchText.replace(/^[/@]/, '').length > 0
+    const isCollapsed = hasSearchTextFlag && list.length === 0
+    if (!ctx.isVisible || isCollapsed) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isMac ? e.metaKey : e.ctrlKey) {
@@ -487,7 +464,17 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       window.removeEventListener('keyup', handleKeyUp, true)
       window.removeEventListener('click', handleClickOutside, true)
     }
-  }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
+  }, [
+    index,
+    isAssistiveKeyPressed,
+    historyPanel,
+    ctx,
+    list,
+    handleItemAction,
+    handleClose,
+    clearSearchText,
+    searchText
+  ])
 
   const [footerWidth, setFooterWidth] = useState(0)
 
@@ -507,6 +494,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const listHeight = useMemo(() => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
+  const hasSearchText = useMemo(() => searchText.replace(/^[/@]/, '').length > 0, [searchText])
+  const collapsed = hasSearchText && list.length === 0
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
@@ -554,6 +543,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $pageSize={ctx.pageSize}
       $selectedColor={selectedColor}
       $selectedColorHover={selectedColorHover}
+      $collapsed={collapsed}
       className={ctx.isVisible ? 'visible' : ''}
       data-testid="quick-panel">
       <QuickPanelBody
@@ -564,17 +554,19 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             return prev ? prev : true
           })
         }>
-        <DynamicVirtualList
-          ref={listRef}
-          list={list}
-          size={listHeight}
-          estimateSize={estimateSize}
-          overscan={5}
-          scrollerStyle={{
-            pointerEvents: isMouseOver ? 'auto' : 'none'
-          }}>
-          {rowRenderer}
-        </DynamicVirtualList>
+        {!collapsed && (
+          <DynamicVirtualList
+            ref={listRef}
+            list={list}
+            size={listHeight}
+            estimateSize={estimateSize}
+            overscan={5}
+            scrollerStyle={{
+              pointerEvents: isMouseOver ? 'auto' : 'none'
+            }}>
+            {rowRenderer}
+          </DynamicVirtualList>
+        )}
         <QuickPanelFooter ref={footerRef}>
           <QuickPanelFooterTitle>{ctx.title || ''}</QuickPanelFooterTitle>
           <QuickPanelFooterTips $footerWidth={footerWidth}>
@@ -618,6 +610,7 @@ const QuickPanelContainer = styled.div<{
   $pageSize: number
   $selectedColor: string
   $selectedColorHover: string
+  $collapsed?: boolean
 }>`
   --focused-color: rgba(0, 0, 0, 0.06);
   --selected-color: ${(props) => props.$selectedColor};
@@ -636,8 +629,8 @@ const QuickPanelContainer = styled.div<{
   pointer-events: none;
 
   &.visible {
-    pointer-events: auto;
-    max-height: ${(props) => props.$pageSize * ITEM_HEIGHT + 100}px;
+    pointer-events: ${(props) => (props.$collapsed ? 'none' : 'auto')};
+    max-height: ${(props) => (props.$collapsed ? 0 : props.$pageSize * ITEM_HEIGHT + 100)}px;
   }
   body[theme-mode='dark'] & {
     --focused-color: rgba(255, 255, 255, 0.1);
