@@ -34,26 +34,24 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   const WebSearchIcon = useCallback(
     ({ pid, size = 18, color }: { pid?: WebSearchProviderId; size?: number; color?: string }) => {
-      const iconColor = color ?? (enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)')
-
       switch (pid) {
         case 'bocha':
-          return <BochaLogo width={size} height={size} color={iconColor} />
+          return <BochaLogo width={size} height={size} color={color} />
         case 'exa':
           // size微调，视觉上和其他图标平衡一些
-          return <ExaLogo width={size - 2} height={size} color={iconColor} />
+          return <ExaLogo width={size - 2} height={size} color={color} />
         case 'tavily':
-          return <TavilyLogo width={size} height={size} color={iconColor} />
+          return <TavilyLogo width={size} height={size} color={color} />
         case 'searxng':
-          return <SearXNGLogo width={size} height={size} color={iconColor} />
+          return <SearXNGLogo width={size} height={size} color={color} />
         case 'local-baidu':
-          return <BaiduOutlined size={size} style={{ color: iconColor, fontSize: size }} />
+          return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
         case 'local-bing':
-          return <BingLogo width={size} height={size} color={iconColor} />
+          return <BingLogo width={size} height={size} color={color} />
         case 'local-google':
-          return <GoogleOutlined size={size} style={{ color: iconColor, fontSize: size }} />
+          return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
         default:
-          return <Globe size={size} style={{ color: iconColor, fontSize: size }} />
+          return <Globe size={size} style={{ color, fontSize: size }} />
       }
     },
     [enableWebSearch]
@@ -103,7 +101,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
             ? t('settings.tool.websearch.apikey')
             : t('settings.tool.websearch.free')
           : t('chat.input.web_search.enable_content'),
-        icon: <WebSearchIcon color="" size={13} pid={p.id} />,
+        icon: <WebSearchIcon size={13} pid={p.id} />,
         isSelected: p.id === assistant?.webSearchProviderId,
         disabled: !WebSearchService.isWebSearchEnabled(p.id),
         action: () => updateQuickPanelItem(p.id)
@@ -164,6 +162,8 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     openQuickPanel
   }))
 
+  const color = enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
+
   return (
     <Tooltip
       placement="top"
@@ -171,7 +171,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       mouseLeaveDelay={0}
       arrow>
       <ToolbarButton type="text" onClick={onClick}>
-        <WebSearchIcon pid={assistant.webSearchProviderId} />
+        <WebSearchIcon color={color} pid={assistant.webSearchProviderId} />
       </ToolbarButton>
     </Tooltip>
   )
