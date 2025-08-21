@@ -192,21 +192,23 @@ const McpServersList: FC = () => {
       <ListHeader>
         <SettingTitle style={{ gap: 3 }}>
           <span>{t('settings.mcp.newServer')}</span>
-          <Button icon={<EditIcon size={14} />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
+          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
+            {t('common.edit')}
+          </Button>
           <Dropdown
             menu={{
               items: menuItems
             }}
             trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
-              {t('settings.mcp.addServer.label')}
+              {t('common.add')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshIcon size={16} />} type="default" onClick={onSyncServers} shape="round">
-            {t('settings.mcp.sync.title', 'Sync Servers')}
+          <Button icon={<RefreshIcon size={14} />} type="default" onClick={onSyncServers} shape="round">
+            {t('settings.mcp.sync.button')}
           </Button>
         </ButtonGroup>
       </ListHeader>
