@@ -127,11 +127,17 @@ const MessageItem: FC<Props> = ({
         messageContainerRef.current.scrollIntoView({ behavior: 'smooth' })
         if (highlight) {
           setTimeoutTimer(
-            'messageHighlightHandler_1',
+            'messageHighlightHandler',
             () => {
               const classList = messageContainerRef.current?.classList
-              classList?.add('message-highlight')
-              setTimeoutTimer('messageHighlightHandler_2', () => classList?.remove('message-highlight'), 2500)
+              classList?.add('animation-locate-highlight')
+
+              const handleAnimationEnd = () => {
+                classList?.remove('animation-locate-highlight')
+                messageContainerRef.current?.removeEventListener('animationend', handleAnimationEnd)
+              }
+
+              messageContainerRef.current?.addEventListener('animationend', handleAnimationEnd)
             },
             500
           )
@@ -242,9 +248,6 @@ const MessageContainer = styled.div`
   padding: 10px;
   padding-bottom: 0;
   border-radius: 10px;
-  &.message-highlight {
-    background-color: var(--color-primary-mute);
-  }
   .menubar {
     opacity: 0;
     transition: opacity 0.2s ease;

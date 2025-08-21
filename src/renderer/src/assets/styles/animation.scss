@@ -68,3 +68,23 @@
   transform-origin: center;
   animation: animation-rotate 0.75s linear infinite;
 }
+
+// 定位高亮动画
+@keyframes animation-locate-highlight {
+  0% {
+    background-color: transparent;
+  }
+  10% {
+    background-color: var(--color-primary-mute);
+  }
+  70% {
+    background-color: var(--color-primary-mute);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animation-locate-highlight {
+  animation: animation-locate-highlight 2.5s ease-in-out;
+}
