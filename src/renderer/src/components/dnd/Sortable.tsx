@@ -20,6 +20,7 @@ import {
 } from '@dnd-kit/sortable'
 import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import styled from 'styled-components'
 
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
@@ -42,12 +43,14 @@ interface SortableProps<T> {
   layout?: 'list' | 'grid'
   /** Whether sorting is horizontal */
   horizontal?: boolean
-  /** Container class name */
-  className?: string
   /** Whether to use drag overlay */
   useDragOverlay?: boolean
   /** Drop animation configuration */
   dropAnimation?: DropAnimation
+  /** Item list class name */
+  className?: string
+  /** Item list style */
+  listStyle?: React.CSSProperties
 }
 
 function Sortable<T>({
@@ -59,9 +62,10 @@ function Sortable<T>({
   renderItem,
   layout = 'list',
   horizontal = false,
-  className,
   useDragOverlay = true,
-  dropAnimation = dropAnimationConfig
+  dropAnimation = dropAnimationConfig,
+  className,
+  listStyle
 }: SortableProps<T>) {
   const sensors = useSensors(
     useSensor(PortalSafePointerSensor, {
@@ -130,7 +134,7 @@ function Sortable<T>({
       onDragCancel={handleDragCancel}
       modifiers={modifiers}>
       <SortableContext items={itemIds} strategy={strategy}>
-        <div className={className} data-layout={layout}>
+        <ListWrapper className={className} data-layout={layout} style={listStyle}>
           {items.map((item, index) => (
             <SortableItem
               key={itemIds[index]}
@@ -140,7 +144,7 @@ function Sortable<T>({
               useDragOverlay={useDragOverlay}
             />
           ))}
-        </div>
+        </ListWrapper>
       </SortableContext>
 
       {useDragOverlay
@@ -154,5 +158,18 @@ function Sortable<T>({
     </DndContext>
   )
 }
+
+const ListWrapper = styled.div`
+  &[data-layout='grid'] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    width: 100%;
+    gap: 12px;
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+`
 
 export default Sortable
