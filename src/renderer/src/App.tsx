@@ -1,5 +1,4 @@
 import '@renderer/databases'
-import './utils/zhipuErrorTest'
 
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'

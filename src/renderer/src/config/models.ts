@@ -279,7 +279,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'AIDC-AI/Marco-o1',
   'gemini-1(?:\\.[\\w-]+)?',
   'qwen-mt(?:-[\\w-]+)?',
-  'gpt-5-chat(?:-[\\w-]+)?'
+  'gpt-5-chat(?:-[\\w-]+)?',
+  'glm-4\\.5v'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -1153,16 +1154,16 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   zhipu: [
     // GLM-4.5 系列 (置顶)
     {
-      id: 'glm-4.5-flash',
-      provider: 'zhipu',
-      name: 'GLM-4.5-Flash',
-      group: 'GLM-4.5',
-      isFree: true
-    },
-    {
       id: 'glm-4.5',
       provider: 'zhipu',
       name: 'GLM-4.5',
+      group: 'GLM-4.5',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    {
+      id: 'glm-4.5-x',
+      provider: 'zhipu',
+      name: 'GLM-4.5-X',
       group: 'GLM-4.5',
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
@@ -1181,17 +1182,18 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
-      id: 'glm-4.5-x',
+      id: 'glm-4.5-flash',
       provider: 'zhipu',
-      name: 'GLM-4.5-X',
+      name: 'GLM-4.5-Flash',
       group: 'GLM-4.5',
-      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+      isFree: true
     },
+    // GLM-4.5V 系列
     {
       id: 'glm-4.5v',
       provider: 'zhipu',
       name: 'GLM-4.5V',
-      group: 'GLM-4.5',
+      group: 'GLM-4.5V',
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     // GLM-Z1 系列
@@ -1209,7 +1211,21 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'GLM-Z1',
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
-    // GLM-4 系列
+    // CogView 系列
+    {
+      id: 'cogview-3-flash',
+      provider: 'zhipu',
+      name: 'CogView-3-Flash',
+      group: 'CogView',
+      isFree: true
+    },
+    {
+      id: 'cogview-4-250304',
+      provider: 'zhipu',
+      name: 'CogView-4-250304',
+      group: 'CogView',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
     {
       id: 'glm-4-long',
       provider: 'zhipu',
@@ -1245,33 +1261,33 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'GLM-4',
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
-    // GLM-4v 系列
+    // GLM-4V 系列
     {
       id: 'glm-4v',
       provider: 'zhipu',
-      name: 'GLM 4V',
-      group: 'GLM-4v',
+      name: 'GLM-4V',
+      group: 'GLM-4V',
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4v-flash',
       provider: 'zhipu',
       name: 'GLM-4V-Flash',
-      group: 'GLM-4v',
+      group: 'GLM-4V',
       isFree: true
     },
     {
       id: 'glm-4v-plus-0111',
       provider: 'zhipu',
       name: 'GLM-4V-Plus-0111',
-      group: 'GLM-4v',
+      group: 'GLM-4V',
       apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4.1v-thinking-flash',
       provider: 'zhipu',
       name: 'GLM-4.1V-Thinking-Flash',
-      group: 'GLM-4v',
+      group: 'GLM-4V',
       isFree: true
     },
     // GLM-4-AllTools

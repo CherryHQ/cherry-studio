@@ -58,32 +58,36 @@ const ModelSelector = ({
   // 单个 provider 的模型选项
   const getModelOptions = useCallback(
     (p: Provider, fancyName: string) => {
-      const suffix = showSuffix ? <span style={{ opacity: 0.45 }}>{` | ${fancyName}`}</span> : null
-      
-      let filteredModels = sortBy(p.models, 'name')
-        .filter((model) => predicate?.(model) ?? true)
-      
+      // 智谱模型不显示provider名称后缀
+      const suffix = showSuffix && p.id !== 'zhipu' ? <span style={{ opacity: 0.45 }}>{` | ${fancyName}`}</span> : null
+
+      let filteredModels = sortBy(p.models, 'name').filter((model) => predicate?.(model) ?? true)
+
       // 智谱模型特殊处理
       if (p.id === 'zhipu') {
         const hasApiKey = p.apiKey && p.apiKey.trim() !== ''
-        
+
         // 如果未配置API Key，只显示四个指定模型
         if (!hasApiKey) {
-          filteredModels = filteredModels.filter(m => 
-            m.id === 'glm-4.5-flash' || 
-            m.id === 'glm-4.5' || 
-            m.id === 'glm-4.5-air' || 
-            m.id === 'glm-4.5-x'
+          filteredModels = filteredModels.filter(
+            (m) => m.id === 'glm-4.5-flash' || m.id === 'glm-4.5' || m.id === 'glm-4.5-air' || m.id === 'glm-4.5v'
           )
         }
-        
-        // 智谱模型排序：让 GLM-4.5-Flash 排在最前面
+
+        // 智谱模型排序：按照新的顺序排序
         filteredModels = sortBy(filteredModels, (model) => {
-          if (model.id === 'glm-4.5-flash') return '0' // 排在最前面
-          return model.name // 其他模型按名称排序
+          // 定义GLM-4.5系列的排序优先级
+          const sortOrder = {
+            'glm-4.5-flash': '0',
+            'glm-4.5': '1',
+            'glm-4.5-air': '2',
+            'glm-4.5v': '3',
+            'glm-4.5-airx': '4',
+          }
+          return sortOrder[model.id] || model.name // 其他模型按名称排序
         })
       }
-      
+
       return filteredModels.map((m) => ({
         label: (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -95,7 +99,7 @@ const ModelSelector = ({
             </span>
           </div>
         ),
-        title: `${m.name} | ${fancyName}`,
+        title: p.id === 'zhipu' ? m.name : `${m.name} | ${fancyName}`,
         value: getModelUniqId(m)
       }))
     },

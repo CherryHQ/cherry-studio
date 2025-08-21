@@ -2824,7 +2824,8 @@
         "modelscope": "ModelScope Community MCP Server",
         "official": "Official MCP Server Collection",
         "pulsemcp": "Pulse MCP Server",
-        "smithery": "Smithery MCP Tools"
+        "smithery": "Smithery MCP Tools",
+        "zhipu": "Curated MCP, Fast Integration"
       },
       "name": "Name",
       "newServer": "MCP Server",

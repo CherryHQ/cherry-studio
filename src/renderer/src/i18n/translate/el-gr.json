@@ -1763,7 +1763,7 @@
     "xirang": "China Telecom Xiran",
     "yi": "Zero One Wanyiwu",
     "zhinao": "360 Intelligent Brain",
-    "zhipu": "Zhipu Ανοιχτή Πλατφόρμα"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2788,7 +2788,8 @@
         "modelscope": "Διακομιστής MCP κοινότητας ModelScope",
         "official": "Επίσημη συλλογή διακομιστών MCP",
         "pulsemcp": "Διακομιστής Pulse MCP",
-        "smithery": "Εργαλείο Smithery MCP"
+        "smithery": "Εργαλείο Smithery MCP",
+        "zhipu": "Επιλεγμένο MCP, Γρήγορη Ενσωμάτωση"
       },
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",

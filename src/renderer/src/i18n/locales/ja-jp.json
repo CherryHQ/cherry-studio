@@ -1788,7 +1788,7 @@
     "xirang": "天翼クラウド 息壤",
     "yi": "零一万物",
     "zhinao": "360智脳",
-    "zhipu": "智譜オープンプラットフォーム"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2824,7 +2824,8 @@
         "modelscope": "魔搭コミュニティ MCP サーバー",
         "official": "公式 MCP サーバーコレクション",
         "pulsemcp": "Pulse MCP サーバー",
-        "smithery": "Smithery MCP ツール"
+        "smithery": "Smithery MCP ツール",
+        "zhipu": "厳選MCP、高速統合"
       },
       "name": "名前",
       "newServer": "MCP サーバー",

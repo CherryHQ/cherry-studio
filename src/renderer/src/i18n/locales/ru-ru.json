@@ -1788,7 +1788,7 @@
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
     "zhinao": "360AI",
-    "zhipu": "ZhiPu Открытая Платформа"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2824,7 +2824,8 @@
         "modelscope": "Сервер MCP сообщества ModelScope",
         "official": "Официальная коллекция серверов MCP",
         "pulsemcp": "Сервер Pulse MCP",
-        "smithery": "Инструменты Smithery MCP"
+        "smithery": "Инструменты Smithery MCP",
+        "zhipu": "Кураторские MCP, быстрая интеграция"
       },
       "name": "Имя",
       "newServer": "MCP сервер",

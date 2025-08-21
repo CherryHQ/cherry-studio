@@ -45,7 +45,7 @@ export const initialState: WebSearchState = {
   providers: [
     {
       id: 'zhipu',
-      name: '智谱',
+      name: 'Zhipu',
       apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
       apiKey: ''
     },

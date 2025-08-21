@@ -3,7 +3,6 @@ import ModelLabels from '@renderer/components/ModelLabels'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import db from '@renderer/databases'
-
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
@@ -16,8 +15,6 @@ import { FC, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
-
-
 
 interface Props {
   mentionedModels: Model[]
@@ -69,7 +66,9 @@ const MentionModelsButton: FC<Props> = ({
                 <span style={{ opacity: 0.8 }}> | {m.name}</span>
               </>
             ),
-            description: <ModelTagsWithLabel model={m} showLabel={false} size={10} showTooltip={true} style={{ opacity: 0.8 }} />,
+            description: (
+              <ModelTagsWithLabel model={m} showLabel={false} size={10} showTooltip={true} style={{ opacity: 0.8 }} />
+            ),
             icon: (
               <Avatar src={getModelLogo(m.id)} size={20}>
                 {first(m.name)}

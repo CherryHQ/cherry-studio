@@ -1763,7 +1763,7 @@
     "xirang": "CTyun XiRang",
     "yi": "ZéroUnInfini",
     "zhinao": "360 ZhiNao",
-    "zhipu": "ZhiPu Plateforme Ouverte"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2788,7 +2788,8 @@
         "modelscope": "Serveur MCP de la communauté ModelScope",
         "official": "Collection officielle de serveurs MCP",
         "pulsemcp": "Serveur MCP Pulse",
-        "smithery": "Outils Smithery MCP"
+        "smithery": "Outils Smithery MCP",
+        "zhipu": "MCP Curaté, Intégration Rapide"
       },
       "name": "Nom",
       "newServer": "Сервер MCP",

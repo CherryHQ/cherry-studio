@@ -41,19 +41,14 @@ export const ErrorHandlerMiddleware =
 
       // 智谱特定错误处理
       let processedError = error
-      logger.debug('🔧 检查是否为智谱模型:', {
-        modelId: params.assistant.model?.id,
-        isZhipuModel: isZhipuModel(params.assistant.model),
-        errorStatus: error.status
-      })
 
-      if (isZhipuModel(params.assistant.model) && error.status) {
-        logger.debug('🔧 开始处理智谱错误:', {
-          originalError: error,
-          provider: params.assistant.provider
-        })
+
+      // 只有对话功能（enableGenerateImage为false）才使用自定义错误处理
+      // 绘画功能（enableGenerateImage为true）使用通用错误处理
+      if (isZhipuModel(params.assistant.model) && error.status && !params.enableGenerateImage) {
         processedError = handleZhipuError(error, params.assistant.provider || {})
-        logger.debug('🔧 智谱错误处理完成:', processedError)
+      } else if (isZhipuModel(params.assistant.model) && error.status && params.enableGenerateImage) {
+        // 绘画功能使用原始错误，不做自定义处理
       }
 
       // 1. 使用通用的工具函数将错误解析为标准格式
@@ -90,25 +85,14 @@ export const ErrorHandlerMiddleware =
  */
 function handleZhipuError(error: any, provider: any): any {
   const logger = loggerService.withContext('handleZhipuError')
-
-  logger.debug('🔧 开始处理智谱错误:', {
-    error,
-    provider,
-    hasProvider: !!provider,
-    hasApiKey: !!(provider && provider.apiKey),
-    apiKeyLength: provider?.apiKey?.length
-  })
-
   // 检查401错误（令牌过期或验证不正确）
   if (
     error.status === 401 ||
     (error.message &&
       (error.message.includes('令牌已过期') ||
-        error.message.includes('验证不正确') ||
         error.message.includes('AuthenticationError') ||
         error.message.includes('Unauthorized')))
   ) {
-    logger.debug('🔧 检测到401错误，返回zhipu.no_api_key')
     return {
       ...error,
       message: 'zhipu.no_api_key'
@@ -117,25 +101,24 @@ function handleZhipuError(error: any, provider: any): any {
 
   // 检查免费配额用尽错误（优先级更高，先检查）
   if (
-    error.status === 429 ||
+    error.error?.code === '1304' ||
     (error.message &&
-      (error.message.includes('免费配额') ||
+      (error.message.includes('限额') ||
+        error.message.includes('免费配额') ||
         error.message.includes('free quota') ||
         error.message.includes('rate limit')))
   ) {
-    logger.debug('🔧 检测到配额用尽错误，返回zhipu.quota_exceeded')
     return {
       ...error,
       message: 'zhipu.quota_exceeded'
     }
   }
 
-  // 检查余额不足错误 (通常状态码为402或特定错误消息)
+  // 检查余额不足错误 (通常状态码为429或特定错误消息)
   if (
-    error.status === 402 ||
+    (error.status === 429 && error.error?.code === '1113') ||
     (error.message && (error.message.includes('余额不足') || error.message.includes('insufficient balance')))
   ) {
-    logger.debug('🔧 检测到余额不足错误，返回zhipu.insufficient_balance')
     return {
       ...error,
       message: 'zhipu.insufficient_balance'
@@ -144,7 +127,6 @@ function handleZhipuError(error: any, provider: any): any {
 
   // 检查API Key是否配置（放在最后，避免覆盖其他错误类型）
   if (!provider || !provider.apiKey || provider.apiKey.trim() === '') {
-    logger.debug('🔧 API Key未配置，返回zhipu.no_api_key')
     return {
       ...error,
       message: 'zhipu.no_api_key'

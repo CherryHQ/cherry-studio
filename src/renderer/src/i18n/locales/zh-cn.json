@@ -2824,7 +2824,8 @@
         "modelscope": "魔搭社区 MCP 服务器",
         "official": "官方 MCP 服务器集合",
         "pulsemcp": "Pulse MCP 服务器",
-        "smithery": "Smithery MCP 工具"
+        "smithery": "Smithery MCP 工具",
+        "zhipu": "精选MCP，极速接入"
       },
       "name": "名称",
       "newServer": "MCP 服务器",

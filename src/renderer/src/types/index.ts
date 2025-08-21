@@ -633,6 +633,7 @@ export type GenerateImageParams = {
   signal?: AbortSignal
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
+  quality?: string
 }
 
 export type GenerateImageResponse = {

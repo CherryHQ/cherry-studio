@@ -4,8 +4,15 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingTitle } from '..'
+import ZhipuLogo from '@renderer/assets/images/providers/zhipu.png'
 
 const mcpResources = [
+  {
+    name: 'BigModel MCP Market',
+    url: 'https://bigmodel.cn/marketplace/index/mcp',
+    logo: ZhipuLogo,
+    descriptionKey: 'settings.mcp.more.zhipu'
+  },
   {
     name: 'modelscope.cn',
     url: 'https://www.modelscope.cn/mcp',

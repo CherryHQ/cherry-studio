@@ -38,7 +38,7 @@ const ModelIdWithTags = ({
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
-      <ModelLabels model={model} parentContainer = 'ModelIdWithTags' />
+      <ModelLabels model={model} parentContainer="ModelIdWithTags" />
     </ListItemName>
   )
 }

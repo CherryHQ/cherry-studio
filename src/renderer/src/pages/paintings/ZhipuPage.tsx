@@ -1,21 +1,21 @@
 import { PlusOutlined } from '@ant-design/icons'
+import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
+import ModelLabels from '@renderer/components/ModelLabels'
 import { HStack } from '@renderer/components/Layout'
-
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
-
+import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { PaintingsState } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { uuid, getErrorMessage } from '@renderer/utils'
 import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -25,15 +25,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
-import {
-  COURSE_URL,
-  DEFAULT_PAINTING,
-  IMAGE_SIZES,
-  QUALITY_OPTIONS,
-  TOP_UP_URL
-} from './config/ZhipuConfig'
-
-
+import { COURSE_URL, DEFAULT_PAINTING, IMAGE_SIZES, QUALITY_OPTIONS, TOP_UP_URL, ZHIPU_PAINTING_MODELS } from './config/ZhipuConfig'
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode] = useState<keyof PaintingsState>('paintings')
@@ -41,6 +33,16 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<any>(paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
+
+  // 确保painting使用智谱的cogview系列模型
+  useEffect(() => {
+    if (painting && !painting.model?.startsWith('cogview')) {
+      const updatedPainting = { ...painting, model: 'cogview-3-flash' }
+      setPainting(updatedPainting)
+      updatePainting('paintings', updatedPainting)
+    }
+  }, [painting, updatePainting])
+  
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
@@ -98,7 +100,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     if (!zhipuProvider.apiKey) {
       window.modal.error({
-        content: t('error.provider_api_key_required'),
+        content: t('error.no_api_key'),
         centered: true
       })
       return
@@ -112,30 +114,128 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
+    // 检查是否需要重新生成（如果已有图片）
+    if (painting.files.length > 0) {
+      const confirmed = await window.modal.confirm({
+        content: t('paintings.regenerate.confirm'),
+        centered: true
+      })
+      if (!confirmed) return
+      await FileManager.deleteFiles(painting.files)
+    }
+
     setIsLoading(true)
     dispatch(setGenerating(true))
     const controller = new AbortController()
     setAbortController(controller)
 
     try {
-      // 这里添加Zhipu的API调用逻辑
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // 使用AiProvider调用智谱AI绘图API
+      const aiProvider = new AiProvider(zhipuProvider)
       
-      const newPainting = {
-        ...painting,
-        urls: [`https://example.com/generated-image-${Date.now()}.png`],
-        files: []
+      // 准备API请求参数
+      let actualImageSize = painting.imageSize
+      
+      // 如果是自定义尺寸，使用实际的宽高值
+      if (painting.imageSize === 'custom') {
+        if (!customWidth || !customHeight) {
+          window.modal.error({
+            content: '请设置自定义尺寸的宽度和高度',
+            centered: true
+          })
+          return
+        }
+        // 验证自定义尺寸是否符合智谱AI的要求
+        if (customWidth < 512 || customWidth > 2048 || customHeight < 512 || customHeight > 2048) {
+          window.modal.error({
+            content: '自定义尺寸必须在512px-2048px之间',
+            centered: true
+          })
+          return
+        }
+        
+        if (customWidth % 16 !== 0 || customHeight % 16 !== 0) {
+          window.modal.error({
+            content: '自定义尺寸必须能被16整除',
+            centered: true
+          })
+          return
+        }
+        
+        const totalPixels = customWidth * customHeight
+        if (totalPixels > 2097152) { // 2^21 = 2097152
+          window.modal.error({
+            content: '自定义尺寸的总像素数不能超过2,097,152',
+            centered: true
+          })
+          return
+        }
+        
+        actualImageSize = `${customWidth}x${customHeight}`
       }
       
-      updatePaintingState(newPainting)
-      
-      window.message.success({
-        content: t('paintings.generate_success')
-      })
+      const request = {
+        model: painting.model,
+        prompt: painting.prompt,
+        negativePrompt: painting.negativePrompt,
+        imageSize: actualImageSize,
+        batchSize: painting.numImages,
+        quality: painting.quality,
+        signal: controller.signal
+      }
+
+      // 调用智谱AI绘图API
+      const imageUrls = await aiProvider.generateImage(request)
+
+      // 下载图片到本地文件
+      if (imageUrls.length > 0) {
+        const downloadedFiles = await Promise.all(
+          imageUrls.map(async (url) => {
+            try {
+              if (!url || url.trim() === '') {
+                window.message.warning({
+                  content: t('message.empty_url'),
+                  key: 'empty-url-warning'
+                })
+                return null
+              }
+              return await window.api.file.download(url)
+            } catch (error) {
+              if (
+                error instanceof Error &&
+                (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
+              ) {
+                window.message.warning({
+                  content: t('message.empty_url'),
+                  key: 'empty-url-warning'
+                })
+              }
+              return null
+            }
+          })
+        )
+
+        const validFiles = downloadedFiles.filter((file): file is any => file !== null)
+
+        await FileManager.addFiles(validFiles)
+
+        // 处理响应结果
+        const newPainting = {
+          ...painting,
+          urls: imageUrls,
+          files: validFiles
+        }
+
+        updatePaintingState(newPainting)
+
+        window.message.success({
+          content: t('paintings.generate_success')
+        })
+      }
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
         window.modal.error({
-          content: t('paintings.req_error_text'),
+          content: getErrorMessage(error),
           centered: true
         })
       }
@@ -230,10 +330,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     setPainting(addedPainting)
   }
 
-  const modelOptions = [
-    { label: 'CogView-3-Flash', value: 'cogview-3-flash' },
-    { label: 'CogView-4-250304', value: 'cogview-4-250304' }
-  ]
+  // 移除modelOptions的定义，直接在Select中使用
 
   useEffect(() => {
     if (!paintings || paintings.length === 0) {
@@ -248,6 +345,22 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [painting])
 
+  // 同步自定义尺寸状态
+  useEffect(() => {
+    if (painting.imageSize === 'custom') {
+      setIsCustomSize(true)
+      // 恢复自定义尺寸的宽高值
+      if (painting.customWidth) {
+        setCustomWidth(painting.customWidth)
+      }
+      if (painting.customHeight) {
+        setCustomHeight(painting.customHeight)
+      }
+    } else {
+      setIsCustomSize(false)
+    }
+  }, [painting.imageSize, painting.customWidth, painting.customHeight])
+
   return (
     <Container>
       <Navbar>
@@ -256,12 +369,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         </NavbarCenter>
         {isMac && (
           <NavbarRight>
-            <Button
-              type="text"
-              icon={<PlusOutlined />}
-              onClick={createNewPainting}
-              disabled={generating}
-            />
+            <Button type="text" icon={<PlusOutlined />} onClick={createNewPainting} disabled={generating} />
           </NavbarRight>
         )}
       </Navbar>
@@ -296,7 +404,21 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           </Select>
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
+          <Select 
+            value={painting.model} 
+            onChange={onSelectModel}
+            style={{ width: '100%' }}
+            dropdownStyle={{ minWidth: '280px' }}
+          >
+            {ZHIPU_PAINTING_MODELS.map((model) => (
+              <Select.Option key={model.id} value={model.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: '260px' }}>
+                  <span>{model.name}</span>
+                  <ModelLabels model={model} parentContainer="default" />
+                </div>
+              </Select.Option>
+            ))}
+          </Select>
 
           {painting.model === 'cogview-4-250304' && (
             <>
@@ -356,8 +478,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               </div>
             </div>
           )}
-
-          
         </LeftContainer>
         <MainContainer>
           <Artboard
@@ -462,7 +582,5 @@ const SelectOptionContainer = styled.div`
 const ProviderLogo = styled(Avatar)`
   border-radius: 4px;
 `
-
-
 
 export default ZhipuPage

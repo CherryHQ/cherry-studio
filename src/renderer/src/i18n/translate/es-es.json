@@ -1763,7 +1763,7 @@
     "xirang": "Telecom Nube XiRang",
     "yi": "Cero Uno Todo",
     "zhinao": "360 Inteligente",
-    "zhipu": "ZhiPu IA"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2788,7 +2788,8 @@
         "modelscope": "Servidor MCP de la comunidad ModelScope",
         "official": "Colección oficial de servidores MCP",
         "pulsemcp": "Servidor MCP Pulse",
-        "smithery": "Herramienta Smithery MCP"
+        "smithery": "Herramienta Smithery MCP",
+        "zhipu": "MCP Curado, Integración Rápida"
       },
       "name": "Nombre",
       "newServer": "Servidor MCP",

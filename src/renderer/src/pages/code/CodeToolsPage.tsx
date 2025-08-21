@@ -226,21 +226,6 @@ const CodeToolsPage: FC = () => {
     checkBunInstallation()
   }, [checkBunInstallation])
 
-  // 页面加载时设置默认模型
-  useEffect(() => {
-    // 如果当前选择的模型为空，尝试设置默认模型
-    if (!selectedModel) {
-      // 查找智谱提供商中的 GLM-4.5-Flash 模型
-      const zhipuProvider = providers.find(p => p.id === 'zhipu')
-      if (zhipuProvider) {
-        const glm45FlashModel = zhipuProvider.models.find(m => m.id === 'glm-4.5-flash')
-        if (glm45FlashModel) {
-          setModel(glm45FlashModel)
-        }
-      }
-    }
-  }, [selectedModel, providers, setModel])
-
   return (
     <Container>
       <Title>{t('code.title')}</Title>

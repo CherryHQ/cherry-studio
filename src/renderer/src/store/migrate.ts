@@ -2106,7 +2106,13 @@ const migrateConfig = {
   },
   '132': (state: RootState) => {
     try {
-      // 1. 推荐智谱作为第一位提供商，但只在用户没有自定义过顺序的情况下执行
+      // 1. 确保智谱供应商被启用
+      const zhipuProvider = state.llm.providers.find((p) => p.id === 'zhipu')
+      if (zhipuProvider) {
+        zhipuProvider.enabled = true
+      }
+
+      // 2. 推荐智谱作为第一位提供商，但只在用户没有自定义过顺序的情况下执行
       const zhipuIndex = state.llm.providers.findIndex((p) => p.id === 'zhipu')
       const siliconIndex = state.llm.providers.findIndex((p) => p.id === 'silicon')
 
@@ -2118,15 +2124,28 @@ const migrateConfig = {
         state.llm.providers.unshift(zhipuProvider)
       }
 
-      // 2. 更新智谱模型列表
-      const zhipuProvider = state.llm.providers.find((p) => p.id === 'zhipu')
+      // 3. 更新智谱模型列表
       if (zhipuProvider) {
         // 添加新的4.5系列模型
         const newModels = [
           {
+            id: 'glm-4.5-flash',
+            provider: 'zhipu',
+            name: 'GLM-4.5-Flash',
+            group: 'GLM-4.5',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
             id: 'glm-4.5',
             provider: 'zhipu',
             name: 'GLM-4.5',
+            group: 'GLM-4.5',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.5-x',
+            provider: 'zhipu',
+            name: 'GLM-4.5-X',
             group: 'GLM-4.5',
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
@@ -2145,32 +2164,39 @@ const migrateConfig = {
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
-            id: 'glm-4.5-x',
-            provider: 'zhipu',
-            name: 'GLM-4.5-X',
-            group: 'GLM-4.5',
-            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
-          },
-          {
             id: 'glm-4.5v',
             provider: 'zhipu',
             name: 'GLM-4.5V',
-            group: 'GLM-4.5',
+            group: 'GLM-4.5V',
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
             id: 'glm-4.1v-thinking-flash',
             provider: 'zhipu',
             name: 'GLM-4.1V-Thinking-Flash',
-            group: 'GLM-4v',
+            group: 'GLM-4V',
             isFree: true
           },
           {
             id: 'glm-4v-flash',
             provider: 'zhipu',
             name: 'GLM-4V-Flash',
-            group: 'GLM-4v',
+            group: 'GLM-4V',
             isFree: true
+          },
+          {
+            id: 'cogview-3-flash',
+            provider: 'zhipu',
+            name: 'CogView-3-Flash',
+            group: 'CogView',
+            isFree: true
+          },
+          {
+            id: 'cogview-4-250304',
+            provider: 'zhipu',
+            name: 'CogView-4-250304',
+            group: 'CogView',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           }
         ]
 
@@ -2205,6 +2231,26 @@ const migrateConfig = {
           state.llm.topicNamingModel = glm45FlashModel
           state.llm.translateModel = glm45FlashModel
         }
+
+        // 迁移逻辑1: 检测GLM-4V模型，如果有就改成GLM-4V
+        zhipuProvider.models.forEach(model => {
+          if (model.group === 'GLM 4V') {
+            model.group = 'GLM-4V'
+          }
+        })
+
+        // 迁移逻辑2: 将GLM-4v改为GLM-4V
+        zhipuProvider.models.forEach(model => {
+          if (model.group === 'GLM-4v') {
+            model.group = 'GLM-4V'
+          }
+        })
+
+        // 迁移逻辑3: 如果GLM-4.5V在GLM-4.5系列下面，要添加GLM-4.5V系列并把GLM-4.5V转移过去
+        const glm45vModel = zhipuProvider.models.find(m => m.id === 'glm-4.5v')
+        if (glm45vModel && glm45vModel.group === 'GLM-4.5') {
+          glm45vModel.group = 'GLM-4.5V'
+        }
       }
 
       // 3. 更新默认绘图供应商为智谱
@@ -2227,10 +2273,7 @@ const migrateConfig = {
       // 这里我们不需要直接修改状态，因为默认模型是在组件中设置的
       // 这个迁移主要用于版本标记，确保用户知道有新的默认嵌入模型
 
-      // 6. 清除智谱错误测试状态（确保测试不影响正常使用）
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.removeItem('test_zhipu_error')
-      }
+
 
       // 6. 为 codeTools 设置默认模型
       if (state.codeTools) {
@@ -2253,6 +2296,9 @@ const migrateConfig = {
           }
         }
       }
+
+      // 7. 添加智谱网络搜索供应商
+      addWebSearchProvider(state, 'zhipu')
 
       return state
     } catch (error) {

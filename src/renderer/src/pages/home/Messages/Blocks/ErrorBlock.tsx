@@ -37,7 +37,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const handleZhipuError = (errorType: keyof typeof ZHIPU_ERROR_LINKS) => {
     const errorMessage = getZhipuErrorLabel(errorType)
     const link = ZHIPU_ERROR_LINKS[errorType]
-    
+
     // 根据当前语言获取对应的平台名称
     const getPlatformNameByLanguage = () => {
       const currentLang = i18n.language
@@ -49,9 +49,9 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         return 'BigModel' // 其他语言都使用BigModel
       }
     }
-    
+
     const platformNameToMatch = getPlatformNameByLanguage()
-    
+
     // 尝试匹配当前语言的平台名称
     if (errorMessage.includes(platformNameToMatch)) {
       const parts = errorMessage.split(platformNameToMatch)
@@ -74,10 +74,10 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         )
       }
     }
-    
+
     return <Alert description={errorMessage} type="error" closable onClose={onRemoveBlock} />
   }
-  
+
   if (block?.error?.message && block.error.message.startsWith('zhipu.')) {
     const errorType = block.error.message.replace('zhipu.', '') as keyof typeof ZHIPU_ERROR_LINKS
     if (errorType in ZHIPU_ERROR_LINKS) {
@@ -119,7 +119,7 @@ const StyledLink = styled.a`
   color: #1890ff;
   text-decoration: none;
   cursor: pointer;
-  
+
   &:hover {
     text-decoration: underline;
   }

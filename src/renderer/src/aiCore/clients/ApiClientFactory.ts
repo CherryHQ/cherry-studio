@@ -11,6 +11,7 @@ import { NewAPIClient } from './NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
+import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
 
 const logger = loggerService.withContext('ApiClientFactory')
 
@@ -45,6 +46,10 @@ export class ApiClientFactory {
     if (provider.id === 'ppio') {
       logger.debug(`Creating PPIOAPIClient for provider: ${provider.id}`)
       instance = new PPIOAPIClient(provider) as BaseApiClient
+      return instance
+    }
+    if (provider.id === 'zhipu') {
+      instance = new ZhipuAPIClient(provider) as BaseApiClient
       return instance
     }
 
