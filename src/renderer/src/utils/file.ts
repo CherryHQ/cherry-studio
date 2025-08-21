@@ -57,14 +57,13 @@ export function removeSpecialCharactersForFileName(str: string): string {
     .trim()
 }
 
-export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
+export async function isSupportedFile(file: FileMetadata, supportExts: Set<string>): Promise<boolean> {
   try {
-    const fileExt = getFileExtension(filePath)
-    if (supportExts.has(fileExt)) {
+    if (supportExts.has(file.ext)) {
       return true
     }
 
-    if (await window.api.file.isTextFile(filePath)) {
+    if (await window.api.file.isTextFile(file.path)) {
       return true
     }
 
@@ -79,7 +78,7 @@ export async function filterSupportedFiles(files: FileMetadata[], supportExts: s
   const validationResults = await Promise.all(
     files.map(async (file) => ({
       file,
-      isValid: await isSupportedFile(file.path, extensionSet)
+      isValid: await isSupportedFile(file, extensionSet)
     }))
   )
   return validationResults.filter((result) => result.isValid).map((result) => result.file)

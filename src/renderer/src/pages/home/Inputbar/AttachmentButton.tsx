@@ -39,7 +39,7 @@ const AttachmentButton: FC<Props> = ({
       filters: [
         {
           name: 'Files',
-          extensions: useAllFiles ? ['*.*'] : extensions.map((i) => i.replace('.', ''))
+          extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
         }
       ]
     })
@@ -49,16 +49,16 @@ const AttachmentButton: FC<Props> = ({
         setFiles([...files, ..._files])
         return
       }
-      const validFiles = await filterSupportedFiles(_files, extensions)
-      if (validFiles.length > 0) {
-        setFiles([...files, ...validFiles])
+      const supportedFiles = await filterSupportedFiles(_files, extensions)
+      if (supportedFiles.length > 0) {
+        setFiles([...files, ...supportedFiles])
       }
 
-      if (validFiles.length !== _files.length) {
+      if (supportedFiles.length !== _files.length) {
         window.message.info({
           key: 'file_not_supported',
           content: t('chat.input.file_not_supported_count', {
-            count: _files.length - validFiles.length
+            count: _files.length - supportedFiles.length
           })
         })
       }
