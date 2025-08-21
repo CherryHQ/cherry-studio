@@ -293,6 +293,52 @@ class FileStorage {
     }
   }
 
+  public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Source file does not exist: ${filePath}`)
+      }
+
+      const dirPath = path.dirname(filePath)
+      const newFilePath = path.join(dirPath, newName)
+
+      // 如果目标文件已存在，抛出错误
+      if (fs.existsSync(newFilePath)) {
+        throw new Error(`Target file already exists: ${newFilePath}`)
+      }
+
+      // 重命名文件
+      await fs.promises.rename(filePath, newFilePath)
+      logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
+    } catch (error) {
+      logger.error('Rename file failed:', error as Error)
+      throw error
+    }
+  }
+
+  public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(dirPath)) {
+        throw new Error(`Source directory does not exist: ${dirPath}`)
+      }
+
+      const parentDir = path.dirname(dirPath)
+      const newDirPath = path.join(parentDir, newName)
+
+      // 如果目标目录已存在，抛出错误
+      if (fs.existsSync(newDirPath)) {
+        throw new Error(`Target directory already exists: ${newDirPath}`)
+      }
+
+      // 重命名目录
+      await fs.promises.rename(dirPath, newDirPath)
+      logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
+    } catch (error) {
+      logger.error('Rename directory failed:', error as Error)
+      throw error
+    }
+  }
+
   public readFile = async (
     _: Electron.IpcMainInvokeEvent,
     id: string,

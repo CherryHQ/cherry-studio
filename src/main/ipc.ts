@@ -435,6 +435,8 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_MoveDir, fileManager.moveDir.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))

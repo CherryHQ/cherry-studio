@@ -431,44 +431,72 @@ export async function deleteNode(nodeId: string): Promise<void> {
 /**
  * 上传笔记
  */
-export async function uploadNote(file: File): Promise<NotesTreeNode> {
+export async function uploadNote(
+  file: File,
+  parentId?: string,
+  isExternal: boolean = false,
+  folderPath?: string | null
+): Promise<NotesTreeNode> {
   try {
     const fileName = file.name.toLowerCase()
     if (!fileName.endsWith(MARKDOWN_EXT)) {
       return Promise.reject(new Error('Only markdown files are allowed'))
     }
 
-    const noteId = uuidv4()
-    const filesPath = store.getState().runtime.filesPath
     const content = await file.text()
-    const fileMetadata: FileMetadata = {
-      id: noteId,
-      name: noteId + MARKDOWN_EXT,
-      origin_name: file.name,
-      path: `${filesPath}/${noteId}${MARKDOWN_EXT}`,
-      size: content.length,
-      ext: MARKDOWN_EXT,
-      type: FileTypes.TEXT,
-      created_at: new Date().toISOString(),
-      count: 1
+    let note: NotesTreeNode
+    logger.info(`Uploading note file: ${file.name}, isExternal: ${isExternal}, folderPath: ${folderPath}`)
+    if (isExternal && folderPath) {
+      const noteId = uuidv4()
+      const externalPath = `${folderPath}/${file.name}`
+
+      try {
+        await window.api.file.write(externalPath, content)
+        logger.debug(`External note file created at: ${externalPath}`)
+
+        note = {
+          id: noteId,
+          name: file.name.replace(MARKDOWN_EXT, ''), // 移除文件扩展名
+          type: 'file',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          isExternal: true,
+          externalPath
+        }
+      } catch (error) {
+        logger.error(`Failed to create external note file at ${externalPath}:`, error as Error)
+        throw error
+      }
+    } else {
+      const noteId = uuidv4()
+      const filesPath = store.getState().runtime.filesPath
+      const fileMetadata: FileMetadata = {
+        id: noteId,
+        name: noteId + MARKDOWN_EXT,
+        origin_name: file.name.replace(MARKDOWN_EXT, ''),
+        path: `${filesPath}/${noteId}${MARKDOWN_EXT}`,
+        size: content.length,
+        ext: MARKDOWN_EXT,
+        type: FileTypes.TEXT,
+        created_at: new Date().toISOString(),
+        count: 1
+      }
+
+      await window.api.file.writeWithId(fileMetadata.id + fileMetadata.ext, content)
+      await FileManager.addFile(fileMetadata)
+
+      note = {
+        id: noteId,
+        name: fileMetadata.origin_name,
+        type: 'file',
+        treePath: getNodePath(fileMetadata.origin_name, parentId),
+        createdAt: fileMetadata.created_at,
+        updatedAt: fileMetadata.created_at
+      }
     }
 
-    await window.api.file.writeWithId(fileMetadata.id + fileMetadata.ext, content)
-    await FileManager.addFile(fileMetadata)
-
-    // 创建树节点
-    const note: NotesTreeNode = {
-      id: noteId,
-      name: file.name,
-      type: 'file',
-      treePath: `/${file.name}`,
-      createdAt: fileMetadata.created_at,
-      updatedAt: fileMetadata.created_at
-    }
-
-    // 将节点添加到根目录
     const tree = await getNotesTree()
-    tree.push(note)
+    insertNodeIntoTree(tree, note, parentId)
     await saveNotesTree(tree)
 
     logger.info(`Upload note file successfully: ${file.name}`)
@@ -490,24 +518,69 @@ export async function renameNode(nodeId: string, newName: string): Promise<void>
     throw new Error('Node not found')
   }
 
-  // 更新节点名称
-  node.name = newName
-  node.updatedAt = new Date().toISOString()
-
-  // 如果是文件类型，还需要更新文件记录
-  if (node.type === 'file' && node.id) {
+  if (node.isExternal && node.externalPath) {
     try {
-      // 获取文件元数据
-      const fileMetadata = await FileManager.getFile(node.id)
-      if (fileMetadata) {
-        // 更新文件的原始名称（显示名称）
-        await db.files.update(node.id, {
-          origin_name: newName
-        })
+      const currentPath = node.externalPath
+      logger.info(`Renaming external ${node.type} from ${currentPath} to ${newName}`)
+
+      if (node.type === 'file') {
+        const hasExtension = newName.endsWith(MARKDOWN_EXT)
+        const fileName = hasExtension ? newName : newName + MARKDOWN_EXT
+
+        const dirPath = currentPath.substring(
+          0,
+          currentPath.lastIndexOf('/') !== -1 ? currentPath.lastIndexOf('/') : currentPath.lastIndexOf('\\')
+        )
+
+        // 使用完整路径而非仅文件名，确保使用正确的分隔符
+        const separator = dirPath.includes('/') ? '/' : '\\'
+        const newPath = `${dirPath}${separator}${fileName}`
+
+        logger.debug(`Renaming file from ${currentPath} to ${newPath}`)
+        await window.api.file.rename(currentPath, newPath)
+
+        node.externalPath = newPath
+        node.name = hasExtension ? newName.slice(0, -MARKDOWN_EXT.length) : newName
+      } else {
+        const dirPath = currentPath.substring(
+          0,
+          currentPath.lastIndexOf('/') !== -1 ? currentPath.lastIndexOf('/') : currentPath.lastIndexOf('\\')
+        )
+
+        const separator = dirPath.includes('/') ? '/' : '\\'
+        const newPath = `${dirPath}${separator}${newName}`
+        logger.debug(`Renaming directory from ${currentPath} to ${newPath}`)
+        await window.api.file.renameDir(currentPath, newPath)
+
+        node.externalPath = newPath
+        node.name = newName
       }
+
+      node.updatedAt = new Date().toISOString()
+      logger.debug(`Renamed external ${node.type} from ${currentPath} to ${node.externalPath}`)
     } catch (error) {
-      logger.error('Failed to update file metadata:', error as Error)
+      logger.error(`Failed to rename external ${node.type}:`, error as Error)
       throw error
+    }
+  } else {
+    node.name = newName
+    node.updatedAt = new Date().toISOString()
+
+    // 如果是文件类型，还需要更新文件记录
+    if (node.type === 'file' && node.id) {
+      try {
+        // 获取文件元数据
+        const fileMetadata = await FileManager.getFile(node.id)
+        if (fileMetadata) {
+          // 更新文件的原始名称（显示名称）
+          await db.files.update(node.id, {
+            origin_name: newName
+          })
+        }
+      } catch (error) {
+        logger.error('Failed to update file metadata:', error as Error)
+        throw error
+      }
     }
   }
 

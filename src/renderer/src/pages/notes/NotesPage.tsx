@@ -41,7 +41,6 @@ const NotesPage: FC = () => {
   const [currentContent, setCurrentContent] = useState<string>('')
   const [tokenCount, setTokenCount] = useState(0)
   const [isLoading, setIsLoading] = useState<boolean>(false)
-  const hasExternalNodes = notesTree.some((node) => node.isExternal === true)
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -168,7 +167,7 @@ const NotesPage: FC = () => {
   const handleCreateFolder = useCallback(
     async (name: string, parentId?: string) => {
       try {
-        if (hasExternalNodes) {
+        if (folderPath) {
           await createFolder(name, parentId, true, folderPath)
         } else {
           await createFolder(name, parentId)
@@ -179,7 +178,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to create folder:', error as Error)
       }
     },
-    [folderPath, hasExternalNodes]
+    [folderPath]
   )
 
   // 创建笔记
@@ -187,7 +186,7 @@ const NotesPage: FC = () => {
     async (name: string, parentId?: string) => {
       try {
         let newNote: NotesTreeNode
-        if (hasExternalNodes) {
+        if (folderPath) {
           newNote = await createNote(name, '', parentId, true, folderPath)
         } else {
           newNote = await createNote(name, '', parentId)
@@ -199,7 +198,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to create note:', error as Error)
       }
     },
-    [dispatch, hasExternalNodes, folderPath]
+    [dispatch, folderPath]
   )
 
   // 切换展开状态
@@ -311,7 +310,11 @@ const NotesPage: FC = () => {
 
         for (const file of markdownFiles) {
           try {
-            await uploadNote(file)
+            if (folderPath) {
+              await uploadNote(file, undefined, true, folderPath)
+            } else {
+              await uploadNote(file)
+            }
           } catch (error) {
             logger.error(`Failed to upload note file ${file.name}:`, error as Error)
             window.message.error(t('notes.upload_failed', { name: file.name }))
@@ -329,7 +332,7 @@ const NotesPage: FC = () => {
         setIsLoading(false)
       }
     },
-    [t]
+    [folderPath, t]
   )
 
   // 处理节点移动

@@ -147,6 +147,8 @@ export enum IpcChannel {
   File_DeleteExternalDir = 'file:deleteExternalDir',
   File_Move = 'file:move',
   File_MoveDir = 'file:moveDir',
+  File_Rename = 'file:rename',
+  File_RenameDir = 'file:renameDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
   File_CreateTempFile = 'file:createTempFile',

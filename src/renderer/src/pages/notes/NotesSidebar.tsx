@@ -85,7 +85,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         return
       }
       dispatch(setFolderPath(folderPath))
-      logger.debug(folderPath)
+      logger.info(folderPath)
 
       const externalTree = await window.api.file.getDirectoryStructure(folderPath, {
         includeFiles: true,
@@ -100,7 +100,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       if (updatedTree && updatedTree.length > 0) {
         window.message.success(t('common.success'))
       } else {
-        window.message.info(t('notes.no_markdown_files_found'))
+        window.message.info(t('notes.only_markdown'))
       }
     } catch (error) {
       logger.error('Failed to open external folder:', error as Error)
