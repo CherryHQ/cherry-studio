@@ -883,6 +883,9 @@
   },
   "history": {
     "continue_chat": "继续聊天",
+    "error": {
+      "topic_not_found": "话题不存在"
+    },
     "locate": {
       "message": "定位到消息"
     },

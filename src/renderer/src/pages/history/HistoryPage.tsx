@@ -52,7 +52,12 @@ const HistoryPage: FC = () => {
     setTopic(undefined)
   }
 
-  const onTopicClick = (topic: Topic) => {
+  // topic 不包含 messages，用到的时候才会获取
+  const onTopicClick = (topic: Topic | null | undefined) => {
+    if (!topic) {
+      window.message.error(t('history.error.topic_not_found'))
+      return
+    }
     setStack((prev) => [...prev, 'topic'])
     setTopic(topic)
   }

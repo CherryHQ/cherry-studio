@@ -883,6 +883,9 @@
   },
   "history": {
     "continue_chat": "Продолжить чат",
+    "error": {
+      "topic_not_found": "Топик не найден"
+    },
     "locate": {
       "message": "Найти сообщение"
     },

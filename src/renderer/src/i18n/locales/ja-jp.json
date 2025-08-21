@@ -883,6 +883,9 @@
   },
   "history": {
     "continue_chat": "チャットを続ける",
+    "error": {
+      "topic_not_found": "トピックが見つかりません"
+    },
     "locate": {
       "message": "メッセージを探す"
     },
