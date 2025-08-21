@@ -78,7 +78,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
             ))}
           </ListItem>
         ))}
-        {keywords.length >= 2 && (
+        {keywords && (
           <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
             <Button style={{ width: 200, marginTop: 20 }} type="primary" onClick={onSearch} icon={<SearchOutlined />}>
               {t('history.search.messages')}
