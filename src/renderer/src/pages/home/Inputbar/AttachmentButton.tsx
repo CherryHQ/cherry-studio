@@ -2,7 +2,7 @@ import { FileMetadata, FileType } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import { Paperclip } from 'lucide-react'
-import { FC, useCallback, useImperativeHandle } from 'react'
+import { FC, useCallback, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface AttachmentButtonRef {
@@ -29,11 +29,16 @@ const AttachmentButton: FC<Props> = ({
   disabled
 }) => {
   const { t } = useTranslation()
+  const [selecting, setSelecting] = useState<boolean>(false)
 
   const onSelectFile = useCallback(async () => {
+    if (selecting) {
+      return
+    }
     // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
     const useAllFiles = extensions.length > 20
 
+    setSelecting(true)
     const _files: FileMetadata[] = await window.api.file.select({
       properties: ['openFile', 'multiSelections'],
       filters: [
@@ -43,6 +48,7 @@ const AttachmentButton: FC<Props> = ({
         }
       ]
     })
+    setSelecting(false)
 
     if (_files) {
       if (!useAllFiles) {
@@ -63,7 +69,7 @@ const AttachmentButton: FC<Props> = ({
         })
       }
     }
-  }, [extensions, files, setFiles, t])
+  }, [extensions, files, selecting, setFiles, t])
 
   const openQuickPanel = useCallback(() => {
     onSelectFile()
