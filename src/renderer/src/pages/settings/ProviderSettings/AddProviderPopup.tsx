@@ -3,7 +3,7 @@ import { Center, VStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage } from '@renderer/utils'
+import { compressImage, generateColorFromChar } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Select, Upload } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -171,7 +171,13 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             onOpenChange={(visible) => {
               setDropdownOpen(visible)
             }}>
-            {logo ? <ProviderLogo src={logo} /> : <ProviderInitialsLogo>{getInitials()}</ProviderInitialsLogo>}
+            {logo ? (
+              <ProviderLogo src={logo} />
+            ) : (
+              <ProviderInitialsLogo style={{ backgroundColor: generateColorFromChar(name) }}>
+                {getInitials()}
+              </ProviderInitialsLogo>
+            )}
           </Dropdown>
         </VStack>
       </Center>
