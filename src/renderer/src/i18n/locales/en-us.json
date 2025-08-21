@@ -3724,6 +3724,9 @@
       "error": {
         "save": "Failed to save translation history"
       },
+      "search": {
+        "placeholder": "Search translation history"
+      },
       "title": "Translation History"
     },
     "input": {
