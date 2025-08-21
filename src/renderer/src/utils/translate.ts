@@ -49,7 +49,7 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
       throw new Error('Invalid detection method.')
   }
   logger.info(`Detected Language: ${result}`)
-  return result
+  return result.trim()
 }
 
 const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {

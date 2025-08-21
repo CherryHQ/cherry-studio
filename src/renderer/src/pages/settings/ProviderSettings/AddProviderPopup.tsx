@@ -3,7 +3,7 @@ import { Center, VStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage } from '@renderer/utils'
+import { compressImage, generateColorFromChar } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Select, Upload } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }
 
   const getInitials = () => {
-    return name.charAt(0).toUpperCase() || 'P'
+    return name.charAt(0) || 'P'
   }
 
   const items = [
@@ -171,7 +171,14 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             onOpenChange={(visible) => {
               setDropdownOpen(visible)
             }}>
-            {logo ? <ProviderLogo src={logo} /> : <ProviderInitialsLogo>{getInitials()}</ProviderInitialsLogo>}
+            {logo ? (
+              <ProviderLogo src={logo} />
+            ) : (
+              <ProviderInitialsLogo
+                style={name ? { backgroundColor: generateColorFromChar(name) } : { color: 'black' }}>
+                {getInitials()}
+              </ProviderInitialsLogo>
+            )}
           </Dropdown>
         </VStack>
       </Center>
@@ -236,6 +243,7 @@ const ProviderInitialsLogo = styled.div`
   transition: opacity 0.3s ease;
   background-color: var(--color-background-soft);
   border: 0.5px solid var(--color-border);
+  color: white;
   &:hover {
     opacity: 0.8;
   }
