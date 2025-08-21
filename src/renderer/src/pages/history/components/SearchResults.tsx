@@ -132,10 +132,10 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
             pageSize: 10,
             hideOnSinglePage: true,
             onChange: () => {
-              requestAnimationFrame(() => containerRef.current?.scrollTo({ top: 0 }))
+              requestAnimationFrame(() => containerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }))
             }
           }}
-          style={{ opacity: isLoading ? 0 : 1 }}
+          style={{ opacity: isLoading ? 0 : 1, overflowY: 'visible' }}
           renderItem={({ message, topic, content }) => (
             <List.Item>
               <Title
