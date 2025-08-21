@@ -207,6 +207,7 @@ const TranslatePage: FC = () => {
     bidirectionalPair,
     getLanguageByLangcode,
     isBidirectional,
+    setTranslating,
     sourceLanguage,
     t,
     targetLanguage,
