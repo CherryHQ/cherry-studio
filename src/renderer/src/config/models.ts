@@ -3012,7 +3012,7 @@ export function isMandatoryWebSearchModel(model: Model): boolean {
   const provider = getProviderByModel(model)
   const modelId = getLowerBaseModelName(model.id)
 
-  if (provider.id === 'perplexity') {
+  if (provider.id === 'perplexity' || provider.id === 'openrouter') {
     return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 

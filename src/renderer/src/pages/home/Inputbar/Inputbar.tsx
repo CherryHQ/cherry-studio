@@ -5,6 +5,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import {
   isGenerateImageModel,
   isGenerateImageModels,
+  isMandatoryWebSearchModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
@@ -767,7 +768,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isWebSearchModel(model) && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
-    if (assistant.webSearchProviderId && !WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
+    if (
+      assistant.webSearchProviderId &&
+      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
+    ) {
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
