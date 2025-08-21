@@ -322,6 +322,7 @@
       "expand": "展開",
       "file_error": "ファイル処理エラー",
       "file_not_supported": "モデルはこのファイルタイプをサポートしません",
+      "file_not_supported_count": "{{count}} 個のファイルはサポートされていません",
       "generate_image": "画像を生成する",
       "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "knowledge_base": "ナレッジベース",
@@ -3722,6 +3723,9 @@
       "empty": "翻訳履歴がありません",
       "error": {
         "save": "保存翻訳履歴に失敗しました"
+      },
+      "search": {
+        "placeholder": "翻訳履歴を検索する"
       },
       "title": "翻訳履歴"
     },

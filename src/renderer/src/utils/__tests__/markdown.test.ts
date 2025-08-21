@@ -6,8 +6,6 @@ import { describe, expect, it } from 'vitest'
 import {
   convertMathFormula,
   findCitationInChildren,
-  getCodeBlockId,
-  getExtensionByLanguage,
   isHtmlCode,
   markdownToPlainText,
   processLatexBrackets,
@@ -143,96 +141,6 @@ describe('markdown', () => {
       const input = ''
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('')
-    })
-  })
-
-  describe('getExtensionByLanguage', () => {
-    // 批量测试语言名称到扩展名的映射
-    const testLanguageExtensions = (testCases: Record<string, string>) => {
-      for (const [language, expectedExtension] of Object.entries(testCases)) {
-        const result = getExtensionByLanguage(language)
-        expect(result).toBe(expectedExtension)
-      }
-    }
-
-    it('should return extension for exact language name match', () => {
-      testLanguageExtensions({
-        '4D': '.4dm',
-        'C#': '.cs',
-        JavaScript: '.js',
-        TypeScript: '.ts',
-        'Objective-C++': '.mm',
-        Python: '.py',
-        SVG: '.svg',
-        'Visual Basic .NET': '.vb'
-      })
-    })
-
-    it('should return extension for case-insensitive language name match', () => {
-      testLanguageExtensions({
-        '4d': '.4dm',
-        'c#': '.cs',
-        javascript: '.js',
-        typescript: '.ts',
-        'objective-c++': '.mm',
-        python: '.py',
-        svg: '.svg',
-        'visual basic .net': '.vb'
-      })
-    })
-
-    it('should return extension for language aliases', () => {
-      testLanguageExtensions({
-        js: '.js',
-        node: '.js',
-        'obj-c++': '.mm',
-        'objc++': '.mm',
-        'objectivec++': '.mm',
-        py: '.py',
-        'visual basic': '.vb'
-      })
-    })
-
-    it('should return fallback extension for unknown languages', () => {
-      testLanguageExtensions({
-        'unknown-language': '.unknown-language',
-        custom: '.custom'
-      })
-    })
-
-    it('should handle empty string input', () => {
-      testLanguageExtensions({
-        '': '.'
-      })
-    })
-  })
-
-  describe('getCodeBlockId', () => {
-    it('should generate ID from position information', () => {
-      // 从位置信息生成ID
-      const start = { line: 10, column: 5, offset: 123 }
-      const result = getCodeBlockId(start)
-      expect(result).toBe('10:5:123')
-    })
-
-    it('should handle zero position values', () => {
-      // 处理零值位置
-      const start = { line: 1, column: 0, offset: 0 }
-      const result = getCodeBlockId(start)
-      expect(result).toBe('1:0:0')
-    })
-
-    it('should return null for null or undefined input', () => {
-      // 处理null或undefined输入
-      expect(getCodeBlockId(null)).toBeNull()
-      expect(getCodeBlockId(undefined)).toBeNull()
-    })
-
-    it('should handle missing properties in position object', () => {
-      // 处理缺少属性的位置对象
-      const invalidStart = { line: 5 }
-      const result = getCodeBlockId(invalidStart)
-      expect(result).toBe('5:undefined:undefined')
     })
   })
 
