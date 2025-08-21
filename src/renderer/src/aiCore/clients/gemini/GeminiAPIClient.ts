@@ -52,6 +52,7 @@ import {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
   isEnabledToolUse,
@@ -476,7 +477,7 @@ export class GeminiAPIClient extends BaseApiClient<
           }
         }
 
-        if (tools.length === 0 || assistant.settings?.toolUseMode !== 'function') {
+        if (tools.length === 0 || !isToolUseModeFunction(assistant)) {
           if (enableWebSearch) {
             tools.push({
               googleSearch: {}

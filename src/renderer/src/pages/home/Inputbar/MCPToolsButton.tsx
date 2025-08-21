@@ -7,6 +7,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -147,7 +148,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       }
 
       // only for gemini
-      if (update.mcpServers.length > 0 && isGeminiModel(model) && assistant.settings?.toolUseMode === 'function') {
+      if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
         const provider = getProviderByModel(model)
         if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
           window.message.warning(t('chat.mcp.warning.url_context'))

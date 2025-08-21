@@ -11,6 +11,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
@@ -93,7 +94,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     if (
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
-      assistant.settings?.toolUseMode === 'function' &&
+      isToolUseModeFunction(assistant) &&
       update.enableWebSearch &&
       assistant.mcpServers &&
       assistant.mcpServers.length > 0

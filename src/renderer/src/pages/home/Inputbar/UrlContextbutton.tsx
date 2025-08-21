@@ -1,6 +1,7 @@
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant } from '@renderer/types'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
 import { FC, memo, useCallback } from 'react'
@@ -32,7 +33,7 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
           assistant.mcpServers &&
           assistant.mcpServers.length > 0 &&
           urlContentNewState === true &&
-          assistant.settings?.toolUseMode === 'function'
+          isToolUseModeFunction(assistant)
         ) {
           update.enableUrlContext = false
           window.message.warning(t('chat.mcp.warning.url_context'))
