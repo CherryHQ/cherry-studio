@@ -585,7 +585,7 @@
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑话题名",
-        "title_tip": "双击话题名可以直接就地重命名"
+        "title_tip": "提示: 双击话题名可以直接就地重命名"
       },
       "export": {
         "image": "导出为图片",

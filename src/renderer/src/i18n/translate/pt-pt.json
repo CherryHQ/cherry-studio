@@ -585,7 +585,7 @@
       "edit": {
         "placeholder": "Digite novo nome",
         "title": "Editar nome do tópico",
-        "title_tip": "Clique duas vezes no nome do tópico para renomeá-lo diretamente no local"
+        "title_tip": "Dicas: Clique duas vezes no nome do tópico para renomeá-lo diretamente no local"
       },
       "export": {
         "image": "Exportar como imagem",

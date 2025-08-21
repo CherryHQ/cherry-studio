@@ -585,7 +585,7 @@
       "edit": {
         "placeholder": "Introduce nuevo nombre",
         "title": "Editar nombre del tema",
-        "title_tip": "Hacer doble clic en el nombre del tema permite cambiarle el nombre directamente."
+        "title_tip": "Consejos: hacer doble clic en el nombre del tema permite cambiar el nombre directamente en el lugar"
       },
       "export": {
         "image": "Exportar como imagen",

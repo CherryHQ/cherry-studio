@@ -585,7 +585,7 @@
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit Name",
-        "title_tip": "Double-clicking on a topic name allows direct in-place renaming."
+        "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
         "image": "Export as image",
