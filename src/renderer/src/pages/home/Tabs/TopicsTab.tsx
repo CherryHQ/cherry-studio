@@ -519,7 +519,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
-                  <TopicName className={getTopicNameClassName()} title={topicName}>
+                  <TopicName
+                    className={getTopicNameClassName()}
+                    title={topicName}
+                    onDoubleClick={() => {
+                      setEditingTopicId(topic.id)
+                      topicEdit.startEdit(topic.name)
+                    }}>
                     {topicName}
                   </TopicName>
                 )}
