@@ -584,7 +584,8 @@
       },
       "edit": {
         "placeholder": "輸入新名稱",
-        "title": "編輯名稱"
+        "title": "編輯名稱",
+        "title_tip": "雙擊話題名可以直接就地重新命名"
       },
       "export": {
         "image": "匯出為圖片",

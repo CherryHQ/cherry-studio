@@ -226,7 +226,10 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
           const name = await PromptPopup.show({
             title: t('chat.topics.edit.title'),
             message: '',
-            defaultValue: topic?.name || ''
+            defaultValue: topic?.name || '',
+            extraNode: (
+              <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+            )
           })
           if (name && topic?.name !== name) {
             const updatedTopic = { ...topic, name, isNameManuallyEdited: true }

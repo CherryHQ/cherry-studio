@@ -584,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Entrez un nouveau nom",
-        "title": "Modifier le nom du sujet"
+        "title": "Modifier le nom du sujet",
+        "title_tip": "Double-cliquer sur le nom du sujet permet de le renommer directement sur place"
       },
       "export": {
         "image": "Exporter sous forme d'image",

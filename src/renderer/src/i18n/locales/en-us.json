@@ -584,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Enter new name",
-        "title": "Edit Name"
+        "title": "Edit Name",
+        "title_tip": "Double-clicking on a topic name allows direct in-place renaming."
       },
       "export": {
         "image": "Export as image",
