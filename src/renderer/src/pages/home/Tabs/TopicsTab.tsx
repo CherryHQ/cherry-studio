@@ -222,9 +222,16 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         key: 'rename',
         icon: <EditIcon size={14} />,
         disabled: isRenaming(topic.id),
-        onClick() {
-          setEditingTopicId(topic.id)
-          topicEdit.startEdit(topic.name)
+        async onClick() {
+          const name = await PromptPopup.show({
+            title: t('chat.topics.edit.title'),
+            message: '',
+            defaultValue: topic?.name || ''
+          })
+          if (name && topic?.name !== name) {
+            const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+            updateTopic(updatedTopic)
+          }
         }
       },
       {
