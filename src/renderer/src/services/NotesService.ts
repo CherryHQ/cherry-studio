@@ -80,7 +80,14 @@ export async function getNotesTree(): Promise<NotesTreeNode[]> {
     const record = await db.notes_tree.get(NOTES_TREE_ID)
     const tree: NotesTreeNode[] = record?.tree || []
 
-    await syncFile(tree)
+    const hasExternalNodes = tree.some((node) => node.isExternal === true)
+    logger.debug('Notes tree has external nodes:', { hasExternalNodes })
+    if (!hasExternalNodes) {
+      await syncFile(tree)
+    } else {
+      await syncExternalFile(tree)
+    }
+
     logger.debug('Notes tree loaded:', tree)
     return tree
   } catch (error) {
@@ -124,6 +131,71 @@ async function syncFile(tree: NotesTreeNode[]): Promise<void> {
 }
 
 /**
+ * 同步外部文件
+ * 检查外部文件的变化并更新笔记树结构
+ */
+async function syncExternalFile(tree: NotesTreeNode[]): Promise<void> {
+  const externalNodes: NotesTreeNode[] = []
+  collectExternalNodes(tree, externalNodes)
+
+  if (externalNodes.length === 0) return
+
+  let hasChanges = false
+
+  try {
+    for (const node of externalNodes) {
+      try {
+        const fileInfo = await window.api.file.get(node.externalPath!)
+        if (fileInfo) {
+          // 检查文件更新时间
+          const fileModifiedTime = new Date(fileInfo.created_at).toISOString()
+          const nodeUpdatedTime = node.updatedAt || node.createdAt
+
+          if (fileModifiedTime > nodeUpdatedTime) {
+            // 文件已被外部修改，更新节点
+            node.updatedAt = fileModifiedTime
+            hasChanges = true
+            logger.debug(`External file updated: ${node.name} (${node.id})`)
+          }
+
+          // 检查文件名是否变化
+          const pathParts = node.externalPath!.split('/')
+          const actualFileName = pathParts[pathParts.length - 1]
+
+          // 对于文件，移除扩展名再比较
+          if (node.type === 'file' && !node.name.endsWith(MARKDOWN_EXT)) {
+            const nameWithoutExt = actualFileName.endsWith(MARKDOWN_EXT)
+              ? actualFileName.slice(0, -MARKDOWN_EXT.length)
+              : actualFileName
+
+            if (nameWithoutExt !== node.name) {
+              node.name = nameWithoutExt
+              node.updatedAt = fileModifiedTime
+              hasChanges = true
+              logger.debug(`External file name changed: ${node.name} (路径: ${node.externalPath})`)
+            }
+          } else if (node.type === 'folder' && actualFileName !== node.name) {
+            node.name = actualFileName
+            node.updatedAt = fileModifiedTime
+            hasChanges = true
+            logger.debug(`External folder name changed: ${node.name} (路径: ${node.externalPath})`)
+          }
+        }
+      } catch (error) {
+        logger.error(`Failed to get external file info for ${node.externalPath}:`, error as Error)
+        removeNodeFromTree(tree, node.id)
+        hasChanges = true
+      }
+    }
+    if (hasChanges) {
+      await saveNotesTree(tree)
+    }
+  } catch (error) {
+    logger.error('Failed to sync external files:', error as Error)
+  }
+}
+
+/**
  * 收集树中所有文件节点的ID
  */
 function collectFileIds(tree: NotesTreeNode[], fileIds: string[]): void {
@@ -133,6 +205,20 @@ function collectFileIds(tree: NotesTreeNode[], fileIds: string[]): void {
     }
     if (node.children && node.children.length > 0) {
       collectFileIds(node.children, fileIds)
+    }
+  }
+}
+
+/**
+ * 收集树中所有外部节点
+ */
+function collectExternalNodes(tree: NotesTreeNode[], externalNodes: NotesTreeNode[]): void {
+  for (const node of tree) {
+    if (node.isExternal === true && node.externalPath) {
+      externalNodes.push(node)
+    }
+    if (node.children && node.children.length > 0) {
+      collectExternalNodes(node.children, externalNodes)
     }
   }
 }
@@ -196,9 +282,13 @@ export async function saveNotesTree(tree: NotesTreeNode[]): Promise<void> {
 /**
  * 创建新文件夹
  */
-export async function createFolder(name: string, parentId?: string): Promise<NotesTreeNode> {
+export async function createFolder(
+  name: string,
+  parentId?: string,
+  isExternal: boolean = false,
+  folderPath?: string | null
+): Promise<NotesTreeNode> {
   const folderId = uuidv4()
-
   const folder: NotesTreeNode = {
     id: folderId,
     name,
@@ -206,7 +296,19 @@ export async function createFolder(name: string, parentId?: string): Promise<Not
     children: [],
     expanded: true,
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    isExternal: isExternal,
+    ...(folderPath && { folderPath })
+  }
+
+  if (isExternal && folderPath) {
+    try {
+      await window.api.file.mkdir(folderPath)
+      logger.debug(`External folder created at: ${folderPath}`)
+    } catch (error) {
+      logger.error(`Failed to create external folder at ${folderPath}:`, error as Error)
+      throw error
+    }
   }
 
   const tree = await getNotesTree()

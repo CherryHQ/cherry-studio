@@ -278,6 +278,51 @@ class FileStorage {
     }
   }
 
+  public readExternalFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    detectEncoding: boolean = false
+  ): Promise<string> => {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File does not exist: ${filePath}`)
+    }
+
+    const fileExtension = path.extname(filePath)
+
+    if (documentExts.includes(fileExtension)) {
+      const originalCwd = process.cwd()
+      try {
+        chdir(this.tempDir)
+
+        if (fileExtension === '.doc') {
+          const extractor = new WordExtractor()
+          const extracted = await extractor.extract(filePath)
+          chdir(originalCwd)
+          return extracted.getBody()
+        }
+
+        const data = await officeParser.parseOfficeAsync(filePath)
+        chdir(originalCwd)
+        return data
+      } catch (error) {
+        chdir(originalCwd)
+        logger.error('Failed to read file:', error as Error)
+        throw error
+      }
+    }
+
+    try {
+      if (detectEncoding) {
+        return readTextFileWithAutoEncoding(filePath)
+      } else {
+        return fs.readFileSync(filePath, 'utf-8')
+      }
+    } catch (error) {
+      logger.error('Failed to read file:', error as Error)
+      throw new Error(`Failed to read file: ${filePath}.`)
+    }
+  }
+
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
     if (!fs.existsSync(this.tempDir)) {
       fs.mkdirSync(this.tempDir, { recursive: true })
@@ -292,6 +337,22 @@ class FileStorage {
     data: Uint8Array | string
   ): Promise<void> => {
     await fs.promises.writeFile(filePath, data)
+  }
+
+  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
+    try {
+      logger.debug(`Attempting to create directory: ${dirPath}`)
+      await fs.promises.mkdir(dirPath, { recursive: true })
+      const exists = fs.existsSync(dirPath)
+      logger.debug(`Directory creation result - exists: ${exists}, path: ${dirPath}`)
+
+      if (!exists) {
+        throw new Error(`Failed to create directory (directory does not exist after creation): ${dirPath}`)
+      }
+    } catch (error) {
+      logger.error('Failed to create directory:', error as Error)
+      throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
+    }
   }
 
   public base64Image = async (

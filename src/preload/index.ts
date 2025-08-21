@@ -139,21 +139,13 @@ const api = {
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
     read: (fileId: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
+    readExternal: (filePath: string, detectEncoding?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_ReadExternal, filePath, detectEncoding),
     clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
     get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
-    /**
-     * 创建一个空的临时文件
-     * @param fileName 文件名
-     * @returns 临时文件路径
-     */
     createTempFile: (fileName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.File_CreateTempFile, fileName),
-    /**
-     * 写入文件
-     * @param filePath 文件路径
-     * @param data 数据
-     */
+    mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
-
     writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),

@@ -5,6 +5,8 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { getExternalNotesTree } from '@renderer/services/NotesService'
+import { useAppDispatch } from '@renderer/store'
+import { setFolderPath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps, Tooltip } from 'antd'
 import {
@@ -59,6 +61,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   activeNodeId,
   notesTree
 }) => {
+  const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
@@ -77,10 +80,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const handleOpenFolder = useCallback(async () => {
     try {
       const folderPath = await window.api.file.selectFolder()
+      dispatch(setFolderPath(folderPath))
       logger.debug(folderPath)
-      if (!folderPath) {
-        return
-      }
+
       const externalTree = await window.api.file.getDirectoryStructure(folderPath, {
         includeFiles: true,
         includeDirectories: true,
@@ -98,7 +100,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       logger.error('Failed to open external folder:', error as Error)
       window.message.error(t('notes.folder_open_failed'))
     }
-  }, [t])
+  }, [dispatch, t])
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))

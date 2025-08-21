@@ -36,7 +36,7 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useSettings()
   const dispatch = useAppDispatch()
   const activeNodeId = useAppSelector(selectActiveNodeId)
-  const { settings } = useNotesSettings()
+  const { settings, folderPath } = useNotesSettings()
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const [currentContent, setCurrentContent] = useState<string>('')
   const [tokenCount, setTokenCount] = useState(0)
@@ -73,7 +73,11 @@ const NotesPage: FC = () => {
       try {
         const activeNode = findNodeById(notesTree, activeNodeId)
         if (activeNode && activeNode.type === 'file') {
-          await updateNote(activeNode, content)
+          if (activeNode.isExternal && activeNode.externalPath) {
+            await window.api.file.write(activeNode.externalPath, content)
+          } else {
+            await updateNote(activeNode, content)
+          }
         }
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
@@ -116,12 +120,17 @@ const NotesPage: FC = () => {
           logger.debug('Active node:', activeNode)
           if (activeNode && activeNode.type === 'file' && activeNode.id) {
             try {
-              const fileMetadata = await FileManager.getFile(activeNode.id)
-              logger.debug('File metadata:', fileMetadata)
-              if (fileMetadata) {
-                const content = await window.api.file.read(fileMetadata.id + fileMetadata.ext)
-                logger.debug(content)
+              if (activeNode.isExternal && activeNode.externalPath) {
+                const content = await window.api.file.readExternal(activeNode.externalPath)
                 setCurrentContent(content)
+              } else {
+                const fileMetadata = await FileManager.getFile(activeNode.id)
+                logger.debug('File metadata:', fileMetadata)
+                if (fileMetadata) {
+                  const content = await window.api.file.read(fileMetadata.id + fileMetadata.ext)
+                  logger.debug(content)
+                  setCurrentContent(content)
+                }
               }
             } catch (error) {
               logger.error('Failed to read file:', error as Error)
@@ -144,15 +153,24 @@ const NotesPage: FC = () => {
   }, [activeNodeId, notesTree.length, findNodeById])
 
   // 创建文件夹
-  const handleCreateFolder = useCallback(async (name: string, parentId?: string) => {
-    try {
-      await createFolder(name, parentId)
-      const updatedTree = await getNotesTree()
-      setNotesTree(updatedTree)
-    } catch (error) {
-      logger.error('Failed to create folder:', error as Error)
-    }
-  }, [])
+  const handleCreateFolder = useCallback(
+    async (name: string, parentId?: string) => {
+      try {
+        const hasExternalNodes = notesTree.some((node) => node.isExternal === true)
+        logger.debug('Has external nodes:', { hasExternalNodes })
+        if (hasExternalNodes) {
+          await createFolder(name, parentId, true, folderPath)
+        } else {
+          await createFolder(name, parentId)
+        }
+        const updatedTree = await getNotesTree()
+        setNotesTree(updatedTree)
+      } catch (error) {
+        logger.error('Failed to create folder:', error as Error)
+      }
+    },
+    [folderPath, notesTree]
+  )
 
   // 创建笔记
   const handleCreateNote = useCallback(
@@ -188,14 +206,16 @@ const NotesPage: FC = () => {
           dispatch(setActiveNodeId(node.id))
 
           if (node.id) {
-            const updatedFileMetadata = await FileManager.getFile(node.id)
-            if (updatedFileMetadata && updatedFileMetadata.origin_name !== node.name) {
-              // 如果数据库中的显示名称与树节点中的名称不同，更新树节点
-              const updatedTree = [...notesTree]
-              const updatedNode = findNodeById(updatedTree, node.id)
-              if (updatedNode) {
-                updatedNode.name = updatedFileMetadata.origin_name
-                setNotesTree(updatedTree)
+            if (!node.isExternal && node.externalPath) {
+              const updatedFileMetadata = await FileManager.getFile(node.id)
+              if (updatedFileMetadata && updatedFileMetadata.origin_name !== node.name) {
+                // 如果数据库中的显示名称与树节点中的名称不同，更新树节点
+                const updatedTree = [...notesTree]
+                const updatedNode = findNodeById(updatedTree, node.id)
+                if (updatedNode) {
+                  updatedNode.name = updatedFileMetadata.origin_name
+                  setNotesTree(updatedTree)
+                }
               }
             }
           }
@@ -216,6 +236,8 @@ const NotesPage: FC = () => {
       try {
         const isActiveNodeOrParent =
           activeNodeId && (nodeId === activeNodeId || isParentNode(notesTree, nodeId, activeNodeId))
+
+        // FIXME 删除外部文件
 
         await deleteNode(nodeId)
         const updatedTree = await getNotesTree()
