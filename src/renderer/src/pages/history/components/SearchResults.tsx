@@ -2,14 +2,22 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { getTopicById } from '@renderer/hooks/useTopic'
+import { selectTopicsMap } from '@renderer/store/assistants'
 import { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { List, Spin, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { FC, memo, useCallback, useEffect, useState } from 'react'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 const { Text, Title } = Typography
+
+type SearchResult = {
+  message: Message
+  topic: Topic
+  content: string
+}
 
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   keywords: string
@@ -28,8 +36,10 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
   )
 
   const topics = useLiveQuery(() => db.topics.toArray(), [])
+  // FIXME: db 中没有 topic.name 等信息，只能从 store 获取
+  const storeTopicsMap = useSelector(selectTopicsMap)
 
-  const [searchResults, setSearchResults] = useState<{ message: Message; topic: Topic; content: string }[]>([])
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searchStats, setSearchStats] = useState({ count: 0, time: 0 })
   const [isLoading, setIsLoading] = useState(false)
 
@@ -56,25 +66,30 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     }
 
     const startTime = performance.now()
-    const results: { message: Message; topic: Topic; content: string }[] = []
     const newSearchTerms = keywords
       .toLowerCase()
       .split(' ')
       .filter((term) => term.length > 0)
+    const searchRegexes = newSearchTerms.map((term) => new RegExp(term, 'i'))
 
-    const blocksArray = await db.message_blocks.toArray()
-    const blocks = blocksArray
+    const blocks = (await db.message_blocks.toArray())
       .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
-      .filter((block) => newSearchTerms.some((term) => block.content.toLowerCase().includes(term)))
+      .filter((block) => searchRegexes.some((regex) => regex.test(block.content)))
 
-    const messages = topics?.map((topic) => topic.messages).flat()
+    const messages = topics?.flatMap((topic) => topic.messages)
 
-    for (const block of blocks) {
-      const message = messages?.find((message) => message.id === block.messageId)
-      if (message) {
-        results.push({ message, topic: await getTopicById(message.topicId)!, content: block.content })
-      }
-    }
+    const results = await Promise.all(
+      blocks.map(async (block) => {
+        const message = messages?.find((message) => message.id === block.messageId)
+        if (message) {
+          const topic = storeTopicsMap.get(message.topicId)
+          if (topic) {
+            return { message, topic, content: block.content }
+          }
+        }
+        return null
+      })
+    ).then((results) => results.filter(Boolean) as SearchResult[])
 
     const endTime = performance.now()
     setSearchResults(results)
@@ -84,7 +99,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     })
     setSearchTerms(newSearchTerms)
     setIsLoading(false)
-  }, [keywords, topics])
+  }, [keywords, storeTopicsMap, topics])
 
   const highlightText = (text: string) => {
     let highlightedText = removeMarkdown(text)
@@ -116,6 +131,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
           dataSource={searchResults}
           pagination={{
             pageSize: 10,
+            hideOnSinglePage: true,
             onChange: () => {
               requestAnimationFrame(() => containerRef.current?.scrollTo({ top: 0 }))
             }
