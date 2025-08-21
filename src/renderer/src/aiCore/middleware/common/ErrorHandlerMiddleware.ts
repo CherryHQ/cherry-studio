@@ -26,14 +26,6 @@ export const ErrorHandlerMiddleware =
     const { shouldThrow } = params
 
     try {
-      // 智谱错误测试模式 - 仅在开发环境或明确设置时启用
-      const testZhipuError = localStorage.getItem('test_zhipu_error')
-      if (testZhipuError && isZhipuModel(params.assistant.model)) {
-        logger.debug('🔧 智谱错误测试模式已激活:', { testError: testZhipuError })
-        const testError = createTestZhipuError(testZhipuError)
-        throw testError
-      }
-
       // 尝试执行下一个中间件
       return await next(ctx, params)
     } catch (error: any) {
@@ -42,13 +34,10 @@ export const ErrorHandlerMiddleware =
       // 智谱特定错误处理
       let processedError = error
 
-
       // 只有对话功能（enableGenerateImage为false）才使用自定义错误处理
       // 绘画功能（enableGenerateImage为true）使用通用错误处理
       if (isZhipuModel(params.assistant.model) && error.status && !params.enableGenerateImage) {
         processedError = handleZhipuError(error, params.assistant.provider || {})
-      } else if (isZhipuModel(params.assistant.model) && error.status && params.enableGenerateImage) {
-        // 绘画功能使用原始错误，不做自定义处理
       }
 
       // 1. 使用通用的工具函数将错误解析为标准格式
@@ -136,36 +125,4 @@ function handleZhipuError(error: any, provider: any): any {
   // 如果不是智谱特定错误，返回原始错误
   logger.debug('🔧 不是智谱特定错误，返回原始错误')
   return error
-}
-
-/**
- * 创建测试用的智谱错误
- */
-function createTestZhipuError(errorType: string): any {
-  switch (errorType) {
-    case 'no_api_key':
-      return {
-        name: 'ZhipuError',
-        message: 'API key is required',
-        status: 401
-      }
-    case 'insufficient_balance':
-      return {
-        name: 'ZhipuError',
-        message: '余额不足 insufficient balance',
-        status: 402
-      }
-    case 'quota_exceeded':
-      return {
-        name: 'ZhipuError',
-        message: '免费配额已用尽 free quota exceeded',
-        status: 429
-      }
-    default:
-      return {
-        name: 'ZhipuError',
-        message: 'Unknown error',
-        status: 500
-      }
-  }
 }

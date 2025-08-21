@@ -10,13 +10,11 @@ import {
   setSelectedModel
 } from '@renderer/store/codeTools'
 import { Model } from '@renderer/types'
-import { useCallback, useEffect, useRef } from 'react'
-import { useProviders } from './useProvider'
+import { useCallback, useRef } from 'react'
 
 export const useCodeTools = () => {
   const dispatch = useAppDispatch()
   const codeToolsState = useAppSelector((state) => state.codeTools)
-  const { providers } = useProviders()
   const logger = loggerService.withContext('useCodeTools')
 
   // 使用 ref 来跟踪每个 CLI 工具是否已经被初始化过

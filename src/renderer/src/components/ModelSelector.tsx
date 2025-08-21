@@ -10,6 +10,7 @@ import { BaseSelectRef } from 'rc-select'
 import { sortBy } from 'lodash'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { isEmbeddingModel } from '@renderer/config/models'
 
 interface ModelOption {
   label: React.ReactNode
@@ -67,10 +68,10 @@ const ModelSelector = ({
       if (p.id === 'zhipu') {
         const hasApiKey = p.apiKey && p.apiKey.trim() !== ''
 
-        // 如果未配置API Key，只显示四个指定模型
+        // 如果未配置API Key，只显示四个指定模型和嵌入模型
         if (!hasApiKey) {
           filteredModels = filteredModels.filter(
-            (m) => m.id === 'glm-4.5-flash' || m.id === 'glm-4.5' || m.id === 'glm-4.5-air' || m.id === 'glm-4.5v'
+            (m) => m.id === 'glm-4.5-flash' || m.id === 'glm-4.5' || m.id === 'glm-4.5-air' || m.id === 'glm-4.5v' || isEmbeddingModel(m)
           )
         }
 

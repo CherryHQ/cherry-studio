@@ -13,7 +13,8 @@ const createInitialKnowledgeBase = (): KnowledgeBase => {
     id: 'embedding-3',
     provider: 'zhipu',
     name: 'Embedding-3',
-    group: 'Embedding'
+    group: 'Embedding',
+    apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
   }
 
   return {

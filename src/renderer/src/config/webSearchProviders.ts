@@ -25,7 +25,7 @@ export const WEB_SEARCH_PROVIDER_CONFIG = {
   zhipu: {
     websites: {
       official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
-      apiKey: 'https://docs.bigmodel.cn/cn/guide/tools/web-search'
+      apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     }
   },
   tavily: {

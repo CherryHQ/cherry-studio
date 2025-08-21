@@ -76,10 +76,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       if (provider.id === 'zhipu') {
         const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
 
-        // 如果未配置API Key，只显示四个指定模型
+        // 如果未配置API Key，只显示四个指定模型和嵌入模型
         if (!hasApiKey) {
           models = models.filter(
-            (m) => m.id === 'glm-4.5-flash' || m.id === 'glm-4.5' || m.id === 'glm-4.5-air' || m.id === 'glm-4.5v'
+            (m) => m.id === 'glm-4.5-flash' || m.id === 'glm-4.5' || m.id === 'glm-4.5-air' || m.id === 'glm-4.5v' || isEmbeddingModel(m)
           )
         }
 

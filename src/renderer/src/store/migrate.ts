@@ -2175,21 +2175,21 @@ const migrateConfig = {
             provider: 'zhipu',
             name: 'GLM-4.1V-Thinking-Flash',
             group: 'GLM-4V',
-            isFree: true
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
             id: 'glm-4v-flash',
             provider: 'zhipu',
             name: 'GLM-4V-Flash',
             group: 'GLM-4V',
-            isFree: true
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
             id: 'cogview-3-flash',
             provider: 'zhipu',
             name: 'CogView-3-Flash',
             group: 'CogView',
-            isFree: true
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
             id: 'cogview-4-250304',
@@ -2197,14 +2197,25 @@ const migrateConfig = {
             name: 'CogView-4-250304',
             group: 'CogView',
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'embedding-3',
+            provider: 'zhipu',
+            name: 'Embedding-3',
+            group: 'Embedding',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           }
         ]
 
-        // 添加新模型（如果不存在）
+        // 添加新模型或更新现有模型的配置（特别是apiKeyLink）
         newModels.forEach(newModel => {
           const existingModel = zhipuProvider.models.find(m => m.id === newModel.id)
           if (!existingModel) {
+            // 如果模型不存在，添加新模型
             zhipuProvider.models.push(newModel)
+          } else {
+            // 如果模型已存在，更新配置（特别是apiKeyLink）
+            Object.assign(existingModel, newModel)
           }
         })
 
