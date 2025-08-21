@@ -634,6 +634,7 @@ const TopicNameContainer = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 4px;
+  height: 20px;
   justify-content: space-between;
 `
 
@@ -687,19 +688,14 @@ const TopicName = styled.div`
 
 const TopicEditInput = styled.input`
   background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border: none;
   color: var(--color-text-1);
   font-size: 13px;
   font-family: inherit;
   padding: 2px 6px;
   width: 100%;
   outline: none;
-
-  &:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px var(--color-primary-alpha);
-  }
+  padding: 0;
 `
 
 const PendingIndicator = styled.div.attrs({
