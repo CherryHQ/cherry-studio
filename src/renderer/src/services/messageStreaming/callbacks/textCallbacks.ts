@@ -12,11 +12,10 @@ interface TextCallbacksDependencies {
   getState: any
   assistantMsgId: string
   getCitationBlockId: () => string | null
-  setCitationBlockId: (id: string | null) => void
 }
 
 export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
-  const { blockManager, getState, assistantMsgId, getCitationBlockId, setCitationBlockId } = deps
+  const { blockManager, getState, assistantMsgId, getCitationBlockId } = deps
 
   // 内部维护的状态
   let mainTextBlockId: string | null = null
@@ -63,7 +62,6 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
         }
         blockManager.smartBlockUpdate(mainTextBlockId, changes, MessageBlockType.MAIN_TEXT, true)
         mainTextBlockId = null
-        setCitationBlockId(null)
       } else {
         logger.warn(
           `[onTextComplete] Received text.complete but last block was not MAIN_TEXT (was ${blockManager.lastBlockType}) or lastBlockId is null.`

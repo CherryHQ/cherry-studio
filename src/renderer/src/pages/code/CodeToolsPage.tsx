@@ -14,7 +14,7 @@ import { Model } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -56,13 +56,10 @@ const CodeToolsPage: FC = () => {
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
 
-  // 处理 CLI 工具选择
-  const handleCliToolChange = (value: codeTools) => {
-    setCliTool(value)
-    // 不再清空模型选择，因为每个工具都会记住自己的模型
-  }
+  const handleCliToolChange = (value: codeTools) => setCliTool(value)
 
-  const openAiProviders = providers.filter((p) => p.type.includes('openai'))
+  const openAiCompatibleProviders = providers.filter((p) => p.type.includes('openai'))
+  const openAiProviders = providers.filter((p) => p.id === 'openai')
   const geminiProviders = providers.filter((p) => p.type === 'gemini' || SUPPORTED_PROVIDERS.includes(p.id))
   const claudeProviders = providers.filter((p) => p.type === 'anthropic' || SUPPORTED_PROVIDERS.includes(p.id))
 
@@ -82,14 +79,22 @@ const CodeToolsPage: FC = () => {
     [selectedCliTool]
   )
 
-  const availableProviders =
-    selectedCliTool === codeTools.claudeCode
-      ? claudeProviders
-      : selectedCliTool === codeTools.geminiCli
-        ? geminiProviders
-        : openAiProviders
+  const availableProviders = useMemo(() => {
+    if (selectedCliTool === codeTools.claudeCode) {
+      return claudeProviders
+    }
+    if (selectedCliTool === codeTools.geminiCli) {
+      return geminiProviders
+    }
+    if (selectedCliTool === codeTools.qwenCode) {
+      return openAiCompatibleProviders
+    }
+    if (selectedCliTool === codeTools.openaiCodex) {
+      return openAiProviders
+    }
+    return []
+  }, [claudeProviders, geminiProviders, openAiCompatibleProviders, openAiProviders, selectedCliTool])
 
-  // 处理模型选择
   const handleModelChange = (value: string) => {
     if (!value) {
       setModel(null)

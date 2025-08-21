@@ -5,6 +5,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import {
   isGenerateImageModel,
   isGenerateImageModels,
+  isMandatoryWebSearchModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
@@ -37,7 +38,7 @@ import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
-import { classNames, delay, formatFileSize } from '@renderer/utils'
+import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import {
   getFilesFromDropEvent,
@@ -585,26 +586,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       setText(text + data)
 
-      const files = await getFilesFromDropEvent(e).catch((err) => {
+      const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
         logger.error('handleDrop:', err)
         return null
       })
 
-      if (files) {
-        let supportedFiles = 0
-
-        files.forEach((file) => {
-          if (supportedExts.includes(file.ext)) {
-            setFiles((prevFiles) => [...prevFiles, file])
-            supportedFiles++
-          }
-        })
-
-        // 如果有文件，但都不支持
-        if (files.length > 0 && supportedFiles === 0) {
+      if (droppedFiles) {
+        const supportedFiles = await filterSupportedFiles(droppedFiles, supportedExts)
+        supportedFiles.length > 0 && setFiles((prevFiles) => [...prevFiles, ...supportedFiles])
+        if (droppedFiles.length > 0 && supportedFiles.length !== droppedFiles.length) {
           window.message.info({
             key: 'file_not_supported',
-            content: t('chat.input.file_not_supported')
+            content: t('chat.input.file_not_supported_count', {
+              count: droppedFiles.length - supportedFiles.length
+            })
           })
         }
       }
@@ -773,7 +768,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isWebSearchModel(model) && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
-    if (assistant.webSearchProviderId && !WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
+    if (
+      assistant.webSearchProviderId &&
+      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
+    ) {
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {

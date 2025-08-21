@@ -322,6 +322,7 @@
       "expand": "展开",
       "file_error": "文件处理出错",
       "file_not_supported": "模型不支持此文件类型",
+      "file_not_supported_count": "{{count}} 个文件不被支持",
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
@@ -3723,6 +3724,9 @@
       "empty": "暂无翻译历史",
       "error": {
         "save": "保存翻译历史失败"
+      },
+      "search": {
+        "placeholder": "搜索翻译历史"
       },
       "title": "翻译历史"
     },
