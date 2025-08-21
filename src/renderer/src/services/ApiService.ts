@@ -620,7 +620,7 @@ interface FetchLanguageDetectionProps {
  * @param params - 参数对象
  * @param {string} params.text - 需要检测语言的文本内容
  * @param {function} [params.onResponse] - 流式响应回调函数,用于实时获取检测结果
- * @returns {Promise<string>} 返回检测到的语言代码,如果检测失败返回空字符串
+ * @returns {Promise<string>} 返回检测到的语言代码,如果检测失败会抛出错误
  * @throws {Error}
  */
 export async function fetchLanguageDetection({ text, onResponse }: FetchLanguageDetectionProps) {
