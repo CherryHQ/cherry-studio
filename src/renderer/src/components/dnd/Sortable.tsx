@@ -1,12 +1,10 @@
 import {
   Active,
-  defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
   DropAnimation,
   KeyboardSensor,
   Over,
-  PointerSensor,
   TouchSensor,
   UniqueIdentifier,
   useSensor,
@@ -25,7 +23,7 @@ import { createPortal } from 'react-dom'
 
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
-import { PORTAL_NO_DND_SELECTORS } from './utils'
+import { dropAnimationConfig, PortalSafePointerSensor } from './utils'
 
 interface SortableProps<T> {
   /** Array of sortable items */
@@ -52,38 +50,6 @@ interface SortableProps<T> {
   dropAnimation?: DropAnimation
 }
 
-const dropAnimationConfig: DropAnimation = {
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: '0.25'
-      }
-    }
-  })
-}
-
-/**
- * Prevent drag on elements with specific classes or data-no-dnd attribute
- */
-export class CustomPointerSensor extends PointerSensor {
-  static activators = [
-    {
-      eventName: 'onPointerDown',
-      handler: ({ nativeEvent: event }) => {
-        let target = event.target as HTMLElement
-
-        while (target) {
-          if (target.closest(PORTAL_NO_DND_SELECTORS) || target.dataset?.noDnd) {
-            return false
-          }
-          target = target.parentElement as HTMLElement
-        }
-        return true
-      }
-    }
-  ] as (typeof PointerSensor)['activators']
-}
-
 function Sortable<T>({
   items,
   itemKey,
@@ -98,7 +64,7 @@ function Sortable<T>({
   dropAnimation = dropAnimationConfig
 }: SortableProps<T>) {
   const sensors = useSensors(
-    useSensor(CustomPointerSensor, {
+    useSensor(PortalSafePointerSensor, {
       activationConstraint: {
         distance: 8
       }
