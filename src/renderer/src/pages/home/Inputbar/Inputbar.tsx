@@ -592,7 +592,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       if (droppedFiles) {
         const supportedFiles = await filterSupportedFiles(droppedFiles, supportedExts)
-        supportedFiles.length > 0 && setFiles([...files, ...supportedFiles])
+        supportedFiles.length > 0 && setFiles((prevFiles) => [...prevFiles, ...supportedFiles])
         if (droppedFiles.length > 0 && supportedFiles.length !== droppedFiles.length) {
           window.message.info({
             key: 'file_not_supported',
