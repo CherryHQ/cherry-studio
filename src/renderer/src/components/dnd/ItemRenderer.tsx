@@ -72,7 +72,7 @@ const ItemWrapper = styled.div`
 const DraggableItem = styled.div`
   position: relative;
   box-sizing: border-box;
-  cursor: pointer;
+  cursor: pointer; /* default cursor for items */
   touch-action: manipulation;
   transform-origin: 50% 50%;
   transform: scale(var(--scale, 1));
@@ -87,6 +87,7 @@ const DraggableItem = styled.div`
     animation: pop 200ms cubic-bezier(0.18, 0.67, 0.6, 1.22);
     transform: scale(var(--scale));
     opacity: 1;
+    pointer-events: none; /* prevent pointer events on drag overlay */
   }
 
   @keyframes pop {
