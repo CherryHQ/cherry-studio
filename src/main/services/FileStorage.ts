@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding, scanDir } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
-import { FileMetadata } from '@types'
+import { FileMetadata, NotesTreeNode } from '@types'
 import * as crypto from 'crypto'
 import {
   dialog,
@@ -254,7 +254,7 @@ class FileStorage {
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
     try {
       if (!fs.existsSync(filePath)) {
-        throw new Error(`源文件不存在: ${filePath}`)
+        throw new Error(`Source file does not exist: ${filePath}`)
       }
 
       // 确保目标目录存在
@@ -275,7 +275,7 @@ class FileStorage {
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
     try {
       if (!fs.existsSync(dirPath)) {
-        throw new Error(`源目录不存在: ${dirPath}`)
+        throw new Error(`Source directory does not exist: ${dirPath}`)
       }
 
       // 确保目标父目录存在
@@ -684,21 +684,9 @@ class FileStorage {
     }
   }
 
-  public getDirectoryStructure = async (
-    _: Electron.IpcMainInvokeEvent,
-    dirPath: string,
-    options: {
-      includeFiles: boolean
-      includeDirectories: boolean
-      fileExtensions: string[]
-      ignoreHiddenFiles: boolean
-      recursive?: boolean
-      maxDepth?: number
-    }
-  ): Promise<FileMetadata[]> => {
+  public getDirectoryStructure = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<NotesTreeNode[]> => {
     try {
-      const basePath = dirPath || this.storageDir
-      return await scanDir(basePath, options)
+      return await scanDir(dirPath)
     } catch (error) {
       logger.error('Failed to get directory structure:', error as Error)
       throw error

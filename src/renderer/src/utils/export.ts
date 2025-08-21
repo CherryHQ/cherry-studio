@@ -45,7 +45,7 @@ const sanitizeReasoningContent = (content: string): string => {
   const contentWithBr = content.replace(/\n/g, '<br>')
 
   // 使用 DOMPurify 清理内容，保留常用的安全标签和属性
-  const cleanContent = DOMPurify.sanitize(contentWithBr, {
+  return DOMPurify.sanitize(contentWithBr, {
     ALLOWED_TAGS: [
       // 换行和基础结构
       'br',
@@ -116,8 +116,6 @@ const sanitizeReasoningContent = (content: string): string => {
     // 允许的协议（预留，虽然目前没有允许链接标签）
     ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
   })
-
-  return cleanContent
 }
 
 /**
@@ -1083,11 +1081,16 @@ async function createSiyuanDoc(
  * @returns 创建的笔记节点
  * @param title
  * @param content
+ * @param folderPath
  */
-export const exportMessageToNotes = async (title: string, content: string): Promise<NotesTreeNode | null> => {
+export const exportMessageToNotes = async (
+  title: string,
+  content: string,
+  folderPath: string
+): Promise<NotesTreeNode> => {
   try {
     const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
-    const note = await createNote(title, cleanedContent)
+    const note = await createNote(title, cleanedContent, folderPath)
 
     window.message.success({
       content: i18n.t('message.success.notes.export'),
@@ -1108,12 +1111,13 @@ export const exportMessageToNotes = async (title: string, content: string): Prom
 /**
  * 导出话题到笔记工作区
  * @param topic 要导出的话题
+ * @param folderPath
  * @returns 创建的笔记节点
  */
-export const exportTopicToNotes = async (topic: Topic): Promise<NotesTreeNode | null> => {
+export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<NotesTreeNode> => {
   try {
     const content = await topicToMarkdown(topic)
-    const note = await createNote(topic.name, content)
+    const note = await createNote(topic.name, content, folderPath)
 
     window.message.success({
       content: i18n.t('message.success.notes.export'),

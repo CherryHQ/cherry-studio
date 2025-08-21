@@ -6,6 +6,7 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
@@ -60,9 +61,10 @@ interface Props {
 }
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
+  const { t } = useTranslation()
+  const { folderPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
-  const { t } = useTranslation()
   const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
@@ -338,7 +340,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             label: t('notes.save'),
             key: 'notes',
             onClick: async () => {
-              exportTopicToNotes(topic)
+              exportTopicToNotes(topic, folderPath)
             }
           }
         ]

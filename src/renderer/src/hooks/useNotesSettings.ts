@@ -16,7 +16,7 @@ export const useNotesSettings = () => {
     dispatch(updateNotesSettings(newSettings))
   }
 
-  const updateFolderPath = (path: string | null) => {
+  const updateFolderPath = (path: string) => {
     dispatch(setFolderPath(path))
   }
 

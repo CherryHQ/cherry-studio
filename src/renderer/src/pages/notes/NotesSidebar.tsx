@@ -1,17 +1,15 @@
-import { CheckOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { getExternalNotesTree } from '@renderer/services/NotesService'
+import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import { initWorkSpace } from '@renderer/services/NotesService'
 import { useAppDispatch } from '@renderer/store'
 import { setFolderPath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { Dropdown, Input, MenuProps, Tooltip } from 'antd'
+import { Dropdown, Input, MenuProps } from 'antd'
 import {
-  ArrowLeft,
-  ArrowUpNarrowWide,
   ChevronDown,
   ChevronRight,
   Edit3,
@@ -19,10 +17,7 @@ import {
   FilePlus,
   FileSearch,
   Folder,
-  FolderInput,
   FolderOpen,
-  FolderPlus,
-  Search,
   Star,
   StarOff
 } from 'lucide-react'
@@ -85,23 +80,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         return
       }
       dispatch(setFolderPath(folderPath))
+      await initWorkSpace(folderPath)
+      await onRefreshTree()
       logger.info(folderPath)
-
-      const externalTree = await window.api.file.getDirectoryStructure(folderPath, {
-        includeFiles: true,
-        includeDirectories: true,
-        fileExtensions: ['.md'],
-        ignoreHiddenFiles: true
-      })
-
-      await getExternalNotesTree(externalTree)
-      const updatedTree = await onRefreshTree()
-
-      if (updatedTree && updatedTree.length > 0) {
-        window.message.success(t('common.success'))
-      } else {
-        window.message.info(t('notes.only_markdown'))
-      }
     } catch (error) {
       logger.error('Failed to open external folder:', error as Error)
       window.message.error(t('notes.folder_open_failed'))
@@ -279,7 +260,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
             result.push(node)
           }
         } else if (isShowStarred) {
-          if (node.type === 'file' && node.is_starred) {
+          if (node.type === 'file' && node.isStarred) {
             result.push(node)
           }
         }
@@ -308,9 +289,9 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       if (node.type !== 'folder') {
         baseMenuItems.push(
           {
-            label: node.is_starred ? t('notes.unstar') : t('notes.star'),
+            label: node.isStarred ? t('notes.unstar') : t('notes.star'),
             key: 'star',
-            icon: node.is_starred ? <StarOff size={14} /> : <Star size={14} />,
+            icon: node.isStarred ? <StarOff size={14} /> : <Star size={14} />,
             onClick: () => {
               onToggleStar(node.id)
             }
@@ -461,34 +442,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onUploadFiles]
   )
 
-  const sortMenuItems: Required<MenuProps>['items'] = [
-    { label: t('notes.sort_a2z'), key: 'sort_a2z' },
-    { label: t('notes.sort_z2a'), key: 'sort_z2a' },
-    { type: 'divider' },
-    { label: t('notes.sort_updated_desc'), key: 'sort_updated_desc' },
-    { label: t('notes.sort_updated_asc'), key: 'sort_updated_asc' },
-    { type: 'divider' },
-    { label: t('notes.sort_created_desc'), key: 'sort_created_desc' },
-    { label: t('notes.sort_created_asc'), key: 'sort_created_asc' }
-  ]
-
-  const sortMenuWithCheck = sortMenuItems
-    .map((item) => {
-      if (item) {
-        return {
-          ...item,
-          icon: sortType === item.key ? <CheckOutlined /> : undefined,
-          key: item.key
-        }
-      }
-      return null
-    })
-    .filter(Boolean) as MenuProps['items']
-
-  const handleSortMenuClick: MenuProps['onClick'] = (e) => {
-    handleSelectSortType(e.key as NotesSortType)
-  }
-
   return (
     <SidebarContainer
       onDragOver={(e) => {
@@ -503,80 +456,19 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           handleDropFiles(e)
         }
       }}>
-      <SidebarHeader isStarView={isShowStarred} isSearchView={isShowSearch}>
-        <HeaderActions>
-          {!isShowStarred && !isShowSearch && (
-            <>
-              <Tooltip title={t('notes.open_folder')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={handleOpenFolder}>
-                  <FolderInput size={18} />
-                </ActionButton>
-              </Tooltip>
-
-              <Tooltip title={t('notes.new_folder')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={handleCreateFolder}>
-                  <FolderPlus size={18} />
-                </ActionButton>
-              </Tooltip>
-
-              <Tooltip title={t('notes.new_note')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={handleCreateNote}>
-                  <FilePlus size={18} />
-                </ActionButton>
-              </Tooltip>
-
-              <Dropdown
-                menu={{
-                  items: sortMenuWithCheck,
-                  onClick: handleSortMenuClick
-                }}
-                trigger={['click']}>
-                <Tooltip title={t('agents.sorting.title')} mouseEnterDelay={0.8}>
-                  <ActionButton>
-                    <ArrowUpNarrowWide size={18} />
-                  </ActionButton>
-                </Tooltip>
-              </Dropdown>
-
-              <Tooltip title={t('notes.show_starred')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={handleToggleStarredView}>
-                  <Star size={18} />
-                </ActionButton>
-              </Tooltip>
-
-              <Tooltip title={t('common.search')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={handleToggleSearchView}>
-                  <Search size={18} />
-                </ActionButton>
-              </Tooltip>
-            </>
-          )}
-          {isShowStarred && (
-            <Tooltip title={t('common.back')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={handleToggleStarredView}>
-                <ArrowLeft size={18} />
-              </ActionButton>
-            </Tooltip>
-          )}
-          {isShowSearch && (
-            <>
-              <Tooltip title={t('common.back')} mouseEnterDelay={0.8}>
-                <ActionButton onClick={handleToggleSearchView}>
-                  <ArrowLeft size={18} />
-                </ActionButton>
-              </Tooltip>
-              <SearchInput
-                placeholder={t('knowledge.search_placeholder')}
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                allowClear
-                size="small"
-                autoFocus
-              />
-            </>
-          )}
-        </HeaderActions>
-      </SidebarHeader>
+      <NotesSidebarHeader
+        isShowStarred={isShowStarred}
+        isShowSearch={isShowSearch}
+        searchKeyword={searchKeyword}
+        sortType={sortType}
+        onOpenFolder={handleOpenFolder}
+        onCreateFolder={handleCreateFolder}
+        onCreateNote={handleCreateNote}
+        onToggleStarredView={handleToggleStarredView}
+        onToggleSearchView={handleToggleSearchView}
+        onSetSearchKeyword={setSearchKeyword}
+        onSelectSortType={handleSelectSortType}
+      />
 
       <NotesTreeContainer>
         <StyledScrollbar>
@@ -611,30 +503,6 @@ const SidebarContainer = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
-`
-
-const SidebarHeader = styled.div<{ isStarView?: boolean; isSearchView?: boolean }>`
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  justify-content: ${(props) => (props.isStarView || props.isSearchView ? 'flex-start' : 'center')};
-`
-
-const SearchInput = styled(Input)`
-  flex: 1;
-  margin-left: 8px;
-  max-width: 180px;
-
-  .ant-input {
-    font-size: 13px;
-    border-radius: 4px;
-  }
-`
-
-const HeaderActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
 `
 
 const NotesTreeContainer = styled.div`
@@ -778,22 +646,6 @@ const EditInput = styled(Input)`
     font-size: 13px;
     padding: 2px 6px;
     border: 1px solid var(--color-primary);
-  }
-`
-
-const ActionButton = styled.div`
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  color: var(--color-text-2);
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
   }
 `
 

@@ -7,16 +7,13 @@ import {
   createFolder,
   createNote,
   deleteNode,
-  getNotesTree,
-  isParentNode,
+  initWorkSpace,
   moveNode,
   renameNode,
   sortAllLevels,
-  toggleNodeExpanded,
-  toggleStarred,
-  updateNote,
   uploadNote
 } from '@renderer/services/NotesService'
+import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectActiveNodeId, setActiveNodeId } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
@@ -73,11 +70,7 @@ const NotesPage: FC = () => {
       try {
         const activeNode = findNodeById(notesTree, activeNodeId)
         if (activeNode && activeNode.type === 'file') {
-          if (activeNode.isExternal && activeNode.externalPath) {
-            await window.api.file.write(activeNode.externalPath, content)
-          } else {
-            await updateNote(activeNode, content)
-          }
+          await window.api.file.write(activeNode.externalPath, content)
         }
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
@@ -95,20 +88,20 @@ const NotesPage: FC = () => {
     [saveCurrentNote]
   )
 
+  const loadNotesTree = async () => {
+    const tree = await getNotesTree()
+    logger.debug('Loaded notes tree:', tree)
+    setNotesTree(tree)
+  }
+
   // 初始化加载笔记树
   useEffect(() => {
-    const loadNotesTree = async () => {
-      try {
-        const tree = await getNotesTree()
-        logger.debug('Loaded notes tree:', tree)
-        setNotesTree(tree)
-      } catch (error) {
-        logger.error('Failed to load notes tree:', error as Error)
-      }
+    if (!folderPath) {
+      initWorkSpace()
+    } else {
+      loadNotesTree()
     }
-
-    loadNotesTree()
-  }, [])
+  }, [dispatch, folderPath])
 
   // 加载笔记内容
   useEffect(() => {
@@ -120,18 +113,8 @@ const NotesPage: FC = () => {
           logger.debug('Active node:', activeNode)
           if (activeNode && activeNode.type === 'file' && activeNode.id) {
             try {
-              if (activeNode.isExternal && activeNode.externalPath) {
-                const content = await window.api.file.readExternal(activeNode.externalPath)
-                setCurrentContent(content)
-              } else {
-                const fileMetadata = await FileManager.getFile(activeNode.id)
-                logger.debug('File metadata:', fileMetadata)
-                if (fileMetadata) {
-                  const content = await window.api.file.read(fileMetadata.id + fileMetadata.ext)
-                  logger.debug(content)
-                  setCurrentContent(content)
-                }
-              }
+              const content = await window.api.file.readExternal(activeNode.externalPath)
+              setCurrentContent(content)
             } catch (error) {
               logger.error('Failed to read file:', error as Error)
               setCurrentContent('')
@@ -165,13 +148,12 @@ const NotesPage: FC = () => {
 
   // 创建文件夹
   const handleCreateFolder = useCallback(
-    async (name: string, parentId?: string) => {
+    async (name: string) => {
       try {
-        if (folderPath) {
-          await createFolder(name, parentId, true, folderPath)
-        } else {
-          await createFolder(name, parentId)
+        if (!folderPath) {
+          throw new Error('No folder path selected')
         }
+        await createFolder(name, folderPath)
         const updatedTree = await getNotesTree()
         setNotesTree(updatedTree)
       } catch (error) {
@@ -183,14 +165,12 @@ const NotesPage: FC = () => {
 
   // 创建笔记
   const handleCreateNote = useCallback(
-    async (name: string, parentId?: string) => {
+    async (name: string) => {
       try {
-        let newNote: NotesTreeNode
-        if (folderPath) {
-          newNote = await createNote(name, '', parentId, true, folderPath)
-        } else {
-          newNote = await createNote(name, '', parentId)
+        if (!folderPath) {
+          throw new Error('No folder path selected')
         }
+        const newNote = await createNote(name, '', folderPath)
         const updatedTree = await getNotesTree()
         setNotesTree(updatedTree)
         dispatch(setActiveNodeId(newNote.id))
@@ -202,15 +182,74 @@ const NotesPage: FC = () => {
   )
 
   // 切换展开状态
-  const handleToggleExpanded = useCallback(async (nodeId: string) => {
-    try {
-      await toggleNodeExpanded(nodeId)
-      const updatedTree = await getNotesTree()
-      setNotesTree(updatedTree)
-    } catch (error) {
-      logger.error('Failed to toggle expanded:', error as Error)
-    }
-  }, [])
+  const toggleNodeExpanded = useCallback(
+    async (nodeId: string) => {
+      try {
+        const tree = await getNotesTree()
+        const node = findNodeById(tree, nodeId)
+
+        if (node && node.type === 'folder') {
+          await updateNodeInTree(tree, nodeId, {
+            expanded: !node.expanded
+          })
+        }
+
+        return tree
+      } catch (error) {
+        logger.error('Failed to toggle expanded:', error as Error)
+        throw error
+      }
+    },
+    [findNodeById]
+  )
+
+  const handleToggleExpanded = useCallback(
+    async (nodeId: string) => {
+      try {
+        await toggleNodeExpanded(nodeId)
+        const updatedTree = await getNotesTree()
+        setNotesTree(updatedTree)
+      } catch (error) {
+        logger.error('Failed to toggle expanded:', error as Error)
+      }
+    },
+    [toggleNodeExpanded]
+  )
+
+  // 切换收藏状态
+  const toggleStarred = useCallback(
+    async (nodeId: string) => {
+      try {
+        const tree = await getNotesTree()
+        const node = findNodeById(tree, nodeId)
+
+        if (node && node.type === 'file') {
+          await updateNodeInTree(tree, nodeId, {
+            isStarred: !node.isStarred
+          })
+        }
+
+        return tree
+      } catch (error) {
+        logger.error('Failed to toggle star:', error as Error)
+        throw error
+      }
+    },
+    [findNodeById]
+  )
+
+  const handleToggleStar = useCallback(
+    async (nodeId: string) => {
+      try {
+        await toggleStarred(nodeId)
+        const updatedTree = await getNotesTree()
+        setNotesTree(updatedTree)
+      } catch (error) {
+        logger.error('Failed to toggle star:', error as Error)
+      }
+    },
+    [toggleStarred]
+  )
 
   // 选择节点
   const handleSelectNode = useCallback(
@@ -220,16 +259,14 @@ const NotesPage: FC = () => {
           dispatch(setActiveNodeId(node.id))
 
           if (node.id) {
-            if (!node.isExternal && node.externalPath) {
-              const updatedFileMetadata = await FileManager.getFile(node.id)
-              if (updatedFileMetadata && updatedFileMetadata.origin_name !== node.name) {
-                // 如果数据库中的显示名称与树节点中的名称不同，更新树节点
-                const updatedTree = [...notesTree]
-                const updatedNode = findNodeById(updatedTree, node.id)
-                if (updatedNode) {
-                  updatedNode.name = updatedFileMetadata.origin_name
-                  setNotesTree(updatedTree)
-                }
+            const updatedFileMetadata = await FileManager.getFile(node.id)
+            if (updatedFileMetadata && updatedFileMetadata.origin_name !== node.name) {
+              // 如果数据库中的显示名称与树节点中的名称不同，更新树节点
+              const updatedTree = [...notesTree]
+              const updatedNode = findNodeById(updatedTree, node.id)
+              if (updatedNode) {
+                updatedNode.name = updatedFileMetadata.origin_name
+                setNotesTree(updatedTree)
               }
             }
           }
@@ -237,7 +274,6 @@ const NotesPage: FC = () => {
           logger.error('Failed to load note:', error as Error)
         }
       } else if (node.type === 'folder') {
-        // 切换文件夹展开状态
         await handleToggleExpanded(node.id)
       }
     },
@@ -281,21 +317,6 @@ const NotesPage: FC = () => {
     }
   }, [])
 
-  // 切换收藏状态
-  const handleToggleStar = useCallback(
-    async (nodeId: string) => {
-      try {
-        await toggleStarred(nodeId)
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
-      } catch (error) {
-        window.message.error(t('notes.starred_failed'))
-        logger.error(`Failed to toggle star for note: ${error}`)
-      }
-    },
-    [t]
-  )
-
   // 处理文件上传
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
@@ -310,11 +331,10 @@ const NotesPage: FC = () => {
 
         for (const file of markdownFiles) {
           try {
-            if (folderPath) {
-              await uploadNote(file, undefined, true, folderPath)
-            } else {
-              await uploadNote(file)
+            if (!folderPath) {
+              throw new Error('No folder path selected')
             }
+            await uploadNote(file, folderPath)
           } catch (error) {
             logger.error(`Failed to upload note file ${file.name}:`, error as Error)
             window.message.error(t('notes.upload_failed', { name: file.name }))

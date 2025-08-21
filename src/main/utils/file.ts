@@ -5,7 +5,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { audioExts, documentExts, imageExts, MB, textExts, videoExts } from '@shared/config/constant'
-import { FileMetadata, FileTypes } from '@types'
+import { FileMetadata, FileTypes, NotesTreeNode } from '@types'
 import chardet from 'chardet'
 import { app } from 'electron'
 import iconv from 'iconv-lite'
@@ -197,67 +197,52 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
 
 /**
  * 递归扫描目录，获取符合条件的文件和目录结构
- * @param currentPath 当前要扫描的路径
- * @param options 扫描选项
- * @param depth 当前扫描深度
+ * @param dirPath 当前要扫描的路径
  * @returns 文件元数据数组
  */
-export async function scanDir(
-  currentPath: string,
-  options: {
-    includeFiles: boolean
-    includeDirectories: boolean
-    fileExtensions: string[]
-    ignoreHiddenFiles: boolean
-    recursive?: boolean
-    maxDepth?: number
-  } = {
+export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
+  const options = {
     includeFiles: true,
     includeDirectories: true,
     fileExtensions: ['.md'],
-    ignoreHiddenFiles: true
-  },
-  depth: number = 0
-): Promise<FileMetadata[]> {
-  if (options.maxDepth && depth > options.maxDepth) {
+    ignoreHiddenFiles: true,
+    recursive: false,
+    maxDepth: undefined
+  }
+  const depth = 0
+
+  if (options.maxDepth !== undefined && depth > options.maxDepth) {
     return []
   }
 
-  if (!fs.existsSync(currentPath)) {
-    loggerService.withContext('Utils:File').warn(`Dir not exist: ${currentPath}`)
+  if (!fs.existsSync(dirPath)) {
+    loggerService.withContext('Utils:File').warn(`Dir not exist: ${dirPath}`)
     return []
   }
 
-  const entries = await fs.promises.readdir(currentPath, { withFileTypes: true })
-  const result: FileMetadata[] = []
-  logger.debug('!!!', { entries, options })
+  const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+  const result: NotesTreeNode[] = []
+  logger.debug('Config', { entries, options })
+
   for (const entry of entries) {
     if (options.ignoreHiddenFiles && entry.name.startsWith('.')) {
       continue
     }
 
-    const entryPath = path.join(currentPath, entry.name)
+    const entryPath = path.join(dirPath, entry.name)
 
     if (entry.isDirectory() && options.includeDirectories) {
       const stats = await fs.promises.stat(entryPath)
-      const directoryMetadata: FileMetadata = {
+      const dirTreeNode: NotesTreeNode = {
         id: uuidv4(),
-        origin_name: entry.name,
         name: entry.name,
-        path: entryPath,
-        created_at: stats.birthtime.toISOString(),
-        size: stats.size,
-        ext: '',
-        type: FileTypes.OTHER,
-        count: 1
+        treePath: path.relative(dirPath, entryPath),
+        externalPath: entryPath,
+        createdAt: stats.birthtime.toISOString(),
+        updatedAt: stats.mtime.toISOString(),
+        type: 'folder'
       }
-      result.push(directoryMetadata)
-
-      // 如果启用递归选项，递归扫描子目录
-      if (options.recursive) {
-        const children = await scanDir(entryPath, options, depth + 1)
-        result.push(...children)
-      }
+      result.push(dirTreeNode)
     } else if (entry.isFile() && options.includeFiles) {
       const ext = path.extname(entry.name).toLowerCase()
       if (options.fileExtensions.length > 0 && !options.fileExtensions.includes(ext)) {
@@ -265,18 +250,16 @@ export async function scanDir(
       }
 
       const stats = await fs.promises.stat(entryPath)
-      const fileMetadata: FileMetadata = {
+      const fileTreeNode: NotesTreeNode = {
         id: uuidv4(),
-        origin_name: entry.name,
         name: entry.name,
-        path: entryPath,
-        created_at: stats.birthtime.toISOString(),
-        size: stats.size,
-        ext,
-        type: getFileType(ext),
-        count: 1
+        treePath: path.relative(dirPath, entryPath),
+        externalPath: entryPath,
+        createdAt: stats.birthtime.toISOString(),
+        updatedAt: stats.mtime.toISOString(),
+        type: 'file'
       }
-      result.push(fileMetadata)
+      result.push(fileTreeNode)
     }
   }
 

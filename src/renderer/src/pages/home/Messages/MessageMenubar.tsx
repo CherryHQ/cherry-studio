@@ -8,6 +8,7 @@ import { isVisionModel } from '@renderer/config/models'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -78,6 +79,7 @@ const MessageMenubar: FC<Props> = (props) => {
     onUpdateUseful
   } = props
   const { t } = useTranslation()
+  const { folderPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
@@ -265,7 +267,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMessageToNotes(title, markdown)
+              exportMessageToNotes(title, markdown, folderPath)
             }
           }
         ]
@@ -368,14 +370,24 @@ const MessageMenubar: FC<Props> = (props) => {
       }
     ],
     [
-      t,
       isEditable,
+      t,
       onEdit,
       onNewBranch,
-      exportMenuOptions,
+      exportMenuOptions.plain_text,
+      exportMenuOptions.image,
+      exportMenuOptions.markdown,
+      exportMenuOptions.markdown_reason,
+      exportMenuOptions.docx,
+      exportMenuOptions.notion,
+      exportMenuOptions.yuque,
+      exportMenuOptions.obsidian,
+      exportMenuOptions.joplin,
+      exportMenuOptions.siyuan,
+      toggleMultiSelectMode,
       message,
       mainTextContent,
-      toggleMultiSelectMode,
+      folderPath,
       messageContainerRef,
       topic.name
     ]

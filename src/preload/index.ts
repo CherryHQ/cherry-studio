@@ -171,17 +171,7 @@ const api = {
     pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
-    getDirectoryStructure: (
-      dirPath: string,
-      options: {
-        includeDirectories: boolean
-        fileExtensions: string[]
-        ignoreHiddenFiles: boolean
-        recursive?: boolean
-        includeFiles?: boolean
-        maxDepth?: number
-      }
-    ) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath, options)
+    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding)
