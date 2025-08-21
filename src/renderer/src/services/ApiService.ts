@@ -675,7 +675,7 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
 
   const AI = new AiProvider(provider)
 
-  return (await AI.completions(params)).getText() || ''
+  return (await AI.completions(params)).getText()
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
