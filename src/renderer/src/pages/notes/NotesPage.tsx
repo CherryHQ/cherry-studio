@@ -41,6 +41,7 @@ const NotesPage: FC = () => {
   const [currentContent, setCurrentContent] = useState<string>('')
   const [tokenCount, setTokenCount] = useState(0)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const hasExternalNodes = notesTree.some((node) => node.isExternal === true)
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -152,12 +153,21 @@ const NotesPage: FC = () => {
     // eslint-disable-next-line
   }, [activeNodeId, notesTree.length, findNodeById])
 
+  const refreshNotesTree = useCallback(async () => {
+    try {
+      const tree = await getNotesTree()
+      setNotesTree(tree)
+      return tree
+    } catch (error) {
+      logger.error('Failed to refresh notes tree:', error as Error)
+      return []
+    }
+  }, [])
+
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string, parentId?: string) => {
       try {
-        const hasExternalNodes = notesTree.some((node) => node.isExternal === true)
-        logger.debug('Has external nodes:', { hasExternalNodes })
         if (hasExternalNodes) {
           await createFolder(name, parentId, true, folderPath)
         } else {
@@ -169,14 +179,19 @@ const NotesPage: FC = () => {
         logger.error('Failed to create folder:', error as Error)
       }
     },
-    [folderPath, notesTree]
+    [folderPath, hasExternalNodes]
   )
 
   // 创建笔记
   const handleCreateNote = useCallback(
     async (name: string, parentId?: string) => {
       try {
-        const newNote = await createNote(name, '', parentId)
+        let newNote: NotesTreeNode
+        if (hasExternalNodes) {
+          newNote = await createNote(name, '', parentId, true, folderPath)
+        } else {
+          newNote = await createNote(name, '', parentId)
+        }
         const updatedTree = await getNotesTree()
         setNotesTree(updatedTree)
         dispatch(setActiveNodeId(newNote.id))
@@ -184,7 +199,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to create note:', error as Error)
       }
     },
-    [dispatch]
+    [dispatch, hasExternalNodes, folderPath]
   )
 
   // 切换展开状态
@@ -236,8 +251,6 @@ const NotesPage: FC = () => {
       try {
         const isActiveNodeOrParent =
           activeNodeId && (nodeId === activeNodeId || isParentNode(notesTree, nodeId, activeNodeId))
-
-        // FIXME 删除外部文件
 
         await deleteNode(nodeId)
         const updatedTree = await getNotesTree()
@@ -366,6 +379,7 @@ const NotesPage: FC = () => {
           <NotesSidebar
             notesTree={notesTree}
             activeNodeId={activeNodeId}
+            onRefreshTree={refreshNotesTree}
             onSelectNode={handleSelectNode}
             onCreateFolder={handleCreateFolder}
             onCreateNote={handleCreateNote}

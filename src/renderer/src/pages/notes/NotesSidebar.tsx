@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface NotesSidebarProps {
+  onRefreshTree: () => Promise<NotesTreeNode[]>
   onCreateFolder: (name: string, parentId?: string) => void
   onCreateNote: (name: string, parentId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
@@ -48,6 +49,7 @@ interface NotesSidebarProps {
 const logger = loggerService.withContext('NotesSidebar')
 
 const NotesSidebar: FC<NotesSidebarProps> = ({
+  onRefreshTree,
   onCreateFolder,
   onCreateNote,
   onSelectNode,
@@ -76,10 +78,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [sortType, setSortType] = useState<NotesSortType>('sort_a2z')
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
 
-  // FIXME getExternalNotesTree之后需要刷新笔记树
   const handleOpenFolder = useCallback(async () => {
     try {
       const folderPath = await window.api.file.selectFolder()
+      if (!folderPath) {
+        return
+      }
       dispatch(setFolderPath(folderPath))
       logger.debug(folderPath)
 
@@ -89,10 +93,12 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         fileExtensions: ['.md'],
         ignoreHiddenFiles: true
       })
-      getExternalNotesTree(externalTree)
 
-      if (externalTree.length > 0) {
-        window.message.success(t('notes.folder_opened_success'))
+      await getExternalNotesTree(externalTree)
+      const updatedTree = await onRefreshTree()
+
+      if (updatedTree && updatedTree.length > 0) {
+        window.message.success(t('common.success'))
       } else {
         window.message.info(t('notes.no_markdown_files_found'))
       }
@@ -100,7 +106,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       logger.error('Failed to open external folder:', error as Error)
       window.message.error(t('notes.folder_open_failed'))
     }
-  }, [dispatch, t])
+  }, [dispatch, onRefreshTree, t])
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))

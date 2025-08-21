@@ -72,7 +72,6 @@ export async function getExternalNotesTree(files: FileMetadata[]): Promise<Notes
 }
 
 /**
- * FIXME 需要和内部文件系统区分
  * 获取笔记树结构
  */
 export async function getNotesTree(): Promise<NotesTreeNode[]> {
@@ -297,13 +296,12 @@ export async function createFolder(
     expanded: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    isExternal: isExternal,
-    ...(folderPath && { folderPath })
+    isExternal: isExternal
   }
 
   if (isExternal && folderPath) {
     try {
-      await window.api.file.mkdir(folderPath)
+      folder.externalPath = await window.api.file.mkdir(`${folderPath}/${folder.name}`)
       logger.debug(`External folder created at: ${folderPath}`)
     } catch (error) {
       logger.error(`Failed to create external folder at ${folderPath}:`, error as Error)
@@ -321,11 +319,29 @@ export async function createFolder(
 /**
  * 创建新笔记文件
  */
-export async function createNote(name: string, content: string = '', parentId?: string): Promise<NotesTreeNode> {
+export async function createNote(
+  name: string,
+  content: string = '',
+  parentId?: string,
+  isExternal: boolean = false,
+  folderPath?: string | null
+): Promise<NotesTreeNode> {
   const noteId = uuidv4()
-  const filesPath = store.getState().runtime.filesPath
+  const note: NotesTreeNode = {
+    id: noteId,
+    name: name,
+    type: 'file',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
 
-  try {
+  if (isExternal && folderPath) {
+    note.isExternal = isExternal
+    note.externalPath = `${folderPath}/${name}${MARKDOWN_EXT}`
+    await window.api.file.write(`${folderPath}/${name}${MARKDOWN_EXT}`, content)
+  } else {
+    note.treePath = getNodePath(name, parentId)
+    const filesPath = store.getState().runtime.filesPath
     const fileMetadata: FileMetadata = {
       id: noteId,
       name: noteId + MARKDOWN_EXT,
@@ -338,50 +354,40 @@ export async function createNote(name: string, content: string = '', parentId?: 
       count: 1
     }
 
-    await window.api.file.writeWithId(fileMetadata.id + fileMetadata.ext, content)
+    await window.api.file.writeWithId(fileMetadata.id, content)
     await FileManager.addFile(fileMetadata)
-
-    // 创建树节点
-    const note: NotesTreeNode = {
-      id: noteId,
-      name: name,
-      type: 'file',
-      treePath: getNodePath(name, parentId),
-      createdAt: fileMetadata.created_at,
-      updatedAt: fileMetadata.created_at
-    }
-
-    const tree = await getNotesTree()
-    insertNodeIntoTree(tree, note, parentId)
-    await saveNotesTree(tree)
-
-    return note
-  } catch (error) {
-    logger.error('Failed to create note:', error as Error)
-    throw error
   }
+
+  const tree = await getNotesTree()
+  insertNodeIntoTree(tree, note, parentId)
+  await saveNotesTree(tree)
+
+  return note
 }
 
 /**
  * 更新笔记内容
  */
 export async function updateNote(node: NotesTreeNode, content: string): Promise<void> {
-  if (node.type !== 'file' || !node.id) {
+  if (node.type !== 'file') {
     throw new Error('Invalid note node')
   }
-
   try {
-    const fileMetadata = await FileManager.getFile(node.id)
-    if (!fileMetadata) {
-      throw new Error('Note file not found in database')
+    if (node.isExternal && node.externalPath) {
+      await window.api.file.write(node.externalPath, content)
+    } else if (node.id) {
+      const fileMetadata = await FileManager.getFile(node.id)
+      if (!fileMetadata) {
+        throw new Error('Note file not found in database')
+      }
+      await window.api.file.writeWithId(node.id + fileMetadata.ext, content)
+      await db.files.update(node.id, {
+        size: content.length,
+        count: fileMetadata.count + 1
+      })
+    } else {
+      throw new Error('Invalid note node: missing id or externalPath')
     }
-
-    await window.api.file.writeWithId(fileMetadata.id + fileMetadata.ext, content)
-    await db.files.update(fileMetadata.id, {
-      size: content.length,
-      count: fileMetadata.count + 1
-    })
-
     const tree = await getNotesTree()
     const targetNode = findNodeInTree(tree, node.id)
     if (targetNode) {
@@ -400,13 +406,22 @@ export async function updateNote(node: NotesTreeNode, content: string): Promise<
 export async function deleteNode(nodeId: string): Promise<void> {
   const tree = await getNotesTree()
   const node = findNodeInTree(tree, nodeId)
-
+  logger.debug(`Attempting to delete node: ${nodeId}`, node)
   if (!node) {
     throw new Error('Node not found')
   }
 
   try {
-    await deleteNodeRecursively(node)
+    if (node.isExternal && node.externalPath) {
+      if (node.type === 'folder') {
+        logger.debug(`Attempting to delete node: ${node.id}`)
+        await window.api.file.deleteExternalDir(node.externalPath)
+      } else if (node.type === 'file') {
+        await window.api.file.deleteExternalFile(node.externalPath)
+      }
+    } else {
+      await deleteNodeRecursively(node)
+    }
     removeNodeFromTree(tree, nodeId)
     await saveNotesTree(tree)
   } catch (error) {

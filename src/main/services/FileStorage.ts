@@ -235,6 +235,22 @@ class FileStorage {
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
   }
 
+  public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
+    if (!fs.existsSync(filePath)) {
+      return
+    }
+
+    await fs.promises.unlink(filePath)
+  }
+
+  public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
+    if (!fs.existsSync(dirPath)) {
+      return
+    }
+
+    await fs.promises.rm(dirPath, { recursive: true })
+  }
+
   public readFile = async (
     _: Electron.IpcMainInvokeEvent,
     id: string,
@@ -339,16 +355,25 @@ class FileStorage {
     await fs.promises.writeFile(filePath, data)
   }
 
-  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
+  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
       logger.debug(`Attempting to create directory: ${dirPath}`)
-      await fs.promises.mkdir(dirPath, { recursive: true })
-      const exists = fs.existsSync(dirPath)
-      logger.debug(`Directory creation result - exists: ${exists}, path: ${dirPath}`)
+      if (fs.existsSync(dirPath)) {
+        const baseDirPath = dirPath
+        let counter = 2
+        let newDirPath = `${baseDirPath}${counter}`
+        while (fs.existsSync(newDirPath)) {
+          counter++
+          newDirPath = `${baseDirPath}${counter}`
+        }
 
-      if (!exists) {
-        throw new Error(`Failed to create directory (directory does not exist after creation): ${dirPath}`)
+        dirPath = newDirPath
+        logger.debug(`Directory already exists, using new path: ${dirPath}`)
       }
+
+      await fs.promises.mkdir(dirPath, { recursive: true })
+
+      return dirPath
     } catch (error) {
       logger.error('Failed to create directory:', error as Error)
       throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)

@@ -143,6 +143,8 @@ export enum IpcChannel {
   File_ReadExternal = 'file:readExternal',
   File_Delete = 'file:delete',
   File_DeleteDir = 'file:deleteDir',
+  File_DeleteExternalFile = 'file:deleteExternalFile',
+  File_DeleteExternalDir = 'file:deleteExternalDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
   File_CreateTempFile = 'file:createTempFile',

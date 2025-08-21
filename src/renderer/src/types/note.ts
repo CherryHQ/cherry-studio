@@ -14,7 +14,7 @@ export interface NotesTreeNode {
   id: string
   name: string
   type: 'folder' | 'file'
-  treePath?: string // 对于外部文件，使用相对路径作为treePath
+  treePath?: string // 如果是外部文件则不填
   children?: NotesTreeNode[]
   is_starred?: boolean
   expanded?: boolean
