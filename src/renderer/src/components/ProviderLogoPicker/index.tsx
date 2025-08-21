@@ -9,73 +9,6 @@ interface Props {
   onProviderClick: (providerId: string) => void
 }
 
-const Container = styled.div`
-  width: 350px;
-  max-height: 300px;
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  background: var(--color-background);
-  border-radius: 8px;
-`
-
-const SearchContainer = styled.div`
-  margin-bottom: 12px;
-`
-
-const LogoGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  overflow-y: auto;
-  flex: 1;
-  padding: 4px;
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
-
-    &:hover {
-      background: var(--color-border-secondary);
-    }
-  }
-`
-
-const LogoItem = styled.div`
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  background: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-
-  &:hover {
-    background: var(--color-background-mute);
-    transform: scale(1.05);
-    border-color: var(--color-primary);
-  }
-
-  img {
-    width: 32px;
-    height: 32px;
-    object-fit: contain;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
-`
-
 // 用于选择内置头像的提供商Logo选择器组件
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
@@ -116,7 +49,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       </SearchContainer>
       <LogoGrid>
         {filteredProviders.map(({ id, logo, name }) => (
-          <Tooltip key={id} title={name} placement="top">
+          <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
               <img src={logo} alt={name} draggable={false} />
             </LogoItem>
@@ -126,5 +59,55 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
     </Container>
   )
 }
+
+const Container = styled.div`
+  width: 350px;
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  background: var(--color-background);
+  border-radius: 8px;
+`
+
+const SearchContainer = styled.div`
+  margin-bottom: 12px;
+`
+
+const LogoGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px;
+`
+
+const LogoItem = styled.div`
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  background: var(--color-background-soft);
+  border: 0.5px solid var(--color-border);
+
+  &:hover {
+    background: var(--color-background-mute);
+    transform: scale(1.05);
+    border-color: var(--color-primary);
+  }
+
+  img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+`
 
 export default ProviderLogoPicker
