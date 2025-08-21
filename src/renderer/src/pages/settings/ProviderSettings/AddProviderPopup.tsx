@@ -212,7 +212,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             }}>
             <Popover
               content={<ProviderLogoPicker onProviderClick={handleProviderLogoClick} />}
-              trigger={[]}
+              trigger="click"
               open={logoPickerOpen}
               onOpenChange={(visible) => {
                 setLogoPickerOpen(visible)
