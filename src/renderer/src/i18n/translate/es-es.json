@@ -3702,7 +3702,8 @@
     "error": {
       "detect": {
         "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas",
-        "unknown": "Se detectó un idioma desconocido"
+        "unknown": "Se detectó un idioma desconocido",
+        "update_setting": "Configuración fallida"
       },
       "empty": "El resultado de la traducción está vacío",
       "failed": "Fallo en la traducción",

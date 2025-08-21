@@ -10,13 +10,12 @@ import {
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
+import { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
 import { Code, FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { SidebarIcon } from '../../../store/settings'
 
 interface SidebarIconsManagerProps {
   visibleIcons: SidebarIcon[]

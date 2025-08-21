@@ -3702,7 +3702,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMT模型不能用于语言检测",
-        "unknown": "检测到未知语言"
+        "unknown": "检测到未知语言",
+        "update_setting": "设置失败"
       },
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",

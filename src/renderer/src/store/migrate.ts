@@ -4,6 +4,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/conf
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
+import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
@@ -32,7 +33,7 @@ import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
-import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
@@ -2140,6 +2141,30 @@ const migrateConfig = {
     try {
       state.llm.quickModel = state.llm.topicNamingModel
 
+      return state
+    } catch (error) {
+      logger.error('migrate 134 error', error as Error)
+      return state
+    }
+  },
+  '135': (state: RootState) => {
+    try {
+      if (!state.assistants.defaultAssistant.settings) {
+        state.assistants.defaultAssistant.settings = {
+          temperature: DEFAULT_TEMPERATURE,
+          enableTemperature: true,
+          contextCount: DEFAULT_CONTEXTCOUNT,
+          enableMaxTokens: false,
+          maxTokens: 0,
+          streamOutput: true,
+          topP: 1,
+          enableTopP: true,
+          toolUseMode: 'prompt',
+          customParameters: []
+        }
+      } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'prompt'
+      }
       return state
     } catch (error) {
       logger.error('migrate 134 error', error as Error)

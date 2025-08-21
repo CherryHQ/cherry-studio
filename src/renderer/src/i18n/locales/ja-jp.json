@@ -3702,7 +3702,8 @@
     "error": {
       "detect": {
         "qwen_mt": "QwenMTモデルは言語検出に使用できません",
-        "unknown": "検出された言語は不明です"
+        "unknown": "検出された言語は不明です",
+        "update_setting": "設定に失敗しました"
       },
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
