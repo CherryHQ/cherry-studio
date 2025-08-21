@@ -883,6 +883,9 @@
   },
   "history": {
     "continue_chat": "Continue Chatting",
+    "error": {
+      "topic_not_found": "Topic not found"
+    },
     "locate": {
       "message": "Locate the message"
     },
