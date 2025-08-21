@@ -18,15 +18,7 @@ import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-// CLI 工具选项
-const CLI_TOOLS = [
-  { value: codeTools.qwenCode, label: 'Qwen Code' },
-  { value: codeTools.claudeCode, label: 'Claude Code' },
-  { value: codeTools.geminiCli, label: 'Gemini CLI' },
-  { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
-]
-
-const SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
+import { CLAUDE_SUPPORTED_PROVIDERS, CLI_TOOLS, GEMINI_SUPPORTED_PROVIDERS, getCodeToolsApiBaseUrl } from '.'
 
 const logger = loggerService.withContext('CodeToolsPage')
 
@@ -51,17 +43,16 @@ const CodeToolsPage: FC = () => {
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
 
-  // 状态管理
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
 
-  const handleCliToolChange = (value: codeTools) => setCliTool(value)
-
   const openAiCompatibleProviders = providers.filter((p) => p.type.includes('openai'))
   const openAiProviders = providers.filter((p) => p.id === 'openai')
-  const geminiProviders = providers.filter((p) => p.type === 'gemini' || SUPPORTED_PROVIDERS.includes(p.id))
-  const claudeProviders = providers.filter((p) => p.type === 'anthropic' || SUPPORTED_PROVIDERS.includes(p.id))
+  const geminiProviders = providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id))
+  const claudeProviders = providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id))
+
+  const handleCliToolChange = (value: codeTools) => setCliTool(value)
 
   const modelPredicate = useCallback(
     (m: Model) => {
@@ -69,7 +60,7 @@ const CodeToolsPage: FC = () => {
         return false
       }
       if (selectedCliTool === 'claude-code') {
-        return m.id.includes('claude')
+        return m.id.includes('claude') || ['deepseek', 'moonshot'].includes(m.provider)
       }
       if (selectedCliTool === 'gemini-cli') {
         return m.id.includes('gemini')
@@ -205,15 +196,19 @@ const CodeToolsPage: FC = () => {
     let env: Record<string, string> = {}
     if (selectedCliTool === codeTools.claudeCode) {
       env = {
-        ANTHROPIC_API_KEY: apiKey,
-        ANTHROPIC_BASE_URL: modelProvider.apiHost,
+        ANTHROPIC_BASE_URL: getCodeToolsApiBaseUrl(selectedModel, 'anthropic') || modelProvider.apiHost,
         ANTHROPIC_MODEL: selectedModel.id
+      }
+      if (modelProvider.type === 'anthropic') {
+        env.ANTHROPIC_API_KEY = apiKey
+      } else {
+        env.ANTHROPIC_AUTH_TOKEN = apiKey
       }
     }
 
     if (selectedCliTool === codeTools.geminiCli) {
-      const apiSuffix = modelProvider.id === 'aihubmix' ? '/gemini' : ''
-      const apiBaseUrl = modelProvider.apiHost + apiSuffix
+      const apiBaseUrl = getCodeToolsApiBaseUrl(selectedModel, 'gemini') || modelProvider.apiHost
+
       env = {
         GEMINI_API_KEY: apiKey,
         GEMINI_BASE_URL: apiBaseUrl,
