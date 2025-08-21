@@ -4,15 +4,16 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/conf
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import {
   isSupportArrayContentProvider,
   isSupportDeveloperRoleProvider,
   isSupportStreamOptionsProvider,
   SYSTEM_PROVIDERS
 } from '@renderer/config/providers'
+import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import {
   Assistant,
   isSystemProvider,
@@ -2150,24 +2151,27 @@ const migrateConfig = {
   '135': (state: RootState) => {
     try {
       if (!state.assistants.defaultAssistant.settings) {
-        state.assistants.defaultAssistant.settings = {
-          temperature: DEFAULT_TEMPERATURE,
-          enableTemperature: true,
-          contextCount: DEFAULT_CONTEXTCOUNT,
-          enableMaxTokens: false,
-          maxTokens: 0,
-          streamOutput: true,
-          topP: 1,
-          enableTopP: true,
-          toolUseMode: 'prompt',
-          customParameters: []
-        }
+        state.assistants.defaultAssistant.settings = DEFAULT_ASSISTANT_SETTINGS
       } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
         state.assistants.defaultAssistant.settings.toolUseMode = 'prompt'
       }
       return state
     } catch (error) {
-      logger.error('migrate 134 error', error as Error)
+      logger.error('migrate 135 error', error as Error)
+      return state
+    }
+  },
+  '136': (state: RootState) => {
+    try {
+      state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
+        DEFAULT_SIDEBAR_ICONS.includes(icon)
+      )
+      state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
+        DEFAULT_SIDEBAR_ICONS.includes(icon)
+      )
+      return state
+    } catch (error) {
+      logger.error('migrate 136 error', error as Error)
       return state
     }
   }
