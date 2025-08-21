@@ -25,6 +25,7 @@ import { createPortal } from 'react-dom'
 
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
+import { PORTAL_NO_DND_SELECTORS } from './utils'
 
 interface SortableProps<T> {
   /** Array of sortable items */
@@ -60,8 +61,6 @@ const dropAnimationConfig: DropAnimation = {
     }
   })
 }
-
-const PORTAL_NO_DND_SELECTORS = ['.ant-tooltip', '.ant-dropdown', '.ant-modal'].join(',')
 
 /**
  * Prevent drag on elements with specific classes or data-no-dnd attribute

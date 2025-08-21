@@ -33,7 +33,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
   }
 
   return (
-    <CardContainer $isActive={server.isActive}>
+    <CardContainer $isActive={server.isActive} onClick={onEdit}>
       <ServerHeader>
         <ServerNameWrapper>
           {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
@@ -44,22 +44,29 @@ const McpServerCard: FC<McpServerCardProps> = ({
               size="small"
               shape="circle"
               icon={<SquareArrowOutUpRight size={14} />}
-              className="nodrag"
               onClick={handleOpenUrl}
+              data-no-dnd
             />
           )}
         </ServerNameWrapper>
         <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-          <Switch value={server.isActive} key={server.id} loading={isLoading} onChange={onToggle} size="small" />
+          <Switch
+            value={server.isActive}
+            key={server.id}
+            loading={isLoading}
+            onChange={onToggle}
+            size="small"
+            data-no-dnd
+          />
           <Button
             type="text"
             shape="circle"
             icon={<DeleteIcon size={14} className="lucide-custom" />}
-            className="nodrag"
             danger
             onClick={onDelete}
+            data-no-dnd
           />
-          <Button type="text" shape="circle" icon={<Settings2 size={14} />} className="nodrag" onClick={onEdit} />
+          <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
         </ToolbarWrapper>
       </ServerHeader>
       <ServerDescription>{server.description}</ServerDescription>
