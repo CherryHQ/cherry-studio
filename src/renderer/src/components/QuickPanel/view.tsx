@@ -147,35 +147,38 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const clearSearchText = useCallback(
     (includeSymbol = false) => {
       const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+      if (!textArea) return
+
       const cursorPosition = textArea.selectionStart ?? 0
-      const prevChar = textArea.value[cursorPosition - 1]
-      if ((prevChar === '/' || prevChar === '@') && !searchTextRef.current) {
-        searchTextRef.current = prevChar
-      }
+      const textBeforeCursor = textArea.value.slice(0, cursorPosition)
 
-      const _searchText = includeSymbol ? searchTextRef.current : searchTextRef.current.replace(/^[/@]/, '')
-      if (!_searchText) return
+      // 查找最后一个 @ 或 / 符号的位置
+      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+      const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
+      const lastSymbolIndex = Math.max(lastAtIndex, lastSlashIndex)
 
-      const inputText = textArea.value
-      let newText = inputText
-      const searchPattern = new RegExp(`${_searchText}$`)
+      if (lastSymbolIndex === -1) return
 
-      const match = inputText.slice(0, cursorPosition).match(searchPattern)
-      if (match) {
-        const start = match.index || 0
-        const end = start + match[0].length
-        newText = inputText.slice(0, start) + inputText.slice(end)
-        setInputText(newText)
+      // 根据 includeSymbol 决定是否删除符号
+      const deleteStart = includeSymbol ? lastSymbolIndex : lastSymbolIndex + 1
+      const deleteEnd = cursorPosition
 
-        setTimeoutTimer(
-          'quickpanel_focus',
-          () => {
-            textArea.focus()
-            textArea.setSelectionRange(start, start)
-          },
-          0
-        )
-      }
+      if (deleteStart >= deleteEnd) return
+
+      // 删除文本
+      const newText = textArea.value.slice(0, deleteStart) + textArea.value.slice(deleteEnd)
+      setInputText(newText)
+
+      // 设置光标位置
+      setTimeoutTimer(
+        'quickpanel_focus',
+        () => {
+          textArea.focus()
+          textArea.setSelectionRange(deleteStart, deleteStart)
+        },
+        0
+      )
+
       setSearchText('')
     },
     [setInputText, setTimeoutTimer]

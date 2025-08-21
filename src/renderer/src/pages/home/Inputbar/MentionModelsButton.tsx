@@ -48,6 +48,10 @@ const MentionModelsButton: FC<Props> = ({
 
   // 记录是否有模型被选择的动作发生
   const hasModelActionRef = useRef<boolean>(false)
+  // 记录触发信息，用于清除操作
+  const triggerInfoRef = useRef<{ type: 'input' | 'button'; position?: number; originalText?: string } | undefined>(
+    undefined
+  )
 
   const pinnedModels = useLiveQuery(
     async () => {
@@ -143,6 +147,21 @@ const MentionModelsButton: FC<Props> = ({
       isSelected: false,
       action: () => {
         onClearMentionModels()
+
+        // 只有输入触发时才需要删除 @ 符号
+        if (triggerInfoRef.current?.type === 'input' && triggerInfoRef.current?.position !== undefined) {
+          setText((currentText) => {
+            const position = triggerInfoRef.current!.position!
+            // 从 @ 位置开始，找到下一个空格或字符串结尾
+            let endPos = position + 1
+            while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
+              endPos++
+            }
+            // 删除 @ 符号和搜索文本
+            return currentText.slice(0, position) + currentText.slice(endPos)
+          })
+        }
+
         quickPanel.close()
       }
     })
@@ -157,13 +176,16 @@ const MentionModelsButton: FC<Props> = ({
     onMentionModel,
     navigate,
     quickPanel,
-    onClearMentionModels
+    onClearMentionModels,
+    setText
   ])
 
   const openQuickPanel = useCallback(
     (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => {
       // 重置模型动作标记
       hasModelActionRef.current = false
+      // 保存触发信息
+      triggerInfoRef.current = triggerInfo
 
       quickPanel.open({
         title: t('agents.edit.model.select.title'),
