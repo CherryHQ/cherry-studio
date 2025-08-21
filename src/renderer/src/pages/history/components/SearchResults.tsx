@@ -1,7 +1,6 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import db from '@renderer/databases'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { getTopicById } from '@renderer/hooks/useTopic'
 import { selectTopicsMap } from '@renderer/store/assistants'
 import { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
@@ -143,8 +142,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
                 level={5}
                 style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
                 onClick={async () => {
-                  const _topic = await getTopicById(topic.id)
-                  onTopicClick(_topic)
+                  onTopicClick(storeTopicsMap.get(topic.id))
                 }}>
                 {topic.name}
               </Title>
