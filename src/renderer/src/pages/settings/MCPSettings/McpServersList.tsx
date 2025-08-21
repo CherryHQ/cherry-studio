@@ -222,6 +222,8 @@ const McpServersList: FC = () => {
           updateMcpServers(newList)
         }}
         layout="grid"
+        useDragOverlay
+        showGhost
         renderItem={(server) => (
           <McpServerCard
             server={server}

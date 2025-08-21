@@ -1,5 +1,6 @@
 import {
   Active,
+  defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
   DropAnimation,
@@ -24,7 +25,7 @@ import styled from 'styled-components'
 
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
-import { dropAnimationConfig, PortalSafePointerSensor } from './utils'
+import { PortalSafePointerSensor } from './utils'
 
 interface SortableProps<T> {
   /** Array of sortable items */
@@ -43,14 +44,18 @@ interface SortableProps<T> {
   layout?: 'list' | 'grid'
   /** Whether sorting is horizontal */
   horizontal?: boolean
-  /** Whether to use drag overlay */
+  /** Whether to use drag overlay
+   * If you want to hide ghost item, set showGhost to false rather than useDragOverlay.
+   */
   useDragOverlay?: boolean
-  /** Drop animation configuration */
-  dropAnimation?: DropAnimation
+  /** Whether to show ghost item, only works when useDragOverlay is true */
+  showGhost?: boolean
   /** Item list class name */
   className?: string
   /** Item list style */
   listStyle?: React.CSSProperties
+  /** Ghost item style */
+  ghostItemStyle?: React.CSSProperties
 }
 
 function Sortable<T>({
@@ -63,7 +68,7 @@ function Sortable<T>({
   layout = 'list',
   horizontal = false,
   useDragOverlay = true,
-  dropAnimation = dropAnimationConfig,
+  showGhost = false,
   className,
   listStyle
 }: SortableProps<T>) {
@@ -126,6 +131,17 @@ function Sortable<T>({
     layout === 'list' ? (horizontal ? horizontalListSortingStrategy : verticalListSortingStrategy) : rectSortingStrategy
   const modifiers = layout === 'list' ? (horizontal ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]) : []
 
+  const dropAnimation: DropAnimation = useMemo(
+    () => ({
+      sideEffects: defaultDropAnimationSideEffects({
+        styles: {
+          active: { opacity: showGhost ? '0.25' : '0' }
+        }
+      })
+    }),
+    [showGhost]
+  )
+
   return (
     <DndContext
       sensors={sensors}
@@ -142,6 +158,7 @@ function Sortable<T>({
               getId={getId}
               renderItem={renderItem}
               useDragOverlay={useDragOverlay}
+              showGhost={showGhost}
             />
           ))}
         </ListWrapper>

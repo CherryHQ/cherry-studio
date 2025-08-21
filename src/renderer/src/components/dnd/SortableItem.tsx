@@ -8,9 +8,16 @@ interface SortableItemProps<T> {
   getId: (item: T) => string | number
   renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
   useDragOverlay?: boolean
+  showGhost?: boolean
 }
 
-export function SortableItem<T>({ item, getId, renderItem, useDragOverlay = true }: SortableItemProps<T>) {
+export function SortableItem<T>({
+  item,
+  getId,
+  renderItem,
+  useDragOverlay = true,
+  showGhost = true
+}: SortableItemProps<T>) {
   const id = getId(item)
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -24,6 +31,7 @@ export function SortableItem<T>({ item, getId, renderItem, useDragOverlay = true
       renderItem={renderItem}
       dragging={isDragging}
       dragOverlay={!useDragOverlay && isDragging}
+      ghost={showGhost && useDragOverlay && isDragging}
       transform={transform}
       transition={transition}
       listeners={listeners}

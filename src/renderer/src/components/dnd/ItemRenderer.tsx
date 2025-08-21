@@ -4,12 +4,13 @@ import { classNames } from '@renderer/utils'
 import React, { useEffect } from 'react'
 import styled from 'styled-components'
 
-interface SortableItemProps<T> {
+interface ItemRendererProps<T> {
   ref?: React.Ref<HTMLDivElement>
   item: T
   renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
   dragging?: boolean
   dragOverlay?: boolean
+  ghost?: boolean
   transform?: Transform | null
   transition?: string | null
   listeners?: DraggableSyntheticListeners
@@ -21,11 +22,12 @@ export function ItemRenderer<T>({
   renderItem,
   dragging,
   dragOverlay,
+  ghost,
   transform,
   transition,
   listeners,
   ...props
-}: SortableItemProps<T>) {
+}: ItemRendererProps<T>) {
   useEffect(() => {
     if (!dragOverlay) {
       return
@@ -48,7 +50,10 @@ export function ItemRenderer<T>({
 
   return (
     <ItemWrapper ref={ref} className={classNames({ dragOverlay: dragOverlay })} style={{ ...wrapperStyle }}>
-      <DraggableItem className={classNames({ dragging: dragging, dragOverlay: dragOverlay })} {...listeners} {...props}>
+      <DraggableItem
+        className={classNames({ dragging: dragging, dragOverlay: dragOverlay, ghost: ghost })}
+        {...listeners}
+        {...props}>
         {renderItem(item, { dragging: !!dragging })}
       </DraggableItem>
     </ItemWrapper>
@@ -78,8 +83,12 @@ const DraggableItem = styled.div`
   transform: scale(var(--scale, 1));
 
   &.dragging:not(.dragOverlay) {
-    opacity: 0.25;
     z-index: 0;
+    opacity: 0.25;
+
+    &:not(.ghost) {
+      opacity: 0;
+    }
   }
 
   &.dragOverlay {
