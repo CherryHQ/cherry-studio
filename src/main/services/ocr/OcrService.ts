@@ -19,19 +19,24 @@ const logger = loggerService.withContext('main:OcrService')
 
 /**
  * ocr by tesseract
- * @param file image file
+ * @param file image file or base64 string
  * @returns ocr result
  * @throws {Error}
  */
-const tesseractOcr = async (file: ImageFileMetadata): Promise<string> => {
+const tesseractOcr = async (file: ImageFileMetadata | string): Promise<string> => {
   try {
     const worker = await getTesseractWorker()
-    const stat = statSync(file.path)
-    if (stat.size > 50 * MB) {
-      throw new Error('This image is too large (max 50MB)')
+    let ret: Tesseract.RecognizeResult
+    if (typeof file === 'string') {
+      ret = await worker.recognize(file)
+    } else {
+      const stat = statSync(file.path)
+      if (stat.size > 50 * MB) {
+        throw new Error('This image is too large (max 50MB)')
+      }
+      const buffer = await readFile(file.path)
+      ret = await worker.recognize(buffer)
     }
-    const buffer = await readFile(file.path)
-    const ret = await worker.recognize(buffer)
     return ret.data.text
   } catch (e) {
     logger.error('Failed to ocr with tesseract.', e as Error)
