@@ -439,6 +439,9 @@ const TranslatePage: FC = () => {
     setIsProcessing(true)
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
+      if (!file) {
+        return
+      }
       if (isSupportedOcrFile(file)) {
         window.message.loading({ content: t('ocr.processing'), key: 'translate_ocr_processing', duration: 0 })
         const ocrResult = await ocr(file)
