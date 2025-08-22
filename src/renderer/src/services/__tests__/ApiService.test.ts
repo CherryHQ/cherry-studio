@@ -16,6 +16,7 @@ import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import { isVisionModel } from '@renderer/config/models'
+import { LlmState } from '@renderer/store/llm'
 import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
   Chunk,
@@ -178,7 +179,8 @@ vi.mock('@renderer/store/llm.ts', () => {
             id: 'gemini-2.5-pro',
             name: 'Gemini 2.5 Pro',
             provider: 'gemini',
-            supported_text_delta: true
+            supported_text_delta: true,
+            group: ''
           }
         ],
         isSystem: true,
@@ -189,19 +191,29 @@ vi.mock('@renderer/store/llm.ts', () => {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',
-      supported_text_delta: true
+      supported_text_delta: true,
+      group: ''
     },
     topicNamingModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',
-      supported_text_delta: true
+      supported_text_delta: true,
+      group: ''
+    },
+    quickModel: {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      provider: 'gemini',
+      supported_text_delta: true,
+      group: ''
     },
     translateModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',
-      supported_text_delta: true
+      supported_text_delta: true,
+      group: ''
     },
     quickAssistantId: '',
     settings: {
@@ -215,9 +227,14 @@ vi.mock('@renderer/store/llm.ts', () => {
         },
         projectId: '',
         location: ''
+      },
+      awsBedrock: {
+        accessKeyId: '',
+        secretAccessKey: '',
+        region: ''
       }
     }
-  }
+  } satisfies LlmState
 
   const mockReducer = (state = mockInitialState) => {
     return state

@@ -68,6 +68,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
 
   // 无匹配项自动关闭的定时器
   const noMatchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const clearSearchTimerRef = useRef<NodeJS.Timeout>(undefined)
+  const focusTimerRef = useRef<NodeJS.Timeout>(undefined)
 
   // 处理搜索，过滤列表
   const list = useMemo(() => {
@@ -145,6 +147,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     if (noMatchTimeoutRef.current) {
       clearTimeout(noMatchTimeoutRef.current)
       noMatchTimeoutRef.current = null
+      clearTimeout(clearSearchTimerRef.current)
+      clearTimeout(focusTimerRef.current)
     }
 
     // 面板不可见时不设置新定时器
@@ -165,6 +169,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         clearTimeout(noMatchTimeoutRef.current)
         noMatchTimeoutRef.current = null
       }
+      clearTimeout(clearSearchTimerRef.current)
+      clearTimeout(focusTimerRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ctx对象引用不稳定，使用具体属性避免过度重渲染
   }, [ctx.isVisible, searchText, list.length, ctx.close])
@@ -192,7 +198,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         newText = inputText.slice(0, start) + inputText.slice(end)
         setInputText(newText)
 
-        setTimeout(() => {
+        clearTimeout(focusTimerRef.current)
+        focusTimerRef.current = setTimeout(() => {
           textArea.focus()
           textArea.setSelectionRange(start, start)
         }, 0)
@@ -333,7 +340,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       textArea.removeEventListener('input', handleInput)
       textArea.removeEventListener('compositionupdate', handleCompositionUpdate)
       textArea.removeEventListener('compositionend', handleCompositionEnd)
-      setTimeout(() => {
+      clearTimeout(clearSearchTimerRef.current)
+      clearSearchTimerRef.current = setTimeout(() => {
         setSearchText('')
       }, 200) // 等待面板关闭动画结束后，再清空搜索词
     }
@@ -458,6 +466,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           }
           break
         case 'Escape':
+          e.stopPropagation()
           handleClose('esc')
           break
       }
@@ -477,14 +486,14 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
-    window.addEventListener('click', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
+    window.addEventListener('click', handleClickOutside, true)
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
-      window.removeEventListener('click', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
+      window.removeEventListener('click', handleClickOutside, true)
     }
   }, [index, isAssistiveKeyPressed, historyPanel, ctx, list, handleItemAction, handleClose, clearSearchText])
 

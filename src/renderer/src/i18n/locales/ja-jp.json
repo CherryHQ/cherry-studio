@@ -322,6 +322,7 @@
       "expand": "展開",
       "file_error": "ファイル処理エラー",
       "file_not_supported": "モデルはこのファイルタイプをサポートしません",
+      "file_not_supported_count": "{{count}} 個のファイルはサポートされていません",
       "generate_image": "画像を生成する",
       "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "knowledge_base": "ナレッジベース",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "新しい名前を入力",
-        "title": "名前を編集"
+        "title": "名前を編集",
+        "title_tip": "ヒント: トピック名をダブルクリックすると、直接その場で名前を変更できます"
       },
       "export": {
         "image": "画像としてエクスポート",
@@ -654,6 +656,8 @@
     "cli_tool": "CLI ツール",
     "cli_tool_placeholder": "使用する CLI ツールを選択してください",
     "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
+    "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
     "install_bun": "Bun をインストール",
     "installing_bun": "インストール中...",
@@ -821,7 +825,8 @@
     },
     "missing_user_message": "モデル応答を切り替えられません：元のユーザーメッセージが削除されました。このモデルで応答を得るには、新しいメッセージを送信してください",
     "model": {
-      "exists": "モデルが既に存在します"
+      "exists": "モデルが既に存在します",
+      "not_exists": "モデルが存在しません"
     },
     "no_api_key": "APIキーが設定されていません",
     "pause_placeholder": "応答を一時停止しました",
@@ -881,6 +886,9 @@
   },
   "history": {
     "continue_chat": "チャットを続ける",
+    "error": {
+      "topic_not_found": "トピックが見つかりません"
+    },
     "locate": {
       "message": "メッセージを探す"
     },
@@ -1437,6 +1445,27 @@
       }
     },
     "title": "ミニアプリ"
+  },
+  "minapps": {
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度AI検索",
+    "chatglm": "ChatGLM",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "通義千問",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "騰訊元宝",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "万知",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "小藝",
+    "yuewen": "躍問",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -2253,8 +2282,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "この設定は、すべてのMarkdownエクスポート方法に影響します。",
-          "title": "トピック命名モデルを使用してメッセージのタイトルを作成"
+          "help": "有効にすると、エクスポートされたメッセージのタイトル名に高速モデルを使用します。この設定はMarkdownによるエクスポート方法全般にも影響します。",
+          "title": "高速モデルを使用してエクスポートされたメッセージのタイトルを命名"
         }
       },
       "minute_interval_one": "{{count}} 分",
@@ -2654,6 +2683,7 @@
         "title": "自動更新"
       },
       "avatar": {
+        "builtin": "内蔵アバター",
         "reset": "アバターをリセット"
       },
       "backup": {
@@ -2703,6 +2733,11 @@
     },
     "input": {
       "auto_translate_with_space": "スペースを3回押して翻訳",
+      "clear": {
+        "all": "クリア",
+        "knowledge_base": "選択された知識ベースをクリア",
+        "models": "すべてのモデルをクリア"
+      },
       "show_translate_confirm": "翻訳確認ダイアログを表示",
       "target_language": {
         "chinese": "簡体字中国語",
@@ -2950,7 +2985,6 @@
         "label": "グリッド詳細トリガー"
       },
       "input": {
-        "enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
         "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
         "paste_long_text_threshold": "長いテキストの長さ",
@@ -3088,7 +3122,6 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
-      "enable_topic_naming": "トピックの自動命名",
       "manage": {
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
@@ -3114,10 +3147,17 @@
       "quick_assistant_default_tag": "デフォルト",
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
-      "topic_naming_model": "トピック命名モデル",
-      "topic_naming_model_description": "新しいトピックを自動的に命名する際に使用されるモデル",
-      "topic_naming_model_setting_title": "トピック命名モデルの設定",
-      "topic_naming_prompt": "トピック命名プロンプト",
+      "quick_model": {
+        "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
+        "label": "高速モデル",
+        "setting_title": "高速モデル設定",
+        "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
+      "topic_naming": {
+        "auto": "トピックの自動命名",
+        "label": "トピック名",
+        "prompt": "トピック命名プロンプト"
+      },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",
       "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
@@ -3644,12 +3684,34 @@
     "custom": {
       "label": "カスタム言語"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "アルゴリズム",
+          "tip": "francを使用して言語検出を行う"
+        },
+        "auto": {
+          "label": "自動",
+          "tip": "適切な検出方法を自動的に選択します"
+        },
+        "label": "自動検出方法",
+        "llm": {
+          "tip": "高速モデルを使用して言語検出を行い、少量のトークンを消費します。"
+        },
+        "placeholder": "自動検出方法を選択してください",
+        "tip": "入力言語を自動検出する際に使用する方法"
+      }
+    },
     "detected": {
       "language": "自動検出"
     },
     "empty": "翻訳内容が空です",
     "error": {
-      "detected_unknown": "未知の言語は交換できません",
+      "detect": {
+        "qwen_mt": "QwenMTモデルは言語検出に使用できません",
+        "unknown": "検出された言語は不明です",
+        "update_setting": "設定に失敗しました"
+      },
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
       "invalid_source": "無効なソース言語",
@@ -3667,6 +3729,9 @@
       "empty": "翻訳履歴がありません",
       "error": {
         "save": "保存翻訳履歴に失敗しました"
+      },
+      "search": {
+        "placeholder": "翻訳履歴を検索する"
       },
       "title": "翻訳履歴"
     },

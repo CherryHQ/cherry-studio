@@ -10,8 +10,10 @@ import {
   isSupportStreamOptionsProvider,
   SYSTEM_PROVIDERS
 } from '@renderer/config/providers'
+import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import {
   Assistant,
   isSystemProvider,
@@ -32,7 +34,7 @@ import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
-import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
@@ -1320,7 +1322,6 @@ const migrateConfig = {
       state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
       // @ts-ignore eslint-disable-next-line
       delete state.settings.showAssistantIcon
-      state.settings.enableBackspaceDeleteModel = true
       return state
     } catch (error) {
       return state
@@ -2120,10 +2121,64 @@ const migrateConfig = {
       logger.error('migrate 132 error', error as Error)
       return state
     }
+  },
+  '133': (state: RootState) => {
+    try {
+      state.settings.sidebarIcons.visible.push('code_tools')
+      if (state.codeTools) {
+        state.codeTools.environmentVariables = {
+          'qwen-code': '',
+          'claude-code': '',
+          'gemini-cli': ''
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 133 error', error as Error)
+      return state
+    }
+  },
+  '134': (state: RootState) => {
+    try {
+      state.llm.quickModel = state.llm.topicNamingModel
+
+      return state
+    } catch (error) {
+      logger.error('migrate 134 error', error as Error)
+      return state
+    }
+  },
+  '135': (state: RootState) => {
+    try {
+      if (!state.assistants.defaultAssistant.settings) {
+        state.assistants.defaultAssistant.settings = DEFAULT_ASSISTANT_SETTINGS
+      } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'prompt'
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 135 error', error as Error)
+      return state
+    }
+  },
+  '136': (state: RootState) => {
+    try {
+      state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
+        DEFAULT_SIDEBAR_ICONS.includes(icon)
+      )
+      state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
+        DEFAULT_SIDEBAR_ICONS.includes(icon)
+      )
+      return state
+    } catch (error) {
+      logger.error('migrate 136 error', error as Error)
+      return state
+    }
   }
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
+// file://./index.ts
 
 const migrate = createMigrate(migrateConfig as any)
 

@@ -2909,7 +2909,11 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
+  if (
+    (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
+    isOpenAIChatCompletionOnlyModel(model) ||
+    isQwenMTModel(model)
+  ) {
     return true
   }
 
@@ -2999,6 +3003,26 @@ export function isWebSearchModel(model: Model): boolean {
 
   if (provider.id === 'grok') {
     return true
+  }
+
+  return false
+}
+
+export function isMandatoryWebSearchModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+
+  if (provider.id === 'perplexity' || provider.id === 'openrouter') {
+    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
   return false
@@ -3238,3 +3262,11 @@ export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5')
 }
+
+export const isOpenAIOpenWeightModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-oss')
+}
+
+// zhipu 视觉推理模型用这组 special token 标记推理结果
+export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const

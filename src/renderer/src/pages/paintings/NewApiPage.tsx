@@ -286,6 +286,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const formData = new FormData()
         formData.append('prompt', prompt)
+        formData.append('model', painting.model)
         if (painting.background && painting.background !== 'auto') {
           formData.append('background', painting.background)
         }

@@ -327,7 +327,7 @@ const ProvidersList: FC = () => {
         if (name) {
           updateProvider({ ...provider, name, type })
           if (provider.id) {
-            if (logoFile && logo) {
+            if (logo) {
               try {
                 await ImageStorage.set(`provider-${provider.id}`, logo)
                 setProviderLogos((prev) => ({
@@ -466,6 +466,7 @@ const ProvidersList: FC = () => {
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                e.stopPropagation()
                 setSearchText('')
               }
             }}

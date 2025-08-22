@@ -103,6 +103,10 @@
   }
 
   span {
+    white-space: pre-wrap;
+  }
+
+  .katex span {
     white-space: pre;
   }
 
@@ -259,10 +263,6 @@
     &:hover {
       text-decoration: underline;
     }
-  }
-
-  > *:last-child {
-    margin-bottom: 0 !important;
   }
 }
 

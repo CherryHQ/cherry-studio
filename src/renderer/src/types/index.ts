@@ -99,6 +99,13 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOption
+  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复.
+   *
+   * TODO: 目前 reasoning_effort === undefined 有两个语义，有的场景是显式关闭思考，有的场景是不传参。
+   * 未来应该重构思考控制，将启用/关闭思考和思考选项分离，这样就不用依赖 cache 了。
+   *
+   */
+  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
 }
@@ -680,7 +687,27 @@ export type CustomTranslateLanguage = {
   emoji: string
 }
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export const AutoDetectionMethods = {
+  franc: 'franc',
+  llm: 'llm',
+  auto: 'auto'
+} as const
+
+export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
+
+export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
+  return Object.hasOwn(AutoDetectionMethods, method)
+}
+
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'code_tools'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

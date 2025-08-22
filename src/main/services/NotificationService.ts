@@ -1,14 +1,9 @@
-import { BrowserWindow, Notification as ElectronNotification } from 'electron'
+import { Notification as ElectronNotification } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
+import { windowService } from './WindowService'
+
 class NotificationService {
-  private window: BrowserWindow
-
-  constructor(window: BrowserWindow) {
-    // Initialize the service
-    this.window = window
-  }
-
   public async sendNotification(notification: Notification) {
     // 使用 Electron Notification API
     const electronNotification = new ElectronNotification({
@@ -17,8 +12,8 @@ class NotificationService {
     })
 
     electronNotification.on('click', () => {
-      this.window.show()
-      this.window.webContents.send('notification-click', notification)
+      windowService.getMainWindow()?.show()
+      windowService.getMainWindow()?.webContents.send('notification-click', notification)
     })
 
     electronNotification.show()

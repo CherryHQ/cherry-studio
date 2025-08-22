@@ -322,6 +322,7 @@
       "expand": "展开",
       "file_error": "文件处理出错",
       "file_not_supported": "模型不支持此文件类型",
+      "file_not_supported_count": "{{count}} 个文件不被支持",
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "输入新名称",
-        "title": "编辑话题名"
+        "title": "编辑话题名",
+        "title_tip": "提示: 双击话题名可以直接就地重命名"
       },
       "export": {
         "image": "导出为图片",
@@ -654,6 +656,8 @@
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
+    "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
+    "environment_variables": "环境变量",
     "folder_placeholder": "选择工作目录",
     "install_bun": "安装 Bun",
     "installing_bun": "安装中...",
@@ -821,7 +825,8 @@
     },
     "missing_user_message": "无法切换模型响应：原始用户消息已被删除。请发送新消息以获取此模型的响应",
     "model": {
-      "exists": "模型已存在"
+      "exists": "模型已存在",
+      "not_exists": "模型不存在"
     },
     "no_api_key": "API 密钥未配置",
     "pause_placeholder": "已中断",
@@ -881,6 +886,9 @@
   },
   "history": {
     "continue_chat": "继续聊天",
+    "error": {
+      "topic_not_found": "话题不存在"
+    },
     "locate": {
       "message": "定位到消息"
     },
@@ -1437,6 +1445,27 @@
       }
     },
     "title": "小程序"
+  },
+  "minapps": {
+    "baichuan": "百小应",
+    "baidu-ai-search": "百度AI搜索",
+    "chatglm": "智谱清言",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "metaso": "秘塔AI搜索",
+    "nami-ai": "纳米AI",
+    "nami-ai-search": "纳米AI搜索",
+    "qwen": "通义千问",
+    "sensechat": "商量",
+    "tencent-yuanbao": "腾讯元宝",
+    "tiangong-ai": "天工AI",
+    "wanzhi": "万知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS灵犀",
+    "xiaoyi": "小艺",
+    "yuewen": "跃问",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -2253,8 +2282,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "开启后，使用话题命名模型为导出的消息创建标题。该项也会影响所有通过 Markdown 导出的方式",
-          "title": "使用话题命名模型为导出的消息创建标题"
+          "help": "开启后，使用快速模型为导出的消息命名标题。该项也会影响所有通过 Markdown 导出的方式",
+          "title": "使用快速模型为导出的消息命名标题"
         }
       },
       "minute_interval_one": "{{count}} 分钟",
@@ -2654,6 +2683,7 @@
         "title": "自动更新"
       },
       "avatar": {
+        "builtin": "内置头像",
         "reset": "重置头像"
       },
       "backup": {
@@ -2703,6 +2733,11 @@
     },
     "input": {
       "auto_translate_with_space": "3 个空格快速翻译",
+      "clear": {
+        "all": "清除",
+        "knowledge_base": "清除选中的知识库",
+        "models": "清除@的所有模型"
+      },
       "show_translate_confirm": "显示翻译确认对话框",
       "target_language": {
         "chinese": "简体中文",
@@ -2950,7 +2985,6 @@
         "label": "网格详情触发"
       },
       "input": {
-        "enable_delete_model": "启用删除键删除输入的模型 / 附件",
         "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
         "paste_long_text_as_file": "长文本粘贴为文件",
         "paste_long_text_threshold": "长文本长度",
@@ -3088,7 +3122,6 @@
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "empty": "没有模型",
-      "enable_topic_naming": "话题自动重命名",
       "manage": {
         "add_listed": {
           "confirm": "确定要添加所有模型到列表吗？",
@@ -3114,10 +3147,17 @@
       "quick_assistant_default_tag": "默认",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "选择助手",
-      "topic_naming_model": "话题命名模型",
-      "topic_naming_model_description": "自动命名新话题时使用的模型",
-      "topic_naming_model_setting_title": "话题命名模型设置",
-      "topic_naming_prompt": "话题命名提示词",
+      "quick_model": {
+        "description": "执行话题命名、搜索关键字提炼等简单任务时使用的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型设置",
+        "tooltip": "建议选择轻量模型，不建议选择思考模型"
+      },
+      "topic_naming": {
+        "auto": "话题自动重命名",
+        "label": "话题命名",
+        "prompt": "话题命名提示词"
+      },
       "translate_model": "翻译模型",
       "translate_model_description": "翻译服务使用的模型",
       "translate_model_prompt_message": "请输入翻译模型提示词",
@@ -3644,12 +3684,34 @@
     "custom": {
       "label": "自定义语言"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "算法",
+          "tip": "使用franc进行语言检测"
+        },
+        "auto": {
+          "label": "自动",
+          "tip": "自动选择合适的检测方法"
+        },
+        "label": "自动检测方法",
+        "llm": {
+          "tip": "使用快速模型进行语言检测，消耗少量token。"
+        },
+        "placeholder": "选择自动检测方法",
+        "tip": "自动检测输入语言时使用的方法"
+      }
+    },
     "detected": {
       "language": "自动检测"
     },
     "empty": "翻译内容为空",
     "error": {
-      "detected_unknown": "未知语言不可交换",
+      "detect": {
+        "qwen_mt": "QwenMT模型不能用于语言检测",
+        "unknown": "检测到未知语言",
+        "update_setting": "设置失败"
+      },
       "empty": "翻译结果为空内容",
       "failed": "翻译失败",
       "invalid_source": "无效的源语言",
@@ -3667,6 +3729,9 @@
       "empty": "暂无翻译历史",
       "error": {
         "save": "保存翻译历史失败"
+      },
+      "search": {
+        "placeholder": "搜索翻译历史"
       },
       "title": "翻译历史"
     },

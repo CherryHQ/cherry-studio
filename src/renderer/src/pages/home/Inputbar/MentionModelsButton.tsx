@@ -10,7 +10,7 @@ import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
-import { AtSign, Plus } from 'lucide-react'
+import { AtSign, CircleX, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -24,6 +24,7 @@ interface Props {
   ref?: React.RefObject<MentionModelsButtonRef | null>
   mentionedModels: Model[]
   onMentionModel: (model: Model) => void
+  onClearMentionModels: () => void
   couldMentionNotVisionModel: boolean
   files: FileType[]
   ToolbarButton: any
@@ -34,6 +35,7 @@ const MentionModelsButton: FC<Props> = ({
   ref,
   mentionedModels,
   onMentionModel,
+  onClearMentionModels,
   couldMentionNotVisionModel,
   files,
   ToolbarButton,
@@ -134,8 +136,29 @@ const MentionModelsButton: FC<Props> = ({
       isSelected: false
     })
 
+    items.unshift({
+      label: t('settings.input.clear.all'),
+      description: t('settings.input.clear.models'),
+      icon: <CircleX />,
+      isSelected: false,
+      action: () => {
+        onClearMentionModels()
+        quickPanel.close()
+      }
+    })
+
     return items
-  }, [pinnedModels, providers, t, couldMentionNotVisionModel, mentionedModels, onMentionModel, navigate])
+  }, [
+    pinnedModels,
+    providers,
+    t,
+    couldMentionNotVisionModel,
+    mentionedModels,
+    onMentionModel,
+    navigate,
+    quickPanel,
+    onClearMentionModels
+  ])
 
   const openQuickPanel = useCallback(
     (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => {

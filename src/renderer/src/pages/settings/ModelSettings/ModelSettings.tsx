@@ -1,4 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
+import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -13,17 +14,17 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { find } from 'lodash'
-import { FolderPen, Languages, MessageSquareMore, Settings2 } from 'lucide-react'
+import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingGroup, SettingTitle } from '..'
 import TranslateSettingsPopup from '../TranslateSettingsPopup/TranslateSettingsPopup'
 import DefaultAssistantSettings from './DefaultAssistantSettings'
-import TopicNamingModalPopup from './TopicNamingModalPopup'
+import TopicNamingModalPopup from './QuickModelPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, topicNamingModel, translateModel, setDefaultModel, setTopicNamingModel, setTranslateModel } =
+  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
     useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
@@ -43,10 +44,7 @@ const ModelSettings: FC = () => {
     [defaultModel]
   )
 
-  const defaultTopicNamingModel = useMemo(
-    () => (hasModel(topicNamingModel) ? getModelUniqId(topicNamingModel) : undefined),
-    [topicNamingModel]
-  )
+  const defaultQuickModel = useMemo(() => (hasModel(quickModel) ? getModelUniqId(quickModel) : undefined), [quickModel])
 
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
@@ -83,23 +81,24 @@ const ModelSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
           <HStack alignItems="center" gap={10}>
-            <FolderPen size={18} color="var(--color-text)" />
-            {t('settings.models.topic_naming_model')}
+            <Rocket size={18} color="var(--color-text)" />
+            {t('settings.models.quick_model.label')}
+            <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
           </HStack>
         </SettingTitle>
         <HStack alignItems="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
-            value={defaultTopicNamingModel}
-            defaultValue={defaultTopicNamingModel}
+            value={defaultQuickModel}
+            defaultValue={defaultQuickModel}
             style={{ width: 360 }}
-            onChange={(value) => setTopicNamingModel(find(allModels, JSON.parse(value)) as Model)}
+            onChange={(value) => setQuickModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
         </HStack>
-        <SettingDescription>{t('settings.models.topic_naming_model_description')}</SettingDescription>
+        <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>

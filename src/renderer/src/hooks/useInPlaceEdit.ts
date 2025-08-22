@@ -26,13 +26,22 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
   const [originalValue, setOriginalValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const editTimerRef = useRef<NodeJS.Timeout>(undefined)
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(editTimerRef.current)
+    }
+  }, [])
+
   const startEdit = useCallback(
     (initialValue: string) => {
       setIsEditing(true)
       setEditValue(initialValue)
       setOriginalValue(initialValue)
 
-      setTimeout(() => {
+      clearTimeout(editTimerRef.current)
+      editTimerRef.current = setTimeout(() => {
         inputRef.current?.focus()
         if (autoSelectOnStart) {
           inputRef.current?.select()
@@ -66,6 +75,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
         saveEdit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation()
         cancelEdit()
       }
     },

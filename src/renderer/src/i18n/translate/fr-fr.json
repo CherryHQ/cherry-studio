@@ -322,6 +322,7 @@
       "expand": "Développer",
       "file_error": "Erreur lors du traitement du fichier",
       "file_not_supported": "Le modèle ne prend pas en charge ce type de fichier",
+      "file_not_supported_count": "{{count}} fichiers non pris en charge",
       "generate_image": "Générer une image",
       "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
       "knowledge_base": "Base de connaissances",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Entrez un nouveau nom",
-        "title": "Modifier le nom du sujet"
+        "title": "Modifier le nom du sujet",
+        "title_tip": "Conseil : double-cliquez sur le nom du sujet pour le renommer directement sur place"
       },
       "export": {
         "image": "Exporter sous forme d'image",
@@ -654,6 +656,8 @@
     "cli_tool": "Outil CLI",
     "cli_tool_placeholder": "Sélectionnez l'outil CLI à utiliser",
     "description": "Lancer rapidement plusieurs outils CLI de code pour améliorer l'efficacité du développement",
+    "env_vars_help": "Saisissez les variables d'environnement personnalisées (une par ligne, format : KEY=value)",
+    "environment_variables": "variables d'environnement",
     "folder_placeholder": "Sélectionner le répertoire de travail",
     "install_bun": "Installer Bun",
     "installing_bun": "Installation en cours...",
@@ -821,7 +825,8 @@
     },
     "missing_user_message": "Impossible de changer de modèle de réponse : le message utilisateur d'origine a été supprimé. Veuillez envoyer un nouveau message pour obtenir une réponse de ce modèle.",
     "model": {
-      "exists": "Le modèle existe déjà"
+      "exists": "Le modèle existe déjà",
+      "not_exists": "Le modèle n'existe pas"
     },
     "no_api_key": "La clé API n'est pas configurée",
     "pause_placeholder": "Прервано",
@@ -1438,6 +1443,27 @@
     },
     "title": "Mini-programme"
   },
+  "minapps": {
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
+  },
   "miniwindow": {
     "alert": {
       "google_login": "Remarque : Si vous recevez un message d'alerte Google indiquant que le navigateur n'est pas fiable lors de la connexion, veuillez d'abord vous connecter à votre compte via l'application intégrée Google dans la liste des mini-programmes, puis utilisez la connexion Google dans d'autres mini-programmes"
@@ -1578,7 +1604,7 @@
       "style_type_tip": "Style de l'image après édition, uniquement applicable aux versions V_2 et ultérieures"
     },
     "generate": {
-      "height": "hauteur",
+      "height": "Hauteur",
       "magic_prompt_option_tip": "Интеллектуальная оптимизация подсказок для улучшения результатов генерации",
       "model_tip": "Версия модели: V2 — это последняя модель API, V2A — быстрая модель, V_1 — первое поколение модели, _TURBO — ускоренная версия",
       "negative_prompt_tip": "Описывает элементы, которые вы не хотите видеть на изображении. Поддерживается только версиями V_1, V_1_TURBO, V_2 и V_2_TURBO",
@@ -1586,11 +1612,11 @@
       "person_generation": "Générer un personnage",
       "person_generation_tip": "Autoriser le modèle à générer des images de personnages",
       "rendering_speed_tip": "Contrôler l'équilibre entre la vitesse et la qualité du rendu, uniquement applicable à la version V_3",
-      "safety_tolerance": "Tolérance en matière de sécurité",
-      "safety_tolerance_tip": "Contrôle la tolérance de sécurité pour la génération d'images, applicable uniquement à la version FLUX.1-Kontext-pro",
+      "safety_tolerance": "Tolérance de sécurité",
+      "safety_tolerance_tip": "Contrôle la tolérance de sécurité dans la génération d'images, uniquement applicable à la version FLUX.1-Kontext-pro",
       "seed_tip": "Контролирует случайность генерации изображения, используется для воспроизведения одинаковых результатов",
       "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше",
-      "width": "largeur"
+      "width": "Largeur"
     },
     "generated_image": "Image générée",
     "go_to_settings": "Aller aux paramètres",
@@ -2253,8 +2279,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Lorsque cette option est activée, le modèle de dénomination thématique sera utilisé pour créer les titres des messages exportés. Cette option affectera également toutes les méthodes d'exportation au format Markdown.",
-          "title": "Utiliser le modèle de dénomination thématique pour créer les titres des messages exportés"
+          "help": "Activé, utilise un modèle rapide pour nommer les titres des messages exportés. Cette option affecte également toutes les méthodes d'exportation via Markdown.",
+          "title": "Utiliser le modèle rapide pour nommer le titre des messages exportés"
         }
       },
       "minute_interval_one": "{{count}} minute",
@@ -2703,6 +2729,11 @@
     },
     "input": {
       "auto_translate_with_space": "Traduire en frappant rapidement 3 fois l'espace",
+      "clear": {
+        "all": "Effacer",
+        "knowledge_base": "Effacer les bases de connaissances sélectionnées",
+        "models": "Effacer tous les modèles"
+      },
       "show_translate_confirm": "Afficher la boîte de dialogue de confirmation de traduction",
       "target_language": {
         "chinese": "Chinois simplifié",
@@ -2950,7 +2981,6 @@
         "label": "Déclencheur de popover de la grille"
       },
       "input": {
-        "enable_delete_model": "Activer la touche Supprimer pour effacer le modèle/pièce jointe saisie",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
         "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
         "paste_long_text_threshold": "Seuil de longueur de texte",
@@ -3088,7 +3118,6 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Modèle utilisé pour créer de nouveaux assistants, si aucun modèle n'est défini pour l'assistant, ce modèle sera utilisé",
       "empty": "Aucun modèle",
-      "enable_topic_naming": "Renommage automatique des sujets",
       "manage": {
         "add_listed": {
           "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
@@ -3114,10 +3143,17 @@
       "quick_assistant_default_tag": "Par défaut",
       "quick_assistant_model": "Modèle de l'assistant rapide",
       "quick_assistant_selection": "Sélectionner l'assistant",
-      "topic_naming_model": "Modèle de renommage des sujets",
-      "topic_naming_model_description": "Modèle utilisé pour le renommage automatique des nouveaux sujets",
-      "topic_naming_model_setting_title": "Paramètres du modèle de renommage des sujets",
-      "topic_naming_prompt": "Mot-clé de renommage des sujets",
+      "quick_model": {
+        "description": "modèle utilisé pour effectuer des tâches simples telles que la nomination de sujets, l'extraction de mots-clés de recherche, etc.",
+        "label": "Modèle rapide",
+        "setting_title": "Configuration rapide du modèle",
+        "tooltip": "Il est recommandé de choisir un modèle léger et déconseillé de choisir un modèle de réflexion."
+      },
+      "topic_naming": {
+        "auto": "Renommage automatique des sujets",
+        "label": "Nom de sujet",
+        "prompt": "Mot-clé de renommage des sujets"
+      },
       "translate_model": "Modèle de traduction",
       "translate_model_description": "Modèle utilisé pour le service de traduction",
       "translate_model_prompt_message": "Entrez le mot-clé du modèle de traduction",
@@ -3644,12 +3680,34 @@
     "custom": {
       "label": "Langue personnalisée"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algorithme",
+          "tip": "Utilisation de l'algorithme franc pour la détection de la langue"
+        },
+        "auto": {
+          "label": "automatique",
+          "tip": "Sélection automatique de la méthode de détection appropriée"
+        },
+        "label": "Méthode de détection automatique",
+        "llm": {
+          "tip": "Utilisation d'un modèle rapide pour la détection linguistique, consommant peu de jetons."
+        },
+        "placeholder": "Sélectionner la méthode de détection automatique",
+        "tip": "Méthode utilisée pour la détection automatique de la langue d'entrée"
+      }
+    },
     "detected": {
       "language": "Détection automatique"
     },
     "empty": "Le contenu à traduire est vide",
     "error": {
-      "detected_unknown": "Langue inconnue non échangeable",
+      "detect": {
+        "qwen_mt": "Le modèle QwenMT ne peut pas être utilisé pour la détection de langues",
+        "unknown": "Langue inconnue détectée",
+        "update_setting": "Échec du paramétrage"
+      },
       "empty": "Le résultat de la traduction est un contenu vide",
       "failed": "échec de la traduction",
       "invalid_source": "Langue source invalide",
@@ -3667,6 +3725,9 @@
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
         "save": "Échec de la sauvegarde de l'historique des traductions"
+      },
+      "search": {
+        "placeholder": "Rechercher l'historique des traductions"
       },
       "title": "Historique des traductions"
     },

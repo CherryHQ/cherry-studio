@@ -5,10 +5,13 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   getThinkModelType,
+  isClaudeReasoningModel,
   isDoubaoThinkingAutoModel,
+  isGeminiReasoningModel,
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenMTModel,
@@ -24,7 +27,8 @@ import {
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
   isVisionModel,
-  MODEL_SUPPORTED_REASONING_EFFORT
+  MODEL_SUPPORTED_REASONING_EFFORT,
+  ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
 import {
   isSupportArrayContentProvider,
@@ -46,6 +50,7 @@ import {
   Model,
   OpenAIServiceTier,
   Provider,
+  SystemProviderIds,
   ToolCallResponse,
   TranslateAssistant,
   WebSearchSource
@@ -527,12 +532,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // 1. 处理系统消息
         const systemMessage = { role: 'system', content: assistant.prompt || '' }
 
-        if (isSupportedReasoningEffortOpenAIModel(model)) {
-          if (isSupportDeveloperRoleProvider(this.provider)) {
-            systemMessage.role = 'developer'
-          } else {
-            systemMessage.role = 'system'
-          }
+        if (
+          isSupportedReasoningEffortOpenAIModel(model) &&
+          isSupportDeveloperRoleProvider(this.provider) &&
+          !isOpenAIOpenWeightModel(model)
+        ) {
+          systemMessage.role = 'developer'
         }
 
         if (model.id.includes('o1-mini') || model.id.includes('o1-preview')) {
@@ -557,17 +562,28 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           }
         }
 
-        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (
-          lastUserMsg &&
-          isSupportedThinkingTokenQwenModel(model) &&
-          !isSupportEnableThinkingProvider(this.provider)
-        ) {
-          const postsuffix = '/no_think'
-          const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
-          const currentContent = lastUserMsg.content
+        // poe 需要通过用户消息传递 reasoningEffort
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
-          lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+        if (lastUserMsg) {
+          if (isSupportedThinkingTokenQwenModel(model) && !isSupportEnableThinkingProvider(this.provider)) {
+            const postsuffix = '/no_think'
+            const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+            const currentContent = lastUserMsg.content
+
+            lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+          }
+          if (this.provider.id === SystemProviderIds.poe) {
+            // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分
+            if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
+              lastUserMsg.content += ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
+            } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
+            } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
+            }
+          }
         }
 
         // 4. 最终请求消息
@@ -584,8 +600,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // Create the appropriate parameters object based on whether streaming is enabled
         // Note: Some providers like Mistral don't support stream_options
         const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
-
-        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
         // minimal cannot be used with web_search tool
         if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort === 'minimal' && enableWebSearch) {
@@ -884,10 +898,22 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 accumulatingText = true
               }
               // logger.silly('enqueue TEXT_DELTA')
-              controller.enqueue({
-                type: ChunkType.TEXT_DELTA,
-                text: contentSource.content
-              })
+              // 处理特殊token
+              // 智谱api的一个chunk中只会输出一个token，因而使用 ===，避免正常内容被误判
+              if (
+                context.provider.id === SystemProviderIds.zhipu &&
+                ZHIPU_RESULT_TOKENS.some((pattern) => contentSource.content === pattern)
+              ) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: '**' // strong
+                })
+              } else {
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: contentSource.content
+                })
+              }
             } else {
               accumulatingText = false
             }

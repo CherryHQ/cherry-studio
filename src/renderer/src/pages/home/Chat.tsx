@@ -8,6 +8,7 @@ import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
@@ -43,6 +44,7 @@ const Chat: FC<Props> = (props) => {
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
   const maxWidth = useChatMaxWidth()
+  const { setTimeoutTimer } = useTimer()
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
@@ -79,10 +81,14 @@ const Chat: FC<Props> = (props) => {
     setFilterIncludeUser(!filterIncludeUser)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTimeout(() => {
-          contentSearchRef.current?.search()
-          contentSearchRef.current?.focus()
-        }, 0)
+        setTimeoutTimer(
+          'userOutlinedItemClickHandler',
+          () => {
+            contentSearchRef.current?.search()
+            contentSearchRef.current?.focus()
+          },
+          0
+        )
       })
     })
   }
@@ -99,7 +105,7 @@ const Chat: FC<Props> = (props) => {
   }
 
   const messagesComponentFirstUpdateHandler = () => {
-    setTimeout(() => (firstUpdateCompleted = true), 300)
+    setTimeoutTimer('messagesComponentFirstUpdateHandler', () => (firstUpdateCompleted = true), 300)
     firstUpdateOrNoFirstUpdateHandler()
   }
 

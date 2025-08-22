@@ -594,7 +594,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
 
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
-const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
+export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -1225,7 +1225,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   poe: {
     api: {
-      url: 'https://api.poe.com/v1'
+      url: 'https://api.poe.com/v1/'
     },
     websites: {
       official: 'https://poe.com/',
