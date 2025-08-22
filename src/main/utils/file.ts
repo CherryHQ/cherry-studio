@@ -250,9 +250,12 @@ export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
       }
 
       const stats = await fs.promises.stat(entryPath)
+      const name = entry.name.endsWith(options.fileExtensions[0])
+        ? entry.name.slice(0, -options.fileExtensions[0].length)
+        : entry.name
       const fileTreeNode: NotesTreeNode = {
         id: uuidv4(),
-        name: entry.name,
+        name: name,
         treePath: path.relative(dirPath, entryPath),
         externalPath: entryPath,
         createdAt: stats.birthtime.toISOString(),

@@ -93,7 +93,10 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
 
   // 构建面包屑路径
   useEffect(() => {
-    if (!activeNodeId || !notesTree) return
+    if (!activeNodeId || !notesTree) {
+      setBreadcrumbItems([])
+      return
+    }
     const node = findNodeInTree(notesTree, activeNodeId)
     if (!node) return
 

@@ -148,9 +148,9 @@ export async function renameNode(nodeId: string, newName: string): Promise<Notes
     throw new Error('Node not found')
   }
   if (node.type === 'file') {
-    await window.api.file.rename(nodeId, newName)
+    await window.api.file.rename(node.externalPath, newName)
   } else if (node.type === 'folder') {
-    await window.api.file.renameDir(nodeId, newName)
+    await window.api.file.renameDir(node.externalPath, newName)
   }
   return renameNodeFromTree(tree, nodeId, newName)
 }

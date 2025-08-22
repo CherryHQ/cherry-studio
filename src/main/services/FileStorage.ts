@@ -236,19 +236,31 @@ class FileStorage {
   }
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
-    if (!fs.existsSync(filePath)) {
-      return
-    }
+    try {
+      if (!fs.existsSync(filePath)) {
+        return
+      }
 
-    await fs.promises.unlink(filePath)
+      await fs.promises.rm(filePath, { force: true })
+      logger.debug(`External file deleted successfully: ${filePath}`)
+    } catch (error) {
+      logger.error('Failed to delete external file:', error as Error)
+      throw error
+    }
   }
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
-    if (!fs.existsSync(dirPath)) {
-      return
-    }
+    try {
+      if (!fs.existsSync(dirPath)) {
+        return
+      }
 
-    await fs.promises.rm(dirPath, { recursive: true })
+      await fs.promises.rm(dirPath, { recursive: true, force: true })
+      logger.debug(`External directory deleted successfully: ${dirPath}`)
+    } catch (error) {
+      logger.error('Failed to delete external directory:', error as Error)
+      throw error
+    }
   }
 
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
@@ -300,7 +312,7 @@ class FileStorage {
       }
 
       const dirPath = path.dirname(filePath)
-      const newFilePath = path.join(dirPath, newName)
+      const newFilePath = path.join(dirPath, newName + '.md')
 
       // 如果目标文件已存在，抛出错误
       if (fs.existsSync(newFilePath)) {

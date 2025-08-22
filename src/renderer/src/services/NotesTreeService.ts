@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { NotesTreeNode } from '@renderer/types/note'
@@ -141,12 +139,15 @@ export async function renameNodeFromTree(
   if (!node) {
     throw new Error('Node not found')
   }
+
   node.name = newName
-  node.treePath = path.join(path.dirname(node.treePath), newName)
-  node.externalPath =
-    node.type === 'file'
-      ? path.join(path.dirname(node.externalPath), `${newName}${MARKDOWN_EXT}`)
-      : path.join(path.dirname(node.externalPath), newName)
+
+  const dirPath = node.treePath.substring(0, node.treePath.lastIndexOf('/') + 1)
+  node.treePath = dirPath + newName
+
+  const externalDirPath = node.externalPath.substring(0, node.externalPath.lastIndexOf('/') + 1)
+  node.externalPath = node.type === 'file' ? externalDirPath + newName + MARKDOWN_EXT : externalDirPath + newName
+
   node.updatedAt = new Date().toISOString()
   await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
   return node
