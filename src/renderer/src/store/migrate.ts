@@ -2174,6 +2174,16 @@ const migrateConfig = {
       logger.error('migrate 136 error', error as Error)
       return state
     }
+  },
+  '137': (state: RootState) => {
+    try {
+      addProvider(state, 'aionly')
+      state.llm.providers = moveProvider(state.llm.providers, 'aionly', 17)
+      return state
+    } catch (error) {
+      logger.error('migrate 124 error', error as Error)
+      return state
+    }
   }
 }
 
