@@ -1,4 +1,4 @@
-import { SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -9,6 +9,8 @@ import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useFiles } from '@renderer/hooks/useFiles'
+import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -16,7 +18,13 @@ import { saveTranslateHistory, translateText } from '@renderer/services/Translat
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
-import type { AutoDetectionMethod, Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
+import {
+  type AutoDetectionMethod,
+  isSupportedOcrFile,
+  type Model,
+  type TranslateHistory,
+  type TranslateLanguage
+} from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import {
@@ -25,7 +33,7 @@ import {
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
-import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
+import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
 import { Check, FolderClock, Settings2 } from 'lucide-react'
@@ -49,6 +57,8 @@ const TranslatePage: FC = () => {
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
+  const { onSelectFile, selecting } = useFiles()
+  const { ocr } = useOcr()
 
   // states
   const [text, setText] = useState(_text)
@@ -67,6 +77,7 @@ const TranslatePage: FC = () => {
   const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // redux states
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
@@ -414,12 +425,33 @@ const TranslatePage: FC = () => {
       (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
       targetLanguage.langCode === UNKNOWN.langCode ||
       (isBidirectional &&
-        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode))
+        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode)) ||
+      isProcessing
     )
-  }, [bidirectionalPair, isBidirectional, sourceLanguage, targetLanguage.langCode, text])
+  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage.langCode, text])
 
   // 控制token估计
   const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
+
+  // 控制文件ocr
+  const handleSelectFile = useCallback(async () => {
+    if (selecting) return
+    setIsProcessing(true)
+    try {
+      const [file] = await onSelectFile({ multipleSelections: false })
+      if (isSupportedOcrFile(file)) {
+        const ocrResult = await ocr(file)
+        setText(ocrResult.text)
+      } else {
+        window.message.error(t('ocr.file.not_supported', { type: file.type }))
+      }
+    } catch (e) {
+      logger.error('Failed to select file and ocr.', e as Error)
+      window.message.error(formatErrorMessage(e))
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [ocr, onSelectFile, selecting, t])
 
   return (
     <Container id="translate-page">
@@ -485,6 +517,14 @@ const TranslatePage: FC = () => {
         </OperationBar>
         <AreaContainer>
           <InputContainer>
+            <FloatButton
+              style={{ position: 'absolute', right: 8, top: 8 }}
+              className="float-button"
+              icon={<PlusOutlined />}
+              shape="circle"
+              type="primary"
+              onClick={handleSelectFile}
+            />
             <Textarea
               ref={textAreaRef}
               variant="borderless"
@@ -583,6 +623,16 @@ const InputContainer = styled.div`
   border-radius: 10px;
   height: calc(100vh - var(--navbar-height) - 70px);
   overflow: hidden;
+  .float-button {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+  }
+
+  &:hover {
+    .float-button {
+      opacity: 1;
+    }
+  }
 `
 
 const Textarea = styled(TextArea)`
