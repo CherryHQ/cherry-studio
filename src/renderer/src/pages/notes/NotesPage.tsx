@@ -370,13 +370,21 @@ const NotesPage: FC = () => {
   )
 
   // 重命名节点
-  const handleRenameNode = useCallback(async (nodeId: string, newName: string) => {
-    try {
-      await renameNode(nodeId, newName)
-    } catch (error) {
-      logger.error('Failed to rename node:', error as Error)
-    }
-  }, [])
+  const handleRenameNode = useCallback(
+    async (nodeId: string, newName: string) => {
+      try {
+        const tree = await getNotesTree()
+        const node = findNodeById(tree, nodeId)
+
+        if (node && node.name !== newName) {
+          await renameNode(nodeId, newName)
+        }
+      } catch (error) {
+        logger.error('Failed to rename node:', error as Error)
+      }
+    },
+    [findNodeById]
+  )
 
   // 处理文件上传
   const handleUploadFiles = useCallback(

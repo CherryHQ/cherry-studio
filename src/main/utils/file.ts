@@ -286,12 +286,15 @@ export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
  * @returns 唯一的文件名
  */
 export function getName(baseDir: string, fileName: string, isFile: boolean): string {
-  let candidate = isFile ? fileName + '.md' : fileName
+  const baseName = fileName.replace(/\d+$/, '')
+  let candidate = isFile ? baseName + '.md' : baseName
   let counter = 1
+
   while (fs.existsSync(path.join(baseDir, candidate))) {
-    candidate = isFile ? `${fileName} (${counter}).md` : `${fileName} (${counter})`
+    candidate = isFile ? `${baseName}${counter}.md` : `${baseName}${counter}`
     counter++
   }
+
   return isFile ? candidate.slice(0, -3) : candidate
 }
 
