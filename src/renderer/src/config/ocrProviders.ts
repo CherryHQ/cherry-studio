@@ -1,12 +1,14 @@
-import MacOSLogo from '@renderer/assets/images/providers/macos.svg'
+import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
+import { BuiltinOcrProvider, isBuiltinOcrProviderId } from '@renderer/types/ocr'
 
 export function getOcrProviderLogo(providerId: string) {
-  switch (providerId) {
-    case 'system':
-      return MacOSLogo
-    default:
-      return undefined
+  if (isBuiltinOcrProviderId(providerId)) {
+    switch (providerId) {
+      case 'tesseract':
+        return TesseractLogo
+    }
   }
+  return undefined
 }
 
 export const OCR_PROVIDER_CONFIG: BuiltinOcrProvider[] = [
