@@ -504,9 +504,9 @@ class FileStorage {
     fileName: string,
     isFile: boolean
   ): Promise<{ safeName: string; exists: boolean }> => {
-    const safeName = checkName(fileName, isFile)
+    const safeName = checkName(fileName)
     const finalName = getName(dirPath, safeName, isFile)
-    const fullPath = path.join(dirPath, finalName + (isFile ? '' : ''))
+    const fullPath = path.join(dirPath, finalName + (isFile ? '.md' : ''))
     const exists = fs.existsSync(fullPath)
 
     logger.debug(`File name guard: ${fileName} -> ${finalName}, exists: ${exists}`)

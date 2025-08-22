@@ -280,31 +280,30 @@ export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
 
 /**
  * 文件名唯一性约束
- * @param baseDir 基础目录
- * @param filName 文件名
- * @param isFile 是否为文件
+ * @param baseDir
+ * @param fileName
+ * @param isFile
  * @returns 唯一的文件名
  */
-export function getName(baseDir: string, filName: string, isFile: boolean): string {
-  let candidate = isFile ? `${filName}.md` : filName
+export function getName(baseDir: string, fileName: string, isFile: boolean): string {
+  let candidate = isFile ? fileName + '.md' : fileName
   let counter = 1
   while (fs.existsSync(path.join(baseDir, candidate))) {
-    candidate = isFile ? `${filName} (${counter}).md` : `${filName} (${counter})`
+    candidate = isFile ? `${fileName} (${counter}).md` : `${fileName} (${counter})`
     counter++
   }
-  return candidate
+  return isFile ? candidate.slice(0, -3) : candidate
 }
 
 /**
  * 文件名合法性校验
  * @param fileName
- * @param isFile
  */
-export function checkName(fileName: string, isFile: boolean): string {
+export function checkName(fileName: string): string {
   const invalidPattern = /[<>:"/\\|?*]/
   if (invalidPattern.test(fileName)) {
     throw new Error(`Invalid file name: ${fileName}`)
   }
 
-  return isFile ? `${fileName}.md` : fileName
+  return fileName
 }

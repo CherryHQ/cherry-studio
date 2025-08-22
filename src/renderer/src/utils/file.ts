@@ -25,6 +25,19 @@ export function getFileExtension(filePath: string): string {
 }
 
 /**
+ * 从文件路径中移除文件扩展名。
+ * @param {string} filePath 文件路径
+ * @returns {string} 移除扩展名后的文件路径
+ */
+export function removeFileExtension(filePath: string): string {
+  const parts = filePath.split('.')
+  if (parts.length > 1) {
+    return parts.slice(0, -1).join('.')
+  }
+  return filePath
+}
+
+/**
  * 格式化文件大小，根据大小返回以 MB 或 KB 为单位的字符串。
  * @param {number} size 文件大小（字节）
  * @returns {string} 格式化后的文件大小字符串
