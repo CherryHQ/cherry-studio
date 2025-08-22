@@ -2182,7 +2182,7 @@ const migrateConfig = {
       state.ocr.imageProvider = DEFAULT_OCR_PROVIDER.image
       return state
     } catch (error) {
-      logger.error('migrate 136 error', error as Error)
+      logger.error('migrate 137 error', error as Error)
       return state
     }
   }
