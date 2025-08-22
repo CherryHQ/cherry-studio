@@ -3727,6 +3727,7 @@
       "delete": "Delete",
       "empty": "No translation history",
       "error": {
+        "delete": "Deletion failed",
         "save": "Failed to save translation history"
       },
       "search": {

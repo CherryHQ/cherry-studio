@@ -3727,6 +3727,7 @@
       "delete": "刪除",
       "empty": "翻譯歷史為空",
       "error": {
+        "delete": "删除失败",
         "save": "保存翻譯歷史失敗"
       },
       "search": {

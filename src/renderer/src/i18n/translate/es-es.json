@@ -885,6 +885,9 @@
   },
   "history": {
     "continue_chat": "Continuar chat",
+    "error": {
+      "topic_not_found": "El tema no existe"
+    },
     "locate": {
       "message": "Localizar mensaje"
     },
@@ -2679,6 +2682,7 @@
         "title": "Actualización automática"
       },
       "avatar": {
+        "builtin": "Avatar incorporado",
         "reset": "Restablecer avatar"
       },
       "backup": {
@@ -3723,6 +3727,7 @@
       "delete": "Eliminar",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
+        "delete": "Eliminación fallida",
         "save": "Error al guardar el historial de traducciones"
       },
       "search": {
