@@ -1,8 +1,11 @@
+import { loggerService } from '@logger'
 import { useAppSelector } from '@renderer/store'
 import { ImageFileMetadata, isImageFile, SupportedOcrFile } from '@renderer/types'
+import { uuid } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { useTranslation } from 'react-i18next'
 
-export const useImageOcr = () => {}
+const logger = loggerService.withContext('useOcr')
 
 export const useOcr = () => {
   const { t } = useTranslation()
@@ -18,14 +21,24 @@ export const useOcr = () => {
   }
 
   /**
-   * 对支持的文件进行OCR识别
+   * 对支持的文件进行OCR识别.
    * @param file 支持OCR的文件
    * @returns OCR识别结果的Promise
-   * @throws 当文件类型不支持时抛出错误
+   * @throws 当文件类型不支持或OCR失败时抛出错误
    */
   const ocr = async (file: SupportedOcrFile) => {
-    if (isImageFile(file)) {
-      return ocrImage(file)
+    const key = uuid()
+    window.message.loading({ content: t('ocr.processing'), key, duration: 0 })
+    try {
+      if (isImageFile(file)) {
+        return ocrImage(file)
+      }
+    } catch (e) {
+      logger.error('Failed to ocr.', e as Error)
+      window.message.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
+      throw e
+    } finally {
+      window.message.destroy(key)
     }
     // @ts-expect-error all types should be covered
     throw new Error(t('ocr.file.not_supported', { type: file.type }))

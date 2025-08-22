@@ -20,7 +20,6 @@ import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import {
   type AutoDetectionMethod,
-  isImageFile,
   isSupportedOcrFile,
   type Model,
   type TranslateHistory,
@@ -446,21 +445,14 @@ const TranslatePage: FC = () => {
       }
 
       // extensible
-      const shouldOCR = isImageFile(file)
+      const shouldOCR = isSupportedOcrFile(file)
 
       if (shouldOCR) {
-        if (isSupportedOcrFile(file)) {
-          window.message.loading({ content: t('ocr.processing'), key: 'translate_ocr_processing', duration: 0 })
-          try {
-            const ocrResult = await ocr(file)
-            setText(ocrResult.text)
-          } catch (e) {
-            logger.error('Failed to ocr.', e as Error)
-            window.message.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
-          }
-        } else {
-          // @ts-expect-error all situations covered. just for robustness
-          window.message.error(t('ocr.file.not_supported', { type: file.type }))
+        try {
+          const ocrResult = await ocr(file)
+          setText(ocrResult.text)
+        } finally {
+          // do nothing when failed.
         }
       } else {
         // the threshold may be too large
@@ -474,6 +466,8 @@ const TranslatePage: FC = () => {
           } catch (e) {
             logger.error('Failed to read text file.', e as Error)
             window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
+          } finally {
+            window.message.destroy('translate_files_reading')
           }
         }
       }
@@ -482,8 +476,6 @@ const TranslatePage: FC = () => {
       window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
     } finally {
       setIsProcessing(false)
-      window.message.destroy('translate_ocr_processing')
-      window.message.destroy('translate_files_reading')
     }
   }, [ocr, onSelectFile, selecting, t])
 
