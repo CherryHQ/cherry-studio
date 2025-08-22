@@ -209,7 +209,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   height: var(--navbar-height);
   position: relative;
   -webkit-app-region: drag;
-  
+
   /* 确保交互元素在拖拽区域之上 */
   > * {
     position: relative;
