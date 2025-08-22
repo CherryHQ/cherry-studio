@@ -36,6 +36,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
   const [search, setSearch] = useState('')
   const [displayedHistory, setDisplayedHistory] = useState<DisplayedTranslateHistoryItem[]>([])
+  const [showStared, setShowStared] = useState<boolean>(false)
 
   const translateHistory: DisplayedTranslateHistoryItem[] = useMemo(() => {
     if (!_translateHistory) return []
@@ -55,6 +56,16 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       return content.includes(search)
     },
     [search]
+  )
+
+  const starFilter = useMemo(
+    () => (showStared ? (item: DisplayedTranslateHistoryItem) => !!item.star : () => true),
+    [showStared]
+  )
+
+  const finalFilter = useCallback(
+    (item: DisplayedTranslateHistoryItem) => searchFilter(item) && starFilter(item),
+    [searchFilter, starFilter]
   )
 
   const handleStar = useCallback(
@@ -80,14 +91,31 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   )
 
   useEffect(() => {
-    setDisplayedHistory(translateHistory.filter(searchFilter))
-  }, [searchFilter, translateHistory])
+    setDisplayedHistory(translateHistory.filter(finalFilter))
+  }, [finalFilter, translateHistory])
+
+  const Title = () => {
+    return (
+      <Flex align="center">
+        {t('translate.history.title')}
+        <Button
+          icon={showStared ? <StarFilled /> : <StarOutlined />}
+          color="yellow"
+          variant="text"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowStared(!showStared)
+          }}
+        />
+      </Flex>
+    )
+  }
 
   const deferredHistory = useDeferredValue(displayedHistory)
 
   return (
     <Drawer
-      title={t('translate.history.title')}
+      title={<Title />}
       closeIcon={null}
       open={isOpen}
       maskClosable
