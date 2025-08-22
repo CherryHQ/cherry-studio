@@ -30,6 +30,7 @@ import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceServic
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
+import { ipcOcr } from './services/ocr/OcrService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -709,4 +710,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
+
+  // OCR
+  ipcMain.handle(IpcChannel.OCR_ocr, ipcOcr)
 }

@@ -281,5 +281,8 @@ export enum IpcChannel {
   TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
   // CodeTools
-  CodeTools_Run = 'code-tools:run'
+  CodeTools_Run = 'code-tools:run',
+
+  // OCR
+  OCR_ocr = 'ocr:ocr'
 }

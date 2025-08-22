@@ -75,3 +75,7 @@ export type SupportedOcrFile = FileMetadata & {
 export const isSupportedOcrFile = (file: FileMetadata): file is SupportedOcrFile => {
   return isSupportedOcrFileType(file.type)
 }
+
+export type OcrResult = {
+  text: string
+}

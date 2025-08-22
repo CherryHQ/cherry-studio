@@ -25,6 +25,7 @@ import {
 } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
+import { OcrProvider, OcrResult, SupportedOcrFile } from 'src/renderer/src/types/ocr'
 import { CreateDirectoryOptions } from 'webdav'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
@@ -406,6 +407,10 @@ const api = {
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean }
     ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options)
+  },
+  ocr: {
+    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
+      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider)
   }
 }
 
