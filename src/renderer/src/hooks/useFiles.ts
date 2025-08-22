@@ -1,6 +1,6 @@
 import { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {
@@ -8,11 +8,19 @@ type Props = {
   extensions?: string[]
 }
 
-export const useFiles = ({ extensions }: Props) => {
+export const useFiles = (props?: Props) => {
   const { t } = useTranslation()
 
   const [files, setFiles] = useState<FileMetadata[]>([])
   const [selecting, setSelecting] = useState<boolean>(false)
+
+  const extensions = useMemo(() => {
+    if (props?.extensions) {
+      return props.extensions
+    } else {
+      return ['*']
+    }
+  }, [props?.extensions])
 
   const onSelectFile = useCallback(
     async (multipleSelections: boolean = true) => {
