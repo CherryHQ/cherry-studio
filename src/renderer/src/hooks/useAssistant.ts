@@ -74,6 +74,7 @@ export function useAssistants() {
 }
 
 export function useAssistant(id: string) {
+  // FIXME: as Assistant is not type safe
   const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
@@ -88,7 +89,7 @@ export function useAssistant(id: string) {
   const settingsRef = useRef(assistant?.settings)
 
   useEffect(() => {
-    settingsRef.current = assistant.settings
+    settingsRef.current = assistant?.settings
   }, [assistant?.settings])
 
   const updateAssistantSettings = useCallback(
