@@ -1594,15 +1594,32 @@
         "work_directory_description": "Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
         "work_directory_placeholder": "Select notes work directory"
       },
-      "defaultFont": "Default Font",
-      "editorMode": "Editor Mode",
-      "fontFamily": "Font Family",
-      "fullWidth": "Full Width",
-      "previewMode": "Preview Mode",
-      "serifFont": "Serif Font",
-      "sourceMode": "Source Mode",
-      "title": "Notes",
-      "viewMode": "View Mode"
+      "display": {
+        "compress_content": "Content Compression",
+        "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
+        "default_font": "Default font",
+        "serif_font": "Serif font",
+        "title": "Display Settings"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "In Edit View, the default editing mode for new notes",
+          "preview_mode": "Live preview",
+          "source_mode": "Source code mode",
+          "title": "Default edit view"
+        },
+        "show_tab_status": "View status",
+        "show_tab_status_description": "After opening, a button will be added to the status bar that displays the current tab view status. Click the button to switch the current tab view status.",
+        "title": "Editor Settings",
+        "view_mode": {
+          "description": "New Notes Default View Mode",
+          "edit_mode": "Editing mode",
+          "read_mode": "Reading mode",
+          "title": "Default view"
+        },
+        "view_mode_description": "Sets the default view mode for the new tab page."
+      },
+      "title": "Notes"
     },
     "show_starred": "Show favorite notes",
     "sort_a2z": "File name (A-Z)",

@@ -1594,15 +1594,32 @@
         "work_directory_description": "工作目錄是存儲所有筆記文件的位置。\n更改工作目錄不會移動現有文件，請手動遷移文件。",
         "work_directory_placeholder": "選擇筆記工作目錄"
       },
-      "defaultFont": "默認字體",
-      "editorMode": "編輯模式",
-      "fontFamily": "字體系列",
-      "fullWidth": "全寬模式",
-      "previewMode": "預覽模式",
-      "serifFont": "襯線字體",
-      "sourceMode": "源碼模式",
-      "title": "更多選項",
-      "viewMode": "視圖模式"
+      "display": {
+        "compress_content": "縮減欄寬",
+        "compress_content_description": "開啟後將限制每行字數，使屏幕顯示的內容減少",
+        "default_font": "默認字體",
+        "serif_font": "襯線字體",
+        "title": "顯示"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "在編輯視圖下，新筆記默認採用的編輯模式",
+          "preview_mode": "實時預覽",
+          "source_mode": "源碼模式",
+          "title": "默認編輯視圖"
+        },
+        "show_tab_status": "視圖狀態",
+        "show_tab_status_description": "開啟後將在狀態欄中添加一個顯示當前標籤頁視圖狀態的按鈕，點擊按鈕可切換當前標籤頁視圖狀態。",
+        "title": "編輯器設置",
+        "view_mode": {
+          "description": "新筆記默認的視圖模式",
+          "edit_mode": "編輯模式",
+          "read_mode": "閱讀模式",
+          "title": "默認視圖"
+        },
+        "view_mode_description": "設置新標籤頁的默認視圖模式。"
+      },
+      "title": "更多選項"
     },
     "show_starred": "顯示收藏的筆記",
     "sort_a2z": "文件名（A-Z）",

@@ -4,8 +4,9 @@ import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { EditorView } from '@renderer/types'
 import { Empty, Spin } from 'antd'
-import { FC, memo, RefObject, useCallback } from 'react'
+import { FC, memo, RefObject, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,7 +22,15 @@ interface NotesEditorProps {
 const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, isLoading, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
-    const { settings, updateSettings } = useNotesSettings()
+    const { settings } = useNotesSettings()
+    const currentViewMode = useMemo(() => {
+      if (settings.defaultViewMode === 'edit') {
+        return settings.defaultEditMode
+      } else {
+        return settings.defaultViewMode
+      }
+    }, [settings.defaultEditMode, settings.defaultViewMode])
+    const [tmpViewMode, setTmpViewMode] = useState(currentViewMode)
     const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
       const disabledCommands = ['image', 'inlineMath']
       disabledCommands.forEach((commandId) => {
@@ -48,7 +57,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
     return (
       <>
         <RichEditorContainer>
-          {settings.editorMode === 'source' ? (
+          {tmpViewMode === 'source' ? (
             <CodeEditor
               value={currentContent}
               language="markdown"
@@ -60,13 +69,13 @@ const NotesEditor: FC<NotesEditorProps> = memo(
             />
           ) : (
             <RichEditor
-              key={`${activeNodeId}-${settings.editorMode === 'preview' ? 'preview' : 'edit'}`}
+              key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
               ref={editorRef}
               initialContent={currentContent}
               onMarkdownChange={onMarkdownChange}
               onCommandsReady={handleCommandsReady}
-              showToolbar={settings.editorMode === 'editor'}
-              editable={settings.editorMode === 'editor'}
+              showToolbar={tmpViewMode === 'preview'}
+              editable={tmpViewMode === 'preview'}
               showTableOfContents
               enableContentSearch
               className="notes-rich-editor"
@@ -89,12 +98,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 gap: 8
               }}>
               <Selector
-                value={settings.editorMode}
-                onChange={(value: 'editor' | 'source' | 'preview') => updateSettings({ editorMode: value })}
+                value={tmpViewMode as EditorView}
+                onChange={(value: EditorView) => setTmpViewMode(value)}
                 options={[
-                  { label: t('notes.settings.editorMode'), value: 'editor' },
-                  { label: t('notes.settings.sourceMode'), value: 'source' },
-                  { label: t('notes.settings.previewMode'), value: 'preview' }
+                  { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
+                  { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' },
+                  { label: t('notes.settings.editor.view_mode.read_mode'), value: 'read' }
                 ]}
               />
             </div>

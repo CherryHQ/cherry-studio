@@ -1,5 +1,5 @@
 import { NotesSettings } from '@renderer/store/note'
-import { Copy, Edit3, Eye, FileText, MonitorSpeaker, Type } from 'lucide-react'
+import { Copy, MonitorSpeaker, Type } from 'lucide-react'
 import { ReactNode } from 'react'
 
 export interface MenuItem {
@@ -28,10 +28,10 @@ export const menuItems: MenuItem[] = [
   },
   {
     key: 'fullwidth',
-    labelKey: 'notes.settings.fullWidth',
+    labelKey: 'notes.settings.display.compress_content',
     icon: MonitorSpeaker,
     action: (settings, updateSettings) => updateSettings({ isFullWidth: !settings.isFullWidth }),
-    isActive: (settings) => settings.isFullWidth
+    isActive: (settings) => !settings.isFullWidth
   },
   {
     key: 'divider1',
@@ -45,48 +45,15 @@ export const menuItems: MenuItem[] = [
     children: [
       {
         key: 'default-font',
-        labelKey: 'notes.settings.defaultFont',
+        labelKey: 'notes.settings.display.default_font',
         action: (_, updateSettings) => updateSettings({ fontFamily: 'default' }),
         isActive: (settings) => settings.fontFamily === 'default'
       },
       {
         key: 'serif-font',
-        labelKey: 'notes.settings.serifFont',
+        labelKey: 'notes.settings.display.serif_font',
         action: (_, updateSettings) => updateSettings({ fontFamily: 'serif' }),
         isActive: (settings) => settings.fontFamily === 'serif'
-      }
-    ]
-  },
-  {
-    key: 'divider2',
-    type: 'divider',
-    labelKey: ''
-  },
-  {
-    key: 'mode',
-    labelKey: 'notes.settings.viewMode',
-    icon: Eye,
-    children: [
-      {
-        key: 'editor-mode',
-        labelKey: 'notes.settings.editorMode',
-        icon: Edit3,
-        action: (_, updateSettings) => updateSettings({ editorMode: 'editor' }),
-        isActive: (settings) => settings.editorMode === 'editor'
-      },
-      {
-        key: 'source-mode',
-        labelKey: 'notes.settings.sourceMode',
-        icon: FileText,
-        action: (_, updateSettings) => updateSettings({ editorMode: 'source' }),
-        isActive: (settings) => settings.editorMode === 'source'
-      },
-      {
-        key: 'preview-mode',
-        labelKey: 'notes.settings.previewMode',
-        icon: Eye,
-        action: (_, updateSettings) => updateSettings({ editorMode: 'preview' }),
-        isActive: (settings) => settings.editorMode === 'preview'
       }
     ]
   }

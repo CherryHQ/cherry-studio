@@ -83,17 +83,17 @@ const SettingsPage: FC = () => {
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
-          <MenuItemLink to="/settings/notes">
-            <MenuItem className={isRoute('/settings/notes')}>
-              <NotebookPen size={18} />
-              {t('notes.settings.title')}
-            </MenuItem>
-          </MenuItemLink>
           <Divider />
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
               <Hammer size={18} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/notes">
+            <MenuItem className={isRoute('/settings/notes')}>
+              <NotebookPen size={18} />
+              {t('notes.settings.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/websearch">

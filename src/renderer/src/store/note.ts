@@ -1,10 +1,13 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { RootState } from '@renderer/store/index'
+import { EditorView } from '@renderer/types'
 
 export interface NotesSettings {
   isFullWidth: boolean
   fontFamily: 'default' | 'serif'
-  editorMode: 'editor' | 'source' | 'preview'
+  defaultViewMode: 'edit' | 'read'
+  defaultEditMode: Omit<EditorView, 'read'>
+  showTabStatus: boolean
 }
 
 export interface NoteState {
@@ -18,7 +21,9 @@ export const initialState: NoteState = {
   settings: {
     isFullWidth: true,
     fontFamily: 'default',
-    editorMode: 'editor'
+    defaultViewMode: 'edit',
+    defaultEditMode: 'realtime',
+    showTabStatus: true
   },
   notesPath: ''
 }

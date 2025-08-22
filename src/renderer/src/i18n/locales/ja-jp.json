@@ -1594,15 +1594,32 @@
         "work_directory_description": "作業ディレクトリは、すべてのメモが保存される場所です。ワーキングディレクトリを変更しても、既存のファイルは移動しません。ファイルを手動で移行してください。",
         "work_directory_placeholder": "ノートワークディレクトリを選択します"
       },
-      "defaultFont": "デフォルトフォント",
-      "editorMode": "編集モード",
-      "fontFamily": "フォントシリーズ",
-      "fullWidth": "全幅モード",
-      "previewMode": "プレビューモード",
-      "serifFont": "セリフフォント",
-      "sourceMode": "ソースコードモード",
-      "title": "その他のオプション",
-      "viewMode": "ビューモード"
+      "display": {
+        "compress_content": "バーの幅を減らします",
+        "compress_content_description": "有効にすると、1行あたりの単語数が制限され、画面に表示されるコンテンツが減少します。",
+        "default_font": "デフォルトフォント",
+        "serif_font": "セリフフォント",
+        "title": "見せる"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "編集ビューでは、新しいメモのデフォルトの編集モード",
+          "preview_mode": "ライブプレビュー",
+          "source_mode": "ソースコードモード",
+          "title": "デフォルトの編集ビュー"
+        },
+        "show_tab_status": "ステータスを表示します",
+        "show_tab_status_description": "開いた後、現在のタブビューステータスを表示するステータスバーにボタンが追加されます。ボタンをクリックして、現在のタブビューステータスを切り替えます。",
+        "title": "エディター設定",
+        "view_mode": {
+          "description": "新しいノートデフォルトビューモード",
+          "edit_mode": "編集モード",
+          "read_mode": "読み取りモード",
+          "title": "デフォルトビュー"
+        },
+        "view_mode_description": "新しいタブページのデフォルトビューモードを設定します。"
+      },
+      "title": "その他のオプション"
     },
     "show_starred": "お気に入りのノートを表示する",
     "sort_a2z": "ファイル名（A-Z）",

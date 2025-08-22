@@ -448,12 +448,12 @@ const NotesPage: FC = () => {
   }, [])
 
   const getCurrentNoteContent = useCallback(() => {
-    if (settings.editorMode === 'source') {
+    if (settings.defaultEditMode === 'source') {
       return currentContent
     } else {
       return editorRef.current?.getMarkdown() || currentContent
     }
-  }, [currentContent, settings.editorMode])
+  }, [currentContent, settings.defaultEditMode])
 
   return (
     <Container id="notes-page">

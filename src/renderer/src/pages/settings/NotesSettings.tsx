@@ -1,8 +1,10 @@
 import { loggerService } from '@logger'
+import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { initWorkSpace } from '@renderer/services/NotesService'
-import { Button, Input, message } from 'antd'
+import { EditorView } from '@renderer/types'
+import { Button, Input, message, Switch } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +17,7 @@ const logger = loggerService.withContext('NotesSettings')
 const NotesSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { notesPath, updateNotesPath } = useNotesSettings()
+  const { settings, updateSettings, notesPath, updateNotesPath } = useNotesSettings()
   const [tempPath, setTempPath] = useState<string>(notesPath || '')
   const [isSelecting, setIsSelecting] = useState(false)
 
@@ -108,6 +110,48 @@ const NotesSettings: FC = () => {
           </ActionButtons>
         </WorkDirectorySection>
         <SettingDescription>{t('notes.settings.data.work_directory_description')}</SettingDescription>
+      </SettingGroup>
+
+      {/* Editor Settings */}
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('notes.settings.editor.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.editor.view_mode.title')}</SettingRowTitle>
+          <Selector
+            options={[
+              { label: t('notes.settings.editor.view_mode.edit_mode'), value: 'edit' },
+              { label: t('notes.settings.editor.view_mode.read_mode'), value: 'read' }
+            ]}
+            value={settings.defaultViewMode}
+            onChange={(value: 'edit' | 'read') => updateSettings({ defaultViewMode: value })}
+          />
+        </SettingRow>
+        <SettingDescription>{t('notes.settings.editor.view_mode.description')}</SettingDescription>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.editor.edit_mode.title')}</SettingRowTitle>
+          <Selector
+            options={[
+              { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
+              { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' }
+            ]}
+            value={settings.defaultEditMode as string}
+            onChange={(value: Omit<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
+          />
+        </SettingRow>
+        <SettingDescription>{t('notes.settings.editor.edit_mode.description')}</SettingDescription>
+      </SettingGroup>
+
+      {/* Display Settings */}
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('notes.settings.display.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
+          <Switch checked={!settings.isFullWidth} onChange={(checked) => updateSettings({ isFullWidth: checked })} />
+        </SettingRow>
+        <SettingDescription>{t('notes.settings.display.compress_content_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )

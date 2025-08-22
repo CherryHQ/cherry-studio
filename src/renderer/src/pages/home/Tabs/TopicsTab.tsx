@@ -62,7 +62,7 @@ interface Props {
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
   const { t } = useTranslation()
-  const { folderPath } = useNotesSettings()
+  const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
   const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
@@ -340,7 +340,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
             label: t('notes.save'),
             key: 'notes',
             onClick: async () => {
-              exportTopicToNotes(topic, folderPath)
+              exportTopicToNotes(topic, notesPath)
             }
           }
         ]
@@ -455,8 +455,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     exportMenuOptions.obsidian,
     exportMenuOptions.joplin,
     exportMenuOptions.siyuan,
-    exportMenuOptions.notes,
     assistants,
+    notesPath,
     assistant,
     updateTopic,
     topicEdit,

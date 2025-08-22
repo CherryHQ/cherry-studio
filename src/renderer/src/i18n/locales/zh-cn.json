@@ -1594,15 +1594,30 @@
         "work_directory_description": "工作目录是存储所有笔记文件的位置。更改工作目录不会移动现有文件，请手动迁移文件。",
         "work_directory_placeholder": "选择笔记工作目录"
       },
-      "defaultFont": "默认字体",
-      "editorMode": "编辑模式",
-      "fontFamily": "字体系列",
-      "fullWidth": "全宽模式",
-      "previewMode": "预览模式",
-      "serifFont": "衬线字体",
-      "sourceMode": "源码模式",
-      "title": "笔记",
-      "viewMode": "视图模式"
+      "display": {
+        "compress_content": "缩减栏宽",
+        "compress_content_description": "开启后将限制每行字数，使屏幕显示的内容减少",
+        "default_font": "默认字体",
+        "serif_font": "衬线字体",
+        "title": "显示设置"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "在编辑视图下，新笔记默认采用的编辑模式",
+          "preview_mode": "实时预览",
+          "source_mode": "源码模式",
+          "title": "默认编辑视图"
+        },
+        "title": "编辑器设置",
+        "view_mode": {
+          "description": "新笔记默认的视图模式",
+          "edit_mode": "编辑模式",
+          "read_mode": "阅读模式",
+          "title": "默认视图"
+        },
+        "view_mode_description": "设置新标签页的默认视图模式。"
+      },
+      "title": "笔记"
     },
     "show_starred": "显示收藏的笔记",
     "sort_a2z": "文件名（A-Z）",
