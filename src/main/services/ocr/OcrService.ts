@@ -23,7 +23,7 @@ const logger = loggerService.withContext('main:OcrService')
  * @returns ocr result
  * @throws {Error}
  */
-const tesseractOcr = async (file: ImageFileMetadata | string): Promise<string> => {
+const tesseractOcr = async (file: ImageFileMetadata | string): Promise<Tesseract.RecognizeResult> => {
   try {
     const worker = await getTesseractWorker()
     let ret: Tesseract.RecognizeResult
@@ -37,7 +37,7 @@ const tesseractOcr = async (file: ImageFileMetadata | string): Promise<string> =
       const buffer = await readFile(file.path)
       ret = await worker.recognize(buffer)
     }
-    return ret.data.text
+    return ret
   } catch (e) {
     logger.error('Failed to ocr with tesseract.', e as Error)
     throw e
@@ -53,13 +53,11 @@ const tesseractOcr = async (file: ImageFileMetadata | string): Promise<string> =
  */
 const imageOcr = async (file: ImageFileMetadata, provider: ImageOcrProvider): Promise<OcrResult> => {
   if (isBuiltinOcrProvider(provider)) {
-    let text: string
-    switch (provider.id) {
-      case 'tesseract':
-        text = await tesseractOcr(file)
-        return { text }
-      default:
-        throw new Error(`Unsupported built-in ocr provider: ${provider.id}`)
+    if (provider.id === 'tesseract') {
+      const result = await tesseractOcr(file)
+      return { text: result.data.text }
+    } else {
+      throw new Error(`Unsupported built-in ocr provider: ${provider.id}`)
     }
   }
   throw new Error(`Provider ${provider.id} is not supported.`)
