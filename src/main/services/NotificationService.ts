@@ -3,8 +3,6 @@ import { Notification } from 'src/renderer/src/types/notification'
 import { windowService } from './WindowService'
 
 class NotificationService {
-  constructor() {}
-
   public async sendNotification(notification: Notification) {
     // 使用 Electron Notification API
     const electronNotification = new ElectronNotification({
