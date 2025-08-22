@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { OcrProvider } from '@renderer/types/ocr'
+import { ImageOcrProvider, OcrProvider } from '@renderer/types/ocr'
 
 export interface OcrState {
   providers: OcrProvider[]
@@ -30,10 +30,14 @@ const ocrSlice = createSlice({
       if (index !== -1) {
         Object.assign(state.providers[index], action.payload)
       }
+    },
+    setImageOcrProvider(state, action: PayloadAction<ImageOcrProvider>) {
+      state.imageProvider = action.payload
     }
   }
 })
 
-export const { setOcrProviders, addOcrProvider, removeOcrProvider, updateOcrProvider } = ocrSlice.actions
+export const { setOcrProviders, addOcrProvider, removeOcrProvider, updateOcrProvider, setImageOcrProvider } =
+  ocrSlice.actions
 
 export default ocrSlice.reducer
