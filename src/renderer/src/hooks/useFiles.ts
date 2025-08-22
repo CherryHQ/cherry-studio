@@ -75,7 +75,7 @@ export const useFiles = (props?: Props) => {
             })
           })
         }
-        return _files
+        return supportedFiles
       } else {
         return []
       }
