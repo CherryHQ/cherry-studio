@@ -22,26 +22,36 @@ export const useFiles = (props?: Props) => {
     }
   }, [props?.extensions])
 
+  /**
+   * 选择文件的回调函数
+   * @param multipleSelections - 是否允许多选文件，默认为 true
+   * @returns 返回选中的文件元数据数组
+   * @description
+   * 1. 打开系统文件选择对话框
+   * 2. 根据扩展名过滤文件
+   * 3. 更新内部文件状态
+   * 4. 当选择了不支持的文件类型时，会显示提示信息
+   */
   const onSelectFile = useCallback(
-    async (multipleSelections: boolean = true) => {
+    async (multipleSelections: boolean = true): Promise<FileMetadata[]> => {
       if (selecting) {
-        return
+        return []
       }
-      const supportedExtensions = extensions ?? ['*']
+
       const selectProps: Electron.OpenDialogOptions['properties'] = multipleSelections
         ? ['openFile', 'multiSelections']
         : ['openFile']
 
       // when the number of extensions is greater than 20, use *.* to avoid selecting window lag
-      const useAllFiles = supportedExtensions.length > 20
+      const useAllFiles = extensions.length > 20
 
       setSelecting(true)
-      const _files: FileMetadata[] = await window.api.file.select({
+      const _files = await window.api.file.select({
         properties: selectProps,
         filters: [
           {
             name: 'Files',
-            extensions: useAllFiles ? ['*'] : supportedExtensions.map((i) => i.replace('.', ''))
+            extensions: useAllFiles ? ['*'] : extensions.map((i) => i.replace('.', ''))
           }
         ]
       })
@@ -50,9 +60,9 @@ export const useFiles = (props?: Props) => {
       if (_files) {
         if (!useAllFiles) {
           setFiles([...files, ..._files])
-          return
+          return _files
         }
-        const supportedFiles = await filterSupportedFiles(_files, supportedExtensions)
+        const supportedFiles = await filterSupportedFiles(_files, extensions)
         if (supportedFiles.length > 0) {
           setFiles([...files, ...supportedFiles])
         }
@@ -65,14 +75,22 @@ export const useFiles = (props?: Props) => {
             })
           })
         }
+        return _files
+      } else {
+        return []
       }
     },
     [extensions, files, selecting, t]
   )
 
+  const clearFiles = useCallback(() => {
+    setFiles([])
+  }, [])
+
   return {
     files,
     setFiles,
-    onSelectFile
+    onSelectFile,
+    clearFiles
   }
 }
