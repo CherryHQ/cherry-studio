@@ -1598,6 +1598,7 @@
         "compress_content": "Content Compression",
         "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
         "default_font": "Default font",
+        "font_title": "Font settings",
         "serif_font": "Serif font",
         "title": "Display Settings"
       },
@@ -1608,8 +1609,6 @@
           "source_mode": "Source code mode",
           "title": "Default edit view"
         },
-        "show_tab_status": "View status",
-        "show_tab_status_description": "After opening, a button will be added to the status bar that displays the current tab view status. Click the button to switch the current tab view status.",
         "title": "Editor Settings",
         "view_mode": {
           "description": "New Notes Default View Mode",

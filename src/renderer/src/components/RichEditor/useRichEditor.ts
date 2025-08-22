@@ -721,7 +721,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const setMarkdown = useCallback(
     (content: string) => {
       try {
-        logger.info('Setting markdown content:', { content })
         setMarkdownState(content)
         onChange?.(content)
 

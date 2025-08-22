@@ -10,7 +10,15 @@ import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '.'
 
 const logger = loggerService.withContext('NotesSettings')
 
@@ -68,6 +76,7 @@ const NotesSettings: FC = () => {
       const info = await window.api.getAppInfo()
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
+      initWorkSpace(info.notesPath)
       window.message.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
@@ -109,7 +118,9 @@ const NotesSettings: FC = () => {
             <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
           </ActionButtons>
         </WorkDirectorySection>
-        <SettingDescription>{t('notes.settings.data.work_directory_description')}</SettingDescription>
+        <SettingRow>
+          <SettingHelpText>{t('notes.settings.data.work_directory_description')}</SettingHelpText>
+        </SettingRow>
       </SettingGroup>
 
       {/* Editor Settings */}
@@ -127,7 +138,7 @@ const NotesSettings: FC = () => {
             onChange={(value: 'edit' | 'read') => updateSettings({ defaultViewMode: value })}
           />
         </SettingRow>
-        <SettingDescription>{t('notes.settings.editor.view_mode.description')}</SettingDescription>
+        <SettingHelpText>{t('notes.settings.editor.view_mode.description')}</SettingHelpText>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.editor.edit_mode.title')}</SettingRowTitle>
@@ -140,7 +151,7 @@ const NotesSettings: FC = () => {
             onChange={(value: Omit<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
           />
         </SettingRow>
-        <SettingDescription>{t('notes.settings.editor.edit_mode.description')}</SettingDescription>
+        <SettingHelpText>{t('notes.settings.editor.edit_mode.description')}</SettingHelpText>
       </SettingGroup>
 
       {/* Display Settings */}
@@ -151,7 +162,7 @@ const NotesSettings: FC = () => {
           <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
           <Switch checked={!settings.isFullWidth} onChange={(checked) => updateSettings({ isFullWidth: checked })} />
         </SettingRow>
-        <SettingDescription>{t('notes.settings.display.compress_content_description')}</SettingDescription>
+        <SettingHelpText>{t('notes.settings.display.compress_content_description')}</SettingHelpText>
       </SettingGroup>
     </SettingContainer>
   )
@@ -174,13 +185,6 @@ const ActionButtons = styled.div`
   display: flex;
   gap: 8px;
   align-self: flex-start;
-`
-
-const SettingDescription = styled.div`
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin-top: 12px;
-  line-height: 1.4;
 `
 
 export default NotesSettings

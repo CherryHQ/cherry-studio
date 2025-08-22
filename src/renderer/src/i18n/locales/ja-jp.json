@@ -1598,6 +1598,7 @@
         "compress_content": "バーの幅を減らします",
         "compress_content_description": "有効にすると、1行あたりの単語数が制限され、画面に表示されるコンテンツが減少します。",
         "default_font": "デフォルトフォント",
+        "font_title": "フォント設定",
         "serif_font": "セリフフォント",
         "title": "見せる"
       },
@@ -1608,8 +1609,6 @@
           "source_mode": "ソースコードモード",
           "title": "デフォルトの編集ビュー"
         },
-        "show_tab_status": "ステータスを表示します",
-        "show_tab_status_description": "開いた後、現在のタブビューステータスを表示するステータスバーにボタンが追加されます。ボタンをクリックして、現在のタブビューステータスを切り替えます。",
         "title": "エディター設定",
         "view_mode": {
           "description": "新しいノートデフォルトビューモード",

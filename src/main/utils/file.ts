@@ -207,18 +207,18 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
 /**
  * 递归扫描目录，获取符合条件的文件和目录结构
  * @param dirPath 当前要扫描的路径
+ * @param depth 当前深度
  * @returns 文件元数据数组
  */
-export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
+export async function scanDir(dirPath: string, depth = 0): Promise<NotesTreeNode[]> {
   const options = {
     includeFiles: true,
     includeDirectories: true,
     fileExtensions: ['.md'],
     ignoreHiddenFiles: true,
-    recursive: false,
-    maxDepth: undefined
+    recursive: true,
+    maxDepth: 10
   }
-  const depth = 0
 
   if (options.maxDepth !== undefined && depth > options.maxDepth) {
     return []
@@ -231,7 +231,6 @@ export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
 
   const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
   const result: NotesTreeNode[] = []
-  logger.debug('Config', { entries, options })
 
   for (const entry of entries) {
     if (options.ignoreHiddenFiles && entry.name.startsWith('.')) {
@@ -249,8 +248,15 @@ export async function scanDir(dirPath: string): Promise<NotesTreeNode[]> {
         externalPath: entryPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
-        type: 'folder'
+        type: 'folder',
+        children: [] // 添加 children 属性
       }
+
+      // 如果启用了递归扫描，则递归调用 scanDir
+      if (options.recursive) {
+        dirTreeNode.children = await scanDir(entryPath, depth + 1)
+      }
+
       result.push(dirTreeNode)
     } else if (entry.isFile() && options.includeFiles) {
       const ext = path.extname(entry.name).toLowerCase()

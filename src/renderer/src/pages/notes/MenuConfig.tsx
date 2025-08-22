@@ -40,7 +40,7 @@ export const menuItems: MenuItem[] = [
   },
   {
     key: 'font',
-    labelKey: 'notes.settings.fontFamily',
+    labelKey: 'notes.settings.display.font_title',
     icon: Type,
     children: [
       {

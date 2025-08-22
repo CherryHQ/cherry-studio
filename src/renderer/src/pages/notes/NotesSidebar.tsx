@@ -3,6 +3,7 @@ import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps } from 'antd'
@@ -33,7 +34,6 @@ interface NotesSidebarProps {
   onMoveNode: (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => void
   onSortNodes: (sortType: NotesSortType) => void
   onUploadFiles: (files: File[]) => void
-  activeNodeId?: string
   notesTree: NotesTreeNode[]
 }
 
@@ -50,11 +50,11 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onMoveNode,
   onSortNodes,
   onUploadFiles,
-  activeNodeId,
   notesTree
 }) => {
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
+  const { activeNode } = useActiveNode(notesTree)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -304,7 +304,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const renderTreeNode = useCallback(
     (node: NotesTreeNode, depth: number = 0) => {
-      const isActive = node.id === activeNodeId
+      const isActive = node.id === activeNode?.id
       const isEditing = editingNodeId === node.id
       const hasChildren = node.children && node.children.length > 0
       const isDragging = draggedNodeId === node.id
@@ -386,7 +386,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       )
     },
     [
-      activeNodeId,
+      activeNode,
       editingNodeId,
       editingName,
       draggedNodeId,

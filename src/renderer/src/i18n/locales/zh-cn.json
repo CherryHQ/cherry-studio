@@ -1598,6 +1598,7 @@
         "compress_content": "缩减栏宽",
         "compress_content_description": "开启后将限制每行字数，使屏幕显示的内容减少",
         "default_font": "默认字体",
+        "font_title": "字体设置",
         "serif_font": "衬线字体",
         "title": "显示设置"
       },

@@ -1598,6 +1598,7 @@
         "compress_content": "縮減欄寬",
         "compress_content_description": "開啟後將限制每行字數，使屏幕顯示的內容減少",
         "default_font": "默認字體",
+        "font_title": "字體設置",
         "serif_font": "襯線字體",
         "title": "顯示"
       },
@@ -1608,8 +1609,6 @@
           "source_mode": "源碼模式",
           "title": "默認編輯視圖"
         },
-        "show_tab_status": "視圖狀態",
-        "show_tab_status_description": "開啟後將在狀態欄中添加一個顯示當前標籤頁視圖狀態的按鈕，點擊按鈕可切換當前標籤頁視圖狀態。",
         "title": "編輯器設置",
         "view_mode": {
           "description": "新筆記默認的視圖模式",

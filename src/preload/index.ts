@@ -4,6 +4,7 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
@@ -178,15 +179,10 @@ const api = {
     startFileWatcher: (dirPath: string, config?: any) =>
       ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
     stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
-    onFileChange: (callback: () => void) => {
+    onFileChange: (callback: (data: FileChangeEvent) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: any) => {
-        console.log('[Preload] File change event received:', data)
-        console.log('[Preload] Callback type:', typeof callback)
-        try {
-          callback()
-          console.log('[Preload] Callback executed successfully')
-        } catch (error) {
-          console.error('[Preload] Error executing callback:', error)
+        if (data && typeof data === 'object') {
+          callback(data)
         }
       }
       ipcRenderer.on('file-change', listener)

@@ -1,12 +1,11 @@
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
+import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useShowWorkspace } from '@renderer/hooks/useStore'
 import { findNodeInTree } from '@renderer/services/NotesTreeService'
-import { useAppSelector } from '@renderer/store'
-import { selectActiveNodeId } from '@renderer/store/note'
 import { Breadcrumb, BreadcrumbProps, Dropdown, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose } from 'lucide-react'
@@ -20,7 +19,7 @@ const logger = loggerService.withContext('HeaderNavbar')
 const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
   const { isTopNavbar } = useNavbarPosition()
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
-  const activeNodeId = useAppSelector(selectActiveNodeId)
+  const { activeNode } = useActiveNode(notesTree)
   const [breadcrumbItems, setBreadcrumbItems] = useState<Required<BreadcrumbProps>['items']>([])
   const { settings, updateSettings } = useNotesSettings()
 
@@ -93,11 +92,12 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
 
   // 构建面包屑路径
   useEffect(() => {
-    if (!activeNodeId || !notesTree) {
+    if (!activeNode || !notesTree) {
       setBreadcrumbItems([])
       return
     }
-    const node = findNodeInTree(notesTree, activeNodeId)
+    const node = findNodeInTree(notesTree, activeNode.id)
+    console.log(node)
     if (!node) return
 
     const pathParts = node.treePath.split('/').filter(Boolean)
@@ -109,7 +109,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
     })
 
     setBreadcrumbItems(items)
-  }, [activeNodeId, notesTree])
+  }, [activeNode, notesTree])
 
   return (
     <NavbarHeader className="home-navbar" style={{ justifyContent: 'flex-start' }}>

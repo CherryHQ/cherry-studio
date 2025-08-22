@@ -1090,6 +1090,14 @@ class FileStorage {
 
       logger.debug('File change detected', { eventType, filePath, path: this.currentWatchPath })
 
+      // 对于目录操作，立即触发同步，不使用防抖
+      if (eventType === 'addDir' || eventType === 'unlinkDir') {
+        logger.debug('Directory operation detected, triggering immediate sync', { eventType, filePath })
+        this.notifyChange(eventType, filePath)
+        return
+      }
+
+      // 对于文件操作，使用防抖机制
       if (this.debounceTimer) {
         clearTimeout(this.debounceTimer)
       }
