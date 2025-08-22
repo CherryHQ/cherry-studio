@@ -11,7 +11,7 @@ export const DATA_PATH = getDataPath()
 
 export const titleBarOverlayDark = {
   height: 42,
-  color: 'rgba(255,255,255,0)',
+  color: 'rgba(0,0,0,0.1)',
   symbolColor: '#fff'
 }
 
