@@ -13,7 +13,7 @@ import {
 import { statSync } from 'fs'
 import { readFile } from 'fs/promises'
 
-import { getTesseractWorker } from './TesseractService'
+import { getTesseractWorker } from './tesseract/TesseractService'
 
 const logger = loggerService.withContext('main:OcrService')
 
