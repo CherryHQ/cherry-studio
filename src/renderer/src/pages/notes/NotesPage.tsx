@@ -2,12 +2,10 @@ import { loggerService } from '@logger'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useSettings } from '@renderer/hooks/useSettings'
-import FileManager from '@renderer/services/FileManager'
 import {
   createFolder,
   createNote,
   deleteNode,
-  initWorkSpace,
   moveNode,
   renameNode,
   sortAllLevels,
@@ -15,9 +13,10 @@ import {
 } from '@renderer/services/NotesService'
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectActiveNodeId, setActiveNodeId, setNotesPath } from '@renderer/store/note'
+import { selectActiveNodeId, setActiveNodeId } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,11 +32,30 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useSettings()
   const dispatch = useAppDispatch()
   const activeNodeId = useAppSelector(selectActiveNodeId)
-  const { settings, notesPath } = useNotesSettings()
-  const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
+  const { settings, notesPath, updateNotesPath } = useNotesSettings()
   const [currentContent, setCurrentContent] = useState<string>('')
+
+  const notesTreeQuery = useLiveQuery(() => getNotesTree(), [])
+  const notesTree = useMemo(() => notesTreeQuery || [], [notesTreeQuery])
   const [tokenCount, setTokenCount] = useState(0)
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const watcherRef = useRef<(() => void) | null>(null) // 保存清理函数
+  const activeNodeIdRef = useRef(activeNodeId)
+  const currentContentRef = useRef(currentContent)
+  const notesTreeRef = useRef(notesTree)
+
+  // 同步 refs 的值
+  useEffect(() => {
+    activeNodeIdRef.current = activeNodeId
+  }, [activeNodeId])
+
+  useEffect(() => {
+    currentContentRef.current = currentContent
+  }, [currentContent])
+
+  useEffect(() => {
+    notesTreeRef.current = notesTree
+  }, [notesTree])
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -88,37 +106,99 @@ const NotesPage: FC = () => {
     [saveCurrentNote]
   )
 
-  const loadNotesTree = async () => {
-    const tree = await getNotesTree()
-    logger.debug('Loaded notes tree:', tree)
-    setNotesTree(tree)
-  }
-
-  // 初始化加载笔记树
   useEffect(() => {
-    const initNotes = async () => {
-      try {
-        let localNotesPath: string
-        logger.info('Initial notesPath value:', { notesPath })
-        if (!notesPath) {
-          const info = await window.api.getAppInfo()
-          localNotesPath = info.notesPath
-          dispatch(setNotesPath(localNotesPath))
-          logger.info('Using notes path:', { path: localNotesPath })
-          initWorkSpace(localNotesPath)
-          loadNotesTree()
-        } else {
-          logger.info('Using notes path:', { path: notesPath })
-          initWorkSpace(notesPath)
-          loadNotesTree()
-        }
-      } catch (error) {
-        logger.error('Failed to initialize workspace:', error as Error)
+    async function initialize() {
+      if (!notesPath) {
+        // 首次启动，获取默认路径
+        const info = await window.api.getAppInfo()
+        const defaultPath = info.notesPath
+        updateNotesPath(defaultPath)
+        return
       }
     }
 
-    initNotes()
-  }, [dispatch, notesPath])
+    initialize()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notesPath])
+
+  // 监听笔记树变化，处理 activeNodeId
+  useEffect(() => {
+    if (notesTree.length === 0) return
+
+    if (activeNodeId) {
+      const activeNode = findNodeById(notesTree, activeNodeId)
+      if (!activeNode) {
+        dispatch(setActiveNodeId(undefined))
+        setCurrentContent('')
+      }
+    }
+  }, [notesTree, activeNodeId, findNodeById, dispatch])
+
+  useEffect(() => {
+    if (!notesPath || notesTree.length === 0) return
+
+    async function startFileWatcher() {
+      // 清理之前的监控
+      if (watcherRef.current) {
+        watcherRef.current()
+        watcherRef.current = null
+      }
+
+      // 定义文件变化处理函数
+      const handleFileChange = async () => {
+        try {
+          if (!notesPath) return
+
+          const currentTree = notesTreeRef.current
+          const currentActiveNodeId = activeNodeIdRef.current
+
+          if (currentActiveNodeId && currentTree.length > 0) {
+            const currentActiveNode = findNodeById(currentTree, currentActiveNodeId)
+
+            if (currentActiveNode && currentActiveNode.type === 'file') {
+              try {
+                const content = await window.api.file.readExternal(currentActiveNode.externalPath)
+                const currentEditorContent = editorRef.current?.getMarkdown() || currentContentRef.current
+
+                if (content !== currentEditorContent) {
+                  setCurrentContent(content)
+                }
+              } catch (error) {
+                logger.error('Failed to read updated file:', error as Error)
+              }
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to handle file change:', error as Error)
+        }
+      }
+
+      try {
+        logger.info('Starting file watcher', { path: notesPath })
+        await window.api.file.startFileWatcher(notesPath)
+        const removeListener = window.api.file.onFileChange(handleFileChange)
+        watcherRef.current = removeListener
+      } catch (error) {
+        logger.error('Failed to start file watcher:', error as Error)
+      }
+    }
+
+    startFileWatcher()
+
+    return () => {
+      if (watcherRef.current) {
+        watcherRef.current()
+        watcherRef.current = null
+      }
+      window.api.file.stopFileWatcher().catch((error) => {
+        logger.error('Failed to stop file watcher:', error)
+      })
+    }
+  }, [notesPath, notesTree.length, findNodeById, dispatch])
+
+  useEffect(() => {
+    editorRef.current?.setMarkdown(currentContent)
+  }, [currentContent])
 
   // 加载笔记内容
   useEffect(() => {
@@ -152,17 +232,6 @@ const NotesPage: FC = () => {
     // eslint-disable-next-line
   }, [activeNodeId, notesTree.length, findNodeById])
 
-  const refreshNotesTree = useCallback(async () => {
-    try {
-      const tree = await getNotesTree()
-      setNotesTree(tree)
-      return tree
-    } catch (error) {
-      logger.error('Failed to refresh notes tree:', error as Error)
-      return []
-    }
-  }, [])
-
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string) => {
@@ -171,8 +240,6 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
         await createFolder(name, notesPath)
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
       } catch (error) {
         logger.error('Failed to create folder:', error as Error)
       }
@@ -188,8 +255,6 @@ const NotesPage: FC = () => {
           throw new Error('No folder path selected')
         }
         const newNote = await createNote(name, '', notesPath)
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
         dispatch(setActiveNodeId(newNote.id))
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
@@ -224,8 +289,6 @@ const NotesPage: FC = () => {
     async (nodeId: string) => {
       try {
         await toggleNodeExpanded(nodeId)
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
       } catch (error) {
         logger.error('Failed to toggle expanded:', error as Error)
       }
@@ -259,8 +322,6 @@ const NotesPage: FC = () => {
     async (nodeId: string) => {
       try {
         await toggleStarred(nodeId)
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
       } catch (error) {
         logger.error('Failed to toggle star:', error as Error)
       }
@@ -274,19 +335,6 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           dispatch(setActiveNodeId(node.id))
-
-          if (node.id) {
-            const updatedFileMetadata = await FileManager.getFile(node.id)
-            if (updatedFileMetadata && updatedFileMetadata.origin_name !== node.name) {
-              // 如果数据库中的显示名称与树节点中的名称不同，更新树节点
-              const updatedTree = [...notesTree]
-              const updatedNode = findNodeById(updatedTree, node.id)
-              if (updatedNode) {
-                updatedNode.name = updatedFileMetadata.origin_name
-                setNotesTree(updatedTree)
-              }
-            }
-          }
         } catch (error) {
           logger.error('Failed to load note:', error as Error)
         }
@@ -294,7 +342,7 @@ const NotesPage: FC = () => {
         await handleToggleExpanded(node.id)
       }
     },
-    [dispatch, notesTree, findNodeById, handleToggleExpanded]
+    [dispatch, handleToggleExpanded] // 移除 notesTree 和 findNodeById 依赖
   )
 
   // 删除节点
@@ -305,8 +353,6 @@ const NotesPage: FC = () => {
           activeNodeId && (nodeId === activeNodeId || isParentNode(notesTree, nodeId, activeNodeId))
 
         await deleteNode(nodeId)
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
 
         // 如果删除的是当前活动节点，清空编辑器
         if (isActiveNodeOrParent) {
@@ -327,8 +373,6 @@ const NotesPage: FC = () => {
   const handleRenameNode = useCallback(async (nodeId: string, newName: string) => {
     try {
       await renameNode(nodeId, newName)
-      const updatedTree = await getNotesTree()
-      setNotesTree(updatedTree)
     } catch (error) {
       logger.error('Failed to rename node:', error as Error)
     }
@@ -358,9 +402,6 @@ const NotesPage: FC = () => {
           }
         }
 
-        // 上传完成后刷新笔记树
-        const updatedTree = await getNotesTree()
-        setNotesTree(updatedTree)
         window.message.success(t('notes.upload_success', { count: markdownFiles.length }))
       } catch (error) {
         logger.error('Failed to handle file uploads:', error as Error)
@@ -379,8 +420,6 @@ const NotesPage: FC = () => {
         const success = await moveNode(sourceNodeId, targetNodeId, position)
         if (success) {
           logger.debug(`Move node ${sourceNodeId} ${position} node ${targetNodeId}`)
-          const updatedTree = await getNotesTree()
-          setNotesTree(updatedTree)
         } else {
           logger.error(`Failed to move node ${sourceNodeId} ${position} node ${targetNodeId}`)
         }
@@ -396,8 +435,6 @@ const NotesPage: FC = () => {
     try {
       logger.info(`Sorting notes with type: ${sortType}`)
       await sortAllLevels(sortType)
-      const updatedTree = await getNotesTree()
-      setNotesTree(updatedTree)
     } catch (error) {
       logger.error('Failed to sort notes:', error as Error)
       throw error
@@ -419,7 +456,6 @@ const NotesPage: FC = () => {
           <NotesSidebar
             notesTree={notesTree}
             activeNodeId={activeNodeId}
-            onRefreshTree={refreshNotesTree}
             onSelectNode={handleSelectNode}
             onCreateFolder={handleCreateFolder}
             onCreateNote={handleCreateNote}

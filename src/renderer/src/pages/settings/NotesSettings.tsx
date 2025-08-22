@@ -1,0 +1,142 @@
+import { loggerService } from '@logger'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { initWorkSpace } from '@renderer/services/NotesService'
+import { Button, Input, message } from 'antd'
+import { FolderOpen } from 'lucide-react'
+import { FC, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+
+const logger = loggerService.withContext('NotesSettings')
+
+const NotesSettings: FC = () => {
+  const { theme } = useTheme()
+  const { t } = useTranslation()
+  const { notesPath, updateNotesPath } = useNotesSettings()
+  const [tempPath, setTempPath] = useState<string>(notesPath || '')
+  const [isSelecting, setIsSelecting] = useState(false)
+
+  const handleSelectWorkDirectory = async () => {
+    try {
+      setIsSelecting(true)
+      const result = await window.api.file.selectFolder({
+        title: t('notes.settings.data.current_work_directory')
+      })
+
+      if (result) {
+        setTempPath(result)
+      }
+    } catch (error) {
+      logger.error('Failed to select directory:', error as Error)
+      message.error(t('notes.settings.data.select_directory_failed'))
+    } finally {
+      setIsSelecting(false)
+    }
+  }
+
+  const handleApplyPath = async () => {
+    if (!tempPath) {
+      message.error(t('notes.settings.data.path_required'))
+      return
+    }
+
+    try {
+      // 验证目录是否可用
+      const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
+
+      if (!isValidDir) {
+        message.error(t('notes.settings.data.invalid_directory'))
+        return
+      }
+
+      updateNotesPath(tempPath)
+      initWorkSpace(tempPath)
+      message.success(t('notes.settings.data.path_updated'))
+    } catch (error) {
+      logger.error('Failed to apply notes path:', error as Error)
+      message.error(t('notes.settings.data.apply_path_failed'))
+    }
+  }
+
+  const handleResetToDefault = async () => {
+    try {
+      const info = await window.api.getAppInfo()
+      setTempPath(info.notesPath)
+      updateNotesPath(info.notesPath)
+      message.success(t('notes.settings.data.reset_to_default'))
+    } catch (error) {
+      logger.error('Failed to reset to default:', error as Error)
+      message.error(t('notes.settings.data.reset_failed'))
+    }
+  }
+
+  const isPathChanged = tempPath !== notesPath
+
+  return (
+    <SettingContainer theme={theme}>
+      <SettingGroup theme={theme}>
+        <SettingTitle>{t('notes.settings.data.title')}</SettingTitle>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('notes.settings.data.current_work_directory')}</SettingRowTitle>
+        </SettingRow>
+        <WorkDirectorySection>
+          <PathInputContainer>
+            <Input
+              value={tempPath}
+              onChange={(e) => setTempPath(e.target.value)}
+              placeholder={t('notes.settings.data.work_directory_placeholder')}
+              readOnly
+            />
+            <Button
+              type="default"
+              icon={<FolderOpen size={16} />}
+              onClick={handleSelectWorkDirectory}
+              loading={isSelecting}
+              style={{ marginLeft: 8 }}>
+              {t('notes.settings.data.select')}
+            </Button>
+          </PathInputContainer>
+          <ActionButtons>
+            <Button type="primary" onClick={handleApplyPath} disabled={!isPathChanged}>
+              {t('notes.settings.data.apply')}
+            </Button>
+            <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
+          </ActionButtons>
+        </WorkDirectorySection>
+        <SettingDescription>{t('notes.settings.data.work_directory_description')}</SettingDescription>
+      </SettingGroup>
+    </SettingContainer>
+  )
+}
+
+const WorkDirectorySection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+`
+
+const PathInputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+`
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 8px;
+  align-self: flex-start;
+`
+
+const SettingDescription = styled.div`
+  font-size: 12px;
+  color: var(--color-text-3);
+  margin-top: 12px;
+  line-height: 1.4;
+`
+
+export default NotesSettings

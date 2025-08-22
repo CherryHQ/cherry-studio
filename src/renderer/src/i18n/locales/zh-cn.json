@@ -1579,6 +1579,21 @@
     "rename": "重命名",
     "save": "保存到笔记",
     "settings": {
+      "data": {
+        "apply": "应用",
+        "apply_path_failed": "应用路径失败",
+        "current_work_directory": "当前工作目录",
+        "invalid_directory": "选择的目录无效或无权限",
+        "path_required": "请选择工作目录",
+        "path_updated": "工作目录更新成功",
+        "reset_failed": "重置失败",
+        "reset_to_default": "重置为默认",
+        "select": "选择",
+        "select_directory_failed": "选择目录失败",
+        "title": "数据设置",
+        "work_directory_description": "工作目录是存储所有笔记文件的位置。更改工作目录不会移动现有文件，请手动迁移文件。",
+        "work_directory_placeholder": "选择笔记工作目录"
+      },
       "defaultFont": "默认字体",
       "editorMode": "编辑模式",
       "fontFamily": "字体系列",
@@ -1586,7 +1601,7 @@
       "previewMode": "预览模式",
       "serifFont": "衬线字体",
       "sourceMode": "源码模式",
-      "title": "更多选项",
+      "title": "笔记",
       "viewMode": "视图模式"
     },
     "show_starred": "显示收藏的笔记",

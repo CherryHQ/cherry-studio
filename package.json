@@ -191,6 +191,7 @@
     "axios": "^1.7.3",
     "browser-image-compression": "^2.0.2",
     "chardet": "^2.1.0",
+    "chokidar": "^4.0.3",
     "cli-progress": "^3.12.0",
     "code-inspector-plugin": "^0.20.14",
     "color": "^5.0.0",

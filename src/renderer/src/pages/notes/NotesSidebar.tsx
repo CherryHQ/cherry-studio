@@ -4,9 +4,6 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
-import { initWorkSpace } from '@renderer/services/NotesService'
-import { useAppDispatch } from '@renderer/store'
-import { setNotesPath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps } from 'antd'
 import {
@@ -26,7 +23,6 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface NotesSidebarProps {
-  onRefreshTree: () => Promise<NotesTreeNode[]>
   onCreateFolder: (name: string, parentId?: string) => void
   onCreateNote: (name: string, parentId?: string) => void
   onSelectNode: (node: NotesTreeNode) => void
@@ -44,7 +40,6 @@ interface NotesSidebarProps {
 const logger = loggerService.withContext('NotesSidebar')
 
 const NotesSidebar: FC<NotesSidebarProps> = ({
-  onRefreshTree,
   onCreateFolder,
   onCreateNote,
   onSelectNode,
@@ -58,7 +53,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   activeNodeId,
   notesTree
 }) => {
-  const dispatch = useAppDispatch()
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
@@ -72,22 +66,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
   const [sortType, setSortType] = useState<NotesSortType>('sort_a2z')
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
-
-  const handleOpenFolder = useCallback(async () => {
-    try {
-      const folderPath = await window.api.file.selectFolder()
-      if (!folderPath) {
-        return
-      }
-      dispatch(setNotesPath(folderPath))
-      await initWorkSpace(folderPath)
-      await onRefreshTree()
-      logger.info(folderPath)
-    } catch (error) {
-      logger.error('Failed to open external folder:', error as Error)
-      window.message.error(t('notes.folder_open_failed'))
-    }
-  }, [dispatch, onRefreshTree, t])
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))
@@ -461,7 +439,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         isShowSearch={isShowSearch}
         searchKeyword={searchKeyword}
         sortType={sortType}
-        onOpenFolder={handleOpenFolder}
         onCreateFolder={handleCreateFolder}
         onCreateNote={handleCreateNote}
         onToggleStarredView={handleToggleStarredView}

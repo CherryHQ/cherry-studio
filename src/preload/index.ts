@@ -157,7 +157,7 @@ const api = {
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
-    selectFolder: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, spanContext),
+    selectFolder: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
@@ -171,7 +171,25 @@ const api = {
     pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
-    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath)
+    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
+    validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
+    startFileWatcher: (dirPath: string, config?: any) =>
+      ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
+    stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
+    onFileChange: (callback: () => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: any) => {
+        console.log('[Preload] File change event received:', data)
+        console.log('[Preload] Callback type:', typeof callback)
+        try {
+          callback()
+          console.log('[Preload] Callback executed successfully')
+        } catch (error) {
+          console.error('[Preload] Error executing callback:', error)
+        }
+      }
+      ipcRenderer.on('file-change', listener)
+      return () => ipcRenderer.off('file-change', listener)
+    }
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding)

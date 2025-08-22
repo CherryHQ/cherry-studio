@@ -167,6 +167,9 @@ export enum IpcChannel {
   Fs_Read = 'fs:read',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_GetDirectoryStructure = 'file:getDirectoryStructure',
+  File_ValidateNotesDirectory = 'file:validateNotesDirectory',
+  File_StartWatcher = 'file:startWatcher',
+  File_StopWatcher = 'file:stopWatcher',
 
   // file service
   FileService_Upload = 'file-service:upload',

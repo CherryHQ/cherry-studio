@@ -9,6 +9,7 @@ import {
 } from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata, NotesTreeNode } from '@types'
+import chokidar, { FSWatcher } from 'chokidar'
 import * as crypto from 'crypto'
 import {
   dialog,
@@ -31,10 +32,39 @@ import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
+interface FileWatcherConfig {
+  watchExtensions?: string[]
+  ignoredPatterns?: (string | RegExp)[]
+  debounceMs?: number
+  maxDepth?: number
+  usePolling?: boolean
+  retryOnError?: boolean
+  retryDelayMs?: number
+  stabilityThreshold?: number
+  eventChannel?: string
+}
+
+const DEFAULT_WATCHER_CONFIG: Required<FileWatcherConfig> = {
+  watchExtensions: ['.md', '.markdown', '.txt'],
+  ignoredPatterns: [/(^|[/\\])\../, '**/node_modules/**', '**/.git/**', '**/*.tmp', '**/*.temp', '**/.DS_Store'],
+  debounceMs: 1000,
+  maxDepth: 10,
+  usePolling: false,
+  retryOnError: true,
+  retryDelayMs: 5000,
+  stabilityThreshold: 500,
+  eventChannel: 'file-change'
+}
+
 class FileStorage {
   private storageDir = getFilesDir()
   private notesDir = getNotesDir()
   private tempDir = getTempDir()
+  private watcher?: FSWatcher
+  private watcherSender?: Electron.WebContents
+  private currentWatchPath?: string
+  private debounceTimer?: NodeJS.Timeout
+  private watcherConfig: Required<FileWatcherConfig> = DEFAULT_WATCHER_CONFIG
 
   constructor() {
     this.initStorageDir()
@@ -647,7 +677,7 @@ class FileStorage {
 
   public clear = async (): Promise<void> => {
     await fs.promises.rm(this.storageDir, { recursive: true })
-    await this.initStorageDir()
+    this.initStorageDir()
   }
 
   public clearTemp = async (): Promise<void> => {
@@ -716,6 +746,70 @@ class FileStorage {
     }
   }
 
+  public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
+    try {
+      if (!dirPath || typeof dirPath !== 'string') {
+        return false
+      }
+
+      // Normalize path
+      const normalizedPath = path.resolve(dirPath)
+
+      // Check if directory exists
+      if (!fs.existsSync(normalizedPath)) {
+        return false
+      }
+
+      // Check if it's actually a directory
+      const stats = fs.statSync(normalizedPath)
+      if (!stats.isDirectory()) {
+        return false
+      }
+
+      // Get app paths to prevent selection of restricted directories
+      const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
+      const filesDir = path.resolve(getFilesDir())
+      const currentNotesDir = path.resolve(getNotesDir())
+
+      // Prevent selecting app data directories
+      if (
+        normalizedPath.startsWith(filesDir) ||
+        normalizedPath.startsWith(appDataPath) ||
+        normalizedPath === currentNotesDir
+      ) {
+        logger.warn(`Invalid directory selection: ${normalizedPath} (app data directory)`)
+        return false
+      }
+
+      // Prevent selecting system root directories
+      const isSystemRoot =
+        process.platform === 'win32'
+          ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
+          : normalizedPath === '/' ||
+            normalizedPath === '/usr' ||
+            normalizedPath === '/etc' ||
+            normalizedPath === '/System'
+
+      if (isSystemRoot) {
+        logger.warn(`Invalid directory selection: ${normalizedPath} (system root directory)`)
+        return false
+      }
+
+      // Check write permissions
+      try {
+        fs.accessSync(normalizedPath, fs.constants.W_OK)
+      } catch (error) {
+        logger.warn(`Directory not writable: ${normalizedPath}`)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      logger.error('Failed to validate notes directory:', error as Error)
+      return false
+    }
+  }
+
   public save = async (
     _: Electron.IpcMainInvokeEvent,
     fileName: string,
@@ -734,7 +828,7 @@ class FileStorage {
       }
 
       if (!result.canceled && result.filePath) {
-        await writeFileSync(result.filePath, content, { encoding: 'utf-8' })
+        writeFileSync(result.filePath, content, { encoding: 'utf-8' })
       }
 
       return result.filePath
@@ -897,6 +991,198 @@ class FileStorage {
     } catch (error) {
       logger.error('Failed to write file:', error as Error)
       throw error
+    }
+  }
+
+  public startFileWatcher = async (
+    event: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    config?: FileWatcherConfig
+  ): Promise<void> => {
+    try {
+      this.watcherConfig = { ...DEFAULT_WATCHER_CONFIG, ...config }
+
+      if (!dirPath?.trim()) {
+        throw new Error('Directory path is required')
+      }
+
+      const normalizedPath = path.resolve(dirPath.trim())
+
+      if (!fs.existsSync(normalizedPath)) {
+        throw new Error(`Directory does not exist: ${normalizedPath}`)
+      }
+
+      const stats = fs.statSync(normalizedPath)
+      if (!stats.isDirectory()) {
+        throw new Error(`Path is not a directory: ${normalizedPath}`)
+      }
+
+      if (this.currentWatchPath === normalizedPath && this.watcher) {
+        this.watcherSender = event.sender
+        logger.debug('Already watching directory, updated sender', { path: normalizedPath })
+        return
+      }
+
+      await this.stopFileWatcher()
+
+      logger.info('Starting file watcher', {
+        path: normalizedPath,
+        config: {
+          extensions: this.watcherConfig.watchExtensions,
+          debounceMs: this.watcherConfig.debounceMs,
+          maxDepth: this.watcherConfig.maxDepth
+        }
+      })
+
+      this.currentWatchPath = normalizedPath
+      this.watcherSender = event.sender
+
+      const watchOptions = {
+        ignored: this.watcherConfig.ignoredPatterns,
+        persistent: true,
+        ignoreInitial: true,
+        depth: this.watcherConfig.maxDepth,
+        usePolling: this.watcherConfig.usePolling,
+        awaitWriteFinish: {
+          stabilityThreshold: this.watcherConfig.stabilityThreshold,
+          pollInterval: 100
+        },
+        alwaysStat: false,
+        atomic: true
+      }
+
+      this.watcher = chokidar.watch(normalizedPath, watchOptions)
+
+      const handleChange = this.createChangeHandler()
+
+      this.watcher
+        .on('add', (filePath: string) => handleChange('add', filePath))
+        .on('change', (filePath: string) => handleChange('change', filePath))
+        .on('unlink', (filePath: string) => handleChange('unlink', filePath))
+        .on('addDir', (dirPath: string) => handleChange('addDir', dirPath))
+        .on('unlinkDir', (dirPath: string) => handleChange('unlinkDir', dirPath))
+        .on('error', (error: unknown) => {
+          logger.error('File watcher error', { error: error as Error, path: normalizedPath })
+          if (this.watcherConfig.retryOnError) {
+            this.handleWatcherError(error as Error)
+          }
+        })
+        .on('ready', () => {
+          logger.debug('File watcher ready', { path: normalizedPath })
+        })
+
+      logger.info('File watcher started successfully')
+    } catch (error) {
+      logger.error('Failed to start file watcher', error as Error)
+      this.cleanup()
+      throw error
+    }
+  }
+
+  private createChangeHandler() {
+    return (eventType: string, filePath: string) => {
+      if (!this.shouldWatchFile(filePath, eventType)) {
+        return
+      }
+
+      logger.debug('File change detected', { eventType, filePath, path: this.currentWatchPath })
+
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer)
+      }
+
+      this.debounceTimer = setTimeout(() => {
+        this.notifyChange(eventType, filePath)
+        this.debounceTimer = undefined
+      }, this.watcherConfig.debounceMs)
+    }
+  }
+
+  private shouldWatchFile(filePath: string, eventType: string): boolean {
+    if (eventType.includes('Dir')) {
+      return true
+    }
+
+    const ext = path.extname(filePath).toLowerCase()
+    return this.watcherConfig.watchExtensions.includes(ext)
+  }
+
+  private notifyChange(eventType: string, filePath: string) {
+    try {
+      if (!this.watcherSender || this.watcherSender.isDestroyed()) {
+        logger.warn('Sender destroyed, stopping watcher')
+        this.stopFileWatcher()
+        return
+      }
+
+      logger.debug('Sending file change event', {
+        eventType,
+        filePath,
+        channel: this.watcherConfig.eventChannel,
+        senderExists: !!this.watcherSender,
+        senderDestroyed: this.watcherSender.isDestroyed()
+      })
+      this.watcherSender.send(this.watcherConfig.eventChannel, {
+        eventType,
+        filePath,
+        watchPath: this.currentWatchPath
+      })
+      logger.debug('File change event sent successfully')
+    } catch (error) {
+      logger.error('Failed to send notification', error as Error)
+    }
+  }
+
+  private handleWatcherError(error: Error) {
+    const retryableErrors = ['EMFILE', 'ENFILE', 'ENOSPC']
+    const isRetryable = retryableErrors.some((code) => error.message.includes(code))
+
+    if (isRetryable && this.currentWatchPath && this.watcherSender && !this.watcherSender.isDestroyed()) {
+      logger.warn('Attempting restart due to recoverable error', { error: error.message })
+
+      setTimeout(async () => {
+        try {
+          if (this.currentWatchPath && this.watcherSender && !this.watcherSender.isDestroyed()) {
+            const mockEvent = { sender: this.watcherSender } as Electron.IpcMainInvokeEvent
+            await this.startFileWatcher(mockEvent, this.currentWatchPath, this.watcherConfig)
+          }
+        } catch (retryError) {
+          logger.error('Restart failed', retryError as Error)
+        }
+      }, this.watcherConfig.retryDelayMs)
+    }
+  }
+
+  private cleanup() {
+    this.currentWatchPath = undefined
+    this.watcherSender = undefined
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+      this.debounceTimer = undefined
+    }
+  }
+
+  public stopFileWatcher = async (): Promise<void> => {
+    try {
+      if (this.watcher) {
+        logger.info('Stopping file watcher', { path: this.currentWatchPath })
+        await this.watcher.close()
+        this.watcher = undefined
+        logger.debug('File watcher stopped')
+      }
+      this.cleanup()
+    } catch (error) {
+      logger.error('Failed to stop file watcher', error as Error)
+      this.watcher = undefined
+      this.cleanup()
+    }
+  }
+
+  public getWatcherStatus(): { isActive: boolean; watchPath?: string; hasValidSender: boolean } {
+    return {
+      isActive: !!this.watcher,
+      watchPath: this.currentWatchPath,
+      hasValidSender: !!this.watcherSender && !this.watcherSender.isDestroyed()
     }
   }
 

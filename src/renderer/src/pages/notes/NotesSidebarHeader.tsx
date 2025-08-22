@@ -1,7 +1,7 @@
 import { CheckOutlined } from '@ant-design/icons'
 import { NotesSortType } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps, Tooltip } from 'antd'
-import { ArrowLeft, ArrowUpNarrowWide, FilePlus, FolderInput, FolderPlus, Search, Star } from 'lucide-react'
+import { ArrowLeft, ArrowUpNarrowWide, FilePlus, FolderPlus, Search, Star } from 'lucide-react'
 import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -11,7 +11,6 @@ interface NotesSidebarHeaderProps {
   isShowSearch: boolean
   searchKeyword: string
   sortType: NotesSortType
-  onOpenFolder: () => void
   onCreateFolder: () => void
   onCreateNote: () => void
   onToggleStarredView: () => void
@@ -25,7 +24,6 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
   isShowSearch,
   searchKeyword,
   sortType,
-  onOpenFolder,
   onCreateFolder,
   onCreateNote,
   onToggleStarredView,
@@ -71,12 +69,6 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
       <HeaderActions>
         {!isShowStarred && !isShowSearch && (
           <>
-            <Tooltip title={t('notes.open_folder')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onOpenFolder}>
-                <FolderInput size={18} />
-              </ActionButton>
-            </Tooltip>
-
             <Tooltip title={t('notes.new_folder')} mouseEnterDelay={0.8}>
               <ActionButton onClick={onCreateFolder}>
                 <FolderPlus size={18} />
