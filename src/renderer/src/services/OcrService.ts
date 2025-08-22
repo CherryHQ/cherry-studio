@@ -1,6 +1,6 @@
 import { OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
 
-// const logger = loggerService.withContext('main:OcrService')
+// const logger = loggerService.withContext('renderer:OcrService')
 
 /**
  * ocr a file
