@@ -71,7 +71,7 @@ const dxtService = new DxtService()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
-  const notificationService = new NotificationService(mainWindow)
+  const notificationService = new NotificationService()
 
   // Initialize Python service with main window
   pythonService.setMainWindow(mainWindow)
