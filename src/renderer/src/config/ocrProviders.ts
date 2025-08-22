@@ -11,7 +11,7 @@ export function getOcrProviderLogo(providerId: string) {
   return undefined
 }
 
-export const OCR_PROVIDER_CONFIG: BuiltinOcrProvider[] = [
+export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = [
   {
     id: 'tesseract',
     name: 'Tesseract',
