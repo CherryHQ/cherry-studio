@@ -40,7 +40,7 @@ export function useAssistants() {
   const logger = loggerService.withContext('useAssistants')
 
   /**
-   * 添加一个新的助手
+   * 添加一个新的助手。已封装错误日志与 error message。
    * @param assistant - 要添加的助手对象
    * @throws {Error} 如果添加助手失败会抛出错误
    */
@@ -99,6 +99,7 @@ export function useAssistant(id: string) {
     const newAssistant = { ...getDefaultAssistant(), id }
     try {
       addAssistant(newAssistant)
+      window.message.info(t('assistants.add.info.missing_added'))
       assistant = newAssistant
     } catch (e) {
       window.message.warning(t('warning.fallback.deafult_assistant'))

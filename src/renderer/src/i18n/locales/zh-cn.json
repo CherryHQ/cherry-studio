@@ -134,6 +134,11 @@
   },
   "assistants": {
     "abbr": "助手",
+    "add": {
+      "info": {
+        "missing_added": "已将缺失的助手添加为默认助手"
+      }
+    },
     "clear": {
       "content": "清空话题会删除助手下所有话题和文件，确定要继续吗？",
       "title": "清空话题"

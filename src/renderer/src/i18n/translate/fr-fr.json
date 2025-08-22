@@ -134,6 +134,11 @@
   },
   "assistants": {
     "abbr": "Aide",
+    "add": {
+      "info": {
+        "missing_added": "L'assistant manquant a été ajouté en tant qu'assistant par défaut"
+      }
+    },
     "clear": {
       "content": "Supprimer le sujet supprimera tous les sujets et fichiers de l'aide. Êtes-vous sûr de vouloir continuer ?",
       "title": "Supprimer les sujets"
@@ -888,6 +893,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "Le sujet n'existe pas"
+    },
     "locate": {
       "message": "Localiser le message"
     },

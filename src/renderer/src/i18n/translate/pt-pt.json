@@ -134,6 +134,11 @@
   },
   "assistants": {
     "abbr": "Assistente",
+    "add": {
+      "info": {
+        "missing_added": "Adicionado o assistente ausente como assistente padrão"
+      }
+    },
     "clear": {
       "content": "Limpar o tópico removerá todos os tópicos e arquivos do assistente. Tem certeza de que deseja continuar?",
       "title": "Limpar Tópico"
@@ -888,6 +893,9 @@
   },
   "history": {
     "continue_chat": "Continuar conversando",
+    "error": {
+      "topic_not_found": "Tópico inexistente"
+    },
     "locate": {
       "message": "Localizar mensagem"
     },
