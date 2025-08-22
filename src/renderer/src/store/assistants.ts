@@ -1,9 +1,11 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
+
+import { RootState } from '.'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
@@ -193,5 +195,16 @@ export const {
   updateAssistantSettings,
   updateTagCollapse
 } = assistantsSlice.actions
+
+export const selectAllTopics = createSelector([(state: RootState) => state.assistants.assistants], (assistants) =>
+  assistants.flatMap((assistant: Assistant) => assistant.topics)
+)
+
+export const selectTopicsMap = createSelector([selectAllTopics], (topics) => {
+  return topics.reduce((map, topic) => {
+    map.set(topic.id, topic)
+    return map
+  }, new Map())
+})
 
 export default assistantsSlice.reducer

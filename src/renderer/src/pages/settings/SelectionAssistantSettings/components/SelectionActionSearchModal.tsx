@@ -149,7 +149,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
       open={isModalOpen}
       onOk={handleOk}
       onCancel={handleCancel}
-      destroyOnClose
+      destroyOnHidden
       centered>
       <Form
         form={form}

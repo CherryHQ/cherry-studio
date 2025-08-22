@@ -27,6 +27,7 @@ import { addFileLoader } from '@main/knowledge/loader'
 import { NoteLoader } from '@main/knowledge/loader/noteLoader'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
+import { fileStorage } from '@main/services/FileStorage'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles } from '@main/utils/file'
@@ -689,15 +690,16 @@ class KnowledgeService {
     if (base.preprocessProvider && file.ext.toLowerCase() === '.pdf') {
       try {
         const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
+        const filePath = fileStorage.getFilePathById(file)
         // Check if file has already been preprocessed
         const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
         if (alreadyProcessed) {
-          logger.debug(`File already preprocess processed, using cached result: ${file.path}`)
+          logger.debug(`File already preprocess processed, using cached result: ${filePath}`)
           return alreadyProcessed
         }
 
         // Execute preprocessing
-        logger.debug(`Starting preprocess processing for scanned PDF: ${file.path}`)
+        logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
         const { processedFile, quota } = await provider.parseFile(item.id, file)
         fileToProcess = processedFile
         const mainWindow = windowService.getMainWindow()

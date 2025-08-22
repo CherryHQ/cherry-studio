@@ -191,8 +191,11 @@ export class WindowService {
     // the zoom factor is reset to cached value when window is resized after routing to other page
     // see: https://github.com/electron/electron/issues/10572
     //
+    // and resize ipc
+    //
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
@@ -207,30 +210,39 @@ export class WindowService {
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+        mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }
 
-    // 添加Escape键退出全屏的支持
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      // 当按下Escape键且窗口处于全屏状态时退出全屏
-      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-        if (mainWindow.isFullScreen()) {
-          // 获取 shortcuts 配置
-          const shortcuts = configManager.getShortcuts()
-          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-          if (exitFullscreenShortcut == undefined) {
-            mainWindow.setFullScreen(false)
-            return
-          }
-          if (exitFullscreenShortcut?.enabled) {
-            event.preventDefault()
-            mainWindow.setFullScreen(false)
-            return
-          }
-        }
-      }
-      return
+    mainWindow.on('unmaximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
+
+    mainWindow.on('maximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+    })
+
+    // 添加Escape键退出全屏的支持
+    // mainWindow.webContents.on('before-input-event', (event, input) => {
+    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
+    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+    //     if (mainWindow.isFullScreen()) {
+    //       // 获取 shortcuts 配置
+    //       const shortcuts = configManager.getShortcuts()
+    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+    //       if (exitFullscreenShortcut == undefined) {
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //       if (exitFullscreenShortcut?.enabled) {
+    //         event.preventDefault()
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //     }
+    //   }
+    //   return
+    // })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {

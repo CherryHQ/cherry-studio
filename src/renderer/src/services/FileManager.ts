@@ -132,6 +132,8 @@ class FileManager {
   }
 
   static getSafePath(file: FileMetadata) {
+    // use the path from the file metadata instead
+    // this function is used to get path for files which are not in the filestorage
     return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
   }
 

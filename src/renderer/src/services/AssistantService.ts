@@ -6,6 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
@@ -13,15 +14,28 @@ import type {
   Agent,
   Assistant,
   AssistantSettings,
-  Language,
   Model,
   Provider,
   Topic,
-  TranslateAssistant
+  TranslateAssistant,
+  TranslateLanguage
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
+
+export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+  temperature: DEFAULT_TEMPERATURE,
+  enableTemperature: true,
+  contextCount: DEFAULT_CONTEXTCOUNT,
+  enableMaxTokens: false,
+  maxTokens: 0,
+  streamOutput: true,
+  topP: 1,
+  enableTopP: true,
+  toolUseMode: 'prompt',
+  customParameters: []
+}
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -33,22 +47,11 @@ export function getDefaultAssistant(): Assistant {
     messages: [],
     type: 'assistant',
     regularPhrases: [], // Added regularPhrases
-    settings: {
-      temperature: DEFAULT_TEMPERATURE,
-      enableTemperature: true,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      enableTopP: true,
-      toolUseMode: 'prompt',
-      customParameters: []
-    }
+    settings: DEFAULT_ASSISTANT_SETTINGS
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: Language, text: string): TranslateAssistant {
+export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
   const translateModel = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
   assistant.model = translateModel
@@ -56,6 +59,11 @@ export function getDefaultTranslateAssistant(targetLanguage: Language, text: str
   if (!assistant.model) {
     logger.error('No translate model')
     throw new Error(i18n.t('translate.error.not_configured'))
+  }
+
+  if (targetLanguage.langCode === UNKNOWN.langCode) {
+    logger.error('Unknown target language', targetLanguage)
+    throw new Error('Unknown target language')
   }
 
   assistant.settings = {
@@ -93,8 +101,8 @@ export function getDefaultModel() {
   return store.getState().llm.defaultModel
 }
 
-export function getTopNamingModel() {
-  return store.getState().llm.topicNamingModel
+export function getQuickModel() {
+  return store.getState().llm.quickModel
 }
 
 export function getTranslateModel() {
@@ -165,18 +173,7 @@ export async function createAssistantFromAgent(agent: Agent) {
     model: agent.defaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
-    settings: agent.settings || {
-      temperature: DEFAULT_TEMPERATURE,
-      enableTemperature: true,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      enableTopP: true,
-      toolUseMode: 'prompt',
-      customParameters: []
-    }
+    settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS
   }
 
   store.dispatch(addAssistant(assistant))

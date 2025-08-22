@@ -29,14 +29,14 @@ vi.mock('@hello-pangea/dnd', () => {
   }
 })
 
-// mock VirtualList 只做简单渲染
-vi.mock('rc-virtual-list', () => ({
+// mock antd list 只做简单渲染
+vi.mock('antd', () => ({
   __esModule: true,
-  default: ({ data, itemKey, children }: any) => (
+  List: ({ dataSource, renderItem }: any) => (
     <div data-testid="virtual-list">
-      {data.map((item: any, idx: number) => (
-        <div key={item[itemKey] || item} data-testid="virtual-list-item">
-          {children(item, idx)}
+      {dataSource.map((item: any, idx: number) => (
+        <div key={item.id || item} data-testid="virtual-list-item">
+          {renderItem(item, idx)}
         </div>
       ))}
     </div>
@@ -157,8 +157,7 @@ describe('DraggableList', () => {
 
       // 模拟拖拽到自身
       window.triggerOnDragEnd({ source: { index: 1 }, destination: { index: 1 } }, {})
-      expect(onUpdate).toHaveBeenCalledTimes(1)
-      expect(onUpdate.mock.calls[0][0]).toEqual(list)
+      expect(onUpdate).toHaveBeenCalledTimes(0)
     })
   })
 
@@ -175,8 +174,7 @@ describe('DraggableList', () => {
 
       // 拖拽自身
       window.triggerOnDragEnd({ source: { index: 0 }, destination: { index: 0 } }, {})
-      expect(onUpdate).toHaveBeenCalledTimes(1)
-      expect(onUpdate.mock.calls[0][0]).toEqual(list)
+      expect(onUpdate).toHaveBeenCalledTimes(0)
     })
 
     it('should not crash if callbacks are undefined', () => {

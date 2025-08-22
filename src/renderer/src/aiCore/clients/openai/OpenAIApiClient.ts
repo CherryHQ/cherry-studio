@@ -5,9 +5,14 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getOpenAIWebSearchParams,
   getThinkModelType,
+  isClaudeReasoningModel,
   isDoubaoThinkingAutoModel,
+  isGeminiReasoningModel,
+  isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIOpenWeightModel,
+  isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenMTModel,
   isQwenReasoningModel,
@@ -22,7 +27,8 @@ import {
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
   isVisionModel,
-  MODEL_SUPPORTED_REASONING_EFFORT
+  MODEL_SUPPORTED_REASONING_EFFORT,
+  ZHIPU_RESULT_TOKENS
 } from '@renderer/config/models'
 import {
   isSupportArrayContentProvider,
@@ -30,6 +36,7 @@ import {
   isSupportEnableThinkingProvider,
   isSupportStreamOptionsProvider
 } from '@renderer/config/providers'
+import { mapLanguageToQwenMTModel } from '@renderer/config/translate'
 import { processPostsuffixQwen3Model, processReqMessages } from '@renderer/services/ModelMessageService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 // For Copilot token
@@ -43,6 +50,7 @@ import {
   Model,
   OpenAIServiceTier,
   Provider,
+  SystemProviderIds,
   ToolCallResponse,
   TranslateAssistant,
   WebSearchSource
@@ -57,7 +65,6 @@ import {
   OpenAISdkRawOutput,
   ReasoningEffortOptionalParams
 } from '@renderer/types/sdk'
-import { mapLanguageToQwenMTModel } from '@renderer/utils'
 import { addImageFileToContents } from '@renderer/utils/formats'
 import {
   isEnabledToolUse,
@@ -145,7 +152,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           return {}
         }
         // Don't disable reasoning for models that require it
-        if (isGrokReasoningModel(model)) {
+        if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -391,9 +398,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
   ): ToolCallResponse {
     let parsedArgs: any
     try {
-      parsedArgs = JSON.parse(toolCall.function.arguments)
+      if ('function' in toolCall) {
+        parsedArgs = JSON.parse(toolCall.function.arguments)
+      }
     } catch {
-      parsedArgs = toolCall.function.arguments
+      if ('function' in toolCall) {
+        parsedArgs = toolCall.function.arguments
+      }
     }
     return {
       id: toolCall.id,
@@ -416,7 +427,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         mcpToolResponse,
         resp,
         isVisionModel(model),
-        this.provider.isNotSupportArrayContent ?? false
+        !isSupportArrayContentProvider(this.provider)
       )
     } else if ('toolCallId' in mcpToolResponse && mcpToolResponse.toolCallId) {
       return {
@@ -471,7 +482,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
     if ('tool_calls' in message && message.tool_calls) {
       sum += message.tool_calls.reduce((acc, toolCall) => {
-        return acc + estimateTextTokens(JSON.stringify(toolCall.function.arguments))
+        if (toolCall.type === 'function' && 'function' in toolCall) {
+          return acc + estimateTextTokens(JSON.stringify(toolCall.function.arguments))
+        }
+        return acc
       }, 0)
     }
     return sum
@@ -510,16 +524,20 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             source_lang: 'auto',
             target_lang: mapLanguageToQwenMTModel(targetLanguage!)
           }
+          if (!extra_body.translation_options.target_lang) {
+            throw new Error(t('translate.error.not_supported', { language: targetLanguage?.value }))
+          }
         }
 
         // 1. 处理系统消息
-        let systemMessage = { role: 'system', content: assistant.prompt || '' }
+        const systemMessage = { role: 'system', content: assistant.prompt || '' }
 
-        if (isSupportedReasoningEffortOpenAIModel(model)) {
-          systemMessage = {
-            role: isSupportDeveloperRoleProvider(this.provider) ? 'developer' : 'system',
-            content: `Formatting re-enabled${systemMessage ? '\n' + systemMessage.content : ''}`
-          }
+        if (
+          isSupportedReasoningEffortOpenAIModel(model) &&
+          isSupportDeveloperRoleProvider(this.provider) &&
+          !isOpenAIOpenWeightModel(model)
+        ) {
+          systemMessage.role = 'developer'
         }
 
         if (model.id.includes('o1-mini') || model.id.includes('o1-preview')) {
@@ -544,17 +562,28 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           }
         }
 
-        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
-        if (
-          lastUserMsg &&
-          isSupportedThinkingTokenQwenModel(model) &&
-          !isSupportEnableThinkingProvider(this.provider)
-        ) {
-          const postsuffix = '/no_think'
-          const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
-          const currentContent = lastUserMsg.content
+        // poe 需要通过用户消息传递 reasoningEffort
+        const reasoningEffort = this.getReasoningEffort(assistant, model)
 
-          lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+        const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
+        if (lastUserMsg) {
+          if (isSupportedThinkingTokenQwenModel(model) && !isSupportEnableThinkingProvider(this.provider)) {
+            const postsuffix = '/no_think'
+            const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
+            const currentContent = lastUserMsg.content
+
+            lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+          }
+          if (this.provider.id === SystemProviderIds.poe) {
+            // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分
+            if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
+              lastUserMsg.content += ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
+            } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
+            } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
+              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
+            }
+          }
         }
 
         // 4. 最终请求消息
@@ -572,6 +601,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // Note: Some providers like Mistral don't support stream_options
         const shouldIncludeStreamOptions = streamOutput && isSupportStreamOptionsProvider(this.provider)
 
+        // minimal cannot be used with web_search tool
+        if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort === 'minimal' && enableWebSearch) {
+          reasoningEffort.reasoning_effort = 'low'
+        }
+
         const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
@@ -587,7 +621,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
-          ...this.getReasoningEffort(assistant, model),
+          ...reasoningEffort,
           ...getOpenAIWebSearchParams(model, enableWebSearch),
           // OpenRouter usage tracking
           ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
@@ -740,12 +774,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     let accumulatingText = false
     return (context: ResponseChunkTransformerContext) => ({
       async transform(chunk: OpenAISdkRawChunk, controller: TransformStreamDefaultController<GenericChunk>) {
-        const isOpenRouter = context.provider?.id === 'openrouter'
-
         // 持续更新usage信息
         logger.silly('chunk', chunk)
         if (chunk.usage) {
-          const usage = chunk.usage as any // OpenRouter may include additional fields like cost
+          const usage = chunk.usage
           lastUsageInfo = {
             prompt_tokens: usage.prompt_tokens || 0,
             completion_tokens: usage.completion_tokens || 0,
@@ -753,19 +785,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             // Handle OpenRouter specific cost fields
             ...(usage.cost !== undefined ? { cost: usage.cost } : {})
           }
-
-          // For OpenRouter, if we've seen finish_reason and now have usage, emit completion signals
-          if (isOpenRouter && hasFinishReason && !isFinished) {
-            emitCompletionSignals(controller)
-            return
-          }
         }
 
-        // For OpenRouter, if this chunk only contains usage without choices, emit completion signals
-        if (isOpenRouter && chunk.usage && (!chunk.choices || chunk.choices.length === 0)) {
-          if (!isFinished) {
-            emitCompletionSignals(controller)
-          }
+        // if we've already seen finish_reason, emit completion signals. No matter whether we get usage or not.
+        if (hasFinishReason && !isFinished) {
+          emitCompletionSignals(controller)
           return
         }
 
@@ -814,16 +838,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
             if (!contentSource) {
               if ('finish_reason' in choice && choice.finish_reason) {
-                // For OpenRouter, don't emit completion signals immediately after finish_reason
-                // Wait for the usage chunk that comes after
-                if (isOpenRouter) {
-                  hasFinishReason = true
-                  // If we already have usage info, emit completion signals now
-                  if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
-                    emitCompletionSignals(controller)
-                  }
-                } else {
-                  // For other providers, emit completion signals immediately
+                // OpenAI Chat Completions API 在启用 stream_options: { include_usage: true } 以后
+                // 包含 usage 的 chunk 会在包含 finish_reason: stop 的 chunk 之后
+                // 所以试图等到拿到 usage 之后再发出结束信号
+                hasFinishReason = true
+                // If we already have usage info, emit completion signals now
+                if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
                   emitCompletionSignals(controller)
                 }
               }
@@ -878,10 +898,22 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 accumulatingText = true
               }
               // logger.silly('enqueue TEXT_DELTA')
-              controller.enqueue({
-                type: ChunkType.TEXT_DELTA,
-                text: contentSource.content
-              })
+              // 处理特殊token
+              // 智谱api的一个chunk中只会输出一个token，因而使用 ===，避免正常内容被误判
+              if (
+                context.provider.id === SystemProviderIds.zhipu &&
+                ZHIPU_RESULT_TOKENS.some((pattern) => contentSource.content === pattern)
+              ) {
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: '**' // strong
+                })
+              } else {
+                controller.enqueue({
+                  type: ChunkType.TEXT_DELTA,
+                  text: contentSource.content
+                })
+              }
             } else {
               accumulatingText = false
             }
@@ -901,7 +933,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                       type: 'function'
                     }
                   } else if (fun?.arguments) {
-                    toolCalls[index].function.arguments += fun.arguments
+                    if (toolCalls[index] && toolCalls[index].type === 'function' && 'function' in toolCalls[index]) {
+                      toolCalls[index].function.arguments += fun.arguments
+                    }
                   }
                 } else {
                   toolCalls.push(toolCall)
@@ -927,16 +961,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 })
               }
 
-              // For OpenRouter, don't emit completion signals immediately after finish_reason
+              // Don't emit completion signals immediately after finish_reason
               // Wait for the usage chunk that comes after
-              if (isOpenRouter) {
-                hasFinishReason = true
-                // If we already have usage info, emit completion signals now
-                if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
-                  emitCompletionSignals(controller)
-                }
-              } else {
-                // For other providers, emit completion signals immediately
+              hasFinishReason = true
+              // If we already have usage info, emit completion signals now
+              if (lastUsageInfo && lastUsageInfo.total_tokens > 0) {
                 emitCompletionSignals(controller)
               }
             }

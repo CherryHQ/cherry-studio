@@ -52,7 +52,14 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { AtLeast, OpenAIServiceTiers, Provider, SystemProvider, SystemProviderId } from '@renderer/types'
+import {
+  AtLeast,
+  isSystemProvider,
+  OpenAIServiceTiers,
+  Provider,
+  SystemProvider,
+  SystemProviderId
+} from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
 import { SYSTEM_MODELS } from './models'
@@ -96,8 +103,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.deepseek.com',
     models: SYSTEM_MODELS.deepseek,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   ppio: {
     id: 'ppio',
@@ -352,8 +358,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.baichuan-ai.com',
     models: SYSTEM_MODELS.baichuan,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   dashscope: {
     id: 'dashscope',
@@ -403,8 +408,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.minimax.chat/v1/',
     models: SYSTEM_MODELS.minimax,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   groq: {
     id: 'groq',
@@ -474,8 +478,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.mistral.ai',
     models: SYSTEM_MODELS.mistral,
     isSystem: true,
-    enabled: false,
-    isNotSupportStreamOptions: true
+    enabled: false
   },
   jina: {
     id: 'jina',
@@ -515,8 +518,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://wishub-x1.ctyun.cn',
     models: SYSTEM_MODELS.xirang,
     isSystem: true,
-    enabled: false,
-    isNotSupportArrayContent: true
+    enabled: false
   },
   hunyuan: {
     id: 'hunyuan',
@@ -586,14 +588,13 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.poe.com/v1/',
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
-    enabled: false,
-    isNotSupportDeveloperRole: true
+    enabled: false
   }
 } as const
 
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
-const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
+export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -818,7 +819,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   github: {
     api: {
-      url: 'https://models.github.ai/'
+      url: 'https://models.github.ai/inference/'
     },
     websites: {
       official: 'https://github.com/marketplace/models',
@@ -1224,7 +1225,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   poe: {
     api: {
-      url: 'https://api.poe.com/v1'
+      url: 'https://api.poe.com/v1/'
     },
     websites: {
       official: 'https://poe.com/',
@@ -1252,15 +1253,15 @@ export const isSupportArrayContentProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe', 'qiniu'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持 developer 作为 message role。 Only for OpenAI API.
  */
 export const isSupportDeveloperRoleProvider = (provider: Provider) => {
   return (
-    provider.apiOptions?.isNotSupportDeveloperRole !== true &&
-    !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id)
+    provider.apiOptions?.isSupportDeveloperRole === true ||
+    (isSystemProvider(provider) && !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id))
   )
 }
 
@@ -1276,8 +1277,7 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-// NOTE: 暂时不知道哪些系统提供商不支持该参数，先默认都支持。出问题的时候可以先用自定义参数顶着
-const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.
@@ -1294,9 +1294,9 @@ const NOT_SUPPORT_SERVICE_TIER_PROVIDERS = ['github', 'copilot'] as const satisf
 /**
  * 判断提供商是否支持 service_tier 设置。 Only for OpenAI API.
  */
-export const isSupportServiceTierProviders = (provider: Provider) => {
+export const isSupportServiceTierProvider = (provider: Provider) => {
   return (
-    provider.apiOptions?.isNotSupportServiceTier !== true &&
-    !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id)
+    provider.apiOptions?.isSupportServiceTier === true ||
+    (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
 }

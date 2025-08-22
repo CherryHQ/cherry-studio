@@ -5,6 +5,7 @@ import {
   isEmbeddingModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
+  isQwenMTModel,
   isReasoningModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
@@ -12,6 +13,7 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import {
+  LANG_DETECT_PROMPT,
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
@@ -45,6 +47,7 @@ import {
 } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {
   buildSystemPromptWithThinkTool,
@@ -52,6 +55,7 @@ import {
   containsSupportedVariables,
   replacePromptVariables
 } from '@renderer/utils/prompt'
+import { getTranslateOptions } from '@renderer/utils/translate'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -61,12 +65,12 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel
+  getQuickModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
 import {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
@@ -103,9 +107,9 @@ async function fetchExternalTool(
   const showListTools = enabledMCPs && enabledMCPs.length > 0
 
   // 是否使用工具
-  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory || showListTools
+  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || showListTools
 
-  // 在工具链开始时发送进度通知
+  // 在工具链开始时发送进度通知（不包括记忆搜索）
   if (hasAnyTool) {
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
   }
@@ -130,7 +134,7 @@ async function fetchExternalTool(
     }
 
     const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
+    summaryAssistant.model = getQuickModel() || assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
     const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
@@ -441,7 +445,7 @@ export async function fetchChatCompletion({
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
+  const filteredMessages1 = filterAfterContextClearMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -455,14 +459,16 @@ export async function fetchChatCompletion({
   const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
   const model = assistant.model || getDefaultModel()
 
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
-  const filteredMessages = filterUsefulMessages(messages)
+  const filteredMessages2 = filterUsefulMessages(filteredMessages1)
+
+  const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
+
+  const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
 
   const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
   )
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
@@ -483,7 +489,7 @@ export async function fetchChatCompletion({
     isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
 
   // --- Call AI Completions ---
-
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   const completionsParams: CompletionsParams = {
     callType: 'chat',
     messages: _messages,
@@ -604,9 +610,77 @@ async function processConversationMemory(messages: Message[], assistant: Assista
   }
 }
 
+interface FetchLanguageDetectionProps {
+  text: string
+  onResponse?: (text: string, isComplete: boolean) => void
+}
+
+/**
+ * 检测文本语言
+ * @param params - 参数对象
+ * @param {string} params.text - 需要检测语言的文本内容
+ * @param {function} [params.onResponse] - 流式响应回调函数,用于实时获取检测结果
+ * @returns {Promise<string>} 返回检测到的语言代码,如果检测失败会抛出错误
+ * @throws {Error}
+ */
+export async function fetchLanguageDetection({ text, onResponse }: FetchLanguageDetectionProps) {
+  const translateLanguageOptions = await getTranslateOptions()
+  const listLang = translateLanguageOptions.map((item) => item.langCode)
+  const listLangText = JSON.stringify(listLang)
+
+  const model = getQuickModel() || getDefaultModel()
+  if (!model) {
+    throw new Error(i18n.t('error.model.not_exists'))
+  }
+
+  if (isQwenMTModel(model)) {
+    logger.info('QwenMT cannot be used for language detection.')
+    if (isQwenMTModel(model)) {
+      throw new Error(i18n.t('translate.error.detect.qwen_mt'))
+    }
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!hasApiKey(provider)) {
+    throw new Error(i18n.t('error.no_api_key'))
+  }
+
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.model = model
+  assistant.settings = {
+    temperature: 0.7
+  }
+  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
+
+  const isSupportedStreamOutput = () => {
+    if (!onResponse) {
+      return false
+    }
+    return true
+  }
+
+  const stream = isSupportedStreamOutput()
+
+  const params: CompletionsParams = {
+    callType: 'translate-lang-detect',
+    messages: 'follow system prompt',
+    assistant,
+    streamOutput: stream,
+    enableReasoning: false,
+    shouldThrow: true,
+    onResponse
+  }
+
+  const AI = new AiProvider(provider)
+
+  return (await AI.completions(params)).getText()
+}
+
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -676,7 +750,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {

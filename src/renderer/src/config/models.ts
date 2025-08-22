@@ -57,6 +57,10 @@ import {
 } from '@renderer/assets/images/models/gpt_dark.png'
 import ChatGPTImageModelLogo from '@renderer/assets/images/models/gpt_image_1.png'
 import ChatGPTo1ModelLogo from '@renderer/assets/images/models/gpt_o1.png'
+import GPT5ModelLogo from '@renderer/assets/images/models/gpt-5.png'
+import GPT5ChatModelLogo from '@renderer/assets/images/models/gpt-5-chat.png'
+import GPT5MiniModelLogo from '@renderer/assets/images/models/gpt-5-mini.png'
+import GPT5NanoModelLogo from '@renderer/assets/images/models/gpt-5-nano.png'
 import GrokModelLogo from '@renderer/assets/images/models/grok.png'
 import GrokModelLogoDark from '@renderer/assets/images/models/grok_dark.png'
 import GrypheModelLogo from '@renderer/assets/images/models/gryphe.png'
@@ -185,6 +189,7 @@ const visionAllowedModels = [
   'gpt-4.1(?:-[\\w-]+)?',
   'gpt-4o(?:-[\\w-]+)?',
   'gpt-4.5(?:-[\\w-]+)',
+  'gpt-5(?:-[\\w-]+)?',
   'chatgpt-4o(?:-[\\w-]+)?',
   'o1(?:-[\\w-]+)?',
   'o3(?:-[\\w-]+)?',
@@ -247,6 +252,7 @@ export const FUNCTION_CALLING_MODELS = [
   'gpt-4',
   'gpt-4.5',
   'gpt-oss(?:-[\\w-]+)',
+  'gpt-5(?:-[0-9-]+)?',
   'o(1|3|4)(?:-[\\w-]+)?',
   'claude',
   'qwen',
@@ -269,7 +275,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'o1-preview',
   'AIDC-AI/Marco-o1',
   'gemini-1(?:\\.[\\w-]+)?',
-  'qwen-mt(?:-[\\w-]+)?'
+  'qwen-mt(?:-[\\w-]+)?',
+  'gpt-5-chat(?:-[\\w-]+)?'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -285,12 +292,15 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 // 模型类型到支持的reasoning_effort的映射表
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
+  o: ['low', 'medium', 'high'] as const,
+  gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
+  doubao_no_auto: ['high'] as const,
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const
@@ -299,37 +309,48 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
 // 模型类型到支持选项的映射表
 export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  grok: [...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
+  o: MODEL_SUPPORTED_REASONING_EFFORT.o,
+  gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
-  gemini_pro: [...MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro] as const,
+  gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
-  qwen_thinking: [...MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking] as const,
+  qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: [...MODEL_SUPPORTED_REASONING_EFFORT.perplexity] as const
+  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
-  if (isSupportedThinkingTokenGeminiModel(model)) {
+  let thinkingModelType: ThinkingModelType = 'default'
+  if (isGPT5SeriesModel(model)) {
+    thinkingModelType = 'gpt5'
+  } else if (isSupportedReasoningEffortOpenAIModel(model)) {
+    thinkingModelType = 'o'
+  } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-      return 'gemini'
+      thinkingModelType = 'gemini'
     } else {
-      return 'gemini_pro'
+      thinkingModelType = 'gemini_pro'
     }
-  }
-  if (isSupportedReasoningEffortGrokModel(model)) return 'grok'
-  if (isSupportedThinkingTokenQwenModel(model)) {
+  } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
+  else if (isSupportedThinkingTokenQwenModel(model)) {
     if (isQwenAlwaysThinkModel(model)) {
-      return 'qwen_thinking'
+      thinkingModelType = 'qwen_thinking'
     }
-    return 'qwen'
-  }
-  if (isSupportedThinkingTokenDoubaoModel(model)) return 'doubao'
-  if (isSupportedThinkingTokenHunyuanModel(model)) return 'hunyuan'
-  if (isSupportedReasoningEffortPerplexityModel(model)) return 'perplexity'
-  if (isSupportedThinkingTokenZhipuModel(model)) return 'zhipu'
-  return 'default'
+    thinkingModelType = 'qwen'
+  } else if (isSupportedThinkingTokenDoubaoModel(model)) {
+    if (isDoubaoThinkingAutoModel(model)) {
+      thinkingModelType = 'doubao'
+    } else {
+      thinkingModelType = 'doubao_no_auto'
+    }
+  } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
+  else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
+  else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
+  return thinkingModelType
 }
 
 export function isFunctionCallingModel(model?: Model): boolean {
@@ -380,6 +401,10 @@ export function getModelLogo(modelId: string) {
     'gpt-image': ChatGPTImageModelLogo,
     'gpt-3': isLight ? ChatGPT35ModelLogo : ChatGPT35ModelLogoDark,
     'gpt-4': isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
+    'gpt-5-mini': GPT5MiniModelLogo,
+    'gpt-5-nano': GPT5NanoModelLogo,
+    'gpt-5-chat': GPT5ChatModelLogo,
+    'gpt-5': GPT5ModelLogo,
     gpts: isLight ? ChatGPT4ModelLogo : ChatGPT4ModelLogoDark,
     'gpt-oss(?:-[\\w-]+)': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     'text-moderation': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
@@ -621,34 +646,58 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   aihubmix: [
     {
+      id: 'gpt-5',
+      provider: 'aihubmix',
+      name: 'gpt-5',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5-mini',
+      provider: 'aihubmix',
+      name: 'gpt-5-mini',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5-nano',
+      provider: 'aihubmix',
+      name: 'gpt-5-nano',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-5-chat-latest',
+      provider: 'aihubmix',
+      name: 'gpt-5-chat-latest',
+      group: 'OpenAI'
+    },
+    {
       id: 'o3',
       provider: 'aihubmix',
       name: 'o3',
-      group: 'gpt'
+      group: 'OpenAI'
     },
     {
       id: 'o4-mini',
       provider: 'aihubmix',
       name: 'o4-mini',
-      group: 'gpt'
+      group: 'OpenAI'
     },
     {
       id: 'gpt-4.1',
       provider: 'aihubmix',
       name: 'gpt-4.1',
-      group: 'gpt'
+      group: 'OpenAI'
     },
     {
       id: 'gpt-4o',
       provider: 'aihubmix',
       name: 'gpt-4o',
-      group: 'gpt'
+      group: 'OpenAI'
     },
     {
       id: 'gpt-image-1',
       provider: 'aihubmix',
       name: 'gpt-image-1',
-      group: 'gpt'
+      group: 'OpenAI'
     },
     {
       id: 'DeepSeek-V3',
@@ -657,28 +706,58 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'DeepSeek'
     },
     {
+      id: 'DeepSeek-R1',
+      provider: 'aihubmix',
+      name: 'DeepSeek-R1',
+      group: 'DeepSeek'
+    },
+    {
       id: 'claude-sonnet-4-20250514',
       provider: 'aihubmix',
       name: 'claude-sonnet-4-20250514',
-      group: 'claude'
+      group: 'Claude'
     },
     {
-      id: 'gemini-2.5-pro-preview-05-06',
+      id: 'gemini-2.5-pro',
       provider: 'aihubmix',
-      name: 'gemini-2.5-pro-preview-05-06',
-      group: 'gemini'
+      name: 'gemini-2.5-pro',
+      group: 'Gemini'
     },
     {
-      id: 'gemini-2.5-flash-preview-05-20-nothink',
+      id: 'gemini-2.5-flash-nothink',
       provider: 'aihubmix',
-      name: 'gemini-2.5-flash-preview-05-20-nothink',
-      group: 'gemini'
+      name: 'gemini-2.5-flash-nothink',
+      group: 'Gemini'
     },
     {
       id: 'gemini-2.5-flash',
       provider: 'aihubmix',
       name: 'gemini-2.5-flash',
-      group: 'gemini'
+      group: 'Gemini'
+    },
+    {
+      id: 'Qwen3-235B-A22B-Instruct-2507',
+      provider: 'aihubmix',
+      name: 'Qwen3-235B-A22B-Instruct-2507',
+      group: 'qwen'
+    },
+    {
+      id: 'kimi-k2-0711-preview',
+      provider: 'aihubmix',
+      name: 'kimi-k2-0711-preview',
+      group: 'moonshot'
+    },
+    {
+      id: 'Llama-4-Scout-17B-16E-Instruct',
+      provider: 'aihubmix',
+      name: 'Llama-4-Scout-17B-16E-Instruct',
+      group: 'llama'
+    },
+    {
+      id: 'Llama-4-Maverick-17B-128E-Instruct-FP8',
+      provider: 'aihubmix',
+      name: 'Llama-4-Maverick-17B-128E-Instruct-FP8',
+      group: 'llama'
     }
   ],
 
@@ -2453,7 +2532,7 @@ export function isVisionModel(model: Model): boolean {
 
 export function isOpenAIReasoningModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return modelId.includes('o1') || modelId.includes('o3') || modelId.includes('o4') || modelId.includes('gpt-oss')
+  return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
 }
 
 export function isOpenAILLMModel(model: Model): boolean {
@@ -2479,6 +2558,7 @@ export function isOpenAIModel(model: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
+
   return modelId.includes('gpt') || isOpenAIReasoningModel(model)
 }
 
@@ -2487,7 +2567,14 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  return (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini')
+  return (
+    (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
+  )
+}
+
+export function isSupportVerbosityModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return isGPT5SeriesModel(model) && !modelId.includes('chat')
 }
 
 export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
@@ -2495,7 +2582,9 @@ export function isSupportedReasoningEffortOpenAIModel(model: Model): boolean {
   return (
     (modelId.includes('o1') && !(modelId.includes('o1-preview') || modelId.includes('o1-mini'))) ||
     modelId.includes('o3') ||
-    modelId.includes('o4')
+    modelId.includes('o4') ||
+    modelId.includes('gpt-oss') ||
+    (isGPT5SeriesModel(model) && !modelId.includes('chat'))
   )
 }
 
@@ -2527,7 +2616,8 @@ export function isOpenAIWebSearchModel(model: Model): boolean {
     (modelId.includes('gpt-4.1') && !modelId.includes('gpt-4.1-nano')) ||
     (modelId.includes('gpt-4o') && !modelId.includes('gpt-4o-image')) ||
     modelId.includes('o3') ||
-    modelId.includes('o4')
+    modelId.includes('o4') ||
+    (modelId.includes('gpt-5') && !modelId.includes('chat'))
   )
 }
 
@@ -2694,7 +2784,7 @@ export function isSupportedThinkingTokenDoubaoModel(model?: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(modelId)
+  return DOUBAO_THINKING_MODEL_REGEX.test(modelId) || DOUBAO_THINKING_MODEL_REGEX.test(model.name)
 }
 
 export function isClaudeReasoningModel(model?: Model): boolean {
@@ -2819,7 +2909,11 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
+  if (
+    (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
+    isOpenAIChatCompletionOnlyModel(model) ||
+    isQwenMTModel(model)
+  ) {
     return true
   }
 
@@ -2867,12 +2961,16 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'aihubmix') {
+    // modelId 不以-search结尾
+    if (!modelId.endsWith('-search') && GEMINI_SEARCH_REGEX.test(modelId)) {
+      return true
+    }
+
     if (isOpenAIWebSearchModel(model)) {
       return true
     }
 
-    const models = ['gemini-2.0-flash-search', 'gemini-2.0-flash-exp-search', 'gemini-2.0-pro-exp-02-05-search']
-    return models.includes(modelId)
+    return false
   }
 
   if (provider?.type === 'openai') {
@@ -2905,6 +3003,26 @@ export function isWebSearchModel(model: Model): boolean {
 
   if (provider.id === 'grok') {
     return true
+  }
+
+  return false
+}
+
+export function isMandatoryWebSearchModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+
+  if (provider.id === 'perplexity' || provider.id === 'openrouter') {
+    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
   return false
@@ -3133,17 +3251,22 @@ export const isQwenMTModel = (model: Model): boolean => {
 }
 
 export const isNotSupportedTextDelta = (model: Model): boolean => {
-  if (isQwenMTModel(model)) {
-    return true
-  }
-
-  return false
+  return isQwenMTModel(model)
 }
 
 export const isNotSupportSystemMessageModel = (model: Model): boolean => {
-  if (isQwenMTModel(model) || isGemmaModel(model)) {
-    return true
-  }
-
-  return false
+  return isQwenMTModel(model) || isGemmaModel(model)
 }
+
+export const isGPT5SeriesModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5')
+}
+
+export const isOpenAIOpenWeightModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-oss')
+}
+
+// zhipu 视觉推理模型用这组 special token 标记推理结果
+export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const

@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 
 import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { Mistral } from '@mistralai/mistralai'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 
@@ -21,7 +22,7 @@ export class MistralService extends BaseFileService {
 
   async uploadFile(file: FileMetadata): Promise<FileUploadResponse> {
     try {
-      const fileBuffer = await fs.readFile(file.path)
+      const fileBuffer = await fs.readFile(fileStorage.getFilePathById(file))
       const response = await this.client.files.upload({
         file: {
           fileName: file.origin_name,

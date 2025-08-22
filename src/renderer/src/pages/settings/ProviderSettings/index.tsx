@@ -327,7 +327,7 @@ const ProvidersList: FC = () => {
         if (name) {
           updateProvider({ ...provider, name, type })
           if (provider.id) {
-            if (logoFile && logo) {
+            if (logo) {
               try {
                 await ImageStorage.set(`provider-${provider.id}`, logo)
                 setProviderLogos((prev) => ({
@@ -466,6 +466,7 @@ const ProvidersList: FC = () => {
             onChange={(e) => setSearchText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
+                e.stopPropagation()
                 setSearchText('')
               }
             }}
@@ -535,6 +536,7 @@ const ProviderListContainer = styled.div`
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
   height: calc(100vh - var(--navbar-height));
+  padding-bottom: 5px;
   border-right: 0.5px solid var(--color-border);
 `
 

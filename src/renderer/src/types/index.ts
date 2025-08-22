@@ -36,7 +36,7 @@ export type Assistant = {
 }
 
 export type TranslateAssistant = Assistant & {
-  targetLanguage?: Language
+  targetLanguage?: TranslateLanguage
 }
 
 export type AssistantsSortType = 'tags' | 'list'
@@ -52,41 +52,35 @@ export type AssistantSettingCustomParameters = {
   type: 'string' | 'number' | 'boolean' | 'json'
 }
 
-export type ReasoningEffortOption = 'low' | 'medium' | 'high' | 'auto'
-export type ThinkingOption = ReasoningEffortOption | 'off'
-export type ThinkingModelType =
-  | 'default'
-  | 'grok'
-  | 'gemini'
-  | 'gemini_pro'
-  | 'qwen'
-  | 'qwen_thinking'
-  | 'doubao'
-  | 'hunyuan'
-  | 'zhipu'
-  | 'perplexity'
-export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
-export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
-export type EffortRatio = Record<ReasoningEffortOption, number>
-
-const ThinkModelTypes: ThinkingModelType[] = [
+const ThinkModelTypes = [
   'default',
+  'o',
+  'gpt5',
   'grok',
   'gemini',
   'gemini_pro',
   'qwen',
   'qwen_thinking',
   'doubao',
+  'doubao_no_auto',
   'hunyuan',
   'zhipu',
   'perplexity'
 ] as const
+
+export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
+export type ThinkingOption = ReasoningEffortOption | 'off'
+export type ThinkingModelType = (typeof ThinkModelTypes)[number]
+export type ThinkingOptionConfig = Record<ThinkingModelType, ThinkingOption[]>
+export type ReasoningEffortConfig = Record<ThinkingModelType, ReasoningEffortOption[]>
+export type EffortRatio = Record<ReasoningEffortOption, number>
 
 export function isThinkModelType(type: string): type is ThinkingModelType {
   return ThinkModelTypes.some((t) => t === type)
 }
 
 export const EFFORT_RATIO: EffortRatio = {
+  minimal: 0.05,
   low: 0.05,
   medium: 0.5,
   high: 0.8,
@@ -105,6 +99,13 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOption
+  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复.
+   *
+   * TODO: 目前 reasoning_effort === undefined 有两个语义，有的场景是显式关闭思考，有的场景是不传参。
+   * 未来应该重构思考控制，将启用/关闭思考和思考选项分离，这样就不用依赖 cache 了。
+   *
+   */
+  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
 }
@@ -198,10 +199,18 @@ export type ProviderApiOptions = {
   isNotSupportArrayContent?: boolean
   /** 是否不支持 stream_options 参数 */
   isNotSupportStreamOptions?: boolean
-  /** 是否不支持 message 的 role 为 developer */
+  /**
+   * @deprecated
+   * 是否不支持 message 的 role 为 developer */
   isNotSupportDeveloperRole?: boolean
-  /** 是否不支持 service_tier 参数. Only for OpenAI Models. */
+  /* 是否支持 message 的 role 为 developer */
+  isSupportDeveloperRole?: boolean
+  /**
+   * @deprecated
+   * 是否不支持 service_tier 参数. Only for OpenAI Models. */
   isNotSupportServiceTier?: boolean
+  /* 是否支持 service_tier 参数. Only for OpenAI Models. */
+  isSupportServiceTier?: boolean
   /** 是否不支持 enable_thinking 参数 */
   isNotSupportEnableThinking?: boolean
 }
@@ -402,6 +411,9 @@ export interface GeneratePainting extends PaintingParams {
   background?: string
   personGeneration?: GenerateImagesConfig['personGeneration']
   numberOfImages?: number
+  safetyTolerance?: number
+  width?: number
+  height?: number
 }
 
 export interface EditPainting extends PaintingParams {
@@ -503,9 +515,8 @@ export enum ThemeMode {
   system = 'system'
 }
 
+/** 有限的UI语言 */
 export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
-
-export type TranslateLanguageVarious = LanguageCode
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -608,8 +619,20 @@ export type KnowledgeBaseParams = {
   }
 }
 
+export const PreprocessProviderIds = {
+  doc2x: 'doc2x',
+  mistral: 'mistral',
+  mineru: 'mineru'
+} as const
+
+export type PreprocessProviderId = keyof typeof PreprocessProviderIds
+
+export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
+  return Object.hasOwn(PreprocessProviderIds, id)
+}
+
 export interface PreprocessProvider {
-  id: string
+  id: PreprocessProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -637,33 +660,13 @@ export type GenerateImageResponse = {
   images: string[]
 }
 
-export type LanguageCode =
-  | 'unknown'
-  | 'en-us'
-  | 'zh-cn'
-  | 'zh-tw'
-  | 'ja-jp'
-  | 'ko-kr'
-  | 'fr-fr'
-  | 'de-de'
-  | 'it-it'
-  | 'es-es'
-  | 'pt-pt'
-  | 'ru-ru'
-  | 'pl-pl'
-  | 'ar-ar'
-  | 'tr-tr'
-  | 'th-th'
-  | 'vi-vn'
-  | 'id-id'
-  | 'ur-pk'
-  | 'ms-my'
-  | 'uk-ua'
+// 为了支持自定义语言，设置为string别名
+export type TranslateLanguageCode = string
 
 // langCode应当能够唯一确认一种语言
-export type Language = {
+export type TranslateLanguage = {
   value: string
-  langCode: LanguageCode
+  langCode: TranslateLanguageCode
   label: () => string
   emoji: string
 }
@@ -672,12 +675,39 @@ export interface TranslateHistory {
   id: string
   sourceText: string
   targetText: string
-  sourceLanguage: LanguageCode
-  targetLanguage: LanguageCode
+  sourceLanguage: TranslateLanguageCode
+  targetLanguage: TranslateLanguageCode
   createdAt: string
 }
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export type CustomTranslateLanguage = {
+  id: string
+  langCode: TranslateLanguageCode
+  value: string
+  emoji: string
+}
+
+export const AutoDetectionMethods = {
+  franc: 'franc',
+  llm: 'llm',
+  auto: 'auto'
+} as const
+
+export type AutoDetectionMethod = keyof typeof AutoDetectionMethods
+
+export const isAutoDetectionMethod = (method: string): method is AutoDetectionMethod => {
+  return Object.hasOwn(AutoDetectionMethods, method)
+}
+
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'code_tools'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -687,8 +717,24 @@ export type ExternalToolResult = {
   memories?: MemoryItem[]
 }
 
+export const WebSearchProviderIds = {
+  tavily: 'tavily',
+  searxng: 'searxng',
+  exa: 'exa',
+  bocha: 'bocha',
+  'local-google': 'local-google',
+  'local-bing': 'local-bing',
+  'local-baidu': 'local-baidu'
+} as const
+
+export type WebSearchProviderId = keyof typeof WebSearchProviderIds
+
+export const isWebSearchProviderId = (id: string): id is WebSearchProviderId => {
+  return Object.hasOwn(WebSearchProviderIds, id)
+}
+
 export type WebSearchProvider = {
-  id: string
+  id: WebSearchProviderId
   name: string
   apiKey?: string
   apiHost?: string
@@ -971,6 +1017,8 @@ export interface StoreSyncAction {
     source?: string
   }
 }
+
+export type OpenAIVerbosity = 'high' | 'medium' | 'low'
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
 

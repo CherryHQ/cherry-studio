@@ -9,6 +9,7 @@ import { useMessageOperations, useTopicMessages } from '@renderer/hooks/useMessa
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -55,21 +56,23 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const { containerRef: scrollContainerRef, handleScroll: handleScrollPosition } = useScrollPosition(
     `topic-${topic.id}`
   )
-  const { t } = useTranslation()
-  const { showPrompt, messageNavigation } = useSettings()
-  const { updateTopic, addTopic } = useAssistant(assistant.id)
-  const dispatch = useAppDispatch()
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
 
-  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const { updateTopic, addTopic } = useAssistant(assistant.id)
+  const { showPrompt, messageNavigation } = useSettings()
+  const { t } = useTranslation()
+  const dispatch = useAppDispatch()
   const messages = useTopicMessages(topic.id)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
-  const messagesRef = useRef<Message[]>(messages)
+  const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
+
+  const messageElements = useRef<Map<string, HTMLElement>>(new Map())
+  const messagesRef = useRef<Message[]>(messages)
 
   useEffect(() => {
     messagesRef.current = messages
@@ -256,15 +259,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     if (!hasMore || isLoadingMore) return
 
     setIsLoadingMore(true)
-    setTimeout(() => {
-      const currentLength = displayMessages.length
-      const newMessages = computeDisplayMessages(messages, currentLength, LOAD_MORE_COUNT)
+    setTimeoutTimer(
+      'loadMoreMessages',
+      () => {
+        const currentLength = displayMessages.length
+        const newMessages = computeDisplayMessages(messages, currentLength, LOAD_MORE_COUNT)
 
-      setDisplayMessages((prev) => [...prev, ...newMessages])
-      setHasMore(currentLength + LOAD_MORE_COUNT < messages.length)
-      setIsLoadingMore(false)
-    }, 300)
-  }, [displayMessages.length, hasMore, isLoadingMore, messages])
+        setDisplayMessages((prev) => [...prev, ...newMessages])
+        setHasMore(currentLength + LOAD_MORE_COUNT < messages.length)
+        setIsLoadingMore(false)
+      },
+      300
+    )
+  }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
 
   useShortcut('copy_last_message', () => {
     const lastMessage = last(messages)
@@ -278,7 +285,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     requestAnimationFrame(() => onComponentUpdate?.())
   }, [onComponentUpdate])
 
-  const groupedMessages = useMemo(() => Object.entries(getGroupedMessages(displayMessages)), [displayMessages])
+  // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
+  const groupedMessages = useMemo(() => {
+    const grouped = Object.entries(getGroupedMessages(displayMessages))
+    const newGrouped: {
+      [key: string]: (Message & {
+        index: number
+      })[]
+    } = {}
+    grouped.forEach(([key, group]) => {
+      newGrouped[key] = group.toReversed()
+    })
+    return Object.entries(newGrouped)
+  }, [displayMessages])
 
   return (
     <MessagesContainer

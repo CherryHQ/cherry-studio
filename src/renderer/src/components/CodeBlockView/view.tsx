@@ -18,15 +18,14 @@ import { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
+import { getExtensionByLanguage } from '@renderer/utils/code-language'
 import { extractTitle } from '@renderer/utils/formats'
-import { getExtensionByLanguage, isHtmlCode } from '@renderer/utils/markdown'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
-import HtmlArtifactsCard from './HtmlArtifactsCard'
 import StatusBar from './StatusBar'
 import { ViewMode } from './types'
 
@@ -287,21 +286,19 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
   const renderContent = useMemo(() => {
-    const showSpecialView = specialView && ['special', 'split'].includes(viewMode)
+    const showSpecialView = !!specialView && ['special', 'split'].includes(viewMode)
     const showSourceView = !specialView || viewMode !== 'special'
 
     return (
-      <SplitViewWrapper className="split-view-wrapper" $viewMode={viewMode}>
+      <SplitViewWrapper
+        className="split-view-wrapper"
+        $isSpecialView={showSpecialView && !showSourceView}
+        $isSplitView={showSpecialView && showSourceView}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
       </SplitViewWrapper>
     )
   }, [specialView, sourceView, viewMode])
-
-  // HTML 代码块特殊处理 - 在所有 hooks 调用之后
-  if (language === 'html' && isHtmlCode(children)) {
-    return <HtmlArtifactsCard html={children} />
-  }
 
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
@@ -362,7 +359,7 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
 `
 
-const SplitViewWrapper = styled.div<{ $viewMode?: ViewMode }>`
+const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boolean }>`
   display: flex;
 
   > * {
@@ -372,13 +369,13 @@ const SplitViewWrapper = styled.div<{ $viewMode?: ViewMode }>`
 
   &:not(:has(+ [class*='Container'])) {
     // 特殊视图的 header 会隐藏，所以全都使用圆角
-    border-radius: ${(props) => (props.$viewMode === 'special' ? '8px' : '0 0 8px 8px')};
+    border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
     overflow: hidden;
   }
 
   // 在 split 模式下添加中间分隔线
   ${(props) =>
-    props.$viewMode === 'split' &&
+    props.$isSplitView &&
     css`
       position: relative;
 

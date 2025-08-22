@@ -187,6 +187,7 @@
         "label": "思考連鎖の長さ",
         "low": "少しの思考",
         "medium": "普通の思考",
+        "minimal": "最小限の思考",
         "off": "オフ"
       },
       "regular_phrases": {
@@ -321,6 +322,7 @@
       "expand": "展開",
       "file_error": "ファイル処理エラー",
       "file_not_supported": "モデルはこのファイルタイプをサポートしません",
+      "file_not_supported_count": "{{count}} 個のファイルはサポートされていません",
       "generate_image": "画像を生成する",
       "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "knowledge_base": "ナレッジベース",
@@ -404,7 +406,10 @@
       "regenerate": {
         "model": "モデルを切り替え"
       },
-      "useful": "役立つ"
+      "useful": {
+        "label": "上下文として設定する",
+        "tip": "このメッセージは、このメッセージセットの中でコンテキストに含まれるために選択されます"
+      }
     },
     "multiple": {
       "select": {
@@ -579,7 +584,8 @@
       },
       "edit": {
         "placeholder": "新しい名前を入力",
-        "title": "名前を編集"
+        "title": "名前を編集",
+        "title_tip": "ヒント: トピック名をダブルクリックすると、直接その場で名前を変更できます"
       },
       "export": {
         "image": "画像としてエクスポート",
@@ -643,6 +649,33 @@
       "unpin": "固定解除"
     },
     "translate": "翻訳"
+  },
+  "code": {
+    "auto_update_to_latest": "最新バージョンを自動的に更新する",
+    "bun_required_message": "CLI ツールを実行するには Bun 環境が必要です",
+    "cli_tool": "CLI ツール",
+    "cli_tool_placeholder": "使用する CLI ツールを選択してください",
+    "description": "開発効率を向上させるために、複数のコード CLI ツールを迅速に起動します",
+    "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
+    "environment_variables": "環境変数",
+    "folder_placeholder": "作業ディレクトリを選択してください",
+    "install_bun": "Bun をインストール",
+    "installing_bun": "インストール中...",
+    "launch": {
+      "bun_required": "CLI ツールを実行するには Bun 環境が必要です。まず Bun をインストールしてください",
+      "error": "起動に失敗しました。もう一度試してください",
+      "label": "起動",
+      "success": "起動成功",
+      "validation_error": "必須項目を入力してください：CLI ツール、モデル、作業ディレクトリ"
+    },
+    "launching": "起動中...",
+    "model": "モデル",
+    "model_placeholder": "使用するモデルを選択してください",
+    "model_required": "モデルを選択してください",
+    "select_folder": "フォルダを選択",
+    "title": "コードツール",
+    "update_options": "更新オプション",
+    "working_directory": "作業ディレクトリ"
   },
   "code_block": {
     "collapse": "折りたたむ",
@@ -791,7 +824,8 @@
     },
     "missing_user_message": "モデル応答を切り替えられません：元のユーザーメッセージが削除されました。このモデルで応答を得るには、新しいメッセージを送信してください",
     "model": {
-      "exists": "モデルが既に存在します"
+      "exists": "モデルが既に存在します",
+      "not_exists": "モデルが存在しません"
     },
     "no_api_key": "APIキーが設定されていません",
     "pause_placeholder": "応答を一時停止しました",
@@ -811,6 +845,9 @@
     "created": "作成日",
     "last_updated": "最終更新日",
     "messages": "メッセージ",
+    "notion": {
+      "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
+    },
     "user": "ユーザー"
   },
   "files": {
@@ -848,6 +885,9 @@
   },
   "history": {
     "continue_chat": "チャットを続ける",
+    "error": {
+      "topic_not_found": "トピックが見つかりません"
+    },
     "locate": {
       "message": "メッセージを探す"
     },
@@ -1228,7 +1268,8 @@
       },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
-        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません"
+        "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
+        "no_content": "Notionにエクスポートできる内容がありません。"
       },
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
@@ -1354,14 +1395,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "Notionにエクスポート中です。重複してエクスポートしないでください! "
-      },
-      "siyuan": {
-        "exporting": "思源ノートにエクスポート中です。重複してエクスポートしないでください!"
-      },
-      "yuque": {
-        "exporting": "語雀にエクスポート中です。重複してエクスポートしないでください!"
+      "export": {
+        "exporting": "他のエクスポートが実行中です。前のエクスポートが完了するまでお待ちください。"
       }
     },
     "warning": {
@@ -1409,6 +1444,27 @@
       }
     },
     "title": "ミニアプリ"
+  },
+  "minapps": {
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度AI検索",
+    "chatglm": "ChatGLM",
+    "dangbei": "当贝AI",
+    "doubao": "豆包",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "通義千問",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "騰訊元宝",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "万知",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "小藝",
+    "yuewen": "躍問",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -1550,6 +1606,7 @@
       "style_type_tip": "編集後の画像スタイル、V_2 以上のバージョンでのみ適用"
     },
     "generate": {
+      "height": "高さ",
       "magic_prompt_option_tip": "生成効果を向上させるための提示詞を最適化します",
       "model_tip": "モデルバージョン：V2 は最新 API モデル、V2A は高速モデル、V_1 は初代モデル、_TURBO は高速処理版です",
       "negative_prompt_tip": "画像に含めたくない内容を説明します",
@@ -1557,8 +1614,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "人物画像を生成する",
       "rendering_speed_tip": "レンダリング速度と品質のバランスを調整します。V_3バージョンでのみ利用可能です",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "画像生成の安全耐性を制御します。FLUX.1-Kontext-pro のみ利用可能です",
       "seed_tip": "画像生成のランダム性を制御して、同じ生成結果を再現します",
-      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用"
+      "style_type_tip": "画像生成スタイル、V_2 以上のバージョンでのみ適用",
+      "width": "幅"
     },
     "generated_image": "生成画像",
     "go_to_settings": "設定に移動",
@@ -1613,7 +1673,7 @@
     "prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-    "prompt_placeholder_en": "「英語」の説明を入力します。Imagenは現在、英語のプロンプト語のみをサポートしています",
+    "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -2221,8 +2281,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "この設定は、すべてのMarkdownエクスポート方法に影響します。",
-          "title": "トピック命名モデルを使用してメッセージのタイトルを作成"
+          "help": "有効にすると、エクスポートされたメッセージのタイトル名に高速モデルを使用します。この設定はMarkdownによるエクスポート方法全般にも影響します。",
+          "title": "高速モデルを使用してエクスポートされたメッセージのタイトルを命名"
         }
       },
       "minute_interval_one": "{{count}} 分",
@@ -2622,6 +2682,7 @@
         "title": "自動更新"
       },
       "avatar": {
+        "builtin": "内蔵アバター",
         "reset": "アバターをリセット"
       },
       "backup": {
@@ -2671,6 +2732,11 @@
     },
     "input": {
       "auto_translate_with_space": "スペースを3回押して翻訳",
+      "clear": {
+        "all": "クリア",
+        "knowledge_base": "選択された知識ベースをクリア",
+        "models": "すべてのモデルをクリア"
+      },
       "show_translate_confirm": "翻訳確認ダイアログを表示",
       "target_language": {
         "chinese": "簡体字中国語",
@@ -2685,6 +2751,17 @@
       "onboot": "起動時に自動で開始",
       "title": "起動",
       "totray": "起動時にトレイに最小化"
+    },
+    "math": {
+      "engine": {
+        "label": "数式エンジン",
+        "none": "なし"
+      },
+      "single_dollar": {
+        "label": "$...$ を有効にする",
+        "tip": "単一のドル記号 $...$ で囲まれた数式をレンダリングします。デフォルトで有効です。"
+      },
+      "title": "数式設定"
     },
     "mcp": {
       "actions": "操作",
@@ -2860,7 +2937,7 @@
       "tagsPlaceholder": "タグを入力",
       "timeout": "タイムアウト",
       "timeoutTooltip": "このサーバーへのリクエストのタイムアウト時間（秒）、デフォルトは60秒です",
-      "title": "MCP 設定",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自動承認",
@@ -2907,7 +2984,6 @@
         "label": "グリッド詳細トリガー"
       },
       "input": {
-        "enable_delete_model": "バックスペースキーでモデル/添付ファイルを削除します。",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
         "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
         "paste_long_text_threshold": "長いテキストの長さ",
@@ -2916,10 +2992,6 @@
         "title": "入力設定"
       },
       "markdown_rendering_input_message": "Markdownで入力メッセージをレンダリング",
-      "math_engine": {
-        "label": "数式エンジン",
-        "none": "なし"
-      },
       "metrics": "最初のトークンまでの時間 {{time_first_token_millsec}}ms | トークン速度 {{token_speed}} tok/sec",
       "model": {
         "title": "モデル設定"
@@ -2931,6 +3003,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
+      "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
     },
@@ -3048,7 +3121,6 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
-      "enable_topic_naming": "トピックの自動命名",
       "manage": {
         "add_listed": {
           "confirm": "すべてのモデルをリストに追加しますか？",
@@ -3074,10 +3146,17 @@
       "quick_assistant_default_tag": "デフォルト",
       "quick_assistant_model": "クイックアシスタントモデル",
       "quick_assistant_selection": "アシスタントを選択します",
-      "topic_naming_model": "トピック命名モデル",
-      "topic_naming_model_description": "新しいトピックを自動的に命名する際に使用されるモデル",
-      "topic_naming_model_setting_title": "トピック命名モデルの設定",
-      "topic_naming_prompt": "トピック命名プロンプト",
+      "quick_model": {
+        "description": "トピックの命名や検索キーワードの抽出などの簡単なタスクを実行する際に使用されるモデル",
+        "label": "高速モデル",
+        "setting_title": "高速モデル設定",
+        "tooltip": "軽量モデルの選択を推奨し、思考モデルの選択は推奨しません"
+      },
+      "topic_naming": {
+        "auto": "トピックの自動命名",
+        "label": "トピック名",
+        "prompt": "トピック命名プロンプト"
+      },
       "translate_model": "翻訳モデル",
       "translate_model_description": "翻訳サービスに使用されるモデル",
       "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
@@ -3119,7 +3198,14 @@
         "tip": "モデルが行った推論の要約",
         "title": "要約モード"
       },
-      "title": "OpenAIの設定"
+      "title": "OpenAIの設定",
+      "verbosity": {
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "tip": "制御モデル出力の詳細さ",
+        "title": "詳細度"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "匿名エラーレポートとデータ統計の送信",
@@ -3492,6 +3578,51 @@
         "time": "トピックの時間を表示"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "本当に削除しますか？",
+          "title": "カスタム言語を削除する"
+        },
+        "error": {
+          "add": "追加に失敗しました",
+          "delete": "削除に失敗しました",
+          "langCode": {
+            "builtin": "その言語はすでに組み込みサポートされています",
+            "empty": "言語コードが空です",
+            "exists": "該言語は既に存在します",
+            "invalid": "無効な言語コード"
+          },
+          "update": "更新に失敗しました",
+          "value": {
+            "empty": "言語名は空にできません",
+            "too_long": "言語名が長すぎます"
+          }
+        },
+        "langCode": {
+          "help": "[2~3文字の小文字]-[2~3文字の小文字]の形式の[言語+地域]",
+          "label": "言語コード",
+          "placeholder": "ja-jp"
+        },
+        "success": {
+          "add": "追加成功",
+          "delete": "削除が成功しました",
+          "update": "更新成功"
+        },
+        "table": {
+          "action": {
+            "title": "操作"
+          }
+        },
+        "value": {
+          "help": "1〜32文字",
+          "label": "言語名",
+          "placeholder": "日本語"
+        }
+      },
+      "prompt": "翻訳プロンプト",
+      "title": "翻訳設定"
+    },
     "tray": {
       "onclose": "閉じるときにトレイに最小化",
       "show": "トレイアイコンを表示",
@@ -3505,6 +3636,7 @@
   "title": {
     "agents": "エージェント",
     "apps": "アプリ",
+    "code": "Code",
     "files": "ファイル",
     "home": "ホーム",
     "knowledge": "ナレッジベース",
@@ -3548,14 +3680,46 @@
       "title": "翻訳確認"
     },
     "copied": "翻訳内容がコピーされました",
+    "custom": {
+      "label": "カスタム言語"
+    },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "アルゴリズム",
+          "tip": "francを使用して言語検出を行う"
+        },
+        "auto": {
+          "label": "自動",
+          "tip": "適切な検出方法を自動的に選択します"
+        },
+        "label": "自動検出方法",
+        "llm": {
+          "tip": "高速モデルを使用して言語検出を行い、少量のトークンを消費します。"
+        },
+        "placeholder": "自動検出方法を選択してください",
+        "tip": "入力言語を自動検出する際に使用する方法"
+      }
+    },
     "detected": {
       "language": "自動検出"
     },
     "empty": "翻訳内容が空です",
     "error": {
+      "detect": {
+        "qwen_mt": "QwenMTモデルは言語検出に使用できません",
+        "unknown": "検出された言語は不明です",
+        "update_setting": "設定に失敗しました"
+      },
+      "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
+      "invalid_source": "無効なソース言語",
       "not_configured": "翻訳モデルが設定されていません",
+      "not_supported": "サポートされていない言語 {{language}}",
       "unknown": "翻訳中に不明なエラーが発生しました"
+    },
+    "exchange": {
+      "label": "入力言語と出力言語を入れ替える"
     },
     "history": {
       "clear": "履歴をクリア",
@@ -3564,6 +3728,9 @@
       "empty": "翻訳履歴がありません",
       "error": {
         "save": "保存翻訳履歴に失敗しました"
+      },
+      "search": {
+        "placeholder": "翻訳履歴を検索する"
       },
       "title": "翻訳履歴"
     },
@@ -3594,6 +3761,12 @@
       "preview": "Markdown プレビュー",
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
+    },
+    "success": {
+      "custom": {
+        "delete": "削除が成功しました",
+        "update": "更新成功"
+      }
     },
     "target_language": "目標言語",
     "title": "翻訳",

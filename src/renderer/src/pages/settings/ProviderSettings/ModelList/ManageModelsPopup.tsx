@@ -336,7 +336,14 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={t('settings.models.empty')}
-              style={{ visibility: loadingModels ? 'hidden' : 'visible' }}
+              style={{
+                visibility: loadingModels ? 'hidden' : 'visible',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+                margin: '0'
+              }}
             />
           ) : (
             <ManageModelsList

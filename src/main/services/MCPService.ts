@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
-import { makeSureDirExists } from '@main/utils'
+import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -37,7 +37,7 @@ import {
   type MCPServer,
   type MCPTool
 } from '@types'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -213,7 +213,7 @@ class McpService {
                       }
                     }
 
-                    return fetch(url, { ...init, headers })
+                    return net.fetch(typeof url === 'string' ? url : url.toString(), { ...init, headers })
                   }
                 },
                 requestInit: {
@@ -288,7 +288,7 @@ class McpService {
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
             if (cmd.includes('bun')) {
-              this.removeProxyEnv(loginShellEnv)
+              removeEnvProxy(loginShellEnv)
             }
 
             const transportOptions: any = {
@@ -834,14 +834,6 @@ class McpService {
       return {}
     }
   })
-
-  private removeProxyEnv(env: Record<string, string>) {
-    delete env.HTTPS_PROXY
-    delete env.HTTP_PROXY
-    delete env.grpc_proxy
-    delete env.http_proxy
-    delete env.https_proxy
-  }
 
   // 实现 abortTool 方法
   public async abortTool(_: Electron.IpcMainInvokeEvent, callId: string) {

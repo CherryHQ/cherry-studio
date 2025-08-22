@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
-import { documentExts, imageExts, MB } from '@shared/config/constant'
+import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
+import chardet from 'chardet'
 import * as crypto from 'crypto'
 import {
   dialog,
+  net,
   OpenDialogOptions,
   OpenDialogReturnValue,
   SaveDialogOptions,
@@ -14,6 +16,7 @@ import {
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
+import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
@@ -156,7 +159,8 @@ class FileStorage {
   }
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
-    const duplicateFile = await this.findDuplicateFile(file.path)
+    const filePath = file.path
+    const duplicateFile = await this.findDuplicateFile(filePath)
 
     if (duplicateFile) {
       return duplicateFile
@@ -167,13 +171,13 @@ class FileStorage {
     const ext = path.extname(origin_name).toLowerCase()
     const destPath = path.join(this.storageDir, uuid + ext)
 
-    logger.info(`[FileStorage] Uploading file: ${file.path}`)
+    logger.info(`[FileStorage] Uploading file: ${filePath}`)
 
     // 根据文件类型选择处理方式
     if (imageExts.includes(ext)) {
-      await this.compressImage(file.path, destPath)
+      await this.compressImage(filePath, destPath)
     } else {
-      await fs.promises.copyFile(file.path, destPath)
+      await fs.promises.copyFile(filePath, destPath)
     }
 
     const stats = await fs.promises.stat(destPath)
@@ -508,7 +512,7 @@ class FileStorage {
     isUseContentType?: boolean
   ): Promise<FileMetadata> => {
     try {
-      const response = await fetch(url)
+      const response = await net.fetch(url)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -624,6 +628,38 @@ class FileStorage {
       throw error
     }
   }
+
+  public getFilePathById(file: FileMetadata): string {
+    return path.join(this.storageDir, file.id + file.ext)
+  }
+
+  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const isBinary = await isBinaryFile(filePath)
+      if (isBinary) {
+        return false
+      }
+
+      const length = 8 * KB
+      const fileHandle = await fs.promises.open(filePath, 'r')
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
+      await fileHandle.close()
+
+      const sampleBuffer = buffer.subarray(0, bytesRead)
+      const matches = chardet.analyse(sampleBuffer)
+
+      // 如果检测到的编码置信度较高，认为是文本文件
+      if (matches.length > 0 && matches[0].confidence > 0.8) {
+        return true
+      }
+
+      return false
+    } catch (error) {
+      logger.error('Failed to check if file is text:', error as Error)
+      return false
+    }
+  }
 }
 
-export default FileStorage
+export const fileStorage = new FileStorage()

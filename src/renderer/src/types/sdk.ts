@@ -9,6 +9,7 @@ import {
 } from '@anthropic-ai/sdk/resources'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type { BedrockClient } from '@aws-sdk/client-bedrock'
 import type { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime'
 import {
   Content,
@@ -80,16 +81,25 @@ export type ReasoningEffortOptionalParams = {
   thinking_budget?: number
   incremental_output?: boolean
   enable_reasoning?: boolean
-  extra_body?: Record<string, any>
+  extra_body?: {
+    google?: {
+      thinking_config: {
+        thinking_budget: number
+        include_thoughts?: boolean
+      }
+    }
+  }
   // Add any other potential reasoning-related keys here if they exist
 }
 
 export type OpenAISdkParams = OpenAIParamsWithoutReasoningEffort & ReasoningEffortOptionalParams
+
+// OpenRouter may include additional fields like cost
 export type OpenAISdkRawChunk =
-  | OpenAI.Chat.Completions.ChatCompletionChunk
+  | (OpenAI.Chat.Completions.ChatCompletionChunk & { usage?: OpenAI.CompletionUsage & { cost?: number } })
   | ({
       _request_id?: string | null | undefined
-    } & OpenAI.ChatCompletion)
+    } & OpenAI.ChatCompletion & { usage?: OpenAI.CompletionUsage & { cost?: number } })
 
 export type OpenAISdkRawOutput = Stream<OpenAI.Chat.Completions.ChatCompletionChunk> | OpenAI.ChatCompletion
 export type OpenAISdkRawContentSource =
@@ -146,6 +156,7 @@ export interface NewApiModel extends OpenAI.Models.Model {
  */
 export interface AwsBedrockSdkInstance {
   client: BedrockRuntimeClient
+  bedrockClient: BedrockClient
   region: string
 }
 
@@ -158,6 +169,7 @@ export interface AwsBedrockSdkParams {
   topP?: number
   stream?: boolean
   tools?: AwsBedrockSdkTool[]
+  [key: string]: any // Allow any additional custom parameters
 }
 
 export interface AwsBedrockSdkMessageParam {
@@ -202,6 +214,22 @@ export interface AwsBedrockSdkMessageParam {
   }>
 }
 
+export interface AwsBedrockStreamChunk {
+  type: string
+  delta?: {
+    text?: string
+    toolUse?: { input?: string }
+    type?: string
+    thinking?: string
+  }
+  index?: number
+  content_block?: any
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+  }
+}
+
 export interface AwsBedrockSdkRawChunk {
   contentBlockStart?: {
     start?: {
@@ -218,6 +246,8 @@ export interface AwsBedrockSdkRawChunk {
       toolUse?: {
         input?: string
       }
+      type?: string // 支持 'thinking_delta' 等类型
+      thinking?: string // 支持 thinking 内容
     }
     contentBlockIndex?: number
   }
