@@ -678,6 +678,8 @@ export interface TranslateHistory {
   sourceLanguage: TranslateLanguageCode
   targetLanguage: TranslateLanguageCode
   createdAt: string
+  /** 收藏状态 */
+  star?: boolean
 }
 
 export type CustomTranslateLanguage = {
