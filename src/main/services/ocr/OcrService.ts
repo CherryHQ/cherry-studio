@@ -11,7 +11,7 @@ import {
 
 import { getTesseractWorker } from './TesseractService'
 
-const logger = loggerService.withContext('OcrService')
+const logger = loggerService.withContext('main:OcrService')
 
 /**
  * ocr by tesseract
