@@ -394,7 +394,6 @@ const InputbarTools = ({
         label: t('agents.edit.model.select.title'),
         component: (
           <MentionModelsButton
-
             mentionedModels={mentionModels}
             onMentionModel={onMentionModel}
             onClearMentionModels={onClearMentionModels}

@@ -2,8 +2,8 @@ import { Tag } from 'antd'
 import React, { useCallback } from 'react'
 import styled from 'styled-components'
 
-import { Model } from '../types'
 import { useAllProviders } from '../hooks/useProvider'
+import { Model } from '../types'
 
 interface ModelLabelsProps {
   model: Model
@@ -12,7 +12,7 @@ interface ModelLabelsProps {
 
 const ModelLabels: React.FC<ModelLabelsProps> = ({ model, parentContainer = 'default' }) => {
   const providers = useAllProviders()
-  
+
   const handleApiKeyClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -26,15 +26,15 @@ const ModelLabels: React.FC<ModelLabelsProps> = ({ model, parentContainer = 'def
   // 检查智谱AI供应商是否配置了API key
   const shouldShowApiKeyTag = useCallback(() => {
     if (!model.apiKeyLink) return false
-    
+
     // 如果是智谱AI的模型，检查是否配置了API key
     if (model.provider === 'zhipu') {
-      const zhipuProvider = providers.find(p => p.id === 'zhipu')
+      const zhipuProvider = providers.find((p) => p.id === 'zhipu')
       if (zhipuProvider && zhipuProvider.apiKey && zhipuProvider.apiKey.trim() !== '') {
         return false // 如果配置了API key，不显示标签
       }
     }
-    
+
     return true
   }, [model.apiKeyLink, model.provider, providers])
 

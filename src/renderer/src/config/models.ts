@@ -98,8 +98,6 @@ import {
   default as MinicpmModelLogo,
   default as MinicpmModelLogoDark
 } from '@renderer/assets/images/models/minicpm.webp'
-import ZhipuModelLogo from '@renderer/assets/images/models/zhipu.png'
-import ZhipuModelLogoDark from '@renderer/assets/images/models/zhipu_dark.png'
 import MinimaxModelLogo from '@renderer/assets/images/models/minimax.png'
 import MinimaxModelLogoDark from '@renderer/assets/images/models/minimax_dark.png'
 import MistralModelLogo from '@renderer/assets/images/models/mixtral.png'
@@ -148,6 +146,8 @@ import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
 import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
+import ZhipuModelLogo from '@renderer/assets/images/models/zhipu.png'
+import ZhipuModelLogoDark from '@renderer/assets/images/models/zhipu_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'

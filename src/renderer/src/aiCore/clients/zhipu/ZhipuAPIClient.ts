@@ -25,7 +25,7 @@ export class ZhipuAPIClient extends OpenAIAPIClient {
     quality
   }: GenerateImageParams): Promise<string[]> {
     const sdk = await this.getSdkInstance()
-    
+
     // 智谱AI使用不同的参数格式
     const body: any = {
       model,
@@ -38,7 +38,7 @@ export class ZhipuAPIClient extends OpenAIAPIClient {
     if (negativePrompt) {
       body.negative_prompt = negativePrompt
     }
-    
+
     // 只有cogview-4-250304模型支持quality和style参数
     if (model === 'cogview-4-250304') {
       if (quality) {
@@ -49,13 +49,13 @@ export class ZhipuAPIClient extends OpenAIAPIClient {
 
     try {
       logger.debug('Calling Zhipu image generation API with params:', body)
-      
+
       const response = await sdk.images.generate(body, { signal })
-      
+
       if (response.data && response.data.length > 0) {
         return response.data.map((image: any) => image.url).filter(Boolean)
       }
-      
+
       return []
     } catch (error) {
       logger.error('Zhipu image generation failed:', error as Error)

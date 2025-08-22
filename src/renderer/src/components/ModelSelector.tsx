@@ -1,16 +1,15 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ModelLabels from '@renderer/components/ModelLabels'
-
+import { isEmbeddingModel } from '@renderer/config/models'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
 import { matchKeywordsInString } from '@renderer/utils'
 import { getFancyProviderName } from '@renderer/utils/naming'
 import { Avatar, Select, SelectProps } from 'antd'
-import { BaseSelectRef } from 'rc-select'
 import { sortBy } from 'lodash'
+import { BaseSelectRef } from 'rc-select'
 import React, { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { isEmbeddingModel } from '@renderer/config/models'
 
 interface ModelOption {
   label: React.ReactNode
@@ -71,7 +70,12 @@ const ModelSelector = ({
         // 如果未配置API Key，只显示四个指定模型和嵌入模型
         if (!hasApiKey) {
           filteredModels = filteredModels.filter(
-            (m) => m.id === 'glm-4.5-flash' || m.id === 'glm-4.5' || m.id === 'glm-4.5-air' || m.id === 'glm-4.5v' || isEmbeddingModel(m)
+            (m) =>
+              m.id === 'glm-4.5-flash' ||
+              m.id === 'glm-4.5' ||
+              m.id === 'glm-4.5-air' ||
+              m.id === 'glm-4.5v' ||
+              isEmbeddingModel(m)
           )
         }
 
@@ -83,7 +87,7 @@ const ModelSelector = ({
             'glm-4.5': '1',
             'glm-4.5-air': '2',
             'glm-4.5v': '3',
-            'glm-4.5-airx': '4',
+            'glm-4.5-airx': '4'
           }
           return sortOrder[model.id] || model.name // 其他模型按名称排序
         })

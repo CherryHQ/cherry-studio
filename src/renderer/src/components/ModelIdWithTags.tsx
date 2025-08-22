@@ -3,8 +3,8 @@ import { Tooltip, Typography } from 'antd'
 import { memo } from 'react'
 import styled from 'styled-components'
 
-import ModelTagsWithLabel from './ModelTagsWithLabel'
 import ModelLabels from './ModelLabels'
+import ModelTagsWithLabel from './ModelTagsWithLabel'
 
 interface ModelIdWithTagsProps {
   model: Model

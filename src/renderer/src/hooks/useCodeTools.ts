@@ -106,7 +106,7 @@ export const useCodeTools = () => {
   // 检查是否可以启动（所有必需字段都已填写）
   const canLaunch = Boolean(codeToolsState.selectedCliTool && selectedModel && codeToolsState.currentDirectory)
 
-/*   // 自动设置默认模型：只在首次选择CLI工具时（模型为null且未初始化过）才设置默认模型
+  /*   // 自动设置默认模型：只在首次选择CLI工具时（模型为null且未初始化过）才设置默认模型
   useEffect(() => {
     const currentTool = codeToolsState.selectedCliTool
     const currentToolModel = codeToolsState.selectedModels[currentTool]
