@@ -1,5 +1,26 @@
 @use './container.scss';
 
+/* Modal 关闭按钮不应该可拖拽，以确保点击正常 */
+.ant-modal-close {
+  -webkit-app-region: no-drag;
+}
+
+/* 普通 Drawer 内容不应该可拖拽 */
+.ant-drawer-content {
+  -webkit-app-region: no-drag;
+}
+
+/* minapp-drawer 有自己的拖拽规则 */
+
+/* 下拉菜单和弹出框内容不应该可拖拽 */
+.ant-dropdown,
+.ant-dropdown-menu,
+.ant-popover-content,
+.ant-tooltip-content,
+.ant-popconfirm {
+  -webkit-app-region: no-drag;
+}
+
 #inputbar {
   resize: none;
 }
@@ -66,6 +87,7 @@
 }
 
 .ant-drawer-header {
+  /* 普通 drawer header 不应该可拖拽，除非被 minapp-drawer 覆盖 */
   -webkit-app-region: no-drag;
 }
 
@@ -148,6 +170,7 @@
       border-radius: 10px;
     }
     .ant-modal-body {
+      /* 保持 body 在视口内，使用标准的最大高度 */
       max-height: 80vh;
       overflow-y: auto;
       padding: 0 16px 0 16px;

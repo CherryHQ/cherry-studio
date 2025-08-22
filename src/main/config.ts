@@ -1,7 +1,7 @@
+import { isDev, isWin } from '@main/constant'
 import { app } from 'electron'
 
 import { getDataPath } from './utils'
-import { isWin, isDev } from '@main/constant'
 
 if (isDev) {
   app.setPath('userData', app.getPath('userData') + 'Dev')
