@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import * as OcrService from '@renderer/services/OcrService'
 import { useAppSelector } from '@renderer/store'
 import { ImageFileMetadata, isImageFile, SupportedOcrFile } from '@renderer/types'
 import { uuid } from '@renderer/utils'
@@ -15,9 +16,10 @@ export const useOcr = () => {
    * 对图片文件进行OCR识别
    * @param image 图片文件元数据
    * @returns OCR识别结果的Promise
+   * @throws OCR失败时抛出错误
    */
   const ocrImage = async (image: ImageFileMetadata) => {
-    return window.api.ocr.ocr(image, imageProvider)
+    return OcrService.ocr(image, imageProvider)
   }
 
   /**
@@ -46,7 +48,6 @@ export const useOcr = () => {
   }
 
   return {
-    ocrImage,
     ocr
   }
 }
