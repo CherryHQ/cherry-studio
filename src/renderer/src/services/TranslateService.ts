@@ -240,7 +240,12 @@ export const updateTranslateHistory = async (id: string, update: Omit<Partial<Tr
  * @returns Promise<void>
  */
 export const deleteHistory = async (id: string) => {
-  db.translate_history.delete(id)
+  try {
+    db.translate_history.delete(id)
+  } catch (e) {
+    logger.error('Failed to delete translate history', e as Error)
+    throw e
+  }
 }
 
 /**
