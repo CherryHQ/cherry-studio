@@ -1,4 +1,7 @@
+import { loggerService } from '@logger'
 import Tesseract, { createWorker } from 'tesseract.js'
+
+const logger = loggerService.withContext('TesseractService')
 
 let worker: Tesseract.Worker | null = null
 
@@ -111,8 +114,8 @@ export const getTesseractWorker = async (): Promise<Tesseract.Worker> => {
   if (!worker) {
     // for now, only support limited languages
     worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
-      dataPath: '',
-      gzip: false
+      // langPath: getCacheDir(),
+      logger: (m) => logger.debug('From worker', m)
     })
   }
   return worker
