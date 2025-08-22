@@ -52,7 +52,7 @@ export const AbortHandlerMiddleware: CompletionsMiddleware =
 
     addAbortController(abortKey, abortFn)
     const cleanup = (): void => {
-      removeAbortController(abortKey as string, abortFn)
+      removeAbortController(abortKey, abortFn)
       if (ctx._internal?.flowControl) {
         ctx._internal.flowControl.abortController = undefined
         ctx._internal.flowControl.abortSignal = undefined
