@@ -17,15 +17,17 @@ import {
   MemoryConfig,
   MemoryListOptions,
   MemorySearchOptions,
+  OcrProvider,
+  OcrResult,
   Provider,
   S3Config,
   Shortcut,
+  SupportedOcrFile,
   ThemeMode,
   WebDavConfig
 } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
-import { OcrProvider, OcrResult, SupportedOcrFile } from 'src/renderer/src/types/ocr'
 import { CreateDirectoryOptions } from 'webdav'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'
