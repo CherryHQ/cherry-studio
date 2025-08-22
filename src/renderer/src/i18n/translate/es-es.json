@@ -3737,6 +3737,13 @@
     "exchange": {
       "label": "Intercambiar el idioma de origen y el idioma de destino"
     },
+    "files": {
+      "error": {
+        "too_large": "El archivo es demasiado grande",
+        "unknown": "Error al leer el contenido del archivo"
+      },
+      "reading": "Leyendo el contenido del archivo..."
+    },
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",

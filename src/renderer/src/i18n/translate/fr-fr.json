@@ -3737,6 +3737,13 @@
     "exchange": {
       "label": "Échanger la langue source et la langue cible"
     },
+    "files": {
+      "error": {
+        "too_large": "Fichier trop volumineux",
+        "unknown": "Échec de la lecture du contenu du fichier"
+      },
+      "reading": "Lecture du contenu du fichier en cours..."
+    },
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",

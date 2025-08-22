@@ -465,7 +465,7 @@ const TranslatePage: FC = () => {
       } else {
         // the threshold may be too large
         if (file.size > 5 * MB) {
-          window.message.error(t('translate.files.error.too_large'))
+          window.message.error(t('translate.files.error.too_large') + ' (0 ~ 5 MB)')
         } else {
           window.message.loading({ content: t('translate.files.reading'), key: 'translate_files_reading', duration: 0 })
           try {

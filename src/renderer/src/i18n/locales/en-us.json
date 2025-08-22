@@ -3737,6 +3737,13 @@
     "exchange": {
       "label": "Swap the source and target languages"
     },
+    "files": {
+      "error": {
+        "too_large": "File too large",
+        "unknown": "Failed to read file content"
+      },
+      "reading": "Reading file content..."
+    },
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",

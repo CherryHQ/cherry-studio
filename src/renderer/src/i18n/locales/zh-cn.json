@@ -3739,7 +3739,7 @@
     },
     "files": {
       "error": {
-        "too_large": "文件过大 (0 ~ 5MB)",
+        "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
       "reading": "读取文件内容中..."

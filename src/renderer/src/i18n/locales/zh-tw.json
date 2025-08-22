@@ -3737,6 +3737,13 @@
     "exchange": {
       "label": "交換源語言與目標語言"
     },
+    "files": {
+      "error": {
+        "too_large": "文件過大",
+        "unknown": "读取文件内容失败"
+      },
+      "reading": "讀取檔案內容中..."
+    },
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
