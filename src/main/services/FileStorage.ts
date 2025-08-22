@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import {
+  checkName,
   getFilesDir,
   getFileType,
+  getName,
   getNotesDir,
   getTempDir,
   readTextFileWithAutoEncoding,
@@ -494,6 +496,21 @@ class FileStorage {
     data: Uint8Array | string
   ): Promise<void> => {
     await fs.promises.writeFile(filePath, data)
+  }
+
+  public fileNameGuard = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    fileName: string,
+    isFile: boolean
+  ): Promise<{ safeName: string; exists: boolean }> => {
+    const safeName = checkName(fileName)
+    const finalName = getName(dirPath, safeName, isFile)
+    const fullPath = path.join(dirPath, finalName + (isFile ? '.md' : ''))
+    const exists = fs.existsSync(fullPath)
+
+    logger.debug(`File name guard: ${fileName} -> ${finalName}, exists: ${exists}`)
+    return { safeName: finalName, exists }
   }
 
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {

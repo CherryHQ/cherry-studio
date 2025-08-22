@@ -7,8 +7,7 @@ import { KB, MB } from '@shared/config/constant'
  */
 export function getFileDirectory(filePath: string): string {
   const parts = filePath.split('/')
-  const directory = parts.slice(0, -1).join('/')
-  return directory
+  return parts.slice(0, -1).join('/')
 }
 
 /**
@@ -23,6 +22,19 @@ export function getFileExtension(filePath: string): string {
     return '.' + extension
   }
   return '.'
+}
+
+/**
+ * 从文件路径中移除文件扩展名。
+ * @param {string} filePath 文件路径
+ * @returns {string} 移除扩展名后的文件路径
+ */
+export function removeFileExtension(filePath: string): string {
+  const parts = filePath.split('.')
+  if (parts.length > 1) {
+    return parts.slice(0, -1).join('.')
+  }
+  return filePath
 }
 
 /**

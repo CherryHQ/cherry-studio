@@ -56,10 +56,10 @@ const NotesSettings: FC = () => {
 
       updateNotesPath(tempPath)
       initWorkSpace(tempPath)
-      message.success(t('notes.settings.data.path_updated'))
+      window.message.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
-      message.error(t('notes.settings.data.apply_path_failed'))
+      window.message.error(t('notes.settings.data.apply_path_failed'))
     }
   }
 
@@ -68,10 +68,10 @@ const NotesSettings: FC = () => {
       const info = await window.api.getAppInfo()
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
-      message.success(t('notes.settings.data.reset_to_default'))
+      window.message.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
-      message.error(t('notes.settings.data.reset_failed'))
+      window.message.error(t('notes.settings.data.reset_failed'))
     }
   }
 
