@@ -1,4 +1,4 @@
-import { OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types/ocr'
+import { OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
 
 // const logger = loggerService.withContext('main:OcrService')
 

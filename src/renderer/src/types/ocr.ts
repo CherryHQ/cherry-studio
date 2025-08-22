@@ -1,4 +1,4 @@
-import { FileMetadata, FileTypes, Model } from '@types'
+import { FileMetadata, FileTypes, Model } from '.'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract'

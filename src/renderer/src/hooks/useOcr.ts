@@ -1,6 +1,5 @@
 import { useAppSelector } from '@renderer/store'
-import { ImageFileMetadata, isImageFile } from '@renderer/types'
-import { SupportedOcrFile } from '@renderer/types/ocr'
+import { ImageFileMetadata, isImageFile, SupportedOcrFile } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 export const useImageOcr = () => {}

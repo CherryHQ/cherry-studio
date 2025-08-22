@@ -1,13 +1,14 @@
 import { loggerService } from '@logger'
-import { ImageFileMetadata, isImageFile } from '@types'
 import {
+  ImageFileMetadata,
   ImageOcrProvider,
   isBuiltinOcrProvider,
+  isImageFile,
   isImageOcrProvider,
   OcrProvider,
   OcrResult,
   SupportedOcrFile
-} from 'src/renderer/src/types/ocr'
+} from '@types'
 
 import { getTesseractWorker } from './TesseractService'
 
