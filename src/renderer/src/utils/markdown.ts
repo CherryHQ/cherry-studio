@@ -237,6 +237,7 @@ export function isOpenFenceBlock(codeLength?: number, metaLength?: number, posit
   const contentLength = (codeLength ?? 0) + (metaLength ?? 0)
   const start = position?.start?.offset ?? 0
   const end = position?.end?.offset ?? 0
+  // 余量至少是 fence (3) + newlines (2)
   return end - start <= contentLength + 5
 }
 
