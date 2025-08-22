@@ -45,8 +45,14 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
-      - name: Build Check
-        run: yarn build:check
-
       - name: Lint Check
         run: yarn test:lint
+
+      - name: Type Check
+        run: yarn typecheck
+
+      - name: i18n Check
+        run: yarn check:i18n
+
+      - name: Test
+        run: yarn test
