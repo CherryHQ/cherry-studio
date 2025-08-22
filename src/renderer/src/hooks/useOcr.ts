@@ -32,6 +32,9 @@ export const useOcr = () => {
     try {
       if (isImageFile(file)) {
         return ocrImage(file)
+      } else {
+        // @ts-expect-error all types should be covered
+        throw new Error(t('ocr.file.not_supported', { type: file.type }))
       }
     } catch (e) {
       logger.error('Failed to ocr.', e as Error)
@@ -40,8 +43,6 @@ export const useOcr = () => {
     } finally {
       window.message.destroy(key)
     }
-    // @ts-expect-error all types should be covered
-    throw new Error(t('ocr.file.not_supported', { type: file.type }))
   }
 
   return {
