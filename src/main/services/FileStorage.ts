@@ -469,21 +469,7 @@ class FileStorage {
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
       logger.debug(`Attempting to create directory: ${dirPath}`)
-      if (fs.existsSync(dirPath)) {
-        const baseDirPath = dirPath
-        let counter = 2
-        let newDirPath = `${baseDirPath}${counter}`
-        while (fs.existsSync(newDirPath)) {
-          counter++
-          newDirPath = `${baseDirPath}${counter}`
-        }
-
-        dirPath = newDirPath
-        logger.debug(`Directory already exists, using new path: ${dirPath}`)
-      }
-
       await fs.promises.mkdir(dirPath, { recursive: true })
-
       return dirPath
     } catch (error) {
       logger.error('Failed to create directory:', error as Error)

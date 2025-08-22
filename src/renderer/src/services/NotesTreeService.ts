@@ -191,6 +191,24 @@ export function findNodeInTree(tree: NotesTreeNode[], nodeId: string): NotesTree
   return null
 }
 
+/**
+ * 根据路径查找节点
+ */
+export function findNodeByPath(tree: NotesTreeNode[], path: string): NotesTreeNode | null {
+  for (const node of tree) {
+    if (node.treePath === path) {
+      return node
+    }
+    if (node.children) {
+      const found = findNodeByPath(node.children, path)
+      if (found) {
+        return found
+      }
+    }
+  }
+  return null
+}
+
 // ---
 // 辅助函数
 // ---
