@@ -2282,8 +2282,8 @@ const migrateConfig = {
         ]
 
         // 添加新模型或更新现有模型的配置（特别是apiKeyLink）
-        newModels.forEach(newModel => {
-          const existingModel = zhipuProvider.models.find(m => m.id === newModel.id)
+        newModels.forEach((newModel) => {
+          const existingModel = zhipuProvider.models.find((m) => m.id === newModel.id)
           if (!existingModel) {
             // 如果模型不存在，添加新模型
             zhipuProvider.models.push(newModel)
@@ -2295,10 +2295,10 @@ const migrateConfig = {
 
         // 下架旧模型
         const deprecatedModels = ['glm-4-flash-250414', 'glm-z1-flash']
-        zhipuProvider.models = zhipuProvider.models.filter(m => !deprecatedModels.includes(m.id))
+        zhipuProvider.models = zhipuProvider.models.filter((m) => !deprecatedModels.includes(m.id))
 
         // 修正模型名称大小写 - 将全大写的 AIR/FLASH 改为首字母大写
-        zhipuProvider.models.forEach(model => {
+        zhipuProvider.models.forEach((model) => {
           // 修正 AIR 和 FLASH 的大小写
           if (model.name.includes('AIR') || model.name.includes('FLASH')) {
             model.name = model.name.replace(/\b(AIR|FLASH)\b/g, (match) => {
@@ -2319,21 +2319,21 @@ const migrateConfig = {
         }
 
         // 迁移逻辑1: 检测GLM-4V模型，如果有就改成GLM-4V
-        zhipuProvider.models.forEach(model => {
+        zhipuProvider.models.forEach((model) => {
           if (model.group === 'GLM 4V') {
             model.group = 'GLM-4V'
           }
         })
 
         // 迁移逻辑2: 将GLM-4v改为GLM-4V
-        zhipuProvider.models.forEach(model => {
+        zhipuProvider.models.forEach((model) => {
           if (model.group === 'GLM-4v') {
             model.group = 'GLM-4V'
           }
         })
 
         // 迁移逻辑3: 如果GLM-4.5V在GLM-4.5系列下面，要添加GLM-4.5V系列并把GLM-4.5V转移过去
-        const glm45vModel = zhipuProvider.models.find(m => m.id === 'glm-4.5v')
+        const glm45vModel = zhipuProvider.models.find((m) => m.id === 'glm-4.5v')
         if (glm45vModel && glm45vModel.group === 'GLM-4.5') {
           glm45vModel.group = 'GLM-4.5V'
         }
@@ -2347,7 +2347,7 @@ const migrateConfig = {
       // 4. 更新默认绘图模型为 CogView-3-Flash
       // 确保老用户能看到新的绘图模型选项
       if (state.paintings && state.paintings.paintings) {
-        state.paintings.paintings.forEach(painting => {
+        state.paintings.paintings.forEach((painting) => {
           // 如果用户没有设置模型，或者使用的是旧模型，更新为 CogView-3-Flash
           if (!painting.model || painting.model === 'cogview-3' || painting.model === 'cogview-4') {
             painting.model = 'cogview-3-flash'
@@ -2358,8 +2358,6 @@ const migrateConfig = {
       // 5. 更新知识库的默认嵌入模型为智谱的 embedding-3
       // 这里我们不需要直接修改状态，因为默认模型是在组件中设置的
       // 这个迁移主要用于版本标记，确保用户知道有新的默认嵌入模型
-
-
 
       // 6. 为 codeTools 设置默认模型
       if (state.codeTools) {

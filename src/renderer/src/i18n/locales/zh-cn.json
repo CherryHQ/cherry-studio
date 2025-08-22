@@ -837,8 +837,8 @@
     "unknown": "未知错误",
     "user_message_not_found": "无法找到原始用户消息",
     "zhipu": {
-      "no_api_key": "您未配置API密钥，请前往智谱开放平台获取API密钥。",
       "insufficient_balance": "请前往智谱开放平台充值。",
+      "no_api_key": "您未配置API密钥，请前往智谱开放平台获取API密钥。",
       "quota_exceeded": "您今日10M Tokens免费配额已用尽，请前往智谱开放平台获取API密钥，配置API密钥后继续使用。"
     }
   },

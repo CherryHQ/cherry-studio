@@ -1,8 +1,8 @@
 import { PlusOutlined } from '@ant-design/icons'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import ModelLabels from '@renderer/components/ModelLabels'
 import { HStack } from '@renderer/components/Layout'
+import ModelLabels from '@renderer/components/ModelLabels'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -13,7 +13,7 @@ import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { PaintingsState } from '@renderer/types'
-import { uuid, getErrorMessage } from '@renderer/utils'
+import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
@@ -25,7 +25,14 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
-import { COURSE_URL, DEFAULT_PAINTING, IMAGE_SIZES, QUALITY_OPTIONS, TOP_UP_URL, ZHIPU_PAINTING_MODELS } from './config/ZhipuConfig'
+import {
+  COURSE_URL,
+  DEFAULT_PAINTING,
+  IMAGE_SIZES,
+  QUALITY_OPTIONS,
+  TOP_UP_URL,
+  ZHIPU_PAINTING_MODELS
+} from './config/ZhipuConfig'
 
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode] = useState<keyof PaintingsState>('paintings')
@@ -42,7 +49,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       updatePainting('paintings', updatedPainting)
     }
   }, [painting, updatePainting])
-  
+
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
@@ -132,10 +139,10 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     try {
       // 使用AiProvider调用智谱AI绘图API
       const aiProvider = new AiProvider(zhipuProvider)
-      
+
       // 准备API请求参数
       let actualImageSize = painting.imageSize
-      
+
       // 如果是自定义尺寸，使用实际的宽高值
       if (painting.imageSize === 'custom') {
         if (!customWidth || !customHeight) {
@@ -153,7 +160,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
           return
         }
-        
+
         if (customWidth % 16 !== 0 || customHeight % 16 !== 0) {
           window.modal.error({
             content: '自定义尺寸必须能被16整除',
@@ -161,19 +168,20 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           })
           return
         }
-        
+
         const totalPixels = customWidth * customHeight
-        if (totalPixels > 2097152) { // 2^21 = 2097152
+        if (totalPixels > 2097152) {
+          // 2^21 = 2097152
           window.modal.error({
             content: '自定义尺寸的总像素数不能超过2,097,152',
             centered: true
           })
           return
         }
-        
+
         actualImageSize = `${customWidth}x${customHeight}`
       }
-      
+
       const request = {
         model: painting.model,
         prompt: painting.prompt,
@@ -337,13 +345,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       const newPainting = getNewPainting()
       addPainting('paintings', newPainting)
     }
-  }, [])
+  }, [paintings, addPainting])
 
   useEffect(() => {
     if (painting) {
       updatePainting('paintings', painting)
     }
-  }, [painting])
+  }, [painting, updatePainting])
 
   // 同步自定义尺寸状态
   useEffect(() => {
@@ -404,12 +412,11 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           </Select>
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
-          <Select 
-            value={painting.model} 
+          <Select
+            value={painting.model}
             onChange={onSelectModel}
             style={{ width: '100%' }}
-            dropdownStyle={{ minWidth: '280px' }}
-          >
+            dropdownStyle={{ minWidth: '280px' }}>
             {ZHIPU_PAINTING_MODELS.map((model) => (
               <Select.Option key={model.id} value={model.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: '260px' }}>

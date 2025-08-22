@@ -837,8 +837,8 @@
     "unknown": "Неизвестная ошибка",
     "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
     "zhipu": {
-      "no_api_key": "Vous n'avez pas configuré de clé API. Veuillez vous rendre sur BigModel pour obtenir une clé API.",
       "insufficient_balance": "Veuillez vous rendre sur BigModel pour recharger.",
+      "no_api_key": "Vous n'avez pas configuré de clé API. Veuillez vous rendre sur BigModel pour obtenir une clé API.",
       "quota_exceeded": "Votre quota gratuit quotidien de 10M tokens a été épuisé. Veuillez vous rendre sur BigModel pour obtenir une clé API et configurer la clé API pour continuer à utiliser."
     }
   },
@@ -890,6 +890,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "[to be translated]:话题不存在"
+    },
     "locate": {
       "message": "Localiser le message"
     },
@@ -2684,6 +2687,7 @@
         "title": "Mise à jour automatique"
       },
       "avatar": {
+        "builtin": "[to be translated]:内置头像",
         "reset": "Réinitialiser l'avatar"
       },
       "backup": {

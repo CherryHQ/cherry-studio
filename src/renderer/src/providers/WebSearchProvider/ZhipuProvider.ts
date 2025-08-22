@@ -58,7 +58,7 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
       const response = await fetch(`${this.apiHost}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           ...this.defaultHeaders()
         },
@@ -72,7 +72,7 @@ export default class ZhipuProvider extends BaseWebSearchProvider {
       }
 
       const data: ZhipuWebSearchResponse = await response.json()
-      
+
       return {
         query: query,
         results: data.search_result.slice(0, websearch.maxResults).map((result) => {
