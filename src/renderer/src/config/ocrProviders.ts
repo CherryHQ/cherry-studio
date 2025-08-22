@@ -9,4 +9,12 @@ export function getOcrProviderLogo(providerId: string) {
   }
 }
 
-export const OCR_PROVIDER_CONFIG = {}
+export const OCR_PROVIDER_CONFIG: BuiltinOcrProvider[] = [
+  {
+    id: 'tesseract',
+    name: 'Tesseract',
+    capabilities: {
+      image: true
+    }
+  }
+]
