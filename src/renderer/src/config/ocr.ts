@@ -1,15 +1,4 @@
-import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
-import { BuiltinOcrProvider, isBuiltinOcrProviderId } from '@renderer/types/ocr'
-
-export function getOcrProviderLogo(providerId: string) {
-  if (isBuiltinOcrProviderId(providerId)) {
-    switch (providerId) {
-      case 'tesseract':
-        return TesseractLogo
-    }
-  }
-  return undefined
-}
+import { BuiltinOcrProvider } from '@renderer/types/ocr'
 
 export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = [
   {
@@ -19,4 +8,4 @@ export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = [
       image: true
     }
   }
-]
+] as const
