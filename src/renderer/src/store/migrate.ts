@@ -2204,6 +2204,7 @@ const migrateConfig = {
             provider: 'zhipu',
             name: 'GLM-4.5-Flash',
             group: 'GLM-4.5',
+            //isFree: true,
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
@@ -2246,6 +2247,7 @@ const migrateConfig = {
             provider: 'zhipu',
             name: 'GLM-4.1V-Thinking-Flash',
             group: 'GLM-4V',
+            //isFree: true,
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
@@ -2253,6 +2255,7 @@ const migrateConfig = {
             provider: 'zhipu',
             name: 'GLM-4V-Flash',
             group: 'GLM-4V',
+            //isFree: true,
             apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
           },
           {
