@@ -144,7 +144,8 @@ const sidebarIconKeyMap = {
   translate: 'translate.title',
   minapp: 'minapp.title',
   knowledge: 'knowledge.title',
-  files: 'files.title'
+  files: 'files.title',
+  code_tools: 'code.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {

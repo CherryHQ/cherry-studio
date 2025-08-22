@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { net } from 'electron'
 
 const logger = loggerService.withContext('IpService')
 
@@ -12,7 +13,7 @@ export async function getIpCountry(): Promise<string> {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
 
-    const ipinfo = await fetch('https://ipinfo.io/json', {
+    const ipinfo = await net.fetch('https://ipinfo.io/json', {
       signal: controller.signal,
       headers: {
         'User-Agent':

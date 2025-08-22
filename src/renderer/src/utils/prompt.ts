@@ -176,7 +176,12 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   const now = new Date()
   if (userSystemPrompt.includes('{{date}}')) {
-    const date = now.toLocaleDateString()
+    const date = now.toLocaleDateString(undefined, {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric'
+    })
     userSystemPrompt = userSystemPrompt.replace(/{{date}}/g, date)
   }
 
@@ -186,7 +191,15 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
   }
 
   if (userSystemPrompt.includes('{{datetime}}')) {
-    const datetime = now.toLocaleString()
+    const datetime = now.toLocaleString(undefined, {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric'
+    })
     userSystemPrompt = userSystemPrompt.replace(/{{datetime}}/g, datetime)
   }
 

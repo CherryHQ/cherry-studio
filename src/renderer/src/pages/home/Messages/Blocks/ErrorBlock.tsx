@@ -1,3 +1,4 @@
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getZhipuErrorLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
@@ -26,11 +27,12 @@ const ErrorBlock: React.FC<Props> = ({ block, message }) => {
 const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }> = ({ block, message }) => {
   const { t, i18n } = useTranslation()
   const dispatch = useAppDispatch()
+  const { setTimeoutTimer } = useTimer()
 
   const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
 
   const onRemoveBlock = () => {
-    setTimeout(() => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
+    setTimeoutTimer('onRemoveBlock', () => dispatch(removeBlocksThunk(message.topicId, message.id, [block.id])), 350)
   }
 
   // 处理智谱特定错误

@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
-import axios from 'axios'
+import { net } from 'electron'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
@@ -95,7 +95,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
   public async checkQuota() {
     try {
-      const quota = await fetch(`${this.provider.apiHost}/api/v4/quota`, {
+      const quota = await net.fetch(`${this.provider.apiHost}/api/v4/quota`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -179,8 +179,12 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
     try {
       // 下载ZIP文件
-      const response = await axios.get(zipUrl, { responseType: 'arraybuffer' })
-      fs.writeFileSync(zipPath, Buffer.from(response.data))
+      const response = await net.fetch(zipUrl, { method: 'GET' })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      const arrayBuffer = await response.arrayBuffer()
+      fs.writeFileSync(zipPath, Buffer.from(arrayBuffer))
       logger.info(`Downloaded ZIP file: ${zipPath}`)
 
       // 确保提取目录存在
@@ -236,7 +240,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await net.fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,7 +275,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       const fileBuffer = await fs.promises.readFile(filePath)
 
-      const response = await fetch(uploadUrl, {
+      const response = await net.fetch(uploadUrl, {
         method: 'PUT',
         body: fileBuffer,
         headers: {
@@ -316,7 +320,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     const endpoint = `${this.provider.apiHost}/api/v4/extract-results/batch/${batchId}`
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await net.fetch(endpoint, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

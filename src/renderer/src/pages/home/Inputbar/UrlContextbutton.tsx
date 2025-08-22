@@ -1,4 +1,5 @@
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
@@ -18,14 +19,19 @@ interface Props {
 const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
   const { t } = useTranslation()
   const { updateAssistant } = useAssistant(assistant.id)
+  const { setTimeoutTimer } = useTimer()
 
   const urlContentNewState = !assistant.enableUrlContext
 
   const handleToggle = useCallback(() => {
-    setTimeout(() => {
-      updateAssistant({ ...assistant, enableUrlContext: urlContentNewState })
-    }, 100)
-  }, [assistant, urlContentNewState, updateAssistant])
+    setTimeoutTimer(
+      'handleToggle',
+      () => {
+        updateAssistant({ ...assistant, enableUrlContext: urlContentNewState })
+      },
+      100
+    )
+  }, [setTimeoutTimer, updateAssistant, assistant, urlContentNewState])
 
   return (
     <Tooltip placement="top" title={t('chat.input.url_context')} arrow>
@@ -33,7 +39,7 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
         <Link
           size={18}
           style={{
-            color: assistant.enableUrlContext ? 'var(--color-link)' : 'var(--color-icon)'
+            color: assistant.enableUrlContext ? 'var(--color-primary)' : 'var(--color-icon)'
           }}
         />
       </ToolbarButton>

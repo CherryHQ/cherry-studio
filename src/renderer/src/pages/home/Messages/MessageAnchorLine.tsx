@@ -4,6 +4,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
@@ -32,13 +33,14 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-
   const { userName } = useSettings()
+  const { setTimeoutTimer } = useTimer()
+
   const messagesListRef = useRef<HTMLDivElement>(null)
   const messageItemsRef = useRef<Map<string, HTMLDivElement>>(new Map())
   const containerRef = useRef<HTMLDivElement>(null)
-  const [mouseY, setMouseY] = useState<number | null>(null)
 
+  const [mouseY, setMouseY] = useState<number | null>(null)
   const [listOffsetY, setListOffsetY] = useState(0)
   const [containerHeight, setContainerHeight] = useState<number | null>(null)
 
@@ -112,15 +114,19 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           )
         }
 
-        setTimeout(() => {
-          const messageElement = document.getElementById(`message-${message.id}`)
-          if (messageElement) {
-            messageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
-          }
-        }, 100)
+        setTimeoutTimer(
+          'setSelectedMessage',
+          () => {
+            const messageElement = document.getElementById(`message-${message.id}`)
+            if (messageElement) {
+              messageElement.scrollIntoView({ behavior: 'auto', block: 'start' })
+            }
+          },
+          100
+        )
       }
     },
-    [dispatch, messages]
+    [dispatch, messages, setTimeoutTimer]
   )
 
   const scrollToMessage = useCallback(

@@ -76,7 +76,7 @@
 }
 
 .ant-dropdown-menu .ant-dropdown-menu-sub {
-  max-height: 50vh;
+  max-height: 80vh;
   width: max-content;
   overflow-y: auto;
   overflow-x: hidden;
@@ -88,7 +88,7 @@
   border-radius: var(--ant-border-radius-lg);
   user-select: none;
   .ant-dropdown-menu {
-    max-height: 50vh;
+    max-height: 80vh;
     overflow-y: auto;
     border: 0.5px solid var(--color-border);
 
@@ -182,5 +182,30 @@
 .ant-slider {
   .ant-slider-handle::after {
     box-shadow: 0 1px 4px 0px rgb(128 128 128 / 50%) !important;
+  }
+}
+
+.ant-splitter-bar {
+  .ant-splitter-bar-dragger {
+    &::before {
+      background-color: var(--color-border) !important;
+      transition:
+        background-color 0.15s ease,
+        width 0.15s ease;
+    }
+    &:hover {
+      &::before {
+        width: 4px !important;
+        background-color: var(--color-primary) !important;
+        transition-delay: 0.15s;
+      }
+    }
+  }
+
+  .ant-splitter-bar-dragger-active {
+    &::before {
+      width: 4px !important;
+      background-color: var(--color-primary) !important;
+    }
   }
 }

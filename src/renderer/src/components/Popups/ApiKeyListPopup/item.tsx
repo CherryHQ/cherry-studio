@@ -130,7 +130,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             mouseEnterDelay={0.5}
             placement="top"
             // 确保不留下明文
-            destroyTooltipOnHide>
+            destroyOnHidden>
             <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
           </Tooltip>
 

@@ -1,3 +1,4 @@
+import { FileMetadata } from '@renderer/types'
 import { KB, MB } from '@shared/config/constant'
 
 /**
@@ -54,4 +55,31 @@ export function removeSpecialCharactersForFileName(str: string): string {
     .replace(/[<>:"/\\|?*.]/g, '_')
     .replace(/[\r\n]+/g, ' ')
     .trim()
+}
+
+export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
+  try {
+    if (supportExts.has(getFileExtension(filePath))) {
+      return true
+    }
+
+    if (await window.api.file.isTextFile(filePath)) {
+      return true
+    }
+
+    return false
+  } catch (error) {
+    return false
+  }
+}
+
+export async function filterSupportedFiles(files: FileMetadata[], supportExts: string[]): Promise<FileMetadata[]> {
+  const extensionSet = new Set(supportExts)
+  const validationResults = await Promise.all(
+    files.map(async (file) => ({
+      file,
+      isValid: await isSupportedFile(file.path, extensionSet)
+    }))
+  )
+  return validationResults.filter((result) => result.isValid).map((result) => result.file)
 }

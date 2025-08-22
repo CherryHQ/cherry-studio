@@ -33,7 +33,9 @@ type LlmSettings = {
 export interface LlmState {
   providers: Provider[]
   defaultModel: Model
+  /** @deprecated */
   topicNamingModel: Model
+  quickModel: Model
   translateModel: Model
   quickAssistantId: string
   settings: LlmSettings
@@ -42,6 +44,7 @@ export interface LlmState {
 export const initialState: LlmState = {
   defaultModel: SYSTEM_MODELS.defaultModel[0],
   topicNamingModel: SYSTEM_MODELS.defaultModel[1],
+  quickModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
   quickAssistantId: '',
   providers: SYSTEM_PROVIDERS,
@@ -71,12 +74,14 @@ export const initialState: LlmState = {
   }
 }
 
+// 由于 isLocalAi 目前总是为false，该函数暂未被使用
+// 需要投入使用时，应当保证返回值类型满足 LlmState 要求，而不是使用类型断言
 const getIntegratedInitialState = () => {
   const model = JSON.parse(import.meta.env.VITE_RENDERER_INTEGRATED_MODEL)
 
   return {
     defaultModel: model,
-    topicNamingModel: model,
+    quickModel: model,
     translateModel: model,
     providers: [
       {
@@ -160,8 +165,8 @@ const llmSlice = createSlice({
     setDefaultModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.defaultModel = action.payload.model
     },
-    setTopicNamingModel: (state, action: PayloadAction<{ model: Model }>) => {
-      state.topicNamingModel = action.payload.model
+    setQuickModel: (state, action: PayloadAction<{ model: Model }>) => {
+      state.quickModel = action.payload.model
     },
     setTranslateModel: (state, action: PayloadAction<{ model: Model }>) => {
       state.translateModel = action.payload.model
@@ -226,7 +231,7 @@ export const {
   addModel,
   removeModel,
   setDefaultModel,
-  setTopicNamingModel,
+  setQuickModel,
   setTranslateModel,
   setQuickAssistantId,
   setOllamaKeepAliveTime,

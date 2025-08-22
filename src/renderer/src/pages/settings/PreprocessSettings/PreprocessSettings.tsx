@@ -4,23 +4,14 @@ import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Input, InputNumber, Segmented, Tooltip } from 'antd'
+import { Avatar, Button, Divider, Flex, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import {
-  SettingDivider,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingRow,
-  SettingRowTitle,
-  SettingSubtitle,
-  SettingTitle
-} from '..'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle, SettingTitle } from '..'
 
 interface Props {
   provider: PreprocessProvider
@@ -31,7 +22,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   const { t } = useTranslation()
   const [apiKey, setApiKey] = useState(preprocessProvider.apiKey || '')
   const [apiHost, setApiHost] = useState(preprocessProvider.apiHost || '')
-  const [options, setOptions] = useState(preprocessProvider.options || {})
+  // const [options, setOptions] = useState(preprocessProvider.options || {})
 
   const preprocessProviderConfig = PREPROCESS_PROVIDER_CONFIG[preprocessProvider.id]
   const apiKeyWebsite = preprocessProviderConfig?.websites?.apiKey
@@ -40,7 +31,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   useEffect(() => {
     setApiKey(preprocessProvider.apiKey ?? '')
     setApiHost(preprocessProvider.apiHost ?? '')
-    setOptions(preprocessProvider.options ?? {})
+    // setOptions(preprocessProvider.options ?? {})
   }, [preprocessProvider.apiKey, preprocessProvider.apiHost, preprocessProvider.options])
 
   const onUpdateApiKey = () => {
@@ -52,7 +43,6 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   const openApiKeyList = async () => {
     await ApiKeyListPopup.show({
       providerId: preprocessProvider.id,
-      providerKind: 'doc-preprocess',
       title: `${preprocessProvider.name} ${t('settings.provider.api.key.list.title')}`,
       showHealthCheck: false // FIXME: 目前还没有检查功能
     })
@@ -70,11 +60,11 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
     }
   }
 
-  const onUpdateOptions = (key: string, value: any) => {
-    const newOptions = { ...options, [key]: value }
-    setOptions(newOptions)
-    updateProvider({ options: newOptions })
-  }
+  // const onUpdateOptions = (key: string, value: any) => {
+  //   const newOptions = { ...options, [key]: value }
+  //   setOptions(newOptions)
+  //   updateProvider({ options: newOptions })
+  // }
 
   return (
     <>
@@ -145,7 +135,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
       )}
 
       {/* 这部分看起来暂时用不上了 */}
-      {hasObjectKey(preprocessProvider, 'options') && preprocessProvider.id === 'system' && (
+      {/* {hasObjectKey(preprocessProvider, 'options') && preprocessProvider.id === 'system' && (
         <>
           <SettingDivider style={{ marginTop: 15, marginBottom: 12 }} />
           <SettingRow>
@@ -177,7 +167,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
             />
           </SettingRow>
         </>
-      )}
+      )} */}
     </>
   )
 }

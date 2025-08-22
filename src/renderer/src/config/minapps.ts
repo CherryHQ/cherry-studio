@@ -56,6 +56,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
+import i18n from '@renderer/i18n'
 import { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
@@ -116,14 +117,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'yi',
-    name: '万知',
+    name: i18n.t('minapps.wanzhi'),
     url: 'https://www.wanzhi.com/',
     logo: WanZhiAppLogo,
     bodered: true
   },
   {
     id: 'zhipu',
-    name: '智谱清言',
+    name: i18n.t('minapps.chatglm'),
     url: 'https://chatglm.cn/main/alltoolsdetail',
     logo: ZhipuProviderLogo
   },
@@ -135,26 +136,26 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baichuan',
-    name: '百小应',
+    name: i18n.t('minapps.baichuan'),
     url: 'https://ying.baichuan-ai.com/chat',
     logo: BaicuanAppLogo
   },
   {
     id: 'dashscope',
-    name: '通义千问',
+    name: i18n.t('minapps.qwen'),
     url: 'https://tongyi.aliyun.com/qianwen/',
     logo: QwenModelLogo
   },
   {
     id: 'stepfun',
-    name: '跃问',
+    name: i18n.t('minapps.yuewen'),
     url: 'https://yuewen.cn/chats/new',
     logo: YuewenAppLogo,
     bodered: true
   },
   {
     id: 'doubao',
-    name: '豆包',
+    name: i18n.t('minapps.doubao'),
     url: 'https://www.doubao.com/chat/',
     logo: DoubaoAppLogo
   },
@@ -166,7 +167,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'minimax',
-    name: '海螺',
+    name: i18n.t('minapps.hailuo'),
     url: 'https://chat.minimaxi.com/',
     logo: HailuoModelLogo,
     bodered: true
@@ -195,13 +196,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baidu-ai-chat',
-    name: '文心一言',
+    name: i18n.t('minapps.wenxin'),
     logo: BaiduAiAppLogo,
     url: 'https://yiyan.baidu.com/'
   },
   {
     id: 'baidu-ai-search',
-    name: '百度AI搜索',
+    name: i18n.t('minapps.baidu-ai-search'),
     logo: BaiduAiSearchLogo,
     url: 'https://chat.baidu.com/',
     bodered: true,
@@ -211,14 +212,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tencent-yuanbao',
-    name: '腾讯元宝',
+    name: i18n.t('minapps.tencent-yuanbao'),
     logo: TencentYuanbaoAppLogo,
     url: 'https://yuanbao.tencent.com/chat',
     bodered: true
   },
   {
     id: 'sensetime-chat',
-    name: '商量',
+    name: i18n.t('minapps.sensechat'),
     logo: SensetimeAppLogo,
     url: 'https://chat.sensetime.com/wb/chat',
     bodered: true
@@ -231,7 +232,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'metaso',
-    name: '秘塔AI搜索',
+    name: i18n.t('minapps.metaso'),
     logo: MetasoAppLogo,
     url: 'https://metaso.cn/'
   },
@@ -255,7 +256,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tiangong-ai',
-    name: '天工AI',
+    name: i18n.t('minapps.tiangong-ai'),
     logo: TiangongAiLogo,
     url: 'https://www.tiangong.cn/',
     bodered: true
@@ -289,14 +290,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'nm',
-    name: '纳米AI',
+    name: i18n.t('minapps.nami-ai'),
     logo: NamiAiLogo,
     url: 'https://bot.n.cn/',
     bodered: true
   },
   {
     id: 'nm-search',
-    name: '纳米AI搜索',
+    name: i18n.t('minapps.nami-ai-search'),
     logo: NamiAiSearchLogo,
     url: 'https://www.n.cn/',
     bodered: true
@@ -372,7 +373,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'xiaoyi',
-    name: '小艺',
+    name: i18n.t('minapps.xiaoyi'),
     logo: XiaoYiAppLogo,
     url: 'https://xiaoyi.huawei.com/chat/',
     bodered: true
@@ -402,7 +403,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'wpslingxi',
-    name: 'WPS灵犀',
+    name: i18n.t('minapps.wps-copilot'),
     logo: WPSLingXiLogo,
     url: 'https://copilot.wps.cn/',
     bodered: true
@@ -443,14 +444,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'zhihu',
-    name: '知乎直答',
+    name: i18n.t('minapps.zhihu'),
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
     bodered: true
   },
   {
     id: 'dangbei',
-    name: '当贝AI',
+    name: i18n.t('minapps.dangbei'),
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
     bodered: true

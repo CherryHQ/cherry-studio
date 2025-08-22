@@ -1,6 +1,12 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`SvgPreview > basic rendering > should match snapshot 1`] = `
+.c0 {
+  --shadow-host-background-color: transparent;
+  --shadow-host-border: unset;
+  --shadow-host-border-radius: unset;
+}
+
 <div>
   <div
     data-source="svg"
@@ -15,7 +21,7 @@ exports[`SvgPreview > basic rendering > should match snapshot 1`] = `
       data-testid="preview-content"
     >
       <div
-        class="svg-preview special-preview"
+        class="c0 svg-preview special-preview"
       />
     </div>
   </div>

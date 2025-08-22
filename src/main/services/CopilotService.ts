@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import { AxiosRequestConfig } from 'axios'
-import axios from 'axios'
+import { net } from 'electron'
 import { app, safeStorage } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
@@ -86,7 +85,8 @@ class CopilotService {
    */
   public getUser = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<UserResponse> => {
     try {
-      const config: AxiosRequestConfig = {
+      const response = await net.fetch(CONFIG.API_URLS.GITHUB_USER, {
+        method: 'GET',
         headers: {
           Connection: 'keep-alive',
           'user-agent': 'Visual Studio Code (desktop)',
@@ -95,12 +95,16 @@ class CopilotService {
           'Sec-Fetch-Dest': 'empty',
           authorization: `token ${token}`
         }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const response = await axios.get(CONFIG.API_URLS.GITHUB_USER, config)
+      const data = await response.json()
       return {
-        login: response.data.login,
-        avatar: response.data.avatar_url
+        login: data.login,
+        avatar: data.avatar_url
       }
     } catch (error) {
       logger.error('Failed to get user information:', error as Error)
@@ -118,16 +122,23 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const response = await axios.post<AuthResponse>(
-        CONFIG.API_URLS.GITHUB_DEVICE_CODE,
-        {
+      const response = await net.fetch(CONFIG.API_URLS.GITHUB_DEVICE_CODE, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           client_id: CONFIG.GITHUB_CLIENT_ID,
           scope: 'read:user'
-        },
-        { headers: this.headers }
-      )
+        })
+      })
 
-      return response.data
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return (await response.json()) as AuthResponse
     } catch (error) {
       logger.error('Failed to get auth message:', error as Error)
       throw new CopilotServiceError('无法获取GitHub授权信息', error)
@@ -150,17 +161,25 @@ class CopilotService {
       await this.delay(currentDelay)
 
       try {
-        const response = await axios.post<TokenResponse>(
-          CONFIG.API_URLS.GITHUB_ACCESS_TOKEN,
-          {
+        const response = await net.fetch(CONFIG.API_URLS.GITHUB_ACCESS_TOKEN, {
+          method: 'POST',
+          headers: {
+            ...this.headers,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
             client_id: CONFIG.GITHUB_CLIENT_ID,
             device_code,
             grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
-          },
-          { headers: this.headers }
-        )
+          })
+        })
 
-        const { access_token } = response.data
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        const data = (await response.json()) as TokenResponse
+        const { access_token } = data
         if (access_token) {
           return { access_token }
         }
@@ -205,16 +224,19 @@ class CopilotService {
       const encryptedToken = await fs.readFile(this.tokenFilePath)
       const access_token = safeStorage.decryptString(Buffer.from(encryptedToken))
 
-      const config: AxiosRequestConfig = {
+      const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
+        method: 'GET',
         headers: {
           ...this.headers,
           authorization: `token ${access_token}`
         }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const response = await axios.get<CopilotTokenResponse>(CONFIG.API_URLS.COPILOT_TOKEN, config)
-
-      return response.data
+      return (await response.json()) as CopilotTokenResponse
     } catch (error) {
       logger.error('Failed to get Copilot token:', error as Error)
       throw new CopilotServiceError('无法获取Copilot令牌，请重新授权', error)

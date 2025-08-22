@@ -109,7 +109,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
       return (
         <Tooltip
-          destroyTooltipOnHide
+          destroyOnHidden
           title={
             isAllInProvider
               ? t('settings.models.manage.remove_whole_group')

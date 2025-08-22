@@ -10,29 +10,39 @@ describe('renderSvgInShadowHost', () => {
 
     // Mock attachShadow
     Element.prototype.attachShadow = vi.fn().mockImplementation(function (this: HTMLElement) {
-      const shadowRoot = document.createElement('div')
+      // Check if a shadow root already exists to prevent re-creating it.
+      if (this.shadowRoot) {
+        return this.shadowRoot
+      }
+
+      // Create a container that acts as the shadow root.
+      const shadowRootContainer = document.createElement('div')
+      shadowRootContainer.dataset.testid = 'shadow-root'
+
       Object.defineProperty(this, 'shadowRoot', {
-        value: shadowRoot,
+        value: shadowRootContainer,
         writable: true,
         configurable: true
       })
-      // Simple innerHTML copy for test verification
-      Object.defineProperty(shadowRoot, 'innerHTML', {
-        set(value) {
-          shadowRoot.textContent = value // A simplified mock
+
+      // Mock essential methods like appendChild and innerHTML.
+      // JSDOM doesn't fully implement shadow DOM, so we simulate its behavior.
+      const originalInnerHTMLDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML')
+      Object.defineProperty(shadowRootContainer, 'innerHTML', {
+        set(value: string) {
+          // Clear existing content and parse the new HTML.
+          originalInnerHTMLDescriptor?.set?.call(this, '')
+          const template = document.createElement('template')
+          template.innerHTML = value
+          shadowRootContainer.append(...Array.from(template.content.childNodes))
         },
         get() {
-          return shadowRoot.textContent || ''
+          return originalInnerHTMLDescriptor?.get?.call(this) ?? ''
         },
         configurable: true
       })
 
-      shadowRoot.appendChild = vi.fn(<T extends Node>(node: T): T => {
-        shadowRoot.append(node)
-        return node
-      })
-
-      return shadowRoot as unknown as ShadowRoot
+      return shadowRootContainer as unknown as ShadowRoot
     })
   })
 
@@ -57,7 +67,7 @@ describe('renderSvgInShadowHost', () => {
 
     expect(Element.prototype.attachShadow).not.toHaveBeenCalled()
     // Verify it works with the existing shadow root
-    expect(existingShadowRoot.appendChild).toHaveBeenCalled()
+    expect(existingShadowRoot.innerHTML).toContain('<svg')
   })
 
   it('should inject styles and valid SVG content into the shadow DOM', () => {
@@ -71,20 +81,31 @@ describe('renderSvgInShadowHost', () => {
     expect(shadowRoot?.querySelector('rect')).not.toBeNull()
   })
 
+  it('should add the xmlns attribute if it is missing', () => {
+    const svgWithoutXmlns = '<svg width="100" height="100"><circle cx="50" cy="50" r="40" /></svg>'
+    renderSvgInShadowHost(svgWithoutXmlns, hostElement)
+
+    const svgElement = hostElement.shadowRoot?.querySelector('svg')
+    expect(svgElement).not.toBeNull()
+    expect(svgElement?.getAttribute('xmlns')).toBe('http://www.w3.org/2000/svg')
+  })
+
   it('should throw an error if the host element is not available', () => {
     expect(() => renderSvgInShadowHost('<svg></svg>', null as any)).toThrow(
       'Host element for SVG rendering is not available.'
     )
   })
 
-  it('should throw an error for invalid SVG content', () => {
-    const invalidSvg = '<svg><rect></svg>' // Malformed
-    expect(() => renderSvgInShadowHost(invalidSvg, hostElement)).toThrow(/SVG parsing error/)
+  it('should not throw an error for malformed SVG content due to HTML parser fallback', () => {
+    const invalidSvg = '<svg><rect></svg>' // Malformed, but fixable by the browser's HTML parser
+    expect(() => renderSvgInShadowHost(invalidSvg, hostElement)).not.toThrow()
+    // Also, assert that it successfully rendered something.
+    expect(hostElement.shadowRoot?.querySelector('svg')).not.toBeNull()
   })
 
   it('should throw an error for non-SVG content', () => {
     const nonSvg = '<div>this is not svg</div>'
-    expect(() => renderSvgInShadowHost(nonSvg, hostElement)).toThrow('Invalid SVG content')
+    expect(() => renderSvgInShadowHost(nonSvg, hostElement)).toThrow()
   })
 
   it('should not throw an error for empty or whitespace content', () => {
