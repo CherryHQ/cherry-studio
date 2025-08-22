@@ -1,4 +1,4 @@
-import { Model } from '@types'
+import { FileMetadata, FileTypes, Model } from '@types'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract'
@@ -60,4 +60,18 @@ export type ImageOcrProvider = OcrProvider & {
 
 export const isImageOcrProvider = (p: OcrProvider): p is ImageOcrProvider => {
   return p.capabilities.image
+}
+
+export type SupportedOcrFileType = FileTypes.IMAGE
+
+export const isSupportedOcrFileType = (type: FileTypes): type is SupportedOcrFileType => {
+  return type === FileTypes.IMAGE
+}
+
+export type SupportedOcrFile = FileMetadata & {
+  type: FileTypes.IMAGE
+}
+
+export const isSupportedOcrFile = (file: FileMetadata): file is SupportedOcrFile => {
+  return isSupportedOcrFileType(file.type)
 }
