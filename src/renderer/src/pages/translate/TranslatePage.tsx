@@ -58,7 +58,7 @@ const TranslatePage: FC = () => {
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
-  const { onSelectFile, selecting } = useFiles({ extensions: [...imageExts, ...textExts] })
+  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts] })
   const { ocr } = useOcr()
 
   // states
@@ -475,9 +475,10 @@ const TranslatePage: FC = () => {
       logger.error('Unknown error when selecting file.', e as Error)
       window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
     } finally {
+      clearFiles()
       setIsProcessing(false)
     }
-  }, [ocr, onSelectFile, selecting, t])
+  }, [clearFiles, ocr, onSelectFile, selecting, t])
 
   return (
     <Container id="translate-page">
