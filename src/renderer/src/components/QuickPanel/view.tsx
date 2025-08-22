@@ -294,7 +294,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchTextDebounced(newSearchText)
       } else {
-        ctx.close('delete-symbol')
+        // 使用本地 handleClose，确保在删除触发符时同步受控输入值
+        handleClose('delete-symbol')
       }
     }
 
