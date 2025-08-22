@@ -470,6 +470,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
+  ipcMain.handle(IpcChannel.Fs_ReadText, FileService.readTextFileWithAutoEncoding.bind(FileService))
 
   // export
   ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord.bind(exportService))
