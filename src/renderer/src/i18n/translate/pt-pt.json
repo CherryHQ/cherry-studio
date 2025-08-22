@@ -1558,6 +1558,15 @@
     },
     "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
   },
+  "ocr": {
+    "error": {
+      "unknown": "O processo OCR apresentou um erro"
+    },
+    "file": {
+      "not_supported": "Tipo de arquivo não suportado {{type}}"
+    },
+    "processing": "Processamento OCR em andamento..."
+  },
   "ollama": {
     "keep_alive_time": {
       "description": "Tempo que o modelo permanece na memória após a conversa (padrão: 5 minutos)",
@@ -2679,6 +2688,7 @@
         "title": "Atualização automática"
       },
       "avatar": {
+        "builtin": "Avatares integrados",
         "reset": "Redefinir avatar"
       },
       "backup": {
@@ -3477,6 +3487,16 @@
     },
     "title": "Configurações",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "O provedor não existe"
+          },
+          "title": "Imagem"
+        },
+        "image_provider": "Provedor de serviços OCR",
+        "title": "Serviço OCR"
+      },
       "preprocess": {
         "provider": "prestador de serviços de pré-processamento de documentos",
         "provider_placeholder": "Escolha um fornecedor de pré-processamento de documentos",

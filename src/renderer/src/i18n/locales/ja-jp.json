@@ -1558,6 +1558,15 @@
     },
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
+  "ocr": {
+    "error": {
+      "unknown": "OCR処理中にエラーが発生しました"
+    },
+    "file": {
+      "not_supported": "サポートされていないファイルタイプ {{type}}"
+    },
+    "processing": "OCR処理中..."
+  },
   "ollama": {
     "keep_alive_time": {
       "description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -3478,6 +3487,16 @@
     },
     "title": "設定",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "該提供者は存在しません"
+          },
+          "title": "画像"
+        },
+        "image_provider": "OCRサービスプロバイダー",
+        "title": "OCRサービス"
+      },
       "preprocess": {
         "provider": "プレプロセスプロバイダー",
         "provider_placeholder": "前処理プロバイダーを選択してください",
