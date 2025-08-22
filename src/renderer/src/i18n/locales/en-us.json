@@ -148,6 +148,9 @@
     "edit": {
       "title": "Edit Assistant"
     },
+    "error": {
+      "add": "Failed to add assistant"
+    },
     "icon": {
       "type": "Assistant Icon"
     },
@@ -3787,6 +3790,10 @@
     "title": "Update"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "Reverted to default assistant, which may cause issues"
+    },
+    "missing_assistant": "Assistant does not exist",
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
   },
   "words": {
