@@ -66,10 +66,10 @@ const NotesSettings: FC = () => {
       const info = await window.api.getAppInfo()
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
-      message.success(t('notes.settings.data.reset_to_default'))
+      window.message.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
-      message.error(t('notes.settings.data.reset_failed'))
+      window.message.error(t('notes.settings.data.reset_failed'))
     }
   }
 
