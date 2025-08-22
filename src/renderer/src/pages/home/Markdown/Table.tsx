@@ -7,10 +7,11 @@ import { Check } from 'lucide-react'
 import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import type { Node } from 'unist'
 
 interface Props {
   children: React.ReactNode
-  node?: any
+  node?: Omit<Node, 'type'>
   blockId?: string
 }
 

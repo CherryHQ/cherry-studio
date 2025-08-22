@@ -82,8 +82,10 @@ function DraggableVirtualList<T>({
     if (onUpdate && result.destination) {
       const sourceIndex = result.source.index
       const destIndex = result.destination.index
-      const reorderAgents = droppableReorder(list, sourceIndex, destIndex)
-      onUpdate(reorderAgents)
+      if (sourceIndex !== destIndex) {
+        const reorderAgents = droppableReorder(list, sourceIndex, destIndex)
+        onUpdate(reorderAgents)
+      }
     }
   }
 

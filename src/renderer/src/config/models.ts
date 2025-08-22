@@ -300,6 +300,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   qwen: ['low', 'medium', 'high'] as const,
   qwen_thinking: ['low', 'medium', 'high'] as const,
   doubao: ['auto', 'high'] as const,
+  doubao_no_auto: ['high'] as const,
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const
@@ -316,6 +317,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
   qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
   doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
@@ -339,8 +341,13 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
       thinkingModelType = 'qwen_thinking'
     }
     thinkingModelType = 'qwen'
-  } else if (isSupportedThinkingTokenDoubaoModel(model)) thinkingModelType = 'doubao'
-  else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
+  } else if (isSupportedThinkingTokenDoubaoModel(model)) {
+    if (isDoubaoThinkingAutoModel(model)) {
+      thinkingModelType = 'doubao'
+    } else {
+      thinkingModelType = 'doubao_no_auto'
+    }
+  } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
   return thinkingModelType
@@ -2902,7 +2909,11 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
     return true
   }
 
-  if (isOpenAIReasoningModel(model) || isOpenAIChatCompletionOnlyModel(model) || isQwenMTModel(model)) {
+  if (
+    (isOpenAIReasoningModel(model) && !isOpenAIOpenWeightModel(model)) ||
+    isOpenAIChatCompletionOnlyModel(model) ||
+    isQwenMTModel(model)
+  ) {
     return true
   }
 
@@ -2992,6 +3003,26 @@ export function isWebSearchModel(model: Model): boolean {
 
   if (provider.id === 'grok') {
     return true
+  }
+
+  return false
+}
+
+export function isMandatoryWebSearchModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+
+  if (provider.id === 'perplexity' || provider.id === 'openrouter') {
+    return PERPLEXITY_SEARCH_MODELS.includes(modelId)
   }
 
   return false
@@ -3231,3 +3262,11 @@ export const isGPT5SeriesModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-5')
 }
+
+export const isOpenAIOpenWeightModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-oss')
+}
+
+// zhipu 视觉推理模型用这组 special token 标记推理结果
+export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const

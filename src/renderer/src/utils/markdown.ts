@@ -1,4 +1,3 @@
-import { languages } from '@shared/config/languages'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
@@ -186,40 +185,6 @@ export function removeTrailingDoubleSpaces(markdown: string): string {
 }
 
 /**
- * 根据语言名称获取文件扩展名
- * - 先精确匹配，再忽略大小写，最后匹配别名
- * - 返回第一个扩展名
- * @param language 语言名称
- * @returns 文件扩展名
- */
-export function getExtensionByLanguage(language: string): string {
-  const lowerLanguage = language.toLowerCase()
-
-  // 精确匹配语言名称
-  const directMatch = languages[language]
-  if (directMatch?.extensions?.[0]) {
-    return directMatch.extensions[0]
-  }
-
-  // 大小写不敏感的语言名称匹配
-  for (const [langName, data] of Object.entries(languages)) {
-    if (langName.toLowerCase() === lowerLanguage && data.extensions?.[0]) {
-      return data.extensions[0]
-    }
-  }
-
-  // 通过别名匹配
-  for (const [, data] of Object.entries(languages)) {
-    if (data.aliases?.some((alias) => alias.toLowerCase() === lowerLanguage)) {
-      return data.extensions?.[0] || `.${language}`
-    }
-  }
-
-  // 回退到语言名称
-  return `.${language}`
-}
-
-/**
  * 根据代码块节点的起始位置生成 ID
  * @param start 代码块节点的起始位置
  * @returns 代码块在 Markdown 字符串中的 ID
@@ -263,31 +228,49 @@ export function isHtmlCode(code: string | null): boolean {
     return false
   }
 
-  const trimmedCode = code.trim()
+  const trimmedCode = code.trim().toLowerCase()
 
-  // 检查是否包含HTML文档类型声明
-  if (trimmedCode.includes('<!DOCTYPE html>') || trimmedCode.includes('<!doctype html>')) {
+  // 1. 检查是否包含完整的HTML文档结构
+  if (
+    trimmedCode.includes('<!doctype html>') ||
+    trimmedCode.includes('<html') ||
+    trimmedCode.includes('</html>') ||
+    trimmedCode.includes('<head') ||
+    trimmedCode.includes('</head>') ||
+    trimmedCode.includes('<body') ||
+    trimmedCode.includes('</body>')
+  ) {
     return true
   }
 
-  // 检查是否包含html标签
-  if (trimmedCode.includes('<html') || trimmedCode.includes('</html>')) {
+  // 2. 检查是否包含常见的HTML/SVG标签
+  const commonTags = [
+    '<div',
+    '<span',
+    '<p',
+    '<a',
+    '<img',
+    '<svg',
+    '<table',
+    '<ul',
+    '<ol',
+    '<section',
+    '<header',
+    '<footer',
+    '<nav',
+    '<article',
+    '<button',
+    '<form',
+    '<input'
+  ]
+  if (commonTags.some((tag) => trimmedCode.includes(tag))) {
     return true
   }
 
-  // 检查是否包含head标签
-  if (trimmedCode.includes('<head>') || trimmedCode.includes('</head>')) {
-    return true
-  }
-
-  // 检查是否包含body标签
-  if (trimmedCode.includes('<body') || trimmedCode.includes('</body>')) {
-    return true
-  }
-
-  // 检查是否以HTML标签开头和结尾的完整HTML结构
-  const htmlTagPattern = /^\s*<html[^>]*>[\s\S]*<\/html>\s*$/i
-  if (htmlTagPattern.test(trimmedCode)) {
+  // 3. 检查是否存在至少一个闭合的HTML标签
+  // 这个正则表达式查找 <tag>...</tag> 或 <tag .../> 结构
+  const pairedTagPattern = /<([a-z0-9]+)([^>]*?)>(.*?)<\/\1>|<([a-z0-9]+)([^>]*?)\/>/
+  if (pairedTagPattern.test(trimmedCode)) {
     return true
   }
 

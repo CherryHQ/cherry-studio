@@ -58,12 +58,9 @@ vi.mock('@renderer/utils/markdown', () => ({
 // Mock components with more realistic behavior
 vi.mock('../CodeBlock', () => ({
   __esModule: true,
-  default: ({ id, onSave, children }: any) => (
-    <div data-testid="code-block" data-id={id}>
+  default: ({ children, blockId }: any) => (
+    <div data-testid="code-block" data-block-id={blockId}>
       <code>{children}</code>
-      <button type="button" onClick={() => onSave(id, 'new content')}>
-        Save
-      </button>
     </div>
   )
 }))
@@ -154,8 +151,6 @@ vi.mock('react-markdown', () => ({
 }))
 
 describe('Markdown', () => {
-  let mockEventEmitter: any
-
   beforeEach(async () => {
     vi.clearAllMocks()
 
@@ -164,10 +159,6 @@ describe('Markdown', () => {
     mockUseTranslation.mockReturnValue({
       t: (key: string) => (key === 'message.chat.completion.paused' ? 'Paused' : key)
     })
-
-    // Get mocked EventEmitter
-    const { EventEmitter } = await import('@renderer/services/EventService')
-    mockEventEmitter = EventEmitter
   })
 
   afterEach(() => {
@@ -320,21 +311,9 @@ describe('Markdown', () => {
       expect(screen.getByTestId('has-link-component')).toBeInTheDocument()
     })
 
-    it('should integrate CodeBlock component with edit functionality', () => {
-      const block = createMainTextBlock({ id: 'test-block-123' })
-      render(<Markdown block={block} />)
-
+    it('should integrate CodeBlock component', () => {
+      render(<Markdown block={createMainTextBlock()} />)
       expect(screen.getByTestId('has-code-component')).toBeInTheDocument()
-
-      // Test code block edit event
-      const saveButton = screen.getByText('Save')
-      saveButton.click()
-
-      expect(mockEventEmitter.emit).toHaveBeenCalledWith('EDIT_CODE_BLOCK', {
-        msgBlockId: 'test-block-123',
-        codeBlockId: 'code-block-1',
-        newContent: 'new content'
-      })
     })
 
     it('should integrate Table component with copy functionality', () => {

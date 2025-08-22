@@ -30,10 +30,10 @@ function rehypeScalableSvg() {
   return (tree: Root) => {
     visit(tree, 'element', (node: Element) => {
       if (node.tagName === 'svg') {
-        const properties = node.properties || {}
+        const properties = node.properties
         const hasViewBox = 'viewBox' in properties
-        const width = properties.width as string | undefined
-        const height = properties.height as string | undefined
+        const width = (properties.width as string)?.trim()
+        const height = (properties.height as string)?.trim()
 
         // 1. Universally set max-width from the width attribute if it exists.
         // This is safe for both simple and complex cases.
@@ -46,15 +46,14 @@ function rehypeScalableSvg() {
         // 2. Handle viewBox creation for simple, numeric cases.
         if (!hasViewBox && isNumeric(width) && isNumeric(height)) {
           properties.viewBox = `0 0 ${width} ${height}`
+          // Reset or clean up attributes.
+          properties.width = '100%'
+          delete properties.height
         }
         // 3. Flag complex cases for runtime measurement.
         else if (!hasViewBox && width && height) {
           properties['data-needs-measurement'] = 'true'
         }
-
-        // 4. Reset or clean up attributes.
-        properties.width = '100%'
-        delete properties.height
 
         node.properties = properties
       }

@@ -91,7 +91,7 @@ export default abstract class BasePreprocessProvider {
   }
 
   public async readPdf(buffer: Buffer) {
-    const pdfDoc = await PDFDocument.load(buffer)
+    const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true })
     return {
       numPages: pdfDoc.getPageCount()
     }

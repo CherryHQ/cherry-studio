@@ -7,11 +7,10 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { parseJSON } from '@renderer/utils'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
+import { findCitationInChildren, processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
 import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRef } from 'react'
@@ -37,7 +36,7 @@ import Table from './Table'
 
 const ALLOWED_ELEMENTS =
   /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
-const DISALLOWED_ELEMENTS = ['iframe']
+const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 interface Props {
   // message: Message & { content: string }
@@ -126,23 +125,10 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     return plugins
   }, [mathEngine, messageContent, block.id])
 
-  const onSaveCodeBlock = useCallback(
-    (id: string, newContent: string) => {
-      EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
-        msgBlockId: block.id,
-        codeBlockId: id,
-        newContent
-      })
-    },
-    [block.id]
-  )
-
   const components = useMemo(() => {
     return {
       a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
-      code: (props: any) => (
-        <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
-      ),
+      code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
@@ -153,7 +139,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       },
       svg: MarkdownSvgRenderer
     } as Partial<Components>
-  }, [onSaveCodeBlock, block.id])
+  }, [block.id])
 
   if (messageContent.includes('<style>')) {
     components.style = MarkdownShadowDOMRenderer as any

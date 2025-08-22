@@ -81,7 +81,14 @@ export type ReasoningEffortOptionalParams = {
   thinking_budget?: number
   incremental_output?: boolean
   enable_reasoning?: boolean
-  extra_body?: Record<string, any>
+  extra_body?: {
+    google?: {
+      thinking_config: {
+        thinking_budget: number
+        include_thoughts?: boolean
+      }
+    }
+  }
   // Add any other potential reasoning-related keys here if they exist
 }
 

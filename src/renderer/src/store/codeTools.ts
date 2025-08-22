@@ -1,14 +1,17 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 
 // 常量定义
 const MAX_DIRECTORIES = 10 // 最多保存10个目录
 
 export interface CodeToolsState {
   // 当前选择的 CLI 工具，默认使用 qwen-code
-  selectedCliTool: string
+  selectedCliTool: codeTools
   // 为每个 CLI 工具单独保存选择的模型
   selectedModels: Record<string, Model | null>
+  // 为每个 CLI 工具单独保存环境变量
+  environmentVariables: Record<string, string>
   // 记录用户选择过的所有目录，支持增删
   directories: string[]
   // 当前选择的目录
@@ -16,11 +19,17 @@ export interface CodeToolsState {
 }
 
 export const initialState: CodeToolsState = {
-  selectedCliTool: 'qwen-code',
+  selectedCliTool: codeTools.qwenCode,
   selectedModels: {
-    'qwen-code': null,
-    'claude-code': null,
-    'gemini-cli': null
+    [codeTools.qwenCode]: null,
+    [codeTools.claudeCode]: null,
+    [codeTools.geminiCli]: null,
+    [codeTools.openaiCodex]: null
+  },
+  environmentVariables: {
+    'qwen-code': '',
+    'claude-code': '',
+    'gemini-cli': ''
   },
   directories: [],
   currentDirectory: ''
@@ -31,13 +40,25 @@ const codeToolsSlice = createSlice({
   initialState,
   reducers: {
     // 设置选择的 CLI 工具
-    setSelectedCliTool: (state, action: PayloadAction<string>) => {
+    setSelectedCliTool: (state, action: PayloadAction<codeTools>) => {
       state.selectedCliTool = action.payload
     },
 
     // 设置选择的模型（为当前 CLI 工具设置）
     setSelectedModel: (state, action: PayloadAction<Model | null>) => {
       state.selectedModels[state.selectedCliTool] = action.payload
+    },
+
+    // 设置环境变量（为当前 CLI 工具设置）
+    setEnvironmentVariables: (state, action: PayloadAction<string>) => {
+      if (!state.environmentVariables) {
+        state.environmentVariables = {
+          'qwen-code': '',
+          'claude-code': '',
+          'gemini-cli': ''
+        }
+      }
+      state.environmentVariables[state.selectedCliTool] = action.payload
     },
 
     // 添加目录到列表中
@@ -87,14 +108,11 @@ const codeToolsSlice = createSlice({
 
     // 重置所有设置
     resetCodeTools: (state) => {
-      state.selectedCliTool = 'qwen-code'
-      state.selectedModels = {
-        'qwen-code': null,
-        'claude-code': null,
-        'gemini-cli': null
-      }
-      state.directories = []
-      state.currentDirectory = ''
+      state.selectedCliTool = initialState.selectedCliTool
+      state.selectedModels = initialState.selectedModels
+      state.environmentVariables = initialState.environmentVariables
+      state.directories = initialState.directories
+      state.currentDirectory = initialState.currentDirectory
     }
   }
 })
@@ -102,6 +120,7 @@ const codeToolsSlice = createSlice({
 export const {
   setSelectedCliTool,
   setSelectedModel,
+  setEnvironmentVariables,
   addDirectory,
   removeDirectory,
   setCurrentDirectory,

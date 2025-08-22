@@ -26,7 +26,7 @@ import { FileMetadata, KnowledgeBase, KnowledgeItem, MigrationModeEnum, Processi
 import { runAsyncFunction } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 import { useAgents } from './useAgents'
@@ -35,6 +35,7 @@ import { useAssistants } from './useAssistant'
 export const useKnowledge = (baseId: string) => {
   const dispatch = useAppDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
+  const checkTimerRef = useRef<NodeJS.Timeout>(undefined)
 
   // 重命名知识库
   const renameKnowledgeBase = (name: string) => {
@@ -46,34 +47,46 @@ export const useKnowledge = (baseId: string) => {
     dispatch(updateBase(base))
   }
 
+  useEffect(() => {
+    return () => {
+      clearTimeout(checkTimerRef.current)
+    }
+  }, [])
+
+  // 检查知识库
+  const checkAllBases = () => {
+    clearTimeout(checkTimerRef.current)
+    checkTimerRef.current = setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
+
   // 批量添加文件
   const addFiles = (files: FileMetadata[]) => {
     dispatch(addFilesThunk(baseId, files))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 添加笔记
   const addNote = async (content: string) => {
     await dispatch(addNoteThunk(baseId, content))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 添加URL
   const addUrl = (url: string) => {
     dispatch(addItemThunk(baseId, 'url', url))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 添加 Sitemap
   const addSitemap = (url: string) => {
     dispatch(addItemThunk(baseId, 'sitemap', url))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // Add directory support
   const addDirectory = (path: string) => {
     dispatch(addItemThunk(baseId, 'directory', path))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // add video support
@@ -149,6 +162,22 @@ export const useKnowledge = (baseId: string) => {
 
     if (!base || !item?.uniqueId || !item?.uniqueIds) {
       return
+    }
+    if (base && item.uniqueId && item.uniqueIds) {
+      await window.api.knowledgeBase.remove({
+        uniqueId: item.uniqueId,
+        uniqueIds: item.uniqueIds,
+        base: getKnowledgeBaseParams(base)
+      })
+      updateItem({
+        ...item,
+        processingStatus: 'pending',
+        processingProgress: 0,
+        processingError: '',
+        uniqueId: undefined,
+        updated_at: Date.now()
+      })
+      checkAllBases()
     }
 
     const removalParams = {
@@ -267,7 +296,7 @@ export const useKnowledge = (baseId: string) => {
       throw new Error(`Failed to migrate files ${files}: ${error}`)
     }
 
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   const fileItems = base?.items.filter((item) => item.type === 'file') || []

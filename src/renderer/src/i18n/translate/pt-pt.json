@@ -322,6 +322,7 @@
       "expand": "Expandir",
       "file_error": "Erro ao processar o arquivo",
       "file_not_supported": "O modelo não suporta este tipo de arquivo",
+      "file_not_supported_count": "{{count}} arquivos não suportados",
       "generate_image": "Gerar imagem",
       "generate_image_not_supported": "Modelo não suporta geração de imagem",
       "knowledge_base": "Base de conhecimento",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Digite novo nome",
-        "title": "Editar nome do tópico"
+        "title": "Editar nome do tópico",
+        "title_tip": "Dicas: Clique duas vezes no nome do tópico para renomeá-lo diretamente no local"
       },
       "export": {
         "image": "Exportar como imagem",
@@ -654,6 +656,8 @@
     "cli_tool": "Ferramenta de linha de comando",
     "cli_tool_placeholder": "Selecione a ferramenta de linha de comando a ser utilizada",
     "description": "Inicie rapidamente várias ferramentas de linha de comando de código, aumentando a eficiência do desenvolvimento",
+    "env_vars_help": "Insira variáveis de ambiente personalizadas (uma por linha, formato: CHAVE=valor)",
+    "environment_variables": "variáveis de ambiente",
     "folder_placeholder": "Selecionar diretório de trabalho",
     "install_bun": "Instalar o Bun",
     "installing_bun": "Instalando...",
@@ -820,7 +824,8 @@
     },
     "missing_user_message": "Não é possível alternar a resposta do modelo: a mensagem original do usuário foi excluída. Envie uma nova mensagem para obter a resposta deste modelo",
     "model": {
-      "exists": "O modelo já existe"
+      "exists": "O modelo já existe",
+      "not_exists": "O modelo não existe"
     },
     "no_api_key": "A chave da API não foi configurada",
     "pause_placeholder": "Interrompido",
@@ -1472,6 +1477,27 @@
     },
     "title": "Pequeno aplicativo"
   },
+  "minapps": {
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "MINIMAX",
+    "metaso": "Metaso",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami AI Search",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "yuewen": "Yuewen",
+    "zhihu": "Zhihu"
+  },
   "miniwindow": {
     "alert": {
       "google_login": "Aviso: Caso encontre a mensagem do Google \"navegador não confiável\" ao fazer login, faça primeiro o login da conta no mini programa do Google na lista de mini programas, e depois use o login do Google em outros mini programas"
@@ -1612,6 +1638,7 @@
       "style_type_tip": "Estilo da imagem editada, disponível apenas para a versão V_2 ou superior"
     },
     "generate": {
+      "height": "Altura",
       "magic_prompt_option_tip": "Otimização inteligente do prompt para melhorar os resultados da geração",
       "model_tip": "Versão do modelo: V2 é o modelo mais recente da interface, V2A é o modelo rápido, V_1 é o modelo de primeira geração e _TURBO é a versão acelerada",
       "negative_prompt_tip": "Descreve elementos que você não deseja ver nas imagens; suportado apenas nas versões V_1, V_1_TURBO, V_2 e V_2_TURBO",
@@ -1619,8 +1646,11 @@
       "person_generation": "Gerar Personagem",
       "person_generation_tip": "Permite que o modelo gere imagens de personagens",
       "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
+      "safety_tolerance": "Tolerância de segurança",
+      "safety_tolerance_tip": "Controle a tolerância de segurança para a geração de imagens, aplicável apenas à versão FLUX.1-Kontext-pro",
       "seed_tip": "Controla a aleatoriedade na geração das imagens, usado para reproduzir resultados idênticos",
-      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores"
+      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores",
+      "width": "Largura"
     },
     "generated_image": "Imagem gerada",
     "go_to_settings": "Ir para configurações",
@@ -2283,8 +2313,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "Ativando esta opção, será usado um modelo de nomeação por tópico para criar os títulos das mensagens exportadas. Esta configuração também afetará todas as formas de exportação feitas por meio de Markdown.",
-          "title": "Usar modelo de nomeação por tópico para criar títulos das mensagens exportadas"
+          "help": "Ativado, usa um modelo rápido para nomear o título das mensagens exportadas. Esta opção também afeta todas as formas de exportação por Markdown.",
+          "title": "Usar modelo rápido para nomear o título das mensagens exportadas"
         }
       },
       "minute_interval_one": "{{count}} minuto",
@@ -2733,6 +2763,11 @@
     },
     "input": {
       "auto_translate_with_space": "Traduzir com três espaços rápidos",
+      "clear": {
+        "all": "Limpar",
+        "knowledge_base": "Limpar base de conhecimento selecionada",
+        "models": "Limpar todos os modelos"
+      },
       "show_translate_confirm": "Mostrar diálogo de confirmação de tradução",
       "target_language": {
         "chinese": "Chinês simplificado",
@@ -2980,7 +3015,6 @@
         "label": "Disparador de detalhes da grade"
       },
       "input": {
-        "enable_delete_model": "Ativar tecla de exclusão para remover modelos/anexos inseridos",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
         "paste_long_text_as_file": "Colar texto longo como arquivo",
         "paste_long_text_threshold": "Limite de texto longo",
@@ -3118,7 +3152,6 @@
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Modelo usado ao criar um novo assistente, se o assistente não tiver um modelo definido, este será usado",
       "empty": "Sem modelos",
-      "enable_topic_naming": "Renomeação automática de tópicos",
       "manage": {
         "add_listed": {
           "confirm": "Tem a certeza de que deseja adicionar todos os modelos à lista?",
@@ -3144,10 +3177,17 @@
       "quick_assistant_default_tag": "Padrão",
       "quick_assistant_model": "Modelo do Assistente Rápido",
       "quick_assistant_selection": "Selecionar Assistente",
-      "topic_naming_model": "Modelo de nomenclatura de tópicos",
-      "topic_naming_model_description": "Modelo usado para nomear tópicos automaticamente",
-      "topic_naming_model_setting_title": "Configurações do modelo de nomenclatura de tópicos",
-      "topic_naming_prompt": "Prompt de nomenclatura de tópicos",
+      "quick_model": {
+        "description": "Modelo utilizado para executar tarefas simples, como nomeação de tópicos, extração de palavras-chave de busca, entre outras.",
+        "label": "Modelo rápido",
+        "setting_title": "Configuração rápida do modelo",
+        "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
+      },
+      "topic_naming": {
+        "auto": "Renomeação automática de tópicos",
+        "label": "Nomeação do tópico",
+        "prompt": "Prompt de nomenclatura de tópicos"
+      },
       "translate_model": "Modelo de tradução",
       "translate_model_description": "Modelo usado para serviços de tradução",
       "translate_model_prompt_message": "Digite o prompt do modelo de tradução",
@@ -3674,12 +3714,34 @@
     "custom": {
       "label": "idioma personalizado"
     },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "algoritmo",
+          "tip": "Usar o algoritmo franc para detecção de idioma"
+        },
+        "auto": {
+          "label": "automático",
+          "tip": "Selecionar automaticamente o método de detecção adequado"
+        },
+        "label": "Método de detecção automática",
+        "llm": {
+          "tip": "Usar modelo rápido para detecção de idioma, consumindo poucos tokens."
+        },
+        "placeholder": "Escolha o método de detecção automática",
+        "tip": "Método utilizado para detecção automática do idioma de entrada"
+      }
+    },
     "detected": {
       "language": "Detecção automática"
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
-      "detected_unknown": "Idioma desconhecido não pode ser trocado",
+      "detect": {
+        "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma",
+        "unknown": "Idioma desconhecido detectado",
+        "update_setting": "Falha na configuração"
+      },
       "empty": "Resultado da tradução está vazio",
       "failed": "Tradução falhou",
       "invalid_source": "Idioma de origem inválido",
@@ -3697,6 +3759,9 @@
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "save": "Falha ao guardar o histórico de traduções"
+      },
+      "search": {
+        "placeholder": "Pesquisar histórico de tradução"
       },
       "title": "Histórico de Tradução"
     },

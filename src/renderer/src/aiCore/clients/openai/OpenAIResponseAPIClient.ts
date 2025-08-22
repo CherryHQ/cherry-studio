@@ -5,6 +5,7 @@ import {
   isGPT5SeriesModel,
   isOpenAIChatCompletionOnlyModel,
   isOpenAILLMModel,
+  isOpenAIOpenWeightModel,
   isSupportedReasoningEffortOpenAIModel,
   isSupportVerbosityModel,
   isVisionModel
@@ -385,12 +386,12 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
           text: assistant.prompt || '',
           type: 'input_text'
         }
-        if (isSupportedReasoningEffortOpenAIModel(model)) {
-          if (isSupportDeveloperRoleProvider(this.provider)) {
-            systemMessage.role = 'developer'
-          } else {
-            systemMessage.role = 'system'
-          }
+        if (
+          isSupportedReasoningEffortOpenAIModel(model) &&
+          isSupportDeveloperRoleProvider(this.provider) &&
+          isOpenAIOpenWeightModel(model)
+        ) {
+          systemMessage.role = 'developer'
         }
 
         // 2. 设置工具

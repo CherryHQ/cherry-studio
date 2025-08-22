@@ -6,6 +6,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
@@ -53,6 +54,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { setTimeoutTimer } = useTimer()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
 
@@ -170,9 +172,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
-      setTimeout(() => {
-        setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
-      }, 3000)
+      setTimeoutTimer(
+        'onCheckApi',
+        () => {
+          setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
+        },
+        3000
+      )
     } catch (error: any) {
       window.message.error({
         key: 'api-check',
@@ -237,12 +243,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             </Link>
           )}
           {!isSystemProvider(provider) && (
-            <Button
-              type="text"
-              icon={<Bolt size={14} />}
-              size="small"
-              onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
-            />
+            <Tooltip title={t('settings.provider.api.options.label')}>
+              <Button
+                type="text"
+                icon={<Bolt size={14} />}
+                size="small"
+                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+              />
+            </Tooltip>
           )}
         </Flex>
         <Switch
@@ -284,8 +292,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
-              // FIXME：暂时用 prefix。因为 suffix 会被覆盖，实际上不起作用。
-              prefix={renderStatusIndicator()}
+              suffix={renderStatusIndicator()}
             />
             <Button
               type={isApiKeyConnectable ? 'primary' : 'default'}
