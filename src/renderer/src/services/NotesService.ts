@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import {
-  findNodeByPath,
   findNodeInTree,
   findParentNode,
   getNotesTree,
@@ -12,6 +11,7 @@ import {
   renameNodeFromTree
 } from '@renderer/services/NotesTreeService'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import { getFileDirectory } from '@renderer/utils'
 import { v4 as uuidv4 } from 'uuid'
 
 const MARKDOWN_EXT = '.md'
@@ -31,14 +31,19 @@ export async function initWorkSpace(folderPath: string): Promise<void> {
  * 创建新文件夹
  */
 export async function createFolder(name: string, folderPath: string): Promise<NotesTreeNode> {
+  const { safeName, exists } = await window.api.file.checkFileName(folderPath, name, false)
+  if (exists) {
+    logger.warn(`Folder already exists: ${safeName}`)
+  }
+
   const tree = await getNotesTree()
   const folderId = uuidv4()
-  const { uniqueName, targetPath } = await ensureUniqueName(name, folderPath)
 
+  const targetPath = await window.api.file.mkdir(`${folderPath}/${safeName}`)
   const folder: NotesTreeNode = {
     id: folderId,
-    name: uniqueName,
-    treePath: `/${uniqueName}`,
+    name: safeName,
+    treePath: `/${safeName}`,
     externalPath: targetPath,
     type: 'folder',
     children: [],
@@ -47,8 +52,6 @@ export async function createFolder(name: string, folderPath: string): Promise<No
     updatedAt: new Date().toISOString()
   }
 
-  await window.api.file.mkdir(targetPath)
-  folder.externalPath = targetPath
   insertNodeIntoTree(tree, folder)
 
   return folder
@@ -58,20 +61,26 @@ export async function createFolder(name: string, folderPath: string): Promise<No
  * 创建新笔记文件
  */
 export async function createNote(name: string, content: string = '', folderPath: string): Promise<NotesTreeNode> {
+  const { safeName, exists } = await window.api.file.checkFileName(folderPath, name, true)
+  if (exists) {
+    logger.warn(`Note already exists: ${safeName}`)
+  }
+
   const tree = await getNotesTree()
   const noteId = uuidv4()
-  const { uniqueName, targetPath } = await ensureUniqueName(name, folderPath)
+  const notePath = `${folderPath}/${safeName}${MARKDOWN_EXT}`
+
+  await window.api.file.write(notePath, content)
   const note: NotesTreeNode = {
     id: noteId,
-    name: uniqueName,
-    treePath: `/${uniqueName}`,
-    externalPath: targetPath,
+    name: safeName,
+    treePath: `/${safeName}`,
+    externalPath: notePath,
     type: 'file',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 
-  await window.api.file.write(targetPath, content)
   insertNodeIntoTree(tree, note)
 
   return note
@@ -88,21 +97,27 @@ export async function uploadNote(file: File, folderPath: string): Promise<NotesT
   }
 
   const noteId = uuidv4()
-  const baseName = fileName.replace(MARKDOWN_EXT, '')
-  const { uniqueName, targetPath } = await ensureUniqueName(baseName, folderPath)
+  const nameWithoutExt = fileName.replace(MARKDOWN_EXT, '')
+
+  const { safeName, exists } = await window.api.file.checkFileName(folderPath, nameWithoutExt, true)
+  if (exists) {
+    logger.warn(`Note already exists: ${safeName}`)
+  }
+
+  const notePath = `${folderPath}/${safeName}${MARKDOWN_EXT}`
 
   const note: NotesTreeNode = {
     id: noteId,
-    name: uniqueName,
-    treePath: `/${uniqueName}`,
-    externalPath: targetPath,
+    name: safeName,
+    treePath: `/${safeName}`,
+    externalPath: notePath,
     type: 'file',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 
   const content = await file.text()
-  await window.api.file.write(targetPath, content)
+  await window.api.file.write(notePath, content)
   insertNodeIntoTree(tree, note)
 
   return note
@@ -135,12 +150,21 @@ export async function renameNode(nodeId: string, newName: string): Promise<Notes
   if (!node) {
     throw new Error('Node not found')
   }
-  if (node.type === 'file') {
-    await window.api.file.rename(node.externalPath, newName)
-  } else if (node.type === 'folder') {
-    await window.api.file.renameDir(node.externalPath, newName)
+
+  const dirPath = getFileDirectory(node.externalPath)
+  const { safeName, exists } = await window.api.file.checkFileName(dirPath, newName, node.type === 'file')
+
+  if (exists) {
+    logger.warn(`Target name already exists: ${safeName}`)
+    throw new Error(`Target name already exists: ${safeName}`)
   }
-  return renameNodeFromTree(tree, nodeId, newName)
+
+  if (node.type === 'file') {
+    await window.api.file.rename(node.externalPath, safeName)
+  } else if (node.type === 'folder') {
+    await window.api.file.renameDir(node.externalPath, safeName)
+  }
+  return renameNodeFromTree(tree, nodeId, safeName)
 }
 
 /**
@@ -190,16 +214,22 @@ export async function moveNode(
       if (targetParent) {
         targetPath = targetParent.externalPath
       } else {
-        // 目标节点在根级别，取其所在目录
-        const pathParts = targetNode.externalPath!.split('/')
-        pathParts.pop() // 移除最后一个部分（文件名或文件夹名）
-        targetPath = pathParts.join('/')
+        targetPath = getFileDirectory(targetNode.externalPath!)
       }
     }
 
     // 构建新的文件路径
     const sourceName = sourceNode.externalPath!.split('/').pop()!
-    const newPath = `${targetPath}/${sourceName}`
+    const sourceNameWithoutExt = sourceName.replace(sourceNode.type === 'file' ? MARKDOWN_EXT : '', '')
+
+    const { safeName } = await window.api.file.checkFileName(
+      targetPath,
+      sourceNameWithoutExt,
+      sourceNode.type === 'file'
+    )
+
+    const baseName = safeName + (sourceNode.type === 'file' ? MARKDOWN_EXT : '')
+    const newPath = `${targetPath}/${baseName}`
 
     if (sourceNode.externalPath !== newPath) {
       try {
@@ -310,29 +340,4 @@ function recursiveSortNodes(nodes: NotesTreeNode[], sortType: NotesSortType): vo
       recursiveSortNodes(node.children, sortType)
     }
   }
-}
-
-/**
- * 确保文件名唯一
- */
-async function ensureUniqueName(
-  baseName: string,
-  folderPath: string
-): Promise<{ uniqueName: string; targetPath: string }> {
-  const tree = await getNotesTree()
-  let uniqueName = baseName
-  const isFile = !uniqueName.includes('.')
-  const extension = isFile ? MARKDOWN_EXT : ''
-  let targetPath = `${folderPath}/${uniqueName}${extension}`
-  let counter = 1
-  let treePath = folderPath === '/' ? `/${uniqueName}` : `${folderPath}/${uniqueName}`
-
-  while (findNodeByPath(tree, treePath)) {
-    uniqueName = `${baseName}${counter}`
-    targetPath = `${folderPath}/${uniqueName}${extension}`
-    treePath = folderPath === '/' ? `/${uniqueName}` : `${folderPath}/${uniqueName}`
-    counter++
-  }
-
-  return { uniqueName, targetPath }
 }

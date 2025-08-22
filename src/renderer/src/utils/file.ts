@@ -7,8 +7,7 @@ import { KB, MB } from '@shared/config/constant'
  */
 export function getFileDirectory(filePath: string): string {
   const parts = filePath.split('/')
-  const directory = parts.slice(0, -1).join('/')
-  return directory
+  return parts.slice(0, -1).join('/')
 }
 
 /**
