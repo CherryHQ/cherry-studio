@@ -3,7 +3,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
-import { getCodeBlockId } from '@renderer/utils/markdown'
+import { getCodeBlockId, isOpenFenceBlock } from '@renderer/utils/markdown'
 import type { Node } from 'mdast'
 import React, { memo, useCallback, useMemo } from 'react'
 
@@ -41,9 +41,9 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
 
   if (match) {
     // HTML 代码块特殊处理
-    // FIXME: 感觉没有必要用 isHtmlCode 判断
     if (language === 'html') {
-      return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming} />
+      const isOpenFence = isOpenFenceBlock(children?.length, match?.[1]?.length, node?.position)
+      return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
     }
 
     return (
