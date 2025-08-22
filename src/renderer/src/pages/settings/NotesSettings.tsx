@@ -54,10 +54,10 @@ const NotesSettings: FC = () => {
 
       updateNotesPath(tempPath)
       initWorkSpace(tempPath)
-      message.success(t('notes.settings.data.path_updated'))
+      window.message.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
-      message.error(t('notes.settings.data.apply_path_failed'))
+      window.message.error(t('notes.settings.data.apply_path_failed'))
     }
   }
 
