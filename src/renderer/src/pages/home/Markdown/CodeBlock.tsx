@@ -16,8 +16,9 @@ interface Props {
 }
 
 const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
-  const match = /language-([\w-+]+)/.exec(className || '') || children?.includes('\n')
-  const language = match?.[1] ?? 'text'
+  const languageMatch = /language-([\w-+]+)/.exec(className || '')
+  const isMultiline = children?.includes('\n')
+  const language = languageMatch?.[1] ?? (isMultiline ? 'text' : null)
 
   // 代码块 id
   const id = useMemo(() => getCodeBlockId(node?.position?.start), [node?.position?.start])
@@ -39,10 +40,10 @@ const CodeBlock: React.FC<Props> = ({ children, className, node, blockId }) => {
     [blockId, id]
   )
 
-  if (match) {
+  if (language !== null) {
     // HTML 代码块特殊处理
     if (language === 'html') {
-      const isOpenFence = isOpenFenceBlock(children?.length, match?.[1]?.length, node?.position)
+      const isOpenFence = isOpenFenceBlock(children?.length, languageMatch?.[1]?.length, node?.position)
       return <HtmlArtifactsCard html={children} onSave={handleSave} isStreaming={isStreaming && isOpenFence} />
     }
 
