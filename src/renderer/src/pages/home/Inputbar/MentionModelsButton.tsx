@@ -53,35 +53,58 @@ const MentionModelsButton: FC<Props> = ({
     undefined
   )
 
-  // 提取的通用函数：删除 @ 符号和相关文本
+  // 基于光标 + 搜索词定位并删除最近一次触发的 @ 及搜索文本
   const removeAtSymbolAndText = useCallback(
-    (currentText: string, position: number, searchText?: string) => {
-      // 验证位置是否是 @ 符号
-      if (currentText[position] !== '@') {
+    (currentText: string, caretPosition: number, searchText?: string, fallbackPosition?: number) => {
+      const safeCaret = Math.max(0, Math.min(caretPosition ?? 0, currentText.length))
+
+      // ESC/精确删除：优先按 pattern = "@" + searchText 从光标向左最近匹配
+      if (searchText !== undefined) {
+        const pattern = '@' + searchText
+        const fromIndex = Math.max(0, safeCaret - 1)
+        const start = currentText.lastIndexOf(pattern, fromIndex)
+        if (start !== -1) {
+          const end = start + pattern.length
+          return currentText.slice(0, start) + currentText.slice(end)
+        }
+
+        // 兜底：使用打开时的 position 做校验后再删
+        if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
+          const expected = pattern
+          const actual = currentText.slice(fallbackPosition, fallbackPosition + expected.length)
+          if (actual === expected) {
+            return currentText.slice(0, fallbackPosition) + currentText.slice(fallbackPosition + expected.length)
+          }
+          // 如果不完全匹配，安全起见仅删除单个 '@'
+          return currentText.slice(0, fallbackPosition) + currentText.slice(fallbackPosition + 1)
+        }
+
+        // 未找到匹配则不改动
         return currentText
       }
 
-      let endPos: number
-      if (searchText !== undefined) {
-        // 精确删除模式：使用提供的 searchText
-        const deleteLength = 1 + searchText.length
-        const expectedText = '@' + searchText
-        const actualText = currentText.slice(position, position + deleteLength)
-
-        if (actualText !== expectedText) {
-          // 如果实际文本不匹配，只删除 @ 字符
-          return currentText.slice(0, position) + currentText.slice(position + 1)
+      // 清除按钮：未知搜索词，删除离光标最近的 '@' 及后续连续非空白（到空格/换行/结尾）
+      {
+        const fromIndex = Math.max(0, safeCaret - 1)
+        const start = currentText.lastIndexOf('@', fromIndex)
+        if (start === -1) {
+          // 兜底：使用打开时的 position（若存在），按空白边界删除
+          if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
+            let endPos = fallbackPosition + 1
+            while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
+              endPos++
+            }
+            return currentText.slice(0, fallbackPosition) + currentText.slice(endPos)
+          }
+          return currentText
         }
-        endPos = position + deleteLength
-      } else {
-        // 自动查找模式：找到下一个空格或换行
-        endPos = position + 1
+
+        let endPos = start + 1
         while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
           endPos++
         }
+        return currentText.slice(0, start) + currentText.slice(endPos)
       }
-
-      return currentText.slice(0, position) + currentText.slice(endPos)
     },
     []
   )
@@ -181,12 +204,12 @@ const MentionModelsButton: FC<Props> = ({
       action: () => {
         onClearMentionModels()
 
-        // 只有输入触发时才需要删除 @ 符号
-        if (triggerInfoRef.current?.type === 'input' && triggerInfoRef.current?.position !== undefined) {
+        // 只有输入触发时才需要删除 @ 与搜索文本（未知搜索词，按光标就近删除）
+        if (triggerInfoRef.current?.type === 'input') {
           setText((currentText) => {
-            const position = triggerInfoRef.current!.position!
-            // 使用通用函数，不传 searchText 参数（自动查找模式）
-            return removeAtSymbolAndText(currentText, position)
+            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+            return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
           })
         }
 
@@ -234,9 +257,11 @@ const MentionModelsButton: FC<Props> = ({
               closeTriggerInfo?.type === 'input' &&
               closeTriggerInfo?.position !== undefined
             ) {
-              // 使用通用函数，传入 searchText 参数（精确删除模式）
+              // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
               setText((currentText) => {
-                return removeAtSymbolAndText(currentText, closeTriggerInfo.position!, searchText || '')
+                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+                const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
               })
             }
           }
