@@ -33,7 +33,7 @@ export const useFiles = (props?: Props) => {
    * 4. 当选择了不支持的文件类型时，会显示提示信息
    */
   const onSelectFile = useCallback(
-    async (multipleSelections: boolean = true): Promise<FileMetadata[]> => {
+    async ({ multipleSelections = true }: { multipleSelections?: boolean }): Promise<FileMetadata[]> => {
       if (selecting) {
         return []
       }
