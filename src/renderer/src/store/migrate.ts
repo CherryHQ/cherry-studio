@@ -2311,6 +2311,7 @@ const migrateConfig = {
           // 更新默认模型配置 - 全部设为 GLM-4.5-Flash
           state.llm.defaultModel = glm45FlashModel
           state.llm.topicNamingModel = glm45FlashModel
+          state.llm.quickModel = glm45FlashModel
           state.llm.translateModel = glm45FlashModel
         }
 

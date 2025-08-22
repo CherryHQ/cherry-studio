@@ -549,11 +549,11 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'GLM-4.5'
     },
     {
-      // 默认快捷助手模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
+      // 默认快捷助手模型 - GLM-4.5-Flash
+      id: 'glm-4.5-flash',
+      name: 'GLM-4.5-Flash',
+      provider: 'zhipu',
+      group: 'GLM-4.5'
     }
   ],
   vertexai: [],
