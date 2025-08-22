@@ -40,6 +40,7 @@ export interface RuntimeState {
   currentMinappId: string
   searching: boolean
   filesPath: string
+  notesPath: string
   resourcesPath: string
   update: UpdateState
   export: ExportState
@@ -61,6 +62,7 @@ const initialState: RuntimeState = {
   currentMinappId: '',
   searching: false,
   filesPath: '',
+  notesPath: '',
   resourcesPath: '',
   update: {
     info: null,
@@ -116,6 +118,9 @@ const runtimeSlice = createSlice({
     setFilesPath: (state, action: PayloadAction<string>) => {
       state.filesPath = action.payload
     },
+    setNotesPath: (state, action: PayloadAction<string>) => {
+      state.notesPath = action.payload
+    },
     setResourcesPath: (state, action: PayloadAction<string>) => {
       state.resourcesPath = action.payload
     },
@@ -168,6 +173,7 @@ export const {
   setCurrentMinappId,
   setSearching,
   setFilesPath,
+  setNotesPath,
   setResourcesPath,
   setUpdateState,
   setExportState,

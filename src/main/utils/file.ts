@@ -148,6 +148,10 @@ export function getFilesDir() {
   return path.join(app.getPath('userData'), 'Data', 'Files')
 }
 
+export function getNotesDir() {
+  return path.join(app.getPath('userData'), 'Data', 'Notes')
+}
+
 export function getConfigDir() {
   return path.join(os.homedir(), '.cherrystudio', 'config')
 }

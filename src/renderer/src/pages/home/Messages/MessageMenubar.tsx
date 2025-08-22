@@ -79,7 +79,7 @@ const MessageMenubar: FC<Props> = (props) => {
     onUpdateUseful
   } = props
   const { t } = useTranslation()
-  const { folderPath } = useNotesSettings()
+  const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
@@ -267,7 +267,7 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: async () => {
               const title = await getMessageTitle(message)
               const markdown = messageToMarkdown(message)
-              exportMessageToNotes(title, markdown, folderPath)
+              exportMessageToNotes(title, markdown, notesPath)
             }
           }
         ]
@@ -387,7 +387,7 @@ const MessageMenubar: FC<Props> = (props) => {
       toggleMultiSelectMode,
       message,
       mainTextContent,
-      folderPath,
+      notesPath,
       messageContainerRef,
       topic.name
     ]

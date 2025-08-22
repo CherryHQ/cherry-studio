@@ -56,7 +56,15 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, isPathInside, untildify } from './utils/file'
+import {
+  getCacheDir,
+  getConfigDir,
+  getFilesDir,
+  getNotesDir,
+  hasWritePermission,
+  isPathInside,
+  untildify
+} from './utils/file'
 import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
@@ -81,6 +89,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
     filesPath: getFilesDir(),
+    notesPath: getNotesDir(),
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),

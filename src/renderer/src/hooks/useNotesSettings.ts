@@ -1,29 +1,29 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   NotesSettings,
-  selectFolderPath,
+  selectNotesPath,
   selectNotesSettings,
-  setFolderPath,
+  setNotesPath,
   updateNotesSettings
 } from '@renderer/store/note'
 
 export const useNotesSettings = () => {
   const dispatch = useAppDispatch()
   const settings = useAppSelector(selectNotesSettings)
-  const folderPath = useAppSelector(selectFolderPath)
+  const notesPath = useAppSelector(selectNotesPath)
 
   const updateSettings = (newSettings: Partial<NotesSettings>) => {
     dispatch(updateNotesSettings(newSettings))
   }
 
-  const updateFolderPath = (path: string) => {
-    dispatch(setFolderPath(path))
+  const updateNotesPath = (path: string) => {
+    dispatch(setNotesPath(path))
   }
 
   return {
     settings,
     updateSettings,
-    folderPath,
-    updateFolderPath
+    notesPath,
+    updateNotesPath
   }
 }

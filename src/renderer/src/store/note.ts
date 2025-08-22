@@ -10,7 +10,7 @@ export interface NotesSettings {
 export interface NoteState {
   activeNodeId: string | undefined
   settings: NotesSettings
-  folderPath: string
+  notesPath: string
 }
 
 export const initialState: NoteState = {
@@ -20,7 +20,7 @@ export const initialState: NoteState = {
     fontFamily: 'default',
     editorMode: 'editor'
   },
-  folderPath: ''
+  notesPath: ''
 }
 
 const noteSlice = createSlice({
@@ -33,16 +33,16 @@ const noteSlice = createSlice({
     updateNotesSettings: (state, action: PayloadAction<Partial<NotesSettings>>) => {
       state.settings = { ...state.settings, ...action.payload }
     },
-    setFolderPath: (state, action: PayloadAction<string>) => {
-      state.folderPath = action.payload
+    setNotesPath: (state, action: PayloadAction<string>) => {
+      state.notesPath = action.payload
     }
   }
 })
 
-export const { setActiveNodeId, updateNotesSettings, setFolderPath } = noteSlice.actions
+export const { setActiveNodeId, updateNotesSettings, setNotesPath } = noteSlice.actions
 
 export const selectActiveNodeId = (state: RootState) => state.note.activeNodeId
 export const selectNotesSettings = (state: RootState) => state.note.settings
-export const selectFolderPath = (state: RootState) => state.note.folderPath
+export const selectNotesPath = (state: RootState) => state.note.notesPath
 
 export default noteSlice.reducer

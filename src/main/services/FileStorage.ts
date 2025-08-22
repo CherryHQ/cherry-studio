@@ -1,5 +1,12 @@
 import { loggerService } from '@logger'
-import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding, scanDir } from '@main/utils/file'
+import {
+  getFilesDir,
+  getFileType,
+  getNotesDir,
+  getTempDir,
+  readTextFileWithAutoEncoding,
+  scanDir
+} from '@main/utils/file'
 import { documentExts, imageExts, MB } from '@shared/config/constant'
 import { FileMetadata, NotesTreeNode } from '@types'
 import * as crypto from 'crypto'
@@ -26,6 +33,7 @@ const logger = loggerService.withContext('FileStorage')
 
 class FileStorage {
   private storageDir = getFilesDir()
+  private notesDir = getNotesDir()
   private tempDir = getTempDir()
 
   constructor() {
@@ -35,6 +43,9 @@ class FileStorage {
   private initStorageDir = (): void => {
     try {
       if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+      if (!fs.existsSync(this.notesDir)) {
         fs.mkdirSync(this.storageDir, { recursive: true })
       }
       if (!fs.existsSync(this.tempDir)) {

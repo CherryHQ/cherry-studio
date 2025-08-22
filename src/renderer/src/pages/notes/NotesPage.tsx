@@ -16,6 +16,7 @@ import {
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { selectActiveNodeId, setActiveNodeId } from '@renderer/store/note'
+import { setNotesPath } from '@renderer/store/runtime'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +34,7 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useSettings()
   const dispatch = useAppDispatch()
   const activeNodeId = useAppSelector(selectActiveNodeId)
-  const { settings, folderPath } = useNotesSettings()
+  const { settings, notesPath } = useNotesSettings()
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const [currentContent, setCurrentContent] = useState<string>('')
   const [tokenCount, setTokenCount] = useState(0)
@@ -96,12 +97,24 @@ const NotesPage: FC = () => {
 
   // 初始化加载笔记树
   useEffect(() => {
-    if (!folderPath) {
-      initWorkSpace()
-    } else {
-      loadNotesTree()
+    const initNotes = async () => {
+      try {
+        let localNotesPath: string
+        if (!notesPath) {
+          const info = await window.api.getAppInfo()
+          localNotesPath = info.notesPath
+          dispatch(setNotesPath(localNotesPath))
+        }
+
+        initWorkSpace(notesPath)
+        loadNotesTree()
+      } catch (error) {
+        logger.error('Failed to initialize workspace:', error as Error)
+      }
     }
-  }, [dispatch, folderPath])
+
+    initNotes()
+  }, [dispatch, notesPath])
 
   // 加载笔记内容
   useEffect(() => {
@@ -150,27 +163,27 @@ const NotesPage: FC = () => {
   const handleCreateFolder = useCallback(
     async (name: string) => {
       try {
-        if (!folderPath) {
+        if (!notesPath) {
           throw new Error('No folder path selected')
         }
-        await createFolder(name, folderPath)
+        await createFolder(name, notesPath)
         const updatedTree = await getNotesTree()
         setNotesTree(updatedTree)
       } catch (error) {
         logger.error('Failed to create folder:', error as Error)
       }
     },
-    [folderPath]
+    [notesPath]
   )
 
   // 创建笔记
   const handleCreateNote = useCallback(
     async (name: string) => {
       try {
-        if (!folderPath) {
+        if (!notesPath) {
           throw new Error('No folder path selected')
         }
-        const newNote = await createNote(name, '', folderPath)
+        const newNote = await createNote(name, '', notesPath)
         const updatedTree = await getNotesTree()
         setNotesTree(updatedTree)
         dispatch(setActiveNodeId(newNote.id))
@@ -178,7 +191,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to create note:', error as Error)
       }
     },
-    [dispatch, folderPath]
+    [dispatch, notesPath]
   )
 
   // 切换展开状态
@@ -331,10 +344,10 @@ const NotesPage: FC = () => {
 
         for (const file of markdownFiles) {
           try {
-            if (!folderPath) {
+            if (!notesPath) {
               throw new Error('No folder path selected')
             }
-            await uploadNote(file, folderPath)
+            await uploadNote(file, notesPath)
           } catch (error) {
             logger.error(`Failed to upload note file ${file.name}:`, error as Error)
             window.message.error(t('notes.upload_failed', { name: file.name }))
@@ -352,7 +365,7 @@ const NotesPage: FC = () => {
         setIsLoading(false)
       }
     },
-    [folderPath, t]
+    [notesPath, t]
   )
 
   // 处理节点移动

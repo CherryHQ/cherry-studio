@@ -6,7 +6,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { initWorkSpace } from '@renderer/services/NotesService'
 import { useAppDispatch } from '@renderer/store'
-import { setFolderPath } from '@renderer/store/note'
+import { setNotesPath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps } from 'antd'
 import {
@@ -79,7 +79,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       if (!folderPath) {
         return
       }
-      dispatch(setFolderPath(folderPath))
+      dispatch(setNotesPath(folderPath))
       await initWorkSpace(folderPath)
       await onRefreshTree()
       logger.info(folderPath)

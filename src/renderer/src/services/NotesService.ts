@@ -10,8 +10,6 @@ import {
   removeNodeFromTree,
   renameNodeFromTree
 } from '@renderer/services/NotesTreeService'
-import store from '@renderer/store'
-import { setFolderPath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -23,23 +21,7 @@ const logger = loggerService.withContext('NotesService')
 /**
  * 初始化/同步笔记树结构
  */
-export async function initWorkSpace(folderPath?: string): Promise<void> {
-  if (!folderPath) {
-    // 如果没有指定路径，则使用内置的笔记路径
-    const filesPath = store.getState().runtime.filesPath
-    const notesDir = await window.api.resolvePath(`${filesPath}/Notes`)
-    logger.debug(`Using default notes directory: ${notesDir}`)
-    const exists = await window.api.file
-      .get(notesDir)
-      .then(() => true)
-      .catch(() => false)
-    if (!exists) {
-      await window.api.file.mkdir(notesDir)
-      store.dispatch(setFolderPath(notesDir))
-    }
-    return
-  }
-
+export async function initWorkSpace(folderPath: string): Promise<void> {
   const tree = await window.api.file.getDirectoryStructure(folderPath)
   await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
 }
