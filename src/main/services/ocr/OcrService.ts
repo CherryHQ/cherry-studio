@@ -73,8 +73,9 @@ const imageOcr = async (file: ImageFileMetadata, provider: ImageOcrProvider): Pr
 export const ocr = async (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> => {
   if (isImageFile(file) && isImageOcrProvider(provider)) {
     return imageOcr(file, provider)
+  } else {
+    throw new Error(`File type and provider capability is not matched, otherwise one of them is not supported.`)
   }
-  throw new Error(`File type and provider capability is not matched, otherwise one of them is not supported.`)
 }
 
 /**
