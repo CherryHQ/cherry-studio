@@ -322,6 +322,7 @@
       "expand": "Expandir",
       "file_error": "Erro ao processar o arquivo",
       "file_not_supported": "O modelo não suporta este tipo de arquivo",
+      "file_not_supported_count": "{{count}} arquivos não suportados",
       "generate_image": "Gerar imagem",
       "generate_image_not_supported": "Modelo não suporta geração de imagem",
       "knowledge_base": "Base de conhecimento",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Digite novo nome",
-        "title": "Editar nome do tópico"
+        "title": "Editar nome do tópico",
+        "title_tip": "Dicas: Clique duas vezes no nome do tópico para renomeá-lo diretamente no local"
       },
       "export": {
         "image": "Exportar como imagem",
@@ -3722,6 +3724,9 @@
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "save": "Falha ao guardar o histórico de traduções"
+      },
+      "search": {
+        "placeholder": "Pesquisar histórico de tradução"
       },
       "title": "Histórico de Tradução"
     },

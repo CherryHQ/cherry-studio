@@ -322,6 +322,7 @@
       "expand": "Expand",
       "file_error": "Error processing file",
       "file_not_supported": "Model does not support this file type",
+      "file_not_supported_count": "{{count}} files are not supported",
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Enter new name",
-        "title": "Edit Name"
+        "title": "Edit Name",
+        "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
         "image": "Export as image",
@@ -2680,7 +2682,8 @@
         "title": "Auto Update"
       },
       "avatar": {
-        "reset": "Reset Avatar"
+        "builtin": "Builtin avatar",
+        "reset": "Reset avatar"
       },
       "backup": {
         "button": "Backup",
@@ -3725,6 +3728,9 @@
       "empty": "No translation history",
       "error": {
         "save": "Failed to save translation history"
+      },
+      "search": {
+        "placeholder": "Search translation history"
       },
       "title": "Translation History"
     },

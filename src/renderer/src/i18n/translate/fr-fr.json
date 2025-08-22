@@ -322,6 +322,7 @@
       "expand": "Développer",
       "file_error": "Erreur lors du traitement du fichier",
       "file_not_supported": "Le modèle ne prend pas en charge ce type de fichier",
+      "file_not_supported_count": "{{count}} fichiers non pris en charge",
       "generate_image": "Générer une image",
       "generate_image_not_supported": "Le modèle ne supporte pas la génération d'images",
       "knowledge_base": "Base de connaissances",
@@ -583,7 +584,8 @@
       },
       "edit": {
         "placeholder": "Entrez un nouveau nom",
-        "title": "Modifier le nom du sujet"
+        "title": "Modifier le nom du sujet",
+        "title_tip": "Conseil : double-cliquez sur le nom du sujet pour le renommer directement sur place"
       },
       "export": {
         "image": "Exporter sous forme d'image",
@@ -3722,6 +3724,9 @@
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
         "save": "Échec de la sauvegarde de l'historique des traductions"
+      },
+      "search": {
+        "placeholder": "Rechercher l'historique des traductions"
       },
       "title": "Historique des traductions"
     },

@@ -1,4 +1,4 @@
-import { omit } from 'lodash'
+import { isEmpty, omit } from 'lodash'
 import React from 'react'
 import type { Node } from 'unist'
 
@@ -33,6 +33,7 @@ const Link: React.FC<LinkProps> = (props) => {
       <CitationTooltip citation={props.citationData}>
         <a
           {...omit(props, ['node', 'citationData'])}
+          href={isEmpty(props.href) ? undefined : props.href}
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}

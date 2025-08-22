@@ -9,13 +9,14 @@ import {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
-import { List } from 'antd'
+import { List, ListProps } from 'antd'
 import { FC } from 'react'
 
 interface Props<T> {
   list: T[]
   style?: React.CSSProperties
   listStyle?: React.CSSProperties
+  listProps?: ListProps<T>
   children: (item: T, index: number) => React.ReactNode
   onUpdate: (list: T[]) => void
   onDragStart?: OnDragStartResponder
@@ -28,6 +29,7 @@ const DraggableList: FC<Props<any>> = ({
   list,
   style,
   listStyle,
+  listProps,
   droppableProps,
   onDragStart,
   onUpdate,
@@ -51,6 +53,7 @@ const DraggableList: FC<Props<any>> = ({
         {(provided) => (
           <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
             <List
+              {...listProps}
               dataSource={list}
               renderItem={(item, index) => {
                 const id = item.id || item

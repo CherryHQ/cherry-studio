@@ -11,6 +11,7 @@ import {
   isGPT5SeriesModel,
   isGrokReasoningModel,
   isNotSupportSystemMessageModel,
+  isOpenAIOpenWeightModel,
   isOpenAIReasoningModel,
   isQwenAlwaysThinkModel,
   isQwenMTModel,
@@ -531,12 +532,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         // 1. 处理系统消息
         const systemMessage = { role: 'system', content: assistant.prompt || '' }
 
-        if (isSupportedReasoningEffortOpenAIModel(model)) {
-          if (isSupportDeveloperRoleProvider(this.provider)) {
-            systemMessage.role = 'developer'
-          } else {
-            systemMessage.role = 'system'
-          }
+        if (
+          isSupportedReasoningEffortOpenAIModel(model) &&
+          isSupportDeveloperRoleProvider(this.provider) &&
+          !isOpenAIOpenWeightModel(model)
+        ) {
+          systemMessage.role = 'developer'
         }
 
         if (model.id.includes('o1-mini') || model.id.includes('o1-preview')) {
