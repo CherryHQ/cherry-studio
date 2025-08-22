@@ -520,7 +520,7 @@ const TranslatePage: FC = () => {
         <AreaContainer>
           <InputContainer>
             <FloatButton
-              style={{ position: 'absolute', right: 8, top: 8 }}
+              style={{ position: 'absolute', left: 8, bottom: 8 }}
               className="float-button"
               icon={<PlusOutlined />}
               shape="circle"
