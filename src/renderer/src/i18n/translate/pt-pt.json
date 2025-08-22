@@ -3724,7 +3724,7 @@
     "history": {
       "clear": "Limpar Histórico",
       "clear_description": "Limpar histórico irá deletar todos os registros de tradução. Deseja continuar?",
-      "delete": "Excluir",
+      "delete": "Apagar histórico de traduções",
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
         "delete": "Falha ao excluir",

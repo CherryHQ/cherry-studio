@@ -190,15 +190,23 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                                 handleStar(item.id)
                               }}
                             />
-                            <Button
-                              icon={<DeleteOutlined />}
-                              danger
-                              type="text"
-                              onClick={(e) => {
-                                e.stopPropagation()
+                            <Popconfirm
+                              title={t('translate.history.delete')}
+                              onConfirm={() => {
                                 handleDelete(item.id)
                               }}
-                            />
+                              onPopupClick={(e) => {
+                                e.stopPropagation()
+                              }}>
+                              <Button
+                                icon={<DeleteOutlined />}
+                                danger
+                                type="text"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                }}
+                              />
+                            </Popconfirm>
                           </Flex>
                         </Flex>
                         <HistoryListItemTextContainer>
