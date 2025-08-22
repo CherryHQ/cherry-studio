@@ -11,7 +11,7 @@ import { CustomTranslateLanguage, TranslateHistory, TranslateLanguage, Translate
 import { TranslateAssistant } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
-import { isAbortError } from '@renderer/utils/error'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { t } from 'i18next'
 
 import { hasApiKey } from './ApiService'
@@ -88,7 +88,7 @@ async function fetchTranslate({ content, assistant, onResponse, abortKey }: Fetc
  * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
  * @param abortKey - 用于控制 abort 的键
  * @returns 返回翻译后的文本
- * @throws {Error} 只会抛出 AbortError
+ * @throws {Error} 翻译中止或失败时抛出异常
  */
 export const translateText = async (
   text: string,
@@ -111,12 +111,11 @@ export const translateText = async (
   } catch (e) {
     if (isAbortError(e)) {
       window.message.info(t('translate.info.aborted'))
-      throw e
+    } else {
+      logger.error('Failed to translate', e as Error)
+      window.message.error(t('translate.error.failed' + ': ' + formatErrorMessage(e)))
     }
-    logger.error('Failed to translate', e as Error)
-    const message = e instanceof Error ? e.message : String(e)
-    window.message.error(t('translate.error.failed' + ': ' + message))
-    return ''
+    throw e
   }
 }
 
