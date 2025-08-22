@@ -218,27 +218,14 @@ export const saveTranslateHistory = async (
 /**
  * 更新翻译历史记录
  * @param id - 历史记录ID
- * @param sourceText - 原文内容
- * @param targetText - 翻译后的内容
- * @param sourceLanguage - 源语言代码
- * @param targetLanguage - 目标语言代码
+ * @param update - 更新内容
  * @returns Promise<void>
  */
-export const updateTranslateHistory = async (
-  id: string,
-  sourceText: string,
-  targetText: string,
-  sourceLanguage: TranslateLanguageCode,
-  targetLanguage: TranslateLanguageCode,
-  star?: boolean
-) => {
+export const updateTranslateHistory = async (id: string, update: Omit<Partial<TranslateHistory>, 'id'>) => {
   try {
     const history: Partial<TranslateHistory> = {
-      sourceText,
-      targetText,
-      sourceLanguage,
-      targetLanguage,
-      star
+      ...update,
+      id
     }
     await db.translate_history.update(id, history)
   } catch (e) {
