@@ -15,8 +15,7 @@ import {
 } from '@renderer/services/NotesService'
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectActiveNodeId, setActiveNodeId } from '@renderer/store/note'
-import { setNotesPath } from '@renderer/store/runtime'
+import { selectActiveNodeId, setActiveNodeId, setNotesPath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -100,14 +99,19 @@ const NotesPage: FC = () => {
     const initNotes = async () => {
       try {
         let localNotesPath: string
+        logger.info('Initial notesPath value:', { notesPath })
         if (!notesPath) {
           const info = await window.api.getAppInfo()
           localNotesPath = info.notesPath
           dispatch(setNotesPath(localNotesPath))
+          logger.info('Using notes path:', { path: localNotesPath })
+          initWorkSpace(localNotesPath)
+          loadNotesTree()
+        } else {
+          logger.info('Using notes path:', { path: notesPath })
+          initWorkSpace(notesPath)
+          loadNotesTree()
         }
-
-        initWorkSpace(notesPath)
-        loadNotesTree()
       } catch (error) {
         logger.error('Failed to initialize workspace:', error as Error)
       }

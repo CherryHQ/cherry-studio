@@ -149,7 +149,12 @@ export function getFilesDir() {
 }
 
 export function getNotesDir() {
-  return path.join(app.getPath('userData'), 'Data', 'Notes')
+  const notesDir = path.join(app.getPath('userData'), 'Data', 'Notes')
+  if (!fs.existsSync(notesDir)) {
+    fs.mkdirSync(notesDir, { recursive: true })
+    logger.info(`Notes directory created at: ${notesDir}`)
+  }
+  return notesDir
 }
 
 export function getConfigDir() {
