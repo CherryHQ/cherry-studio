@@ -448,7 +448,7 @@ const TranslatePage: FC = () => {
       }
     } catch (e) {
       logger.error('Failed to select file and ocr.', e as Error)
-      window.message.error(formatErrorMessage(e))
+      window.message.error(t('ocr.error.unknown') + ' ' + formatErrorMessage(e))
     } finally {
       setIsProcessing(false)
       window.message.destroy('translate_ocr_processing')
