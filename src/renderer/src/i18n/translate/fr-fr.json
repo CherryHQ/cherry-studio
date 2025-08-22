@@ -148,6 +148,9 @@
     "edit": {
       "title": "Modifier l'Aide"
     },
+    "error": {
+      "add": "Échec de l'ajout de l'assistant"
+    },
     "icon": {
       "type": "Icône de l'assistant"
     },
@@ -2679,6 +2682,7 @@
         "title": "Mise à jour automatique"
       },
       "avatar": {
+        "builtin": "Avatar intégré",
         "reset": "Réinitialiser l'avatar"
       },
       "backup": {
@@ -3783,6 +3787,10 @@
     "title": "Mise à jour"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "Revenu à l'assistant par défaut, ce qui pourrait entraîner des problèmes"
+    },
+    "missing_assistant": "L'assistant n'existe pas",
     "missing_provider": "Le fournisseur n’existe pas, retour au fournisseur par défaut {{provider}}. Cela peut entraîner des problèmes."
   },
   "words": {

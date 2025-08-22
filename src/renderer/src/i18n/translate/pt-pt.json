@@ -148,6 +148,9 @@
     "edit": {
       "title": "Editar Assistente"
     },
+    "error": {
+      "add": "Falha ao adicionar assistente"
+    },
     "icon": {
       "type": "Ícone do Assistente"
     },
@@ -2679,6 +2682,7 @@
         "title": "Atualização automática"
       },
       "avatar": {
+        "builtin": "Avatares integrados",
         "reset": "Redefinir avatar"
       },
       "backup": {
@@ -3783,6 +3787,10 @@
     "title": "Atualização"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "Voltou ao assistente padrão, o que pode causar problemas"
+    },
+    "missing_assistant": "O assistente não existe",
     "missing_provider": "O fornecedor não existe; foi revertido para o fornecedor predefinido {{provider}}. Isto pode causar problemas."
   },
   "words": {
