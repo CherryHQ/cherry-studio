@@ -59,8 +59,7 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     blockManager,
     getState,
     assistantMsgId,
-    getCitationBlockId: citationCallbacks.getCitationBlockId,
-    setCitationBlockId: citationCallbacks.setCitationBlockId
+    getCitationBlockId: citationCallbacks.getCitationBlockId
   })
 
   // 组合所有回调

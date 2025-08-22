@@ -210,7 +210,21 @@ const McpServersList: FC = () => {
           </Button>
         </ButtonGroup>
       </ListHeader>
-      <DraggableList style={{ width: '100%' }} list={mcpServers} onUpdate={updateMcpServers}>
+      <DraggableList
+        style={{ width: '100%' }}
+        list={mcpServers}
+        onUpdate={updateMcpServers}
+        listProps={{
+          locale: {
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={t('settings.mcp.noServers')}
+                style={{ marginTop: 20 }}
+              />
+            )
+          }
+        }}>
         {(server: MCPServer) => (
           <div onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
             <McpServerCard
@@ -225,13 +239,6 @@ const McpServersList: FC = () => {
           </div>
         )}
       </DraggableList>
-      {mcpServers.length === 0 && (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('settings.mcp.noServers')}
-          style={{ marginTop: 20 }}
-        />
-      )}
 
       <McpMarketList />
       <BuiltinMCPServerList />

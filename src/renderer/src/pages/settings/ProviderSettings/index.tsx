@@ -327,7 +327,7 @@ const ProvidersList: FC = () => {
         if (name) {
           updateProvider({ ...provider, name, type })
           if (provider.id) {
-            if (logoFile && logo) {
+            if (logo) {
               try {
                 await ImageStorage.set(`provider-${provider.id}`, logo)
                 setProviderLogos((prev) => ({

@@ -157,6 +157,7 @@ export enum IpcChannel {
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
+  File_IsTextFile = 'file:isTextFile',
 
   // file service
   FileService_Upload = 'file-service:upload',

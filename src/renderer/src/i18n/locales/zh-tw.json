@@ -322,6 +322,7 @@
       "expand": "展開",
       "file_error": "檔案處理錯誤",
       "file_not_supported": "模型不支援此檔案類型",
+      "file_not_supported_count": "{{count}} 個檔案不被支援",
       "generate_image": "生成圖片",
       "generate_image_not_supported": "模型不支援生成圖片",
       "knowledge_base": "知識庫",
@@ -585,7 +586,8 @@
       },
       "edit": {
         "placeholder": "輸入新名稱",
-        "title": "編輯名稱"
+        "title": "編輯名稱",
+        "title_tip": "提示：雙擊話題名可以直接就地重新命名"
       },
       "export": {
         "image": "匯出為圖片",
@@ -2679,6 +2681,7 @@
         "title": "自動更新"
       },
       "avatar": {
+        "builtin": "內置頭像",
         "reset": "重設頭像"
       },
       "backup": {
@@ -3724,6 +3727,9 @@
       "empty": "翻譯歷史為空",
       "error": {
         "save": "保存翻譯歷史失敗"
+      },
+      "search": {
+        "placeholder": "搜索翻譯歷史"
       },
       "title": "翻譯歷史"
     },

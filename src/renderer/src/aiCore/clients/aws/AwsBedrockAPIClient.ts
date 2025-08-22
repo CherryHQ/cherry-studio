@@ -54,7 +54,7 @@ import {
   mcpToolCallResponseToAwsBedrockMessage,
   mcpToolsToAwsBedrockTools
 } from '@renderer/utils/mcp-tools'
-import { findImageBlocks, findFileBlocks } from '@renderer/utils/messageUtils/find'
+import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
 import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'

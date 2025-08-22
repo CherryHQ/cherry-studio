@@ -1,6 +1,6 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { isGeminiModel, isGenerateImageModel } from '@renderer/config/models'
+import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -342,7 +342,8 @@ const InputbarTools = ({
       {
         key: 'web_search',
         label: t('chat.input.web_search.label'),
-        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
+        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        condition: !isMandatoryWebSearchModel(model)
       },
       {
         key: 'url_context',

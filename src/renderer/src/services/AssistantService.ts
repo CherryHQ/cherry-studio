@@ -24,6 +24,19 @@ import { uuid } from '@renderer/utils'
 
 const logger = loggerService.withContext('AssistantService')
 
+export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+  temperature: DEFAULT_TEMPERATURE,
+  enableTemperature: true,
+  contextCount: DEFAULT_CONTEXTCOUNT,
+  enableMaxTokens: false,
+  maxTokens: 0,
+  streamOutput: true,
+  topP: 1,
+  enableTopP: true,
+  toolUseMode: 'prompt',
+  customParameters: []
+}
+
 export function getDefaultAssistant(): Assistant {
   return {
     id: 'default',
@@ -34,18 +47,7 @@ export function getDefaultAssistant(): Assistant {
     messages: [],
     type: 'assistant',
     regularPhrases: [], // Added regularPhrases
-    settings: {
-      temperature: DEFAULT_TEMPERATURE,
-      enableTemperature: true,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      enableTopP: true,
-      toolUseMode: 'prompt',
-      customParameters: []
-    }
+    settings: DEFAULT_ASSISTANT_SETTINGS
   }
 }
 
@@ -171,18 +173,7 @@ export async function createAssistantFromAgent(agent: Agent) {
     model: agent.defaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
-    settings: agent.settings || {
-      temperature: DEFAULT_TEMPERATURE,
-      enableTemperature: true,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      enableTopP: true,
-      toolUseMode: 'prompt',
-      customParameters: []
-    }
+    settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS
   }
 
   store.dispatch(addAssistant(assistant))

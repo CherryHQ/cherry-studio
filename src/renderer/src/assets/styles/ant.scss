@@ -76,7 +76,7 @@
 }
 
 .ant-dropdown-menu .ant-dropdown-menu-sub {
-  max-height: 50vh;
+  max-height: 80vh;
   width: max-content;
   overflow-y: auto;
   overflow-x: hidden;
@@ -88,7 +88,7 @@
   border-radius: var(--ant-border-radius-lg);
   user-select: none;
   .ant-dropdown-menu {
-    max-height: 50vh;
+    max-height: 80vh;
     overflow-y: auto;
     border: 0.5px solid var(--color-border);
 

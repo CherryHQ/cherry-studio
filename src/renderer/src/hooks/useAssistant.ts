@@ -3,7 +3,8 @@ import {
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
-  MODEL_SUPPORTED_OPTIONS
+  MODEL_SUPPORTED_OPTIONS,
+  MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -24,9 +25,9 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopicManager } from './useTopic'
@@ -84,6 +85,12 @@ export function useAssistant(id: string) {
 
   const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
 
+  const settingsRef = useRef(assistant?.settings)
+
+  useEffect(() => {
+    settingsRef.current = assistant.settings
+  }, [assistant?.settings])
+
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
       assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
@@ -93,28 +100,46 @@ export function useAssistant(id: string) {
 
   // 当model变化时，同步reasoning effort为模型支持的合法值
   useEffect(() => {
-    if (assistant?.settings) {
+    const settings = settingsRef.current
+    if (settings) {
+      const currentReasoningEffort = settings.reasoning_effort
       if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
-        const currentReasoningEffort = assistant?.settings?.reasoning_effort
-        const supportedOptions = MODEL_SUPPORTED_OPTIONS[getThinkModelType(model)]
-        if (currentReasoningEffort && !supportedOptions.includes(currentReasoningEffort)) {
-          // 选项不支持时，回退到第一个支持的值
-          // 注意：这里假设可用的options不会为空
-          const fallbackOption = supportedOptions[0]
+        const modelType = getThinkModelType(model)
+        const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
+        if (supportedOptions.every((option) => option !== currentReasoningEffort)) {
+          const cache = settings.reasoning_effort_cache
+          let fallbackOption: ThinkingOption
+
+          // 选项不支持时，首先尝试恢复到上次使用的值
+          if (cache && supportedOptions.includes(cache)) {
+            fallbackOption = cache
+          } else {
+            // 灵活回退到支持的值
+            // 注意：这里假设可用的options不会为空
+            const enableThinking = currentReasoningEffort !== undefined
+            fallbackOption = enableThinking
+              ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]
+              : MODEL_SUPPORTED_OPTIONS[modelType][0]
+          }
 
           updateAssistantSettings({
             reasoning_effort: fallbackOption === 'off' ? undefined : fallbackOption,
-            qwenThinkMode: fallbackOption === 'off'
+            reasoning_effort_cache: fallbackOption === 'off' ? undefined : fallbackOption,
+            qwenThinkMode: fallbackOption === 'off' ? undefined : true
           })
+        } else {
+          // 对于支持的选项, 不再更新 cache.
         }
       } else {
+        // 切换到非思考模型时保留cache
         updateAssistantSettings({
           reasoning_effort: undefined,
+          reasoning_effort_cache: currentReasoningEffort,
           qwenThinkMode: undefined
         })
       }
     }
-  }, [assistant?.settings, model, updateAssistantSettings])
+  }, [model, updateAssistantSettings])
 
   return {
     assistant: assistantWithModel,
