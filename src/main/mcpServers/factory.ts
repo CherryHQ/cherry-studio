@@ -8,6 +8,7 @@ import FileSystemServer from './filesystem'
 import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
+import WebSearchServer from './web-search'
 
 const logger = loggerService.withContext('MCPFactory')
 
@@ -36,6 +37,9 @@ export function createInMemoryMCPServer(name: string, args: string[] = [], envs:
     }
     case '@cherry/python': {
       return new PythonServer().server
+    }
+    case '@cherry/web-search': {
+      return new WebSearchServer().server
     }
     default:
       throw new Error(`Unknown in-memory MCP server: ${name}`)

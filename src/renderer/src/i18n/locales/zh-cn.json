@@ -2802,7 +2802,8 @@
         "memory": "基于本地知识图谱的持久性记忆基础实现。这使得模型能够在不同对话间记住用户的相关信息。需要配置 MEMORY_FILE_PATH 环境变量。",
         "no": "无描述",
         "python": "在安全的沙盒环境中执行 Python 代码。使用 Pyodide 运行 Python，支持大多数标准库和科学计算包",
-        "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具"
+        "sequentialthinking": "一个 MCP 服务器实现，提供了通过结构化思维过程进行动态和反思性问题解决的工具",
+        "web_search": "内置网页搜索工具服务器，桥接 Cherry Studio 的网页搜索 Provider 以供 MCP 工具使用"
       },
       "command": "命令",
       "config_description": "配置模型上下文协议服务器",

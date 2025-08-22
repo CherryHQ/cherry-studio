@@ -156,6 +156,19 @@ class WebSearchService {
   }
 
   /**
+   * 获取 MCP 网络搜索提供商，需要使用到设置的默认提供商
+   * @public
+   * @returns MCP 网络搜索提供商
+   */
+  public getMcpWebSearchProvider(): WebSearchProvider | undefined {
+    const { defaultProvider, providers } = this.getWebSearchState()
+    if (this.isWebSearchEnabled(defaultProvider as WebSearchProvider['id'])) {
+      return providers.find((provider) => provider.id === defaultProvider)
+    }
+    return undefined
+  }
+
+  /**
    * 使用指定的提供商执行网络搜索
    * @public
    * @param provider 搜索提供商
@@ -573,4 +586,43 @@ class WebSearchService {
   }
 }
 
-export default new WebSearchService()
+const webSearchService = new WebSearchService()
+
+// Set up IPC handler for main process requests
+if (typeof window !== 'undefined' && window.electron?.ipcRenderer) {
+  interface WebSearchRequest {
+    query: string
+    id: string
+  }
+
+  interface WebSearchResponse {
+    id: string
+    success: boolean
+    results: WebSearchProviderResult[]
+    query: string
+    error?: string
+  }
+
+  window.electron.ipcRenderer.on('web-search-request', async (_, request: WebSearchRequest) => {
+    const provider = webSearchService.getMcpWebSearchProvider()
+    try {
+      const response = await webSearchService.search(provider!, request.query)
+      window.electron.ipcRenderer.send('web-search-response', {
+        id: request.id,
+        results: response.results,
+        query: request.query,
+        success: true
+      } satisfies WebSearchResponse)
+    } catch (error) {
+      window.electron.ipcRenderer.send('web-search-response', {
+        id: request.id,
+        success: false,
+        results: [],
+        query: request.query,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      } satisfies WebSearchResponse)
+    }
+  })
+}
+
+export default webSearchService
