@@ -20,6 +20,7 @@ import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import {
   type AutoDetectionMethod,
+  isImageFile,
   isSupportedOcrFile,
   type Model,
   type TranslateHistory,
@@ -33,6 +34,7 @@ import {
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
+import { imageExts, MB, textExts } from '@shared/config/constant'
 import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
@@ -57,7 +59,7 @@ const TranslatePage: FC = () => {
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
-  const { onSelectFile, selecting } = useFiles()
+  const { onSelectFile, selecting } = useFiles({ extensions: [...imageExts, ...textExts] })
   const { ocr } = useOcr()
 
   // states
@@ -442,19 +444,46 @@ const TranslatePage: FC = () => {
       if (!file) {
         return
       }
-      if (isSupportedOcrFile(file)) {
-        window.message.loading({ content: t('ocr.processing'), key: 'translate_ocr_processing', duration: 0 })
-        const ocrResult = await ocr(file)
-        setText(ocrResult.text)
+
+      // extensible
+      const shouldOCR = isImageFile(file)
+
+      if (shouldOCR) {
+        if (isSupportedOcrFile(file)) {
+          window.message.loading({ content: t('ocr.processing'), key: 'translate_ocr_processing', duration: 0 })
+          try {
+            const ocrResult = await ocr(file)
+            setText(ocrResult.text)
+          } catch (e) {
+            logger.error('Failed to ocr.', e as Error)
+            window.message.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
+          }
+        } else {
+          // @ts-expect-error all situations covered. just for robustness
+          window.message.error(t('ocr.file.not_supported', { type: file.type }))
+        }
       } else {
-        window.message.error(t('ocr.file.not_supported', { type: file.type }))
+        // the threshold may be too large
+        if (file.size > 5 * MB) {
+          window.message.error(t('translate.files.error.too_large'))
+        } else {
+          window.message.loading({ content: t('translate.files.reading'), key: 'translate_files_reading', duration: 0 })
+          try {
+            const result = await window.api.fs.readText(file.path)
+            setText(result)
+          } catch (e) {
+            logger.error('Failed to read text file.', e as Error)
+            window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
+          }
+        }
       }
     } catch (e) {
-      logger.error('Failed to select file and ocr.', e as Error)
-      window.message.error(t('ocr.error.unknown') + ' ' + formatErrorMessage(e))
+      logger.error('Unknown error when selecting file.', e as Error)
+      window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
     } finally {
       setIsProcessing(false)
       window.message.destroy('translate_ocr_processing')
+      window.message.destroy('translate_files_reading')
     }
   }, [ocr, onSelectFile, selecting, t])
 
