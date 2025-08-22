@@ -89,6 +89,7 @@ export const useFiles = (props?: Props) => {
 
   return {
     files,
+    selecting,
     setFiles,
     onSelectFile,
     clearFiles
