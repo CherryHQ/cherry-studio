@@ -25,7 +25,7 @@ const ocrSlice = createSlice({
     removeOcrProvider(state, action: PayloadAction<OcrProvider>) {
       state.providers = state.providers.filter((provider) => provider.id !== action.payload.id)
     },
-    updatePreprocessProvider(state, action: PayloadAction<Partial<OcrProvider>>) {
+    updateOcrProvider(state, action: PayloadAction<Partial<OcrProvider>>) {
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
       if (index !== -1) {
         Object.assign(state.providers[index], action.payload)
@@ -34,6 +34,6 @@ const ocrSlice = createSlice({
   }
 })
 
-export const { setOcrProviders, addOcrProvider, removeOcrProvider, updatePreprocessProvider } = ocrSlice.actions
+export const { setOcrProviders, addOcrProvider, removeOcrProvider, updateOcrProvider } = ocrSlice.actions
 
 export default ocrSlice.reducer
