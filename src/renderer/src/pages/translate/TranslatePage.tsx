@@ -440,6 +440,7 @@ const TranslatePage: FC = () => {
     try {
       const [file] = await onSelectFile({ multipleSelections: false })
       if (isSupportedOcrFile(file)) {
+        window.message.loading({ content: t('ocr.processing'), key: 'translate_ocr_processing' })
         const ocrResult = await ocr(file)
         setText(ocrResult.text)
       } else {
@@ -450,6 +451,7 @@ const TranslatePage: FC = () => {
       window.message.error(formatErrorMessage(e))
     } finally {
       setIsProcessing(false)
+      window.message.destroy('translate_ocr_processing')
     }
   }, [ocr, onSelectFile, selecting, t])
 

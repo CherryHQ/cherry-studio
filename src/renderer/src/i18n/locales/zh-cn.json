@@ -1561,7 +1561,8 @@
   "ocr": {
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
-    }
+    },
+    "processing": "OCR 处理中..."
   },
   "ollama": {
     "keep_alive_time": {
