@@ -1558,6 +1558,11 @@
     },
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
   },
+  "ocr": {
+    "file": {
+      "not_supported": "不支持的文件类型 {{type}}"
+    }
+  },
   "ollama": {
     "keep_alive_time": {
       "description": "对话后模型在内存中保持的时间（默认：5 分钟）",
