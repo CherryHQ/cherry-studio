@@ -110,7 +110,10 @@ let worker: Tesseract.Worker | null = null
 export const getTesseractWorker = async (): Promise<Tesseract.Worker> => {
   if (!worker) {
     // for now, only support limited languages
-    worker = await createWorker(['chi_sim', 'chi_tra', 'eng'])
+    worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
+      dataPath: '',
+      gzip: false
+    })
   }
   return worker
 }
