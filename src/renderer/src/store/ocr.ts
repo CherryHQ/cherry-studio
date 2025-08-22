@@ -4,7 +4,7 @@ import { ImageOcrProvider, OcrProvider } from '@renderer/types'
 
 export interface OcrState {
   providers: OcrProvider[]
-  imageProvider: OcrProvider
+  imageProvider: ImageOcrProvider
 }
 
 const initialState: OcrState = {

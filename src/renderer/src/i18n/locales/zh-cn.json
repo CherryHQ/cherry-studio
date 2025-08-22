@@ -3483,6 +3483,16 @@
     },
     "title": "设置",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "该提供商不存在"
+          },
+          "title": "图片"
+        },
+        "image_provider": "OCR 服务提供商",
+        "title": "OCR 服务"
+      },
       "preprocess": {
         "provider": "文档处理服务商",
         "provider_placeholder": "选择一个文档处理服务商",
