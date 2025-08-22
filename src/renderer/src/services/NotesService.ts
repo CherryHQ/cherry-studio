@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import {
+  findNodeByPath,
   findNodeInTree,
   findParentNode,
   getNotesTree,
@@ -32,11 +33,13 @@ export async function initWorkSpace(folderPath: string): Promise<void> {
 export async function createFolder(name: string, folderPath: string): Promise<NotesTreeNode> {
   const tree = await getNotesTree()
   const folderId = uuidv4()
+  const { uniqueName, targetPath } = await ensureUniqueName(name, folderPath)
+
   const folder: NotesTreeNode = {
     id: folderId,
-    name,
-    treePath: `/${name}`,
-    externalPath: folderPath,
+    name: uniqueName,
+    treePath: `/${uniqueName}`,
+    externalPath: targetPath,
     type: 'folder',
     children: [],
     expanded: true,
@@ -44,7 +47,8 @@ export async function createFolder(name: string, folderPath: string): Promise<No
     updatedAt: new Date().toISOString()
   }
 
-  folder.externalPath = await window.api.file.mkdir(`${folderPath}/${folder.name}`)
+  await window.api.file.mkdir(targetPath)
+  folder.externalPath = targetPath
   insertNodeIntoTree(tree, folder)
 
   return folder
@@ -56,18 +60,18 @@ export async function createFolder(name: string, folderPath: string): Promise<No
 export async function createNote(name: string, content: string = '', folderPath: string): Promise<NotesTreeNode> {
   const tree = await getNotesTree()
   const noteId = uuidv4()
+  const { uniqueName, targetPath } = await ensureUniqueName(name, folderPath)
   const note: NotesTreeNode = {
     id: noteId,
-    name: name,
-    treePath: `/${name}`,
-    externalPath: folderPath,
+    name: uniqueName,
+    treePath: `/${uniqueName}`,
+    externalPath: targetPath,
     type: 'file',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 
-  note.externalPath = `${folderPath}/${name}${MARKDOWN_EXT}`
-  await window.api.file.write(`${folderPath}/${name}${MARKDOWN_EXT}`, content)
+  await window.api.file.write(targetPath, content)
   insertNodeIntoTree(tree, note)
 
   return note
@@ -84,19 +88,21 @@ export async function uploadNote(file: File, folderPath: string): Promise<NotesT
   }
 
   const noteId = uuidv4()
-  const externalPath = `${folderPath}/${file.name}`
-  const newName = fileName.replace(MARKDOWN_EXT, '')
+  const baseName = fileName.replace(MARKDOWN_EXT, '')
+  const { uniqueName, targetPath } = await ensureUniqueName(baseName, folderPath)
+
   const note: NotesTreeNode = {
     id: noteId,
-    name: newName,
-    treePath: `/${newName}`,
-    externalPath,
+    name: uniqueName,
+    treePath: `/${uniqueName}`,
+    externalPath: targetPath,
     type: 'file',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
+
   const content = await file.text()
-  await window.api.file.write(externalPath, content)
+  await window.api.file.write(targetPath, content)
   insertNodeIntoTree(tree, note)
 
   return note
@@ -304,4 +310,29 @@ function recursiveSortNodes(nodes: NotesTreeNode[], sortType: NotesSortType): vo
       recursiveSortNodes(node.children, sortType)
     }
   }
+}
+
+/**
+ * 确保文件名唯一
+ */
+async function ensureUniqueName(
+  baseName: string,
+  folderPath: string
+): Promise<{ uniqueName: string; targetPath: string }> {
+  const tree = await getNotesTree()
+  let uniqueName = baseName
+  const isFile = !uniqueName.includes('.')
+  const extension = isFile ? MARKDOWN_EXT : ''
+  let targetPath = `${folderPath}/${uniqueName}${extension}`
+  let counter = 1
+  let treePath = folderPath === '/' ? `/${uniqueName}` : `${folderPath}/${uniqueName}`
+
+  while (findNodeByPath(tree, treePath)) {
+    uniqueName = `${baseName}${counter}`
+    targetPath = `${folderPath}/${uniqueName}${extension}`
+    treePath = folderPath === '/' ? `/${uniqueName}` : `${folderPath}/${uniqueName}`
+    counter++
+  }
+
+  return { uniqueName, targetPath }
 }

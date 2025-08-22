@@ -383,28 +383,34 @@ const NotesPage: FC = () => {
     async (files: File[]) => {
       try {
         setIsLoading(true)
-        const markdownFiles = Array.from(files).filter((file) => file.name.toLowerCase().endsWith('.md'))
+        const fileToUpload = files[0]
 
-        if (markdownFiles.length === 0) {
+        if (!fileToUpload) {
+          window.message.warning(t('notes.no_file_selected'))
+          return
+        }
+        // 暂时这么处理
+        if (files.length > 1) {
+          window.message.warning(t('notes.only_one_file_allowed'))
+        }
+
+        if (!fileToUpload.name.toLowerCase().endsWith('.md')) {
           window.message.warning(t('notes.only_markdown'))
           return
         }
 
-        for (const file of markdownFiles) {
-          try {
-            if (!notesPath) {
-              throw new Error('No folder path selected')
-            }
-            await uploadNote(file, notesPath)
-          } catch (error) {
-            logger.error(`Failed to upload note file ${file.name}:`, error as Error)
-            window.message.error(t('notes.upload_failed', { name: file.name }))
+        try {
+          if (!notesPath) {
+            throw new Error('No folder path selected')
           }
+          await uploadNote(fileToUpload, notesPath)
+          window.message.success(t('notes.upload_success', { count: 1 }))
+        } catch (error) {
+          logger.error(`Failed to upload note file ${fileToUpload.name}:`, error as Error)
+          window.message.error(t('notes.upload_failed', { name: fileToUpload.name }))
         }
-
-        window.message.success(t('notes.upload_success', { count: markdownFiles.length }))
       } catch (error) {
-        logger.error('Failed to handle file uploads:', error as Error)
+        logger.error('Failed to handle file upload:', error as Error)
         window.message.error(t('notes.upload_failed'))
       } finally {
         setIsLoading(false)
