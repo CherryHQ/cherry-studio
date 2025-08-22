@@ -216,6 +216,38 @@ export const saveTranslateHistory = async (
 }
 
 /**
+ * 更新翻译历史记录
+ * @param id - 历史记录ID
+ * @param sourceText - 原文内容
+ * @param targetText - 翻译后的内容
+ * @param sourceLanguage - 源语言代码
+ * @param targetLanguage - 目标语言代码
+ * @returns Promise<void>
+ */
+export const updateTranslateHistory = async (
+  id: string,
+  sourceText: string,
+  targetText: string,
+  sourceLanguage: TranslateLanguageCode,
+  targetLanguage: TranslateLanguageCode,
+  star?: boolean
+) => {
+  try {
+    const history: Partial<TranslateHistory> = {
+      sourceText,
+      targetText,
+      sourceLanguage,
+      targetLanguage,
+      star
+    }
+    await db.translate_history.update(id, history)
+  } catch (e) {
+    logger.error('Failed to update translate history', e as Error)
+    throw e
+  }
+}
+
+/**
  * 删除指定的翻译历史记录
  * @param id - 要删除的翻译历史记录ID
  * @returns Promise<void>
