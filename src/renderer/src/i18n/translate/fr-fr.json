@@ -885,6 +885,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "[to be translated]:话题不存在"
+    },
     "locate": {
       "message": "Localiser le message"
     },
@@ -1758,6 +1761,7 @@
   "provider": {
     "302ai": "302.AI",
     "aihubmix": "AiHubMix",
+    "aionly": "[to be translated]:AiOnly",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",
@@ -2679,6 +2683,7 @@
         "title": "Mise à jour automatique"
       },
       "avatar": {
+        "builtin": "[to be translated]:内置头像",
         "reset": "Réinitialiser l'avatar"
       },
       "backup": {

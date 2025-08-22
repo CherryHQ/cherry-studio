@@ -2,6 +2,7 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import { Provider } from '@renderer/types'
 import {
   oauthWith302AI,
+  oauthWithAiOnly,
   oauthWithAihubmix,
   oauthWithPPIO,
   oauthWithSiliconFlow,
@@ -45,6 +46,10 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
 
     if (provider.id === '302ai') {
       oauthWith302AI(handleSuccess)
+    }
+    
+    if (provider.id === 'aionly') {
+      oauthWithAiOnly(handleSuccess)
     }
   }
 

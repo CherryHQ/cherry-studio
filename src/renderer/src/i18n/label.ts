@@ -79,7 +79,8 @@ const providerKeyMap = {
   yi: 'provider.yi',
   zhinao: 'provider.zhinao',
   zhipu: 'provider.zhipu',
-  poe: 'provider.poe'
+  poe: 'provider.poe',
+  aionly: 'provider.aionly'
 } as const
 
 /**

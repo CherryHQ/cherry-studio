@@ -2360,6 +2360,38 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'poe',
       group: 'poe'
     }
+  ],
+  'aionly': [
+    {
+      id: '/aionly/claude-opus-4.1',
+      name: 'claude-opus-4.1',
+      provider: 'aionly',
+      group: 'claude'
+    },
+    {
+      id: '/aionly/claude-sonnet4',
+      name: 'claude-sonnet4',
+      provider: 'aionly',
+      group: 'claude'
+    },
+    {
+      id: '/aionly/claude-3.5-sonnet-v2',
+      name: 'claude-3.5-sonnet-v2',
+      provider: 'aionly',
+      group: 'claude'
+    },
+    {
+      id: '/aionly/gpt-4.1',
+      name: 'gpt-4.1',
+      provider: 'aionly',
+      group: 'gpt'
+    },
+    {
+      id: '/aionly/gemini-2.5-flash',
+      name: 'gemini-2.5-flash',
+      provider: 'aionly',
+      group: 'gemini'
+    }
   ]
 }
 
