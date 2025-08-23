@@ -221,9 +221,11 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       try {
         const topicId = currentTopic.current.id
 
+        const newAssistant = { ...currentAssistant }
+
         const { message: userMessage, blocks } = getUserMessage({
           content: [prompt, userContent].filter(Boolean).join('\n\n'),
-          assistant: currentAssistant,
+          assistant: newAssistant,
           topic: currentTopic.current
         })
 
@@ -256,9 +258,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
 
+        if (!newAssistant.settings) {
+          newAssistant.settings = {}
+        }
+        newAssistant.settings.streamOutput = true
+        // currentAssistant.webSearchProviderId = undefined
+
         await fetchChatCompletion({
           messages: messagesForContext,
-          assistant: { ...currentAssistant, settings: { ...currentAssistant.settings, streamOutput: true } },
+          assistant: newAssistant,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:
