@@ -51,6 +51,7 @@ export interface BaseMessageBlock {
   model?: Model // 使用的模型
   metadata?: Record<string, any> // 通用元数据
   error?: Record<string, any> // Added optional error field to base
+  isCompressed?: boolean // 是否被压缩
 }
 
 export interface PlaceholderMessageBlock extends BaseMessageBlock {
