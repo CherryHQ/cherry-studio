@@ -1566,12 +1566,23 @@
   },
   "ocr": {
     "error": {
+      "provider": {
+        "cannot_remove_builtin": "不能刪除內建提供者",
+        "existing": "提供商已存在",
+        "not_found": "OCR 提供商不存在",
+        "update_failed": "更新配置失敗"
+      },
       "unknown": "OCR過程發生錯誤"
     },
     "file": {
       "not_supported": "不支持的文件類型 {{type}}"
     },
-    "processing": "OCR 處理中..."
+    "processing": "OCR 處理中...",
+    "warning": {
+      "provider": {
+        "fallback": "已回退到 {{name}}，這可能導致問題"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -3497,6 +3508,10 @@
         "image": {
           "error": {
             "provider_not_found": "該提供商不存在"
+          },
+          "tesseract": {
+            "langs": "支援的語言",
+            "temp_tooltip": "目前暫時只支援中文和英文"
           },
           "title": "圖片"
         },

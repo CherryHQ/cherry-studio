@@ -1566,12 +1566,23 @@
   },
   "ocr": {
     "error": {
+      "provider": {
+        "cannot_remove_builtin": "Cannot delete built-in provider",
+        "existing": "The provider already exists",
+        "not_found": "OCR provider does not exist",
+        "update_failed": "Failed to update configuration"
+      },
       "unknown": "An error occurred during the OCR process"
     },
     "file": {
       "not_supported": "Unsupported file type {{type}}"
     },
-    "processing": "OCR processing..."
+    "processing": "OCR processing...",
+    "warning": {
+      "provider": {
+        "fallback": "Reverted to {{name}}, which may cause issues"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -3497,6 +3508,10 @@
         "image": {
           "error": {
             "provider_not_found": "The provider does not exist"
+          },
+          "tesseract": {
+            "langs": "Supported languages",
+            "temp_tooltip": "Currently only Chinese and English are supported"
           },
           "title": "Image"
         },
