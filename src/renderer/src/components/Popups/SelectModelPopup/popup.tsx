@@ -120,7 +120,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         name: (
           <ModelName>
             {model.name}
-            <ModelLabels model={model} parentContainer="SelectModelPopup" />
+            <ModelLabels model={model} providers={providers} parentContainer="SelectModelPopup" />
             {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
           </ModelName>
         ),
@@ -139,7 +139,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         isSelected: modelId === currentModelId
       }
     },
-    [currentModelId]
+    [currentModelId, providers]
   )
 
   // 构建扁平化列表数据，并派生出可选择的模型项

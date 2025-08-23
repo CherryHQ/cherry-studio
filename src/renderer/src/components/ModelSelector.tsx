@@ -99,7 +99,7 @@ const ModelSelector = ({
             {showAvatar && <ModelAvatar model={m} size={18} />}
             <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
               {m.name}
-              <ModelLabels model={m} parentContainer="ModelSelector" />
+              <ModelLabels model={m} providers={providers} parentContainer="ModelSelector" />
               {suffix}
             </span>
           </div>
@@ -108,7 +108,7 @@ const ModelSelector = ({
         value: getModelUniqId(m)
       }))
     },
-    [predicate, showAvatar, showSuffix]
+    [predicate, showAvatar, showSuffix, providers]
   )
 
   // 所有 provider 的模型选项

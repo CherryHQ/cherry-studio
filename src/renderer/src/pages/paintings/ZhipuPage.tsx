@@ -48,7 +48,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       setPainting(updatedPainting)
       updatePainting('paintings', updatedPainting)
     }
-  }, [painting, updatePainting])
+  }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
 
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
@@ -347,12 +347,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [paintings, addPainting])
 
-  useEffect(() => {
-    if (painting) {
-      updatePainting('paintings', painting)
-    }
-  }, [painting, updatePainting])
-
   // 同步自定义尺寸状态
   useEffect(() => {
     if (painting.imageSize === 'custom') {
@@ -416,12 +410,12 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             value={painting.model}
             onChange={onSelectModel}
             style={{ width: '100%' }}
-            dropdownStyle={{ minWidth: '280px' }}>
+            styles={{ popup: { root: { minWidth: '280px' } } }}>
             {ZHIPU_PAINTING_MODELS.map((model) => (
               <Select.Option key={model.id} value={model.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: '260px' }}>
                   <span>{model.name}</span>
-                  <ModelLabels model={model} parentContainer="default" />
+                  <ModelLabels model={model} providers={providers} parentContainer="default" />
                 </div>
               </Select.Option>
             ))}

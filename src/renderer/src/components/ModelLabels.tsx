@@ -2,17 +2,15 @@ import { Tag } from 'antd'
 import React, { useCallback } from 'react'
 import styled from 'styled-components'
 
-import { useAllProviders } from '../hooks/useProvider'
-import { Model } from '../types'
+import { Model, Provider } from '../types'
 
 interface ModelLabelsProps {
   model: Model
+  providers?: Provider[] // 从外部传入 providers
   parentContainer?: 'ModelIdWithTags' | 'ModelSelector' | 'SelectModelPopup' | 'MentionModelsButton' | 'default'
 }
 
-const ModelLabels: React.FC<ModelLabelsProps> = ({ model, parentContainer = 'default' }) => {
-  const providers = useAllProviders()
-
+const ModelLabels: React.FC<ModelLabelsProps> = ({ model, providers = [], parentContainer = 'default' }) => {
   const handleApiKeyClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()

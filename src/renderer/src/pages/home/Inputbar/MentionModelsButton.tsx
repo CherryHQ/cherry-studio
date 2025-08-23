@@ -108,13 +108,13 @@ const MentionModelsButton: FC<Props> = ({
           <>
             <ProviderName>{getFancyProviderName(p)}</ProviderName>
             <span style={{ opacity: 0.8, display: 'flex', alignItems: 'center', gap: 4 }}> | {m.name}</span>
-            <ModelLabels model={m} parentContainer="MentionModelsButton" />
+            <ModelLabels model={m} providers={providers} parentContainer="MentionModelsButton" />
           </>
         ),
         description: (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <ModelTagsWithLabel model={m} showLabel={false} size={10} showTooltip={true} style={{ opacity: 0.8 }} />
-            <ModelLabels model={m} parentContainer="MentionModelsButton" />
+            <ModelLabels model={m} providers={providers} parentContainer="MentionModelsButton" />
           </div>
         ),
         icon: (
