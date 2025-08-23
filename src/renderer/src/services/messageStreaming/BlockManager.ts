@@ -71,6 +71,27 @@ export class BlockManager {
   }
 
   /**
+   * 清理所有与该块管理器相关的资源
+   */
+  public cleanup() {
+    // 清理活跃块
+    if (this._activeBlockInfo) {
+      // 使用从 messageThunk 导入的取消函数
+      this.deps.cancelThrottledBlockUpdate(this._activeBlockInfo.id)
+      this._activeBlockInfo = null
+    }
+    // 清理最后块类型引用
+    this._lastBlockType = null
+  }
+
+  /**
+   * 重置块管理器状态
+   */
+  public reset() {
+    this.cleanup()
+  }
+
+  /**
    * 智能更新策略：根据块类型连续性自动判断使用节流还是立即更新
    */
   smartBlockUpdate(

@@ -125,29 +125,88 @@ const blockUpdateRafs = new LRUCache<string, number>({
 })
 
 /**
+ * 清理所有节流器和RAF回调
+ */
+export const cleanupAllThrottledUpdates = () => {
+  // 清理所有 RAF 回调
+  blockUpdateRafs.forEach((rafId) => {
+    cancelAnimationFrame(rafId)
+  })
+  blockUpdateRafs.clear()
+
+  // 清理所有节流器
+  blockUpdateThrottlers.forEach((throttler) => {
+    throttler.cancel()
+  })
+  blockUpdateThrottlers.clear()
+}
+
+/**
+ * 取消特定块的节流更新
+ */
+export const cancelThrottledBlockUpdate = (id: string) => {
+  const throttler = blockUpdateThrottlers.get(id)
+  if (throttler) {
+    throttler.cancel()
+    blockUpdateThrottlers.delete(id)
+  }
+
+  const rafId = blockUpdateRafs.get(id)
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    blockUpdateRafs.delete(id)
+  }
+}
+
+/**
  * 获取或创建消息块专用的节流函数。
  */
 const getBlockThrottler = (id: string) => {
-  if (!blockUpdateThrottlers.has(id)) {
-    const throttler = throttle(async (blockUpdate: any) => {
-      const existingRAF = blockUpdateRafs.get(id)
-      if (existingRAF) {
-        cancelAnimationFrame(existingRAF)
-      }
-
-      const rafId = requestAnimationFrame(() => {
-        store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
-        blockUpdateRafs.delete(id)
-      })
-
-      blockUpdateRafs.set(id, rafId)
-      await db.message_blocks.update(id, blockUpdate)
-    }, 150)
-
-    blockUpdateThrottlers.set(id, throttler)
+  // 如果已存在且未被取消的节流器，直接返回
+  if (blockUpdateThrottlers.has(id)) {
+    const existingThrottler = blockUpdateThrottlers.get(id)
+    if (existingThrottler) {
+      return existingThrottler
+    }
   }
 
-  return blockUpdateThrottlers.get(id)!
+  const throttler = throttle(async (blockUpdate: any) => {
+    const existingRAF = blockUpdateRafs.get(id)
+    if (existingRAF) {
+      cancelAnimationFrame(existingRAF)
+    }
+
+    const rafId = requestAnimationFrame(() => {
+      store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
+      blockUpdateRafs.delete(id)
+    })
+
+    blockUpdateRafs.set(id, rafId)
+    await db.message_blocks.update(id, blockUpdate)
+  }, 150)
+
+  blockUpdateThrottlers.set(id, throttler)
+
+  // 设置5分钟后自动清理
+  setTimeout(
+    () => {
+      if (blockUpdateThrottlers.has(id)) {
+        const throttler = blockUpdateThrottlers.get(id)
+        if (throttler) {
+          throttler.cancel()
+        }
+        blockUpdateThrottlers.delete(id)
+        const rafId = blockUpdateRafs.get(id)
+        if (rafId) {
+          cancelAnimationFrame(rafId)
+          blockUpdateRafs.delete(id)
+        }
+      }
+    },
+    5 * 60 * 1000
+  ) // 5分钟
+
+  return throttler
 }
 
 /**
@@ -156,23 +215,6 @@ const getBlockThrottler = (id: string) => {
 export const throttledBlockUpdate = (id: string, blockUpdate: any) => {
   const throttler = getBlockThrottler(id)
   throttler(blockUpdate)
-}
-
-/**
- * 取消单个块的节流更新，移除节流器和 RAF。
- */
-export const cancelThrottledBlockUpdate = (id: string) => {
-  const rafId = blockUpdateRafs.get(id)
-  if (rafId) {
-    cancelAnimationFrame(rafId)
-    blockUpdateRafs.delete(id)
-  }
-
-  const throttler = blockUpdateThrottlers.get(id)
-  if (throttler) {
-    throttler.cancel()
-    blockUpdateThrottlers.delete(id)
-  }
 }
 
 /**

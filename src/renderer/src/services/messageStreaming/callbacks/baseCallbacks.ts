@@ -213,6 +213,8 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       )
       await saveUpdatesToDB(assistantMsgId, topicId, messageUpdates, [])
       EventEmitter.emit(EVENT_NAMES.MESSAGE_COMPLETE, { id: assistantMsgId, topicId, status })
+      // 清理块管理器资源
+      blockManager.cleanup()
       logger.debug('onComplete finished')
     }
   }
