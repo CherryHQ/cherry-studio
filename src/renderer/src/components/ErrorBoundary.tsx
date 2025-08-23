@@ -1,5 +1,5 @@
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button } from 'antd'
+import { Alert, Button, Space } from 'antd'
 import { ComponentType, ReactNode } from 'react'
 import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,9 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
   const debug = async () => {
     await window.api.devTools.toggle()
   }
+  const reload = async () => {
+    await window.api.reload()
+  }
   return (
     <ErrorContainer>
       <Alert
@@ -19,9 +22,14 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         description={formatErrorMessage(error)}
         type="error"
         action={
-          <Button size="small" danger onClick={debug}>
-            {t('error.boundary.deafault.devtools')}
-          </Button>
+          <Space>
+            <Button size="small" danger onClick={debug}>
+              {t('error.boundary.deafault.devtools')}
+            </Button>
+            <Button size="small" danger onClick={reload}>
+              {t('error.boundary.deafault.reload')}
+            </Button>
+          </Space>
         }
       />
     </ErrorContainer>
@@ -39,6 +47,11 @@ const ErrorBoundaryCustomized = ({
 }
 
 const ErrorContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
   padding: 8px;
 `
 
