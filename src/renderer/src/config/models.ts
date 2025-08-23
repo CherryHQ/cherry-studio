@@ -3263,6 +3263,11 @@ export const isGPT5SeriesModel = (model: Model) => {
   return modelId.includes('gpt-5')
 }
 
+export const isGeminiModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gemini')
+}
+
 export const isOpenAIOpenWeightModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gpt-oss')
