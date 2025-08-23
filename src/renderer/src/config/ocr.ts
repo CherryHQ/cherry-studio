@@ -1,12 +1,25 @@
-import { BuiltinOcrProvider, BuiltinOcrProviderId, ImageOcrProvider, OcrProviderCapability } from '@renderer/types'
+import {
+  BuiltinOcrProvider,
+  BuiltinOcrProviderId,
+  ImageOcrProvider,
+  OcrProviderCapability,
+  OcrTesseractProvider
+} from '@renderer/types'
 
-const tesseract: BuiltinOcrProvider & ImageOcrProvider = {
+const tesseract: BuiltinOcrProvider & ImageOcrProvider & OcrTesseractProvider = {
   id: 'tesseract',
   name: 'Tesseract',
   capabilities: {
     image: true
+  },
+  config: {
+    langs: {
+      chi_sim: true,
+      chi_tra: true,
+      eng: true
+    }
   }
-} as const
+} as const satisfies OcrTesseractProvider
 
 export const BUILTIN_OCR_PROVIDERS_MAP = {
   tesseract
