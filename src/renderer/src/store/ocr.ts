@@ -22,8 +22,8 @@ const ocrSlice = createSlice({
     addOcrProvider(state, action: PayloadAction<OcrProvider>) {
       state.providers.push(action.payload)
     },
-    removeOcrProvider(state, action: PayloadAction<OcrProvider>) {
-      state.providers = state.providers.filter((provider) => provider.id !== action.payload.id)
+    removeOcrProvider(state, action: PayloadAction<string>) {
+      state.providers = state.providers.filter((provider) => provider.id !== action.payload)
     },
     updateOcrProvider(state, action: PayloadAction<Partial<OcrProvider>>) {
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
