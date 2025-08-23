@@ -1,4 +1,4 @@
-import { BuiltinOcrProvider, ImageOcrProvider, OcrProviderCapability } from '@renderer/types'
+import { BuiltinOcrProvider, BuiltinOcrProviderId, ImageOcrProvider, OcrProviderCapability } from '@renderer/types'
 
 const tesseract: BuiltinOcrProvider & ImageOcrProvider = {
   id: 'tesseract',
@@ -8,7 +8,11 @@ const tesseract: BuiltinOcrProvider & ImageOcrProvider = {
   }
 } as const
 
-export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = [tesseract] as const
+export const BUILTIN_OCR_PROVIDERS_MAP = {
+  tesseract
+} as const satisfies Record<BuiltinOcrProviderId, BuiltinOcrProvider>
+
+export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = Object.values(BUILTIN_OCR_PROVIDERS_MAP)
 
 export const DEFAULT_OCR_PROVIDER = {
   image: tesseract
