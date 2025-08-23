@@ -317,11 +317,16 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
    * Get the message parameter
    * @param message - The message
    * @param model - The model
+   * @param assistant - The assistant (optional, for knowledge base prompt settings)
    * @returns The message parameter
    */
-  public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAISdkMessageParam> {
+  public async convertMessageToSdkParam(
+    message: Message,
+    model: Model,
+    assistant?: Assistant
+  ): Promise<OpenAISdkMessageParam> {
     const isVision = isVisionModel(model)
-    const content = await this.getMessageContent(message)
+    const content = await this.getMessageContent(message, assistant)
     const fileBlocks = findFileBlocks(message)
     const imageBlocks = findImageBlocks(message)
 
@@ -558,7 +563,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         } else {
           const processedMessages = addImageFileToContents(messages)
           for (const message of processedMessages) {
-            userMessages.push(await this.convertMessageToSdkParam(message, model))
+            userMessages.push(await this.convertMessageToSdkParam(message, model, assistant))
           }
         }
 

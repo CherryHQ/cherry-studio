@@ -167,6 +167,26 @@
       "default_model": "默认模型",
       "knowledge_base": {
         "label": "知识库设置",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "脚注引用",
+            "footnote_tooltip": "使用脚注格式，信息更自然融合。部分模型可能对此格式响应更好",
+            "label": "引用模式",
+            "number": "数字引用",
+            "number_tooltip": "使用 [1]、[2] 等数字标记引用，便于精确引用特定文档。适合 OpenAI 等模型",
+            "tooltip": "选择知识库引用的格式。不同模型对不同格式的处理效果可能不同"
+          },
+          "custom_prompt": {
+            "insert_question": "对话内容",
+            "insert_references": "引用内容",
+            "insert_tip": "点击下方按钮插入变量",
+            "label": "自定义提示词",
+            "placeholder": "输入自定义引用提示词...",
+            "variables_tip": "点击上方按钮插入变量"
+          },
+          "reset_to_default": "恢复默认",
+          "title": "提示词设置"
+        },
         "recognition": {
           "label": "调用知识库",
           "off": "强制检索",

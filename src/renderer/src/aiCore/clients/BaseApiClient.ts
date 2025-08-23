@@ -5,7 +5,7 @@ import {
   isOpenAIModel,
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
+import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
@@ -256,7 +256,7 @@ export abstract class BaseApiClient<
     return defaultTimeout
   }
 
-  public async getMessageContent(message: Message): Promise<string> {
+  public async getMessageContent(message: Message, assistant?: Assistant): Promise<string> {
     const content = getMainTextContent(message)
 
     if (isEmpty(content)) {
@@ -279,7 +279,20 @@ export abstract class BaseApiClient<
 
     if (!isEmpty(allReferences)) {
       const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
-      return REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent)
+
+      // 获取提示词：优先使用助手的自定义提示词，否则使用默认提示词
+      let promptTemplate = REFERENCE_PROMPT
+      if (assistant?.knowledgePromptSettings) {
+        if (assistant.knowledgePromptSettings.referencePrompt) {
+          // 使用自定义提示词
+          promptTemplate = assistant.knowledgePromptSettings.referencePrompt
+        } else if (assistant.knowledgePromptSettings.citationMode === 'footnote') {
+          // 使用脚注模式的默认提示词
+          promptTemplate = FOOTNOTE_PROMPT
+        }
+      }
+
+      return promptTemplate.replace('{question}', content).replace('{references}', referenceContent)
     }
 
     return content

@@ -30,6 +30,11 @@ export type Assistant = {
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
   knowledgeRecognition?: 'off' | 'on'
+  knowledgePromptSettings?: {
+    enabled?: boolean // 是否启用自定义提示词设置
+    referencePrompt?: string // 自定义引用格式提示词
+    citationMode?: 'number' | 'footnote' // 引用模式
+  }
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
   enableMemory?: boolean

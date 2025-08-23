@@ -231,11 +231,13 @@ export class GeminiAPIClient extends BaseApiClient<
   /**
    * Get the message contents
    * @param message - The message
+   * @param model - The model
+   * @param assistant - The assistant
    * @returns The message contents
    */
-  private async convertMessageToSdkParam(message: Message): Promise<Content> {
+  private async convertMessageToSdkParam(message: Message, _model?: Model, assistant?: Assistant): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
-    const parts: Part[] = [{ text: await this.getMessageContent(message) }]
+    const parts: Part[] = [{ text: await this.getMessageContent(message, assistant) }]
 
     // Add any generated images from previous responses
     const imageBlocks = findImageBlocks(message)
@@ -468,9 +470,9 @@ export class GeminiAPIClient extends BaseApiClient<
         } else {
           const userLastMessage = messages.pop()
           if (userLastMessage) {
-            messageContents = await this.convertMessageToSdkParam(userLastMessage)
+            messageContents = await this.convertMessageToSdkParam(userLastMessage, model, assistant)
             for (const message of messages) {
-              history.push(await this.convertMessageToSdkParam(message))
+              history.push(await this.convertMessageToSdkParam(message, model, assistant))
             }
             messages.push(userLastMessage)
           }
