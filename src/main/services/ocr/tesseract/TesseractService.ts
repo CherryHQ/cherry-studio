@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
-import { MB, TesseractLangsDownloadUrl } from '@shared/config/constant'
+import { MB } from '@shared/config/constant'
 import { FileMetadata, ImageFileMetadata, isImageFile, OcrResult } from '@types'
 import { app } from 'electron'
 import fs from 'fs'
@@ -114,13 +114,21 @@ const logger = loggerService.withContext('TesseractService')
 //   'yi-us': 'yid'
 // }
 
+// config
+const MB_SIZE_THRESHOLD = 50
+const tesseractLangs = ['chi_sim', 'chi_tra', 'eng']
+enum TesseractLangsDownloadUrl {
+  CN = 'https://gitcode.com/beyondkmp/tessdata/releases/download/4.1.0/',
+  GLOBAL = 'https://github.com/tesseract-ocr/tessdata/raw/main/'
+}
+
 export class TesseractService {
   private worker: Tesseract.Worker | null = null
 
   async getWorker(): Promise<Tesseract.Worker> {
     if (!this.worker) {
       // for now, only support limited languages
-      this.worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
+      this.worker = await createWorker(tesseractLangs, undefined, {
         langPath: await this._getLangPath(),
         cachePath: await this._getCacheDir(),
         gzip: false,
@@ -133,8 +141,8 @@ export class TesseractService {
   async imageOcr(file: ImageFileMetadata): Promise<OcrResult> {
     const worker = await this.getWorker()
     const stat = await fs.promises.stat(file.path)
-    if (stat.size > 50 * MB) {
-      throw new Error('This image is too large (max 50MB)')
+    if (stat.size > MB_SIZE_THRESHOLD * MB) {
+      throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
     }
     const buffer = await fs.promises.readFile(file.path)
     const result = await worker.recognize(buffer)
