@@ -12,17 +12,19 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
     await window.api.devTools.toggle()
   }
   return (
-    <Alert
-      message={t('error.boundary.deafault.message')}
-      showIcon
-      description={formatErrorMessage(error)}
-      type="error"
-      action={
-        <Button size="small" danger onClick={debug}>
-          {t('error.boundary.deafault.devtools')}
-        </Button>
-      }
-    />
+    <ErrorContainer>
+      <Alert
+        message={t('error.boundary.deafault.message')}
+        showIcon
+        description={formatErrorMessage(error)}
+        type="error"
+        action={
+          <Button size="small" danger onClick={debug}>
+            {t('error.boundary.deafault.devtools')}
+          </Button>
+        }
+      />
+    </ErrorContainer>
   )
 }
 
@@ -33,11 +35,7 @@ const ErrorBoundaryCustomized = ({
   children: ReactNode
   fallbackComponent?: ComponentType<FallbackProps>
 }) => {
-  return (
-    <ErrorContainer>
-      <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback}>{children}</ErrorBoundary>
-    </ErrorContainer>
-  )
+  return <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback}>{children}</ErrorBoundary>
 }
 
 const ErrorContainer = styled.div`
