@@ -1,91 +1,32 @@
-import { loggerService } from '@logger'
-import { MB } from '@shared/config/constant'
-import {
-  ImageFileMetadata,
-  ImageOcrProvider,
-  isBuiltinOcrProvider,
-  isImageFile,
-  isImageOcrProvider,
-  OcrProvider,
-  OcrResult,
-  SupportedOcrFile
-} from '@types'
-import { statSync } from 'fs'
-import { readFile } from 'fs/promises'
+import { BuiltinOcrProviderIds, FileMetadata, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
 import { tesseractService } from './tesseract/TesseractService'
 
-const logger = loggerService.withContext('main:OcrService')
+type OcrHandler = (file: FileMetadata) => Promise<OcrResult>
 
-/**
- * ocr by tesseract
- * @param file image file or base64 string
- * @returns ocr result
- * @throws {Error}
- */
-const tesseractOcr = async (file: ImageFileMetadata | string): Promise<Tesseract.RecognizeResult> => {
-  try {
-    const worker = await tesseractService.getWorker()
-    let ret: Tesseract.RecognizeResult
-    if (typeof file === 'string') {
-      ret = await worker.recognize(file)
-    } else {
-      const stat = statSync(file.path)
-      if (stat.size > 50 * MB) {
-        throw new Error('This image is too large (max 50MB)')
-      }
-      const buffer = await readFile(file.path)
-      ret = await worker.recognize(buffer)
+export class OcrService {
+  private registry: Map<string, OcrHandler> = new Map()
+
+  register(providerId: string, handler: OcrHandler): void {
+    this.registry.set(providerId, handler)
+  }
+
+  unregister(providerId: string): void {
+    this.registry.delete(providerId)
+  }
+
+  public async ocr(file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> {
+    const handler = this.registry.get(provider.id)
+    if (!handler) {
+      throw new Error(`Provider ${provider.id} is not registered`)
     }
-    return ret
-  } catch (e) {
-    logger.error('Failed to ocr with tesseract.', e as Error)
-    throw e
+    return handler(file)
   }
 }
 
-/**
- * ocr image file
- * @param file image file
- * @param provider ocr provider that supports image ocr
- * @returns ocr result
- * @throws {Error}
- */
-const imageOcr = async (file: ImageFileMetadata, provider: ImageOcrProvider): Promise<OcrResult> => {
-  if (isBuiltinOcrProvider(provider)) {
-    if (provider.id === 'tesseract') {
-      const result = await tesseractOcr(file)
-      return { text: result.data.text }
-    } else {
-      throw new Error(`Unsupported built-in ocr provider: ${provider.id}`)
-    }
-  }
-  throw new Error(`Provider ${provider.id} is not supported.`)
-}
+export const ocrService = new OcrService()
 
-/**
- * ocr a file
- * @param file any supported file
- * @param provider ocr provider
- * @returns ocr result
- * @throws {Error}
- */
-export const ocr = async (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> => {
-  if (isImageFile(file) && isImageOcrProvider(provider)) {
-    return imageOcr(file, provider)
-  } else {
-    throw new Error(`File type and provider capability is not matched, otherwise one of them is not supported.`)
-  }
-}
-
-/**
- * ocr a file
- * @param _ ipc event
- * @param file any supported file
- * @param provider ocr provider
- * @returns ocr result
- * @throws {Error}
- */
-export const ipcOcr = async (_: Electron.IpcMainInvokeEvent, ...args: Parameters<typeof ocr>) => {
-  return ocr(...args)
-}
+// Register built-in providers
+ocrService.register(BuiltinOcrProviderIds.tesseract, async (file) => {
+  return tesseractService.ocr(file)
+})

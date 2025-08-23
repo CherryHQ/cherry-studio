@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
-import { TesseractLangsDownloadUrl } from '@shared/config/constant'
+import { MB, TesseractLangsDownloadUrl } from '@shared/config/constant'
+import { FileMetadata, ImageFileMetadata, isImageFile, OcrResult } from '@types'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -127,6 +128,24 @@ export class TesseractService {
       })
     }
     return this.worker
+  }
+
+  async imageOcr(file: ImageFileMetadata): Promise<OcrResult> {
+    const worker = await this.getWorker()
+    const stat = await fs.promises.stat(file.path)
+    if (stat.size > 50 * MB) {
+      throw new Error('This image is too large (max 50MB)')
+    }
+    const buffer = await fs.promises.readFile(file.path)
+    const result = await worker.recognize(buffer)
+    return { text: result.data.text }
+  }
+
+  async ocr(file: FileMetadata): Promise<OcrResult> {
+    if (!isImageFile(file)) {
+      throw new Error('Only image files are supported currently')
+    }
+    return this.imageOcr(file)
   }
 
   private async _getLangPath(): Promise<string> {
