@@ -199,7 +199,7 @@ export enum FeedUrl {
 
 export const tesseractLangs = ['chi_sim', 'chi_tra', 'eng']
 export enum TesseractLangsDownloadUrl {
-  CN = 'https://gitcode.com/tesseract-ocr/tessdata/raw/main/',
+  CN = 'https://gitcode.com/beyondkmp/tessdata/blob/main/',
   GLOBAL = 'https://github.com/tesseract-ocr/tessdata/raw/main/'
 }
 
