@@ -210,7 +210,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
  * @param depth 当前深度
  * @returns 文件元数据数组
  */
-export async function scanDir(dirPath: string, depth = 0): Promise<NotesTreeNode[]> {
+export async function scanDir(dirPath: string, depth = 0, basePath?: string): Promise<NotesTreeNode[]> {
   const options = {
     includeFiles: true,
     includeDirectories: true,
@@ -218,6 +218,11 @@ export async function scanDir(dirPath: string, depth = 0): Promise<NotesTreeNode
     ignoreHiddenFiles: true,
     recursive: true,
     maxDepth: 10
+  }
+
+  // 如果是第一次调用，设置basePath为当前目录
+  if (!basePath) {
+    basePath = dirPath
   }
 
   if (options.maxDepth !== undefined && depth > options.maxDepth) {
@@ -239,12 +244,15 @@ export async function scanDir(dirPath: string, depth = 0): Promise<NotesTreeNode
 
     const entryPath = path.join(dirPath, entry.name)
 
+    const relativePath = path.relative(basePath, entryPath)
+    const treePath = '/' + relativePath.replace(/\\/g, '/')
+
     if (entry.isDirectory() && options.includeDirectories) {
       const stats = await fs.promises.stat(entryPath)
       const dirTreeNode: NotesTreeNode = {
         id: uuidv4(),
         name: entry.name,
-        treePath: path.relative(dirPath, entryPath),
+        treePath: treePath,
         externalPath: entryPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
@@ -254,7 +262,7 @@ export async function scanDir(dirPath: string, depth = 0): Promise<NotesTreeNode
 
       // 如果启用了递归扫描，则递归调用 scanDir
       if (options.recursive) {
-        dirTreeNode.children = await scanDir(entryPath, depth + 1)
+        dirTreeNode.children = await scanDir(entryPath, depth + 1, basePath)
       }
 
       result.push(dirTreeNode)
@@ -268,10 +276,18 @@ export async function scanDir(dirPath: string, depth = 0): Promise<NotesTreeNode
       const name = entry.name.endsWith(options.fileExtensions[0])
         ? entry.name.slice(0, -options.fileExtensions[0].length)
         : entry.name
+
+      // 对于文件，treePath应该使用不带扩展名的路径
+      const nameWithoutExt = path.basename(entryPath, path.extname(entryPath))
+      const dirRelativePath = path.relative(basePath, path.dirname(entryPath))
+      const fileTreePath = dirRelativePath
+        ? `/${dirRelativePath.replace(/\\/g, '/')}/${nameWithoutExt}`
+        : `/${nameWithoutExt}`
+
       const fileTreeNode: NotesTreeNode = {
         id: uuidv4(),
         name: name,
-        treePath: path.relative(dirPath, entryPath),
+        treePath: fileTreePath,
         externalPath: entryPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),

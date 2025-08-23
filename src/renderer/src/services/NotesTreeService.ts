@@ -48,14 +48,24 @@ export async function insertNodeIntoTree(
  * 从树中删除节点
  */
 export async function removeNodeFromTree(tree: NotesTreeNode[], nodeId: string): Promise<boolean> {
+  const removed = removeNodeFromTreeInMemory(tree, nodeId)
+  if (removed) {
+    await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
+  }
+  return removed
+}
+
+/**
+ * 从树中删除节点（仅在内存中操作，不保存数据库）
+ */
+function removeNodeFromTreeInMemory(tree: NotesTreeNode[], nodeId: string): boolean {
   for (let i = 0; i < tree.length; i++) {
     if (tree[i].id === nodeId) {
       tree.splice(i, 1)
-      await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
       return true
     }
     if (tree[i].children) {
-      const removed = await removeNodeFromTree(tree[i].children!, nodeId)
+      const removed = removeNodeFromTreeInMemory(tree[i].children!, nodeId)
       if (removed) {
         return true
       }
@@ -79,47 +89,61 @@ export async function moveNodeInTree(
       return false
     }
 
-    // 从原位置移除节点
-    removeNodeFromTree(tree, sourceNodeId)
+    // 先保存源节点的副本，以防操作失败需要恢复（暂未实现恢复逻辑）
+    // const sourceNodeCopy = { ...sourceNode }
 
-    // 根据位置进行放置
-    if (position === 'inside' && targetNode.type === 'folder') {
-      if (!targetNode.children) {
-        targetNode.children = []
-      }
-      targetNode.children.push(sourceNode)
-      targetNode.expanded = true
-
-      sourceNode.treePath = `${targetNode.treePath}/${sourceNode.name}`
-    } else {
-      const targetParent = findParentNode(tree, targetNodeId)
-      const targetList = targetParent ? targetParent.children! : tree
-      const targetIndex = targetList.findIndex((node) => node.id === targetNodeId)
-
-      if (targetIndex === -1) {
-        logger.error('Move nodes in tree failed: target position not found')
-        return false
-      }
-
-      // 根据position确定插入位置
-      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
-      targetList.splice(insertIndex, 0, sourceNode)
-
-      // 更新节点路径
-      if (targetParent) {
-        sourceNode.treePath = `${targetParent.treePath}/${sourceNode.name}`
-      } else {
-        sourceNode.treePath = `/${sourceNode.name}`
-      }
+    // 从原位置移除节点（不保存数据库，只在内存中操作）
+    const removed = removeNodeFromTreeInMemory(tree, sourceNodeId)
+    if (!removed) {
+      logger.error('Move nodes in tree failed: could not remove source node')
+      return false
     }
 
-    // 更新修改时间
-    sourceNode.updatedAt = new Date().toISOString()
+    try {
+      // 根据位置进行放置
+      if (position === 'inside' && targetNode.type === 'folder') {
+        if (!targetNode.children) {
+          targetNode.children = []
+        }
+        targetNode.children.push(sourceNode)
+        targetNode.expanded = true
 
-    // 保存更新后的树结构
-    await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
+        sourceNode.treePath = `${targetNode.treePath}/${sourceNode.name}`
+      } else {
+        const targetParent = findParentNode(tree, targetNodeId)
+        const targetList = targetParent ? targetParent.children! : tree
+        const targetIndex = targetList.findIndex((node) => node.id === targetNodeId)
 
-    return true
+        if (targetIndex === -1) {
+          logger.error('Move nodes in tree failed: target position not found')
+          return false
+        }
+
+        // 根据position确定插入位置
+        const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
+        targetList.splice(insertIndex, 0, sourceNode)
+
+        // 更新节点路径
+        if (targetParent) {
+          sourceNode.treePath = `${targetParent.treePath}/${sourceNode.name}`
+        } else {
+          sourceNode.treePath = `/${sourceNode.name}`
+        }
+      }
+
+      // 更新修改时间
+      sourceNode.updatedAt = new Date().toISOString()
+
+      // 只有在所有操作成功后才保存到数据库
+      await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
+
+      return true
+    } catch (error) {
+      logger.error('Move nodes in tree failed during placement, attempting to restore:', error as Error)
+      // 如果放置失败，尝试恢复原始节点到原位置
+      // 这里需要重新实现恢复逻辑，暂时返回false
+      return false
+    }
   } catch (error) {
     logger.error('Move nodes in tree failed:', error as Error)
     return false

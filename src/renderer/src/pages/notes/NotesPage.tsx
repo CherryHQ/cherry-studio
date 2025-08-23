@@ -45,6 +45,7 @@ const NotesPage: FC = () => {
   const { data: currentContent = '', isLoading: isContentLoading } = useFileContent(activeFilePath)
 
   const [tokenCount, setTokenCount] = useState(0)
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const watcherRef = useRef<(() => void) | null>(null)
   const isSyncingTreeRef = useRef(false)
 
@@ -202,35 +203,48 @@ const NotesPage: FC = () => {
     editorRef.current?.setMarkdown(currentContent)
   }, [currentContent])
 
+  // 获取目标文件夹路径（选中文件夹或根目录）
+  const getTargetFolderPath = useCallback(() => {
+    if (selectedFolderId) {
+      const selectedNode = findNodeById(notesTree, selectedFolderId)
+      if (selectedNode && selectedNode.type === 'folder') {
+        return selectedNode.externalPath
+      }
+    }
+    return notesPath // 默认返回根目录
+  }, [selectedFolderId, notesTree, notesPath, findNodeById])
+
   // 创建文件夹
   const handleCreateFolder = useCallback(
     async (name: string) => {
       try {
-        if (!notesPath) {
+        const targetPath = getTargetFolderPath()
+        if (!targetPath) {
           throw new Error('No folder path selected')
         }
-        await createFolder(name, notesPath)
+        await createFolder(name, targetPath)
       } catch (error) {
         logger.error('Failed to create folder:', error as Error)
       }
     },
-    [notesPath]
+    [getTargetFolderPath]
   )
 
   // 创建笔记
   const handleCreateNote = useCallback(
     async (name: string) => {
       try {
-        if (!notesPath) {
+        const targetPath = getTargetFolderPath()
+        if (!targetPath) {
           throw new Error('No folder path selected')
         }
-        const newNote = await createNote(name, '', notesPath)
+        const newNote = await createNote(name, '', targetPath)
         dispatch(setActiveFilePath(newNote.externalPath))
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
       }
     },
-    [dispatch, notesPath]
+    [dispatch, getTargetFolderPath]
   )
 
   // 切换展开状态
@@ -305,10 +319,16 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           dispatch(setActiveFilePath(node.externalPath))
+          // 清除文件夹选择状态
+          setSelectedFolderId(null)
         } catch (error) {
           logger.error('Failed to load note:', error as Error)
         }
       } else if (node.type === 'folder') {
+        // 设置选中的文件夹，同时清除活动文件
+        setSelectedFolderId(node.id)
+        // 清除活动文件状态，这样文件的高亮会被清除
+        dispatch(setActiveFilePath(undefined))
         await handleToggleExpanded(node.id)
       }
     },
@@ -434,6 +454,7 @@ const NotesPage: FC = () => {
         {showWorkspace && (
           <NotesSidebar
             notesTree={notesTree}
+            selectedFolderId={selectedFolderId}
             onSelectNode={handleSelectNode}
             onCreateFolder={handleCreateFolder}
             onCreateNote={handleCreateNote}

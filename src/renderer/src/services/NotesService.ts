@@ -40,10 +40,14 @@ export async function createFolder(name: string, folderPath: string): Promise<No
   const folderId = uuidv4()
 
   const targetPath = await window.api.file.mkdir(`${folderPath}/${safeName}`)
+
+  // 查找父节点ID
+  const parentNode = tree.find((node) => node.externalPath === folderPath) || findNodeByExternalPath(tree, folderPath)
+
   const folder: NotesTreeNode = {
     id: folderId,
     name: safeName,
-    treePath: `/${safeName}`,
+    treePath: parentNode ? `${parentNode.treePath}/${safeName}` : `/${safeName}`,
     externalPath: targetPath,
     type: 'folder',
     children: [],
@@ -52,7 +56,7 @@ export async function createFolder(name: string, folderPath: string): Promise<No
     updatedAt: new Date().toISOString()
   }
 
-  insertNodeIntoTree(tree, folder)
+  insertNodeIntoTree(tree, folder, parentNode?.id)
 
   return folder
 }
@@ -71,17 +75,21 @@ export async function createNote(name: string, content: string = '', folderPath:
   const notePath = `${folderPath}/${safeName}${MARKDOWN_EXT}`
 
   await window.api.file.write(notePath, content)
+
+  // 查找父节点ID
+  const parentNode = tree.find((node) => node.externalPath === folderPath) || findNodeByExternalPath(tree, folderPath)
+
   const note: NotesTreeNode = {
     id: noteId,
     name: safeName,
-    treePath: `/${safeName}`,
+    treePath: parentNode ? `${parentNode.treePath}/${safeName}` : `/${safeName}`,
     externalPath: notePath,
     type: 'file',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
 
-  insertNodeIntoTree(tree, note)
+  insertNodeIntoTree(tree, note, parentNode?.id)
 
   return note
 }
@@ -340,4 +348,22 @@ function recursiveSortNodes(nodes: NotesTreeNode[], sortType: NotesSortType): vo
       recursiveSortNodes(node.children, sortType)
     }
   }
+}
+
+/**
+ * 根据外部路径查找节点（递归查找）
+ */
+function findNodeByExternalPath(nodes: NotesTreeNode[], externalPath: string): NotesTreeNode | null {
+  for (const node of nodes) {
+    if (node.externalPath === externalPath) {
+      return node
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findNodeByExternalPath(node.children, externalPath)
+      if (found) {
+        return found
+      }
+    }
+  }
+  return null
 }

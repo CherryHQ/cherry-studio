@@ -35,6 +35,7 @@ interface NotesSidebarProps {
   onSortNodes: (sortType: NotesSortType) => void
   onUploadFiles: (files: File[]) => void
   notesTree: NotesTreeNode[]
+  selectedFolderId?: string | null
 }
 
 const logger = loggerService.withContext('NotesSidebar')
@@ -50,7 +51,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   onMoveNode,
   onSortNodes,
   onUploadFiles,
-  notesTree
+  notesTree,
+  selectedFolderId
 }) => {
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
@@ -304,7 +306,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const renderTreeNode = useCallback(
     (node: NotesTreeNode, depth: number = 0) => {
-      const isActive = node.id === activeNode?.id
+      const isActive = node.id === activeNode?.id || (node.type === 'folder' && node.id === selectedFolderId)
       const isEditing = editingNodeId === node.id
       const hasChildren = node.children && node.children.length > 0
       const isDragging = draggedNodeId === node.id
@@ -387,6 +389,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     },
     [
       activeNode,
+      selectedFolderId,
       editingNodeId,
       editingName,
       draggedNodeId,

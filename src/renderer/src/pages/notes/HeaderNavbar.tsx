@@ -97,7 +97,6 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
       return
     }
     const node = findNodeInTree(notesTree, activeNode.id)
-    console.log(node)
     if (!node) return
 
     const pathParts = node.treePath.split('/').filter(Boolean)
