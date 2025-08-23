@@ -1,13 +1,19 @@
-import { BuiltinOcrProviderIds, FileMetadata, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
+import { loggerService } from '@logger'
+import { BuiltinOcrProviderIds, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
 import { tesseractService } from './tesseract/TesseractService'
 
-type OcrHandler = (file: FileMetadata) => Promise<OcrResult>
+type OcrHandler = (file: SupportedOcrFile) => Promise<OcrResult>
+
+const logger = loggerService.withContext('OcrService')
 
 export class OcrService {
   private registry: Map<string, OcrHandler> = new Map()
 
   register(providerId: string, handler: OcrHandler): void {
+    if (this.registry.has(providerId)) {
+      logger.warn(`Provider ${providerId} has existing handler. Overwrited.`)
+    }
     this.registry.set(providerId, handler)
   }
 

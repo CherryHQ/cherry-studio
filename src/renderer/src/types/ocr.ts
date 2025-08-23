@@ -21,7 +21,7 @@ export const isOcrProviderCapability = (cap: string): cap is OcrProviderCapabili
   return Object.hasOwn(OcrProviderCapabilities, cap)
 }
 
-export type OcrProviderCapabilityRecord = Record<OcrProviderCapability, boolean>
+export type OcrProviderCapabilityRecord = Partial<Record<OcrProviderCapability, boolean>>
 
 export type OcrProvider = {
   id: string
@@ -59,7 +59,7 @@ export type ImageOcrProvider = OcrProvider & {
 }
 
 export const isImageOcrProvider = (p: OcrProvider): p is ImageOcrProvider => {
-  return p.capabilities.image
+  return p.capabilities.image === true
 }
 
 export type SupportedOcrFile = ImageFileMetadata
