@@ -42,7 +42,7 @@ export const OcrTesseractSettings = () => {
             disabled
             style={{ width: '100%' }}
             placeholder="Please select"
-            defaultValue={'chi_sim'}
+            value={['chi_sim', 'chi_tra', 'eng']}
             options={options}
           />
         </div>
