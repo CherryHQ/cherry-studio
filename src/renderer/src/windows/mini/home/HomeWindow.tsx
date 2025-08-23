@@ -258,7 +258,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
         await fetchChatCompletion({
           messages: messagesForContext,
-          assistant: { ...currentAssistant, settings: { streamOutput: true } },
+          assistant: { ...currentAssistant, settings: { ...currentAssistant.settings, streamOutput: true } },
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:
