@@ -1,4 +1,4 @@
-import { FileMetadata, ImageFileMetadata, isImageFile, Model } from '.'
+import { FileMetadata, ImageFileMetadata, isImageFile } from '.'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract'
@@ -23,20 +23,68 @@ export const isOcrProviderCapability = (cap: string): cap is OcrProviderCapabili
 
 export type OcrProviderCapabilityRecord = Partial<Record<OcrProviderCapability, boolean>>
 
+// OCR models and providers share the same type definition.
+// A provider can offer capabilities to process multiple file types,
+// while a model belonging to that provider may be limited to processing only one specific file type.
+export type OcrModelCapabilityRecord = OcrProviderCapabilityRecord
+
+export interface OcrModel {
+  id: string
+  name: string
+  providerId: string
+  capabilities: OcrModelCapabilityRecord
+}
+
+/**
+ * Extend this type to define provider-specefic config types.
+ */
+export type OcrProviderApiConfig = {
+  apiKey: string
+  apiHost: string
+  apiVersion?: string
+}
+
+export const isOcrProviderApiConfig = (config: unknown): config is OcrProviderApiConfig => {
+  return (
+    typeof config === 'object' &&
+    config !== null &&
+    'apiKey' in config &&
+    typeof config.apiKey === 'string' &&
+    'apiHost' in config &&
+    typeof config.apiHost === 'string' &&
+    (!('apiVersion' in config) || typeof config.apiVersion === 'string')
+  )
+}
+
+/**
+ * For future. Model based ocr, api based ocr. May different api client.
+ *
+ * Extend this type to define provider-specific config types.
+ */
+export type OcrProviderConfig = {
+  /** Not used for now. Could safely remove. */
+  api?: OcrProviderApiConfig
+  /** Not used for now. Could safely remove. */
+  models?: OcrModel[]
+  /** Not used for now. Could safely remove. */
+  enabled?: boolean
+}
+
 export type OcrProvider = {
   id: string
   name: string
   capabilities: OcrProviderCapabilityRecord
-  config?: {
-    // for future. Model based ocr, api based ocr. May different api client.
-    api?: {
-      apiKey: string
-      apiHost: string
-      apiVersion?: string
-    }
-    models?: Model[]
-    enabled?: boolean
+  config?: OcrProviderConfig
+}
+
+export type OcrApiProvider = OcrProvider & {
+  config: OcrProviderConfig & {
+    api: OcrProviderApiConfig
   }
+}
+
+export const isOcrApiProvider = (p: OcrProvider): p is OcrApiProvider => {
+  return !!(p.config && p.config.api && isOcrProviderApiConfig(p.config.api))
 }
 
 export type BuiltinOcrProvider = OcrProvider & {
@@ -71,3 +119,7 @@ export const isSupportedOcrFile = (file: FileMetadata): file is SupportedOcrFile
 export type OcrResult = {
   text: string
 }
+
+export type OcrHandler = (file: SupportedOcrFile) => Promise<OcrResult>
+
+export type OcrImageHandler = (file: ImageFileMetadata) => Promise<OcrResult>
