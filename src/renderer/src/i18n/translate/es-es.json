@@ -888,6 +888,9 @@
   },
   "history": {
     "continue_chat": "Continuar chat",
+    "error": {
+      "topic_not_found": "[to be translated]:话题不存在"
+    },
     "locate": {
       "message": "Localizar mensaje"
     },
@@ -3442,12 +3445,14 @@
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
       "copy_last_message": "Copiar el último mensaje",
+      "edit_last_user_message": "[to be translated]:编辑最后一条用户消息",
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
       "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
       "press_shortcut": "Presionar atajo",
+      "rename_topic": "[to be translated]:重命名话题",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
       "reset_to_default": "Restablecer a predeterminado",

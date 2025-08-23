@@ -888,6 +888,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "[to be translated]:话题不存在"
+    },
     "locate": {
       "message": "Localiser le message"
     },
@@ -3448,8 +3451,8 @@
       "label": "Touche",
       "mini_window": "Assistant rapide",
       "new_topic": "Nouveau sujet",
-      "rename_topic": "Renommer le sujet",
       "press_shortcut": "Appuyer sur raccourci clavier",
+      "rename_topic": "Renommer le sujet",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",
       "reset_to_default": "Réinitialiser aux valeurs par défaut",

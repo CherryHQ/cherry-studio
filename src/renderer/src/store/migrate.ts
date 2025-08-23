@@ -2174,8 +2174,7 @@ const migrateConfig = {
       logger.error('migrate 136 error', error as Error)
       return state
     }
-  }
-  ,
+  },
   '137': (state: RootState) => {
     try {
       // Add the new rename_topic shortcut after new_topic if missing
@@ -2185,8 +2184,7 @@ const migrateConfig = {
       logger.error('migrate 137 error', error as Error)
       return state
     }
-  }
-  ,
+  },
   '138': (state: RootState) => {
     try {
       // Add the new edit_last_user_message shortcut after copy_last_message if missing

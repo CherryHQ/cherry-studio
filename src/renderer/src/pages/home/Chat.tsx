@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
-import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
+import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -15,8 +15,8 @@ import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import React, { FC, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
@@ -69,9 +69,7 @@ const Chat: FC<Props> = (props) => {
       title: t('chat.topics.edit.title'),
       message: '',
       defaultValue: topic.name || '',
-      extraNode: (
-        <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
-      )
+      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
     })
     if (name && topic.name !== name) {
       const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
