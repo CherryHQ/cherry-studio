@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -14,6 +15,7 @@ import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import React, { FC, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
@@ -33,7 +35,8 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant } = useAssistant(props.assistant.id)
+  const { assistant, updateTopic } = useAssistant(props.assistant.id)
+  const { t } = useTranslation()
   const { topicPosition, messageStyle, messageNavigation } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
@@ -56,6 +59,23 @@ const Chat: FC<Props> = (props) => {
       contentSearchRef.current?.enable(selectedText)
     } catch (error) {
       logger.error('Error enabling content search:', error as Error)
+    }
+  })
+
+  useShortcut('rename_topic', async () => {
+    const topic = props.activeTopic
+    if (!topic) return
+    const name = await PromptPopup.show({
+      title: t('chat.topics.edit.title'),
+      message: '',
+      defaultValue: topic.name || '',
+      extraNode: (
+        <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+      )
+    })
+    if (name && topic.name !== name) {
+      const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+      updateTopic(updatedTopic as Topic)
     }
   })
 

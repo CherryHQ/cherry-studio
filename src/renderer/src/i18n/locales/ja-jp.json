@@ -3450,6 +3450,7 @@
       "label": "キー",
       "mini_window": "クイックアシスタント",
       "new_topic": "新しいトピック",
+      "rename_topic": "トピックの名前を変更",
       "press_shortcut": "ショートカットを押す",
       "reset_defaults": "デフォルトのショートカットをリセット",
       "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",

@@ -3447,6 +3447,7 @@
       "label": "Touche",
       "mini_window": "Assistant rapide",
       "new_topic": "Nouveau sujet",
+      "rename_topic": "Renommer le sujet",
       "press_shortcut": "Appuyer sur raccourci clavier",
       "reset_defaults": "Réinitialiser raccourcis par défaut",
       "reset_defaults_confirm": "Êtes-vous sûr de vouloir réinitialiser tous les raccourcis clavier ?",

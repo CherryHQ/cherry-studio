@@ -3450,6 +3450,7 @@
       "label": "Key",
       "mini_window": "Quick Assistant",
       "new_topic": "New Topic",
+      "rename_topic": "Rename Topic",
       "press_shortcut": "Press Shortcut",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
