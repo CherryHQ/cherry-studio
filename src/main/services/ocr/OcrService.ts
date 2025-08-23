@@ -1,9 +1,7 @@
 import { loggerService } from '@logger'
-import { BuiltinOcrProviderIds, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
+import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
 import { tesseractService } from './tesseract/TesseractService'
-
-type OcrHandler = (file: SupportedOcrFile) => Promise<OcrResult>
 
 const logger = loggerService.withContext('OcrService')
 
