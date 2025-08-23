@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import * as OcrService from '@renderer/services/OcrService'
+import * as OcrService from '@renderer/services/ocr/OcrService'
 import { useAppSelector } from '@renderer/store'
 import { ImageFileMetadata, isImageFile, SupportedOcrFile } from '@renderer/types'
 import { uuid } from '@renderer/utils'
