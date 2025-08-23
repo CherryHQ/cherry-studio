@@ -1,4 +1,11 @@
-import { CheckOutlined, PlusOutlined, QuestionCircleOutlined, ReloadOutlined } from '@ant-design/icons'
+import {
+  CheckOutlined,
+  EyeInvisibleOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  QuestionCircleOutlined,
+  ReloadOutlined
+} from '@ant-design/icons'
 import { Box } from '@renderer/components/Layout'
 import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { useAppSelector } from '@renderer/store'
@@ -6,7 +13,7 @@ import { Assistant, AssistantSettings } from '@renderer/types'
 import { Button, Divider, Row, Segmented, Select, SelectProps, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { CircleHelp } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { KeyboardEvent, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,6 +28,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   const [promptSettingsEnabled, setPromptSettingsEnabled] = useState(
     assistant.knowledgePromptSettings?.enabled ?? false
   )
+  const [showPreview, setShowPreview] = useState(false)
   const textAreaRef = useRef<any>(null)
 
   const knowledgeState = useAppSelector((state) => state.knowledge)
@@ -64,6 +72,10 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
       const end = textArea.selectionEnd
       const currentValue = currentPrompt
       const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end)
+
+      // 保存当前滚动位置
+      const scrollTop = textArea.scrollTop
+
       handlePromptSettingsChange('referencePrompt', newValue)
 
       // 设置光标位置到插入的变量之后
@@ -71,7 +83,62 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
         textArea.focus()
         const newPosition = start + variable.length
         textArea.setSelectionRange(newPosition, newPosition)
-      }, 10)
+
+        // 恢复滚动位置
+        textArea.scrollTop = scrollTop
+      }, 0)
+    }
+  }
+
+  // 处理键盘事件，实现智能删除变量
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!promptSettingsEnabled) return
+
+    const textArea = e.currentTarget
+    const { selectionStart, selectionEnd, value } = textArea
+
+    // 只处理退格键且没有选择文本的情况
+    if (e.key === 'Backspace' && selectionStart === selectionEnd && selectionStart > 0) {
+      // 检查光标前是否是变量
+      const beforeCursor = value.substring(0, selectionStart)
+
+      // 检查是否是 {question} 变量
+      if (beforeCursor.endsWith('{question}')) {
+        e.preventDefault()
+        const newValue = value.substring(0, selectionStart - 10) + value.substring(selectionStart)
+        handlePromptSettingsChange('referencePrompt', newValue)
+
+        // 设置光标位置
+        setTimeout(() => {
+          textArea.setSelectionRange(selectionStart - 10, selectionStart - 10)
+        }, 0)
+        return
+      }
+
+      // 检查是否是 {references} 变量
+      if (beforeCursor.endsWith('{references}')) {
+        e.preventDefault()
+        const newValue = value.substring(0, selectionStart - 12) + value.substring(selectionStart)
+        handlePromptSettingsChange('referencePrompt', newValue)
+
+        // 设置光标位置
+        setTimeout(() => {
+          textArea.setSelectionRange(selectionStart - 12, selectionStart - 12)
+        }, 0)
+        return
+      }
+    }
+  }
+
+  // 处理提示词变化并显示保存通知
+  const handlePromptChange = (value: string) => {
+    handlePromptSettingsChange('referencePrompt', value)
+    // 使用防抖或节流来避免频繁显示通知
+    if (promptSettingsEnabled) {
+      clearTimeout((window as any).promptSaveTimeout)
+      ;(window as any).promptSaveTimeout = setTimeout(() => {
+        window.message.success(t('common.saved'))
+      }, 500)
     }
   }
 
@@ -140,14 +207,8 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
       {/* 提示词设置 */}
       <PromptSettingsSection>
         <Row align="middle" justify="space-between" style={{ marginBottom: 15 }}>
-          <Box style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>
-            {t('assistants.settings.knowledge_base.prompt_settings.title')}
-            <Switch
-              checked={promptSettingsEnabled}
-              onChange={handlePromptSettingsEnabledChange}
-              style={{ marginLeft: 12 }}
-            />
-          </Box>
+          <Box style={{ fontWeight: 'bold' }}>{t('assistants.settings.knowledge_base.prompt_settings.title')}</Box>
+          <Switch checked={promptSettingsEnabled} onChange={handlePromptSettingsEnabledChange} />
         </Row>
 
         <PromptSettingsContent $disabled={!promptSettingsEnabled}>
@@ -236,16 +297,50 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
                 {t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_references')}
               </VariableText>
             </VariableButton>
+            <Button
+              size="small"
+              type="text"
+              icon={showPreview ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+              disabled={!promptSettingsEnabled}
+              onClick={() => {
+                setShowPreview(!showPreview)
+                window.message.success(t('common.saved'))
+              }}>
+              {showPreview ? t('common.hide_preview', '隐藏预览') : t('common.show_preview', '显示预览')}
+            </Button>
           </VariableButtonsContainer>
 
           <CustomTextArea
             ref={textAreaRef}
             value={currentPrompt}
-            onChange={(e) => handlePromptSettingsChange('referencePrompt', e.target.value)}
+            onChange={(e) => handlePromptChange(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.placeholder')}
             rows={8}
             disabled={!promptSettingsEnabled}
+            style={{ display: showPreview ? 'none' : 'block' }}
           />
+
+          {showPreview && (
+            <PreviewContainer>
+              {currentPrompt.split(/(\{question\}|\{references\})/g).map((part, index) => {
+                if (part === '{question}') {
+                  return (
+                    <VariableTag key={index} $color="#1890ff">
+                      {t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_question')}
+                    </VariableTag>
+                  )
+                } else if (part === '{references}') {
+                  return (
+                    <VariableTag key={index} $color="#52c41a">
+                      {t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_references')}
+                    </VariableTag>
+                  )
+                }
+                return <span key={index}>{part}</span>
+              })}
+            </PreviewContainer>
+          )}
         </PromptSettingsContent>
       </PromptSettingsSection>
 
@@ -297,7 +392,6 @@ const VariableButton = styled(Button)`
 
 const VariableText = styled.span<{ $color: string }>`
   color: ${(props) => props.$color};
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-weight: 500;
   margin-left: 4px;
 `
@@ -311,6 +405,33 @@ const CustomTextArea = styled(TextArea)`
   .ant-input {
     font-family: inherit;
   }
+`
+
+const PreviewContainer = styled.div`
+  padding: 12px;
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  min-height: 150px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+`
+
+const VariableTag = styled.span<{ $color: string }>`
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 2px;
+  background: ${(props) => props.$color};
+  color: white;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 12px;
+  vertical-align: baseline;
 `
 
 export default AssistantKnowledgeBaseSettings
