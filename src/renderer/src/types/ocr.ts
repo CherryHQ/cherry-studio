@@ -134,3 +134,7 @@ export type OcrTesseractConfig = OcrProviderConfig & {
 export type OcrTesseractProvider = BuiltinOcrProvider & {
   config: OcrTesseractConfig
 }
+
+export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvider => {
+  return p.id === BuiltinOcrProviderIds.tesseract
+}
