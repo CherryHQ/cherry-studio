@@ -51,7 +51,6 @@ const ErrorContainer = styled.div`
   justify-content: center;
   align-items: center;
   width: 100%;
-  height: 100%;
   padding: 8px;
 `
 
