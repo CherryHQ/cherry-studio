@@ -55,7 +55,7 @@ export const processMessages = async (
 
     await fetchChatCompletion({
       messages: [userMessage],
-      assistant: { ...assistant, settings: { streamOutput: true } },
+      assistant: { ...assistant, settings: { ...assistant.settings, streamOutput: true } },
       onChunkReceived: (chunk: Chunk) => {
         if (finished) {
           return
