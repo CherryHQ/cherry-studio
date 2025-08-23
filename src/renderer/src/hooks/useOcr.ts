@@ -31,9 +31,10 @@ export const useOcr = () => {
   const ocr = async (file: SupportedOcrFile) => {
     const key = uuid()
     window.message.loading({ content: t('ocr.processing'), key, duration: 0 })
+    // await to keep show loading message
     try {
       if (isImageFile(file)) {
-        return ocrImage(file)
+        return await ocrImage(file)
       } else {
         // @ts-expect-error all types should be covered
         throw new Error(t('ocr.file.not_supported', { type: file.type }))
