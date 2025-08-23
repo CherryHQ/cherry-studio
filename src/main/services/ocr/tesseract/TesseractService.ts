@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
 import { TesseractLangsDownloadUrl } from '@shared/config/constant'
 import { app } from 'electron'
+import fs from 'fs'
 import path from 'path'
 import Tesseract, { createWorker } from 'tesseract.js'
 
@@ -120,7 +121,8 @@ export class TesseractService {
       // for now, only support limited languages
       this.worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
         langPath: await this._getLangPath(),
-        cachePath: this._getCacheDir(),
+        cachePath: await this._getCacheDir(),
+        gzip: false,
         logger: (m) => logger.debug('From worker', m)
       })
     }
@@ -132,8 +134,12 @@ export class TesseractService {
     return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : TesseractLangsDownloadUrl.GLOBAL
   }
 
-  private _getCacheDir(): string {
-    return path.join(app.getPath('userData'), 'tesseract')
+  private async _getCacheDir(): Promise<string> {
+    const cacheDir = path.join(app.getPath('userData'), 'tesseract')
+    if (!fs.existsSync(cacheDir)) {
+      await fs.promises.mkdir(cacheDir, { recursive: true })
+    }
+    return cacheDir
   }
 
   async dispose(): Promise<void> {
