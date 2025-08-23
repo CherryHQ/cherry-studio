@@ -1,4 +1,6 @@
-import { OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
+import { isOcrApiProvider, OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
+
+import { OcrApiClientFactory } from './clients/OcrApiClientFactory'
 
 // const logger = loggerService.withContext('renderer:OcrService')
 
@@ -10,5 +12,10 @@ import { OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
  * @throws {Error}
  */
 export const ocr = async (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> => {
-  return window.api.ocr.ocr(file, provider)
+  if (isOcrApiProvider(provider)) {
+    const client = OcrApiClientFactory.create(provider)
+    return client.ocr(file)
+  } else {
+    return window.api.ocr.ocr(file, provider)
+  }
 }
