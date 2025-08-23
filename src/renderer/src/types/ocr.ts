@@ -128,7 +128,7 @@ export type OcrImageHandler = (file: ImageFileMetadata) => Promise<OcrResult>
 
 // Tesseract Types
 export type OcrTesseractConfig = OcrProviderConfig & {
-  langs: Record<Tesseract.LanguageCode, boolean>
+  langs: Record<TesseractLangCode, boolean>
 }
 
 export type OcrTesseractProvider = BuiltinOcrProvider & {
@@ -138,3 +138,5 @@ export type OcrTesseractProvider = BuiltinOcrProvider & {
 export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvider => {
   return p.id === BuiltinOcrProviderIds.tesseract
 }
+
+export type TesseractLangCode = Tesseract.LanguageCode
