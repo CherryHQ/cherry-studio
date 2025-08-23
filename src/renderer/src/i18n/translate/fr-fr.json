@@ -889,7 +889,7 @@
   "history": {
     "continue_chat": "Continuer la conversation",
     "error": {
-      "topic_not_found": "[to be translated]:话题不存在"
+      "topic_not_found": "Le sujet n'existe pas"
     },
     "locate": {
       "message": "Localiser le message"

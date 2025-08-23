@@ -889,7 +889,7 @@
   "history": {
     "continue_chat": "Continuar conversando",
     "error": {
-      "topic_not_found": "[to be translated]:话题不存在"
+      "topic_not_found": "O tópico não existe"
     },
     "locate": {
       "message": "Localizar mensagem"
@@ -3445,14 +3445,14 @@
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
       "copy_last_message": "Copiar a última mensagem",
-      "edit_last_user_message": "[to be translated]:编辑最后一条用户消息",
+      "edit_last_user_message": "Editar última mensagem do usuário",
       "enabled": "ativar",
       "exit_fullscreen": "Sair da tela cheia",
       "label": "Tecla",
       "mini_window": "Atalho de assistente",
       "new_topic": "Novo tópico",
       "press_shortcut": "Pressionar atalho",
-      "rename_topic": "[to be translated]:重命名话题",
+      "rename_topic": "Renomear tópico",
       "reset_defaults": "Redefinir atalhos padrão",
       "reset_defaults_confirm": "Tem certeza de que deseja redefinir todos os atalhos?",
       "reset_to_default": "Redefinir para padrão",

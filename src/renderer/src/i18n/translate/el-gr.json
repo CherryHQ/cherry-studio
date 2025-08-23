@@ -889,7 +889,7 @@
   "history": {
     "continue_chat": "Συνεχίστε το συνομιλημένο",
     "error": {
-      "topic_not_found": "[to be translated]:话题不存在"
+      "topic_not_found": "Το θέμα δεν υπάρχει"
     },
     "locate": {
       "message": "Εφαρμογή στο μήνυμα"
@@ -3445,14 +3445,14 @@
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
-      "edit_last_user_message": "[to be translated]:编辑最后一条用户消息",
+      "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
       "mini_window": "Συντομεύστε επιχειρηματικά",
       "new_topic": "Νέο θέμα",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
-      "rename_topic": "[to be translated]:重命名话题",
+      "rename_topic": "Μετονομασία θέματος",
       "reset_defaults": "Επαναφορά στα προεπιλεγμένα συντομού πλήκτρα",
       "reset_defaults_confirm": "Θέλετε να επαναφέρετε όλα τα συντομού πλήκτρα στις προεπιλεγμένες τιμές;",
       "reset_to_default": "Επαναφορά στις προεπιλεγμένες",
