@@ -17,17 +17,17 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
   return (
     <ErrorContainer>
       <Alert
-        message={t('error.boundary.deafault.message')}
+        message={t('error.boundary.default.message')}
         showIcon
         description={formatErrorMessage(error)}
         type="error"
         action={
           <Space>
             <Button size="small" danger onClick={debug}>
-              {t('error.boundary.deafault.devtools')}
+              {t('error.boundary.default.devtools')}
             </Button>
             <Button size="small" danger onClick={reload}>
-              {t('error.boundary.deafault.reload')}
+              {t('error.boundary.default.reload')}
             </Button>
           </Space>
         }
