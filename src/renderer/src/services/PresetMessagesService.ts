@@ -25,7 +25,7 @@ export function injectPresetMessages(messages: Message[], assistant: Assistant, 
   const historyPlaceholderIndex = historyPlaceholder ? assistant.messages.indexOf(historyPlaceholder) : -1
 
   // 过滤掉占位符和被禁用的消息
-  const actualPresetMessages = assistant.messages.filter((msg) => msg.type !== 'chat_history' && msg.enabled !== false)
+  const actualPresetMessages = assistant.messages.filter((msg) => msg.type !== 'chat_history' && msg.enabled === true)
 
   // 如果过滤后没有实际的预设消息，也直接返回
   if (actualPresetMessages.length === 0) {
@@ -33,7 +33,7 @@ export function injectPresetMessages(messages: Message[], assistant: Assistant, 
   }
 
   // 如果找到了启用状态的聊天记录占位符，则进行编排
-  if (historyPlaceholder && historyPlaceholder.enabled !== false) {
+  if (historyPlaceholder && historyPlaceholder.enabled === true) {
     console.log('[PresetMessagesService] 找到启用的聊天记录占位符，位置:', historyPlaceholderIndex)
 
     // 根据占位符的位置分割预设消息
