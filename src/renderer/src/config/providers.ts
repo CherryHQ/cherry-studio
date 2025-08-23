@@ -1252,9 +1252,9 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.ucloud.cn/',
-      apiKey: 'https://console.ucloud.cn/uai/inference',
-      docs: 'https://docs.ucloud.cn/uai/inference',
-      models: 'https://console.ucloud.cn/uai/inference'
+      apiKey: 'https://console.ucloud.cn/modelverse/experience/api-keys',
+      docs: 'https://docs.ucloud.cn/modelverse/README',
+      models: 'https://docs.ucloud.cn/modelverse/price'
     }
   }
 }
