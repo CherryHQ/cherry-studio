@@ -888,6 +888,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "Le sujet n'existe pas"
+    },
     "locate": {
       "message": "Localiser le message"
     },
@@ -1563,12 +1566,23 @@
   },
   "ocr": {
     "error": {
+      "provider": {
+        "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
+        "existing": "Le fournisseur existe déjà",
+        "not_found": "Le fournisseur OCR n'existe pas",
+        "update_failed": "Échec de la mise à jour de la configuration"
+      },
       "unknown": "Une erreur s'est produite lors du processus OCR"
     },
     "file": {
       "not_supported": "Type de fichier non pris en charge {{type}}"
     },
-    "processing": "Traitement OCR en cours..."
+    "processing": "Traitement OCR en cours...",
+    "warning": {
+      "provider": {
+        "fallback": "Revenu à {{name}}, ce qui pourrait entraîner des problèmes"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -3494,6 +3508,10 @@
         "image": {
           "error": {
             "provider_not_found": "Ce fournisseur n'existe pas"
+          },
+          "tesseract": {
+            "langs": "Langues prises en charge",
+            "temp_tooltip": "Pour le moment, seuls le chinois et l'anglais sont pris en charge."
           },
           "title": "Image"
         },

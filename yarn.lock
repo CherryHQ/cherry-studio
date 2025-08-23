@@ -8579,7 +8579,7 @@ __metadata:
     string-width: "npm:^7.2.0"
     styled-components: "npm:^6.1.11"
     tar: "npm:^7.4.3"
-    tesseract.js: "npm:^6.0.1"
+    tesseract.js: "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch"
     tiny-pinyin: "npm:^1.3.2"
     tokenx: "npm:^1.1.0"
     tsx: "npm:^4.20.3"
@@ -20978,7 +20978,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tesseract.js@npm:*, tesseract.js@npm:^6.0.1":
+"tesseract.js@npm:6.0.1":
   version: 6.0.1
   resolution: "tesseract.js@npm:6.0.1"
   dependencies:
@@ -20992,6 +20992,23 @@ __metadata:
     wasm-feature-detect: "npm:^1.2.11"
     zlibjs: "npm:^0.3.1"
   checksum: 10c0/1d73bb1fbc00c8629756d9594989d8bbfabda657a8cad84922ad68eb0f073148c82845bf71a882e5d2427a46edb5a470356864e60562c7a8442bddd70251435a
+  languageName: node
+  linkType: hard
+
+"tesseract.js@patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch":
+  version: 6.0.1
+  resolution: "tesseract.js@patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch::version=6.0.1&hash=a9cf7b"
+  dependencies:
+    bmp-js: "npm:^0.1.0"
+    idb-keyval: "npm:^6.2.0"
+    is-url: "npm:^1.2.4"
+    node-fetch: "npm:^2.6.9"
+    opencollective-postinstall: "npm:^2.0.3"
+    regenerator-runtime: "npm:^0.13.3"
+    tesseract.js-core: "npm:^6.0.0"
+    wasm-feature-detect: "npm:^1.2.11"
+    zlibjs: "npm:^0.3.1"
+  checksum: 10c0/8a94fcc688ff21a9e82b721563d8fa174837ba807d0f01290fe9a1bb6a1c96ecaf7dc1c83510510f3d5185abd15f1cc5fc3cb7ad6c0eee0c4b3e278106f8a5da
   languageName: node
   linkType: hard
 

@@ -1,3 +1,5 @@
+import Tesseract from 'tesseract.js'
+
 import { FileMetadata, ImageFileMetadata, isImageFile } from '.'
 
 export const BuiltinOcrProviderIds = {
@@ -123,3 +125,18 @@ export type OcrResult = {
 export type OcrHandler = (file: SupportedOcrFile) => Promise<OcrResult>
 
 export type OcrImageHandler = (file: ImageFileMetadata) => Promise<OcrResult>
+
+// Tesseract Types
+export type OcrTesseractConfig = OcrProviderConfig & {
+  langs: Record<TesseractLangCode, boolean>
+}
+
+export type OcrTesseractProvider = BuiltinOcrProvider & {
+  config: OcrTesseractConfig
+}
+
+export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvider => {
+  return p.id === BuiltinOcrProviderIds.tesseract
+}
+
+export type TesseractLangCode = Tesseract.LanguageCode

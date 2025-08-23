@@ -1566,12 +1566,23 @@
   },
   "ocr": {
     "error": {
+      "provider": {
+        "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
+        "existing": "プロバイダーはすでに存在します",
+        "not_found": "OCRプロバイダーが存在しません",
+        "update_failed": "更新構成に失敗しました"
+      },
       "unknown": "OCR処理中にエラーが発生しました"
     },
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
     },
-    "processing": "OCR処理中..."
+    "processing": "OCR処理中...",
+    "warning": {
+      "provider": {
+        "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -3497,6 +3508,10 @@
         "image": {
           "error": {
             "provider_not_found": "該提供者は存在しません"
+          },
+          "tesseract": {
+            "langs": "サポートされている言語",
+            "temp_tooltip": "現在のところ、中国語と英語のみをサポートしています"
           },
           "title": "画像"
         },

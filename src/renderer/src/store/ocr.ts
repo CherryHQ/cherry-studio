@@ -1,6 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { ImageOcrProvider, OcrProvider } from '@renderer/types'
+import { ImageOcrProvider, OcrProvider, OcrProviderConfig } from '@renderer/types'
 
 export interface OcrState {
   providers: OcrProvider[]
@@ -22,13 +22,25 @@ const ocrSlice = createSlice({
     addOcrProvider(state, action: PayloadAction<OcrProvider>) {
       state.providers.push(action.payload)
     },
-    removeOcrProvider(state, action: PayloadAction<OcrProvider>) {
-      state.providers = state.providers.filter((provider) => provider.id !== action.payload.id)
+    removeOcrProvider(state, action: PayloadAction<string>) {
+      state.providers = state.providers.filter((provider) => provider.id !== action.payload)
     },
     updateOcrProvider(state, action: PayloadAction<Partial<OcrProvider>>) {
       const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
       if (index !== -1) {
         Object.assign(state.providers[index], action.payload)
+      }
+    },
+    updateOcrProviderConfig(
+      state,
+      action: PayloadAction<{ id: string; update: Omit<Partial<OcrProviderConfig>, 'id'> }>
+    ) {
+      const index = state.providers.findIndex((provider) => provider.id === action.payload.id)
+      if (index !== -1) {
+        if (!state.providers[index].config) {
+          state.providers[index].config = {}
+        }
+        Object.assign(state.providers[index].config, action.payload.update)
       }
     },
     setImageOcrProvider(state, action: PayloadAction<ImageOcrProvider>) {
@@ -37,7 +49,13 @@ const ocrSlice = createSlice({
   }
 })
 
-export const { setOcrProviders, addOcrProvider, removeOcrProvider, updateOcrProvider, setImageOcrProvider } =
-  ocrSlice.actions
+export const {
+  setOcrProviders,
+  addOcrProvider,
+  removeOcrProvider,
+  updateOcrProvider,
+  updateOcrProviderConfig,
+  setImageOcrProvider
+} = ocrSlice.actions
 
 export default ocrSlice.reducer

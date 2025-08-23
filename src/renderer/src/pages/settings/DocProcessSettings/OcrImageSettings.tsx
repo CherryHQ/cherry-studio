@@ -1,21 +1,31 @@
 import { loggerService } from '@logger'
 import { useAppSelector } from '@renderer/store'
 import { setImageOcrProvider } from '@renderer/store/ocr'
-import { isImageOcrProvider } from '@renderer/types'
+import { isImageOcrProvider, OcrProvider } from '@renderer/types'
 import { Select } from 'antd'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
 import { SettingRow, SettingRowTitle } from '..'
 
-const logger = loggerService.withContext('OcrImageProviderSettings')
+const logger = loggerService.withContext('OcrImageSettings')
 
-const OcrImageProviderSettings = () => {
+type Props = {
+  setProvider: (provider: OcrProvider) => void
+}
+
+const OcrImageSettings = ({ setProvider }: Props) => {
   const { t } = useTranslation()
   const providers = useAppSelector((state) => state.ocr.providers)
   const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
   const imageProviders = providers.filter((p) => isImageOcrProvider(p))
   const dispatch = useDispatch()
+
+  // 挂载时更新外部状态
+  useEffect(() => {
+    setProvider(imageProvider)
+  }, [imageProvider, setProvider])
 
   const updateImageProvider = (id: string) => {
     const provider = imageProviders.find((p) => p.id === id)
@@ -25,6 +35,7 @@ const OcrImageProviderSettings = () => {
       return
     }
 
+    setProvider(provider)
     dispatch(setImageOcrProvider(provider))
   }
 
@@ -48,4 +59,4 @@ const OcrImageProviderSettings = () => {
   )
 }
 
-export default OcrImageProviderSettings
+export default OcrImageSettings
