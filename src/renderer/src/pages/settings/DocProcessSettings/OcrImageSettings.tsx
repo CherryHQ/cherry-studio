@@ -8,9 +8,9 @@ import { useDispatch } from 'react-redux'
 
 import { SettingRow, SettingRowTitle } from '..'
 
-const logger = loggerService.withContext('OcrImageProviderSettings')
+const logger = loggerService.withContext('OcrImageSettings')
 
-const OcrImageProviderSettings = () => {
+const OcrImageSettings = () => {
   const { t } = useTranslation()
   const providers = useAppSelector((state) => state.ocr.providers)
   const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
@@ -48,4 +48,4 @@ const OcrImageProviderSettings = () => {
   )
 }
 
-export default OcrImageProviderSettings
+export default OcrImageSettings

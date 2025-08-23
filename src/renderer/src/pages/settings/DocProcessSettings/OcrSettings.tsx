@@ -5,7 +5,7 @@ import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingTitle } from '..'
-import OcrImageProviderSettings from './OcrImageProviderSettings'
+import OcrImageSettings from './OcrImageSettings'
 
 const OcrSettings: FC = () => {
   const { t } = useTranslation()
@@ -16,7 +16,7 @@ const OcrSettings: FC = () => {
       key: 'image',
       label: t('settings.tool.ocr.image.title'),
       icon: <PictureOutlined />,
-      children: <OcrImageProviderSettings />
+      children: <OcrImageSettings />
     }
   ]
 
