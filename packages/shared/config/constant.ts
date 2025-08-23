@@ -197,6 +197,12 @@ export enum FeedUrl {
   GITHUB_LATEST = 'https://github.com/CherryHQ/cherry-studio/releases/latest/download'
 }
 
+export const tesseractLangs = ['chi_sim', 'chi_tra', 'eng']
+export enum TesseractLangsDownloadUrl {
+  CN = 'https://gitcode.com/tesseract-ocr/tessdata/raw/main/',
+  GLOBAL = 'https://github.com/tesseract-ocr/tessdata/raw/main/'
+}
+
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本
   RC = 'rc', // 公测版本

@@ -13,7 +13,7 @@ import {
 import { statSync } from 'fs'
 import { readFile } from 'fs/promises'
 
-import { getTesseractWorker } from './tesseract/TesseractService'
+import { tesseractService } from './tesseract/TesseractService'
 
 const logger = loggerService.withContext('main:OcrService')
 
@@ -25,7 +25,7 @@ const logger = loggerService.withContext('main:OcrService')
  */
 const tesseractOcr = async (file: ImageFileMetadata | string): Promise<Tesseract.RecognizeResult> => {
   try {
-    const worker = await getTesseractWorker()
+    const worker = await tesseractService.getWorker()
     let ret: Tesseract.RecognizeResult
     if (typeof file === 'string') {
       ret = await worker.recognize(file)

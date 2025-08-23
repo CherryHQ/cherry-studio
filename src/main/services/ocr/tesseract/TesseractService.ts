@@ -1,9 +1,11 @@
 import { loggerService } from '@logger'
+import { getIpCountry } from '@main/utils/ipService'
+import { TesseractLangsDownloadUrl } from '@shared/config/constant'
+import { app } from 'electron'
+import path from 'path'
 import Tesseract, { createWorker } from 'tesseract.js'
 
 const logger = loggerService.withContext('TesseractService')
-
-let worker: Tesseract.Worker | null = null
 
 // const languageCodeMap: Record<string, string> = {
 //   'af-za': 'afr',
@@ -110,20 +112,36 @@ let worker: Tesseract.Worker | null = null
 //   'yi-us': 'yid'
 // }
 
-export const getTesseractWorker = async (): Promise<Tesseract.Worker> => {
-  if (!worker) {
-    // for now, only support limited languages
-    worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
-      // langPath: getCacheDir(),
-      logger: (m) => logger.debug('From worker', m)
-    })
+export class TesseractService {
+  private worker: Tesseract.Worker | null = null
+
+  async getWorker(): Promise<Tesseract.Worker> {
+    if (!this.worker) {
+      // for now, only support limited languages
+      this.worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
+        langPath: await this._getLangPath(),
+        cachePath: this._getCacheDir(),
+        logger: (m) => logger.debug('From worker', m)
+      })
+    }
+    return this.worker
   }
-  return worker
+
+  private async _getLangPath(): Promise<string> {
+    const country = await getIpCountry()
+    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : TesseractLangsDownloadUrl.GLOBAL
+  }
+
+  private _getCacheDir(): string {
+    return path.join(app.getPath('userData'), 'tesseract')
+  }
+
+  async dispose(): Promise<void> {
+    if (this.worker) {
+      await this.worker.terminate()
+      this.worker = null
+    }
+  }
 }
 
-export const disposeTesseractWorker = async () => {
-  if (worker) {
-    await worker.terminate()
-    worker = null
-  }
-}
+export const tesseractService = new TesseractService()
