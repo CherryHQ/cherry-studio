@@ -808,6 +808,13 @@
     "backup": {
       "file_format": "Formato do arquivo de backup está incorreto"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Abrir o painel de depuração",
+        "message": "Parece que ocorreu um problema...",
+        "reload": "Recarregar"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "Devolveu um formato de dados inválido"
@@ -888,6 +895,9 @@
   },
   "history": {
     "continue_chat": "Continuar conversando",
+    "error": {
+      "topic_not_found": "Tópico inexistente"
+    },
     "locate": {
       "message": "Localizar mensagem"
     },
