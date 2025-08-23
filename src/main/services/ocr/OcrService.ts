@@ -27,6 +27,4 @@ export class OcrService {
 export const ocrService = new OcrService()
 
 // Register built-in providers
-ocrService.register(BuiltinOcrProviderIds.tesseract, async (file) => {
-  return tesseractService.ocr(file)
-})
+ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
