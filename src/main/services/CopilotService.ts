@@ -97,6 +97,7 @@ class CopilotService {
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-Mode': 'no-cors',
           'Sec-Fetch-Dest': 'empty',
+          accept: 'application/json',
           authorization: `token ${token}`
         }
       })
