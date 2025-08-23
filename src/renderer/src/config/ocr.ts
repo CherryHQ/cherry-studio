@@ -12,7 +12,9 @@ export const BUILTIN_OCR_PROVIDERS_MAP = {
   tesseract
 } as const satisfies Record<BuiltinOcrProviderId, BuiltinOcrProvider>
 
-export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = Object.values(BUILTIN_OCR_PROVIDERS_MAP)
+export const BUILTIN_OCR_PROVIDERS: readonly BuiltinOcrProvider[] = Object.freeze(
+  Object.values(BUILTIN_OCR_PROVIDERS_MAP)
+)
 
 export const DEFAULT_OCR_PROVIDER = {
   image: tesseract
