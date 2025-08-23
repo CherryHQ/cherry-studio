@@ -2186,6 +2186,17 @@ const migrateConfig = {
       return state
     }
   }
+  ,
+  '138': (state: RootState) => {
+    try {
+      // Add the new edit_last_user_message shortcut after copy_last_message if missing
+      addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
+      return state
+    } catch (error) {
+      logger.error('migrate 138 error', error as Error)
+      return state
+    }
+  }
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer

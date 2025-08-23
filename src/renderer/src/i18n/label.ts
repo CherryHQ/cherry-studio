@@ -159,6 +159,7 @@ const shortcutKeyMap = {
   clear_topic: 'settings.shortcuts.clear_topic',
   rename_topic: 'settings.shortcuts.rename_topic',
   copy_last_message: 'settings.shortcuts.copy_last_message',
+  edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
   enabled: 'settings.shortcuts.enabled',
   exit_fullscreen: 'settings.shortcuts.exit_fullscreen',
   label: 'settings.shortcuts.label',
