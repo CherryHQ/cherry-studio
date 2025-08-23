@@ -46,6 +46,7 @@ import StepProviderLogo from '@renderer/assets/images/providers/step.png'
 import TencentCloudProviderLogo from '@renderer/assets/images/providers/tencent-cloud-ti.png'
 import TogetherProviderLogo from '@renderer/assets/images/providers/together.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
+import UCloudProviderLogo from '@renderer/assets/images/providers/ucloud.png'
 import VertexAIProviderLogo from '@renderer/assets/images/providers/vertexai.svg'
 import BytedanceProviderLogo from '@renderer/assets/images/providers/volcengine.png'
 import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png'
@@ -102,6 +103,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://api.deepseek.com',
     models: SYSTEM_MODELS.deepseek,
+    isSystem: true,
+    enabled: false
+  },
+  ucloud: {
+    id: 'ucloud',
+    name: 'UCloud',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.modelverse.cn',
+    models: SYSTEM_MODELS.ucloud,
     isSystem: true,
     enabled: false
   },
@@ -646,6 +657,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   tokenflux: TokenFluxProviderLogo,
   cephalon: CephalonProviderLogo,
   lanyun: LanyunProviderLogo,
+  ucloud: UCloudProviderLogo,
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
@@ -1232,6 +1244,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://poe.com/api_key',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
+    }
+  },
+  ucloud: {
+    api: {
+      url: 'https://api.modelverse.cn'
+    },
+    websites: {
+      official: 'https://www.ucloud.cn/',
+      apiKey: 'https://console.ucloud.cn/uai/inference',
+      docs: 'https://docs.ucloud.cn/uai/inference',
+      models: 'https://console.ucloud.cn/uai/inference'
     }
   }
 }

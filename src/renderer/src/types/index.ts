@@ -251,6 +251,7 @@ export const SystemProviderIds = {
   aihubmix: 'aihubmix',
   ocoolai: 'ocoolai',
   deepseek: 'deepseek',
+  ucloud: 'ucloud',
   ppio: 'ppio',
   alayanew: 'alayanew',
   qiniu: 'qiniu',

@@ -2353,6 +2353,50 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   'new-api': [],
   'aws-bedrock': [],
+  ucloud: [
+    {
+      id: 'deepseek-ai/DeepSeek-V3-0324',
+      name: 'DeepSeek-V3-0324',
+      provider: 'ucloud',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-ai/DeepSeek-R1-0528',
+      name: 'DeepSeek-R1-0528',
+      provider: 'ucloud',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'Qwen/Qwen3-235B-A22B',
+      name: 'Qwen3-235B-A22B',
+      provider: 'ucloud',
+      group: 'Qwen'
+    },
+    {
+      id: 'claude-4-sonnet',
+      name: 'Claude-4-Sonnet',
+      provider: 'ucloud',
+      group: 'Claude'
+    },
+    {
+      id: 'claude-4-opus',
+      name: 'Claude-4-Opus',
+      provider: 'ucloud',
+      group: 'Claude'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      name: 'Gemini-2.5-Flash',
+      provider: 'ucloud',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini-2.5-Pro',
+      provider: 'ucloud',
+      group: 'Gemini'
+    }
+  ],
   poe: [
     {
       id: 'gpt-4o',
