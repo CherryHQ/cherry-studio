@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
 import { MB } from '@shared/config/constant'
-import { FileMetadata, ImageFileMetadata, isImageFile, OcrResult } from '@types'
+import { ImageFileMetadata, isImageFile, OcrResult, SupportedOcrFile } from '@types'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -149,7 +149,7 @@ export class TesseractService {
     return { text: result.data.text }
   }
 
-  async ocr(file: FileMetadata): Promise<OcrResult> {
+  async ocr(file: SupportedOcrFile): Promise<OcrResult> {
     if (!isImageFile(file)) {
       throw new Error('Only image files are supported currently')
     }
