@@ -1,9 +1,13 @@
 import { loggerService } from '@logger'
+import { getIpCountry } from '@main/utils/ipService'
+import { MB, TesseractLangsDownloadUrl } from '@shared/config/constant'
+import { FileMetadata, ImageFileMetadata, isImageFile, OcrResult } from '@types'
+import { app } from 'electron'
+import fs from 'fs'
+import path from 'path'
 import Tesseract, { createWorker } from 'tesseract.js'
 
 const logger = loggerService.withContext('TesseractService')
-
-let worker: Tesseract.Worker | null = null
 
 // const languageCodeMap: Record<string, string> = {
 //   'af-za': 'afr',
@@ -110,20 +114,65 @@ let worker: Tesseract.Worker | null = null
 //   'yi-us': 'yid'
 // }
 
-export const getTesseractWorker = async (): Promise<Tesseract.Worker> => {
-  if (!worker) {
-    // for now, only support limited languages
-    worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
-      // langPath: getCacheDir(),
-      logger: (m) => logger.debug('From worker', m)
-    })
+export class TesseractService {
+  private worker: Tesseract.Worker | null = null
+
+  async getWorker(): Promise<Tesseract.Worker> {
+    if (!this.worker) {
+      // for now, only support limited languages
+      this.worker = await createWorker(['chi_sim', 'chi_tra', 'eng'], undefined, {
+        langPath: await this._getLangPath(),
+        cachePath: await this._getCacheDir(),
+        gzip: false,
+        logger: (m) => logger.debug('From worker', m)
+      })
+    }
+    return this.worker
   }
-  return worker
+
+  async imageOcr(file: ImageFileMetadata): Promise<OcrResult> {
+    const worker = await this.getWorker()
+    const stat = await fs.promises.stat(file.path)
+    if (stat.size > 50 * MB) {
+      throw new Error('This image is too large (max 50MB)')
+    }
+    const buffer = await fs.promises.readFile(file.path)
+    const result = await worker.recognize(buffer)
+    return { text: result.data.text }
+  }
+
+  async ocr(file: FileMetadata): Promise<OcrResult> {
+    if (!isImageFile(file)) {
+      throw new Error('Only image files are supported currently')
+    }
+    return this.imageOcr(file)
+  }
+
+  private async _getLangPath(): Promise<string> {
+    const country = await getIpCountry()
+    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : TesseractLangsDownloadUrl.GLOBAL
+  }
+
+  private async _getCacheDir(): Promise<string> {
+    const cacheDir = path.join(app.getPath('userData'), 'tesseract')
+    // use access to check if the directory exists
+    if (
+      !(await fs.promises
+        .access(cacheDir, fs.constants.F_OK)
+        .then(() => true)
+        .catch(() => false))
+    ) {
+      await fs.promises.mkdir(cacheDir, { recursive: true })
+    }
+    return cacheDir
+  }
+
+  async dispose(): Promise<void> {
+    if (this.worker) {
+      await this.worker.terminate()
+      this.worker = null
+    }
+  }
 }
 
-export const disposeTesseractWorker = async () => {
-  if (worker) {
-    await worker.terminate()
-    worker = null
-  }
-}
+export const tesseractService = new TesseractService()
