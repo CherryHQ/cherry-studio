@@ -2175,6 +2175,17 @@ const migrateConfig = {
       return state
     }
   }
+  ,
+  '137': (state: RootState) => {
+    try {
+      // Add the new rename_topic shortcut after new_topic if missing
+      addShortcuts(state, ['rename_topic'], 'new_topic')
+      return state
+    } catch (error) {
+      logger.error('migrate 137 error', error as Error)
+      return state
+    }
+  }
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer
