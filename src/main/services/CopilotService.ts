@@ -68,7 +68,11 @@ class CopilotService {
 
   constructor() {
     this.tokenFilePath = path.join(app.getPath('userData'), '.copilot_token')
-    this.headers = { ...CONFIG.DEFAULT_HEADERS }
+    this.headers = {
+      ...CONFIG.DEFAULT_HEADERS,
+      accept: 'application/json',
+      'user-agent': 'Visual Studio Code (desktop)'
+    }
   }
 
   /**
