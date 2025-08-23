@@ -136,7 +136,13 @@ export class TesseractService {
 
   private async _getCacheDir(): Promise<string> {
     const cacheDir = path.join(app.getPath('userData'), 'tesseract')
-    if (!fs.existsSync(cacheDir)) {
+    // use access to check if the directory exists
+    if (
+      !(await fs.promises
+        .access(cacheDir, fs.constants.F_OK)
+        .then(() => true)
+        .catch(() => false))
+    ) {
       await fs.promises.mkdir(cacheDir, { recursive: true })
     }
     return cacheDir
