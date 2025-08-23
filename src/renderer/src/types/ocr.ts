@@ -72,10 +72,6 @@ export type OcrProviderConfig = {
   enabled?: boolean
 }
 
-export type OcrTesseractConfig = OcrProviderConfig & {
-  langs: Record<Tesseract.LanguageCode, boolean>
-}
-
 export type OcrProvider = {
   id: string
   name: string
@@ -129,3 +125,12 @@ export type OcrResult = {
 export type OcrHandler = (file: SupportedOcrFile) => Promise<OcrResult>
 
 export type OcrImageHandler = (file: ImageFileMetadata) => Promise<OcrResult>
+
+// Tesseract Types
+export type OcrTesseractConfig = OcrProviderConfig & {
+  langs: Record<Tesseract.LanguageCode, boolean>
+}
+
+export type OcrTesseractProvider = BuiltinOcrProvider & {
+  config: OcrTesseractConfig
+}
