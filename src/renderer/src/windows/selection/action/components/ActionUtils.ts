@@ -10,6 +10,7 @@ import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createErrorBlock, createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
+import { cloneDeep } from 'lodash'
 
 const logger = loggerService.withContext('ActionUtils')
 
@@ -53,11 +54,15 @@ export const processMessages = async (
 
     let finished = false
 
-    const newAssistant = { ...assistant }
+    const newAssistant = cloneDeep(assistant)
     if (!newAssistant.settings) {
       newAssistant.settings = {}
     }
     newAssistant.settings.streamOutput = true
+    // 显式关闭这些功能
+    newAssistant.webSearchProviderId = undefined
+    newAssistant.mcpServers = undefined
+    newAssistant.knowledge_bases = undefined
 
     await fetchChatCompletion({
       messages: [userMessage],
