@@ -533,6 +533,10 @@ const TranslatePage: FC = () => {
 
       const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
         logger.error('handleDrop:', err)
+        window.message.error({
+          key: 'file_error',
+          content: t('translate.files.error.unknown')
+        })
         return null
       })
 
@@ -540,11 +544,6 @@ const TranslatePage: FC = () => {
         const file = getSingleFile(droppedFiles) as FileMetadata
         if (!file) return
         processFile(file)
-      } else if (droppedFiles === null) {
-        window.message.error({
-          key: 'file_error',
-          content: t('translate.files.error.unknown')
-        })
       }
       setIsProcessing(false)
     },
