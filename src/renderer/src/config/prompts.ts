@@ -166,7 +166,7 @@ export const SEARCH_SUMMARY_PROMPT = `
   </knowledge>
   \`
 
-  7. Follow up question: Based on knowledge, Fomula of Scaled Dot-Product Attention and Multi-Head Attention?
+  7. Follow up question: Based on knowledge, Formula of Scaled Dot-Product Attention and Multi-Head Attention?
   Rephrased question: \`
   <websearch>
     <question>
@@ -279,7 +279,7 @@ export const SEARCH_SUMMARY_PROMPT_WEB_ONLY = `
   </websearch>
   \`
 
-  7. Follow up question: Based on knowledge, Fomula of Scaled Dot-Product Attention and Multi-Head Attention?
+  7. Follow up question: Based on knowledge, Formula of Scaled Dot-Product Attention and Multi-Head Attention?
   Rephrased question: \`
   <websearch>
     <question>
@@ -374,7 +374,7 @@ export const SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY = `
   </knowledge>
   \`
 
-  7. Follow up question: Based on knowledge, Fomula of Scaled Dot-Product Attention and Multi-Head Attention?
+  7. Follow up question: Based on knowledge, Formula of Scaled Dot-Product Attention and Multi-Head Attention?
   Rephrased question: \`
   <knowledge>
     <rewrite>
