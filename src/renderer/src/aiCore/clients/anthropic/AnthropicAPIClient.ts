@@ -191,13 +191,18 @@ export class AnthropicAPIClient extends BaseApiClient<
    * Get the message parameter
    * @param message - The message
    * @param model - The model
+   * @param assistant - The assistant
    * @returns The message parameter
    */
-  public async convertMessageToSdkParam(message: Message): Promise<AnthropicSdkMessageParam> {
+  public async convertMessageToSdkParam(
+    message: Message,
+    _model?: Model,
+    assistant?: Assistant
+  ): Promise<AnthropicSdkMessageParam> {
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: await this.getMessageContent(message)
+        text: await this.getMessageContent(message, assistant)
       }
     ]
 
@@ -471,7 +476,7 @@ export class AnthropicAPIClient extends BaseApiClient<
         } else {
           const processedMessages = addImageFileToContents(messages)
           for (const message of processedMessages) {
-            sdkMessages.push(await this.convertMessageToSdkParam(message))
+            sdkMessages.push(await this.convertMessageToSdkParam(message, model, assistant))
           }
         }
 

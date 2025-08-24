@@ -167,6 +167,25 @@
       "default_model": "Modelo Predeterminado",
       "knowledge_base": {
         "label": "Configuración de Base de Conocimientos",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "Citas en notas al pie",
+            "footnote_tooltip": "Usa el formato de nota al pie para integrar la información de forma más natural. Algunos modelos pueden responder mejor a este formato",
+            "label": "Modo de cita",
+            "number": "Citas numéricas",
+            "number_tooltip": "Usa marcas numéricas como [1], [2] para citar y facilitar la referencia precisa a documentos específicos. Adecuado para modelos como OpenAI",
+            "tooltip": "Elige el formato de cita para la base de conocimientos. Los distintos modelos pueden manejar cada formato de forma diferente"
+          },
+          "custom_prompt": {
+            "insert_question": "Contenido de la conversación",
+            "insert_references": "Contenido de las referencias",
+            "insert_tip": "Haz clic en los botones de abajo para insertar variables",
+            "label": "Prompt personalizado",
+            "placeholder": "Introduce el prompt de cita personalizado..."
+          },
+          "reset_to_default": "Restablecer valores predeterminados",
+          "title": "Configuración del prompt"
+        },
         "recognition": {
           "label": "Invocar base de conocimientos",
           "off": "Búsqueda forzada",
@@ -727,6 +746,7 @@
     "assistant": "Agente inteligente",
     "avatar": "Avatar",
     "back": "Atrás",
+    "back_to_edit": "Volver a editar",
     "browse": "Examinar",
     "cancel": "Cancelar",
     "chat": "Chat",
@@ -780,6 +800,7 @@
     "selectedItems": "{{count}} elementos seleccionados",
     "selectedMessages": "{{count}} mensajes seleccionados",
     "settings": "Configuración",
+    "show_preview": "Mostrar vista previa",
     "sort": {
       "pinyin": {
         "asc": "Ordenar por pinyin ascendente",
@@ -888,6 +909,9 @@
   },
   "history": {
     "continue_chat": "Continuar chat",
+    "error": {
+      "topic_not_found": "El tema no existe"
+    },
     "locate": {
       "message": "Localizar mensaje"
     },

@@ -13,6 +13,7 @@ const External = Annotation.define<boolean>()
 
 export interface CodeEditorHandles {
   save?: () => void
+  insertText?: (text: string) => void
 }
 
 interface CodeEditorProps {
@@ -95,6 +96,23 @@ const CodeEditor = ({
     onSave?.(currentDoc)
   }, [onSave])
 
+  const handleInsertText = useCallback((text: string) => {
+    if (!editorViewRef.current) return
+
+    const view = editorViewRef.current
+    const state = view.state
+    const from = state.selection.main.from
+    const to = state.selection.main.to
+
+    // 在光标位置插入文本
+    view.dispatch({
+      changes: { from, to, insert: text },
+      selection: { anchor: from + text.length }
+    })
+
+    view.focus()
+  }, [])
+
   // 流式响应过程中计算 changes 来更新 EditorView
   // 无法处理用户在流式响应过程中编辑代码的情况（应该也不必处理）
   useEffect(() => {
@@ -129,7 +147,8 @@ const CodeEditor = ({
   }, [extensions, langExtensions, unwrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
   useImperativeHandle(ref, () => ({
-    save: handleSave
+    save: handleSave,
+    insertText: handleInsertText
   }))
 
   return (

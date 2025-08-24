@@ -167,6 +167,25 @@
       "default_model": "Modèle par défaut",
       "knowledge_base": {
         "label": "Paramètres de la base de connaissances",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "Citations en notes de bas de page",
+            "footnote_tooltip": "Utilisez le format note de bas de page pour une intégration plus naturelle des informations. Certains modèles peuvent mieux réagir à ce format",
+            "label": "Mode de citation",
+            "number": "Citations numériques",
+            "number_tooltip": "Utilisez des repères numériques comme [1], [2] pour citer et référencer précisément des documents spécifiques. Adapté aux modèles comme OpenAI",
+            "tooltip": "Choisissez le format de citation pour la base de connaissances. Les différents modèles peuvent traiter chaque format différemment"
+          },
+          "custom_prompt": {
+            "insert_question": "Contenu de la conversation",
+            "insert_references": "Contenu des références",
+            "insert_tip": "Cliquez sur les boutons ci-dessous pour insérer des variables",
+            "label": "Invite personnalisée",
+            "placeholder": "Saisissez une invite de citation personnalisée..."
+          },
+          "reset_to_default": "Réinitialiser aux valeurs par défaut",
+          "title": "Paramètres de l'invite"
+        },
         "recognition": {
           "label": "Utiliser la base de connaissances",
           "off": "Recherche forcée",
@@ -727,6 +746,7 @@
     "assistant": "Intelligence artificielle",
     "avatar": "Avatar",
     "back": "Retour",
+    "back_to_edit": "Retour à l'édition",
     "browse": "Parcourir",
     "cancel": "Annuler",
     "chat": "Chat",
@@ -780,6 +800,7 @@
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
     "settings": "Paramètres",
+    "show_preview": "Afficher l'aperçu",
     "sort": {
       "pinyin": {
         "asc": "Сортировать по пиньинь в порядке возрастания",
@@ -888,6 +909,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "Le sujet n'existe pas"
+    },
     "locate": {
       "message": "Localiser le message"
     },

@@ -167,6 +167,25 @@
       "default_model": "預設模型",
       "knowledge_base": {
         "label": "知識庫設定",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "註腳引用",
+            "footnote_tooltip": "使用註腳格式，資訊更自然融合。部分模型可能對此格式回應更好",
+            "label": "引用模式",
+            "number": "數字引用",
+            "number_tooltip": "使用 [1]、[2] 等數字標記引用，便於精確引用特定文件。適合 OpenAI 等模型",
+            "tooltip": "選擇知識庫引用的格式。不同模型對不同格式的處理效果可能不同"
+          },
+          "custom_prompt": {
+            "insert_question": "對話內容",
+            "insert_references": "引用內容",
+            "insert_tip": "點擊下方按鈕插入變數",
+            "label": "自定義提示詞",
+            "placeholder": "輸入自定義引用提示詞..."
+          },
+          "reset_to_default": "恢復預設",
+          "title": "提示詞設定"
+        },
         "recognition": {
           "label": "調用知識庫",
           "off": "強制檢索",
@@ -727,6 +746,7 @@
     "assistant": "智慧代理人",
     "avatar": "頭像",
     "back": "返回",
+    "back_to_edit": "返回編輯",
     "browse": "瀏覽",
     "cancel": "取消",
     "chat": "聊天",
@@ -780,6 +800,7 @@
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",
     "settings": "設定",
+    "show_preview": "顯示預覽",
     "sort": {
       "pinyin": {
         "asc": "按拼音升序",

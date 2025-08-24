@@ -621,8 +621,12 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }
   }
 
-  public async convertMessageToSdkParam(message: Message): Promise<AwsBedrockSdkMessageParam> {
-    const content = await this.getMessageContent(message)
+  public async convertMessageToSdkParam(
+    message: Message,
+    _model?: Model,
+    assistant?: Assistant
+  ): Promise<AwsBedrockSdkMessageParam> {
+    const content = await this.getMessageContent(message, assistant)
     const parts: Array<{
       text?: string
       image?: {
@@ -748,7 +752,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
           sdkMessages.push({ role: 'user', content: [{ text: messages }] })
         } else {
           for (const message of messages) {
-            sdkMessages.push(await this.convertMessageToSdkParam(message))
+            sdkMessages.push(await this.convertMessageToSdkParam(message, model, assistant))
           }
         }
 
