@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
+import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
 import { ImageFileMetadata, isImageFile, OcrResult, SupportedOcrFile } from '@types'
 import { app } from 'electron'
@@ -39,7 +40,7 @@ export class TesseractService {
     if (stat.size > MB_SIZE_THRESHOLD * MB) {
       throw new Error(`This image is too large (max ${MB_SIZE_THRESHOLD}MB)`)
     }
-    const buffer = await fs.promises.readFile(file.path)
+    const buffer = await loadOcrImage(file)
     const result = await worker.recognize(buffer)
     return { text: result.data.text }
   }
