@@ -2182,6 +2182,7 @@ const migrateConfig = {
         providers: BUILTIN_OCR_PROVIDERS,
         imageProvider: DEFAULT_OCR_PROVIDER.image
       }
+      state.translate.translateInput = ''
       return state
     } catch (error) {
       logger.error('migrate 137 error', error as Error)
