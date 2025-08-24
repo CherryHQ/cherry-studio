@@ -750,6 +750,9 @@
     "enabled": "已启用",
     "error": "错误",
     "expand": "展开",
+    "file": {
+      "not_supported": "不支持的文件类型 {{type}}"
+    },
     "footnote": "引用内容",
     "footnotes": "引用内容",
     "fullscreen": "已进入全屏模式，按 F11 退出",

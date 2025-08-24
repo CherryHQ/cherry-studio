@@ -27,7 +27,7 @@ import {
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { getFileExtension, runAsyncFunction } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import {
@@ -491,6 +491,22 @@ const TranslatePage: FC = () => {
     }
   }, [clearFiles, onSelectFile, processFile, selecting, t])
 
+  const getSingleFile = useCallback(
+    (files: FileMetadata[] | FileList): FileMetadata | File | null => {
+      if (files.length === 0) return null
+      if (files.length > 1) {
+        // 多文件上传时显示提示信息
+        window.message.error({
+          key: 'multiple_files',
+          content: t('translate.files.error.multiple')
+        })
+        return null
+      }
+      return files[0]
+    },
+    [t]
+  )
+
   // 拖动上传文件
   const onDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
@@ -515,16 +531,8 @@ const TranslatePage: FC = () => {
       })
 
       if (droppedFiles) {
-        if (droppedFiles.length === 0) return
-        if (droppedFiles.length > 1) {
-          // 多文件上传时显示提示信息
-          window.message.error({
-            key: 'multiple_files',
-            content: t('translate.files.error.multiple')
-          })
-          return
-        }
-        const file = droppedFiles[0]
+        const file = getSingleFile(droppedFiles) as FileMetadata
+        if (!file) return
         processFile(file)
       } else if (droppedFiles === null) {
         window.message.error({
@@ -534,7 +542,60 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [processFile, t, text]
+    [getSingleFile, processFile, t, text]
+  )
+
+  // 粘贴上传文件
+  const onPaste = useCallback(
+    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      setIsProcessing(true)
+      logger.debug('event', event)
+      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+        event.preventDefault()
+        const files = event.clipboardData.files
+        const file = getSingleFile(files) as File
+        if (!file) return
+        try {
+          // 使用新的API获取文件路径
+          const filePath = window.api.file.getPathForFile(file)
+          let selectedFile: FileMetadata | null
+
+          // 如果没有路径，可能是剪贴板中的图像数据
+          if (!filePath) {
+            if (file.type.startsWith('image/')) {
+              const tempFilePath = await window.api.file.createTempFile(file.name)
+              const arrayBuffer = await file.arrayBuffer()
+              const uint8Array = new Uint8Array(arrayBuffer)
+              await window.api.file.write(tempFilePath, uint8Array)
+              selectedFile = await window.api.file.get(tempFilePath)
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('common.file.not_supported', { type: getFileExtension(filePath) })
+              })
+              return
+            }
+          } else {
+            // 有路径的情况
+            selectedFile = await window.api.file.get(filePath)
+          }
+
+          if (!selectedFile) {
+            window.message.error({
+              key: 'file_error',
+              content: t('translate.files.error.unknown')
+            })
+            return
+          }
+          processFile(selectedFile)
+        } catch (error) {
+          logger.error('onPaste:', error as Error)
+          window.message.error(t('chat.input.file_error'))
+        }
+      }
+      setIsProcessing(false)
+    },
+    [getSingleFile, processFile, t]
   )
 
   const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useDrag<HTMLDivElement>(onDrop)
@@ -632,6 +693,7 @@ const TranslatePage: FC = () => {
               onChange={(e) => setText(e.target.value)}
               onKeyDown={onKeyDown}
               onScroll={handleInputScroll}
+              onPaste={onPaste}
               disabled={translating}
               spellCheck={false}
               allowClear
