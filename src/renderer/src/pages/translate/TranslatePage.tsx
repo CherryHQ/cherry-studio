@@ -548,6 +548,7 @@ const TranslatePage: FC = () => {
               style={{ position: 'absolute', left: 8, bottom: 8 }}
               className="float-button"
               icon={<PlusOutlined />}
+              tooltip={t('common.upload_files')}
               shape="circle"
               type="primary"
               onClick={handleSelectFile}
