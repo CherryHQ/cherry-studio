@@ -1,4 +1,4 @@
-import { HexColor } from '@renderer/types'
+import { HexColor, isHexColor } from '@renderer/types'
 
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 
@@ -44,14 +44,6 @@ export function classNames(...args: ClassValue[]): string {
   })
 
   return classes.filter(Boolean).join(' ')
-}
-
-/**
- * 检查字符串是否为有效的十六进制颜色值
- * @param value 待检查的字符串
- */
-function isHexColor(value: string): value is HexColor {
-  return /^#[0-9A-Fa-f]{6}$/.test(value)
 }
 
 function checkHexColor(value: string) {

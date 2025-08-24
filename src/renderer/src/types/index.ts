@@ -1150,3 +1150,11 @@ export type AtLeast<T extends string, U> = {
 }
 
 export type HexColor = string
+
+/**
+ * 检查字符串是否为有效的十六进制颜色值
+ * @param value 待检查的字符串
+ */
+export const isHexColor = (value: string): value is HexColor => {
+  return /^#[0-9A-Fa-f]{6}$/.test(value)
+}
