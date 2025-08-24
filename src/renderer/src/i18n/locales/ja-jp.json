@@ -167,6 +167,25 @@
       "default_model": "デフォルトモデル",
       "knowledge_base": {
         "label": "ナレッジベース設定",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "脚注引用",
+            "footnote_tooltip": "脚注形式を使用して、情報がより自然に統合されます。一部のモデルはこの形式の方が応答が良い場合があります",
+            "label": "引用モード",
+            "number": "番号引用",
+            "number_tooltip": "[1]、[2] などの番号を使って引用し、特定のドキュメントを正確に参照できます。OpenAI などのモデルに適しています",
+            "tooltip": "ナレッジベースの引用形式を選択します。モデルによって得意な形式が異なる場合があります"
+          },
+          "custom_prompt": {
+            "insert_question": "会話内容",
+            "insert_references": "引用内容",
+            "insert_tip": "下のボタンをクリックして変数を挿入",
+            "label": "カスタムプロンプト",
+            "placeholder": "カスタム引用プロンプトを入力..."
+          },
+          "reset_to_default": "デフォルトに戻す",
+          "title": "プロンプト設定"
+        },
         "recognition": {
           "label": "ナレッジベースの呼び出し",
           "off": "強制検索",
@@ -727,6 +746,7 @@
     "assistant": "アシスタント",
     "avatar": "アバター",
     "back": "戻る",
+    "back_to_edit": "編集に戻る",
     "browse": "参照",
     "cancel": "キャンセル",
     "chat": "チャット",
@@ -780,6 +800,7 @@
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
     "settings": "設定",
+    "show_preview": "プレビューを表示",
     "sort": {
       "pinyin": {
         "asc": "ピンインで昇順ソート",

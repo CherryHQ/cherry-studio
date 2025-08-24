@@ -181,8 +181,7 @@
             "insert_references": "引用内容",
             "insert_tip": "点击下方按钮插入变量",
             "label": "自定义提示词",
-            "placeholder": "输入自定义引用提示词...",
-            "variables_tip": "点击上方按钮插入变量"
+            "placeholder": "输入自定义引用提示词..."
           },
           "reset_to_default": "恢复默认",
           "title": "提示词设置"
@@ -747,6 +746,7 @@
     "assistant": "智能体",
     "avatar": "头像",
     "back": "返回",
+    "back_to_edit": "返回编辑",
     "browse": "浏览",
     "cancel": "取消",
     "chat": "聊天",
@@ -800,6 +800,7 @@
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
     "settings": "设置",
+    "show_preview": "显示预览",
     "sort": {
       "pinyin": {
         "asc": "按拼音升序",

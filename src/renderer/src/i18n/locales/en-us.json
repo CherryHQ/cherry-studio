@@ -167,6 +167,25 @@
       "default_model": "Default Model",
       "knowledge_base": {
         "label": "Knowledge Base Settings",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "Footnote Citation",
+            "footnote_tooltip": "Use footnote format for more natural integration. Some models may respond better to this format",
+            "label": "Citation Mode",
+            "number": "Number Citation",
+            "number_tooltip": "Use numbered citations like [1], [2] for precise references. Works well with OpenAI models",
+            "tooltip": "Choose the format for knowledge base citations. Different models may handle different formats differently"
+          },
+          "custom_prompt": {
+            "insert_question": "Conversation",
+            "insert_references": "References",
+            "insert_tip": "Click the button below to insert a variables",
+            "label": "Custom Prompt",
+            "placeholder": "Enter custom reference prompt..."
+          },
+          "reset_to_default": "Reset to Default",
+          "title": "Prompt Settings"
+        },
         "recognition": {
           "label": "Use Knowledge Base",
           "off": "Force Search",
@@ -727,6 +746,7 @@
     "assistant": "Assistant",
     "avatar": "Avatar",
     "back": "Back",
+    "back_to_edit": "Back to Edit",
     "browse": "Browse",
     "cancel": "Cancel",
     "chat": "Chat",
@@ -780,6 +800,7 @@
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "settings": "Settings",
+    "show_preview": "Show Preview",
     "sort": {
       "pinyin": {
         "asc": "Sort by Pinyin (A-Z)",

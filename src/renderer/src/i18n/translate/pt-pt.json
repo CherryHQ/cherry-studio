@@ -167,6 +167,25 @@
       "default_model": "Modelo Padrão",
       "knowledge_base": {
         "label": "Configurações da Base de Conhecimento",
+        "prompt_settings": {
+          "citation_mode": {
+            "footnote": "Citações em rodapé",
+            "footnote_tooltip": "Use o formato de rodapé para integrar a informação de forma mais natural. Alguns modelos podem responder melhor a este formato",
+            "label": "Modo de citação",
+            "number": "Citação numérica",
+            "number_tooltip": "Use marcadores numéricos como [1], [2] para citar e facilitar a referência precisa a documentos específicos. Adequado para modelos como o OpenAI",
+            "tooltip": "Escolha o formato de citação para a base de conhecimento. Diferentes modelos podem tratar cada formato de forma diferente"
+          },
+          "custom_prompt": {
+            "insert_question": "Conteúdo da conversa",
+            "insert_references": "Conteúdo das referências",
+            "insert_tip": "Clique nos botões abaixo para inserir variáveis",
+            "label": "Prompt personalizado",
+            "placeholder": "Introduza o prompt de citação personalizado..."
+          },
+          "reset_to_default": "Repor predefinições",
+          "title": "Configurações do prompt"
+        },
         "recognition": {
           "label": "Chamar base de conhecimento",
           "off": "Busca forçada",
@@ -727,6 +746,7 @@
     "assistant": "Agente Inteligente",
     "avatar": "Avatar",
     "back": "Voltar",
+    "back_to_edit": "Voltar a editar",
     "browse": "Navegar",
     "cancel": "Cancelar",
     "chat": "Bate-papo",
@@ -780,6 +800,7 @@
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
     "settings": "Configurações",
+    "show_preview": "Mostrar pré-visualização",
     "sort": {
       "pinyin": {
         "asc": "Ordenar por Pinyin em ordem crescente",
@@ -888,6 +909,9 @@
   },
   "history": {
     "continue_chat": "Continuar conversando",
+    "error": {
+      "topic_not_found": "O tópico não existe"
+    },
     "locate": {
       "message": "Localizar mensagem"
     },
