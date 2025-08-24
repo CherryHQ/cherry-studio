@@ -21,7 +21,7 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import { isEmpty } from 'lodash'
+import { cloneDeep, isEmpty } from 'lodash'
 import { last } from 'lodash'
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -256,9 +256,19 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
 
+        const newAssistant = cloneDeep(currentAssistant)
+        if (!newAssistant.settings) {
+          newAssistant.settings = {}
+        }
+        newAssistant.settings.streamOutput = true
+        // 显式关闭这些功能
+        // newAssistant.webSearchProviderId = undefined
+        newAssistant.mcpServers = undefined
+        // newAssistant.knowledge_bases = undefined
+
         await fetchChatCompletion({
           messages: messagesForContext,
-          assistant: { ...currentAssistant, settings: { streamOutput: true } },
+          assistant: newAssistant,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:
