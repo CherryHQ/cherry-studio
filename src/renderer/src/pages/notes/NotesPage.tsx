@@ -19,6 +19,7 @@ import { selectActiveFilePath, setActiveFilePath } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { debounce } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -48,6 +49,8 @@ const NotesPage: FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const watcherRef = useRef<(() => void) | null>(null)
   const isSyncingTreeRef = useRef(false)
+  const isEditorInitialized = useRef(false)
+  const lastContentRef = useRef<string>('')
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -86,12 +89,22 @@ const NotesPage: FC = () => {
     [activeFilePath, currentContent]
   )
 
-  // TODO 节流
+  // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
+  const debouncedSave = useMemo(
+    () =>
+      debounce((content: string) => {
+        saveCurrentNote(content)
+      }, 800), // 800ms防抖延迟
+    [saveCurrentNote]
+  )
+
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
-      saveCurrentNote(newMarkdown)
+      // 记录最新内容，用于兜底保存
+      lastContentRef.current = newMarkdown
+      debouncedSave(newMarkdown)
     },
-    [saveCurrentNote]
+    [debouncedSave]
   )
 
   useEffect(() => {
@@ -137,9 +150,28 @@ const NotesPage: FC = () => {
 
           switch (eventType) {
             case 'change': {
-              // 处理文件内容变化 - 使React Query的文件内容缓存失效
+              // 处理文件内容变化 - 只有内容真正改变时才触发更新
               if (activeFilePath === filePath) {
-                invalidateFileContent(filePath)
+                try {
+                  // 读取文件最新内容
+                  const newFileContent = await window.api.file.readExternal(filePath)
+
+                  // 获取当前编辑器/缓存中的内容
+                  const currentEditorContent = editorRef.current?.getMarkdown()
+
+                  // 如果编辑器还未初始化完成，忽略FileWatcher事件
+                  if (!isEditorInitialized.current) {
+                    return
+                  }
+                  // 比较内容是否真正发生变化
+                  if (newFileContent.trim() !== currentEditorContent?.trim()) {
+                    invalidateFileContent(filePath)
+                  }
+                } catch (error) {
+                  logger.error('Failed to read file for content comparison:', error as Error)
+                  // 读取失败时，还是执行原来的逻辑
+                  invalidateFileContent(filePath)
+                }
               } else {
                 await initWorkSpace(notesPath)
               }
@@ -196,12 +228,48 @@ const NotesPage: FC = () => {
       window.api.file.stopFileWatcher().catch((error) => {
         logger.error('Failed to stop file watcher:', error)
       })
+
+      // 如果有未保存的内容，立即保存
+      if (lastContentRef.current && lastContentRef.current !== currentContent) {
+        saveCurrentNote(lastContentRef.current).catch((error) => {
+          logger.error('Emergency save failed:', error as Error)
+        })
+      }
+
+      // 清理防抖函数
+      debouncedSave.cancel()
     }
-  }, [notesPath, notesTree.length, activeFilePath, invalidateFileContent, dispatch])
+  }, [
+    notesPath,
+    notesTree.length,
+    activeFilePath,
+    invalidateFileContent,
+    dispatch,
+    currentContent,
+    debouncedSave,
+    saveCurrentNote
+  ])
 
   useEffect(() => {
-    editorRef.current?.setMarkdown(currentContent)
+    if (currentContent && editorRef.current) {
+      editorRef.current.setMarkdown(currentContent)
+      // 标记编辑器已初始化
+      isEditorInitialized.current = true
+    }
   }, [currentContent])
+
+  // 切换文件时重置编辑器初始化状态并兜底保存
+  useEffect(() => {
+    if (lastContentRef.current && lastContentRef.current !== currentContent) {
+      saveCurrentNote(lastContentRef.current).catch((error) => {
+        logger.error('Emergency save before file switch failed:', error as Error)
+      })
+    }
+
+    // 重置状态
+    isEditorInitialized.current = false
+    lastContentRef.current = ''
+  }, [activeFilePath, currentContent, saveCurrentNote])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
   const getTargetFolderPath = useCallback(() => {
@@ -432,7 +500,6 @@ const NotesPage: FC = () => {
   // 处理节点排序
   const handleSortNodes = useCallback(async (sortType: NotesSortType) => {
     try {
-      logger.debug(`Sorting notes with type: ${sortType}`)
       await sortAllLevels(sortType)
     } catch (error) {
       logger.error('Failed to sort notes:', error as Error)
