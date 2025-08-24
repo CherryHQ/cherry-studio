@@ -2178,8 +2178,10 @@ const migrateConfig = {
   },
   '137': (state: RootState) => {
     try {
-      state.ocr.providers = BUILTIN_OCR_PROVIDERS
-      state.ocr.imageProvider = DEFAULT_OCR_PROVIDER.image
+      state.ocr = {
+        providers: BUILTIN_OCR_PROVIDERS,
+        imageProvider: DEFAULT_OCR_PROVIDER.image
+      }
       return state
     } catch (error) {
       logger.error('migrate 137 error', error as Error)

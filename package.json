@@ -151,7 +151,6 @@
     "@types/react-dom": "^19.0.4",
     "@types/react-infinite-scroll-component": "^5.0.0",
     "@types/react-transition-group": "^4.4.12",
-    "@types/tesseract.js": "^2.0.0",
     "@types/tinycolor2": "^1",
     "@types/word-extractor": "^1",
     "@uiw/codemirror-extensions-langs": "^4.25.1",
