@@ -1156,5 +1156,5 @@ export type HexColor = string
  * @param value 待检查的字符串
  */
 export const isHexColor = (value: string): value is HexColor => {
-  return /^#[0-9A-Fa-f]{6}$/.test(value)
+  return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
