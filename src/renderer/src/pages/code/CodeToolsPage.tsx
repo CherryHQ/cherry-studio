@@ -11,22 +11,19 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
-import { codeTools } from '@shared/config/constant'
 import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
 import { Download, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-// CLI 工具选项
-const CLI_TOOLS = [
-  { value: codeTools.qwenCode, label: 'Qwen Code' },
-  { value: codeTools.claudeCode, label: 'Claude Code' },
-  { value: codeTools.geminiCli, label: 'Gemini CLI' },
-  { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
-]
-
-const SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
+import {
+  CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
+  CLI_TOOL_PROVIDER_MAP,
+  CLI_TOOLS,
+  generateToolEnvironment,
+  parseEnvironmentVariables
+} from '.'
 
 const logger = loggerService.withContext('CodeToolsPage')
 
@@ -51,17 +48,9 @@ const CodeToolsPage: FC = () => {
   } = useCodeTools()
   const { setTimeoutTimer } = useTimer()
 
-  // 状态管理
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
-
-  const handleCliToolChange = (value: codeTools) => setCliTool(value)
-
-  const openAiCompatibleProviders = providers.filter((p) => p.type.includes('openai'))
-  const openAiProviders = providers.filter((p) => p.id === 'openai')
-  const geminiProviders = providers.filter((p) => p.type === 'gemini' || SUPPORTED_PROVIDERS.includes(p.id))
-  const claudeProviders = providers.filter((p) => p.type === 'anthropic' || SUPPORTED_PROVIDERS.includes(p.id))
 
   const modelPredicate = useCallback(
     (m: Model) => {
@@ -69,7 +58,7 @@ const CodeToolsPage: FC = () => {
         return false
       }
       if (selectedCliTool === 'claude-code') {
-        return m.id.includes('claude')
+        return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
       if (selectedCliTool === 'gemini-cli') {
         return m.id.includes('gemini')
@@ -80,20 +69,9 @@ const CodeToolsPage: FC = () => {
   )
 
   const availableProviders = useMemo(() => {
-    if (selectedCliTool === codeTools.claudeCode) {
-      return claudeProviders
-    }
-    if (selectedCliTool === codeTools.geminiCli) {
-      return geminiProviders
-    }
-    if (selectedCliTool === codeTools.qwenCode) {
-      return openAiCompatibleProviders
-    }
-    if (selectedCliTool === codeTools.openaiCodex) {
-      return openAiProviders
-    }
-    return []
-  }, [claudeProviders, geminiProviders, openAiCompatibleProviders, openAiProviders, selectedCliTool])
+    const filterFn = CLI_TOOL_PROVIDER_MAP[selectedCliTool]
+    return filterFn ? filterFn(providers) : []
+  }, [providers, selectedCliTool])
 
   const handleModelChange = (value: string) => {
     if (!value) {
@@ -109,25 +87,6 @@ const CodeToolsPage: FC = () => {
         break
       }
     }
-  }
-
-  // 处理环境变量更改
-  const handleEnvVarsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEnvVars(e.target.value)
-  }
-
-  // 处理文件夹选择
-  const handleFolderSelect = async () => {
-    try {
-      await selectFolder()
-    } catch (error) {
-      logger.error('选择文件夹失败:', error as Error)
-    }
-  }
-
-  // 处理目录选择
-  const handleDirectoryChange = (value: string) => {
-    setCurrentDir(value)
   }
 
   // 处理删除目录
@@ -170,104 +129,74 @@ const CodeToolsPage: FC = () => {
     }
   }
 
-  // 处理启动
-  const handleLaunch = async () => {
+  // 验证启动条件
+  const validateLaunch = (): { isValid: boolean; message?: string } => {
     if (!canLaunch || !isBunInstalled) {
-      if (!isBunInstalled) {
-        window.message.warning({
-          content: t('code.launch.bun_required'),
-          key: 'code-launch-message'
-        })
-      } else {
-        window.message.warning({
-          content: t('code.launch.validation_error'),
-          key: 'code-launch-message'
-        })
+      return {
+        isValid: false,
+        message: !isBunInstalled ? t('code.launch.bun_required') : t('code.launch.validation_error')
       }
-      return
     }
-
-    setIsLaunching(true)
 
     if (!selectedModel) {
-      window.message.error({
-        content: t('code.model_required'),
-        key: 'code-launch-message'
-      })
-      return
+      return { isValid: false, message: t('code.model_required') }
     }
+
+    return { isValid: true }
+  }
+
+  // 准备启动环境
+  const prepareLaunchEnvironment = async (): Promise<Record<string, string> | null> => {
+    if (!selectedModel) return null
 
     const modelProvider = getProviderByModel(selectedModel)
     const aiProvider = new AiProvider(modelProvider)
     const baseUrl = await aiProvider.getBaseURL()
     const apiKey = await aiProvider.getApiKey()
 
-    let env: Record<string, string> = {}
-    if (selectedCliTool === codeTools.claudeCode) {
-      env = {
-        ANTHROPIC_API_KEY: apiKey,
-        ANTHROPIC_BASE_URL: modelProvider.apiHost,
-        ANTHROPIC_MODEL: selectedModel.id
-      }
+    // 生成工具特定的环境变量
+    const toolEnv = generateToolEnvironment({
+      tool: selectedCliTool,
+      model: selectedModel,
+      modelProvider,
+      apiKey,
+      baseUrl
+    })
+
+    // 合并用户自定义的环境变量
+    const userEnv = parseEnvironmentVariables(environmentVariables)
+
+    return { ...toolEnv, ...userEnv }
+  }
+
+  // 执行启动操作
+  const executeLaunch = async (env: Record<string, string>) => {
+    window.api.codeTools.run(selectedCliTool, selectedModel?.id!, currentDirectory, env, { autoUpdateToLatest })
+    window.message.success({ content: t('code.launch.success'), key: 'code-launch-message' })
+  }
+
+  // 处理启动
+  const handleLaunch = async () => {
+    const validation = validateLaunch()
+
+    if (!validation.isValid) {
+      window.message.warning({ content: validation.message, key: 'code-launch-message' })
+      return
     }
 
-    if (selectedCliTool === codeTools.geminiCli) {
-      const apiSuffix = modelProvider.id === 'aihubmix' ? '/gemini' : ''
-      const apiBaseUrl = modelProvider.apiHost + apiSuffix
-      env = {
-        GEMINI_API_KEY: apiKey,
-        GEMINI_BASE_URL: apiBaseUrl,
-        GOOGLE_GEMINI_BASE_URL: apiBaseUrl,
-        GEMINI_MODEL: selectedModel.id
-      }
-    }
-
-    if (selectedCliTool === codeTools.qwenCode || selectedCliTool === codeTools.openaiCodex) {
-      env = {
-        OPENAI_API_KEY: apiKey,
-        OPENAI_BASE_URL: baseUrl,
-        OPENAI_MODEL: selectedModel.id
-      }
-    }
-
-    // 解析用户自定义的环境变量
-    if (environmentVariables) {
-      const lines = environmentVariables.split('\n')
-      for (const line of lines) {
-        const trimmedLine = line.trim()
-        if (trimmedLine && trimmedLine.includes('=')) {
-          const [key, ...valueParts] = trimmedLine.split('=')
-          const trimmedKey = key.trim()
-          const value = valueParts.join('=').trim()
-          if (trimmedKey) {
-            env[trimmedKey] = value
-          }
-        }
-      }
-    }
+    setIsLaunching(true)
 
     try {
-      // 这里可以添加实际的启动逻辑
-      logger.info('启动配置:', {
-        cliTool: selectedCliTool,
-        model: selectedModel,
-        folder: currentDirectory
-      })
+      const env = await prepareLaunchEnvironment()
+      if (!env) {
+        window.message.error({ content: t('code.model_required'), key: 'code-launch-message' })
+        return
+      }
 
-      window.api.codeTools.run(selectedCliTool, selectedModel?.id, currentDirectory, env, {
-        autoUpdateToLatest
-      })
-
-      window.message.success({
-        content: t('code.launch.success'),
-        key: 'code-launch-message'
-      })
+      await executeLaunch(env)
     } catch (error) {
       logger.error('启动失败:', error as Error)
-      window.message.error({
-        content: t('code.launch.error'),
-        key: 'code-launch-message'
-      })
+      window.message.error({ content: t('code.launch.error'), key: 'code-launch-message' })
     } finally {
       setIsLaunching(false)
     }
@@ -320,7 +249,7 @@ const CodeToolsPage: FC = () => {
                 style={{ width: '100%' }}
                 placeholder={t('code.cli_tool_placeholder')}
                 value={selectedCliTool}
-                onChange={handleCliToolChange}
+                onChange={setCliTool}
                 options={CLI_TOOLS}
               />
             </SettingsItem>
@@ -345,7 +274,7 @@ const CodeToolsPage: FC = () => {
                   style={{ flex: 1, width: 480 }}
                   placeholder={t('code.folder_placeholder')}
                   value={currentDirectory || undefined}
-                  onChange={handleDirectoryChange}
+                  onChange={setCurrentDir}
                   allowClear
                   showSearch
                   filterOption={(input, option) => {
@@ -366,7 +295,7 @@ const CodeToolsPage: FC = () => {
                     )
                   }))}
                 />
-                <Button onClick={handleFolderSelect} style={{ width: 120 }}>
+                <Button onClick={selectFolder} style={{ width: 120 }}>
                   {t('code.select_folder')}
                 </Button>
               </Space.Compact>
@@ -377,7 +306,7 @@ const CodeToolsPage: FC = () => {
               <Input.TextArea
                 placeholder={`KEY1=value1\nKEY2=value2`}
                 value={environmentVariables}
-                onChange={handleEnvVarsChange}
+                onChange={(e) => setEnvVars(e.target.value)}
                 rows={2}
                 style={{ fontFamily: 'monospace' }}
               />
