@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 
-export const useDrag = <T extends HTMLElement>(onDrop: (e: React.DragEvent<T>) => Promise<void> | void) => {
+export const useDrag = <T extends HTMLElement>(onDrop?: (e: React.DragEvent<T>) => Promise<void> | void) => {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDragOver = useCallback((e: React.DragEvent<T>) => {
@@ -29,7 +29,7 @@ export const useDrag = <T extends HTMLElement>(onDrop: (e: React.DragEvent<T>) =
       e.preventDefault()
       e.stopPropagation()
       setIsDragging(false)
-      await onDrop(e)
+      await onDrop?.(e)
     },
     [onDrop]
   )
