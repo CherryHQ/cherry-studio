@@ -3767,7 +3767,9 @@
       "label": "Trocar idioma de origem e idioma de destino"
     },
     "files": {
+      "drag_text": "Arraste e solte aqui",
       "error": {
+        "multiple": "Não é permitido fazer upload de vários arquivos",
         "too_large": "Arquivo muito grande",
         "unknown": "Falha ao ler o conteúdo do arquivo"
       },

@@ -3767,7 +3767,9 @@
       "label": "Échanger la langue source et la langue cible"
     },
     "files": {
+      "drag_text": "Glisser-déposer ici",
       "error": {
+        "multiple": "Impossible de téléverser plusieurs fichiers",
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
       },

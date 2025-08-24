@@ -3767,7 +3767,9 @@
       "label": "Intercambiar el idioma de origen y el idioma de destino"
     },
     "files": {
+      "drag_text": "Arrastrar y soltar aquí",
       "error": {
+        "multiple": "No se permite cargar varios archivos",
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"
       },
