@@ -551,6 +551,21 @@ const TranslatePage: FC = () => {
     [getSingleFile, processFile, setText, t, text]
   )
 
+  const {
+    isDragging,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop: preventDrop
+  } = useDrag<HTMLDivElement>()
+  const {
+    isDragging: isDraggingOnInput,
+    handleDragEnter: handleDragEnterInput,
+    handleDragLeave: handleDragLeaveInput,
+    handleDragOver: handleDragOverInput,
+    handleDrop
+  } = useDrag<HTMLDivElement>(onDrop)
+
   // 粘贴上传文件
   const onPaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -603,15 +618,13 @@ const TranslatePage: FC = () => {
     },
     [getSingleFile, processFile, t]
   )
-
-  const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useDrag<HTMLDivElement>(onDrop)
-
   return (
     <Container
       id="translate-page"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}>
+      onDragOver={handleDragOver}
+      onDrop={preventDrop}>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
@@ -674,9 +687,12 @@ const TranslatePage: FC = () => {
         </OperationBar>
         <AreaContainer>
           <InputContainer
-            style={isDragging ? { border: '2px dashed var(--color-primary)' } : undefined}
+            style={isDraggingOnInput ? { border: '2px dashed var(--color-primary)' } : undefined}
+            onDragEnter={handleDragEnterInput}
+            onDragLeave={handleDragLeaveInput}
+            onDragOver={handleDragOverInput}
             onDrop={handleDrop}>
-            {isDragging && (
+            {(isDragging || isDraggingOnInput) && (
               <InputContainerDraggingHintContainer>
                 <UploadIcon color="var(--color-text-3)" />
                 {t('translate.files.drag_text')}
