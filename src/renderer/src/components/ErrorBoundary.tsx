@@ -1,6 +1,6 @@
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Space } from 'antd'
-import { ComponentType, ReactNode, useState } from 'react'
+import { ComponentType, ReactNode } from 'react'
 import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -53,22 +53,5 @@ const ErrorContainer = styled.div`
   width: 100%;
   padding: 8px;
 `
-
-// 用于测试错误边界组件的功能，合并前需要删除
-export const ThrowError: React.FC = () => {
-  const [error, setError] = useState<Error>()
-  const onClick = () => {
-    setError(new Error('An Uncaught Error'))
-  }
-
-  if (error) {
-    throw error
-  }
-  return (
-    <Button danger onClick={onClick}>
-      Click me to throw a error
-    </Button>
-  )
-}
 
 export { ErrorBoundaryCustomized as ErrorBoundary }
