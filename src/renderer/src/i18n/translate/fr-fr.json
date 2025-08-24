@@ -808,6 +808,13 @@
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Ouvrir le panneau de débogage",
+        "message": "Il semble que quelques problèmes soient survenus...",
+        "reload": "Recharger"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "a renvoyé un format de données invalide"
