@@ -548,7 +548,7 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, processFile, t, text]
+    [getSingleFile, processFile, setText, t, text]
   )
 
   // 粘贴上传文件
