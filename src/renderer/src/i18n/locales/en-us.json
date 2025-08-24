@@ -148,6 +148,9 @@
     "edit": {
       "title": "Edit Assistant"
     },
+    "error": {
+      "add": "Failed to add assistant"
+    },
     "icon": {
       "type": "Assistant Icon"
     },
@@ -805,6 +808,13 @@
     "backup": {
       "file_format": "Backup file format error"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Open debug panel",
+        "message": "It seems that something went wrong...",
+        "reload": "Reload"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "Returned an invalid data format"
@@ -885,6 +895,9 @@
   },
   "history": {
     "continue_chat": "Continue Chatting",
+    "error": {
+      "topic_not_found": "Topic not found"
+    },
     "locate": {
       "message": "Locate the message"
     },
@@ -3785,6 +3798,10 @@
     "title": "Update"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "Reverted to default assistant, which may cause issues"
+    },
+    "missing_assistant": "Assistant does not exist",
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
   },
   "words": {

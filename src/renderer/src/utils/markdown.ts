@@ -2,6 +2,7 @@ import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
 import { unified } from 'unified'
+import type { Point, Position } from 'unist'
 import { visit } from 'unist-util-visit'
 
 /**
@@ -189,7 +190,7 @@ export function removeTrailingDoubleSpaces(markdown: string): string {
  * @param start 代码块节点的起始位置
  * @returns 代码块在 Markdown 字符串中的 ID
  */
-export function getCodeBlockId(start: any): string | null {
+export function getCodeBlockId(start?: Point): string | null {
   return start ? `${start.line}:${start.column}:${start.offset}` : null
 }
 
@@ -216,6 +217,28 @@ export function updateCodeBlock(raw: string, id: string, newContent: string): st
   })
 
   return unified().use(remarkStringify).stringify(tree)
+}
+
+/**
+ * 检查代码块是否包含 open fence。
+ * 限制：
+ * - 语言名不能包含空格，因为 remark-math 无法处理，会导致 end.offset 过长。
+ *
+ * 这个算法基于 remark/micromark 解析代码块的原理，所有参数实际上都可以从 node 中获取。
+ * 一个代码块的 node.position 包含 fences，而 children 不包含 fences，通过它们之间的
+ * 差值就可以判断有没有 closed fence。
+ *
+ * @param codeLength 代码长度（不包含语言信息）
+ * @param metaLength 元数据长度（```之后的语言信息）
+ * @param position 位置（unist 节点位置）
+ * @returns 是否为 open fence 代码块
+ */
+export function isOpenFenceBlock(codeLength?: number, metaLength?: number, position?: Position): boolean {
+  const contentLength = (codeLength ?? 0) + (metaLength ?? 0)
+  const start = position?.start?.offset ?? 0
+  const end = position?.end?.offset ?? 0
+  // 余量至少是 fence (3) + newlines (2)
+  return end - start <= contentLength + 5
 }
 
 /**

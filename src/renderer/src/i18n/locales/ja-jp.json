@@ -148,6 +148,9 @@
     "edit": {
       "title": "アシスタントを編集"
     },
+    "error": {
+      "add": "アシスタントの追加に失敗しました"
+    },
     "icon": {
       "type": "アシスタントアイコン"
     },
@@ -805,6 +808,13 @@
     "backup": {
       "file_format": "バックアップファイルの形式エラー"
     },
+    "boundary": {
+      "default": {
+        "devtools": "デバッグパネルを開く",
+        "message": "何か問題が発生したようです...",
+        "reload": "再読み込み"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "無効なデータ形式が返されました"
@@ -885,6 +895,9 @@
   },
   "history": {
     "continue_chat": "チャットを続ける",
+    "error": {
+      "topic_not_found": "トピックが見つかりません"
+    },
     "locate": {
       "message": "メッセージを探す"
     },
@@ -3785,6 +3798,10 @@
     "title": "更新"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "既定のアシスタントに戻されました。これにより問題が発生する可能性があります。"
+    },
+    "missing_assistant": "アシスタントが存在しません",
     "missing_provider": "サプライヤーが存在しないため、デフォルトのサプライヤー {{provider}} にロールバックされました。これにより問題が発生する可能性があります。"
   },
   "words": {

@@ -7,10 +7,10 @@ import {
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
-import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
-  addAssistant,
+  addAssistant as _addAssistant,
   addTopic,
   insertAssistant,
   removeAllTopics,
@@ -27,6 +27,7 @@ import {
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,10 +39,25 @@ export function useAssistants() {
   const dispatch = useAppDispatch()
   const logger = loggerService.withContext('useAssistants')
 
+  /**
+   * 添加一个新的助手
+   * @param assistant - 要添加的助手对象
+   * @throws {Error} 如果添加助手失败会抛出错误
+   */
+  const addAssistant = (assistant: Assistant) => {
+    try {
+      dispatch(_addAssistant(assistant))
+    } catch (e) {
+      logger.error('Failed to add assistant', e as Error)
+      window.message.error(t('assistants.error.add' + ': ' + formatErrorMessage(e)))
+      throw e
+    }
+  }
+
   return {
     assistants,
     updateAssistants: (assistants: Assistant[]) => dispatch(updateAssistants(assistants)),
-    addAssistant: (assistant: Assistant) => dispatch(addAssistant(assistant)),
+    addAssistant,
     insertAssistant: (index: number, assistant: Assistant) => dispatch(insertAssistant({ index, assistant })),
     copyAssistant: (assistant: Assistant): Assistant | undefined => {
       if (!assistant) {
@@ -52,7 +68,7 @@ export function useAssistants() {
       const _assistant: Assistant = { ...assistant, id: uuid(), topics: [getDefaultTopic(assistant.id)] }
       if (index === -1) {
         logger.warn("Origin assistant's id not found. Fallback to addAssistant.")
-        dispatch(addAssistant(_assistant))
+        addAssistant(_assistant)
       } else {
         // 插入到后面
         try {
@@ -74,7 +90,22 @@ export function useAssistants() {
 }
 
 export function useAssistant(id: string) {
-  const assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id) as Assistant)
+  let assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id))
+  const { addAssistant } = useAssistants()
+  const { t } = useTranslation()
+
+  if (!assistant) {
+    window.message.warning(t('warning.missing_assistant'))
+    const newAssistant = { ...getDefaultAssistant(), id }
+    try {
+      addAssistant(newAssistant)
+      assistant = newAssistant
+    } catch (e) {
+      window.message.warning(t('warning.fallback.deafult_assistant'))
+      assistant = getDefaultAssistant()
+    }
+  }
+
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
 
@@ -88,7 +119,7 @@ export function useAssistant(id: string) {
   const settingsRef = useRef(assistant?.settings)
 
   useEffect(() => {
-    settingsRef.current = assistant.settings
+    settingsRef.current = assistant?.settings
   }, [assistant?.settings])
 
   const updateAssistantSettings = useCallback(

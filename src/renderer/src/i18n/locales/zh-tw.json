@@ -148,6 +148,9 @@
     "edit": {
       "title": "編輯助手"
     },
+    "error": {
+      "add": "添加助手失敗"
+    },
     "icon": {
       "type": "助手圖示"
     },
@@ -805,6 +808,13 @@
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
+    "boundary": {
+      "default": {
+        "devtools": "打開除錯面板",
+        "message": "似乎出現了一些問題...",
+        "reload": "重新載入"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "返回了無效的資料格式"
@@ -885,6 +895,9 @@
   },
   "history": {
     "continue_chat": "繼續聊天",
+    "error": {
+      "topic_not_found": "話題不存在"
+    },
     "locate": {
       "message": "定位到訊息"
     },
@@ -3785,6 +3798,10 @@
     "title": "更新提示"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "已回退到預設助手，這可能導致問題"
+    },
+    "missing_assistant": "助手不存在",
     "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {

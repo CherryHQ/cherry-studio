@@ -148,6 +148,9 @@
     "edit": {
       "title": "Editar Asistente"
     },
+    "error": {
+      "add": "Error al agregar asistente"
+    },
     "icon": {
       "type": "Ícono del Asistente"
     },
@@ -805,6 +808,13 @@
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Abrir el panel de depuración",
+        "message": "Parece que ha surgido un problema...",
+        "reload": "Recargar"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "Devuelve un formato de datos no válido"
@@ -885,6 +895,9 @@
   },
   "history": {
     "continue_chat": "Continuar chat",
+    "error": {
+      "topic_not_found": "El tema no existe"
+    },
     "locate": {
       "message": "Localizar mensaje"
     },
@@ -2679,6 +2692,7 @@
         "title": "Actualización automática"
       },
       "avatar": {
+        "builtin": "Avatares integrados",
         "reset": "Restablecer avatar"
       },
       "backup": {
@@ -3783,6 +3797,10 @@
     "title": "Actualización"
   },
   "warning": {
+    "fallback": {
+      "deafult_assistant": "Se ha revertido al asistente predeterminado, lo que podría causar problemas"
+    },
+    "missing_assistant": "El asistente no existe",
     "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
   },
   "words": {
