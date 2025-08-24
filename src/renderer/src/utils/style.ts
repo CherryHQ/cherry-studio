@@ -1,3 +1,5 @@
+import { HexColor } from '@renderer/types'
+
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 
 interface ClassDictionary {
@@ -43,8 +45,6 @@ export function classNames(...args: ClassValue[]): string {
 
   return classes.filter(Boolean).join(' ')
 }
-
-type HexColor = string
 
 /**
  * 检查字符串是否为有效的十六进制颜色值

@@ -1148,3 +1148,5 @@ export type AtLeast<T extends string, U> = {
 } & {
   [key: string]: U
 }
+
+export type HexColor = string
