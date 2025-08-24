@@ -7444,15 +7444,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/tesseract.js@npm:^2.0.0":
-  version: 2.0.0
-  resolution: "@types/tesseract.js@npm:2.0.0"
-  dependencies:
-    tesseract.js: "npm:*"
-  checksum: 10c0/401e86de897ea88a6f1a5ba5c471cb55526694a1e12c157c31f6699c1d359c1c68ccaee46cdd8ed5a83237fd9b7755c053b672ac7b67afabcd8d065ade797eca
-  languageName: node
-  linkType: hard
-
 "@types/tinycolor2@npm:^1":
   version: 1.4.6
   resolution: "@types/tinycolor2@npm:1.4.6"
@@ -8465,7 +8456,6 @@ __metadata:
     "@types/react-dom": "npm:^19.0.4"
     "@types/react-infinite-scroll-component": "npm:^5.0.0"
     "@types/react-transition-group": "npm:^4.4.12"
-    "@types/tesseract.js": "npm:^2.0.0"
     "@types/tinycolor2": "npm:^1"
     "@types/word-extractor": "npm:^1"
     "@uiw/codemirror-extensions-langs": "npm:^4.25.1"
