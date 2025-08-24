@@ -266,7 +266,7 @@ export function PoeLogo(props: SVGProps<SVGSVGElement>) {
           x2="1.086"
           y1="7.303"
           y2="27.715">
-          <stop stop-color="#46A6F7"></stop>
+          <stop stopColor="#46A6F7"></stop>
           <stop offset="1" stop-color="#8364FF"></stop>
         </linearGradient>
         <linearGradient
@@ -276,7 +276,7 @@ export function PoeLogo(props: SVGProps<SVGSVGElement>) {
           x2="24.34"
           y1="23.511"
           y2="9.464">
-          <stop stop-color="#FF44D3"></stop>
+          <stop stopColor="#FF44D3"></stop>
           <stop offset="1" stop-color="#CF4BFF"></stop>
         </linearGradient>
       </defs>
