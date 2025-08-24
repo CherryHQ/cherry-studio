@@ -18,7 +18,7 @@ import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
-import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
+import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
 import {
   type AutoDetectionMethod,
   FileMetadata,
@@ -51,7 +51,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 
 // cache variables
-let _text = ''
 let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
 let _targetLanguage = LanguagesEnum.enUS
 
@@ -65,7 +64,7 @@ const TranslatePage: FC = () => {
   const { ocr } = useOcr()
 
   // states
-  const [text, setText] = useState(_text)
+  // const [text, setText] = useState(_text)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
@@ -84,6 +83,7 @@ const TranslatePage: FC = () => {
   const [isProcessing, setIsProcessing] = useState(false)
 
   // redux states
+  const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
 
@@ -95,7 +95,6 @@ const TranslatePage: FC = () => {
 
   const dispatch = useAppDispatch()
 
-  _text = text
   _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
 
@@ -106,6 +105,13 @@ const TranslatePage: FC = () => {
   }
 
   // 控制翻译状态
+  const setText = useCallback(
+    (input: string) => {
+      dispatch(setTranslateInput(input))
+    },
+    [dispatch]
+  )
+
   const setTranslatedContent = useCallback(
     (content: string) => {
       dispatch(setTranslatedContentAction(content))
@@ -468,7 +474,7 @@ const TranslatePage: FC = () => {
         }
       }
     },
-    [ocr, t]
+    [ocr, setText, t]
   )
 
   // 点击上传文件按钮
