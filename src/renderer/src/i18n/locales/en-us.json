@@ -750,6 +750,9 @@
     "enabled": "Enabled",
     "error": "error",
     "expand": "Expand",
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",

@@ -750,6 +750,9 @@
     "enabled": "Ativado",
     "error": "错误",
     "expand": "Expandir",
+    "file": {
+      "not_supported": "Tipo de arquivo não suportado {{type}}"
+    },
     "footnote": "Nota de rodapé",
     "footnotes": "Notas de rodapé",
     "fullscreen": "Entrou no modo de tela cheia, pressione F11 para sair",

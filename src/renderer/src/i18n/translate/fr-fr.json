@@ -750,6 +750,9 @@
     "enabled": "Activé",
     "error": "erreur",
     "expand": "Développer",
+    "file": {
+      "not_supported": "Type de fichier non pris en charge {{type}}"
+    },
     "footnote": "Note de bas de page",
     "footnotes": "Notes de bas de page",
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",

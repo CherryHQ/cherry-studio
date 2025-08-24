@@ -750,6 +750,9 @@
     "enabled": "有効",
     "error": "エラー",
     "expand": "展開",
+    "file": {
+      "not_supported": "サポートされていないファイルタイプ {{type}}"
+    },
     "footnote": "引用内容",
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",

@@ -750,6 +750,9 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "expand": "展開",
+    "file": {
+      "not_supported": "不支持的文件類型 {{type}}"
+    },
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",

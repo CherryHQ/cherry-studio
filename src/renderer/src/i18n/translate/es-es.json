@@ -750,6 +750,9 @@
     "enabled": "Activado",
     "error": "error",
     "expand": "Expandir",
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
