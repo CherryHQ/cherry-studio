@@ -254,6 +254,7 @@
     "remove-markdown": "^0.6.2",
     "rollup-plugin-visualizer": "^5.12.0",
     "sass": "^1.88.0",
+    "sharp": "^0.34.3",
     "shiki": "^3.9.1",
     "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
