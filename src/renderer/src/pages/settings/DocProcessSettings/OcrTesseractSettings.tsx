@@ -13,7 +13,6 @@ export const OcrTesseractSettings = () => {
   const { t } = useTranslation()
   const { provider } = useOcrProvider(BuiltinOcrProviderIds.tesseract)
 
-  // TODO: use error boundary
   if (!isOcrTesseractProvider(provider)) {
     throw new Error('Not tesseract provider.')
   }

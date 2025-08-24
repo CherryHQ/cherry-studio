@@ -808,6 +808,13 @@
     "backup": {
       "file_format": "Backup file format error"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Open debug panel",
+        "message": "It seems that something went wrong...",
+        "reload": "Reload"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "Returned an invalid data format"

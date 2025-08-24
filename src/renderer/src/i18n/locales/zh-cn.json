@@ -808,6 +808,13 @@
     "backup": {
       "file_format": "备份文件格式错误"
     },
+    "boundary": {
+      "default": {
+        "devtools": "打开调试面板",
+        "message": "似乎出现了一些问题...",
+        "reload": "重新加载"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "返回了无效的数据格式"

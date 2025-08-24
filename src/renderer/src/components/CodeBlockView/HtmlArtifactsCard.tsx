@@ -157,6 +157,7 @@ const IconWrapper = styled.div<{ $isStreaming: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 44px;
   height: 44px;
   background: ${(props) =>
@@ -177,13 +178,16 @@ const TitleSection = styled.div`
   gap: 6px;
 `
 
-const Title = styled.h3`
-  margin: 0 !important;
-  font-size: 14px !important;
-  font-weight: 600;
-  color: var(--color-text);
+const Title = styled.span`
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--color-text-1);
   line-height: 1.4;
   font-family: 'Ubuntu';
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 `
 
 const TypeBadge = styled.div`

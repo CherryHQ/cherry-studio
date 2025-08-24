@@ -555,9 +555,9 @@ export class WindowService {
 
       // [Windows] hacky fix
       // the window is minimized only when in Windows platform
-      // because it's a workround for Windows, see `hideMiniWindow()`
+      // because it's a workaround for Windows, see `hideMiniWindow()`
       if (this.miniWindow?.isMinimized()) {
-        // don't let the window being seen before we finish adusting the position across screens
+        // don't let the window being seen before we finish adjusting the position across screens
         this.miniWindow?.setOpacity(0)
         // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
         // We have to use `show()` here, then set the position and bounds

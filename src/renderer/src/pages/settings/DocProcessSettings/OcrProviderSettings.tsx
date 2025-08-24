@@ -1,4 +1,5 @@
 // import { loggerService } from '@logger'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { isBuiltinOcrProvider, OcrProvider } from '@renderer/types'
 import { getOcrProviderLogo } from '@renderer/utils/ocr'
 import { Avatar, Divider, Flex } from 'antd'
@@ -35,7 +36,7 @@ const OcrProviderSettings = ({ provider }: Props) => {
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      {getProviderSettings()}
+      <ErrorBoundary>{getProviderSettings()}</ErrorBoundary>
     </>
   )
 }

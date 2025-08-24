@@ -1,4 +1,5 @@
 import { PictureOutlined } from '@ant-design/icons'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppSelector } from '@renderer/store'
 import { OcrProvider } from '@renderer/types'
@@ -26,7 +27,7 @@ const OcrSettings: FC = () => {
   ]
 
   return (
-    <>
+    <ErrorBoundary>
       <SettingGroup theme={themeMode}>
         <SettingTitle>{t('settings.tool.ocr.title')}</SettingTitle>
         <SettingDivider />
@@ -35,7 +36,7 @@ const OcrSettings: FC = () => {
       <SettingGroup theme={themeMode}>
         <OcrProviderSettings provider={provider} />
       </SettingGroup>
-    </>
+    </ErrorBoundary>
   )
 }
 export default OcrSettings
