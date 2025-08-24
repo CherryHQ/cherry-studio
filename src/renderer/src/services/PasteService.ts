@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { FileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
+import { t } from 'i18next'
 
 const logger = loggerService.withContext('PasteService')
 
@@ -23,19 +24,33 @@ let isInitialized = false
 /**
  * 处理粘贴事件的通用服务
  * 处理各种粘贴场景，包括文本和文件
+ * @param event - 粘贴事件对象
+ * @param supportExts - 支持的文件扩展名数组，undefined表示支持所有类型
+ * @param setFiles - 设置文件的回调函数，undefined表示不处理文件
+ * @param setText - 设置文本的回调函数，undefined表示不设置文本
+ * @param pasteLongTextAsFile - 是否将长文本作为文件粘贴，undefined表示不作为文件处理
+ * @param pasteLongTextThreshold - 长文本阈值，超过此长度的文本将作为文件处理，undefined表示使用默认阈值
+ * @param text - 当前输入框的文本内容，undefined表示无文本
+ * @param resizeTextArea - 调整文本框大小的回调函数，undefined表示不调整大小
+ * @param showMessage - 是否显示提示消息，undefined表示不显示
+ * @returns 返回是否已处理粘贴事件
  */
 export const handlePaste = async (
   event: ClipboardEvent,
-  supportExts: string[],
-  setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void,
+  supportExts?: string[],
+  setFiles?: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void,
   setText?: (text: string) => void,
   pasteLongTextAsFile?: boolean,
   pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
-  t?: (key: string) => string
+  showMessage?: boolean
 ): Promise<boolean> => {
   try {
+    if (!pasteLongTextThreshold) {
+      // default threshold
+      pasteLongTextThreshold = 2000
+    }
     // 优先处理文本粘贴
     const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText) {
@@ -48,7 +63,7 @@ export const handlePaste = async (
         await window.api.file.write(tempFilePath, clipboardText)
         const selectedFile = await window.api.file.get(tempFilePath)
         if (selectedFile) {
-          setFiles((prevFiles) => [...prevFiles, selectedFile])
+          setFiles?.((prevFiles) => [...prevFiles, selectedFile])
           if (setText && text) setText(text) // 保持输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }
@@ -60,7 +75,6 @@ export const handlePaste = async (
     // 2. 文件/图片粘贴（仅在无文本时处理）
     if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
       event.preventDefault()
-      const extensionSet = new Set(supportExts)
       try {
         for (const file of event.clipboardData.files) {
           // 使用新的API获取文件路径
@@ -69,18 +83,18 @@ export const handlePaste = async (
           // 如果没有路径，可能是剪贴板中的图像数据
           if (!filePath) {
             // 图像生成也支持图像编辑
-            if (file.type.startsWith('image/') && supportExts.includes(getFileExtension(file.name))) {
+            if (file.type.startsWith('image/') && (supportExts?.includes(getFileExtension(file.name)) ?? true)) {
               const tempFilePath = await window.api.file.createTempFile(file.name)
               const arrayBuffer = await file.arrayBuffer()
               const uint8Array = new Uint8Array(arrayBuffer)
               await window.api.file.write(tempFilePath, uint8Array)
               const selectedFile = await window.api.file.get(tempFilePath)
               if (selectedFile) {
-                setFiles((prevFiles) => [...prevFiles, selectedFile])
+                setFiles?.((prevFiles) => [...prevFiles, selectedFile])
                 break
               }
             } else {
-              if (t) {
+              if (showMessage) {
                 window.message.info({
                   key: 'file_not_supported',
                   content: t('chat.input.file_not_supported')
@@ -91,23 +105,24 @@ export const handlePaste = async (
           }
 
           // 有路径的情况
-          if (await isSupportedFile(filePath, extensionSet)) {
+          const extensionSet = new Set(supportExts)
+          if (supportExts === undefined || (await isSupportedFile(filePath, extensionSet))) {
             const selectedFile = await window.api.file.get(filePath)
             if (selectedFile) {
-              setFiles((prevFiles) => [...prevFiles, selectedFile])
+              setFiles?.((prevFiles) => [...prevFiles, selectedFile])
             }
           } else {
-            if (t) {
+            if (showMessage) {
               window.message.info({
                 key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
+                content: t('common.file.not_supported', { type: getFileExtension(file.name) })
               })
             }
           }
         }
       } catch (error) {
         logger.error('onPaste:', error as Error)
-        if (t) {
+        if (showMessage) {
           window.message.error(t('chat.input.file_error'))
         }
       }

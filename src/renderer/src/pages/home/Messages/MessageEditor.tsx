@@ -130,10 +130,10 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         pasteLongTextThreshold,
         undefined, // 不需要text
         undefined, // 不需要 resizeTextArea
-        t
+        true
       )
     },
-    [extensions, pasteLongTextThreshold, t]
+    [extensions, pasteLongTextThreshold]
   )
 
   // 添加全局粘贴事件处理
