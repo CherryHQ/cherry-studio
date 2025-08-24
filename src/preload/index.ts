@@ -144,7 +144,7 @@ const api = {
     read: (fileId: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
     clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
-    get: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
+    get: (filePath: string): Promise<FileMetadata | null> => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     /**
      * 创建一个空的临时文件
      * @param fileName 文件名
