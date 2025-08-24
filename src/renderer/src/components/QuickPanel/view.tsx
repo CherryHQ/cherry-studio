@@ -74,7 +74,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   const prevSearchTextRef = useRef('')
   const prevSymbolRef = useRef('')
   const { setTimeoutTimer } = useTimer()
-  // 处理搜索，过滤列表
+  // 处理搜索，过滤列表（始终保留 alwaysVisible 项在顶部）
   const list = useMemo(() => {
     if (!ctx.isVisible && !ctx.symbol) return []
     const _searchText = searchText.replace(/^[/@]/, '')
@@ -85,7 +85,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       .join('.*')
     const fuzzyRegex = new RegExp(fuzzyPattern, 'ig')
 
-    const newList = ctx.list?.filter((item) => {
+    // 拆分：固定显示项（不参与过滤）与普通项
+    const pinnedItems = (ctx.list || []).filter((item) => item.alwaysVisible)
+    const normalItems = (ctx.list || []).filter((item) => !item.alwaysVisible)
+
+    const filteredNormalItems = normalItems.filter((item) => {
       if (!_searchText) return true
 
       let filterText = item.filterText || ''
@@ -127,8 +131,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     } else {
       // 如果当前index超出范围，调整到有效范围内
       setIndex((prevIndex) => {
-        if (prevIndex >= newList.length) {
-          return newList.length > 0 ? newList.length - 1 : -1
+        const combinedLength = pinnedItems.length + filteredNormalItems.length
+        if (prevIndex >= combinedLength) {
+          return combinedLength > 0 ? combinedLength - 1 : -1
         }
         return prevIndex
       })
@@ -137,7 +142,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     prevSearchTextRef.current = searchText
     prevSymbolRef.current = ctx.symbol
 
-    return newList
+    // 固定项置顶 + 过滤后的普通项
+    return [...pinnedItems, ...filteredNormalItems]
   }, [ctx.isVisible, ctx.symbol, ctx.list, searchText])
 
   const canForwardAndBackward = useMemo(() => {
@@ -508,7 +514,9 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
   }, [ctx.pageSize, list.length])
   const hasSearchText = useMemo(() => searchText.replace(/^[/@]/, '').length > 0, [searchText])
-  const collapsed = hasSearchText && list.length === 0
+  // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
+  const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
+  const collapsed = hasSearchText && visibleNonPinnedCount === 0
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 

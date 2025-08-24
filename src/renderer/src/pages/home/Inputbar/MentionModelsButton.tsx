@@ -200,6 +200,7 @@ const MentionModelsButton: FC<Props> = ({
       label: t('settings.input.clear.all'),
       description: t('settings.input.clear.models'),
       icon: <CircleX />,
+      alwaysVisible: true,
       isSelected: false,
       action: () => {
         onClearMentionModels()
