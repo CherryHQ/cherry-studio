@@ -11,6 +11,7 @@ import {
   generateColorFromChar,
   getFancyProviderName,
   getFirstCharacter,
+  getForegroundColor,
   matchKeywordsInModel,
   matchKeywordsInProvider,
   uuid
@@ -417,11 +418,12 @@ const ProvidersList: FC = () => {
       return <ProviderLogo draggable="false" shape="square" src={customLogo} size={25} />
     }
 
+    // generate color for custom provider
+    const backgroundColor = generateColorFromChar(provider.name)
+    const color = provider.name ? getForegroundColor(backgroundColor) : 'white'
+
     return (
-      <ProviderLogo
-        size={25}
-        shape="square"
-        style={{ backgroundColor: generateColorFromChar(provider.name), minWidth: 25 }}>
+      <ProviderLogo size={25} shape="square" style={{ backgroundColor, color, minWidth: 25 }}>
         {getFirstCharacter(provider.name)}
       </ProviderLogo>
     )
