@@ -9,6 +9,7 @@ import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
@@ -20,6 +21,7 @@ import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
 import {
   type AutoDetectionMethod,
+  FileMetadata,
   isSupportedOcrFile,
   type Model,
   type TranslateHistory,
@@ -27,6 +29,7 @@ import {
 } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
@@ -37,7 +40,7 @@ import { imageExts, MB, textExts } from '@shared/config/constant'
 import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Check, FolderClock, Settings2 } from 'lucide-react'
+import { Check, FolderClock, Settings2, UploadIcon } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -434,16 +437,9 @@ const TranslatePage: FC = () => {
   // 控制token估计
   const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
 
-  // 控制文件ocr
-  const handleSelectFile = useCallback(async () => {
-    if (selecting) return
-    setIsProcessing(true)
-    try {
-      const [file] = await onSelectFile({ multipleSelections: false })
-      if (!file) {
-        return
-      }
-
+  // 统一的文件处理
+  const processFile = useCallback(
+    async (file: FileMetadata) => {
       // extensible
       const shouldOCR = isSupportedOcrFile(file)
 
@@ -471,6 +467,21 @@ const TranslatePage: FC = () => {
           }
         }
       }
+    },
+    [ocr, t]
+  )
+
+  // 点击上传文件按钮
+  const handleSelectFile = useCallback(async () => {
+    if (selecting) return
+    setIsProcessing(true)
+    try {
+      const [file] = await onSelectFile({ multipleSelections: false })
+      if (!file) {
+        return
+      }
+
+      return await processFile(file)
     } catch (e) {
       logger.error('Unknown error when selecting file.', e as Error)
       window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
@@ -478,10 +489,62 @@ const TranslatePage: FC = () => {
       clearFiles()
       setIsProcessing(false)
     }
-  }, [clearFiles, ocr, onSelectFile, selecting, t])
+  }, [clearFiles, onSelectFile, processFile, selecting, t])
+
+  // 拖动上传文件
+  const onDrop = useCallback(
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      setIsProcessing(true)
+      // const supportedFiles = await filterSupportedFiles(_files, extensions)
+      const data = await getTextFromDropEvent(e).catch((err) => {
+        logger.error('getTextFromDropEvent', err)
+        window.message.error({
+          key: 'file_error',
+          content: t('translate.files.error.unknown')
+        })
+        return null
+      })
+      if (data === null) {
+        return
+      }
+      setText(text + data)
+
+      const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
+        logger.error('handleDrop:', err)
+        return null
+      })
+
+      if (droppedFiles) {
+        if (droppedFiles.length === 0) return
+        if (droppedFiles.length > 1) {
+          // 多文件上传时显示提示信息
+          window.message.error({
+            key: 'multiple_files',
+            content: t('translate.files.error.multiple')
+          })
+          return
+        }
+        const file = droppedFiles[0]
+        processFile(file)
+      } else if (droppedFiles === null) {
+        window.message.error({
+          key: 'file_error',
+          content: t('translate.files.error.unknown')
+        })
+      }
+      setIsProcessing(false)
+    },
+    [processFile, t, text]
+  )
+
+  const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop } = useDrag<HTMLDivElement>(onDrop)
 
   return (
-    <Container id="translate-page">
+    <Container
+      id="translate-page"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
@@ -543,7 +606,15 @@ const TranslatePage: FC = () => {
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
-          <InputContainer>
+          <InputContainer
+            style={isDragging ? { border: '2px dashed var(--color-primary)' } : undefined}
+            onDrop={handleDrop}>
+            {isDragging && (
+              <InputContainerDraggingHintContainer>
+                <UploadIcon color="var(--color-text-3)" />
+                {t('translate.files.drag_text')}
+              </InputContainerDraggingHintContainer>
+            )}
             <FloatButton
               style={{ position: 'absolute', left: 8, bottom: 8 }}
               className="float-button"
@@ -661,6 +732,19 @@ const InputContainer = styled.div`
       opacity: 1;
     }
   }
+`
+
+const InputContainerDraggingHintContainer = styled.div`
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-3);
 `
 
 const Textarea = styled(TextArea)`

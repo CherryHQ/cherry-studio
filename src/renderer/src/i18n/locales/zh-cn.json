@@ -3767,7 +3767,9 @@
       "label": "交换源语言与目标语言"
     },
     "files": {
+      "drag_text": "拖放到此处",
       "error": {
+        "multiple": "不允许上传多个文件",
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
       },
