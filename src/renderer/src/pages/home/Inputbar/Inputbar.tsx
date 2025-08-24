@@ -552,10 +552,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         pasteLongTextThreshold,
         text,
         resizeTextArea,
-        true
+        t
       )
     },
-    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, text]
+    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
   )
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
