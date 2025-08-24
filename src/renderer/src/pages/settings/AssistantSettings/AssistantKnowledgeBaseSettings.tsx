@@ -6,15 +6,19 @@ import {
   QuestionCircleOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
 import { Box } from '@renderer/components/Layout'
 import { FOOTNOTE_PROMPT, REFERENCE_PROMPT } from '@renderer/config/prompts'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Button, Divider, Row, Segmented, Select, SelectProps, Switch, Tooltip } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
 import { CircleHelp } from 'lucide-react'
-import { KeyboardEvent, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
+import remarkGfm from 'remark-gfm'
 import styled from 'styled-components'
 
 interface Props {
@@ -28,8 +32,20 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   const [promptSettingsEnabled, setPromptSettingsEnabled] = useState(
     assistant.knowledgePromptSettings?.enabled ?? false
   )
-  const [showPreview, setShowPreview] = useState(false)
-  const textAreaRef = useRef<any>(null)
+  // 依据当前 assistant 推导初始提示词与预览默认显示
+  const initialCitationMode = assistant.knowledgePromptSettings?.citationMode || 'number'
+  const initialHasCustomPrompt = assistant.knowledgePromptSettings?.referencePrompt !== undefined
+  const initialPrompt = initialHasCustomPrompt
+    ? (assistant.knowledgePromptSettings?.referencePrompt as string)
+    : initialCitationMode === 'footnote'
+      ? FOOTNOTE_PROMPT
+      : REFERENCE_PROMPT
+  const [showPreview, setShowPreview] = useState<boolean>((initialPrompt?.length ?? 0) > 0)
+  const editorRef = useRef<any>(null)
+  // 自适应高度（与智能体提示词一致的风格）
+  const EDITOR_HEIGHT = 'calc(80vh - 260px)'
+  // Token 计数
+  const [tokenCount, setTokenCount] = useState(0)
 
   const knowledgeState = useAppSelector((state) => state.knowledge)
   const knowledgeOptions: SelectProps['options'] = knowledgeState.bases.map((base) => ({
@@ -70,68 +86,9 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }
 
   const insertVariable = (variable: string) => {
-    const textArea = textAreaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      const start = textArea.selectionStart
-      const end = textArea.selectionEnd
-      const currentValue = currentPrompt
-      const newValue = currentValue.substring(0, start) + variable + currentValue.substring(end)
-
-      // 保存当前滚动位置
-      const scrollTop = textArea.scrollTop
-
-      handlePromptSettingsChange('referencePrompt', newValue)
-
-      // 设置光标位置到插入的变量之后
-      setTimeout(() => {
-        textArea.focus()
-        const newPosition = start + variable.length
-        textArea.setSelectionRange(newPosition, newPosition)
-
-        // 恢复滚动位置
-        textArea.scrollTop = scrollTop
-      }, 0)
-    }
-  }
-
-  // 处理键盘事件，实现智能删除变量
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!promptSettingsEnabled) return
-
-    const textArea = e.currentTarget
-    const { selectionStart, selectionEnd, value } = textArea
-
-    // 只处理退格键且没有选择文本的情况
-    if (e.key === 'Backspace' && selectionStart === selectionEnd && selectionStart > 0) {
-      // 检查光标前是否是变量
-      const beforeCursor = value.substring(0, selectionStart)
-
-      // 检查是否是 {question} 变量
-      if (beforeCursor.endsWith('{question}')) {
-        e.preventDefault()
-        const newValue = value.substring(0, selectionStart - 10) + value.substring(selectionStart)
-        handlePromptSettingsChange('referencePrompt', newValue)
-
-        // 设置光标位置
-        setTimeout(() => {
-          textArea.setSelectionRange(selectionStart - 10, selectionStart - 10)
-        }, 0)
-        return
-      }
-
-      // 检查是否是 {references} 变量
-      if (beforeCursor.endsWith('{references}')) {
-        e.preventDefault()
-        const newValue = value.substring(0, selectionStart - 12) + value.substring(selectionStart)
-        handlePromptSettingsChange('referencePrompt', newValue)
-
-        // 设置光标位置
-        setTimeout(() => {
-          textArea.setSelectionRange(selectionStart - 12, selectionStart - 12)
-        }, 0)
-        return
-      }
-    }
+    // 使用 CodeEditor 时，暂以“追加到末尾”的方式插入变量
+    const newValue = (currentPrompt || '') + variable
+    handlePromptSettingsChange('referencePrompt', newValue)
   }
 
   // 处理提示词变化（不再自动保存）
@@ -155,13 +112,45 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }
 
   const currentCitationMode = assistant.knowledgePromptSettings?.citationMode || 'number'
-  const currentPrompt =
-    assistant.knowledgePromptSettings?.referencePrompt ||
-    (currentCitationMode === 'footnote' ? FOOTNOTE_PROMPT : REFERENCE_PROMPT)
+  // 仅当 referencePrompt 为 undefined 时，才使用默认提示词；空字符串视为“用户清空”而不是缺省
+  const hasCustomPrompt = assistant.knowledgePromptSettings?.referencePrompt !== undefined
+  const currentPrompt = hasCustomPrompt
+    ? (assistant.knowledgePromptSettings?.referencePrompt as string)
+    : currentCitationMode === 'footnote'
+      ? FOOTNOTE_PROMPT
+      : REFERENCE_PROMPT
 
   // 检查提示词中是否已包含变量
   const hasQuestionVariable = currentPrompt.includes('{question}')
   const hasReferencesVariable = currentPrompt.includes('{references}')
+
+  // 预览文本：用 HTML 标签占位变量，交给 ReactMarkdown 渲染（rehypeRaw 允许 HTML）
+  const previewMarkdown = `${currentPrompt}`
+    .replaceAll(
+      '{question}',
+      `<span class="kb-var kb-question">${t(
+        'assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_question'
+      )}</span>`
+    ) // 蓝色
+    .replaceAll(
+      '{references}',
+      `<span class="kb-var kb-references">${t(
+        'assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_references'
+      )}</span>`
+    ) // 绿色
+
+  // 计算 Token（与智能体提示词一致）
+  useEffect(() => {
+    let disposed = false
+    const run = async () => {
+      const count = await estimateTextTokens(currentPrompt || '')
+      if (!disposed) setTokenCount(count)
+    }
+    run()
+    return () => {
+      disposed = true
+    }
+  }, [currentPrompt])
 
   return (
     <Container>
@@ -261,8 +250,8 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             ]}
             onChange={(value) => {
               handlePromptSettingsChange('citationMode', value as string)
-              // 切换模式时，如果没有自定义提示词，则使用对应的默认提示词
-              if (!assistant.knowledgePromptSettings?.referencePrompt) {
+              // 仅当未设置 referencePrompt（undefined）时，切换模式同步默认提示词
+              if (assistant.knowledgePromptSettings?.referencePrompt === undefined) {
                 const defaultPrompt = value === 'footnote' ? FOOTNOTE_PROMPT : REFERENCE_PROMPT
                 handlePromptSettingsChange('referencePrompt', defaultPrompt)
               }
@@ -325,42 +314,50 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             </Button>
           </VariableButtonsContainer>
 
-          <CustomTextArea
-            ref={textAreaRef}
-            value={currentPrompt}
-            onChange={(e) => handlePromptChange(e.target.value)}
-            onBlur={handlePromptBlur}
-            onKeyDown={handleKeyDown}
-            placeholder={t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.placeholder')}
-            rows={8}
-            disabled={!promptSettingsEnabled}
-            style={{ display: showPreview ? 'none' : 'block' }}
-          />
+          <div style={{ display: showPreview ? 'none' : 'block' }}>
+            <CodeEditor
+              ref={editorRef}
+              value={currentPrompt}
+              language="markdown"
+              placeholder={t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.placeholder')}
+              onChange={(val) => handlePromptChange(val)}
+              onBlur={() => handlePromptBlur()}
+              height={EDITOR_HEIGHT}
+              fontSize="var(--ant-font-size)"
+              expanded
+              unwrapped={false}
+              editable={promptSettingsEnabled}
+              options={{
+                autocompletion: false,
+                keymap: true,
+                lineNumbers: false,
+                lint: false
+              }}
+              style={{
+                border: '0.5px solid var(--color-border)',
+                borderRadius: '5px'
+              }}
+            />
+          </div>
 
           {showPreview && (
-            <PreviewContainer>
-              {currentPrompt.split(/(\{question\}|\{references\})/g).map((part, index) => {
-                if (part === '{question}') {
-                  return (
-                    <VariableTag key={index} $color="#1890ff">
-                      {t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_question')}
-                    </VariableTag>
-                  )
-                } else if (part === '{references}') {
-                  return (
-                    <VariableTag key={index} $color="#52c41a">
-                      {t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_references')}
-                    </VariableTag>
-                  )
-                }
-                return <span key={index}>{part}</span>
-              })}
+            <PreviewContainer
+              $height={EDITOR_HEIGHT}
+              className="markdown"
+              onClick={() => setShowPreview(false)}
+              title={t('common.edit') as string}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+                {previewMarkdown}
+              </ReactMarkdown>
             </PreviewContainer>
           )}
+
+          {/* 底部左侧 Token 计数，与智能体提示词一致 */}
+          <FooterBar>
+            <TokenCount>Tokens: {tokenCount}</TokenCount>
+          </FooterBar>
         </PromptSettingsContent>
       </PromptSettingsSection>
-
-      <Divider />
     </Container>
   )
 }
@@ -412,42 +409,56 @@ const VariableText = styled.span<{ $color: string }>`
   margin-left: 4px;
 `
 
-const CustomTextArea = styled(TextArea)`
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  position: relative;
+// 使用 CodeEditor 替代原 TextArea；保留预览容器与变量样式。
 
-  .ant-input {
-    font-family: inherit;
-  }
-`
-
-const PreviewContainer = styled.div`
+const PreviewContainer = styled.div<{ $height: string }>`
   padding: 12px;
   background: var(--color-bg-2);
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  min-height: 150px;
-  max-height: 400px;
+  min-height: ${(props) => props.$height};
+  max-height: ${(props) => props.$height};
   overflow-y: auto;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
+  font-family: var(--font-family);
+  line-height: 1.75;
+  cursor: pointer;
+
+  /* 变量彩色标记样式（与 VariableTag 视觉一致）*/
+  .kb-var {
+    display: inline-block;
+    padding: 2px 8px;
+    margin: 0 2px;
+    color: #fff;
+    border-radius: 4px;
+    font-weight: 500;
+    font-size: 12px;
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+  .kb-question {
+    background: #1890ff;
+  }
+  .kb-references {
+    background: #52c41a;
+  }
 `
 
-const VariableTag = styled.span<{ $color: string }>`
-  display: inline-block;
-  padding: 2px 8px;
-  margin: 0 2px;
-  background: ${(props) => props.$color};
-  color: white;
+// 变量彩色标识在预览中用 .kb-var 类名渲染，无需额外组件样式。
+
+const FooterBar = styled.div`
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 8px;
+  min-height: 24px;
+`
+
+const TokenCount = styled.div`
+  padding: 2px 2px;
   border-radius: 4px;
-  font-weight: 500;
-  font-size: 12px;
-  vertical-align: baseline;
+  font-size: 14px;
+  color: var(--color-text-2);
+  user-select: none;
 `
 
 export default AssistantKnowledgeBaseSettings
