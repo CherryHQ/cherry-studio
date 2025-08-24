@@ -1,6 +1,6 @@
 import {
   CheckOutlined,
-  EyeInvisibleOutlined,
+  EditOutlined,
   EyeOutlined,
   PlusOutlined,
   QuestionCircleOutlined,
@@ -63,6 +63,10 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
     const currentSettings = assistant.knowledgePromptSettings || {}
     const defaultPrompt = currentSettings.citationMode === 'footnote' ? FOOTNOTE_PROMPT : REFERENCE_PROMPT
     handlePromptSettingsChange('referencePrompt', defaultPrompt)
+    // 恢复默认时触发保存通知
+    if (promptSettingsEnabled) {
+      window.message.success(t('common.saved'))
+    }
   }
 
   const insertVariable = (variable: string) => {
@@ -130,15 +134,23 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
     }
   }
 
-  // 处理提示词变化并显示保存通知
+  // 处理提示词变化（不再自动保存）
   const handlePromptChange = (value: string) => {
-    handlePromptSettingsChange('referencePrompt', value)
-    // 使用防抖或节流来避免频繁显示通知
+    // 仅更新值，不触发保存
+    updateAssistant({
+      ...assistant,
+      knowledgePromptSettings: {
+        ...assistant.knowledgePromptSettings,
+        referencePrompt: value
+      }
+    })
+  }
+
+  // 处理失去焦点时的保存
+  const handlePromptBlur = () => {
     if (promptSettingsEnabled) {
-      clearTimeout((window as any).promptSaveTimeout)
-      ;(window as any).promptSaveTimeout = setTimeout(() => {
-        window.message.success(t('common.saved'))
-      }, 500)
+      // 触发保存并显示通知
+      window.message.success(t('common.saved'))
     }
   }
 
@@ -186,7 +198,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   {t('assistants.settings.knowledge_base.recognition.on')}
                   <Tooltip title={t('assistants.settings.knowledge_base.recognition.tip')}>
-                    <QuestionIcon size={15} />
+                    <QuestionIcon size={15} style={{ color: 'var(--color-text-2)' }} />
                   </Tooltip>
                 </div>
               ),
@@ -215,7 +227,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
           <Row align="middle" style={{ marginBottom: 15 }}>
             <Label>{t('assistants.settings.knowledge_base.prompt_settings.citation_mode.label')}</Label>
             <Tooltip title={t('assistants.settings.knowledge_base.prompt_settings.citation_mode.tooltip')}>
-              <QuestionCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)', cursor: 'pointer' }} />
+              <QuestionCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-2)', cursor: 'pointer' }} />
             </Tooltip>
           </Row>
           <Segmented
@@ -228,7 +240,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
                     <span>{t('assistants.settings.knowledge_base.prompt_settings.citation_mode.number')}</span>
                     <Tooltip
                       title={t('assistants.settings.knowledge_base.prompt_settings.citation_mode.number_tooltip')}>
-                      <QuestionCircleOutlined style={{ fontSize: 14, color: 'var(--color-text-3)' }} />
+                      <QuestionCircleOutlined style={{ fontSize: 14, color: 'var(--color-text-2)' }} />
                     </Tooltip>
                   </div>
                 ),
@@ -240,7 +252,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
                     <span>{t('assistants.settings.knowledge_base.prompt_settings.citation_mode.footnote')}</span>
                     <Tooltip
                       title={t('assistants.settings.knowledge_base.prompt_settings.citation_mode.footnote_tooltip')}>
-                      <QuestionCircleOutlined style={{ fontSize: 14, color: 'var(--color-text-3)' }} />
+                      <QuestionCircleOutlined style={{ fontSize: 14, color: 'var(--color-text-2)' }} />
                     </Tooltip>
                   </div>
                 ),
@@ -262,7 +274,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             <Row align="middle">
               <Label>{t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.label')}</Label>
               <Tooltip title={t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.insert_tip')}>
-                <QuestionCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-3)', cursor: 'pointer' }} />
+                <QuestionCircleOutlined style={{ marginLeft: 8, color: 'var(--color-text-2)', cursor: 'pointer' }} />
               </Tooltip>
             </Row>
             <Button
@@ -300,13 +312,16 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             <Button
               size="small"
               type="text"
-              icon={showPreview ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+              icon={showPreview ? <EditOutlined /> : <EyeOutlined />}
               disabled={!promptSettingsEnabled}
               onClick={() => {
                 setShowPreview(!showPreview)
-                window.message.success(t('common.saved'))
+                // 显示预览时触发保存通知，返回编辑时不触发
+                if (!showPreview && promptSettingsEnabled) {
+                  window.message.success(t('common.saved'))
+                }
               }}>
-              {showPreview ? t('common.hide_preview', '隐藏预览') : t('common.show_preview', '显示预览')}
+              {showPreview ? t('common.back_to_edit', '返回编辑') : t('common.show_preview', '显示预览')}
             </Button>
           </VariableButtonsContainer>
 
@@ -314,6 +329,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
             ref={textAreaRef}
             value={currentPrompt}
             onChange={(e) => handlePromptChange(e.target.value)}
+            onBlur={handlePromptBlur}
             onKeyDown={handleKeyDown}
             placeholder={t('assistants.settings.knowledge_base.prompt_settings.custom_prompt.placeholder')}
             rows={8}
