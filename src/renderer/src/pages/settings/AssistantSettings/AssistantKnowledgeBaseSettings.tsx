@@ -86,9 +86,14 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
   }
 
   const insertVariable = (variable: string) => {
-    // 使用 CodeEditor 时，暂以“追加到末尾”的方式插入变量
-    const newValue = (currentPrompt || '') + variable
-    handlePromptSettingsChange('referencePrompt', newValue)
+    // 使用 CodeEditor 提供的 insertText 方法在光标位置插入变量
+    if (editorRef.current && editorRef.current.insertText) {
+      editorRef.current.insertText(variable)
+    } else {
+      // 降级方案：如果没有 insertText 方法，追加到末尾
+      const newValue = (currentPrompt || '') + variable
+      handlePromptSettingsChange('referencePrompt', newValue)
+    }
   }
 
   // 处理提示词变化（不再自动保存）
