@@ -225,7 +225,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                 <ProviderLogo src={logo} />
               ) : (
                 <ProviderInitialsLogo
-                  style={name ? { backgroundColor: generateColorFromChar(name), color: 'white' } : null}>
+                  style={name ? { backgroundColor: generateColorFromChar(name), color: 'white' } : undefined}>
                   {getInitials()}
                 </ProviderInitialsLogo>
               )}
