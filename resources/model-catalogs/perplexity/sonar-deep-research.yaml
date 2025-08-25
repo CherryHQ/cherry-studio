@@ -1,0 +1,37 @@
+id: perplexity/sonar-deep-research
+canonical_slug: perplexity/sonar-deep-research
+hugging_face_id: ''
+name: 'Perplexity: Sonar Deep Research'
+type: chat
+created: 1741311246
+description: "Sonar Deep Research is a research-focused model designed for multi-step retrieval, synthesis, and reasoning across complex topics. It autonomously searches, reads, and evaluates sources, refining its approach as it gathers information. This enables comprehensive report generation across domains like finance, technology, health, and current events.\n\nNotes on Pricing ([Source](https://docs.perplexity.ai/guides/pricing#detailed-pricing-breakdown-for-sonar-deep-research)) \n- Input tokens comprise of Prompt tokens (user prompt) + Citation tokens (these are processed tokens from running searches)\n- Deep Research runs multiple searches to conduct exhaustive research. Searches are priced at $5/1000 searches. A request that does 30 searches will cost $0.15 in this step.\n- Reasoning is a distinct step in Deep Research since it does extensive automated reasoning through all the material it gathers during its research phase. Reasoning tokens here are a bit different than the CoTs in the answer - these are tokens that we use to reason through the research material prior to generating the outputs via the CoTs. Reasoning tokens are priced at $3/1M tokens"
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: deepseek-r1
+pricing:
+  prompt: '0.000002'
+  completion: '0.000008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0.005'
+  internal_reasoning: '0.000003'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - top_k
+  - frequency_penalty
+  - presence_penalty
+model_provider: perplexity

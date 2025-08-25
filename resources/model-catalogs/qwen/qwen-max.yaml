@@ -1,0 +1,37 @@
+id: qwen/qwen-max
+canonical_slug: qwen/qwen-max-2025-01-25
+hugging_face_id: ''
+name: 'Qwen: Qwen-Max '
+type: chat
+created: 1738402289
+description: Qwen-Max, based on Qwen2.5, provides the best inference performance among [Qwen models](/qwen), especially for complex multi-step tasks. It's a large-scale MoE model that has been pretrained on over 20 trillion tokens and further post-trained with curated Supervised Fine-Tuning (SFT) and Reinforcement Learning from Human Feedback (RLHF) methodologies. The parameter count is unknown.
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Qwen
+  instruct_type: null
+pricing:
+  prompt: '0.0000016'
+  completion: '0.0000064'
+  input_cache_read: '0.00000064'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - seed
+  - response_format
+  - presence_penalty
+model_provider: qwen

@@ -1,0 +1,41 @@
+id: bytedance/doubao-seed-1.6
+canonical_slug: bytedance/doubao-seed-1.6
+type: chat
+hugging_face_id: ''
+name: 'ByteDance: Doubao Seed 1.6'
+created: 1738402289
+description: 全新多模态深度思考模型，同时支持 thinking、non-thinking、auto三种思考模式。其中 non-thinking 模型对比 doubao-1.5-pro-32k-250115 模型大幅提升。
+context_length: 256000
+architecture:
+  modality: text+image+vedio->text
+  input_modalities:
+    - text
+    - image
+    - video
+  output_modalities:
+    - text
+  tokenizer: Doubao
+  instruct_type: null
+pricing:
+  prompt: '0.8'
+  completion: '8.0'
+  input_cache_read: '0.16'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  currency: CNY
+  unit: 1000000
+supported_parameters:
+  - max_tokens
+  - temperature
+  - stop
+  - reasoning
+  - include_reasoning
+  - tools
+  - tool_choice
+  - top_p
+  - top_k
+  - structured_outputs
+model_provider: bytedance

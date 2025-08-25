@@ -1,0 +1,56 @@
+id: openrouter/auto
+canonical_slug: openrouter/auto
+hugging_face_id: ''
+name: Auto Router
+type: chat
+created: 1699401600
+description: |-
+  Your prompt will be processed by a meta-model and routed to one of dozens of models (see below), optimizing for the best possible output.
+
+  To see which model was used, visit [Activity](/activity), or read the `model` attribute of the response. Your response will be priced at the same rate as the routed model.
+
+  The meta-model is powered by [Not Diamond](https://docs.notdiamond.ai/docs/how-not-diamond-works). Learn more in our [docs](/docs/model-routing).
+
+  Requests will be routed to the following models:
+  - [openai/gpt-4o-2024-08-06](/openai/gpt-4o-2024-08-06)
+  - [openai/gpt-4o-2024-05-13](/openai/gpt-4o-2024-05-13)
+  - [openai/gpt-4o-mini-2024-07-18](/openai/gpt-4o-mini-2024-07-18)
+  - [openai/chatgpt-4o-latest](/openai/chatgpt-4o-latest)
+  - [openai/o1-preview-2024-09-12](/openai/o1-preview-2024-09-12)
+  - [openai/o1-mini-2024-09-12](/openai/o1-mini-2024-09-12)
+  - [anthropic/claude-3.5-sonnet](/anthropic/claude-3.5-sonnet)
+  - [anthropic/claude-3.5-haiku](/anthropic/claude-3.5-haiku)
+  - [anthropic/claude-3-opus](/anthropic/claude-3-opus)
+  - [anthropic/claude-2.1](/anthropic/claude-2.1)
+  - [google/gemini-pro-1.5](/google/gemini-pro-1.5)
+  - [google/gemini-flash-1.5](/google/gemini-flash-1.5)
+  - [mistralai/mistral-large-2407](/mistralai/mistral-large-2407)
+  - [mistralai/mistral-nemo](/mistralai/mistral-nemo)
+  - [deepseek/deepseek-r1](/deepseek/deepseek-r1)
+  - [meta-llama/llama-3.1-70b-instruct](/meta-llama/llama-3.1-70b-instruct)
+  - [meta-llama/llama-3.1-405b-instruct](/meta-llama/llama-3.1-405b-instruct)
+  - [mistralai/mixtral-8x22b-instruct](/mistralai/mixtral-8x22b-instruct)
+  - [cohere/command-r-plus](/cohere/command-r-plus)
+  - [cohere/command-r](/cohere/command-r)
+context_length: 2000000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Router
+  instruct_type: null
+pricing:
+  prompt: '-1'
+  completion: '-1'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: ''
+  image: ''
+  web_search: ''
+  internal_reasoning: ''
+  unit: 1
+  currency: USD
+supported_parameters: []
+model_provider: openrouter

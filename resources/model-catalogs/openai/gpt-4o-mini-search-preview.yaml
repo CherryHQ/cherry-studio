@@ -1,0 +1,33 @@
+id: openai/gpt-4o-mini-search-preview
+canonical_slug: openai/gpt-4o-mini-search-preview-2025-03-11
+hugging_face_id: ''
+name: 'OpenAI: GPT-4o-mini Search Preview'
+type: chat
+created: 1741818122
+description: GPT-4o mini Search Preview is a specialized model for web search in Chat Completions. It is trained to understand and execute web search queries.
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: GPT
+  instruct_type: null
+pricing:
+  prompt: '0.00000015'
+  completion: '0.0000006'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0.0275'
+  image: '0.000217'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - web_search_options
+  - max_tokens
+  - response_format
+  - structured_outputs
+model_provider: openai

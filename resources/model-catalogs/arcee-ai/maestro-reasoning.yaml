@@ -1,0 +1,40 @@
+id: arcee-ai/maestro-reasoning
+canonical_slug: arcee-ai/maestro-reasoning
+hugging_face_id: ''
+name: 'Arcee AI: Maestro Reasoning'
+type: chat
+created: 1746481269
+description: 'Maestro Reasoning is Arcee''s flagship analysis model: a 32 B‑parameter derivative of Qwen 2.5‑32 B tuned with DPO and chain‑of‑thought RL for step‑by‑step logic. Compared to the earlier 7 B preview, the production 32 B release widens the context window to 128 k tokens and doubles pass‑rate on MATH and GSM‑8K, while also lifting code completion accuracy. Its instruction style encourages structured "thought → answer" traces that can be parsed or hidden according to user preference. That transparency pairs well with audit‑focused industries like finance or healthcare where seeing the reasoning path matters. In Arcee Conductor, Maestro is automatically selected for complex, multi‑constraint queries that smaller SLMs bounce. '
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: null
+pricing:
+  prompt: '0.0000009'
+  completion: '0.0000033'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - min_p
+  - response_format
+model_provider: arcee-ai

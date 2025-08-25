@@ -1,0 +1,43 @@
+id: liquid/lfm-7b
+canonical_slug: liquid/lfm-7b
+hugging_face_id: ''
+name: 'Liquid: LFM 7B'
+type: chat
+created: 1737806883
+description: "LFM-7B, a new best-in-class language model. LFM-7B is designed for exceptional chat capabilities, including languages like Arabic and Japanese. Powered by the Liquid Foundation Model (LFM) architecture, it exhibits unique features like low memory footprint and fast inference speed. \n\nLFM-7B is the world’s best-in-class multilingual language model in English, Arabic, and Japanese.\n\nSee the [launch announcement](https://www.liquid.ai/lfm-7b) for benchmarks and more info."
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Other
+  instruct_type: chatml
+pricing:
+  prompt: '0.00000001'
+  completion: '0.00000001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+  - top_k
+  - min_p
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: liquid
