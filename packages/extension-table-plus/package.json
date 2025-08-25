@@ -67,8 +67,8 @@
     "dist"
   ],
   "devDependencies": {
-    "@tiptap/core": "^3.0.9",
-    "@tiptap/pm": "^3.0.9",
+    "@tiptap/core": "^3.2.0",
+    "@tiptap/pm": "^3.2.0",
     "eslint": "^9.22.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",

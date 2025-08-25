@@ -592,6 +592,7 @@
           "label": "Export as markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
+        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "obsidian_atributes": "Configure Note Attributes",
@@ -1261,6 +1262,9 @@
           "specified": "Failed to export the Markdown file"
         }
       },
+      "notes": {
+        "export": "Failed to export notes"
+      },
       "notion": {
         "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
@@ -1353,6 +1357,9 @@
           "preconf": "Successfully exported the Markdown file to the preconfigured path",
           "specified": "Successfully exported the Markdown file"
         }
+      },
+      "notes": {
+        "export": "Successfully exported to notes"
       },
       "notion": {
         "export": "Successfully exported to Notion"
@@ -1547,6 +1554,88 @@
     "expand": "Expand Dialog",
     "hide_sidebar": "Hide Sidebar",
     "show_sidebar": "Show Sidebar"
+  },
+  "notes": {
+    "characters": "Characters",
+    "collapse": "Collapse",
+    "content_placeholder": "Please enter the note content...",
+    "copyContent": "Copy Content",
+    "delete": "delete",
+    "delete_confirm": "Are you sure you want to delete this {{type}}?",
+    "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
+    "delete_note_confirm": "Are you sure you want to delete the note \"{{name}}\"?",
+    "drop_markdown_hint": "Drop markdown files here to import",
+    "empty": "No notes available yet",
+    "expand": "unfold",
+    "export_failed": "Failed to export to knowledge base",
+    "export_knowledge": "Export notes to knowledge base",
+    "export_success": "Successfully exported to the knowledge base",
+    "folder": "folder",
+    "new_folder": "New Folder",
+    "new_note": "Create a new note",
+    "no_content_to_copy": "No content to copy",
+    "only_markdown": "Only Markdown files are supported",
+    "open_folder": "Open an external folder",
+    "rename": "Rename",
+    "save": "Save to Notes",
+    "settings": {
+      "data": {
+        "apply": "Apply",
+        "apply_path_failed": "Failed to apply path",
+        "current_work_directory": "Current Work Directory",
+        "invalid_directory": "Selected directory is invalid or access denied",
+        "path_required": "Please select a work directory",
+        "path_updated": "Work directory updated successfully",
+        "reset_failed": "Reset failed",
+        "reset_to_default": "Reset to Default",
+        "select": "Select",
+        "select_directory_failed": "Failed to select directory",
+        "title": "Data Settings",
+        "work_directory_description": "Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
+        "work_directory_placeholder": "Select notes work directory"
+      },
+      "display": {
+        "compress_content": "Content Compression",
+        "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
+        "default_font": "Default font",
+        "font_title": "Font settings",
+        "serif_font": "Serif font",
+        "title": "Display Settings"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "In Edit View, the default editing mode for new notes",
+          "preview_mode": "Live preview",
+          "source_mode": "Source code mode",
+          "title": "Default edit view"
+        },
+        "title": "Editor Settings",
+        "view_mode": {
+          "description": "New Notes Default View Mode",
+          "edit_mode": "Editing mode",
+          "read_mode": "Reading mode",
+          "title": "Default view"
+        },
+        "view_mode_description": "Sets the default view mode for the new tab page."
+      },
+      "title": "Notes"
+    },
+    "show_starred": "Show favorite notes",
+    "sort_a2z": "File name (A-Z)",
+    "sort_created_asc": "Creation time (oldest first)",
+    "sort_created_desc": "Creation time (newest first)",
+    "sort_updated_asc": "Update time (oldest first)",
+    "sort_updated_desc": "Update time (newest first)",
+    "sort_z2a": "File name (Z-A)",
+    "star": "Favorite",
+    "starred_notes": "Collected notes",
+    "title": "Notes",
+    "unsaved_changes": "You have unsaved content, are you sure you want to leave?",
+    "unstar": "Unfavorite",
+    "untitled_folder": "New Folder",
+    "untitled_note": "Untitled Note",
+    "upload_failed": "Note upload failed",
+    "upload_success": "Note uploaded success"
   },
   "notification": {
     "assistant": "Assistant Response",
@@ -1966,6 +2055,7 @@
         "title": "Undo"
       }
     },
+    "dragHandle": "Drag to move",
     "image": {
       "placeholder": "Add a picture"
     },
@@ -1998,6 +2088,7 @@
       "placeholder": "Enter LaTeX formula"
     },
     "placeholder": "Write '/' for commands",
+    "plusButton": "Click to add below",
     "toolbar": {
       "blockMath": "Block Math",
       "blockquote": "Quote",
@@ -2337,6 +2428,7 @@
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
+        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -3835,6 +3927,7 @@
     "launchpad": "Launchpad",
     "mcp-servers": "MCP Servers",
     "memories": "Memories",
+    "notes": "Notes",
     "paintings": "Paintings",
     "settings": "Settings",
     "translate": "Translate"

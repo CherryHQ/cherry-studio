@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import * as z from 'zod/v4'
 
 export * from './file'
+export * from './note'
 
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
@@ -692,7 +693,15 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'notes'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -1113,6 +1122,8 @@ export interface MemoryListOptions extends MemoryEntity {
 }
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
+
+export type EditorView = 'preview' | 'source' | 'read' // 实时,源码,预览
 // ========================================================================
 
 /**

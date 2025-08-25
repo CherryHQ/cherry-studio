@@ -9,3 +9,11 @@ export type LoaderReturn = {
   message?: string
   messageSource?: 'preprocess' | 'embedding'
 }
+
+export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir'
+
+export type FileChangeEvent = {
+  eventType: FileChangeEventType
+  filePath: string
+  watchPath: string
+}

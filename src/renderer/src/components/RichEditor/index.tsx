@@ -1,6 +1,7 @@
 import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
+import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, GripVertical, Plus, Trash2 } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
@@ -42,7 +43,9 @@ const RichEditor = ({
   initialCommands,
   onCommandsReady,
   showTableOfContents = false,
-  enableContentSearch = false
+  enableContentSearch = false,
+  isFullWidth = false,
+  fontFamily = 'default'
   // toolbarItems: _toolbarItems // TODO: Implement custom toolbar items
 }: RichEditorProps & { ref?: React.RefObject<RichEditorRef | null> }) => {
   // Use the rich editor hook for complete editor management
@@ -165,7 +168,14 @@ const RichEditor = ({
     }
   }, [editor, onCommandsReady])
 
-  // Event listener removed; ActionMenu is triggered via hook callback
+  // Handle drag end callback to clean up draggable attribute
+  const handleDragEnd = useCallback((e: DragEvent) => {
+    // Clean up draggable attribute from the drag handle element
+    const target = e.target as HTMLElement
+    if (target && target.classList.contains('drag-handle')) {
+      target.removeAttribute('draggable')
+    }
+  }, [])
 
   const closeTableActionMenu = () => {
     setTableActionMenu({
@@ -373,6 +383,8 @@ const RichEditor = ({
       className={`rich-editor-wrapper ${className}`}
       $minHeight={minHeight}
       $maxHeight={maxHeight}
+      $isFullWidth={isFullWidth}
+      $fontFamily={fontFamily}
       onKeyDown={onKeyDownEditor}>
       {showToolbar && (
         <Toolbar
@@ -382,15 +394,19 @@ const RichEditor = ({
           scrollContainer={scrollContainerRef}
         />
       )}
-      <Scrollbar ref={scrollContainerRef} style={{ flex: 1 }}>
+      <Scrollbar ref={scrollContainerRef} style={{ flex: 1, display: 'flex' }}>
         <StyledEditorContent>
           <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
-            <Plus />
+            <Tooltip title={t('richEditor.plusButton')}>
+              <Plus />
+            </Tooltip>
           </PlusButton>
-          <DragHandle editor={editor}>
-            <GripVertical />
+          <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
+            <Tooltip title={t('richEditor.dragHandle')}>
+              <GripVertical />
+            </Tooltip>
           </DragHandle>
-          <EditorContent editor={editor} />
+          <EditorContent style={{ height: '100%' }} editor={editor} />
         </StyledEditorContent>
       </Scrollbar>
       {enableContentSearch && (

@@ -118,6 +118,7 @@ const titleKeyMap = {
   launchpad: 'title.launchpad',
   'mcp-servers': 'title.mcp-servers',
   memories: 'title.memories',
+  notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate'
@@ -144,7 +145,8 @@ const sidebarIconKeyMap = {
   translate: 'translate.title',
   minapp: 'minapp.title',
   knowledge: 'knowledge.title',
-  files: 'files.title'
+  files: 'files.title',
+  notes: 'notes.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {

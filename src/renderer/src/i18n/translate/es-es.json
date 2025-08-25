@@ -592,6 +592,7 @@
           "label": "Exportar como Markdown",
           "reason": "Exportar como Markdown (incluye el razonamiento)"
         },
+        "notes": "Exportar a notas",
         "notion": "Exportar a Notion",
         "obsidian": "Exportar a Obsidian",
         "obsidian_atributes": "Configurar atributos de nota",
@@ -1259,6 +1260,9 @@
           "specified": "Error al exportar archivo Markdown"
         }
       },
+      "notes": {
+        "export": "Fallo al exportar la nota"
+      },
       "notion": {
         "export": "Error de exportación de Notion, verifique el estado de conexión y la configuración según la documentación",
         "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion",
@@ -1351,6 +1355,9 @@
           "preconf": "Archivo Markdown exportado con éxito a la ruta predefinida",
           "specified": "Archivo Markdown exportado con éxito"
         }
+      },
+      "notes": {
+        "export": "Exportado correctamente a las notas"
       },
       "notion": {
         "export": "Exportado con éxito a Notion"
@@ -1545,6 +1552,25 @@
     "expand": "Expandir cuadro de diálogo",
     "hide_sidebar": "Ocultar barra lateral",
     "show_sidebar": "Mostrar barra lateral"
+  },
+  "notes": {
+    "collapse": "ocultar",
+    "content_placeholder": "Introduzca el contenido de la nota...",
+    "delete": "eliminar",
+    "delete_confirm": "¿Estás seguro de que deseas eliminar este {{type}}?",
+    "delete_folder_confirm": "¿Está seguro de que desea eliminar la carpeta \"{{name}}\" y todo su contenido?",
+    "delete_note_confirm": "¿Está seguro de que desea eliminar la nota \"{{name}}\"?",
+    "empty": "Sin notas por el momento",
+    "expand": "expandir",
+    "folder": "carpeta",
+    "new_folder": "Nueva carpeta",
+    "new_note": "Crear nota nueva",
+    "rename": "renombrar",
+    "star": "Colección",
+    "title": "notas",
+    "unstar": "Quitar de favoritos",
+    "untitled_folder": "Nueva carpeta",
+    "untitled_note": "Nota sin título"
   },
   "notification": {
     "assistant": "Respuesta del asistente",
@@ -2137,6 +2163,7 @@
         "joplin": "Exportar a Joplin",
         "markdown": "Exportar a Markdown",
         "markdown_reason": "Exportar a Markdown (con pensamiento incluido)",
+        "notes": "Exportar a notas",
         "notion": "Exportar a Notion",
         "obsidian": "Exportar a Obsidian",
         "plain_text": "Copiar como texto plano",
@@ -3635,6 +3662,7 @@
     "launchpad": "Centro de lanzamiento",
     "mcp-servers": "Servidores MCP",
     "memories": "Memorias",
+    "notes": "notas",
     "paintings": "Pinturas",
     "settings": "Configuración",
     "translate": "Traducir"

@@ -592,6 +592,7 @@
           "label": "Exportar como Markdown",
           "reason": "Exportar como Markdown (incluindo raciocínios)"
         },
+        "notes": "exportar para anotações",
         "notion": "Exportar para Notion",
         "obsidian": "Exportar para Obsidian",
         "obsidian_atributes": "Configurar atributos da nota",
@@ -1259,6 +1260,9 @@
           "specified": "Falha ao exportar arquivo Markdown"
         }
       },
+      "notes": {
+        "export": "Falha ao exportar notas"
+      },
       "notion": {
         "export": "Erro ao exportar Notion, verifique o status da conexão e a configuração de acordo com a documentação",
         "no_api_key": "API Key ou Notion Database ID não configurados",
@@ -1351,6 +1355,9 @@
           "preconf": "Arquivo Markdown exportado com sucesso para caminho pré-configurado",
           "specified": "Arquivo Markdown exportado com sucesso"
         }
+      },
+      "notes": {
+        "export": "sucesso ao exportar para nota"
       },
       "notion": {
         "export": "Exportado com sucesso para Notion"
@@ -1545,6 +1552,25 @@
     "expand": "Expandir caixa de diálogo",
     "hide_sidebar": "Ocultar barra lateral",
     "show_sidebar": "Mostrar barra lateral"
+  },
+  "notes": {
+    "collapse": "[minimizar]",
+    "content_placeholder": "Introduza o conteúdo da nota...",
+    "delete": "eliminar",
+    "delete_confirm": "Tem a certeza de que deseja eliminar este {{type}}?",
+    "delete_folder_confirm": "Tem a certeza de que deseja eliminar a pasta \"{{name}}\" e todos os seus conteúdos?",
+    "delete_note_confirm": "Tem a certeza de que deseja eliminar a nota \"{{name}}\"?",
+    "empty": "Ainda não existem notas",
+    "expand": "expandir",
+    "folder": "pasta",
+    "new_folder": "Nova pasta",
+    "new_note": "Nova nota",
+    "rename": "renomear",
+    "star": "coleções",
+    "title": "nota",
+    "unstar": "cancelar favoritos",
+    "untitled_folder": "Nova pasta",
+    "untitled_note": "Nota sem título"
   },
   "notification": {
     "assistant": "Resposta do assistente",
@@ -2137,6 +2163,7 @@
         "joplin": "Exportar para Joplin",
         "markdown": "Exportar como Markdown",
         "markdown_reason": "Exportar como Markdown (incluindo pensamentos)",
+        "notes": "Exportar para notas",
         "notion": "Exportar para Notion",
         "obsidian": "Exportar para Obsidian",
         "plain_text": "Copiar como texto simples",
@@ -3635,6 +3662,7 @@
     "launchpad": "Plataforma de Inicialização",
     "mcp-servers": "Servidores MCP",
     "memories": "Memórias",
+    "notes": "Notas",
     "paintings": "Pinturas",
     "settings": "Configurações",
     "translate": "Traduzir"

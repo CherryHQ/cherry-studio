@@ -17,7 +17,40 @@ export const EnhancedImage = Image.extend({
   addOptions() {
     return {
       ...this.parent?.(),
-      allowBase64: true
+      allowBase64: true,
+      HTMLAttributes: {
+        class: 'rich-editor-image'
+      }
+    }
+  },
+
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      src: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('src'),
+        renderHTML: (attributes) => {
+          if (!attributes.src) {
+            return {}
+          }
+          return {
+            src: attributes.src
+          }
+        }
+      },
+      alt: {
+        default: null
+      },
+      title: {
+        default: null
+      },
+      width: {
+        default: null
+      },
+      height: {
+        default: null
+      }
     }
   },
 
@@ -42,6 +75,7 @@ export const EnhancedImage = Image.extend({
       Node.create({
         name: 'imagePlaceholder',
         group: 'block',
+        content: 'block+',
         atom: true,
         draggable: true,
 

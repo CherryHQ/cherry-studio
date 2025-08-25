@@ -16,15 +16,10 @@ export interface TaskListOptions {
 const md = new MarkdownIt({
   html: true, // Enable HTML tags in source
   xhtmlOut: true, // Use '>' for single tags (<br> instead of <br />)
-  breaks: true, // Convert '\n' in paragraphs into <br>
+  breaks: false,
   linkify: false, // Autoconvert URL-like text to links
   typographer: false // Enable smartypants and other sweet transforms
 })
-
-// Override the softbreak renderer to not add newlines after <br />
-md.renderer.rules.softbreak = function () {
-  return '<br />'
-}
 
 // Override the code_block and code_inline renderers to properly escape HTML entities
 md.renderer.rules.code_block = function (tokens, idx) {
@@ -342,6 +337,12 @@ turndownService.addRule('underline', {
   replacement: (content) => `<u>${content}</u>`
 })
 
+// Custom rule to preserve <br> tags as literal text
+turndownService.addRule('br', {
+  filter: 'br',
+  replacement: () => '<br>'
+})
+
 // Helper function to safely get text content and clean it with LaTeX support
 function cleanCellContent(content: string, cellElement?: Element): string {
   // First check for math elements in the cell
@@ -555,30 +556,23 @@ export const markdownToHtml = (markdown: string | null | undefined): string => {
   }
 
   try {
-    // Store whitespace patterns after newlines for later restoration
-    const whitespaceMap = new Map<string, string>()
-    let counter = 0
+    // First, convert any standalone markdown images to HTML img tags
+    // This handles cases where markdown images should be rendered as HTML instead of going through markdown-it
+    const processedMarkdown = markdown.replace(
+      /!\[([^\]]*)\]\(([^)]+?)(?:\s+"([^"]*)")?\)/g,
+      (match, alt, src, title) => {
+        // Only convert file:// protocol images to HTML img tags
+        if (src.startsWith('file://')) {
+          const altText = alt || ''
+          const srcUrl = src.trim()
+          const titleAttr = title ? ` title="${title}"` : ''
+          return `<img src="${srcUrl}" alt="${altText}"${titleAttr} />`
+        }
+        return match
+      }
+    )
 
-    // Replace whitespace after newlines with unique tokens
-    const processedMarkdown = markdown.replace(/\n( +)/g, (_, spaces) => {
-      const token = `__WS_TOKEN_${counter++}__`
-      whitespaceMap.set(token, spaces)
-      return '\n' + token
-    })
-
-    const result = md.render(processedMarkdown)
-
-    // Restore the whitespace tokens with actual spaces
-    let restoredResult = result
-    whitespaceMap.forEach((spaces, token) => {
-      restoredResult = restoredResult.replace(new RegExp(token, 'g'), spaces)
-    })
-
-    // Only remove trailing newline for single paragraph cases with <br /> tags (line breaks)
-    if (restoredResult.match(/^<p>.*<br \/>.*<\/p>\n$/)) {
-      return restoredResult.replace(/\n$/, '')
-    }
-    return restoredResult
+    return md.render(processedMarkdown)
   } catch (error) {
     logger.error('Error converting Markdown to HTML:', error as Error)
     return ''
@@ -650,7 +644,7 @@ export const sanitizeHtml = (html: string): string => {
       'loading'
     ],
     ALLOW_DATA_ATTR: true,
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\\-]+(?:[^a-z+.\-:]|$))/i
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\\-]+(?:[^a-z+.\-:]|$))/i
   })
 }
 

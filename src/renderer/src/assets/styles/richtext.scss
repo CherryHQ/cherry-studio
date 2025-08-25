@@ -3,6 +3,8 @@
   outline: none;
   min-height: 120px;
   overflow-y: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
 
   &:focus {
     outline: none;
@@ -31,6 +33,11 @@
     line-height: 1.1;
     text-wrap: pretty;
     font-weight: 600;
+
+    code {
+      font-size: inherit;
+      font-weight: inherit;
+    }
   }
 
   h1 {
@@ -54,8 +61,12 @@
 
   p {
     margin: 1.1rem 0 0.5rem 0;
-    white-space: pre-wrap;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    width: 100%;
     line-height: 1.6;
+    hyphens: auto;
 
     &:has(+ ul) {
       margin-bottom: 0;
@@ -76,7 +87,6 @@
     border-left: 4px solid var(--color-primary);
     margin: 1.5rem 0;
     padding-left: 1rem;
-    font-style: italic;
   }
 
   code {
@@ -164,7 +174,7 @@
       border: 1px solid var(--color-border-soft);
       box-sizing: border-box;
       display: table-cell;
-      min-width: 1em;
+      min-width: 120px;
       padding: 6px 8px;
       position: relative;
       vertical-align: top;
@@ -263,9 +273,25 @@
       overflow-x: auto;
       overflow-y: visible;
 
+      &::-webkit-scrollbar {
+        cursor: default;
+      }
+
+      &::-webkit-scrollbar:horizontal {
+        cursor: default;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        cursor: default;
+      }
+
+      &::-webkit-scrollbar-track {
+        cursor: default;
+      }
+
       table {
-        width: 100%;
-        min-width: max-content;
+        width: max-content;
+        min-width: 100%;
       }
     }
 

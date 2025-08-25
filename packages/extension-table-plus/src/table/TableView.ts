@@ -221,36 +221,104 @@ export class TableView implements NodeView {
     this.addColumnButton.setAttribute('contenteditable', 'false')
   }
 
+  private addTableRowOrColumn(isRow: boolean) {
+    if (!this.isEditable()) return
+
+    this.view.focus()
+
+    // Save current selection info and calculate position in table
+    const { state } = this.view
+    const originalSelection = state.selection
+
+    // Find which cell we're currently in and the relative position within that cell
+    let tablePos = -1
+    let currentCellRow = -1
+    let currentCellCol = -1
+    let relativeOffsetInCell = 0
+
+    state.doc.descendants((node: ProseMirrorNode, pos: number) => {
+      if (node.type.name === 'table' && node === this.node) {
+        tablePos = pos
+        const map = TableMap.get(this.node)
+
+        // Find which cell contains our selection
+        const selectionPos = originalSelection.from
+        for (let row = 0; row < map.height; row++) {
+          for (let col = 0; col < map.width; col++) {
+            const cellIndex = row * map.width + col
+            const cellStart = pos + 1 + map.map[cellIndex]
+            const cellNode = state.doc.nodeAt(cellStart)
+            if (cellNode) {
+              const cellEnd = cellStart + cellNode.nodeSize
+              if (selectionPos >= cellStart && selectionPos < cellEnd) {
+                currentCellRow = row
+                currentCellCol = col
+                relativeOffsetInCell = selectionPos - cellStart
+                return false
+              }
+            }
+          }
+        }
+        return false
+      }
+      return true
+    })
+
+    // Set selection to appropriate position for adding
+    if (isRow) {
+      this.setSelectionToLastRow()
+    } else {
+      this.setSelectionToLastColumn()
+    }
+
+    setTimeout(() => {
+      const { state, dispatch } = this.view
+      const addFunction = isRow ? addRowAfter : addColumnAfter
+
+      if (addFunction(state, dispatch)) {
+        setTimeout(() => {
+          const newState = this.view.state
+
+          // Calculate new position for the same logical cell with same relative offset
+          if (tablePos >= 0 && currentCellRow >= 0 && currentCellCol >= 0) {
+            newState.doc.descendants((node: ProseMirrorNode, pos: number) => {
+              if (node.type.name === 'table' && pos === tablePos) {
+                const newMap = TableMap.get(node)
+                const newCellIndex = currentCellRow * newMap.width + currentCellCol
+                const newCellStart = pos + 1 + newMap.map[newCellIndex]
+                const newCellNode = newState.doc.nodeAt(newCellStart)
+
+                if (newCellNode) {
+                  // Try to maintain the same relative position within the cell
+                  const newCellEnd = newCellStart + newCellNode.nodeSize
+                  const targetPos = Math.min(newCellStart + relativeOffsetInCell, newCellEnd - 1)
+                  const newSelection = TextSelection.create(newState.doc, targetPos)
+                  const newTr = newState.tr.setSelection(newSelection)
+                  this.view.dispatch(newTr)
+                }
+                return false
+              }
+              return true
+            })
+          }
+        }, 10)
+      }
+    }, 10)
+  }
+
   setupEventListeners() {
     // Add row button click handler
     this.addRowButton.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
-
-      if (!this.isEditable()) return
-
-      this.view.focus()
-      this.setSelectionToTable()
-
-      setTimeout(() => {
-        const { state, dispatch } = this.view
-        addRowAfter(state, dispatch)
-      }, 10)
+      this.addTableRowOrColumn(true)
     })
 
+    // Add column button click handler
     this.addColumnButton.addEventListener('click', (e) => {
       e.preventDefault()
       e.stopPropagation()
-
-      if (!this.isEditable()) return
-
-      this.view.focus()
-      this.setSelectionToTable()
-
-      setTimeout(() => {
-        const { state, dispatch } = this.view
-        addColumnAfter(state, dispatch)
-      }, 10)
+      this.addTableRowOrColumn(false)
     })
   }
 
@@ -365,6 +433,54 @@ export class TableView implements NodeView {
     if (tablePos >= 0) {
       const firstCellPos = tablePos + 3
       const selection = TextSelection.create(state.doc, firstCellPos)
+      const tr = state.tr.setSelection(selection)
+      this.view.dispatch(tr)
+    }
+  }
+
+  setSelectionToLastRow() {
+    const { state } = this.view
+
+    let tablePos = -1
+    state.doc.descendants((node: ProseMirrorNode, pos: number) => {
+      if (node.type.name === 'table' && node === this.node) {
+        tablePos = pos
+        return false
+      }
+      return true
+    })
+
+    if (tablePos >= 0) {
+      const map = TableMap.get(this.node)
+      const lastRowIndex = map.height - 1
+      const lastRowFirstCell = map.map[lastRowIndex * map.width]
+      const lastRowFirstCellPos = tablePos + 1 + lastRowFirstCell
+
+      const selection = TextSelection.create(state.doc, lastRowFirstCellPos)
+      const tr = state.tr.setSelection(selection)
+      this.view.dispatch(tr)
+    }
+  }
+
+  setSelectionToLastColumn() {
+    const { state } = this.view
+
+    let tablePos = -1
+    state.doc.descendants((node: ProseMirrorNode, pos: number) => {
+      if (node.type.name === 'table' && node === this.node) {
+        tablePos = pos
+        return false
+      }
+      return true
+    })
+
+    if (tablePos >= 0) {
+      const map = TableMap.get(this.node)
+      const lastColumnIndex = map.width - 1
+      const lastColumnFirstCell = map.map[lastColumnIndex]
+      const lastColumnFirstCellPos = tablePos + 1 + lastColumnFirstCell
+
+      const selection = TextSelection.create(state.doc, lastColumnFirstCellPos)
       const tr = state.tr.setSelection(selection)
       this.view.dispatch(tr)
     }

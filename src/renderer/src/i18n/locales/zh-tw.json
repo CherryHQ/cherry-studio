@@ -592,6 +592,7 @@
           "label": "匯出為 Markdown",
           "reason": "匯出為 Markdown (包含思考)"
         },
+        "notes": "導出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "obsidian_atributes": "配置筆記屬性",
@@ -1261,6 +1262,9 @@
           "specified": "導出 Markdown 文件失敗"
         }
       },
+      "notes": {
+        "export": "導出筆記失敗"
+      },
       "notion": {
         "export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
         "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
@@ -1353,6 +1357,9 @@
           "preconf": "成功導出 Markdown 文件到預先設定的路徑",
           "specified": "成功導出 Markdown 文件"
         }
+      },
+      "notes": {
+        "export": "成功導出到筆記"
       },
       "notion": {
         "export": "成功匯出到 Notion"
@@ -1547,6 +1554,88 @@
     "expand": "伸縮對話框",
     "hide_sidebar": "隱藏側邊欄",
     "show_sidebar": "顯示側邊欄"
+  },
+  "notes": {
+    "characters": "字符",
+    "collapse": "收起",
+    "content_placeholder": "請輸入筆記內容...",
+    "copyContent": "複製內容",
+    "delete": "删除",
+    "delete_confirm": "確定要刪除此 {{type}} 嗎？",
+    "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
+    "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
+    "drop_markdown_hint": "拖拽 Markdown 文件到此處導入",
+    "empty": "暫無筆記",
+    "expand": "展開",
+    "export_failed": "匯出至知識庫失敗",
+    "export_knowledge": "匯出筆記至知識庫",
+    "export_success": "成功匯出至知識庫",
+    "folder": "文件夹",
+    "new_folder": "新建文件夾",
+    "new_note": "新建筆記",
+    "no_content_to_copy": "沒有內容可複制",
+    "only_markdown": "僅支援 Markdown 格式",
+    "open_folder": "打開外部文件夾",
+    "rename": "重命名",
+    "save": "儲存到筆記",
+    "settings": {
+      "data": {
+        "apply": "應用",
+        "apply_path_failed": "應用路徑失敗",
+        "current_work_directory": "當前工作目錄",
+        "invalid_directory": "選擇的目錄無效或無權限",
+        "path_required": "請選擇工作目錄",
+        "path_updated": "工作目錄更新成功",
+        "reset_failed": "重置失敗",
+        "reset_to_default": "重置為默認",
+        "select": "選擇",
+        "select_directory_failed": "選擇目錄失敗",
+        "title": "數據設置",
+        "work_directory_description": "工作目錄是存儲所有筆記文件的位置。\n更改工作目錄不會移動現有文件，請手動遷移文件。",
+        "work_directory_placeholder": "選擇筆記工作目錄"
+      },
+      "display": {
+        "compress_content": "縮減欄寬",
+        "compress_content_description": "開啟後將限制每行字數，使屏幕顯示的內容減少",
+        "default_font": "默認字體",
+        "font_title": "字體設置",
+        "serif_font": "襯線字體",
+        "title": "顯示"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "在編輯視圖下，新筆記默認採用的編輯模式",
+          "preview_mode": "實時預覽",
+          "source_mode": "源碼模式",
+          "title": "默認編輯視圖"
+        },
+        "title": "編輯器設置",
+        "view_mode": {
+          "description": "新筆記默認的視圖模式",
+          "edit_mode": "編輯模式",
+          "read_mode": "閱讀模式",
+          "title": "默認視圖"
+        },
+        "view_mode_description": "設置新標籤頁的默認視圖模式。"
+      },
+      "title": "更多選項"
+    },
+    "show_starred": "顯示收藏的筆記",
+    "sort_a2z": "文件名（A-Z）",
+    "sort_created_asc": "建立時間（從舊到新）",
+    "sort_created_desc": "建立時間（從新到舊）",
+    "sort_updated_asc": "更新時間（從舊到新）",
+    "sort_updated_desc": "更新時間（從新到舊）",
+    "sort_z2a": "文件名（Z-A）",
+    "star": "收藏",
+    "starred_notes": "收藏的筆記",
+    "title": "筆記",
+    "unsaved_changes": "你有未儲存的內容，確定要離開嗎？",
+    "unstar": "取消收藏",
+    "untitled_folder": "新資料夾",
+    "untitled_note": "無標題筆記",
+    "upload_failed": "筆記上傳失敗",
+    "upload_success": "筆記上傳成功"
   },
   "notification": {
     "assistant": "助手回應",
@@ -1966,6 +2055,7 @@
         "title": "撤銷"
       }
     },
+    "dragHandle": "拖拽塊",
     "image": {
       "placeholder": "添加圖片"
     },
@@ -1998,6 +2088,7 @@
       "placeholder": "輸入 LaTeX 公式"
     },
     "placeholder": "輸入'/'調用命令",
+    "plusButton": "點擊在下方添加",
     "toolbar": {
       "blockMath": "數學公式塊",
       "blockquote": "引用",
@@ -2337,6 +2428,7 @@
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",
         "markdown_reason": "匯出為 Markdown（包含思考）",
+        "notes": "導出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "plain_text": "複製為純文本",
@@ -3835,6 +3927,7 @@
     "launchpad": "啟動台",
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
+    "notes": "筆記",
     "paintings": "繪畫",
     "settings": "設定",
     "translate": "翻譯"

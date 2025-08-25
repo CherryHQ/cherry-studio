@@ -12,6 +12,7 @@ import {
   HardDrive,
   Info,
   MonitorCog,
+  NotebookPen,
   Package,
   PictureInPicture2,
   Settings2,
@@ -29,6 +30,7 @@ import DisplaySettings from './DisplaySettings/DisplaySettings'
 import GeneralSettings from './GeneralSettings'
 import MCPSettings from './MCPSettings'
 import MemorySettings from './MemorySettings'
+import NotesSettings from './NotesSettings'
 import PreprocessSettings from './PreprocessSettings'
 import ProvidersList from './ProviderSettings'
 import QuickAssistantSettings from './QuickAssistantSettings'
@@ -86,6 +88,12 @@ const SettingsPage: FC = () => {
             <MenuItem className={isRoute('/settings/mcp')}>
               <Hammer size={18} />
               {t('settings.mcp.title')}
+            </MenuItem>
+          </MenuItemLink>
+          <MenuItemLink to="/settings/notes">
+            <MenuItem className={isRoute('/settings/notes')}>
+              <NotebookPen size={18} />
+              {t('notes.settings.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/websearch">
@@ -154,6 +162,7 @@ const SettingsPage: FC = () => {
             <Route path="quickAssistant" element={<QuickAssistantSettings />} />
             <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
             <Route path="data" element={<DataSettings />} />
+            <Route path="notes" element={<NotesSettings />} />
             <Route path="about" element={<AboutSettings />} />
           </Routes>
         </SettingContent>

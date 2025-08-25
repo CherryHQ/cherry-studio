@@ -44,6 +44,10 @@ export interface RichEditorProps {
       | 'setCommandAvailability'
     >
   ) => void
+  /** Whether to use full width layout */
+  isFullWidth?: boolean
+  /** Font family setting */
+  fontFamily?: 'default' | 'serif'
 }
 
 export interface ToolbarItem {

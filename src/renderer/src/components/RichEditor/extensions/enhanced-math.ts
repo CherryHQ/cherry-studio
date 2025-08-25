@@ -6,7 +6,7 @@ import MathPlaceholderNodeView from '../components/placeholder/MathPlaceholderNo
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
-    mathPlaceholder: {
+    enhancedMath: {
       insertMathPlaceholder: (options?: { mathType?: 'block' | 'inline' }) => ReturnType
     }
   }
@@ -20,6 +20,21 @@ export const EnhancedMath = Extension.create({
       inlineOptions: undefined,
       blockOptions: undefined,
       katexOptions: undefined
+    }
+  },
+
+  addCommands() {
+    return {
+      insertMathPlaceholder:
+        (options: { mathType?: 'block' | 'inline' } = {}) =>
+        ({ commands }) => {
+          return commands.insertContent({
+            type: 'mathPlaceholder',
+            attrs: {
+              mathType: options.mathType || 'block'
+            }
+          })
+        }
     }
   },
 
@@ -61,7 +76,6 @@ export const EnhancedMath = Extension.create({
       Node.create({
         name: 'mathPlaceholder',
         group: 'block',
-        content: 'block+',
         atom: true,
         draggable: true,
 
@@ -102,21 +116,6 @@ export const EnhancedMath = Extension.create({
 
         addNodeView() {
           return ReactNodeViewRenderer(MathPlaceholderNodeView)
-        },
-
-        addCommands() {
-          return {
-            insertMathPlaceholder:
-              (options: { mathType?: 'block' | 'inline' } = {}) =>
-              ({ commands }) => {
-                return commands.insertContent({
-                  type: this.name,
-                  attrs: {
-                    mathType: options.mathType || 'block'
-                  }
-                })
-              }
-          }
         }
       })
     ]

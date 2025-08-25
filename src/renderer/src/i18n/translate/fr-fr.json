@@ -592,6 +592,7 @@
           "label": "Exporter sous forme de Markdown",
           "reason": "Exporter au format Markdown (avec réflexion)"
         },
+        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "obsidian_atributes": "Configurer les attributs de la note",
@@ -1259,6 +1260,9 @@
           "specified": "Échec de l'exportation vers un fichier Markdown"
         }
       },
+      "notes": {
+        "export": "Échec de l'exportation des notes"
+      },
       "notion": {
         "export": "Erreur lors de l'exportation vers Notion, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
         "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée",
@@ -1351,6 +1355,9 @@
           "preconf": "Exportation réussie vers un fichier Markdown dans le chemin prédéfini",
           "specified": "Exportation réussie vers un fichier Markdown"
         }
+      },
+      "notes": {
+        "export": "exportation réussie vers les notes"
       },
       "notion": {
         "export": "Exportation réussie vers Notion"
@@ -1545,6 +1552,25 @@
     "expand": "Agrandir la boîte de dialogue",
     "hide_sidebar": "Cacher la barre latérale",
     "show_sidebar": "Afficher la barre latérale"
+  },
+  "notes": {
+    "collapse": "réduire",
+    "content_placeholder": "Veuillez saisir le contenu de la note...",
+    "delete": "supprimer",
+    "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
+    "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
+    "delete_note_confirm": "Êtes-vous sûr de vouloir supprimer la note \"{{name}}\" ?",
+    "empty": "Aucune note pour le moment",
+    "expand": "développer",
+    "folder": "dossier",
+    "new_folder": "Nouveau dossier",
+    "new_note": "Nouvelle note",
+    "rename": "renommer",
+    "star": "收藏",
+    "title": "notes",
+    "unstar": "annuler la mise en favori",
+    "untitled_folder": "nouveau dossier",
+    "untitled_note": "Note sans titre"
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
@@ -2137,6 +2163,7 @@
         "joplin": "Exporter vers Joplin",
         "markdown": "Exporter au format Markdown",
         "markdown_reason": "Exporter au format Markdown (avec réflexion incluse)",
+        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "plain_text": "Copier en texte brut",
@@ -3635,6 +3662,7 @@
     "launchpad": "Tableau de lancement",
     "mcp-servers": "Serveurs MCP",
     "memories": "Mémoires",
+    "notes": "notes",
     "paintings": "Peintures",
     "settings": "Paramètres",
     "translate": "Traduire"

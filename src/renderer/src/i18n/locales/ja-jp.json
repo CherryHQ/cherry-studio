@@ -592,6 +592,7 @@
           "label": "Markdownとしてエクスポート",
           "reason": "Markdown としてエクスポート (思考内容を含む)"
         },
+        "notes": "ノートにエクスポート",
         "notion": "Notion にエクスポート",
         "obsidian": "Obsidian にエクスポート",
         "obsidian_atributes": "ノートの属性を設定",
@@ -1261,6 +1262,9 @@
           "specified": "Markdown ファイルのエクスポートに失敗しました"
         }
       },
+      "notes": {
+        "export": "ノートのエクスポートに失敗しました"
+      },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
@@ -1353,6 +1357,9 @@
           "preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
           "specified": "Markdown ファイルを正常にエクスポートしました"
         }
+      },
+      "notes": {
+        "export": "成功的にノートにエクスポートされました"
       },
       "notion": {
         "export": "Notionへのエクスポートに成功しました"
@@ -1547,6 +1554,88 @@
     "expand": "ダイアログを展開",
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示"
+  },
+  "notes": {
+    "characters": "文字",
+    "collapse": "閉じる",
+    "content_placeholder": "メモの内容を入力してください...",
+    "copyContent": "コンテンツをコピーします",
+    "delete": "削除",
+    "delete_confirm": "この{{type}}を本当に削除しますか？",
+    "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
+    "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
+    "drop_markdown_hint": "マークダウンファイルをドラッグアンドドロップしてここにインポートします",
+    "empty": "暫無ノート",
+    "expand": "展開",
+    "export_failed": "知識ベースへのエクスポートに失敗しました",
+    "export_knowledge": "ノートをナレッジベースにエクスポートする",
+    "export_success": "知識ベースへのエクスポートが成功しました",
+    "folder": "フォルダー",
+    "new_folder": "新しいフォルダーを作成する",
+    "new_note": "新規ノート作成",
+    "no_content_to_copy": "コピーするコンテンツはありません",
+    "only_markdown": "Markdown ファイルのみをアップロードできます",
+    "open_folder": "外部フォルダーを開きます",
+    "rename": "名前の変更",
+    "save": "メモに保存する",
+    "settings": {
+      "data": {
+        "apply": "応用",
+        "apply_path_failed": "アプリケーションパスが失敗しました",
+        "current_work_directory": "現在の作業ディレクトリ",
+        "invalid_directory": "選択したディレクトリは無効であるか、権限がありません",
+        "path_required": "ワーキングディレクトリを選択してください",
+        "path_updated": "ワーキングディレクトリの更新は正常に更新されます",
+        "reset_failed": "リセットに失敗しました",
+        "reset_to_default": "デフォルトにリセットします",
+        "select": "選ぶ",
+        "select_directory_failed": "ディレクトリの選択に失敗しました",
+        "title": "データ設定",
+        "work_directory_description": "作業ディレクトリは、すべてのメモが保存される場所です。ワーキングディレクトリを変更しても、既存のファイルは移動しません。ファイルを手動で移行してください。",
+        "work_directory_placeholder": "ノートワークディレクトリを選択します"
+      },
+      "display": {
+        "compress_content": "バーの幅を減らします",
+        "compress_content_description": "有効にすると、1行あたりの単語数が制限され、画面に表示されるコンテンツが減少します。",
+        "default_font": "デフォルトフォント",
+        "font_title": "フォント設定",
+        "serif_font": "セリフフォント",
+        "title": "見せる"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "編集ビューでは、新しいメモのデフォルトの編集モード",
+          "preview_mode": "ライブプレビュー",
+          "source_mode": "ソースコードモード",
+          "title": "デフォルトの編集ビュー"
+        },
+        "title": "エディター設定",
+        "view_mode": {
+          "description": "新しいノートデフォルトビューモード",
+          "edit_mode": "編集モード",
+          "read_mode": "読み取りモード",
+          "title": "デフォルトビュー"
+        },
+        "view_mode_description": "新しいタブページのデフォルトビューモードを設定します。"
+      },
+      "title": "その他のオプション"
+    },
+    "show_starred": "お気に入りのノートを表示する",
+    "sort_a2z": "ファイル名（A-Z）",
+    "sort_created_asc": "作成日時（古い順）",
+    "sort_created_desc": "作成日時（新しい順）",
+    "sort_updated_asc": "更新日時（古い順）",
+    "sort_updated_desc": "更新日時（新しい順）",
+    "sort_z2a": "ファイル名（Z-A）",
+    "star": "お気に入りに追加する",
+    "starred_notes": "収集したノート",
+    "title": "ノート",
+    "unsaved_changes": "保存されていないコンテンツがあります。本当に離れますか？",
+    "unstar": "お気に入りを解除する",
+    "untitled_folder": "新ファイル夹",
+    "untitled_note": "無題のメモ",
+    "upload_failed": "ノートのアップロードに失敗しました",
+    "upload_success": "ノートのアップロードが成功しました"
   },
   "notification": {
     "assistant": "助手回應",
@@ -1966,6 +2055,7 @@
         "title": "取り消す"
       }
     },
+    "dragHandle": "ブロックをドラッグします",
     "image": {
       "placeholder": "写真を追加します"
     },
@@ -1998,6 +2088,7 @@
       "placeholder": "ラテックスフォーミュラを入力します"
     },
     "placeholder": "'/'を入力してコマンドを呼び出します",
+    "plusButton": "クリックして以下を追加します",
     "toolbar": {
       "blockMath": "数式",
       "blockquote": "引用",
@@ -2337,6 +2428,7 @@
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
+        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -3835,6 +3927,7 @@
     "launchpad": "ランチパッド",
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
+    "notes": "ノート",
     "paintings": "ペインティング",
     "settings": "設定",
     "translate": "翻訳"

@@ -3,14 +3,19 @@ import styled from 'styled-components'
 export const RichEditorWrapper = styled.div<{
   $minHeight?: number
   $maxHeight?: number
+  $isFullWidth?: boolean
+  $fontFamily?: 'default' | 'serif'
 }>`
   display: flex;
   flex-direction: column;
-  position: relative; /* allow absolute ToC dock not to scroll with editor */
+  position: relative;
   border: 1px solid var(--color-border);
   border-radius: 6px;
   background: var(--color-background);
-  overflow: hidden;
+  overflow-y: hidden;
+  width: ${({ $isFullWidth }) => ($isFullWidth ? '100%' : '60%')};
+  margin: ${({ $isFullWidth }) => ($isFullWidth ? '0' : '0 auto')};
+  font-family: ${({ $fontFamily }) => ($fontFamily === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)')};
 
   ${({ $minHeight }) => $minHeight && `min-height: ${$minHeight}px;`}
   ${({ $maxHeight }) => $maxHeight && `max-height: ${$maxHeight}px;`}
@@ -93,16 +98,13 @@ export const EditorContent = styled.div`
   .plus-button,
   .drag-handle {
     align-items: center;
-    background: var(--color-background-soft);
     border-radius: 0.25rem;
-    border: 1px solid var(--color-border);
     cursor: grab;
     display: flex;
     height: 1.5rem;
     justify-content: center;
-    width: 1.5rem;
-    z-index: 10; /* Keep drag handle above other content */
-    flex-shrink: 0; /* Prevent the drag handle from shrinking */
+    z-index: 10;
+    flex-shrink: 0;
 
     &:hover {
       background: var(--color-hover);
@@ -116,13 +118,20 @@ export const EditorContent = styled.div`
   }
 
   .plus-button {
+    width: 1.5rem;
     cursor: pointer;
-    transform: translateX(calc(-1 * 1.8rem));
+    transform: translateX(calc(-1 * 1.5rem));
+  }
+
+  .drag-handle {
+    width: 1rem;
+    transform: translateX(-0.5rem) !important;
   }
 
   /* Ensure the ProseMirror editor content doesn't override drag handle positioning */
   .ProseMirror {
     position: relative;
+    height: 100%;
 
     /* Allow text selection when not editable */
     &:not([contenteditable='true']) {
@@ -205,7 +214,7 @@ export const TableOfContentsWrapper = styled.div`
   }
 
   .toc-item {
-    margin-left: calc((var(--level, 1) - 0.75) * 0.5rem);
+    margin-left: 0.25rem;
     margin-bottom: 0.25rem;
 
     a {
@@ -351,7 +360,8 @@ export const ToCDock = styled.div`
     border: 1px solid var(--color-border);
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-    padding: 8px 8px;
+    padding: 8px 8px 0;
+    padding-left: 0;
     overflow: auto;
     opacity: 0;
     visibility: hidden;

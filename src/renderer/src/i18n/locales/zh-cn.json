@@ -592,6 +592,7 @@
           "label": "导出为 Markdown",
           "reason": "导出为 Markdown (包含思考)"
         },
+        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "obsidian_atributes": "配置笔记属性",
@@ -1261,6 +1262,9 @@
           "specified": "导出 Markdown 文件失败"
         }
       },
+      "notes": {
+        "export": "导出笔记失败"
+      },
       "notion": {
         "export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
@@ -1353,6 +1357,9 @@
           "preconf": "成功导出 Markdown 文件到预先设定的路径",
           "specified": "成功导出 Markdown 文件"
         }
+      },
+      "notes": {
+        "export": "成功导出到笔记"
       },
       "notion": {
         "export": "成功导出到 Notion"
@@ -1547,6 +1554,88 @@
     "expand": "伸缩对话框",
     "hide_sidebar": "隐藏侧边栏",
     "show_sidebar": "显示侧边栏"
+  },
+  "notes": {
+    "characters": "字符",
+    "collapse": "收起",
+    "content_placeholder": "请输入笔记内容...",
+    "copyContent": "复制内容",
+    "delete": "删除",
+    "delete_confirm": "确定要删除这个{{type}}吗？",
+    "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
+    "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
+    "drop_markdown_hint": "拖拽 Markdown 文件到此处导入",
+    "empty": "暂无笔记",
+    "expand": "展开",
+    "export_failed": "导出到知识库失败",
+    "export_knowledge": "导出笔记到知识库",
+    "export_success": "成功导出到知识库",
+    "folder": "文件夹",
+    "new_folder": "新建文件夹",
+    "new_note": "新建笔记",
+    "no_content_to_copy": "没有内容可复制",
+    "only_markdown": "仅支持 Markdown 格式",
+    "open_folder": "打开外部文件夹",
+    "rename": "重命名",
+    "save": "保存到笔记",
+    "settings": {
+      "data": {
+        "apply": "应用",
+        "apply_path_failed": "应用路径失败",
+        "current_work_directory": "当前工作目录",
+        "invalid_directory": "选择的目录无效或无权限",
+        "path_required": "请选择工作目录",
+        "path_updated": "工作目录更新成功",
+        "reset_failed": "重置失败",
+        "reset_to_default": "重置为默认",
+        "select": "选择",
+        "select_directory_failed": "选择目录失败",
+        "title": "数据设置",
+        "work_directory_description": "工作目录是存储所有笔记文件的位置。更改工作目录不会移动现有文件，请手动迁移文件。",
+        "work_directory_placeholder": "选择笔记工作目录"
+      },
+      "display": {
+        "compress_content": "缩减栏宽",
+        "compress_content_description": "开启后将限制每行字数，使屏幕显示的内容减少",
+        "default_font": "默认字体",
+        "font_title": "字体设置",
+        "serif_font": "衬线字体",
+        "title": "显示设置"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "在编辑视图下，新笔记默认采用的编辑模式",
+          "preview_mode": "实时预览",
+          "source_mode": "源码模式",
+          "title": "默认编辑视图"
+        },
+        "title": "编辑器设置",
+        "view_mode": {
+          "description": "新笔记默认的视图模式",
+          "edit_mode": "编辑模式",
+          "read_mode": "阅读模式",
+          "title": "默认视图"
+        },
+        "view_mode_description": "设置新标签页的默认视图模式。"
+      },
+      "title": "笔记"
+    },
+    "show_starred": "显示收藏的笔记",
+    "sort_a2z": "文件名（A-Z）",
+    "sort_created_asc": "创建时间（从旧到新）",
+    "sort_created_desc": "创建时间（从新到旧）",
+    "sort_updated_asc": "更新时间（从旧到新）",
+    "sort_updated_desc": "更新时间（从新到旧）",
+    "sort_z2a": "文件名（Z-A）",
+    "star": "收藏",
+    "starred_notes": "收藏的笔记",
+    "title": "笔记",
+    "unsaved_changes": "你有未保存的内容，确定要离开吗？",
+    "unstar": "取消收藏",
+    "untitled_folder": "新文件夹",
+    "untitled_note": "无标题笔记",
+    "upload_failed": "笔记上传失败",
+    "upload_success": "笔记上传成功"
   },
   "notification": {
     "assistant": "助手响应",
@@ -1966,6 +2055,7 @@
         "title": "撤销"
       }
     },
+    "dragHandle": "拖拽块",
     "image": {
       "placeholder": "添加图片"
     },
@@ -1998,6 +2088,7 @@
       "placeholder": "输入 LaTeX 公式"
     },
     "placeholder": "输入'/'调用命令",
+    "plusButton": "点击在下方添加",
     "toolbar": {
       "blockMath": "数学公式块",
       "blockquote": "引用",
@@ -2337,6 +2428,7 @@
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",
         "markdown_reason": "导出为 Markdown（包含思考）",
+        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "plain_text": "复制为纯文本",
@@ -3835,6 +3927,7 @@
     "launchpad": "启动台",
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
+    "notes": "笔记",
     "paintings": "绘画",
     "settings": "设置",
     "translate": "翻译"

@@ -219,6 +219,29 @@ export const PlusButtonPlugin = ({
             return false // 继续向下传播其它 mousemove 处理器
           },
 
+          // Hide button when typing/input events occur
+          keydown(view) {
+            if (view.hasFocus()) {
+              hideButton()
+              currentNode = null
+              currentNodePos = -1
+              onNodeChange?.({ editor, node: null, pos: -1 })
+              return false
+            }
+            return false
+          },
+
+          scroll(view) {
+            if (view.hasFocus()) {
+              hideButton()
+              currentNode = null
+              currentNodePos = -1
+              onNodeChange?.({ editor, node: null, pos: -1 })
+              return false
+            }
+            return false
+          },
+
           // 当鼠标离开编辑器区域时隐藏按钮
           mouseleave(_view, e) {
             // 如果指针正好在 wrapper（按钮）上则不隐藏

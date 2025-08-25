@@ -44,9 +44,6 @@ export const PlusButton = Extension.create<PlusButtonOptions>({
     return {
       render() {
         const element = document.createElement('div')
-
-        element.classList.add('drag-handle')
-
         return element
       }
     }

@@ -103,7 +103,7 @@ export const TableCell = Node.create<TableCellOptions>({
     }
   },
 
-  content: 'paragraph+',
+  content: '(paragraph | image)+',
 
   addAttributes() {
     return {
