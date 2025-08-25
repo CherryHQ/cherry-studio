@@ -150,10 +150,10 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import {
+  isSystemProviderId,
   Model,
   ReasoningEffortConfig,
   SystemProviderId,
-  SystemProviderIds,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
@@ -381,9 +381,15 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return true
   }
 
-  // 2025/08/26 暂不支持 v3.1
-  // https://help.aliyun.com/zh/model-studio/deepseek-api
-  if (model.provider === SystemProviderIds.dashscope && isDeepSeekHybridInferenceModel(model)) {
+  // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
+  // openrouter支持函数调用，但不支持联动思考模式，与官方model card描述一致
+  if (isDeepSeekHybridInferenceModel(model)) {
+    if (isSystemProviderId(model.provider)) {
+      switch (model.provider) {
+        case 'openrouter':
+          return true
+      }
+    }
     return false
   }
 
