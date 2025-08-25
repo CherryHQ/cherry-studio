@@ -832,6 +832,11 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "mcp": {
+      "add": {
+        "invalid_server": "Format de données du serveur MCP invalide"
+      }
+    },
     "missing_user_message": "Impossible de changer de modèle de réponse : le message utilisateur d'origine a été supprimé. Veuillez envoyer un nouveau message pour obtenir une réponse de ce modèle.",
     "model": {
       "exists": "Le modèle existe déjà",
@@ -2801,7 +2806,7 @@
         "label": "Ajouter un serveur"
       },
       "addSuccess": "Serveur ajouté avec succès",
-      "add_failed_invalid_data": "[to be translated]:添加失败：无效数据",
+      "add_failed_invalid_data": "Échec de l'ajout : données non valides",
       "advancedSettings": "Расширенные настройки",
       "args": "Arguments",
       "argsTooltip": "Chaque argument sur une ligne",
@@ -2916,11 +2921,11 @@
       "searchNpx": "Поиск MCP",
       "serverPlural": "Serveurs",
       "serverSingular": "Serveur",
-      "server_add_confirm": "[to be translated]:确定要添加服务器 {{server}} 吗？",
-      "server_added": "[to be translated]:服务器 {{server}} 添加成功",
-      "server_already_exists": "[to be translated]:服务器 {{server}} 已存在",
-      "server_confirm_title": "[to be translated]:确认添加 {{server}}",
-      "server_no_change": "[to be translated]:服务器 {{server}} 已存在，未作任何更改",
+      "server_add_confirm": "Voulez-vous vraiment ajouter le serveur {{server}} ?",
+      "server_added": "Le serveur {{server}} a été ajouté avec succès",
+      "server_already_exists": "Le serveur {{server}} existe déjà",
+      "server_confirm_title": "Confirmer l'ajout de {{server}}",
+      "server_no_change": "Le serveur {{server}} existe déjà, aucune modification n'a été effectuée",
       "sse": "Серверные отправляемые события (sse)",
       "startError": "Ошибка запуска",
       "stdio": "Стандартный ввод/вывод (stdio)",

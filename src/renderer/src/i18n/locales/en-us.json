@@ -832,6 +832,11 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "mcp": {
+      "add": {
+        "invalid_server": "Invalid MCP server data format"
+      }
+    },
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
       "exists": "Model already exists",

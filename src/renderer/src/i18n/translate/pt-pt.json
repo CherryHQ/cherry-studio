@@ -832,6 +832,11 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
+    "mcp": {
+      "add": {
+        "invalid_server": "Formato de dados do servidor MCP inválido"
+      }
+    },
     "missing_user_message": "Não é possível alternar a resposta do modelo: a mensagem original do usuário foi excluída. Envie uma nova mensagem para obter a resposta deste modelo",
     "model": {
       "exists": "O modelo já existe",
@@ -2801,7 +2806,7 @@
         "label": "Adicionar Servidor"
       },
       "addSuccess": "Servidor adicionado com sucesso",
-      "add_failed_invalid_data": "[to be translated]:添加失败：无效数据",
+      "add_failed_invalid_data": "Falha ao adicionar: dados inválidos",
       "advancedSettings": "Configurações Avançadas",
       "args": "Argumentos",
       "argsTooltip": "Cada argumento em uma linha",
@@ -2916,11 +2921,11 @@
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
       "serverSingular": "Servidor",
-      "server_add_confirm": "[to be translated]:确定要添加服务器 {{server}} 吗？",
-      "server_added": "[to be translated]:服务器 {{server}} 添加成功",
-      "server_already_exists": "[to be translated]:服务器 {{server}} 已存在",
-      "server_confirm_title": "[to be translated]:确认添加 {{server}}",
-      "server_no_change": "[to be translated]:服务器 {{server}} 已存在，未作任何更改",
+      "server_add_confirm": "Tem certeza de que deseja adicionar o servidor {{server}}?",
+      "server_added": "O servidor {{server}} foi adicionado com sucesso",
+      "server_already_exists": "O servidor {{server}} já existe",
+      "server_confirm_title": "Confirmar adicionar {{server}}",
+      "server_no_change": "O servidor {{server}} já existe, nenhuma alteração foi feita",
       "sse": "Eventos do Servidor (sse)",
       "startError": "Falha ao Iniciar",
       "stdio": "Entrada/Saída Padrão (stdio)",
