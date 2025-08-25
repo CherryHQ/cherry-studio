@@ -20,7 +20,7 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPSer
     type: server.type,
     description: server.description
   }
-  
+
   // Navigate to MCP settings with addMcpData parameter
   const addMcpDataParam = encodeURIComponent(JSON.stringify(mcpData))
   NavigationService.navigate?.(`/settings/mcp?addMcpData=${addMcpDataParam}`)
