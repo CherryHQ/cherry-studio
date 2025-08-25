@@ -29,6 +29,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
 import {
+  BuiltinMCPServerNames,
   type GetResourceResponse,
   isBuiltinMCPServer,
   type MCPCallToolResponse,
@@ -171,7 +172,7 @@ class McpService {
           StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         > => {
           // Create appropriate transport based on configuration
-          if (isBuiltinMCPServer(server) && server.name !== '@cherry/mcp-auto-install') {
+          if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
             logger.debug(`Using in-memory transport for server: ${server.name}`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
