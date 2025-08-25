@@ -300,7 +300,8 @@ const builtInMcpDescriptionKeyMap = {
   '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',
   '@cherry/filesystem': 'settings.mcp.builtinServersDescriptions.filesystem',
   '@cherry/dify-knowledge': 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python'
+  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python',
+  '@cherry/web-search': 'settings.mcp.builtinServersDescriptions.web_search'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
