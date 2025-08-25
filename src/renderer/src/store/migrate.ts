@@ -2311,11 +2311,16 @@ const migrateConfig = {
         const glm45FlashModel = zhipuProvider.models.find((m) => m.id === 'glm-4.5-flash')
 
         if (glm45FlashModel) {
-          // 更新默认模型配置 - 全部设为 GLM-4.5-Flash
-          state.llm.defaultModel = glm45FlashModel
-          state.llm.topicNamingModel = glm45FlashModel
-          state.llm.quickModel = glm45FlashModel
-          state.llm.translateModel = glm45FlashModel
+          // 只有当没有默认模型时才设置为 GLM-4.5-Flash
+          if (!state.llm.defaultModel) {
+            state.llm.defaultModel = glm45FlashModel
+          }
+          if (!state.llm.quickModel) {
+            state.llm.quickModel = glm45FlashModel
+          }
+          if (!state.llm.translateModel) {
+            state.llm.translateModel = glm45FlashModel
+          }
         }
 
         // 迁移逻辑1: 检测GLM-4V模型，如果有就改成GLM-4V
@@ -2386,7 +2391,7 @@ const migrateConfig = {
 
       return state
     } catch (error) {
-      logger.error('migrate 132 error', error as Error)
+      logger.error('migrate 137 error', error as Error)
       return state
     }
   }
