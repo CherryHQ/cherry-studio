@@ -1295,7 +1295,8 @@
       "delete": {
         "content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
         "title": "刪除分組訊息"
-      }
+      },
+      "retry_failed": "重試出錯的訊息"
     },
     "ignore": {
       "knowledge": {

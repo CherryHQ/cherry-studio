@@ -1295,7 +1295,8 @@
       "delete": {
         "content": "Deleting a group message will delete the user's question and all assistant's answers",
         "title": "Delete Group Message"
-      }
+      },
+      "retry_failed": "Retry failed messages"
     },
     "ignore": {
       "knowledge": {

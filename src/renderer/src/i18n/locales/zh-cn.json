@@ -1295,7 +1295,8 @@
       "delete": {
         "content": "删除分组消息会删除用户提问和所有助手的回答",
         "title": "删除分组消息"
-      }
+      },
+      "retry_failed": "重试出错的消息"
     },
     "ignore": {
       "knowledge": {
