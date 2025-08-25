@@ -190,7 +190,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     )
 
     // DeepSeek hybrid inference models, v3.1 and maybe more in the future
-    // 不同的 provider 有不同的思考控制方式，在这里单独解决
+    // 不同的 provider 有不同的思考控制方式，在这里统一解决
     if (isDeepSeekHybridInferenceModel(model)) {
       if (isSystemProvider(this.provider)) {
         switch (this.provider.id) {
@@ -203,6 +203,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             return {
               thinking: {
                 type: 'enabled' // auto is invalid
+              }
+            }
+          case 'openrouter':
+            return {
+              reasoning: {
+                enabled: true
               }
             }
           default:
