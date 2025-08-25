@@ -3,6 +3,7 @@ import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import ModelLabels from '@renderer/components/ModelLabels'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -48,6 +49,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       setPainting(updatedPainting)
       updatePainting('paintings', updatedPainting)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
 
   const providerOptions = Options.map((option) => {
@@ -490,7 +492,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
           />
           <InputContainer>
-            <TextArea
+            <Textarea
+              variant="borderless"
               disabled={isLoading}
               value={painting.prompt}
               spellCheck={false}
@@ -531,29 +534,53 @@ const ContentContainer = styled.div`
   overflow: hidden;
 `
 
-const LeftContainer = styled.div`
-  width: 320px;
+const LeftContainer = styled(Scrollbar)`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
   padding: 20px;
-  border-right: 1px solid var(--color-border);
-  overflow-y: auto;
+  background-color: var(--color-background);
+  max-width: var(--assistants-width);
+  border-right: 0.5px solid var(--color-border);
+`
+const MainContainer = styled.div`
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-background);
 `
 
-const MainContainer = styled.div`
-  flex: 1;
+const Textarea = styled(TextArea)`
+  padding: 10px;
+  border-radius: 0;
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  flex: 1;
+  resize: none !important;
+  overflow: auto;
+  width: auto;
 `
 
 const InputContainer = styled.div`
-  padding: 20px;
-  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  min-height: 95px;
+  max-height: 95px;
+  position: relative;
+  border: 1px solid var(--color-border-soft);
+  transition: all 0.3s ease;
+  margin: 0 20px 15px 20px;
+  border-radius: 10px;
 `
 
 const Toolbar = styled.div`
   display: flex;
+  flex-direction: row;
   justify-content: flex-end;
-  margin-top: 10px;
+  padding: 0 8px;
+  padding-bottom: 0;
+  height: 40px;
 `
 
 const ToolbarMenu = styled.div`
