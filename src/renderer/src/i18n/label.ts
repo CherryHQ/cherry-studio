@@ -73,6 +73,7 @@ const providerKeyMap = {
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
   together: 'provider.together',
   tokenflux: 'provider.tokenflux',
+  ucloud: 'provider.ucloud',
   vertexai: 'provider.vertexai',
   voyageai: 'provider.voyageai',
   xirang: 'provider.xirang',
