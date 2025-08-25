@@ -208,6 +208,7 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
  * 递归扫描目录，获取符合条件的文件和目录结构
  * @param dirPath 当前要扫描的路径
  * @param depth 当前深度
+ * @param basePath
  * @returns 文件元数据数组
  */
 export async function scanDir(dirPath: string, depth = 0, basePath?: string): Promise<NotesTreeNode[]> {
@@ -302,13 +303,15 @@ export async function scanDir(dirPath: string, depth = 0, basePath?: string): Pr
 
 /**
  * 文件名唯一性约束
- * @param baseDir
- * @param fileName
- * @param isFile
+ * @param baseDir 基础目录
+ * @param fileName 文件名
+ * @param isFile 是否为文件
  * @returns 唯一的文件名
  */
 export function getName(baseDir: string, fileName: string, isFile: boolean): string {
-  const baseName = fileName.replace(/\d+$/, '')
+  // 首先清理文件名
+  const sanitizedName = sanitizeFilename(fileName)
+  const baseName = sanitizedName.replace(/\d+$/, '')
   let candidate = isFile ? baseName + '.md' : baseName
   let counter = 1
 
@@ -322,13 +325,94 @@ export function getName(baseDir: string, fileName: string, isFile: boolean): str
 
 /**
  * 文件名合法性校验
- * @param fileName
+ * @param fileName 文件名
+ * @param platform 平台，默认为当前运行平台
+ * @returns 验证结果
  */
-export function checkName(fileName: string): string {
-  const invalidPattern = /[<>:"/\\|?*#%&{}[\]~`@+=]/
-  if (invalidPattern.test(fileName)) {
-    throw new Error(`Invalid file name: ${fileName}`)
+export function validateFileName(fileName: string, platform = process.platform): { valid: boolean; error?: string } {
+  if (!fileName) {
+    return { valid: false, error: 'File name cannot be empty' }
   }
 
+  // 通用检查
+  if (fileName.length === 0 || fileName.length > 255) {
+    return { valid: false, error: 'File name length must be between 1 and 255 characters' }
+  }
+
+  // 检查 null 字符（所有系统都不允许）
+  if (fileName.includes('\0')) {
+    return { valid: false, error: 'File name cannot contain null characters.' }
+  }
+
+  // Windows 特殊限制
+  if (platform === 'win32') {
+    const winInvalidChars = /[<>:"/\\|?*]/
+    if (winInvalidChars.test(fileName)) {
+      return { valid: false, error: 'File name contains characters not supported by Windows: < > : " / \\ | ? *' }
+    }
+
+    const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i
+    if (reservedNames.test(fileName)) {
+      return { valid: false, error: 'File name is a Windows reserved name.' }
+    }
+
+    if (fileName.endsWith('.') || fileName.endsWith(' ')) {
+      return { valid: false, error: 'File name cannot end with a dot or a space' }
+    }
+  }
+
+  // Unix/Linux/macOS 限制
+  if (platform !== 'win32') {
+    if (fileName.includes('/')) {
+      return { valid: false, error: 'File name cannot contain slashes /' }
+    }
+  }
+
+  // macOS 额外限制
+  if (platform === 'darwin') {
+    if (fileName.includes(':')) {
+      return { valid: false, error: 'macOS filenames cannot contain a colon :' }
+    }
+  }
+
+  return { valid: true }
+}
+
+/**
+ * 文件名合法性检查
+ * @param fileName 文件名
+ * @throws 如果文件名不合法则抛出异常
+ * @returns 合法的文件名
+ */
+export function checkName(fileName: string): string {
+  const validation = validateFileName(fileName)
+  if (!validation.valid) {
+    throw new Error(`Invalid file name: ${fileName}. ${validation.error}`)
+  }
   return fileName
+}
+
+/**
+ * 清理文件名，替换不合法字符
+ * @param fileName 原始文件名
+ * @param replacement 替换字符，默认为下划线
+ * @returns 清理后的文件名
+ */
+export function sanitizeFilename(fileName: string, replacement = '_'): string {
+  if (!fileName) return ''
+
+  // 移除或替换非法字符
+  let sanitized = fileName
+    // eslint-disable-next-line no-control-regex
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement) // Windows 非法字符
+    .replace(/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, replacement + '$2') // Windows 保留名
+    .replace(/[\s.]+$/, '') // 移除末尾的空格和点
+    .substring(0, 255) // 限制长度
+
+  // 确保不为空
+  if (!sanitized) {
+    sanitized = 'untitled'
+  }
+
+  return sanitized
 }
