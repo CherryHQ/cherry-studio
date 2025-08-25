@@ -1401,7 +1401,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   dashscope: [
     { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
     { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
-    { id: 'qwen-turbo', name: 'qwen-turbo', provider: 'dashscope', group: 'qwen-turbo', owned_by: 'system' },
+    { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
     { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
     { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' }
   ],
@@ -2764,7 +2764,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-turbo-0428',
     'qwen-turbo-2025-04-28',
     'qwen-turbo-0715',
-    'qwen-turbo-2025-07-15'
+    'qwen-turbo-2025-07-15',
+    'qwen-flash',
+    'qwen-flash-2025-07-28'
   ].includes(modelId)
 }
 
@@ -2992,7 +2994,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash']
     // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => modelId.startsWith(i))
   }
@@ -3196,6 +3198,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen3-0\\.6b$': { min: 0, max: 30_720 },
   'qwen-plus.*$': { min: 0, max: 38_912 },
   'qwen-turbo.*$': { min: 0, max: 38_912 },
+  'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-.*$': { min: 1024, max: 38_912 },
 
   // Claude models
