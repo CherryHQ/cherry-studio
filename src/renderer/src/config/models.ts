@@ -153,6 +153,7 @@ import {
   Model,
   ReasoningEffortConfig,
   SystemProviderId,
+  SystemProviderIds,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
@@ -290,6 +291,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 )
 
 // 模型类型到支持的reasoning_effort的映射表
+// TODO: refactor this. too many identical options
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
   o: ['low', 'medium', 'high'] as const,
@@ -303,7 +305,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   doubao_no_auto: ['high'] as const,
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
-  perplexity: ['low', 'medium', 'high'] as const
+  perplexity: ['low', 'medium', 'high'] as const,
+  deepseek_hybrid: ['auto'] as const
 } as const
 
 // 模型类型到支持选项的映射表
@@ -320,7 +323,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
+  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
+  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
@@ -350,6 +354,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
+  else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
   return thinkingModelType
 }
 
@@ -372,12 +377,14 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
-  if (['deepseek', 'anthropic'].includes(model.provider)) {
+  if (['deepseek', 'anthropic', 'kimi', 'moonshot'].includes(model.provider)) {
     return true
   }
 
-  if (['kimi', 'moonshot'].includes(model.provider)) {
-    return true
+  // 2025/08/26 暂不支持 v3.1
+  // https://help.aliyun.com/zh/model-studio/deepseek-api
+  if (model.provider === SystemProviderIds.dashscope && isDeepSeekHybridInferenceModel(model)) {
+    return false
   }
 
   return FUNCTION_CALLING_REGEX.test(modelId)
@@ -2633,7 +2640,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
-    isSupportedThinkingTokenZhipuModel(model)
+    isSupportedThinkingTokenZhipuModel(model) ||
+    isSupportedThinkingTokenDeepSeekModel(model)
   )
 }
 
@@ -2840,6 +2848,14 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   return modelId.includes('glm-4.5')
 }
 
+export const isDeepSeekHybridInferenceModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
+  return modelId.includes('deepseek-v3.1')
+}
+
+export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
+
 export const isZhipuReasoningModel = (model?: Model): boolean => {
   if (!model) {
     return false
@@ -2886,6 +2902,7 @@ export function isReasoningModel(model?: Model): boolean {
     isPerplexityReasoningModel(model) ||
     isZhipuReasoningModel(model) ||
     isStepReasoningModel(model) ||
+    isDeepSeekHybridInferenceModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
     modelId.includes('pangu-pro-moe')

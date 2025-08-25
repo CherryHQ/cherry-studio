@@ -6,6 +6,7 @@ import {
   getOpenAIWebSearchParams,
   getThinkModelType,
   isClaudeReasoningModel,
+  isDeepSeekHybridInferenceModel,
   isDoubaoThinkingAutoModel,
   isGeminiReasoningModel,
   isGPT5SeriesModel,
@@ -44,6 +45,7 @@ import {
   Assistant,
   EFFORT_RATIO,
   FileTypes,
+  isSystemProvider,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
@@ -160,7 +162,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       if (
         isSupportEnableThinkingProvider(this.provider) &&
-        (isSupportedThinkingTokenQwenModel(model) || isSupportedThinkingTokenHunyuanModel(model))
+        (isSupportedThinkingTokenQwenModel(model) ||
+          isSupportedThinkingTokenHunyuanModel(model) ||
+          (this.provider.id === SystemProviderIds.dashscope && isDeepSeekHybridInferenceModel(model)))
       ) {
         return { enable_thinking: false }
       }
@@ -192,6 +196,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // reasoningEffort有效的情况
+    logger.debug('reasoning effort is not undefined')
     const effortRatio = EFFORT_RATIO[reasoningEffort]
     const budgetTokens = Math.floor(
       (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
@@ -204,6 +209,20 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           reasoning: {
             effort: reasoningEffort === 'auto' ? 'medium' : reasoningEffort
           }
+        }
+      }
+    }
+
+    // DeepSeek hybrid inference models, v3.1 and maybe more in the future
+    if (isDeepSeekHybridInferenceModel(model)) {
+      if (isSystemProvider(this.provider)) {
+        switch (this.provider.id) {
+          case 'dashscope':
+            logger.debug('enter dashscope. should get true enable_thinking')
+            return {
+              enable_thinking: true,
+              incremental_output: true
+            }
         }
       }
     }
