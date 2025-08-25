@@ -2851,7 +2851,7 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
 export const isDeepSeekHybridInferenceModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
-  return modelId.includes('deepseek-v3.1')
+  return /deepseek-v3(?:\.1|-1-\d+)?/.test(modelId)
 }
 
 export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
@@ -2888,6 +2888,8 @@ export function isReasoningModel(model?: Model): boolean {
       REASONING_REGEX.test(modelId) ||
       REASONING_REGEX.test(model.name) ||
       isSupportedThinkingTokenDoubaoModel(model) ||
+      isDeepSeekHybridInferenceModel(model) ||
+      isDeepSeekHybridInferenceModel({ ...model, id: model.name }) ||
       false
     )
   }
