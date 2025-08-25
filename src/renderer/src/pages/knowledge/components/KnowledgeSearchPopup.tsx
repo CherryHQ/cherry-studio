@@ -164,10 +164,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                         </a>
                       ) : (
                         // 处理预处理后的文件source
-                        <a
-                          href={`http://file/${item.metadata.source.split('Files/')[1]}`}
-                          target="_blank"
-                          rel="noreferrer">
+                        <a href={`file://${item.metadata.source}`} target="_blank" rel="noreferrer">
                           {item.metadata.source.split('/').pop() || item.metadata.source}
                         </a>
                       )}
