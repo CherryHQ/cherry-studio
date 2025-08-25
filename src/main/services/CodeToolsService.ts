@@ -420,7 +420,7 @@ end tell`
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        const linuxTerminals = ['gnome-terminal', 'konsole', 'xterm', 'x-terminal-emulator']
+        const linuxTerminals = ['gnome-terminal', 'konsole', 'deepin-terminal', 'xterm', 'x-terminal-emulator']
         let foundTerminal = 'xterm' // Default to xterm
 
         for (const terminal of linuxTerminals) {
