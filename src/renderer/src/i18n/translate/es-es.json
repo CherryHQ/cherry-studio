@@ -845,7 +845,12 @@
       "title": "Error de renderizado"
     },
     "unknown": "Error desconocido",
-    "user_message_not_found": "No se pudo encontrar el mensaje original del usuario"
+    "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
+    "zhipu": {
+      "insufficient_balance": "Por favor, vaya a BigModel para recargar.",
+      "no_api_key": "No ha configurado una clave API. Por favor, vaya a BigModel para obtener una clave API.",
+      "quota_exceeded": "Su cuota gratuita diaria de 10M tokens se ha agotado. Por favor, vaya a BigModel para obtener una clave API y configurar la clave API para continuar usando."
+    }
   },
   "export": {
     "assistant": "Asistente",
@@ -1827,7 +1832,7 @@
     "xirang": "Telecom Nube XiRang",
     "yi": "Cero Uno Todo",
     "zhinao": "360 Inteligente",
-    "zhipu": "ZhiPu IA"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2869,7 +2874,8 @@
         "modelscope": "Servidor MCP de la comunidad ModelScope",
         "official": "Colección oficial de servidores MCP",
         "pulsemcp": "Servidor MCP Pulse",
-        "smithery": "Herramienta Smithery MCP"
+        "smithery": "Herramienta Smithery MCP",
+        "zhipu": "MCP Curado, Integración Rápida"
       },
       "name": "Nombre",
       "newServer": "Servidor MCP",

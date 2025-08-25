@@ -1,3 +1,4 @@
+import ZhipuLogo from '@renderer/assets/images/providers/zhipu.png'
 import { ExternalLink } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +7,12 @@ import styled from 'styled-components'
 import { SettingTitle } from '..'
 
 const mcpMarkets = [
+  {
+    name: 'BigModel MCP Market',
+    url: 'https://bigmodel.cn/marketplace/index/mcp',
+    logo: ZhipuLogo,
+    descriptionKey: 'settings.mcp.more.zhipu'
+  },
   {
     name: 'modelscope.cn',
     url: 'https://www.modelscope.cn/mcp',

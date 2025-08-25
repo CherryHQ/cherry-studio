@@ -845,7 +845,12 @@
       "title": "Σφάλμα Παρασκήνιου"
     },
     "unknown": "Άγνωστο σφάλμα",
-    "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη"
+    "user_message_not_found": "Αδυναμία εύρεσης της αρχικής μηνύματος χρήστη",
+    "zhipu": {
+      "insufficient_balance": "Παρακαλώ μεταβείτε στο BigModel για επαναφόρτωση.",
+      "no_api_key": "Δεν έχετε ρυθμίσει ένα κλειδί API. Παρακαλώ μεταβείτε στο BigModel για να λάβετε ένα κλειδί API.",
+      "quota_exceeded": "Η ημερήσια δωρεάν ποσόστωση 10M tokens σας έχει εξαντληθεί. Παρακαλώ μεταβείτε στο BigModel για να λάβετε ένα κλειδί API και να ρυθμίσετε το κλειδί API για να συνεχίσετε τη χρήση."
+    }
   },
   "export": {
     "assistant": "βοηθός",
@@ -1827,7 +1832,7 @@
     "xirang": "China Telecom Xiran",
     "yi": "Zero One Wanyiwu",
     "zhinao": "360 Intelligent Brain",
-    "zhipu": "Zhipu AI"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2869,7 +2874,8 @@
         "modelscope": "Διακομιστής MCP κοινότητας ModelScope",
         "official": "Επίσημη συλλογή διακομιστών MCP",
         "pulsemcp": "Διακομιστής Pulse MCP",
-        "smithery": "Εργαλείο Smithery MCP"
+        "smithery": "Εργαλείο Smithery MCP",
+        "zhipu": "Επιλεγμένο MCP, Γρήγορη Ενσωμάτωση"
       },
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",

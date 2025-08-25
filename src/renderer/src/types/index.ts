@@ -368,6 +368,8 @@ export type Model = {
   endpoint_type?: EndpointType
   supported_endpoint_types?: EndpointType[]
   supported_text_delta?: boolean
+  isFree?: boolean
+  apiKeyLink?: string
 }
 
 export type Suggestion = {
@@ -380,7 +382,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 
-export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -653,6 +655,7 @@ export type GenerateImageParams = {
   signal?: AbortSignal
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
+  quality?: string
 }
 
 export type GenerateImageResponse = {
@@ -720,6 +723,7 @@ export type ExternalToolResult = {
 }
 
 export const WebSearchProviderIds = {
+  zhipu: 'zhipu',
   tavily: 'tavily',
   searxng: 'searxng',
   exa: 'exa',

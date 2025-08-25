@@ -146,8 +146,11 @@ import XirangModelLogo from '@renderer/assets/images/models/xirang.png'
 import XirangModelLogoDark from '@renderer/assets/images/models/xirang_dark.png'
 import YiModelLogo from '@renderer/assets/images/models/yi.png'
 import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
+import ZhipuModelLogo from '@renderer/assets/images/models/zhipu.png'
+import ZhipuModelLogoDark from '@renderer/assets/images/models/zhipu_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
+import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import {
   Model,
@@ -276,7 +279,8 @@ const FUNCTION_CALLING_EXCLUDED_MODELS = [
   'AIDC-AI/Marco-o1',
   'gemini-1(?:\\.[\\w-]+)?',
   'qwen-mt(?:-[\\w-]+)?',
-  'gpt-5-chat(?:-[\\w-]+)?'
+  'gpt-5-chat(?:-[\\w-]+)?',
+  'glm-4\\.5v'
 ]
 
 export const FUNCTION_CALLING_REGEX = new RegExp(
@@ -498,6 +502,7 @@ export function getModelLogo(modelId: string) {
     xirang: isLight ? XirangModelLogo : XirangModelLogoDark,
     hugging: isLight ? HuggingfaceModelLogo : HuggingfaceModelLogoDark,
     youdao: YoudaoLogo,
+    'embedding-3': ZhipuProviderLogo,
     embedding: isLight ? EmbeddingModelLogo : EmbeddingModelLogoDark,
     perplexity: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
     sonar: isLight ? PerplexityModelLogo : PerplexityModelLogoDark,
@@ -505,7 +510,9 @@ export function getModelLogo(modelId: string) {
     'voyage-': VoyageModelLogo,
     tokenflux: isLight ? TokenFluxModelLogo : TokenFluxModelLogoDark,
     'nomic-': NomicLogo,
-    'pangu-': PanguModelLogo
+    'pangu-': PanguModelLogo,
+    cogview: isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
+    zhipu: isLight ? ZhipuModelLogo : ZhipuModelLogoDark
   }
 
   for (const key in logoMap) {
@@ -521,32 +528,32 @@ export function getModelLogo(modelId: string) {
 export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
   defaultModel: [
     {
-      // 默认助手模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
+      // 默认助手模型 - GLM-4.5-Flash
+      id: 'glm-4.5-flash',
+      name: 'GLM-4.5-Flash',
+      provider: 'zhipu',
+      group: 'GLM-4.5'
     },
     {
-      // 默认话题命名模型
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen/Qwen3-8B',
-      provider: 'silicon',
-      group: 'Qwen'
+      // 默认话题命名模型 - GLM-4.5-Flash
+      id: 'glm-4.5-flash',
+      name: 'GLM-4.5-Flash',
+      provider: 'zhipu',
+      group: 'GLM-4.5'
     },
     {
-      // 默认翻译模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
+      // 默认翻译模型 - GLM-4.5-Flash
+      id: 'glm-4.5-flash',
+      name: 'GLM-4.5-Flash',
+      provider: 'zhipu',
+      group: 'GLM-4.5'
     },
     {
-      // 默认快捷助手模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
+      // 默认快捷助手模型 - GLM-4.5-Flash
+      id: 'glm-4.5-flash',
+      name: 'GLM-4.5-Flash',
+      provider: 'zhipu',
+      group: 'GLM-4.5'
     }
   ],
   vertexai: [],
@@ -1208,119 +1215,162 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     { id: 'yi-vision-v2', name: 'Yi Vision v2', provider: 'yi', group: 'yi-vision', owned_by: '01.ai' }
   ],
   zhipu: [
+    // GLM-4.5 系列 (置顶)
     {
       id: 'glm-4.5',
       provider: 'zhipu',
       name: 'GLM-4.5',
-      group: 'GLM-4.5'
-    },
-    {
-      id: 'glm-4.5-flash',
-      provider: 'zhipu',
-      name: 'GLM-4.5-Flash',
-      group: 'GLM-4.5'
-    },
-    {
-      id: 'glm-4.5-air',
-      provider: 'zhipu',
-      name: 'GLM-4.5-AIR',
-      group: 'GLM-4.5'
-    },
-    {
-      id: 'glm-4.5-airx',
-      provider: 'zhipu',
-      name: 'GLM-4.5-AIRX',
-      group: 'GLM-4.5'
+      group: 'GLM-4.5',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4.5-x',
       provider: 'zhipu',
       name: 'GLM-4.5-X',
-      group: 'GLM-4.5'
+      group: 'GLM-4.5',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
+    {
+      id: 'glm-4.5-air',
+      provider: 'zhipu',
+      name: 'GLM-4.5-Air',
+      group: 'GLM-4.5',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    {
+      id: 'glm-4.5-airx',
+      provider: 'zhipu',
+      name: 'GLM-4.5-AirX',
+      group: 'GLM-4.5',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    {
+      id: 'glm-4.5-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.5-Flash',
+      group: 'GLM-4.5',
+      //isFree: true,
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    // GLM-4.5V 系列
+    {
+      id: 'glm-4.5v',
+      provider: 'zhipu',
+      name: 'GLM-4.5V',
+      group: 'GLM-4.5V',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    // GLM-Z1 系列
     {
       id: 'glm-z1-air',
       provider: 'zhipu',
-      name: 'GLM-Z1-AIR',
-      group: 'GLM-Z1'
+      name: 'GLM-Z1-Air',
+      group: 'GLM-Z1',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-z1-airx',
       provider: 'zhipu',
-      name: 'GLM-Z1-AIRX',
-      group: 'GLM-Z1'
+      name: 'GLM-Z1-AirX',
+      group: 'GLM-Z1',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    // CogView 系列
+    {
+      id: 'cogview-3-flash',
+      provider: 'zhipu',
+      name: 'CogView-3-Flash',
+      group: 'CogView',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
-      id: 'glm-z1-flash',
+      id: 'cogview-4-250304',
       provider: 'zhipu',
-      name: 'GLM-Z1-FLASH',
-      group: 'GLM-Z1'
+      name: 'CogView-4-250304',
+      group: 'CogView',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4-long',
       provider: 'zhipu',
       name: 'GLM-4-Long',
-      group: 'GLM-4'
+      group: 'GLM-4',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4-plus',
       provider: 'zhipu',
       name: 'GLM-4-Plus',
-      group: 'GLM-4'
+      group: 'GLM-4',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4-air-250414',
       provider: 'zhipu',
       name: 'GLM-4-Air-250414',
-      group: 'GLM-4'
+      group: 'GLM-4',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4-airx',
       provider: 'zhipu',
       name: 'GLM-4-AirX',
-      group: 'GLM-4'
-    },
-    {
-      id: 'glm-4-flash-250414',
-      provider: 'zhipu',
-      name: 'GLM-4-Flash-250414',
-      group: 'GLM-4'
+      group: 'GLM-4',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4-flashx',
       provider: 'zhipu',
       name: 'GLM-4-FlashX',
-      group: 'GLM-4'
+      group: 'GLM-4',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
+    // GLM-4V 系列
     {
       id: 'glm-4v',
       provider: 'zhipu',
-      name: 'GLM 4V',
-      group: 'GLM-4v'
+      name: 'GLM-4V',
+      group: 'GLM-4V',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4v-flash',
       provider: 'zhipu',
       name: 'GLM-4V-Flash',
-      group: 'GLM-4v'
+      group: 'GLM-4V',
+      //isFree: true,
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
     {
       id: 'glm-4v-plus-0111',
       provider: 'zhipu',
       name: 'GLM-4V-Plus-0111',
-      group: 'GLM-4v'
+      group: 'GLM-4V',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
+    {
+      id: 'glm-4.1v-thinking-flash',
+      provider: 'zhipu',
+      name: 'GLM-4.1V-Thinking-Flash',
+      group: 'GLM-4V',
+      //isFree: true,
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    },
+    // GLM-4-AllTools
     {
       id: 'glm-4-alltools',
       provider: 'zhipu',
       name: 'GLM-4-AllTools',
-      group: 'GLM-4-AllTools'
+      group: 'GLM-4-AllTools',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     },
+    // Embedding 系列
     {
       id: 'embedding-3',
       provider: 'zhipu',
       name: 'Embedding-3',
-      group: 'Embedding'
+      group: 'Embedding',
+      apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
     }
   ],
   moonshot: [

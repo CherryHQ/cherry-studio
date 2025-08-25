@@ -4,6 +4,7 @@ import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
+import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -140,6 +141,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
 
   const getWebSearchProviderLogo = (providerId: WebSearchProviderId) => {
     switch (providerId) {
+      case 'zhipu':
+        return ZhipuLogo
       case 'tavily':
         return TavilyLogo
       case 'searxng':
