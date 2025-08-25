@@ -3,9 +3,11 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
+import { codeTools } from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -40,23 +42,33 @@ class CodeToolsService {
   }
 
   public async getPackageName(cliTool: string) {
-    if (cliTool === 'claude-code') {
-      return '@anthropic-ai/claude-code'
+    switch (cliTool) {
+      case codeTools.claudeCode:
+        return '@anthropic-ai/claude-code'
+      case codeTools.geminiCli:
+        return '@google/gemini-cli'
+      case codeTools.openaiCodex:
+        return '@openai/codex'
+      case codeTools.qwenCode:
+        return '@qwen-code/qwen-code'
+      default:
+        throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
-    if (cliTool === 'gemini-cli') {
-      return '@google/gemini-cli'
-    }
-    return '@qwen-code/qwen-code'
   }
 
   public async getCliExecutableName(cliTool: string) {
-    if (cliTool === 'claude-code') {
-      return 'claude'
+    switch (cliTool) {
+      case codeTools.claudeCode:
+        return 'claude'
+      case codeTools.geminiCli:
+        return 'gemini'
+      case codeTools.openaiCodex:
+        return 'codex'
+      case codeTools.qwenCode:
+        return 'qwen'
+      default:
+        throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
-    if (cliTool === 'gemini-cli') {
-      return 'gemini'
-    }
-    return 'qwen'
   }
 
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
@@ -114,9 +126,21 @@ class CodeToolsService {
     } else {
       logger.info(`Fetching latest version for ${packageName} from npm`)
       try {
-        const bunPath = await this.getBunPath()
-        const { stdout } = await execAsync(`"${bunPath}" info ${packageName} version`, { timeout: 15000 })
-        latestVersion = stdout.trim().replace(/["']/g, '')
+        // Get registry URL
+        const registryUrl = await this.getNpmRegistryUrl()
+
+        // Fetch package info directly from npm registry API
+        const packageUrl = `${registryUrl}/${packageName}/latest`
+        const response = await fetch(packageUrl, {
+          signal: AbortSignal.timeout(15000)
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch package info: ${response.statusText}`)
+        }
+
+        const packageInfo = await response.json()
+        latestVersion = packageInfo.version
         logger.info(`${packageName} latest version: ${latestVersion}`)
 
         // Cache the result
@@ -179,7 +203,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
+      const updateCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -283,12 +307,11 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand: string
+    let baseCommand = isWin ? `${executablePath}` : `${bunPath} ${executablePath}`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
-      baseCommand = `"${executablePath}"`
       if (updateMessage) {
         baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
       }
@@ -300,8 +323,8 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
-      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && "${executablePath}"`
+      const installCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
+      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
     switch (platform) {

@@ -4,6 +4,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
@@ -51,6 +52,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const isUserMessage = message.role === 'user'
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
+  const { setTimeoutTimer } = useTimer()
 
   const couldAddImageFile = useMemo(() => {
     const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
@@ -247,9 +249,13 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
             handleTextChange(blockId, newText)
 
             // set cursor position in the next render cycle
-            setTimeout(() => {
-              textArea.selectionStart = textArea.selectionEnd = start + 1
-            }, 0)
+            setTimeoutTimer(
+              'handleKeyDown',
+              () => {
+                textArea.selectionStart = textArea.selectionEnd = start + 1
+              },
+              0
+            )
           }
         }
       }

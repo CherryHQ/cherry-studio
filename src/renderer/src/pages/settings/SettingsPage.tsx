@@ -8,13 +8,13 @@ import {
   Cloud,
   Command,
   FileCode,
+  Hammer,
   HardDrive,
   Info,
   MonitorCog,
   Package,
   PictureInPicture2,
   Settings2,
-  SquareTerminal,
   TextCursorInput,
   Zap
 } from 'lucide-react'
@@ -84,7 +84,7 @@ const SettingsPage: FC = () => {
           <Divider />
           <MenuItemLink to="/settings/mcp">
             <MenuItem className={isRoute('/settings/mcp')}>
-              <SquareTerminal size={18} />
+              <Hammer size={18} />
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>

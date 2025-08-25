@@ -1,9 +1,11 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
+
+import { RootState } from '.'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
@@ -30,7 +32,13 @@ const assistantsSlice = createSlice({
       state.assistants = action.payload
     },
     addAssistant: (state, action: PayloadAction<Assistant>) => {
-      state.assistants.push(action.payload)
+      const newAssistant = action.payload
+      const existing = state.assistants.find((item) => item.id === newAssistant.id)
+      if (!existing) {
+        state.assistants.push(action.payload)
+      } else {
+        throw new Error('Assistant with this ID already exists')
+      }
     },
     insertAssistant: (state, action: PayloadAction<{ index: number; assistant: Assistant }>) => {
       const { index, assistant } = action.payload
@@ -193,5 +201,16 @@ export const {
   updateAssistantSettings,
   updateTagCollapse
 } = assistantsSlice.actions
+
+export const selectAllTopics = createSelector([(state: RootState) => state.assistants.assistants], (assistants) =>
+  assistants.flatMap((assistant: Assistant) => assistant.topics)
+)
+
+export const selectTopicsMap = createSelector([selectAllTopics], (topics) => {
+  return topics.reduce((map, topic) => {
+    map.set(topic.id, topic)
+    return map
+  }, new Map())
+})
 
 export default assistantsSlice.reducer

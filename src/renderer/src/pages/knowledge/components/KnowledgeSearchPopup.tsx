@@ -158,9 +158,13 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                         <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
                           {item.file.origin_name}
                         </a>
+                      ) : item.metadata.type !== 'LocalPathLoader' ? (
+                        <a href={item.metadata.source} target="_blank" rel="noreferrer">
+                          {item.metadata.source}
+                        </a>
                       ) : (
-                        // item.metadata.source
-                        <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
+                        // 处理预处理后的文件source
+                        <a href={`file://${item.metadata.source}`} target="_blank" rel="noreferrer">
                           {item.metadata.source.split('/').pop() || item.metadata.source}
                         </a>
                       )}

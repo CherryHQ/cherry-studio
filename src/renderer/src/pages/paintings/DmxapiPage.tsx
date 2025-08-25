@@ -13,7 +13,7 @@ import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, PaintingsState } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { convertToBase64, uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
 import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -364,7 +364,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // 准备V1生成请求函数
-  const prepareV1GenerateRequest = (prompt: string, painting: DmxapiPainting) => {
+  const prepareV1GenerateRequest = async (prompt: string, painting: DmxapiPainting) => {
     const params = {
       prompt,
       model: painting.model,
@@ -389,6 +389,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     if (painting.style_type) {
       params.prompt = prompt + ',风格：' + painting.style_type
+    }
+
+    if (Array.isArray(fileMap.imageFiles) && fileMap.imageFiles.length > 0) {
+      const imageFile = fileMap.imageFiles[0]
+      if (imageFile instanceof File) {
+        params['image'] = await convertToBase64(imageFile)
+      }
     }
 
     return {
@@ -508,13 +515,17 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   // 准备请求配置函数
-  const prepareRequestConfig = (prompt: string, painting: DmxapiPainting) => {
+  const prepareRequestConfig = async (prompt: string, painting: DmxapiPainting) => {
     // 根据模式和模型版本返回不同的请求配置
     if (
       painting.generationMode !== undefined &&
       [generationModeType.MERGE, generationModeType.EDIT].includes(painting.generationMode)
     ) {
-      return prepareV2GenerateRequest(prompt, painting)
+      if (painting.model === 'seededit-3.0') {
+        return await prepareV1GenerateRequest(prompt, painting)
+      } else {
+        return prepareV2GenerateRequest(prompt, painting)
+      }
     } else {
       return prepareV1GenerateRequest(prompt, painting)
     }
@@ -550,7 +561,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       dispatch(setGenerating(true))
 
       // 准备请求配置
-      const requestConfig = prepareRequestConfig(prompt, painting)
+      const requestConfig = await prepareRequestConfig(prompt, painting)
 
       // 发送API请求
       const urls = await callApi(requestConfig, controller)

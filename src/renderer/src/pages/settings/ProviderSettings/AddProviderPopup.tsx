@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
 import { Center, VStack } from '@renderer/components/Layout'
+import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
+import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage } from '@renderer/utils'
-import { Divider, Dropdown, Form, Input, Modal, Select, Upload } from 'antd'
+import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
+import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -21,6 +23,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [name, setName] = useState(provider?.name || '')
   const [type, setType] = useState<ProviderType>(provider?.type || 'openai')
   const [logo, setLogo] = useState<string | null>(null)
+  const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
 
@@ -63,6 +66,25 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const buttonDisabled = name.length === 0
 
+  // 处理内置头像的点击事件
+  const handleProviderLogoClick = async (providerId: string) => {
+    try {
+      const logoUrl = PROVIDER_LOGO_MAP[providerId]
+
+      if (provider?.id) {
+        await ImageStorage.set(`provider-${provider.id}`, logoUrl)
+        const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+        setLogo(savedLogo)
+      } else {
+        setLogo(logoUrl)
+      }
+
+      setLogoPickerOpen(false)
+    } catch (error: any) {
+      window.message.error(error.message)
+    }
+  }
+
   const handleReset = async () => {
     try {
       setLogo(null)
@@ -78,7 +100,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   }
 
   const getInitials = () => {
-    return name.charAt(0).toUpperCase() || 'P'
+    return name.charAt(0) || 'P'
   }
 
   const items = [
@@ -132,6 +154,20 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       )
     },
     {
+      key: 'builtin',
+      label: (
+        <div
+          style={{ width: '100%', textAlign: 'center' }}
+          onClick={(e) => {
+            e.stopPropagation()
+            setDropdownOpen(false)
+            setLogoPickerOpen(true)
+          }}>
+          {t('settings.general.avatar.builtin')}
+        </div>
+      )
+    },
+    {
       key: 'reset',
       label: (
         <div
@@ -145,6 +181,10 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       )
     }
   ]
+
+  // for logo
+  const backgroundColor = generateColorFromChar(name)
+  const color = name ? getForegroundColor(backgroundColor) : 'white'
 
   return (
     <Modal
@@ -170,8 +210,29 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             placement="bottom"
             onOpenChange={(visible) => {
               setDropdownOpen(visible)
+              if (visible) {
+                setLogoPickerOpen(false)
+              }
             }}>
-            {logo ? <ProviderLogo src={logo} /> : <ProviderInitialsLogo>{getInitials()}</ProviderInitialsLogo>}
+            <Popover
+              content={<ProviderLogoPicker onProviderClick={handleProviderLogoClick} />}
+              trigger="click"
+              open={logoPickerOpen}
+              onOpenChange={(visible) => {
+                setLogoPickerOpen(visible)
+                if (visible) {
+                  setDropdownOpen(false)
+                }
+              }}
+              placement="bottom">
+              {logo ? (
+                <ProviderLogo src={logo} />
+              ) : (
+                <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
+                  {getInitials()}
+                </ProviderInitialsLogo>
+              )}
+            </Popover>
           </Dropdown>
         </VStack>
       </Center>

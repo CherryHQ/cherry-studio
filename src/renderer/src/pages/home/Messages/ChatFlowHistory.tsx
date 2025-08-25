@@ -7,6 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
@@ -50,6 +51,8 @@ const TooltipFooter = styled.div`
 // 自定义节点组件
 const CustomNode: FC<{ data: any }> = ({ data }) => {
   const { t } = useTranslation()
+  const { setTimeoutTimer } = useTimer()
+
   const nodeType = data.type
   let borderColor = 'var(--color-border)'
   let title = ''
@@ -114,9 +117,13 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
       // 让监听器处理标签切换
       document.dispatchEvent(customEvent)
 
-      setTimeout(() => {
-        EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + data.messageId)
-      }, 250)
+      setTimeoutTimer(
+        'handleNodeClick',
+        () => {
+          EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + data.messageId)
+        },
+        250
+      )
     }
   }
 
@@ -142,7 +149,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
       color="rgba(0, 0, 0, 0.85)"
       mouseEnterDelay={0.3}
       mouseLeaveDelay={0.1}
-      destroyTooltipOnHide>
+      destroyOnHidden>
       <CustomNodeContainer
         style={{
           borderColor,

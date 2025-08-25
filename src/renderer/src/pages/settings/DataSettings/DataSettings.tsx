@@ -17,6 +17,7 @@ import ExportToPhonePopup from '@renderer/components/Popups/ExportToPhonePopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
@@ -58,6 +59,7 @@ const DataSettings: FC = () => {
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
+  const { setTimeoutTimer } = useTimer()
 
   const _skipBackupFile = store.getState().settings.skipBackupFile
   const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
@@ -251,11 +253,15 @@ const DataSettings: FC = () => {
           content: t('settings.data.app_data.restart_notice'),
           duration: 2
         })
-        setTimeout(() => {
-          window.api.relaunchApp({
-            args: ['--new-data-path=' + newPath]
-          })
-        }, 500)
+        setTimeoutTimer(
+          'doubleConfirmModalBeforeCopyData',
+          () => {
+            window.api.relaunchApp({
+              args: ['--new-data-path=' + newPath]
+            })
+          },
+          500
+        )
       }
     })
   }
@@ -337,11 +343,15 @@ const DataSettings: FC = () => {
               content: t('settings.data.app_data.restart_notice'),
               duration: 3
             })
-            setTimeout(() => {
-              window.api.relaunchApp({
-                args: ['--new-data-path=' + newPath]
-              })
-            }, 500)
+            setTimeoutTimer(
+              'showMigrationConfirmModal_1',
+              () => {
+                window.api.relaunchApp({
+                  args: ['--new-data-path=' + newPath]
+                })
+              },
+              500
+            )
             return
           }
           // 如果不复制数据，直接设置新的应用数据路径
@@ -352,11 +362,15 @@ const DataSettings: FC = () => {
           setAppInfo(await window.api.getAppInfo())
 
           // 通知用户并重启应用
-          setTimeout(() => {
-            window.message.success(t('settings.data.app_data.select_success'))
-            window.api.setStopQuitApp(false, '')
-            window.api.relaunchApp()
-          }, 500)
+          setTimeoutTimer(
+            'showMigrationConfirmModal_2',
+            () => {
+              window.message.success(t('settings.data.app_data.select_success'))
+              window.api.setStopQuitApp(false, '')
+              window.api.relaunchApp()
+            },
+            500
+          )
         } catch (error) {
           window.api.setStopQuitApp(false, '')
           window.message.error({
@@ -460,7 +474,7 @@ const DataSettings: FC = () => {
         await window.api.flushAppData()
 
         // wait 2 seconds to flush app data
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((resolve) => setTimeoutTimer('startMigration_1', resolve, 2000))
 
         // 开始复制过程
         const copyResult = await window.api.copy(
@@ -480,15 +494,19 @@ const DataSettings: FC = () => {
         if (!copyResult.success) {
           // 延迟关闭加载模态框
           await new Promise<void>((resolve) => {
-            setTimeout(() => {
-              loadingModal.destroy()
-              window.message.error({
-                content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-                key: messageKey,
-                duration: 5
-              })
-              resolve()
-            }, 500)
+            setTimeoutTimer(
+              'startMigration_2',
+              () => {
+                loadingModal.destroy()
+                window.message.error({
+                  content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+                  key: messageKey,
+                  duration: 5
+                })
+                resolve()
+              },
+              500
+            )
           })
 
           throw new Error(copyResult.error || 'Unknown error during copy')
@@ -498,7 +516,7 @@ const DataSettings: FC = () => {
         await window.api.setAppDataPath(newPath)
 
         // 短暂延迟以显示100%完成
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await new Promise((resolve) => setTimeoutTimer('startMigration_3', resolve, 500))
 
         // 关闭加载模态框
         loadingModal.destroy()
@@ -533,13 +551,17 @@ const DataSettings: FC = () => {
         setAppInfo(await window.api.getAppInfo())
 
         // 通知用户并重启应用
-        setTimeout(() => {
-          window.message.success(t('settings.data.app_data.select_success'))
-          window.api.setStopQuitApp(false, '')
-          window.api.relaunchApp({
-            args: ['--user-data-dir=' + newDataPath]
-          })
-        }, 1000)
+        setTimeoutTimer(
+          'handleDataMigration',
+          () => {
+            window.message.success(t('settings.data.app_data.select_success'))
+            window.api.setStopQuitApp(false, '')
+            window.api.relaunchApp({
+              args: ['--user-data-dir=' + newDataPath]
+            })
+          },
+          1000
+        )
       } catch (error) {
         window.api.setStopQuitApp(false, '')
         window.message.error({
@@ -556,7 +578,7 @@ const DataSettings: FC = () => {
     }
 
     handleDataMigration()
-  }, [t])
+  }, [setTimeoutTimer, t])
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)

@@ -211,3 +211,10 @@ export const MIN_WINDOW_WIDTH = 1080
 export const SECOND_MIN_WINDOW_WIDTH = 520
 export const MIN_WINDOW_HEIGHT = 600
 export const defaultByPassRules = 'localhost,127.0.0.1,::1'
+
+export enum codeTools {
+  qwenCode = 'qwen-code',
+  claudeCode = 'claude-code',
+  geminiCli = 'gemini-cli',
+  openaiCodex = 'openai-codex'
+}

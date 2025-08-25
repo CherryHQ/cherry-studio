@@ -3,7 +3,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import tabsService from '@renderer/services/TabsService'
-import { FileSearch, Folder, Languages, LayoutGrid, Palette, Sparkle, Terminal } from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, LayoutGrid, Palette, Sparkle } from 'lucide-react'
 import { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -54,7 +54,7 @@ const LaunchpadPage: FC = () => {
       bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
     },
     {
-      icon: <Terminal size={32} className="icon" />,
+      icon: <Code size={32} className="icon" />,
       text: t('title.code'),
       path: '/code',
       bgColor: 'linear-gradient(135deg, #1F2937, #374151)' // Code CLI：高级暗黑色，代表专业和技术

@@ -223,26 +223,26 @@ export class WindowService {
     })
 
     // 添加Escape键退出全屏的支持
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      // 当按下Escape键且窗口处于全屏状态时退出全屏
-      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-        if (mainWindow.isFullScreen()) {
-          // 获取 shortcuts 配置
-          const shortcuts = configManager.getShortcuts()
-          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-          if (exitFullscreenShortcut == undefined) {
-            mainWindow.setFullScreen(false)
-            return
-          }
-          if (exitFullscreenShortcut?.enabled) {
-            event.preventDefault()
-            mainWindow.setFullScreen(false)
-            return
-          }
-        }
-      }
-      return
-    })
+    // mainWindow.webContents.on('before-input-event', (event, input) => {
+    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
+    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+    //     if (mainWindow.isFullScreen()) {
+    //       // 获取 shortcuts 配置
+    //       const shortcuts = configManager.getShortcuts()
+    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+    //       if (exitFullscreenShortcut == undefined) {
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //       if (exitFullscreenShortcut?.enabled) {
+    //         event.preventDefault()
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //     }
+    //   }
+    //   return
+    // })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
@@ -555,9 +555,9 @@ export class WindowService {
 
       // [Windows] hacky fix
       // the window is minimized only when in Windows platform
-      // because it's a workround for Windows, see `hideMiniWindow()`
+      // because it's a workaround for Windows, see `hideMiniWindow()`
       if (this.miniWindow?.isMinimized()) {
-        // don't let the window being seen before we finish adusting the position across screens
+        // don't let the window being seen before we finish adjusting the position across screens
         this.miniWindow?.setOpacity(0)
         // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
         // We have to use `show()` here, then set the position and bounds

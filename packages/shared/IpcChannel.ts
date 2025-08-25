@@ -35,6 +35,7 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_LogToMain = 'app:log-to-main',
   App_SaveData = 'app:save-data',
+  App_SetFullScreen = 'app:set-full-screen',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -156,6 +157,7 @@ export enum IpcChannel {
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
+  File_IsTextFile = 'file:isTextFile',
 
   // file service
   FileService_Upload = 'file-service:upload',

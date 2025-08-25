@@ -1,10 +1,11 @@
-import { omit } from 'lodash'
+import { isEmpty, omit } from 'lodash'
 import React from 'react'
+import type { Node } from 'unist'
 
 import CitationTooltip from './CitationTooltip'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
-  node?: any
+  node?: Omit<Node, 'type'>
   citationData?: {
     url: string
     title?: string
@@ -32,6 +33,7 @@ const Link: React.FC<LinkProps> = (props) => {
       <CitationTooltip citation={props.citationData}>
         <a
           {...omit(props, ['node', 'citationData'])}
+          href={isEmpty(props.href) ? undefined : props.href}
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}

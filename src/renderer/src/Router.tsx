@@ -4,6 +4,7 @@ import { FC, useMemo } from 'react'
 import { HashRouter, Route, Routes } from 'react-router-dom'
 
 import Sidebar from './components/app/Sidebar'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import TabsContainer from './components/Tab/TabContainer'
 import NavigationHandler from './handler/NavigationHandler'
 import { useNavbarPosition } from './hooks/useSettings'
@@ -23,18 +24,20 @@ const Router: FC = () => {
 
   const routes = useMemo(() => {
     return (
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/agents" element={<AgentsPage />} />
-        <Route path="/paintings/*" element={<PaintingsRoutePage />} />
-        <Route path="/translate" element={<TranslatePage />} />
-        <Route path="/files" element={<FilesPage />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
-        <Route path="/apps" element={<MinAppsPage />} />
-        <Route path="/code" element={<CodeToolsPage />} />
-        <Route path="/settings/*" element={<SettingsPage />} />
-        <Route path="/launchpad" element={<LaunchpadPage />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/agents" element={<AgentsPage />} />
+          <Route path="/paintings/*" element={<PaintingsRoutePage />} />
+          <Route path="/translate" element={<TranslatePage />} />
+          <Route path="/files" element={<FilesPage />} />
+          <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/apps" element={<MinAppsPage />} />
+          <Route path="/code" element={<CodeToolsPage />} />
+          <Route path="/settings/*" element={<SettingsPage />} />
+          <Route path="/launchpad" element={<LaunchpadPage />} />
+        </Routes>
+      </ErrorBoundary>
     )
   }, [])
 

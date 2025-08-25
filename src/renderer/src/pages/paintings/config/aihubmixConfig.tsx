@@ -88,6 +88,11 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
               { label: 'ideogram_V_1', value: 'V_1' },
               { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
             ]
+          },
+          {
+            label: 'Flux',
+            title: 'Flux',
+            options: [{ label: 'FLUX.1-Kontext-pro', value: 'FLUX.1-Kontext-pro' }]
           }
         ]
       },
@@ -229,6 +234,36 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         options: PERSON_GENERATION_OPTIONS,
         initialValue: 'ALLOW_ALL',
         condition: (painting) => Boolean(painting.model?.startsWith('imagen-'))
+      },
+      // {
+      //   type: 'slider',
+      //   key: 'width',
+      //   title: 'paintings.generate.width',
+      //   min: 256,
+      //   max: 1440,
+      //   initialValue: 1024,
+      //   step: 32,
+      //   condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
+      // },
+      // {
+      //   type: 'slider',
+      //   key: 'height',
+      //   title: 'paintings.generate.height',
+      //   min: 256,
+      //   max: 1440,
+      //   initialValue: 768,
+      //   step: 32,
+      //   condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
+      // },
+      {
+        type: 'slider',
+        key: 'safetyTolerance',
+        title: 'paintings.generate.safety_tolerance',
+        tooltip: 'paintings.generate.safety_tolerance_tip',
+        min: 0,
+        max: 6,
+        initialValue: 6,
+        condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
       }
     ],
     remix: [
@@ -384,5 +419,6 @@ export const DEFAULT_PAINTING: PaintingAction = {
   quality: 'auto',
   moderation: 'auto',
   n: 1,
-  numberOfImages: 4
+  numberOfImages: 4,
+  safetyTolerance: 6
 }

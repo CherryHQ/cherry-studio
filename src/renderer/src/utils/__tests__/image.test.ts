@@ -6,7 +6,8 @@ import {
   captureScrollableDivAsBlob,
   captureScrollableDivAsDataURL,
   compressImage,
-  convertToBase64
+  convertToBase64,
+  makeSvgSizeAdaptive
 } from '../image'
 
 // mock 依赖
@@ -123,6 +124,81 @@ describe('utils/image', () => {
       const func = vi.fn()
       await captureScrollableDivAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('makeSvgSizeAdaptive', () => {
+    const createSvgElement = (svgString: string): SVGElement => {
+      const div = document.createElement('div')
+      div.innerHTML = svgString
+      const svgElement = div.querySelector<SVGElement>('svg')
+      if (!svgElement) {
+        throw new Error(`Test setup error: No <svg> element found in string: "${svgString}"`)
+      }
+      return svgElement
+    }
+
+    // Mock document.body.appendChild to avoid errors in jsdom
+    beforeEach(() => {
+      vi.spyOn(document.body, 'appendChild').mockImplementation(() => ({}) as Node)
+      vi.spyOn(document.body, 'removeChild').mockImplementation(() => ({}) as Node)
+    })
+
+    it('should measure and add viewBox/max-width when viewBox is missing', () => {
+      const svgElement = createSvgElement('<svg width="100pt" height="80pt"></svg>')
+      // Mock the measurement result on the prototype
+      const spy = vi
+        .spyOn(SVGElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 133, height: 106 } as DOMRect)
+
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
+
+      expect(spy).toHaveBeenCalled()
+      expect(result.getAttribute('viewBox')).toBe('0 0 133 106')
+      expect(result.style.maxWidth).toBe('133px')
+      expect(result.getAttribute('width')).toBe('100%')
+      expect(result.hasAttribute('height')).toBe(false)
+
+      spy.mockRestore() // Clean up the prototype spy
+    })
+
+    it('should use width attribute for max-width when viewBox is present', () => {
+      const svgElement = createSvgElement('<svg viewBox="0 0 50 50" width="100pt" height="80pt"></svg>')
+      const spy = vi.spyOn(SVGElement.prototype, 'getBoundingClientRect') // Spy to ensure it's NOT called
+
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
+
+      expect(spy).not.toHaveBeenCalled()
+      expect(result.getAttribute('viewBox')).toBe('0 0 50 50')
+      expect(result.style.maxWidth).toBe('100pt')
+      expect(result.getAttribute('width')).toBe('100%')
+      expect(result.hasAttribute('height')).toBe(false)
+
+      spy.mockRestore()
+    })
+
+    it('should handle measurement failure gracefully', () => {
+      const svgElement = createSvgElement('<svg width="100pt" height="80pt"></svg>')
+      // Mock a failed measurement
+      const spy = vi
+        .spyOn(SVGElement.prototype, 'getBoundingClientRect')
+        .mockReturnValue({ width: 0, height: 0 } as DOMRect)
+
+      const result = makeSvgSizeAdaptive(svgElement) as SVGElement
+
+      expect(result.hasAttribute('viewBox')).toBe(false)
+      expect(result.style.maxWidth).toBe('100pt') // Falls back to width attribute
+      expect(result.getAttribute('width')).toBe('100%')
+
+      spy.mockRestore()
+    })
+
+    it('should return the element unchanged if it is not an SVGElement', () => {
+      const divElement = document.createElement('div')
+      const originalOuterHTML = divElement.outerHTML
+      const result = makeSvgSizeAdaptive(divElement)
+
+      expect(result.outerHTML).toBe(originalOuterHTML)
     })
   })
 })
