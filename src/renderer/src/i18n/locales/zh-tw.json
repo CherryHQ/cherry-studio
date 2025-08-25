@@ -2801,6 +2801,7 @@
         "label": "新增伺服器"
       },
       "addSuccess": "伺服器新增成功",
+      "add_failed_invalid_data": "添加失敗：無效數據",
       "advancedSettings": "高級設定",
       "args": "參數",
       "argsTooltip": "每個參數佔一行",
@@ -2915,6 +2916,11 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
+      "server_add_confirm": "確定要添加伺服器 {{server}} 嗎？",
+      "server_added": "伺服器 {{server}} 添加成功",
+      "server_already_exists": "伺服器 {{server}} 已存在",
+      "server_confirm_title": "確認添加 {{server}}",
+      "server_no_change": "伺服器 {{server}} 已存在，未作任何更改",
       "sse": "伺服器傳送事件 (sse)",
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
@@ -2980,13 +2986,7 @@
       "updateError": "更新伺服器失敗",
       "updateSuccess": "伺服器更新成功",
       "url": "URL",
-      "user": "用戶",
-      "add_failed_invalid_data": "添加失敗：無效數據",
-      "server_already_exists": "伺服器 {{server}} 已存在",
-      "server_add_confirm": "確定要添加伺服器 {{server}} 嗎？",
-      "server_confirm_title": "確認添加 {{server}}",
-      "server_no_change": "伺服器 {{server}} 已存在，未作任何更改",
-      "server_added": "伺服器 {{server}} 添加成功"
+      "user": "用戶"
     },
     "messages": {
       "divider": {

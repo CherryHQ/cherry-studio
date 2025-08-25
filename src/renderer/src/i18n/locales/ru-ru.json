@@ -2801,6 +2801,7 @@
         "label": "Добавить сервер"
       },
       "addSuccess": "Сервер успешно добавлен",
+      "add_failed_invalid_data": "Ошибка добавления: неверные данные",
       "advancedSettings": "Расширенные настройки",
       "args": "Аргументы",
       "argsTooltip": "Каждый аргумент с новой строки",
@@ -2915,6 +2916,11 @@
       "searchNpx": "Найти MCP",
       "serverPlural": "серверы",
       "serverSingular": "сервер",
+      "server_add_confirm": "Хотите добавить сервер {{server}}?",
+      "server_added": "Сервер {{server}} успешно добавлен",
+      "server_already_exists": "Сервер {{server}} уже существует",
+      "server_confirm_title": "Подтвердить добавление {{server}}",
+      "server_no_change": "Сервер {{server}} уже существует, изменения не внесены",
       "sse": "События, отправляемые сервером (sse)",
       "startError": "Запуск не удалось",
       "stdio": "Стандартный ввод/вывод (stdio)",
@@ -2980,13 +2986,7 @@
       "updateError": "Ошибка обновления сервера",
       "updateSuccess": "Сервер успешно обновлен",
       "url": "URL",
-      "user": "Пользователь",
-      "add_failed_invalid_data": "Ошибка добавления: неверные данные",
-      "server_already_exists": "Сервер {{server}} уже существует",
-      "server_add_confirm": "Хотите добавить сервер {{server}}?",
-      "server_confirm_title": "Подтвердить добавление {{server}}",
-      "server_no_change": "Сервер {{server}} уже существует, изменения не внесены",
-      "server_added": "Сервер {{server}} успешно добавлен"
+      "user": "Пользователь"
     },
     "messages": {
       "divider": {

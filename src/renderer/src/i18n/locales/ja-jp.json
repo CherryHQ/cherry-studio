@@ -2801,6 +2801,7 @@
         "label": "サーバーを追加"
       },
       "addSuccess": "サーバーが正常に追加されました",
+      "add_failed_invalid_data": "追加失敗：無効なデータ",
       "advancedSettings": "詳細設定",
       "args": "引数",
       "argsTooltip": "1行に1つの引数を入力してください",
@@ -2915,6 +2916,11 @@
       "searchNpx": "MCP を検索",
       "serverPlural": "サーバー",
       "serverSingular": "サーバー",
+      "server_add_confirm": "サーバー {{server}} を追加しますか？",
+      "server_added": "サーバー {{server}} が正常に追加されました",
+      "server_already_exists": "サーバー {{server}} は既に存在します",
+      "server_confirm_title": "{{server}} の追加を確認",
+      "server_no_change": "サーバー {{server}} は既に存在するため、変更されませんでした",
       "sse": "サーバー送信イベント (sse)",
       "startError": "起動に失敗しました",
       "stdio": "標準入力/出力 (stdio)",
@@ -2980,13 +2986,7 @@
       "updateError": "サーバーの更新に失敗しました",
       "updateSuccess": "サーバーが正常に更新されました",
       "url": "URL",
-      "user": "ユーザー",
-      "add_failed_invalid_data": "追加失敗：無効なデータ",
-      "server_already_exists": "サーバー {{server}} は既に存在します",
-      "server_add_confirm": "サーバー {{server}} を追加しますか？",
-      "server_confirm_title": "{{server}} の追加を確認",
-      "server_no_change": "サーバー {{server}} は既に存在するため、変更されませんでした",
-      "server_added": "サーバー {{server}} が正常に追加されました"
+      "user": "ユーザー"
     },
     "messages": {
       "divider": {

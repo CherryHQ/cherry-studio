@@ -2801,6 +2801,7 @@
         "label": "添加服务器"
       },
       "addSuccess": "服务器添加成功",
+      "add_failed_invalid_data": "添加失败：无效数据",
       "advancedSettings": "高级设置",
       "args": "参数",
       "argsTooltip": "每个参数占一行",
@@ -2915,6 +2916,11 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "服务器",
       "serverSingular": "服务器",
+      "server_add_confirm": "确定要添加服务器 {{server}} 吗？",
+      "server_added": "服务器 {{server}} 添加成功",
+      "server_already_exists": "服务器 {{server}} 已存在",
+      "server_confirm_title": "确认添加 {{server}}",
+      "server_no_change": "服务器 {{server}} 已存在，未作任何更改",
       "sse": "服务器发送事件 (sse)",
       "startError": "启动失败",
       "stdio": "标准输入 / 输出 (stdio)",
@@ -2980,13 +2986,7 @@
       "updateError": "更新服务器失败",
       "updateSuccess": "服务器更新成功",
       "url": "URL",
-      "user": "用户",
-      "add_failed_invalid_data": "添加失败：无效数据",
-      "server_already_exists": "服务器 {{server}} 已存在",
-      "server_add_confirm": "确定要添加服务器 {{server}} 吗？",
-      "server_confirm_title": "确认添加 {{server}}",
-      "server_no_change": "服务器 {{server}} 已存在，未作任何更改",
-      "server_added": "服务器 {{server}} 添加成功"
+      "user": "用户"
     },
     "messages": {
       "divider": {

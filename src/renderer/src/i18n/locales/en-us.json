@@ -2801,6 +2801,7 @@
         "label": "Add Server"
       },
       "addSuccess": "Server added successfully",
+      "add_failed_invalid_data": "Add failed: Invalid data",
       "advancedSettings": "Advanced Settings",
       "args": "Arguments",
       "argsTooltip": "Each argument on a new line",
@@ -2915,6 +2916,11 @@
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
+      "server_add_confirm": "Do you want to add server {{server}}?",
+      "server_added": "Server {{server}} added successfully",
+      "server_already_exists": "Server {{server}} already exists",
+      "server_confirm_title": "Confirm adding {{server}}",
+      "server_no_change": "Server {{server}} already exists, no changes made",
       "sse": "Server-Sent Events (sse)",
       "startError": "Start failed",
       "stdio": "Standard Input/Output (stdio)",
@@ -2980,13 +2986,7 @@
       "updateError": "Failed to update server",
       "updateSuccess": "Server updated successfully",
       "url": "URL",
-      "user": "User",
-      "add_failed_invalid_data": "Add failed: Invalid data",
-      "server_already_exists": "Server {{server}} already exists",
-      "server_add_confirm": "Do you want to add server {{server}}?",
-      "server_confirm_title": "Confirm adding {{server}}",
-      "server_no_change": "Server {{server}} already exists, no changes made",
-      "server_added": "Server {{server}} added successfully"
+      "user": "User"
     },
     "messages": {
       "divider": {
