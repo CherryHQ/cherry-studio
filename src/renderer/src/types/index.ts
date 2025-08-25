@@ -67,7 +67,8 @@ const ThinkModelTypes = [
   'doubao_no_auto',
   'hunyuan',
   'zhipu',
-  'perplexity'
+  'perplexity',
+  'deepseek_hybrid'
 ] as const
 
 export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'

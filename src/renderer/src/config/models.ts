@@ -150,6 +150,7 @@ import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import {
+  isSystemProviderId,
   Model,
   ReasoningEffortConfig,
   SystemProviderId,
@@ -290,6 +291,7 @@ export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
 )
 
 // 模型类型到支持的reasoning_effort的映射表
+// TODO: refactor this. too many identical options
 export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
   o: ['low', 'medium', 'high'] as const,
@@ -303,7 +305,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   doubao_no_auto: ['high'] as const,
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
-  perplexity: ['low', 'medium', 'high'] as const
+  perplexity: ['low', 'medium', 'high'] as const,
+  deepseek_hybrid: ['auto'] as const
 } as const
 
 // 模型类型到支持选项的映射表
@@ -320,7 +323,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity
+  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
+  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
@@ -350,6 +354,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
+  else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
   return thinkingModelType
 }
 
@@ -372,12 +377,20 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
-  if (['deepseek', 'anthropic'].includes(model.provider)) {
+  if (['deepseek', 'anthropic', 'kimi', 'moonshot'].includes(model.provider)) {
     return true
   }
 
-  if (['kimi', 'moonshot'].includes(model.provider)) {
-    return true
+  // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
+  // openrouter支持函数调用，但不支持联动思考模式，与官方model card描述一致
+  if (isDeepSeekHybridInferenceModel(model)) {
+    if (isSystemProviderId(model.provider)) {
+      switch (model.provider) {
+        case 'openrouter':
+          return true
+      }
+    }
+    return false
   }
 
   return FUNCTION_CALLING_REGEX.test(modelId)
@@ -1401,7 +1414,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   dashscope: [
     { id: 'qwen-vl-plus', name: 'qwen-vl-plus', provider: 'dashscope', group: 'qwen-vl', owned_by: 'system' },
     { id: 'qwen-coder-plus', name: 'qwen-coder-plus', provider: 'dashscope', group: 'qwen-coder', owned_by: 'system' },
-    { id: 'qwen-turbo', name: 'qwen-turbo', provider: 'dashscope', group: 'qwen-turbo', owned_by: 'system' },
+    { id: 'qwen-flash', name: 'qwen-flash', provider: 'dashscope', group: 'qwen-flash', owned_by: 'system' },
     { id: 'qwen-plus', name: 'qwen-plus', provider: 'dashscope', group: 'qwen-plus', owned_by: 'system' },
     { id: 'qwen-max', name: 'qwen-max', provider: 'dashscope', group: 'qwen-max', owned_by: 'system' }
   ],
@@ -2633,7 +2646,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
-    isSupportedThinkingTokenZhipuModel(model)
+    isSupportedThinkingTokenZhipuModel(model) ||
+    isSupportedThinkingTokenDeepSeekModel(model)
   )
 }
 
@@ -2764,7 +2778,9 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-turbo-0428',
     'qwen-turbo-2025-04-28',
     'qwen-turbo-0715',
-    'qwen-turbo-2025-07-15'
+    'qwen-turbo-2025-07-15',
+    'qwen-flash',
+    'qwen-flash-2025-07-28'
   ].includes(modelId)
 }
 
@@ -2838,6 +2854,15 @@ export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   return modelId.includes('glm-4.5')
 }
 
+export const isDeepSeekHybridInferenceModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  // deepseek官方使用chat和reasoner做推理控制，其他provider需要单独判断，id可能会有所差别
+  // openrouter: deepseek/deepseek-chat-v3.1 不知道会不会有其他provider仿照ds官方分出一个同id的作为非思考模式的模型，这里有风险
+  return /deepseek-v3(?:\.1|-1-\d+)?/.test(modelId) || modelId === 'deepseek-chat-v3.1'
+}
+
+export const isSupportedThinkingTokenDeepSeekModel = isDeepSeekHybridInferenceModel
+
 export const isZhipuReasoningModel = (model?: Model): boolean => {
   if (!model) {
     return false
@@ -2870,6 +2895,8 @@ export function isReasoningModel(model?: Model): boolean {
       REASONING_REGEX.test(modelId) ||
       REASONING_REGEX.test(model.name) ||
       isSupportedThinkingTokenDoubaoModel(model) ||
+      isDeepSeekHybridInferenceModel(model) ||
+      isDeepSeekHybridInferenceModel({ ...model, id: model.name }) ||
       false
     )
   }
@@ -2884,6 +2911,7 @@ export function isReasoningModel(model?: Model): boolean {
     isPerplexityReasoningModel(model) ||
     isZhipuReasoningModel(model) ||
     isStepReasoningModel(model) ||
+    isDeepSeekHybridInferenceModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
     modelId.includes('pangu-pro-moe')
@@ -2992,7 +3020,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq']
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash']
     // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => modelId.startsWith(i))
   }
@@ -3196,6 +3224,7 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'qwen3-0\\.6b$': { min: 0, max: 30_720 },
   'qwen-plus.*$': { min: 0, max: 38_912 },
   'qwen-turbo.*$': { min: 0, max: 38_912 },
+  'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-.*$': { min: 1024, max: 38_912 },
 
   // Claude models
