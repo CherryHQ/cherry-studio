@@ -134,6 +134,11 @@
   },
   "assistants": {
     "abbr": "Asistente",
+    "add": {
+      "info": {
+        "missing_added": "Se ha agregado el asistente faltante como asistente predeterminado"
+      }
+    },
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
       "title": "Vaciar Tema"

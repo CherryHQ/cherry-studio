@@ -28,7 +28,7 @@ import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/sto
 import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopicManager } from './useTopic'
@@ -40,7 +40,7 @@ export function useAssistants() {
   const logger = loggerService.withContext('useAssistants')
 
   /**
-   * 添加一个新的助手
+   * 添加一个新的助手。已封装错误日志与 error message。
    * @param assistant - 要添加的助手对象
    * @throws {Error} 如果添加助手失败会抛出错误
    */
@@ -89,44 +89,38 @@ export function useAssistants() {
   }
 }
 
+// FIXME: Use default assistant to avoid undefined assistant from redux state.
+// Now the hook doesn't insure returned assistant is matched with id. Maybe there is better way to keep type safe for assistant.
 export function useAssistant(id: string) {
-  let assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id))
-  const { addAssistant } = useAssistants()
-  const { t } = useTranslation()
-
-  if (!assistant) {
-    window.message.warning(t('warning.missing_assistant'))
-    const newAssistant = { ...getDefaultAssistant(), id }
-    try {
-      addAssistant(newAssistant)
-      assistant = newAssistant
-    } catch (e) {
-      window.message.warning(t('warning.fallback.deafult_assistant'))
-      assistant = getDefaultAssistant()
-    }
-  }
+  const [assistant, setAssistant] = useState<Assistant>(getDefaultAssistant())
+  const _assistant = useAppSelector((state) => state.assistants.assistants.find((a) => a.id === id))
 
   const dispatch = useAppDispatch()
   const { defaultModel } = useDefaultModel()
 
-  const model = useMemo(() => assistant?.model ?? assistant?.defaultModel ?? defaultModel, [assistant, defaultModel])
+  useEffect(() => {
+    const validAssistant = _assistant ?? getDefaultAssistant()
+    setAssistant(validAssistant)
+  }, [_assistant])
+
+  const model = useMemo(() => assistant.model ?? assistant.defaultModel ?? defaultModel, [assistant, defaultModel])
   if (!model) {
-    throw new Error(`Assistant model is not set for assistant with name: ${assistant?.name ?? 'unknown'}`)
+    throw new Error(`Assistant model is not set for assistant with name: ${assistant.name ?? 'unknown'}`)
   }
 
   const assistantWithModel = useMemo(() => ({ ...assistant, model }), [assistant, model])
 
-  const settingsRef = useRef(assistant?.settings)
+  const settingsRef = useRef(assistant.settings)
 
   useEffect(() => {
-    settingsRef.current = assistant?.settings
-  }, [assistant?.settings])
+    settingsRef.current = assistant.settings
+  }, [assistant.settings])
 
   const updateAssistantSettings = useCallback(
     (settings: Partial<AssistantSettings>) => {
-      assistant?.id && dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
+      dispatch(_updateAssistantSettings({ assistantId: assistant.id, settings }))
     },
-    [assistant?.id, dispatch]
+    [assistant.id, dispatch]
   )
 
   // 当model变化时，同步reasoning effort为模型支持的合法值
