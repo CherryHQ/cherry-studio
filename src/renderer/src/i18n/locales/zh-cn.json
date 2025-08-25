@@ -1544,7 +1544,10 @@
     "rerank_model_not_support_provider": "目前重排序模型不支持该服务商 ({{provider}})",
     "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
     "rerank_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
-    "search": "搜索模型...",
+    "search": {
+      "placeholder": "搜索模型...",
+      "tooltip": "搜索模型"
+    },
     "stream_output": "流式输出",
     "type": {
       "embedding": "嵌入",
@@ -2911,6 +2914,10 @@
         "size": "大小",
         "text": "文本",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "搜索 MCP 服务器...",
+        "tooltip": "搜索 MCP 服务器"
       },
       "searchNpx": "搜索 MCP",
       "serverPlural": "服务器",

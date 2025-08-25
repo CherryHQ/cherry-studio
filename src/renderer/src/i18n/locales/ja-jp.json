@@ -1544,7 +1544,10 @@
     "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。",
     "rerank_model_support_provider": "現在の再順序付けモデルは、{{provider}} のみサポートしています",
     "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
-    "search": "モデルを検索...",
+    "search": {
+      "placeholder": "モデルを検索...",
+      "tooltip": "モデルを検索"
+    },
     "stream_output": "ストリーム出力",
     "type": {
       "embedding": "埋め込み",
@@ -2911,6 +2914,10 @@
         "size": "サイズ",
         "text": "テキスト",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "MCP サーバーを検索...",
+        "tooltip": "MCP サーバーを検索"
       },
       "searchNpx": "MCP を検索",
       "serverPlural": "サーバー",

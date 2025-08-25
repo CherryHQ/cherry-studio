@@ -1544,7 +1544,10 @@
     "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）",
     "rerank_model_support_provider": "目前重排序模型僅支持部分服務商 ({{provider}})",
     "rerank_model_tooltip": "在設定 -> 模型服務中點擊管理按鈕添加",
-    "search": "搜尋模型...",
+    "search": {
+      "placeholder": "搜尋模型...",
+      "tooltip": "搜尋模型"
+    },
     "stream_output": "串流輸出",
     "type": {
       "embedding": "嵌入",
@@ -2911,6 +2914,10 @@
         "size": "大小",
         "text": "文字",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "搜索 MCP 伺服器...",
+        "tooltip": "搜索 MCP 伺服器"
       },
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",

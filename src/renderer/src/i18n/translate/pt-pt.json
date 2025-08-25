@@ -1544,7 +1544,10 @@
     "rerank_model_not_support_provider": "Atualmente o modelo de reclassificação não suporta este provedor ({{provider}})",
     "rerank_model_support_provider": "O modelo de reclassificação atualmente suporta apenas alguns provedores ({{provider}})",
     "rerank_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
-    "search": "Procurar modelo...",
+    "search": {
+      "placeholder": "Procurar modelo...",
+      "tooltip": "Procurar modelo"
+    },
     "stream_output": "Saída em fluxo",
     "type": {
       "embedding": "inserção",
@@ -2911,6 +2914,10 @@
         "size": "Tamanho",
         "text": "Texto",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Buscar servidores MCP...",
+        "tooltip": "Buscar servidores MCP"
       },
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",

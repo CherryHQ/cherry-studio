@@ -1544,7 +1544,10 @@
     "rerank_model_not_support_provider": "Le modèle de réordonnancement ne prend pas en charge ce fournisseur ({{provider}}) pour le moment",
     "rerank_model_support_provider": "Le modèle de réordonnancement ne prend actuellement en charge que certains fournisseurs ({{provider}})",
     "rerank_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
-    "search": "Rechercher un modèle...",
+    "search": {
+      "placeholder": "Rechercher un modèle...",
+      "tooltip": "Rechercher un modèle"
+    },
     "stream_output": "Sortie en flux",
     "type": {
       "embedding": "Incorporation",
@@ -2911,6 +2914,10 @@
         "size": "Размер",
         "text": "Текст",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Rechercher des serveurs MCP...",
+        "tooltip": "Rechercher des serveurs MCP"
       },
       "searchNpx": "Поиск MCP",
       "serverPlural": "Serveurs",
