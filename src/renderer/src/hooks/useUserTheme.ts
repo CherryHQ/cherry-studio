@@ -13,6 +13,8 @@ export default function useUserTheme() {
     document.body.style.setProperty('--color-primary', colorPrimary.toString())
     document.body.style.setProperty('--color-primary-soft', colorPrimary.alpha(0.6).toString())
     document.body.style.setProperty('--color-primary-mute', colorPrimary.alpha(0.3).toString())
+    document.body.style.setProperty('--color-primary-darker-1', colorPrimary.darken(0.2).toString())
+    document.body.style.setProperty('--color-primary-darker-2', colorPrimary.darken(0.4).toString())
   }
 
   return {

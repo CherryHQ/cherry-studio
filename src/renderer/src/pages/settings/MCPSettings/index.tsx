@@ -2,6 +2,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
+import { getTextColorOnPrimary } from '@renderer/utils'
 import { Button, Card } from 'antd'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -240,8 +241,8 @@ const ConfirmMessage = styled.div`
 `
 
 const CommandHighlight = styled.span`
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark, #1677ff));
-  color: white;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-darker-1));
+  color: ${getTextColorOnPrimary()};
   padding: 4px 8px;
   border-radius: 6px;
   font-weight: 500;

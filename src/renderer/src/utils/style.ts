@@ -141,3 +141,18 @@ export function getForegroundColor(backgroundColor: HexColor): HexColor {
 
   return luminance > 0.179 ? '#000000' : '#FFFFFF'
 }
+
+export function getPrimaryColor(): string | HexColor {
+  const root = window.getComputedStyle(document.documentElement)
+  const primary = root.getPropertyValue('--color-primary').trim()
+  return primary
+}
+
+export function getTextColorOnPrimary(): string | HexColor {
+  const primary = getPrimaryColor()
+  if (isHexColor(primary)) {
+    return getForegroundColor(primary)
+  } else {
+    return 'var(--color-text)'
+  }
+}
