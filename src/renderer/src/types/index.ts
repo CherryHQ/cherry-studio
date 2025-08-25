@@ -851,6 +851,34 @@ export interface MCPServer {
   reference?: string // Reference link for the server, e.g., documentation or homepage
 }
 
+export type BuiltinMCPServer = MCPServer & {
+  type: 'inMemory'
+  name: BuiltinMCPServerName
+}
+
+export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServer => {
+  return server.type === 'inMemory' && isBuiltinMCPServerName(server.name)
+}
+
+export const BuiltinMCPServerNames = {
+  mcpAutoInstall: '@cherry/mcp-auto-install',
+  memory: '@cherry/memory',
+  sequentialThinking: '@cherry/sequentialthinking',
+  braveSearch: '@cherry/brave-search',
+  fetch: '@cherry/fetch',
+  filesystem: '@cherry/filesystem',
+  difyKnowledge: '@cherry/dify-knowledge',
+  python: '@cherry/python'
+} as const
+
+export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
+
+export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
+
+export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
+  return BuiltinMCPServerNamesArray.some((n) => n === name)
+}
+
 export interface MCPToolInputSchema {
   type: string
   title: string

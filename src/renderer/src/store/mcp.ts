@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import type { MCPConfig, MCPServer } from '@renderer/types'
+import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
 
@@ -70,10 +70,10 @@ export { mcpSlice }
 // Export the reducer as default export
 export default mcpSlice.reducer
 
-export const builtinMCPServers: MCPServer[] = [
+export const builtinMCPServers: BuiltinMCPServer[] = [
   {
     id: nanoid(),
-    name: '@cherry/mcp-auto-install',
+    name: BuiltinMCPServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'inMemory',
     command: 'npx',
@@ -83,7 +83,7 @@ export const builtinMCPServers: MCPServer[] = [
   },
   {
     id: nanoid(),
-    name: '@cherry/memory',
+    name: BuiltinMCPServerNames.memory,
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     type: 'inMemory',
     isActive: true,
@@ -95,14 +95,14 @@ export const builtinMCPServers: MCPServer[] = [
   },
   {
     id: nanoid(),
-    name: '@cherry/sequentialthinking',
+    name: BuiltinMCPServerNames.sequentialThinking,
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI'
   },
   {
     id: nanoid(),
-    name: '@cherry/brave-search',
+    name: BuiltinMCPServerNames.braveSearch,
     type: 'inMemory',
     isActive: false,
     env: {
@@ -113,14 +113,14 @@ export const builtinMCPServers: MCPServer[] = [
   },
   {
     id: nanoid(),
-    name: '@cherry/fetch',
+    name: BuiltinMCPServerNames.fetch,
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI'
   },
   {
     id: nanoid(),
-    name: '@cherry/filesystem',
+    name: BuiltinMCPServerNames.filesystem,
     type: 'inMemory',
     args: ['/Users/username/Desktop', '/path/to/other/allowed/dir'],
     shouldConfig: true,
@@ -129,7 +129,7 @@ export const builtinMCPServers: MCPServer[] = [
   },
   {
     id: nanoid(),
-    name: '@cherry/dify-knowledge',
+    name: BuiltinMCPServerNames.difyKnowledge,
     type: 'inMemory',
     isActive: false,
     env: {
@@ -140,12 +140,12 @@ export const builtinMCPServers: MCPServer[] = [
   },
   {
     id: nanoid(),
-    name: '@cherry/python',
+    name: BuiltinMCPServerNames.python,
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI'
   }
-]
+] as const
 
 /**
  * Utility function to add servers to the MCP store during app initialization

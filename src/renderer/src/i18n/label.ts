@@ -5,6 +5,7 @@
  */
 
 import { loggerService } from '@logger'
+import { BuiltinMCPServerName, BuiltinMCPServerNames } from '@renderer/types'
 import { ThinkingOption } from '@renderer/types'
 
 import i18n from './index'
@@ -292,15 +293,15 @@ export const getFileFieldLabel = (key: string): string => {
   return getLabel(key, fileFieldKeyMap)
 }
 
-const builtInMcpDescriptionKeyMap = {
-  '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
-  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.memory',
-  '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
-  '@cherry/brave-search': 'settings.mcp.builtinServersDescriptions.brave_search',
-  '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',
-  '@cherry/filesystem': 'settings.mcp.builtinServersDescriptions.filesystem',
-  '@cherry/dify-knowledge': 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python'
+const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
+  [BuiltinMCPServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  [BuiltinMCPServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
+  [BuiltinMCPServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
+  [BuiltinMCPServerNames.braveSearch]: 'settings.mcp.builtinServersDescriptions.brave_search',
+  [BuiltinMCPServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
+  [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
+  [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
+  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
