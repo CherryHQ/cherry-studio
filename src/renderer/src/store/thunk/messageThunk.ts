@@ -855,9 +855,8 @@ const fetchAndProcessAssistantResponseImpl = async (
   const assistantMsgId = assistantMessage.id
   const callbacks: StreamProcessorCallbacks = streamCallback(dispatch, getState, topicId, assistant, assistantMsgId)
   try {
-    const state = getState()
-    const latestAssistant = state.assistants.assistants.find((a) => a.id === assistant.id)
-    const assistantToUse = latestAssistant || assistant
+    // Use the assistant passed in, which may have been updated with a new model
+    const assistantToUse = assistant
 
     // 调试日志：检查助手对象是否包含预设消息
     console.log('[messageThunk] 助手对象信息:', {
