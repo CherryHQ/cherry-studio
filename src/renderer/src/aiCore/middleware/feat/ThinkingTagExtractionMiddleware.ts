@@ -30,7 +30,7 @@ const getAppropriateTag = (model?: Model): TagConfig => {
   if (model?.id?.includes('qwen3')) return reasoningTags[0]
   if (model?.id?.includes('gemini-2.5')) return reasoningTags[1]
   if (model?.id?.includes('kimi-vl-a3b-thinking')) return reasoningTags[3]
-  if (model?.id?.includes('seed-oss-36b')) return reasoningTags[5]
+  if (model?.id?.toLowerCase().includes('seed-oss-36b')) return reasoningTags[5]
   // 可以在这里添加更多模型特定的标签配置
   return reasoningTags[0] // 默认使用 <think> 标签
 }
