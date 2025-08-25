@@ -813,6 +813,13 @@
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Abrir el panel de depuración",
+        "message": "Parece que ha surgido un problema...",
+        "reload": "Recargar"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "Devuelve un formato de datos no válido"
@@ -3732,9 +3739,10 @@
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
-      "delete": "Eliminar",
+      "delete": "Eliminar historial de traducción",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
+        "delete": "Eliminación fallida",
         "save": "Error al guardar el historial de traducciones"
       },
       "search": {

@@ -813,6 +813,13 @@
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
+    "boundary": {
+      "default": {
+        "devtools": "Ouvrir le panneau de débogage",
+        "message": "Il semble que quelques problèmes soient survenus...",
+        "reload": "Recharger"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "a renvoyé un format de données invalide"
@@ -3732,9 +3739,10 @@
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
-      "delete": "Supprimer",
+      "delete": "Supprimer l'historique des traductions",
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
+        "delete": "Échec de la suppression",
         "save": "Échec de la sauvegarde de l'historique des traductions"
       },
       "search": {

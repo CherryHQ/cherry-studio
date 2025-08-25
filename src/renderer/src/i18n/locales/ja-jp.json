@@ -813,6 +813,13 @@
     "backup": {
       "file_format": "バックアップファイルの形式エラー"
     },
+    "boundary": {
+      "default": {
+        "devtools": "デバッグパネルを開く",
+        "message": "何か問題が発生したようです...",
+        "reload": "再読み込み"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "無効なデータ形式が返されました"
@@ -3732,9 +3739,10 @@
     "history": {
       "clear": "履歴をクリア",
       "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
-      "delete": "削除",
+      "delete": "翻訳履歴を削除する",
       "empty": "翻訳履歴がありません",
       "error": {
+        "delete": "削除に失敗しました",
         "save": "保存翻訳履歴に失敗しました"
       },
       "search": {

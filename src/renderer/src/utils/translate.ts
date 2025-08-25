@@ -53,7 +53,7 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
 }
 
 const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {
-  logger.info('Detect langugage by llm')
+  logger.info('Detect language by llm')
   let detectedLang = ''
   await fetchLanguageDetection({
     text: sliceByTokens(inputText, 0, 100),
@@ -65,7 +65,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
 }
 
 const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {
-  logger.info('Detect langugage by franc')
+  logger.info('Detect language by franc')
   const iso3 = franc(inputText)
 
   const isoMap: Record<string, TranslateLanguage> = {

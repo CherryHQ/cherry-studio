@@ -813,6 +813,13 @@
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
+    "boundary": {
+      "default": {
+        "devtools": "打開除錯面板",
+        "message": "似乎出現了一些問題...",
+        "reload": "重新載入"
+      }
+    },
     "chat": {
       "chunk": {
         "non_json": "返回了無效的資料格式"
@@ -3732,9 +3739,10 @@
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
-      "delete": "刪除",
+      "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "delete": "删除失败",
         "save": "保存翻譯歷史失敗"
       },
       "search": {

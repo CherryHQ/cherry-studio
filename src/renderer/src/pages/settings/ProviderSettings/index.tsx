@@ -1,7 +1,7 @@
 import { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import { DraggableVirtualList, useDraggableReorder } from '@renderer/components/DraggableList'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -11,6 +11,7 @@ import {
   generateColorFromChar,
   getFancyProviderName,
   getFirstCharacter,
+  getForegroundColor,
   matchKeywordsInModel,
   matchKeywordsInProvider,
   uuid
@@ -406,22 +407,31 @@ const ProvidersList: FC = () => {
     }
   }
 
-  const getProviderAvatar = (provider: Provider) => {
+  const getProviderAvatar = (provider: Provider, size: number = 25) => {
+    // 特殊处理一下svg格式
+    if (isSystemProvider(provider)) {
+      switch (provider.id) {
+        case 'poe':
+          return <PoeLogo fontSize={size} />
+      }
+    }
+
     const logoSrc = getProviderLogo(provider.id)
     if (logoSrc) {
-      return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={25} />
+      return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={size} />
     }
 
     const customLogo = providerLogos[provider.id]
     if (customLogo) {
-      return <ProviderLogo draggable="false" shape="square" src={customLogo} size={25} />
+      return <ProviderLogo draggable="false" shape="square" src={customLogo} size={size} />
     }
 
+    // generate color for custom provider
+    const backgroundColor = generateColorFromChar(provider.name)
+    const color = provider.name ? getForegroundColor(backgroundColor) : 'white'
+
     return (
-      <ProviderLogo
-        size={25}
-        shape="square"
-        style={{ backgroundColor: generateColorFromChar(provider.name), minWidth: 25 }}>
+      <ProviderLogo size={size} shape="square" style={{ backgroundColor, color, minWidth: size }}>
         {getFirstCharacter(provider.name)}
       </ProviderLogo>
     )
