@@ -265,10 +265,10 @@ const McpServersList: FC = () => {
           />
         )}
       />
-      {filteredMcpServers.length === 0 && (
+      {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('settings.mcp.noServers')}
+          description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
           style={{ marginTop: 20 }}
         />
       )}
