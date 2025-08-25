@@ -3740,9 +3740,10 @@
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
-      "delete": "Delete",
+      "delete": "Delete translation history",
       "empty": "No translation history",
       "error": {
+        "delete": "Deletion failed",
         "save": "Failed to save translation history"
       },
       "search": {

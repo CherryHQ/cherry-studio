@@ -3740,9 +3740,10 @@
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
-      "delete": "刪除",
+      "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "delete": "删除失败",
         "save": "保存翻譯歷史失敗"
       },
       "search": {

@@ -144,34 +144,6 @@ export function removeSpecialCharactersForTopicName(str: string): string {
 }
 
 /**
- * 根据字符生成颜色代码，用于 avatar。
- * @param {string} char 输入字符
- * @returns {string} 十六进制颜色字符串
- */
-export function generateColorFromChar(char: string): string {
-  // 使用字符的Unicode值作为随机种子
-  const seed = char.charCodeAt(0)
-
-  // 使用简单的线性同余生成器创建伪随机数
-  const a = 1664525
-  const c = 1013904223
-  const m = Math.pow(2, 32)
-
-  // 生成三个伪随机数作为RGB值
-  let r = (a * seed + c) % m
-  let g = (a * r + c) % m
-  let b = (a * g + c) % m
-
-  // 将伪随机数转换为0-255范围内的整数
-  r = Math.floor((r / m) * 256)
-  g = Math.floor((g / m) * 256)
-  b = Math.floor((b / m) * 256)
-
-  // 返回十六进制颜色字符串
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
-}
-
-/**
  * 获取字符串的第一个字符。
  * @param {string} str 输入字符串
  * @returns {string} 第一个字符，或者空字符串

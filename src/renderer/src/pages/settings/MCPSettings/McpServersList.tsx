@@ -1,5 +1,5 @@
 import { nanoid } from '@reduxjs/toolkit'
-import { DraggableList } from '@renderer/components/DraggableList'
+import { Sortable } from '@renderer/components/dnd'
 import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
@@ -192,53 +192,57 @@ const McpServersList: FC = () => {
       <ListHeader>
         <SettingTitle style={{ gap: 3 }}>
           <span>{t('settings.mcp.newServer')}</span>
-          <Button icon={<EditIcon size={14} />} type="text" onClick={() => EditMcpJsonPopup.show()} shape="circle" />
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
+          <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
+            {t('common.edit')}
+          </Button>
           <Dropdown
             menu={{
               items: menuItems
             }}
             trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
-              {t('settings.mcp.addServer.label')}
+              {t('common.add')}
             </Button>
           </Dropdown>
-          <Button icon={<RefreshIcon size={16} />} type="default" onClick={onSyncServers} shape="round">
-            {t('settings.mcp.sync.title', 'Sync Servers')}
+          <Button icon={<RefreshIcon size={14} />} type="default" onClick={onSyncServers} shape="round">
+            {t('settings.mcp.sync.button')}
           </Button>
         </ButtonGroup>
       </ListHeader>
-      <DraggableList
-        style={{ width: '100%' }}
-        list={mcpServers}
-        onUpdate={updateMcpServers}
-        listProps={{
-          locale: {
-            emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={t('settings.mcp.noServers')}
-                style={{ marginTop: 20 }}
-              />
-            )
-          }
-        }}>
-        {(server: MCPServer) => (
-          <div onClick={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}>
-            <McpServerCard
-              server={server}
-              version={serverVersions[server.id]}
-              isLoading={loadingServerIds.has(server.id)}
-              onToggle={(active) => handleToggleActive(server, active)}
-              onDelete={() => onDeleteMcpServer(server)}
-              onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
-              onOpenUrl={(url) => window.open(url, '_blank')}
-            />
-          </div>
+      <Sortable
+        items={mcpServers}
+        itemKey="id"
+        onSortEnd={({ oldIndex, newIndex }) => {
+          const newList = [...mcpServers]
+          const [removed] = newList.splice(oldIndex, 1)
+          newList.splice(newIndex, 0, removed)
+          updateMcpServers(newList)
+        }}
+        layout="grid"
+        useDragOverlay
+        showGhost
+        renderItem={(server) => (
+          <McpServerCard
+            server={server}
+            version={serverVersions[server.id]}
+            isLoading={loadingServerIds.has(server.id)}
+            onToggle={(active) => handleToggleActive(server, active)}
+            onDelete={() => onDeleteMcpServer(server)}
+            onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
+            onOpenUrl={(url) => window.open(url, '_blank')}
+          />
         )}
-      </DraggableList>
+      />
+      {mcpServers.length === 0 && (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={t('settings.mcp.noServers')}
+          style={{ marginTop: 20 }}
+        />
+      )}
 
       <McpMarketList />
       <BuiltinMCPServerList />

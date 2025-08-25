@@ -3740,9 +3740,10 @@
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
-      "delete": "Eliminar",
+      "delete": "Eliminar historial de traducción",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
+        "delete": "Eliminación fallida",
         "save": "Error al guardar el historial de traducciones"
       },
       "search": {

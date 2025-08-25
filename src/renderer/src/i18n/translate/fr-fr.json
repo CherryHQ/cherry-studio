@@ -3740,9 +3740,10 @@
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
-      "delete": "Supprimer",
+      "delete": "Supprimer l'historique des traductions",
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
+        "delete": "Échec de la suppression",
         "save": "Échec de la sauvegarde de l'historique des traductions"
       },
       "search": {

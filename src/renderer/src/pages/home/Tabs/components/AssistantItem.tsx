@@ -137,7 +137,10 @@ const AssistantItem: FC<AssistantItemProps> = ({
   )
 
   return (
-    <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']}>
+    <Dropdown
+      menu={{ items: menuItems }}
+      trigger={['contextMenu']}
+      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
       <Container onClick={handleSwitch} className={isActive ? 'active' : ''}>
         <AssistantNameRow className="name" title={fullAssistantName}>
           {assistantIconType === 'model' ? (
@@ -386,7 +389,6 @@ const Container = styled.div`
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
   width: calc(var(--assistants-width) - 20px);
-  cursor: pointer;
   &:hover {
     background-color: var(--color-list-item-hover);
   }
