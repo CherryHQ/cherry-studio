@@ -787,6 +787,7 @@
         "label": "ピンインでソート"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
@@ -3751,6 +3752,9 @@
         "placeholder": "翻訳履歴を検索する"
       },
       "title": "翻訳履歴"
+    },
+    "info": {
+      "aborted": "翻訳中止"
     },
     "input": {
       "placeholder": "翻訳するテキストを入力"

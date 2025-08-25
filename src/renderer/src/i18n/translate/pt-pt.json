@@ -787,6 +787,7 @@
         "label": "Ordenar por Pinyin"
       }
     },
+    "stop": "Parar",
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
@@ -3751,6 +3752,9 @@
         "placeholder": "Pesquisar histórico de tradução"
       },
       "title": "Histórico de Tradução"
+    },
+    "info": {
+      "aborted": "Tradução interrompida"
     },
     "input": {
       "placeholder": "Digite o texto para traduzir"
