@@ -2980,7 +2980,13 @@
       "updateError": "Ошибка обновления сервера",
       "updateSuccess": "Сервер успешно обновлен",
       "url": "URL",
-      "user": "Пользователь"
+      "user": "Пользователь",
+      "add_failed_invalid_data": "Ошибка добавления: неверные данные",
+      "server_already_exists": "Сервер {{server}} уже существует",
+      "server_add_confirm": "Хотите добавить сервер {{server}}?",
+      "server_confirm_title": "Подтвердить добавление {{server}}",
+      "server_no_change": "Сервер {{server}} уже существует, изменения не внесены",
+      "server_added": "Сервер {{server}} успешно добавлен"
     },
     "messages": {
       "divider": {

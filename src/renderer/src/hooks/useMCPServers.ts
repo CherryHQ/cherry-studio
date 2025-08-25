@@ -11,9 +11,19 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) 
 })
 
 window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
-  store.dispatch(addMCPServer(server))
-  NavigationService.navigate?.('/settings/mcp')
-  NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
+  // Prepare MCP data for URL parameter
+  const mcpData = {
+    id: server.id,
+    name: server.name,
+    command: server.command,
+    baseUrl: server.baseUrl,
+    type: server.type,
+    description: server.description
+  }
+  
+  // Navigate to MCP settings with addMcpData parameter
+  const addMcpDataParam = encodeURIComponent(JSON.stringify(mcpData))
+  NavigationService.navigate?.(`/settings/mcp?addMcpData=${addMcpDataParam}`)
 })
 
 const selectMcpServers = (state: RootState) => state.mcp.servers

@@ -2980,7 +2980,13 @@
       "updateError": "サーバーの更新に失敗しました",
       "updateSuccess": "サーバーが正常に更新されました",
       "url": "URL",
-      "user": "ユーザー"
+      "user": "ユーザー",
+      "add_failed_invalid_data": "追加失敗：無効なデータ",
+      "server_already_exists": "サーバー {{server}} は既に存在します",
+      "server_add_confirm": "サーバー {{server}} を追加しますか？",
+      "server_confirm_title": "{{server}} の追加を確認",
+      "server_no_change": "サーバー {{server}} は既に存在するため、変更されませんでした",
+      "server_added": "サーバー {{server}} が正常に追加されました"
     },
     "messages": {
       "divider": {
