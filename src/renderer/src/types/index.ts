@@ -857,20 +857,22 @@ export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServe
 }
 
 export const BuiltinMCPServerNames = {
-  '@cherry/mcp-auto-install': '@cherry/mcp-auto-install',
-  '@cherry/memory': '@cherry/memory',
-  '@cherry/sequentialthinking': '@cherry/sequentialthinking',
-  '@cherry/brave-search': '@cherry/brave-search',
-  '@cherry/fetch': '@cherry/fetch',
-  '@cherry/filesystem': '@cherry/filesystem',
-  '@cherry/dify-knowledge': '@cherry/dify-knowledge',
-  '@cherry/python': '@cherry/python'
+  mcpAutoInstall: '@cherry/mcp-auto-install',
+  memory: '@cherry/memory',
+  sequentialThinking: '@cherry/sequentialthinking',
+  braveSearch: '@cherry/brave-search',
+  fetch: '@cherry/fetch',
+  filesystem: '@cherry/filesystem',
+  difyKnowledge: '@cherry/dify-knowledge',
+  python: '@cherry/python'
 } as const
 
-export type BuiltinMCPServerName = keyof typeof BuiltinMCPServerNames
+export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
+
+export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
 
 export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
-  return Object.hasOwn(BuiltinMCPServerNames, name)
+  return BuiltinMCPServerNamesArray.some((n) => n === name)
 }
 
 export interface MCPToolInputSchema {
