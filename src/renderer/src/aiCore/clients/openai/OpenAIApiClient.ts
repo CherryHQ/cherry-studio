@@ -196,7 +196,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // reasoningEffort有效的情况
-    logger.debug('reasoning effort is not undefined')
     const effortRatio = EFFORT_RATIO[reasoningEffort]
     const budgetTokens = Math.floor(
       (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio + findTokenLimit(model.id)?.min!
@@ -218,7 +217,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       if (isSystemProvider(this.provider)) {
         switch (this.provider.id) {
           case 'dashscope':
-            logger.debug('enter dashscope. should get true enable_thinking')
             return {
               enable_thinking: true,
               incremental_output: true
