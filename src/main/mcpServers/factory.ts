@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { BuiltinMCPServerName } from '@types'
 
 import BraveSearchServer from './brave-search'
 import DifyKnowledgeServer from './dify-knowledge'
@@ -11,7 +12,11 @@ import ThinkingServer from './sequentialthinking'
 
 const logger = loggerService.withContext('MCPFactory')
 
-export function createInMemoryMCPServer(name: string, args: string[] = [], envs: Record<string, string> = {}): Server {
+export function createInMemoryMCPServer(
+  name: BuiltinMCPServerName,
+  args: string[] = [],
+  envs: Record<string, string> = {}
+): Server {
   logger.debug(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
   switch (name) {
     case '@cherry/memory': {
