@@ -137,12 +137,18 @@ class KnowledgeQueue {
           note = await db.knowledge_notes.get(item.id)
           if (note) {
             content = note.content as string
+            logger.info('{ ...sourceItem, content }', { ...sourceItem, content })
             result = await window.api.knowledgeBase.add({ base: baseParams, item: { ...sourceItem, content } })
           }
           break
-        default:
-          result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem, userId: userId as string })
+        default: {
+          result = await window.api.knowledgeBase.add({
+            base: baseParams,
+            item: sourceItem,
+            userId: userId as string
+          })
           break
+        }
       }
 
       if (!result) {

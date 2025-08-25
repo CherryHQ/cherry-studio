@@ -1,6 +1,6 @@
 import { Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/embeddings/Embeddings'
+import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
 import type {
   AddMemoryOptions,
   AssistantMessage,

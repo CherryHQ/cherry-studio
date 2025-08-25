@@ -4,7 +4,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase } from '@renderer/types'
 import { nanoid } from 'nanoid'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const createInitialKnowledgeBase = (): KnowledgeBase => ({
@@ -14,7 +14,11 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
   items: [],
   created_at: Date.now(),
   updated_at: Date.now(),
-  version: 1
+  version: 1,
+  framework: 'langchain',
+  retriever: {
+    mode: 'hybrid'
+  }
 })
 
 /**
@@ -40,6 +44,12 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
   const [newBase, setNewBase] = useState<KnowledgeBase>(base || createInitialKnowledgeBase())
   const { providers } = useProviders()
   const { preprocessProviders } = usePreprocessProviders()
+
+  useEffect(() => {
+    if (base) {
+      setNewBase(base)
+    }
+  }, [base])
 
   const selectedDocPreprocessProvider = useMemo(
     () => newBase.preprocessProvider?.provider,

@@ -1,4 +1,3 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
@@ -13,6 +12,7 @@ import {
   FileUploadResponse,
   KnowledgeBaseParams,
   KnowledgeItem,
+  KnowledgeSearchResult,
   MCPServer,
   MemoryConfig,
   MemoryListOptions,
@@ -192,7 +192,7 @@ const api = {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
+    delete: (base: KnowledgeBaseParams, id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, base, id),
     add: ({
       base,
       item,
@@ -209,7 +209,7 @@ const api = {
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
     rerank: (
-      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] },
+      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
       context?: SpanContext
     ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results }),
     checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>

@@ -7,8 +7,10 @@ import * as z from 'zod/v4'
 export * from './file'
 
 import type { FileMetadata } from './file'
+import { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { Message } from './newMessage'
 
+export * from './knowledge'
 export type Assistant = {
   id: string
   name: string
@@ -554,91 +556,12 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
-
-export type KnowledgeItem = {
-  id: string
-  baseId?: string
-  uniqueId?: string
-  uniqueIds?: string[]
-  type: KnowledgeItemType
-  content: string | FileMetadata
-  remark?: string
-  created_at: number
-  updated_at: number
-  processingStatus?: ProcessingStatus
-  processingProgress?: number
-  processingError?: string
-  retryCount?: number
-  isPreprocessed?: boolean
-}
-
-export interface KnowledgeBase {
-  id: string
-  name: string
-  model: Model
-  dimensions?: number
-  description?: string
-  items: KnowledgeItem[]
-  created_at: number
-  updated_at: number
-  version: number
-  documentCount?: number
-  chunkSize?: number
-  chunkOverlap?: number
-  threshold?: number
-  rerankModel?: Model
-  // topN?: number
-  // preprocessing?: boolean
-  preprocessProvider?: {
-    type: 'preprocess'
-    provider: PreprocessProvider
-  }
-}
-
 export type ApiClient = {
   model: string
   provider: string
   apiKey: string
   apiVersion?: string
   baseURL: string
-}
-
-export type KnowledgeBaseParams = {
-  id: string
-  dimensions?: number
-  chunkSize?: number
-  chunkOverlap?: number
-  embedApiClient: ApiClient
-  rerankApiClient?: ApiClient
-  documentCount?: number
-  // preprocessing?: boolean
-  preprocessProvider?: {
-    type: 'preprocess'
-    provider: PreprocessProvider
-  }
-}
-
-export const PreprocessProviderIds = {
-  doc2x: 'doc2x',
-  mistral: 'mistral',
-  mineru: 'mineru'
-} as const
-
-export type PreprocessProviderId = keyof typeof PreprocessProviderIds
-
-export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
-  return Object.hasOwn(PreprocessProviderIds, id)
-}
-
-export interface PreprocessProvider {
-  id: PreprocessProviderId
-  name: string
-  apiKey?: string
-  apiHost?: string
-  model?: string
-  options?: any
-  quota?: number
 }
 
 export type GenerateImageParams = {
@@ -794,14 +717,6 @@ export type WebSearchStatus = {
   phase: WebSearchPhase
   countBefore?: number
   countAfter?: number
-}
-
-export type KnowledgeReference = {
-  id: number
-  content: string
-  sourceUrl: string
-  type: KnowledgeItemType
-  file?: FileMetadata
 }
 
 export type MCPArgType = 'string' | 'list' | 'number'

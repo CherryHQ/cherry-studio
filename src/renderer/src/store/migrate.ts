@@ -1879,6 +1879,7 @@ const migrateConfig = {
       return state
     }
   },
+
   '123': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
@@ -2172,6 +2173,19 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 136 error', error as Error)
+      return state
+    }
+  },
+  '137': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if (!base.framework) {
+          base.framework = 'embedjs'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 137 error', error as Error)
       return state
     }
   }

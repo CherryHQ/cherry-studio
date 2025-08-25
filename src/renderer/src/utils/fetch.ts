@@ -16,7 +16,7 @@ type ResponseFormat = 'markdown' | 'html' | 'text'
 /**
  * Validates if the string is a properly formatted URL
  */
-function isValidUrl(urlString: string): boolean {
+export function isValidUrl(urlString: string): boolean {
   try {
     const url = new URL(urlString)
     return url.protocol === 'http:' || url.protocol === 'https:'
