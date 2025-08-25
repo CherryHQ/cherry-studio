@@ -325,7 +325,7 @@ export function getName(baseDir: string, fileName: string, isFile: boolean): str
  * @param fileName
  */
 export function checkName(fileName: string): string {
-  const invalidPattern = /[<>:"/\\|?*]/
+  const invalidPattern = /[<>:"/\\|?*#%&{}[\]~`@+=]/
   if (invalidPattern.test(fileName)) {
     throw new Error(`Invalid file name: ${fileName}`)
   }
