@@ -779,6 +779,7 @@
     "select": "選択",
     "selectedItems": "{{count}}件の項目を選択しました",
     "selectedMessages": "{{count}}件のメッセージを選択しました",
+    "sending": "送信中...",
     "settings": "設定",
     "sort": {
       "pinyin": {
@@ -859,6 +860,20 @@
       "reasoning_truncated": "思考過程がブロック分割できません。切り捨てられています。"
     },
     "user": "ユーザー"
+  },
+  "exportToPhone": {
+    "confirm": {
+      "button": "バックアップファイルを選択"
+    },
+    "content": "チャット履歴や設定を含むデータをエクスポートします。バックアップ処理には時間がかかる場合がありますので、ご了承ください。",
+    "lan": {
+      "content": "LAN伝送を使用する場合、コンピュータと携帯電話が同じネットワーク上にあることを確認してください。Cherry Studioアプリを開いて、このQRコードをスキャンしてください。",
+      "noZipSelected": "Zipファイルが選択されていません",
+      "selectZip": "ZIPファイルを選択",
+      "sendZip": "データ復元を開始する",
+      "title": "ランドロップ"
+    },
+    "title": "電話にエクスポート"
   },
   "files": {
     "actions": "操作",
@@ -2164,6 +2179,9 @@
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
       },
+      "export_to_phone": "携帯電話にエクスポート",
+      "export_to_phone_button": "携帯電話にデータをバックアップ",
+      "export_to_phone_use_lan_button": "LAN伝送",
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",
       "joplin": {
