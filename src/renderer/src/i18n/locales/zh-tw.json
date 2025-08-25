@@ -836,6 +836,11 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器超時，請稍後再試"
     },
+    "mcp": {
+      "add": {
+        "invalid_server": "無效的MCP伺服器資料格式"
+      }
+    },
     "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
     "model": {
       "exists": "模型已存在",
@@ -2828,6 +2833,7 @@
         "label": "新增伺服器"
       },
       "addSuccess": "伺服器新增成功",
+      "add_failed_invalid_data": "添加失敗：無效數據",
       "advancedSettings": "高級設定",
       "args": "參數",
       "argsTooltip": "每個參數佔一行",
@@ -2946,6 +2952,11 @@
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
+      "server_add_confirm": "確定要添加伺服器 {{server}} 嗎？",
+      "server_added": "伺服器 {{server}} 添加成功",
+      "server_already_exists": "伺服器 {{server}} 已存在",
+      "server_confirm_title": "確認添加 {{server}}",
+      "server_no_change": "伺服器 {{server}} 已存在，未作任何更改",
       "sse": "伺服器傳送事件 (sse)",
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
