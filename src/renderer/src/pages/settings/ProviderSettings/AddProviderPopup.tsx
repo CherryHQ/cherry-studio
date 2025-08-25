@@ -5,7 +5,7 @@ import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage, generateColorFromChar } from '@renderer/utils'
+import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -182,6 +182,10 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     }
   ]
 
+  // for logo
+  const backgroundColor = generateColorFromChar(name)
+  const color = name ? getForegroundColor(backgroundColor) : 'white'
+
   return (
     <Modal
       open={open}
@@ -224,8 +228,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               {logo ? (
                 <ProviderLogo src={logo} />
               ) : (
-                <ProviderInitialsLogo
-                  style={name ? { backgroundColor: generateColorFromChar(name) } : { color: 'black' }}>
+                <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
                   {getInitials()}
                 </ProviderInitialsLogo>
               )}
@@ -294,7 +297,6 @@ const ProviderInitialsLogo = styled.div`
   transition: opacity 0.3s ease;
   background-color: var(--color-background-soft);
   border: 0.5px solid var(--color-border);
-  color: white;
   &:hover {
     opacity: 0.8;
   }

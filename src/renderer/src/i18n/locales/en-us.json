@@ -1548,7 +1548,10 @@
     "rerank_model_not_support_provider": "Currently, the reranker model does not support this provider ({{provider}})",
     "rerank_model_support_provider": "Currently, the reranker model only supports some providers ({{provider}})",
     "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
-    "search": "Search models...",
+    "search": {
+      "placeholder": "Search models...",
+      "tooltip": "Search models"
+    },
     "stream_output": "Stream output",
     "type": {
       "embedding": "Embedding",
@@ -2936,6 +2939,10 @@
         "text": "Text",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "Search MCP servers...",
+        "tooltip": "Search MCP servers"
+      },
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
@@ -3781,9 +3788,10 @@
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
-      "delete": "Delete",
+      "delete": "Delete translation history",
       "empty": "No translation history",
       "error": {
+        "delete": "Deletion failed",
         "save": "Failed to save translation history"
       },
       "search": {

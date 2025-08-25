@@ -1548,7 +1548,10 @@
     "rerank_model_not_support_provider": "Le modèle de réordonnancement ne prend pas en charge ce fournisseur ({{provider}}) pour le moment",
     "rerank_model_support_provider": "Le modèle de réordonnancement ne prend actuellement en charge que certains fournisseurs ({{provider}})",
     "rerank_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
-    "search": "Rechercher un modèle...",
+    "search": {
+      "placeholder": "Rechercher un modèle...",
+      "tooltip": "Rechercher un modèle"
+    },
     "stream_output": "Sortie en flux",
     "type": {
       "embedding": "Incorporation",
@@ -2936,6 +2939,10 @@
         "text": "Текст",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "Rechercher des serveurs MCP...",
+        "tooltip": "Rechercher des serveurs MCP"
+      },
       "searchNpx": "Поиск MCP",
       "serverPlural": "Serveurs",
       "serverSingular": "Serveur",
@@ -3781,9 +3788,10 @@
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
-      "delete": "Supprimer",
+      "delete": "Supprimer l'historique des traductions",
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
+        "delete": "Échec de la suppression",
         "save": "Échec de la sauvegarde de l'historique des traductions"
       },
       "search": {
