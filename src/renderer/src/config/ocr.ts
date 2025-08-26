@@ -1,8 +1,8 @@
 import {
   BuiltinOcrProvider,
   BuiltinOcrProviderId,
-  OcrMacProvider,
   OcrProviderCapability,
+  OcrSystemProvider,
   OcrTesseractProvider
 } from '@renderer/types'
 
@@ -21,20 +21,19 @@ const tesseract: OcrTesseractProvider = {
   }
 } as const
 
-// Not support pdf since no default pdf ocr provider for windows.
-const mac: OcrMacProvider = {
-  id: 'mac',
-  name: 'MacOS Vision OCR',
+const systemOcr: OcrSystemProvider = {
+  id: 'system',
+  name: 'System',
   config: {},
   capabilities: {
     image: true
     // pdf: true
   }
-} as const satisfies OcrMacProvider
+} as const satisfies OcrSystemProvider
 
 export const BUILTIN_OCR_PROVIDERS_MAP = {
   tesseract,
-  mac
+  system: systemOcr
 } as const satisfies Record<BuiltinOcrProviderId, BuiltinOcrProvider>
 
 export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = Object.values(BUILTIN_OCR_PROVIDERS_MAP)

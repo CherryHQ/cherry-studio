@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
-import { macOcrService } from './builtin/MacOcrService'
+import { systemOcrService } from './builtin/SystemOcrService'
 import { tesseractService } from './builtin/TesseractService'
 
 const logger = loggerService.withContext('OcrService')
@@ -33,4 +33,4 @@ export const ocrService = new OcrService()
 
 // Register built-in providers
 ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
-ocrService.register(BuiltinOcrProviderIds.mac, macOcrService.ocr.bind(macOcrService))
+ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))

@@ -1,9 +1,16 @@
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { isMac } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
+import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'
 import { setImageOcrProvider } from '@renderer/store/ocr'
-import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
+import {
+  BuiltinOcrProviderIds,
+  ImageOcrProvider,
+  isBuiltinOcrProvider,
+  isImageOcrProvider,
+  OcrProvider
+} from '@renderer/types'
 import { Select } from 'antd'
 import { CircleXIcon } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
@@ -43,10 +50,10 @@ const OcrImageSettings = ({ setProvider }: Props) => {
   }
 
   const options = useMemo(() => {
-    const platformFilter = isMac ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.mac
+    const platformFilter = isMac || isWin ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.system
     return imageProviders.filter(platformFilter).map((p) => ({
       value: p.id,
-      label: p.name
+      label: isBuiltinOcrProvider(p) ? getBuiltinOcrProviderLabel(p.id) : p.name
     }))
   }, [imageProviders])
 
@@ -59,7 +66,7 @@ const OcrImageSettings = ({ setProvider }: Props) => {
             <CustomTag
               icon={<CircleXIcon size={14} color="var(--color-status-error)" />}
               color="var(--color-status-error)">
-              {t('settings.tool.ocr.error.not_mac')}
+              {t('settings.tool.ocr.error.not_system')}
             </CustomTag>
           )}
           <Select

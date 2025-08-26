@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import { ThinkingOption } from '@renderer/types'
+import { BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
 
 import i18n from './index'
 
@@ -305,4 +305,14 @@ const builtInMcpDescriptionKeyMap = {
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
   return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
+}
+
+const builtinOcrProviderKeyMap = {
+  system: 'ocr.builtin.system',
+  tesseract: ''
+} as const satisfies Record<BuiltinOcrProviderId, string>
+
+export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
+  if (key === 'tesseract') return 'Tesseract'
+  else return getLabel(key, builtinOcrProviderKeyMap)
 }

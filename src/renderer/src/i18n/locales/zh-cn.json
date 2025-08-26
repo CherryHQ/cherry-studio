@@ -1576,6 +1576,9 @@
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
   },
   "ocr": {
+    "builtin": {
+      "system": "系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能删除内置提供商",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "当前操作系统不是MacOS"
+          "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {

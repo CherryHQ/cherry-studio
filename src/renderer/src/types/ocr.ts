@@ -4,7 +4,7 @@ import { FileMetadata, ImageFileMetadata, isImageFileMetadata } from '.'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract',
-  mac: 'mac'
+  system: 'system'
 } as const
 
 export type BuiltinOcrProviderId = keyof typeof BuiltinOcrProviderIds
@@ -151,16 +151,16 @@ export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvide
 
 export type TesseractLangCode = Tesseract.LanguageCode
 
-// MacOS Types
-export type OcrMacConfig = OcrProviderConfig & {}
+// System Types
+export type OcrSystemConfig = OcrProviderConfig & {}
 
-export type OcrMacProvider = {
-  id: 'mac'
-  config: OcrMacConfig
+export type OcrSystemProvider = {
+  id: 'system'
+  config: OcrSystemConfig
 } & ImageOcrProvider &
   // PdfOcrProvider &
   BuiltinOcrProvider
 
-export const isOcrMacProvider = (p: OcrProvider): p is OcrMacProvider => {
-  return p.id === BuiltinOcrProviderIds.mac
+export const isOcrSystemProvider = (p: OcrProvider): p is OcrSystemProvider => {
+  return p.id === BuiltinOcrProviderIds.system
 }
