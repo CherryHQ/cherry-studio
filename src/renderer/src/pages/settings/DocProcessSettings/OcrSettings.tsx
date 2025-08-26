@@ -34,9 +34,7 @@ const OcrSettings: FC = () => {
         <Tabs defaultActiveKey="image" items={tabs} />
       </SettingGroup>
       <ErrorBoundary>
-        <SettingGroup theme={themeMode}>
-          <OcrProviderSettings provider={provider} />
-        </SettingGroup>
+        <OcrProviderSettings provider={provider} />
       </ErrorBoundary>
     </ErrorBoundary>
   )
