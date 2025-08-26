@@ -11,14 +11,33 @@ import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher
 const logger = loggerService.withContext('ProxyManager')
 let byPassRules: string[] = []
 
-const isByPass = (hostname: string) => {
-  if (byPassRules.length === 0) {
-    return false
+const isByPass = (url: string) => {
+  const subjectUrlTokens = new URL(url)
+  for (const rule of byPassRules) {
+    const ruleMatch = rule.replace(/^(?<leadingDot>\.)/, '*').match(/^(?<hostname>.+?)(?::(?<port>\d+))?$/)
+
+    if (!ruleMatch || !ruleMatch.groups) {
+      return false
+    }
+
+    if (!ruleMatch.groups.hostname) {
+      return false
+    }
+
+    const hostnameIsMatch = subjectUrlTokens.hostname === ruleMatch.groups.hostname
+
+    if (
+      hostnameIsMatch &&
+      (!ruleMatch.groups ||
+        !ruleMatch.groups.port ||
+        (subjectUrlTokens.port && subjectUrlTokens.port === ruleMatch.groups.port))
+    ) {
+      return true
+    }
   }
 
-  return byPassRules.includes(hostname)
+  return false
 }
-
 class SelectiveDispatcher extends Dispatcher {
   private proxyDispatcher: Dispatcher
   private directDispatcher: Dispatcher
@@ -31,9 +50,7 @@ class SelectiveDispatcher extends Dispatcher {
 
   dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
     if (opts.origin) {
-      const url = new URL(opts.origin)
-      // 检查是否为 localhost 或本地地址
-      if (isByPass(url.hostname)) {
+      if (isByPass(opts.origin.toString())) {
         return this.directDispatcher.dispatch(opts, handler)
       }
     }
@@ -93,15 +110,20 @@ export class ProxyManager {
     // Set new interval
     this.systemProxyInterval = setInterval(async () => {
       const currentProxy = await getSystemProxy()
-      if (currentProxy?.proxyUrl.toLowerCase() === this.config?.proxyRules) {
+      if (
+        currentProxy?.proxyUrl.toLowerCase() === this.config?.proxyRules &&
+        currentProxy?.noProxy.join(',').toLowerCase() === this.config?.proxyBypassRules?.toLowerCase()
+      ) {
         return
       }
 
-      logger.info(`system proxy changed: ${currentProxy?.proxyUrl}, this.config.proxyRules: ${this.config.proxyRules}`)
+      logger.info(
+        `system proxy changed: ${currentProxy?.proxyUrl}, this.config.proxyRules: ${this.config.proxyRules}, this.config.proxyBypassRules: ${this.config.proxyBypassRules}`
+      )
       await this.configureProxy({
         mode: 'system',
         proxyRules: currentProxy?.proxyUrl.toLowerCase(),
-        proxyBypassRules: undefined
+        proxyBypassRules: currentProxy?.noProxy.join(',')
       })
     }, 1000 * 60)
   }
@@ -229,8 +251,7 @@ export class ProxyManager {
 
       // filter localhost
       if (url) {
-        const hostname = typeof url === 'string' ? new URL(url).hostname : url.hostname
-        if (isByPass(hostname)) {
+        if (isByPass(url.toString())) {
           return originalMethod(url, options, callback)
         }
       }
