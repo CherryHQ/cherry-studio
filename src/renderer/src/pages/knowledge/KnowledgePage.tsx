@@ -1,5 +1,4 @@
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -20,9 +19,8 @@ import KnowledgeContent from './KnowledgeContent'
 
 const KnowledgePage: FC = () => {
   const { t } = useTranslation()
-  const { bases, renameKnowledgeBase, deleteKnowledgeBase, updateKnowledgeBases } = useKnowledgeBases()
+  const { bases, renameKnowledgeBase, deleteKnowledgeBase } = useKnowledgeBases()
   const [selectedBase, setSelectedBase] = useState<KnowledgeBase | undefined>(bases[0])
-  const [isDragging, setIsDragging] = useState(false)
 
   const handleAddKnowledge = useCallback(async () => {
     const newBase = await AddKnowledgeBasePopup.show({ title: t('knowledge.add.title') })
@@ -104,34 +102,24 @@ const KnowledgePage: FC = () => {
       </Navbar>
       <ContentContainer id="content-container">
         <KnowledgeSideNav>
-          <DraggableList
-            list={bases}
-            onUpdate={updateKnowledgeBases}
-            style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
-            onDragStart={() => setIsDragging(true)}
-            onDragEnd={() => setIsDragging(false)}>
-            {(base: KnowledgeBase) => (
-              <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
-                <div>
-                  <ListItem
-                    active={selectedBase?.id === base.id}
-                    icon={<Book size={16} />}
-                    title={base.name}
-                    onClick={() => setSelectedBase(base)}
-                  />
-                </div>
-              </Dropdown>
-            )}
-          </DraggableList>
-          {!isDragging && (
-            <AddKnowledgeItem onClick={handleAddKnowledge}>
-              <AddKnowledgeName>
-                <Plus size={18} />
-                {t('button.add')}
-              </AddKnowledgeName>
-            </AddKnowledgeItem>
-          )}
-          <div style={{ minHeight: '10px' }}></div>
+          {bases.map((base) => (
+            <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
+              <div>
+                <ListItem
+                  active={selectedBase?.id === base.id}
+                  icon={<Book size={16} />}
+                  title={base.name}
+                  onClick={() => setSelectedBase(base)}
+                />
+              </div>
+            </Dropdown>
+          ))}
+          <AddKnowledgeItem onClick={handleAddKnowledge}>
+            <AddKnowledgeName>
+              <Plus size={18} />
+              {t('button.add')}
+            </AddKnowledgeName>
+          </AddKnowledgeItem>
         </KnowledgeSideNav>
         {bases.length === 0 ? (
           <MainContent>
