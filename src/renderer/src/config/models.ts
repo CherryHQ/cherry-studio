@@ -388,6 +388,7 @@ export function isFunctionCallingModel(model?: Model): boolean {
       switch (model.provider) {
         case 'dashscope':
         case 'doubao':
+          // case 'nvidia': // nvidia api 太烂了 测不了能不能用 先假设能用
           return false
       }
     }
@@ -2643,7 +2644,7 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
 
   // Specifically for DeepSeek V3.1. White list for now
   if (isDeepSeekHybridInferenceModel(model)) {
-    return (['openrouter', 'dashscope', 'doubao', 'silicon'] satisfies SystemProviderId[]).some(
+    return (['openrouter', 'dashscope', 'doubao', 'silicon', 'nvidia'] satisfies SystemProviderId[]).some(
       (id) => id === model.provider
     )
   }

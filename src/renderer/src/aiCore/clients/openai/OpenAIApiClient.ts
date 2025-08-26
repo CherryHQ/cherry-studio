@@ -215,6 +215,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 enabled: true
               }
             }
+          case 'nvidia':
+            return {
+              chat_template_kwargs: {
+                thinking: true
+              }
+            }
           default:
             logger.warn(
               `Skipping thinking options for provider ${this.provider.name} as DeepSeek v3.1 thinking control method is unknown`
