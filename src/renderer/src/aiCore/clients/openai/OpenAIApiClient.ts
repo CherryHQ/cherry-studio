@@ -199,6 +199,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               enable_thinking: true,
               incremental_output: true
             }
+          case 'silicon':
+            return {
+              enable_thinking: true
+            }
           case 'doubao':
             return {
               thinking: {
