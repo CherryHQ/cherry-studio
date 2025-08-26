@@ -8,13 +8,24 @@ export type ListItemType = 'group' | 'model'
 export type ScrollTrigger = 'initial' | 'search' | 'keyboard' | 'none'
 
 // 扁平化列表项接口
-export interface FlatListItem {
+export type FlatListBaseItem = {
   key: string
   type: ListItemType
   icon?: ReactNode
   name: ReactNode
-  tags?: ReactNode
-  model?: Model
   isPinned?: boolean
   isSelected?: boolean
 }
+
+export type FlatListGroup = FlatListBaseItem & {
+  type: 'group'
+  actions?: ReactNode
+}
+
+export type FlatListModel = FlatListBaseItem & {
+  type: 'model'
+  model: Model
+  tags?: ReactNode
+}
+
+export type FlatListItem = FlatListGroup | FlatListModel

@@ -151,7 +151,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         key: `provider-${p.id}`,
         type: 'group',
         name: getFancyProviderName(p),
-        tags: (
+        actions: (
           <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
             <Button
               type="text"
@@ -327,7 +327,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         return (
           <GroupItem>
             {item.name}
-            {item.tags}
+            {item.actions}
           </GroupItem>
         )
       }
