@@ -1567,6 +1567,9 @@
     "hide_sidebar": "Hide Sidebar",
     "show_sidebar": "Show Sidebar"
   },
+  "navigate": {
+    "provider_settings": "Go to provider settings"
+  },
   "notification": {
     "assistant": "Assistant Response",
     "knowledge": {

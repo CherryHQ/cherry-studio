@@ -1567,6 +1567,9 @@
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示"
   },
+  "navigate": {
+    "provider_settings": "プロバイダー設定に移動"
+  },
   "notification": {
     "assistant": "助手回應",
     "knowledge": {

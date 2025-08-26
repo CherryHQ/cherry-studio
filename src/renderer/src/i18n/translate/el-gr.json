@@ -1567,6 +1567,9 @@
     "hide_sidebar": "Απόκρυψη πλάγιας μπάρας",
     "show_sidebar": "Εμφάνιση πλάγιας μπάρας"
   },
+  "navigate": {
+    "provider_settings": "Μετάβαση στις ρυθμίσεις παρόχου"
+  },
   "notification": {
     "assistant": "Απάντηση Βοηθού",
     "knowledge": {

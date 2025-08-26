@@ -1567,6 +1567,9 @@
     "hide_sidebar": "隱藏側邊欄",
     "show_sidebar": "顯示側邊欄"
   },
+  "navigate": {
+    "provider_settings": "跳轉到服務商設置界面"
+  },
   "notification": {
     "assistant": "助手回應",
     "knowledge": {

@@ -1567,6 +1567,9 @@
     "hide_sidebar": "Скрыть боковую панель",
     "show_sidebar": "Показать боковую панель"
   },
+  "navigate": {
+    "provider_settings": "Перейти к настройкам поставщика"
+  },
   "notification": {
     "assistant": "Ответ ассистента",
     "knowledge": {

@@ -1567,6 +1567,9 @@
     "hide_sidebar": "Ocultar barra lateral",
     "show_sidebar": "Mostrar barra lateral"
   },
+  "navigate": {
+    "provider_settings": "Ir para as configurações do provedor"
+  },
   "notification": {
     "assistant": "Resposta do assistente",
     "knowledge": {
