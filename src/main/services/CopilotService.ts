@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
-import { app, net } from 'electron'
-import { safeStorage } from 'electron'
+import { app, net, safeStorage } from 'electron'
 import fs from 'fs'
 import path from 'path'
+
 import { getConfigDir } from '../utils/file'
 
 const logger = loggerService.withContext('CopilotService')
