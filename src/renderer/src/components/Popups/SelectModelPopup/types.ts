@@ -7,7 +7,7 @@ export type ListItemType = 'group' | 'model'
 // 滚动触发来源类型
 export type ScrollTrigger = 'initial' | 'search' | 'keyboard' | 'none'
 
-// 扁平化列表项接口
+// 扁平化列表项
 export type FlatListBaseItem = {
   key: string
   type: ListItemType
