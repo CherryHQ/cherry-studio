@@ -3531,6 +3531,7 @@
           "title": "图片"
         },
         "image_provider": "OCR 服务提供商",
+        "not_configurable": "无可配置项",
         "title": "OCR 服务"
       },
       "preprocess": {

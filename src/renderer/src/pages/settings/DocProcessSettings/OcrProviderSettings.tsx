@@ -2,7 +2,8 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { isBuiltinOcrProvider, OcrProvider } from '@renderer/types'
 import { getOcrProviderLogo } from '@renderer/utils/ocr'
-import { Avatar, Divider, Flex } from 'antd'
+import { Avatar, Divider, Empty, Flex } from 'antd'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingTitle } from '..'
@@ -15,12 +16,14 @@ type Props = {
 }
 
 const OcrProviderSettings = ({ provider }: Props) => {
-  // const { t } = useTranslation()
+  const { t } = useTranslation()
   const getProviderSettings = () => {
     if (isBuiltinOcrProvider(provider)) {
       switch (provider.id) {
         case 'tesseract':
           return <OcrTesseractSettings />
+        default:
+          return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.tool.ocr.not_configurable')} />
       }
     } else {
       throw new Error('Not supported OCR provider')

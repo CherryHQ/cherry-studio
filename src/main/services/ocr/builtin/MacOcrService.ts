@@ -1,23 +1,18 @@
 import { loggerService } from '@logger'
 import { isMac } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
-import {
-  ImageFileMetadata,
-  isImageFileMetadata as isImageFileMetadata,
-  OcrMacProvider,
-  OcrResult,
-  SupportedOcrFile
-} from '@types'
-
-import { OcrBaseService } from './OcrBaseService'
+import { ImageFileMetadata, isImageFileMetadata as isImageFileMetadata, OcrResult, SupportedOcrFile } from '@types'
 
 const logger = loggerService.withContext('MacOcrService')
 
-export class MacOcrService extends OcrBaseService {
+// TODO: make it configurable
+// export class MacOcrService extends OcrBaseService {
+export class MacOcrService {
   private MacOCR: typeof import('@cherrystudio/mac-system-ocr').default | undefined
 
-  constructor(provider: OcrMacProvider) {
-    super(provider)
+  // constructor(provider: OcrMacProvider) {
+  constructor() {
+    // super(provider)
     if (!isMac) {
       throw new Error('MacOcrSerivece is only available on macOS')
     }
@@ -46,7 +41,7 @@ export class MacOcrService extends OcrBaseService {
   //   return level === 0 ? this.MacOCR.RECOGNITION_LEVEL_FAST : this.MacOCR.RECOGNITION_LEVEL_ACCURATE
   // }
 
-  async ocrImage(file: ImageFileMetadata): Promise<OcrResult> {
+  private async ocrImage(file: ImageFileMetadata): Promise<OcrResult> {
     const MacOcr = await this.initMacOCR()
     const buffer = await loadOcrImage(file)
     const result = await MacOcr.recognizeFromBuffer(buffer, { recognitionLevel: MacOcr.RECOGNITION_LEVEL_ACCURATE })
@@ -61,3 +56,5 @@ export class MacOcrService extends OcrBaseService {
     }
   }
 }
+
+export const macOcrService = new MacOcrService()
