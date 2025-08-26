@@ -18,6 +18,7 @@ enum TesseractLangsDownloadUrl {
   GLOBAL = 'https://github.com/tesseract-ocr/tessdata/raw/main/'
 }
 
+// TODO: make langs configurable
 export class TesseractService {
   private worker: Tesseract.Worker | null = null
 

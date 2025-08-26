@@ -25,11 +25,7 @@ const tesseract: OcrTesseractProvider = {
 const mac: OcrMacProvider = {
   id: 'mac',
   name: 'MacOS Vision OCR',
-  config: {
-    api: undefined,
-    models: undefined,
-    enabled: undefined
-  },
+  config: {},
   capabilities: {
     image: true
     // pdf: true
