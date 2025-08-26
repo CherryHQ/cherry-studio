@@ -174,7 +174,7 @@ const llmSlice = createSlice({
       state.translateModel = action.payload.model
     },
     setVisionModel: (state, action: PayloadAction<{ model: Model }>) => {
-      state.translateModel = action.payload.model
+      state.visionModel = action.payload.model
     },
     setQuickAssistantId: (state, action: PayloadAction<string>) => {
       state.quickAssistantId = action.payload
