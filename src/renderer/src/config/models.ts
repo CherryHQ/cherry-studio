@@ -359,7 +359,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
 }
 
 export function isFunctionCallingModel(model?: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
@@ -2723,7 +2723,14 @@ export function isGeminiReasoningModel(model?: Model): boolean {
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  return modelId.includes('gemini-2.5')
+  if (modelId.includes('gemini-2.5')) {
+    if (modelId.includes('image') || modelId.includes('tts')) {
+      return false
+    }
+    return true
+  } else {
+    return false
+  }
 }
 
 /** 是否为Qwen推理模型 */
@@ -2957,7 +2964,7 @@ export function isNotSupportTemperatureAndTopP(model: Model): boolean {
 }
 
 export function isWebSearchModel(model: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model)) {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
     return false
   }
 
