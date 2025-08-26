@@ -1576,6 +1576,9 @@
     "tip": "Если ответ успешен, уведомление выдается только по сообщениям, превышающим 30 секунд"
   },
   "ocr": {
+    "builtin": {
+      "system": "[to be translated]:系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Не удается удалить встроенного поставщика",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "Текущая операционная система не является MacOS"
+          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {
@@ -3534,7 +3537,6 @@
           "title": "Изображение"
         },
         "image_provider": "Поставщик услуг OCR",
-        "not_configurable": "Нет настраиваемых параметров",
         "title": "OCR-сервис"
       },
       "preprocess": {

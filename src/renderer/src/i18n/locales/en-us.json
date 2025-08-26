@@ -1576,6 +1576,9 @@
     "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
   },
   "ocr": {
+    "builtin": {
+      "system": "[to be translated]:系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Cannot delete built-in provider",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "The current operating system is not MacOS"
+          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {
@@ -3534,7 +3537,6 @@
           "title": "Image"
         },
         "image_provider": "OCR service provider",
-        "not_configurable": "No configurable items available",
         "title": "OCR service"
       },
       "preprocess": {

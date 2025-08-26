@@ -1576,6 +1576,9 @@
     "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
   },
   "ocr": {
+    "builtin": {
+      "system": "[to be translated]:系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "O sistema operacional atual não é o MacOS"
+          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {
@@ -3534,7 +3537,6 @@
           "title": "Imagem"
         },
         "image_provider": "Provedor de serviços OCR",
-        "not_configurable": "Nenhuma opção configurável",
         "title": "Serviço OCR"
       },
       "preprocess": {

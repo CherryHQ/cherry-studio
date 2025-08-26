@@ -1576,6 +1576,9 @@
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
   "ocr": {
+    "builtin": {
+      "system": "[to be translated]:系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "現在のオペレーティングシステムはMacOSではありません"
+          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {
@@ -3534,7 +3537,6 @@
           "title": "画像"
         },
         "image_provider": "OCRサービスプロバイダー",
-        "not_configurable": "設定可能な項目はありません",
         "title": "OCRサービス"
       },
       "preprocess": {

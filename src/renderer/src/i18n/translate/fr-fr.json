@@ -1576,6 +1576,9 @@
     "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
   },
   "ocr": {
+    "builtin": {
+      "system": "[to be translated]:系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "Le système d'exploitation actuel n'est pas MacOS"
+          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {
@@ -3534,7 +3537,6 @@
           "title": "Image"
         },
         "image_provider": "Fournisseur de service OCR",
-        "not_configurable": "Aucun élément configurable",
         "title": "Service OCR"
       },
       "preprocess": {

@@ -1576,6 +1576,9 @@
     "tip": "Εάν η απάντηση είναι επιτυχής, η ειδοποίηση εμφανίζεται μόνο για μηνύματα που υπερβαίνουν τα 30 δευτερόλεπτα"
   },
   "ocr": {
+    "builtin": {
+      "system": "[to be translated]:系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Δεν είναι δυνατή η διαγραφή του ενσωματωμένου παρόχου",
@@ -3521,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_mac": "Το τρέχον λειτουργικό σύστημα δεν είναι MacOS"
+          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
         },
         "image": {
           "error": {
@@ -3534,7 +3537,6 @@
           "title": "Εικόνα"
         },
         "image_provider": "Πάροχοι υπηρεσιών OCR",
-        "not_configurable": "Δεν υπάρχουν ρυθμιζόμενα στοιχεία",
         "title": "Υπηρεσία OCR"
       },
       "preprocess": {
