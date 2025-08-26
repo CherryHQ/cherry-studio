@@ -105,6 +105,10 @@ export type ImageFileMetadata = FileMetadata & {
   type: FileTypes.IMAGE
 }
 
+export type PdfFileMetadata = FileMetadata & {
+  ext: '.pdf'
+}
+
 /**
  * 类型守卫函数，用于检查一个 FileMetadata 是否为图片文件元数据
  * @param file - 要检查的文件元数据

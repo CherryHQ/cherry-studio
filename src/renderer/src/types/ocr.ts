@@ -3,7 +3,8 @@ import Tesseract from 'tesseract.js'
 import { FileMetadata, ImageFileMetadata, isImageFile } from '.'
 
 export const BuiltinOcrProviderIds = {
-  tesseract: 'tesseract'
+  tesseract: 'tesseract',
+  mac: 'mac'
 } as const
 
 export type BuiltinOcrProviderId = keyof typeof BuiltinOcrProviderIds
@@ -15,6 +16,7 @@ export const isBuiltinOcrProviderId = (id: string): id is BuiltinOcrProviderId =
 // extensible
 export const OcrProviderCapabilities = {
   image: 'image'
+  // pdf: 'pdf'
 } as const
 
 export type OcrProviderCapability = keyof typeof OcrProviderCapabilities
@@ -108,6 +110,12 @@ export type ImageOcrProvider = OcrProvider & {
   }
 }
 
+// export type PdfOcrProvider = OcrProvider & {
+//   capabilities: OcrProviderCapabilityRecord & {
+//     [OcrProviderCapabilities.pdf]: true
+//   }
+// }
+
 export const isImageOcrProvider = (p: OcrProvider): p is ImageOcrProvider => {
   return p.capabilities.image === true
 }
@@ -131,12 +139,28 @@ export type OcrTesseractConfig = OcrProviderConfig & {
   langs: Partial<Record<TesseractLangCode, boolean>>
 }
 
-export type OcrTesseractProvider = BuiltinOcrProvider & {
+export type OcrTesseractProvider = {
+  id: 'tesseract'
   config: OcrTesseractConfig
-}
+} & ImageOcrProvider &
+  BuiltinOcrProvider
 
 export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvider => {
   return p.id === BuiltinOcrProviderIds.tesseract
 }
 
 export type TesseractLangCode = Tesseract.LanguageCode
+
+// MacOS Types
+export type OcrMacConfig = OcrProviderConfig & {}
+
+export type OcrMacProvider = {
+  id: 'mac'
+  config: OcrMacConfig
+} & ImageOcrProvider &
+  // PdfOcrProvider &
+  BuiltinOcrProvider
+
+export const isOcrMacProvider = (p: OcrProvider): p is OcrMacProvider => {
+  return p.id === BuiltinOcrProviderIds.mac
+}
