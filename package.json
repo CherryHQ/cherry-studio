@@ -281,7 +281,7 @@
     "zod": "^3.25.74"
   },
   "optionalDependencies": {
-    "@cherrystudio/mac-system-ocr": "^0.2.2"
+    "@cherrystudio/mac-system-ocr": "^0.2.4"
   },
   "resolutions": {
     "@codemirror/language": "6.11.3",
