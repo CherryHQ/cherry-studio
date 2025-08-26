@@ -24,8 +24,16 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    quickModel,
+    translateModel,
+    visionModel,
+    setDefaultModel,
+    setQuickModel,
+    setTranslateModel,
+    setVisionModel
+  } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
@@ -51,7 +59,10 @@ const ModelSettings: FC = () => {
     [translateModel]
   )
 
-  const { visionModel, setVisionModel } = useDefaultModel()
+  const defaultVisionModel = useMemo(
+    () => (hasModel(visionModel) ? getModelUniqId(visionModel) : undefined),
+    [visionModel]
+  )
 
   const onResetTranslatePrompt = () => {
     dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
@@ -143,8 +154,8 @@ const ModelSettings: FC = () => {
           <ModelSelector
             providers={providers}
             predicate={isVisionModel}
-            value={visionModel}
-            defaultValue={visionModel}
+            value={defaultVisionModel}
+            defaultValue={defaultVisionModel}
             style={{ width: 360 }}
             onChange={(value) => setVisionModel(find(allModels, JSON.parse(value)) as Model)}
             placeholder={t('settings.models.empty')}
