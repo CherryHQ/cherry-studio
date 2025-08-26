@@ -533,37 +533,45 @@ export function getModelLogo(modelId: string) {
   return undefined
 }
 
-export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> = {
-  defaultModel: [
-    {
-      // 默认助手模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
-    },
-    {
-      // 默认话题命名模型
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen/Qwen3-8B',
-      provider: 'silicon',
-      group: 'Qwen'
-    },
-    {
-      // 默认翻译模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
-    },
-    {
-      // 默认快捷助手模型
-      id: 'deepseek-ai/DeepSeek-V3',
-      name: 'deepseek-ai/DeepSeek-V3',
-      provider: 'silicon',
-      group: 'deepseek-ai'
-    }
-  ],
+export const DEFAULT_MODELS = {
+  /** 默认助手模型 */
+  assistant: {
+    id: 'deepseek-ai/DeepSeek-V3',
+    name: 'deepseek-ai/DeepSeek-V3',
+    provider: 'silicon',
+    group: 'deepseek-ai'
+  },
+  /** 默认快速模型 */
+  quick: {
+    id: 'Qwen/Qwen3-8B',
+    name: 'Qwen/Qwen3-8B',
+    provider: 'silicon',
+    group: 'Qwen'
+  },
+  /** 默认翻译模型 */
+  translate: {
+    id: 'deepseek-ai/DeepSeek-V3',
+    name: 'deepseek-ai/DeepSeek-V3',
+    provider: 'silicon',
+    group: 'deepseek-ai'
+  },
+  /** 默认快捷助手模型 */
+  quickAssistant: {
+    id: 'deepseek-ai/DeepSeek-V3',
+    name: 'deepseek-ai/DeepSeek-V3',
+    provider: 'silicon',
+    group: 'deepseek-ai'
+  },
+  /** 默认视觉模型 */
+  vision: {
+    id: 'glm-4.5v',
+    name: 'GLM-4.5v',
+    provider: 'zhipu',
+    group: 'GLM-4.5'
+  }
+} as const
+
+export const SYSTEM_MODELS = {
   vertexai: [],
   '302ai': [
     {
@@ -2376,7 +2384,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'poe'
     }
   ]
-}
+} as const satisfies Record<SystemProviderId, Model[]>
 
 export const TEXT_TO_IMAGES_MODELS = [
   {

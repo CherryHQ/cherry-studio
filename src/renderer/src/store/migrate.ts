@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
+import { DEFAULT_MODELS, isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
@@ -1603,7 +1603,7 @@ const migrateConfig = {
         state.llm.translateModel.provider === 'silicon' &&
         state.llm.translateModel.id === 'meta-llama/Llama-3.3-70B-Instruct'
       ) {
-        state.llm.translateModel = SYSTEM_MODELS.defaultModel[2]
+        state.llm.translateModel = DEFAULT_MODELS.translate
       }
 
       // add selection_assistant_toggle and selection_assistant_select_text shortcuts after mini_window
@@ -2186,6 +2186,16 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 137 error', error as Error)
+      return state
+    }
+  },
+  '138': (state: RootState) => {
+    try {
+      state.settings.imageProcessMethod = 'ocr'
+      state.llm.visionModel = DEFAULT_MODELS.vision
+      return state
+    } catch (error) {
+      logger.error('migrate 138 error', error as Error)
       return state
     }
   }

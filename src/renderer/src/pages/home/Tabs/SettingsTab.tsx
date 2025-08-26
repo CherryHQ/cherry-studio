@@ -43,7 +43,14 @@ import {
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
+import {
+  Assistant,
+  AssistantSettings,
+  CodeStyleVarious,
+  ImageProcessMethod,
+  MathEngine,
+  ThemeMode
+} from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { Button, Col, InputNumber, Row, Slider, Switch, Tooltip } from 'antd'
@@ -105,7 +112,9 @@ const SettingsTab: FC<Props> = (props) => {
     messageNavigation,
     enableQuickPanelTriggers,
     showTranslateConfirm,
-    showMessageOutline
+    showMessageOutline,
+    imageProcessMethod,
+    setImageProcessMethod
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -643,6 +652,20 @@ const SettingsTab: FC<Props> = (props) => {
               size="small"
               checked={enableQuickPanelTriggers}
               onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.input.image_process.title')}</SettingRowTitleSmall>
+            <Selector
+              value={imageProcessMethod}
+              onChange={(value) => setImageProcessMethod(value)}
+              options={
+                [
+                  { value: 'ocr', label: 'OCR' },
+                  { value: 'vision_model', label: t('settings.models.vision.label') }
+                ] satisfies { value: ImageProcessMethod; label: string }[]
+              }
             />
           </SettingRow>
           <SettingDivider />

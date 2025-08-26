@@ -6,6 +6,7 @@ import {
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setDisableHardwareAcceleration,
   setEnableDeveloperMode,
+  setImageProcessMethod as _setImageProcessMethod,
   setLaunchOnBoot,
   setLaunchToTray,
   setNavbarPosition,
@@ -23,7 +24,7 @@ import {
   setTrayOnClose,
   setWindowStyle
 } from '@renderer/store/settings'
-import { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
+import { ImageProcessMethod, SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
 import { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
@@ -107,6 +108,9 @@ export function useSettings() {
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    },
+    setImageProcessMethod(method: ImageProcessMethod) {
+      dispatch(_setImageProcessMethod(method))
     }
   }
 }
