@@ -2191,7 +2191,7 @@ const migrateConfig = {
   },
   '138': (state: RootState) => {
     try {
-      state.settings.imageProcessMethod = 'ocr'
+      state.settings.imageProcessMethod = 'off'
       state.llm.visionModel = DEFAULT_MODELS.vision
       return state
     } catch (error) {

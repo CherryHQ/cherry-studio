@@ -213,7 +213,7 @@ export interface SettingsState {
   apiServer: ApiServerConfig
   showMessageOutline?: boolean
   // image process method in chat
-  imageProcessMethod: 'ocr' | 'vision_model'
+  imageProcessMethod: ImageProcessMethod
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -403,7 +403,7 @@ export const initialState: SettingsState = {
     apiKey: `cs-sk-${uuid()}`
   },
   showMessageOutline: undefined,
-  imageProcessMethod: 'ocr'
+  imageProcessMethod: 'off'
 }
 
 const settingsSlice = createSlice({

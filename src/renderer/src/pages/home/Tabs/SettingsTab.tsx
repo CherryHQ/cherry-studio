@@ -662,6 +662,7 @@ const SettingsTab: FC<Props> = (props) => {
               onChange={(value) => setImageProcessMethod(value)}
               options={
                 [
+                  { value: 'off', label: t('common.off') },
                   { value: 'ocr', label: 'OCR' },
                   { value: 'vision_model', label: t('settings.models.vision.label') }
                 ] satisfies { value: ImageProcessMethod; label: string }[]
