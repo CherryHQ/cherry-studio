@@ -63,7 +63,7 @@ export const useOcrProviders = () => {
     return isBuiltinOcrProvider(p) ? getBuiltinOcrProviderLabel(p.id) : p.name
   }
 
-  const getOcrProviderLogo = (p: OcrProvider, size: number = 14) => {
+  const OcrProviderLogo = ({ provider: p, size = 14 }: { provider: OcrProvider; size?: number }) => {
     if (isBuiltinOcrProvider(p)) {
       switch (p.id) {
         case 'tesseract':
@@ -82,7 +82,7 @@ export const useOcrProviders = () => {
     removeProvider,
     setImageProvider,
     getOcrProviderName,
-    getOcrProviderLogo
+    OcrProviderLogo
   }
 }
 

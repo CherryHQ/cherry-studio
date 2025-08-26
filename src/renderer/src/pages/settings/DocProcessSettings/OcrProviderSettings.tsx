@@ -17,7 +17,7 @@ type Props = {
 
 const OcrProviderSettings = ({ provider }: Props) => {
   const { theme: themeMode } = useTheme()
-  const { getOcrProviderLogo, getOcrProviderName } = useOcrProviders()
+  const { OcrProviderLogo, getOcrProviderName } = useOcrProviders()
   const getProviderSettings = () => {
     if (isBuiltinOcrProvider(provider)) {
       switch (provider.id) {
@@ -38,7 +38,7 @@ const OcrProviderSettings = ({ provider }: Props) => {
     <SettingGroup theme={themeMode}>
       <SettingTitle>
         <Flex align="center" gap={8}>
-          {getOcrProviderLogo(provider)}
+          <OcrProviderLogo provider={provider} />
           <ProviderName> {getOcrProviderName(provider)}</ProviderName>
         </Flex>
       </SettingTitle>
