@@ -11,9 +11,8 @@ export type ScrollTrigger = 'initial' | 'search' | 'keyboard' | 'none'
 export type FlatListBaseItem = {
   key: string
   type: ListItemType
-  icon?: ReactNode
   name: ReactNode
-  isPinned?: boolean
+  icon?: ReactNode
   isSelected?: boolean
 }
 
@@ -26,6 +25,7 @@ export type FlatListModel = FlatListBaseItem & {
   type: 'model'
   model: Model
   tags?: ReactNode
+  isPinned?: boolean
 }
 
 export type FlatListItem = FlatListGroup | FlatListModel
