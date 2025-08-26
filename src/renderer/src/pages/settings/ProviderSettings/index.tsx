@@ -1,9 +1,14 @@
 import { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
-import { DraggableVirtualList, useDraggableReorder } from '@renderer/components/DraggableList'
+import {
+  DraggableVirtualList,
+  type DraggableVirtualListRef,
+  useDraggableReorder
+} from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
@@ -18,7 +23,7 @@ import {
 } from '@renderer/utils'
 import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { Eye, EyeOff, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
-import { FC, startTransition, useCallback, useEffect, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
@@ -35,11 +40,13 @@ const ProvidersList: FC = () => {
   const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
+  const { setTimeoutTimer } = useTimer()
   const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
+  const listRef = useRef<DraggableVirtualListRef>(null)
 
   const setSelectedProvider = useCallback(
     (provider: Provider) => {
@@ -75,11 +82,20 @@ const ProvidersList: FC = () => {
       const provider = providers.find((p) => p.id === providerId)
       if (provider) {
         setSelectedProvider(provider)
+        // 滚动到选中的 provider
+        const index = providers.findIndex((p) => p.id === providerId)
+        if (index >= 0) {
+          setTimeoutTimer(
+            'scroll-to-selected-provider',
+            () => listRef.current?.scrollToIndex(index, { align: 'center' }),
+            100
+          )
+        }
       } else {
         setSelectedProvider(providers[0])
       }
     }
-  }, [providers, searchParams, setSelectedProvider])
+  }, [providers, searchParams, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
   useEffect(() => {
@@ -485,6 +501,7 @@ const ProvidersList: FC = () => {
           />
         </AddButtonWrapper>
         <DraggableVirtualList
+          ref={listRef}
           list={filteredProviders}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
