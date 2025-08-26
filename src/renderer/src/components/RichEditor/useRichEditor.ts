@@ -148,7 +148,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   }, [markdown])
 
   // Get theme and language mapping from CodeStyleProvider
-  const { activeShikiTheme, languageMap } = useCodeStyle()
+  const { activeShikiTheme } = useCodeStyle()
 
   const [tableOfContentsItems, setTableOfContentsItems] = useState<TableOfContentDataItem[]>([])
 
@@ -352,7 +352,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, languageMap, handleLinkHover, handleLinkHoverEnd]
+    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
   )
 
   const editor = useEditor({

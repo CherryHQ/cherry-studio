@@ -176,10 +176,10 @@ export function ShikiPlugin({
 
         async checkUndecoratedBlocks() {
           // If highlighter is not yet initialized, defer processing until it becomes available.
-          if (!this.highlighter) {
-            return
-          }
           try {
+            if (!this.highlighter) {
+              return
+            }
             const codeBlocks = findChildren(view.state.doc, (node) => node.type.name === name)
 
             // Only load themes or languages that the highlighter has not seen yet.
