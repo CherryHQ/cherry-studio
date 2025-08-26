@@ -115,7 +115,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
    */
   // Method for reasoning effort, moved from OpenAIProvider
   override getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
-    if (this.provider.id === 'groq') {
+    if (this.provider.id === SystemProviderIds.groq) {
       return {}
     }
 
@@ -132,8 +132,14 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     if (!reasoningEffort) {
+      // DeepSeek hybrid inference models, v3.1 and maybe more in the future
+      // 不同的 provider 有不同的思考控制方式，在这里统一解决
+      // if (isDeepSeekHybridInferenceModel(model)) {
+      //   // do nothing for now. default to non-think.
+      // }
+
       // openrouter: use reasoning
-      if (model.provider === 'openrouter') {
+      if (model.provider === SystemProviderIds.openrouter) {
         // Don't disable reasoning for Gemini models that support thinking tokens
         if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
           return {}
@@ -194,22 +200,22 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     if (isDeepSeekHybridInferenceModel(model)) {
       if (isSystemProvider(this.provider)) {
         switch (this.provider.id) {
-          case 'dashscope':
+          case SystemProviderIds.dashscope:
             return {
               enable_thinking: true,
               incremental_output: true
             }
-          case 'silicon':
+          case SystemProviderIds.silicon:
             return {
               enable_thinking: true
             }
-          case 'doubao':
+          case SystemProviderIds.doubao:
             return {
               thinking: {
                 type: 'enabled' // auto is invalid
               }
             }
-          case 'openrouter':
+          case SystemProviderIds.openrouter:
             return {
               reasoning: {
                 enabled: true
@@ -230,7 +236,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // OpenRouter models
-    if (model.provider === 'openrouter') {
+    if (model.provider === SystemProviderIds.openrouter) {
       if (isSupportedReasoningEffortModel(model) || isSupportedThinkingTokenModel(model)) {
         return {
           reasoning: {
@@ -259,7 +265,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           isQwenAlwaysThinkModel(model) || !isSupportEnableThinkingProvider(this.provider) ? undefined : true,
         thinking_budget: budgetTokens
       }
-      if (this.provider.id === 'dashscope') {
+      if (this.provider.id === SystemProviderIds.dashscope) {
         return {
           ...thinkConfig,
           incremental_output: true
