@@ -24,6 +24,7 @@ export class MacOcrService {
     if (!this.MacOCR) {
       try {
         // This module is optional and only installed/available on macOS. Runtime checks prevent execution on other platforms.
+        // @ts-ignore only macOS could import. ci typecheck on linux will throw type error since missing dependency
         const module = await import('@cherrystudio/mac-system-ocr')
         this.MacOCR = module.default
         return this.MacOCR
