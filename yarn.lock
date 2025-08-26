@@ -2179,17 +2179,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/mac-system-ocr@npm:^0.2.4":
-  version: 0.2.4
-  resolution: "@cherrystudio/mac-system-ocr@npm:0.2.4"
-  dependencies:
-    bindings: "npm:^1.5.0"
-    node-api-headers: "npm:^1.0.1"
-    node-gyp: "npm:latest"
-  conditions: os=darwin
-  languageName: node
-  linkType: hard
-
 "@chevrotain/cst-dts-gen@npm:11.0.3":
   version: 11.0.3
   resolution: "@chevrotain/cst-dts-gen@npm:11.0.3"
@@ -8729,7 +8718,6 @@ __metadata:
     "@cherrystudio/embedjs-loader-xml": "npm:^0.1.31"
     "@cherrystudio/embedjs-ollama": "npm:^0.1.31"
     "@cherrystudio/embedjs-openai": "npm:^0.1.31"
-    "@cherrystudio/mac-system-ocr": "npm:^0.2.4"
     "@dnd-kit/core": "npm:^6.3.1"
     "@dnd-kit/modifiers": "npm:^9.0.0"
     "@dnd-kit/sortable": "npm:^10.0.0"
@@ -9601,15 +9589,6 @@ __metadata:
   version: 2.3.0
   resolution: "binary-extensions@npm:2.3.0"
   checksum: 10c0/75a59cafc10fb12a11d510e77110c6c7ae3f4ca22463d52487709ca7f18f69d886aa387557cc9864fbdb10153d0bdb4caacabf11541f55e89ed6e18d12ece2b5
-  languageName: node
-  linkType: hard
-
-"bindings@npm:^1.5.0":
-  version: 1.5.0
-  resolution: "bindings@npm:1.5.0"
-  dependencies:
-    file-uri-to-path: "npm:1.0.0"
-  checksum: 10c0/3dab2491b4bb24124252a91e656803eac24292473e56554e35bbfe3cc1875332cfa77600c3bac7564049dc95075bf6fcc63a4609920ff2d64d0fe405fcf0d4ba
   languageName: node
   linkType: hard
 
@@ -13189,13 +13168,6 @@ __metadata:
   version: 6.2.0
   resolution: "file-type@npm:6.2.0"
   checksum: 10c0/3d7fe85a10bd97ca0c35fd9a20d21f5b20849bbb70985d37c34475051433f3c6109c76a3e5893bff6773037b769be9730a2db762789ecf25def9b62a4c2ee953
-  languageName: node
-  linkType: hard
-
-"file-uri-to-path@npm:1.0.0":
-  version: 1.0.0
-  resolution: "file-uri-to-path@npm:1.0.0"
-  checksum: 10c0/3b545e3a341d322d368e880e1c204ef55f1d45cdea65f7efc6c6ce9e0c4d22d802d5629320eb779d006fe59624ac17b0e848d83cc5af7cd101f206cb704f5519
   languageName: node
   linkType: hard
 
@@ -17463,13 +17435,6 @@ __metadata:
   dependencies:
     node-gyp: "npm:latest"
   checksum: 10c0/d51be099e1b9a6ac4a72f1a60787004d44c8ffe4be1efa38755d54b2a9f4f66647cc6913070e0ed20256d0e6eacceabfff90175fba2ef71153c2d06f8db8e7a9
-  languageName: node
-  linkType: hard
-
-"node-api-headers@npm:^1.0.1":
-  version: 1.5.0
-  resolution: "node-api-headers@npm:1.5.0"
-  checksum: 10c0/e8dfe99e8e3ca92cd5d37989413dfc96551e8f7883110b948917dad07e554cfbf1119130e96d0167f5cb5a05f651a4ac735402a305ff25d9ace422a2e429ae3b
   languageName: node
   linkType: hard
 
