@@ -184,10 +184,7 @@ export function ShikiPlugin({
 
             // Only load themes or languages that the highlighter has not seen yet.
             const tasks: Promise<void>[] = []
-
-            // Snapshot currently loaded items to detect real changes later
-            const loadedThemesBefore = new Set(this.highlighter.getLoadedThemes())
-            const loadedLanguagesBefore = new Set(this.highlighter.getLoadedLanguages())
+            let didLoadSomething = false
 
             for (const block of codeBlocks) {
               // Skip completely empty code blocks in loading check too
@@ -204,8 +201,8 @@ export function ShikiPlugin({
                 tasks.push(
                   loadThemeIfNeeded(this.highlighter, blockTheme).then((resolvedTheme) => {
                     // If a fallback occurred (e.g., to 'one-light'), avoid repeatedly trying the unsupported theme
-                    if (resolvedTheme !== blockTheme) {
-                      // no-op: we rely on before/after snapshot to decide dispatch; skipping theme caching for now
+                    if (resolvedTheme == blockTheme) {
+                      didLoadSomething = true
                     }
                   })
                 )
@@ -215,7 +212,9 @@ export function ShikiPlugin({
                 tasks.push(
                   loadLanguageIfNeeded(this.highlighter, blockLanguage).then((resolvedLanguage) => {
                     // If fallback language differs from requested, mark requested to skip future attempts
-                    if (resolvedLanguage !== blockLanguage) {
+                    if (resolvedLanguage == blockLanguage) {
+                      didLoadSomething = true
+                    } else {
                       SKIP_HIGHLIGHTING_LANGUAGES.add(blockLanguage)
                     }
                   })
@@ -225,19 +224,7 @@ export function ShikiPlugin({
 
             await Promise.all(tasks)
 
-            // Re-check loaded items to confirm actual changes (prevents infinite update loops)
-            const loadedThemesAfter = this.highlighter.getLoadedThemes()
-            const loadedLanguagesAfter = this.highlighter.getLoadedLanguages()
-
-            const themeChanged =
-              loadedThemesAfter.length !== loadedThemesBefore.size ||
-              loadedThemesAfter.some((t) => !loadedThemesBefore.has(t))
-
-            const languageChanged =
-              loadedLanguagesAfter.length !== loadedLanguagesBefore.size ||
-              loadedLanguagesAfter.some((l) => !loadedLanguagesBefore.has(l))
-
-            if (themeChanged || languageChanged) {
+            if (didLoadSomething) {
               const tr = view.state.tr.setMeta('shikiHighlighterReady', true)
               view.dispatch(tr)
             }

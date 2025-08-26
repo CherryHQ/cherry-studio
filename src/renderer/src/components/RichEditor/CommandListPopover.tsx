@@ -154,7 +154,6 @@ const CommandListPopover = ({
             cursor: 'pointer',
             backgroundColor: index === internalSelectedIndex ? colors.selectedBackground : 'transparent',
             border: 'none',
-            transition: 'all 0.15s ease',
             borderRadius: '4px',
             margin: '2px',
             minHeight: '46px', // Ensure consistent height for virtual list
