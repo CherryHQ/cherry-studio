@@ -29,10 +29,9 @@ const CONFIG = {
     GITHUB_DEVICE_CODE: 'https://github.com/login/device/code',
     GITHUB_ACCESS_TOKEN: 'https://github.com/login/oauth/access_token',
     COPILOT_TOKEN: 'https://api.github.com/copilot_internal/v2/token'
-  }
+  },
+  TOKEN_FILE_NAME: '.copilot_token'
 }
-
-const TOKEN_FILE_NAME = '.copilot_token'
 
 // 接口定义移到顶部，便于查阅
 interface UserResponse {
@@ -79,11 +78,11 @@ class CopilotService {
   }
 
   private getTokenFilePath = (): string => {
-    const oldTokenFilePath = path.join(app.getPath('userData'), TOKEN_FILE_NAME)
+    const oldTokenFilePath = path.join(app.getPath('userData'), CONFIG.TOKEN_FILE_NAME)
     if (fs.existsSync(oldTokenFilePath)) {
       return oldTokenFilePath
     }
-    return path.join(getConfigDir(), TOKEN_FILE_NAME)
+    return path.join(getConfigDir(), CONFIG.TOKEN_FILE_NAME)
   }
 
   /**
