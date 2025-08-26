@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import * as OcrService from '@renderer/services/ocr/OcrService'
 import { useAppSelector } from '@renderer/store'
-import { ImageFileMetadata, isImageFile, SupportedOcrFile } from '@renderer/types'
+import { ImageFileMetadata, isImageFileMetadata, SupportedOcrFile } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useTranslation } from 'react-i18next'
@@ -33,7 +33,7 @@ export const useOcr = () => {
     window.message.loading({ content: t('ocr.processing'), key, duration: 0 })
     // await to keep show loading message
     try {
-      if (isImageFile(file)) {
+      if (isImageFileMetadata(file)) {
         return await ocrImage(file)
       } else {
         // @ts-expect-error all types should be covered

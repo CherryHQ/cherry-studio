@@ -114,6 +114,6 @@ export type PdfFileMetadata = FileMetadata & {
  * @param file - 要检查的文件元数据
  * @returns 如果文件是图片类型则返回 true
  */
-export const isImageFile = (file: FileMetadata): file is ImageFileMetadata => {
+export const isImageFileMetadata = (file: FileMetadata): file is ImageFileMetadata => {
   return file.type === FileTypes.IMAGE
 }
