@@ -382,15 +382,16 @@ export function isFunctionCallingModel(model?: Model): boolean {
   }
 
   // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
-  // openrouter支持函数调用，但不支持联动思考模式，与官方model card描述一致
+  // 先默认支持
   if (isDeepSeekHybridInferenceModel(model)) {
     if (isSystemProviderId(model.provider)) {
       switch (model.provider) {
-        case 'openrouter':
-          return true
+        case 'dashscope':
+        case 'doubao':
+          return false
       }
     }
-    return false
+    return true
   }
 
   return FUNCTION_CALLING_REGEX.test(modelId)
