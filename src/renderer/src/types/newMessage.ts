@@ -100,6 +100,8 @@ export interface ImageMessageBlock extends BaseMessageBlock {
     prompt?: string
     negativePrompt?: string
     generateImageResponse?: GenerateImageResponse
+    // OCR or vision model provide
+    processedResult?: string
   }
 }
 
