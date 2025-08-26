@@ -3520,6 +3520,9 @@
     "title": "設定",
     "tool": {
       "ocr": {
+        "error": {
+          "not_mac": "現在のオペレーティングシステムはMacOSではありません"
+        },
         "image": {
           "error": {
             "provider_not_found": "該提供者は存在しません"
@@ -3531,6 +3534,7 @@
           "title": "画像"
         },
         "image_provider": "OCRサービスプロバイダー",
+        "not_configurable": "設定可能な項目はありません",
         "title": "OCRサービス"
       },
       "preprocess": {

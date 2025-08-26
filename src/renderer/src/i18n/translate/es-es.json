@@ -2716,6 +2716,7 @@
         "title": "Actualización automática"
       },
       "avatar": {
+        "builtin": "Avatares integrados",
         "reset": "Restablecer avatar"
       },
       "backup": {
@@ -3519,6 +3520,9 @@
     "title": "Configuración",
     "tool": {
       "ocr": {
+        "error": {
+          "not_mac": "El sistema operativo actual no es MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "El proveedor no existe"
@@ -3530,6 +3534,7 @@
           "title": "Imagen"
         },
         "image_provider": "Proveedor de servicios OCR",
+        "not_configurable": "Sin elementos configurables",
         "title": "Servicio OCR"
       },
       "preprocess": {
