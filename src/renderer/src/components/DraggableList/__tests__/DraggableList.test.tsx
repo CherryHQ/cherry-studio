@@ -66,7 +66,8 @@ describe('DraggableList', () => {
       )
       // 检查 style 是否传递到外层容器
       const listContainer = container.querySelector('.draggable-list-container')
-      expect(listContainer.parentElement).toHaveStyle({ background: 'red' })
+      expect(listContainer).not.toBeNull()
+      expect(listContainer?.parentElement).toHaveStyle({ background: 'red' })
     })
 
     it('should render nothing when list is empty', () => {
