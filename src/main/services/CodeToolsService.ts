@@ -447,6 +447,9 @@ end tell`
         } else if (foundTerminal === 'konsole') {
           terminalCommand = 'konsole'
           terminalArgs = ['--workdir', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'deepin-terminal') {
+          terminalCommand = 'deepin-terminal'
+          terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
         } else {
           // Default to xterm
           terminalCommand = 'xterm'
