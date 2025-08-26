@@ -54,7 +54,7 @@ async function fetchTranslate({ assistant, onResponse }: FetchTranslateProps) {
 
   const params: CompletionsParams = {
     callType: 'translate',
-    messages: '',
+    messages: 'do',
     assistant: { ...assistant, model },
     streamOutput: stream,
     enableReasoning,
