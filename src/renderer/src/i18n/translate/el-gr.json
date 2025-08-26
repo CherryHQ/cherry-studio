@@ -1577,7 +1577,7 @@
   },
   "ocr": {
     "builtin": {
-      "system": "[to be translated]:系统 OCR"
+      "system": "σύστημα OCR"
     },
     "error": {
       "provider": {
@@ -3524,7 +3524,7 @@
     "tool": {
       "ocr": {
         "error": {
-          "not_system": "[to be translated]:系统 OCR 仅支持 Windows 与 MacOS"
+          "not_system": "Το σύστημα OCR υποστηρίζει μόνο Windows και MacOS"
         },
         "image": {
           "error": {
