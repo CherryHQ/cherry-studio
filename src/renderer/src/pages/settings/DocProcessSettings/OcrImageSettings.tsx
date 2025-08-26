@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
+import { isMac } from '@renderer/config/constant'
 import { useAppSelector } from '@renderer/store'
 import { setImageOcrProvider } from '@renderer/store/ocr'
-import { isImageOcrProvider, OcrProvider } from '@renderer/types'
+import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
 import { Select } from 'antd'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
@@ -39,6 +40,14 @@ const OcrImageSettings = ({ setProvider }: Props) => {
     dispatch(setImageOcrProvider(provider))
   }
 
+  const options = useMemo(() => {
+    const platformFilter = isMac ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.mac
+    return imageProviders.filter(platformFilter).map((p) => ({
+      value: p.id,
+      label: p.name
+    }))
+  }, [imageProviders])
+
   return (
     <>
       <SettingRow>
@@ -48,10 +57,7 @@ const OcrImageSettings = ({ setProvider }: Props) => {
             value={imageProvider.id}
             style={{ width: '200px' }}
             onChange={(id: string) => updateImageProvider(id)}
-            options={imageProviders.map((p) => ({
-              value: p.id,
-              label: p.name
-            }))}
+            options={options}
           />
         </div>
       </SettingRow>
