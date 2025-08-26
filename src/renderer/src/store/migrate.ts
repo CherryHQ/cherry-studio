@@ -2200,7 +2200,6 @@ const migrateConfig = {
   '138': (state: RootState) => {
     try {
       addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
-      state.translate.translateInput = ''
       return state
     } catch (error) {
       logger.error('migrate 138 error', error as Error)
