@@ -194,6 +194,7 @@ export class ProxyManager {
     process.env.HTTPS_PROXY = url
     process.env.http_proxy = url
     process.env.https_proxy = url
+    process.env.no_proxy = byPassRules.join(',')
 
     if (url.startsWith('socks')) {
       process.env.SOCKS_PROXY = url
