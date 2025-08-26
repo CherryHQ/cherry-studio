@@ -6,6 +6,8 @@ import {
   OcrTesseractProvider
 } from '@renderer/types'
 
+import { isMac, isWin } from './constant'
+
 const tesseract: OcrTesseractProvider = {
   id: 'tesseract',
   name: 'Tesseract',
@@ -39,5 +41,5 @@ export const BUILTIN_OCR_PROVIDERS_MAP = {
 export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = Object.values(BUILTIN_OCR_PROVIDERS_MAP)
 
 export const DEFAULT_OCR_PROVIDER = {
-  image: tesseract
+  image: isWin || isMac ? systemOcr : tesseract
 } as const satisfies Record<OcrProviderCapability, BuiltinOcrProvider>
