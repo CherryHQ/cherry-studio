@@ -2774,6 +2774,9 @@
         "knowledge_base": "清除選中的知識庫",
         "models": "清除@的所有模型"
       },
+      "image_process": {
+        "title": "圖片處理"
+      },
       "show_translate_confirm": "顯示翻譯確認對話框",
       "target_language": {
         "chinese": "簡體中文",
@@ -3203,7 +3206,11 @@
       "translate_model_prompt_message": "請輸入翻譯模型提示詞",
       "translate_model_prompt_title": "翻譯模型提示詞",
       "use_assistant": "使用助手",
-      "use_model": "預設模型"
+      "use_model": "預設模型",
+      "vision": {
+        "description": "當對話所用模型不支援視覺時，可選擇使用視覺模型提取圖片資訊後發送給對話模型",
+        "label": "视觉模型"
+      }
     },
     "moresetting": {
       "check": {

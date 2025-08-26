@@ -2774,6 +2774,9 @@
         "knowledge_base": "Clear selected knowledge bases",
         "models": "Clear all models"
       },
+      "image_process": {
+        "title": "Image processing"
+      },
       "show_translate_confirm": "Show translation confirmation dialog",
       "target_language": {
         "chinese": "Simplified Chinese",
@@ -3203,7 +3206,11 @@
       "translate_model_prompt_message": "Please enter the translate model prompt",
       "translate_model_prompt_title": "Translate Model Prompt",
       "use_assistant": "Use Assistant",
-      "use_model": "Default Model"
+      "use_model": "Default Model",
+      "vision": {
+        "description": "When the model used for conversation does not support vision, you can choose to use a vision model to extract image information and then send it to the conversation model.",
+        "label": "Visual model"
+      }
     },
     "moresetting": {
       "check": {

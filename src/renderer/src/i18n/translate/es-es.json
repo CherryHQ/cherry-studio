@@ -2719,6 +2719,7 @@
         "title": "Actualización automática"
       },
       "avatar": {
+        "builtin": "Avatares integrados",
         "reset": "Restablecer avatar"
       },
       "backup": {
@@ -2772,6 +2773,9 @@
         "all": "Limpiar",
         "knowledge_base": "Limpiar bases de conocimiento seleccionadas",
         "models": "Limpiar todos los modelos"
+      },
+      "image_process": {
+        "title": "Procesamiento de imágenes"
       },
       "show_translate_confirm": "Mostrar diálogo de confirmación de traducción",
       "target_language": {
@@ -3202,7 +3206,11 @@
       "translate_model_prompt_message": "Ingrese las sugerencias del modelo de traducción",
       "translate_model_prompt_title": "Sugerencias del modelo de traducción",
       "use_assistant": "Usar asistente",
-      "use_model": "Modelo predeterminado"
+      "use_model": "Modelo predeterminado",
+      "vision": {
+        "description": "Cuando el modelo utilizado en la conversación no admita funciones visuales, se puede optar por utilizar un modelo visual para extraer la información de la imagen y luego enviarla al modelo de conversación.",
+        "label": "modelo visual"
+      }
     },
     "moresetting": {
       "check": {
