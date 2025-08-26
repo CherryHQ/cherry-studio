@@ -8,7 +8,9 @@ const logger = loggerService.withContext('MacOcrService')
 // TODO: make it configurable
 // export class MacOcrService extends OcrBaseService {
 export class MacOcrService {
-  private MacOCR: typeof import('@cherrystudio/mac-system-ocr').default | undefined
+  // uncomment this line to enable type hint
+  // private MacOCR: typeof import('@cherrystudio/mac-system-ocr').default
+  private MacOCR: any // cannot use type definition from platform specific dependency, otherwise typecheck ci on linux will throw error
 
   // constructor(provider: OcrMacProvider) {
   constructor() {
