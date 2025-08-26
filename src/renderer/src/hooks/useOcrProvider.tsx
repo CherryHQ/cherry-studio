@@ -1,8 +1,18 @@
 import { loggerService } from '@logger'
+import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP } from '@renderer/config/ocr'
+import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'
 import { addOcrProvider, removeOcrProvider, setImageOcrProvider, updateOcrProviderConfig } from '@renderer/store/ocr'
-import { ImageOcrProvider, isBuiltinOcrProviderId, OcrProvider, OcrProviderConfig } from '@renderer/types'
+import {
+  ImageOcrProvider,
+  isBuiltinOcrProvider,
+  isBuiltinOcrProviderId,
+  OcrProvider,
+  OcrProviderConfig
+} from '@renderer/types'
+import { Avatar } from 'antd'
+import { FileQuestionMarkIcon, MonitorIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
@@ -10,6 +20,7 @@ const logger = loggerService.withContext('useOcrProvider')
 
 export const useOcrProviders = () => {
   const providers = useAppSelector((state) => state.ocr.providers)
+  const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
   const dispatch = useDispatch()
   const { t } = useTranslation()
 
@@ -48,7 +59,31 @@ export const useOcrProviders = () => {
     dispatch(setImageOcrProvider(p))
   }
 
-  return { providers, addProvider, removeProvider, setImageProvider }
+  const getOcrProviderName = (p: OcrProvider) => {
+    return isBuiltinOcrProvider(p) ? getBuiltinOcrProviderLabel(p.id) : p.name
+  }
+
+  const getOcrProviderLogo = (p: OcrProvider, size: number = 14) => {
+    if (isBuiltinOcrProvider(p)) {
+      switch (p.id) {
+        case 'tesseract':
+          return <Avatar size={size} src={TesseractLogo} />
+        case 'system':
+          return <MonitorIcon size={size} />
+      }
+    }
+    return <FileQuestionMarkIcon size={size} />
+  }
+
+  return {
+    providers,
+    imageProvider,
+    addProvider,
+    removeProvider,
+    setImageProvider,
+    getOcrProviderName,
+    getOcrProviderLogo
+  }
 }
 
 export const useOcrProvider = (id: string) => {

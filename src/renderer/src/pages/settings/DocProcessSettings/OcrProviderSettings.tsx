@@ -1,8 +1,8 @@
 // import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { isBuiltinOcrProvider, OcrProvider } from '@renderer/types'
-import { getOcrProviderLogo } from '@renderer/utils/ocr'
-import { Avatar, Divider, Empty, Flex } from 'antd'
+import { Divider, Empty, Flex } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -17,11 +17,13 @@ type Props = {
 
 const OcrProviderSettings = ({ provider }: Props) => {
   const { t } = useTranslation()
+  const { getOcrProviderLogo, getOcrProviderName } = useOcrProviders()
   const getProviderSettings = () => {
     if (isBuiltinOcrProvider(provider)) {
       switch (provider.id) {
         case 'tesseract':
           return <OcrTesseractSettings />
+        case 'system':
         default:
           return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('settings.tool.ocr.not_configurable')} />
       }
@@ -34,8 +36,8 @@ const OcrProviderSettings = ({ provider }: Props) => {
     <>
       <SettingTitle>
         <Flex align="center" gap={8}>
-          <ProviderLogo shape="square" src={getOcrProviderLogo(provider.id)} size={16} />
-          <ProviderName> {provider.name}</ProviderName>
+          {getOcrProviderLogo(provider)}
+          <ProviderName> {getOcrProviderName(provider)}</ProviderName>
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
@@ -47,9 +49,6 @@ const OcrProviderSettings = ({ provider }: Props) => {
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-`
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 export default OcrProviderSettings

@@ -2199,7 +2199,7 @@ const migrateConfig = {
   },
   '138': (state: RootState) => {
     try {
-      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.mac)
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
       state.translate.translateInput = ''
       return state
     } catch (error) {

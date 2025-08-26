@@ -1,16 +1,9 @@
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { isMac, isWin } from '@renderer/config/constant'
-import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
-import { useAppSelector } from '@renderer/store'
+import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { setImageOcrProvider } from '@renderer/store/ocr'
-import {
-  BuiltinOcrProviderIds,
-  ImageOcrProvider,
-  isBuiltinOcrProvider,
-  isImageOcrProvider,
-  OcrProvider
-} from '@renderer/types'
+import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
 import { Select } from 'antd'
 import { CircleXIcon } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
@@ -27,8 +20,8 @@ type Props = {
 
 const OcrImageSettings = ({ setProvider }: Props) => {
   const { t } = useTranslation()
-  const providers = useAppSelector((state) => state.ocr.providers)
-  const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
+  const { providers, imageProvider, getOcrProviderName } = useOcrProviders()
+
   const imageProviders = providers.filter((p) => isImageOcrProvider(p))
   const dispatch = useDispatch()
 
@@ -49,20 +42,21 @@ const OcrImageSettings = ({ setProvider }: Props) => {
     dispatch(setImageOcrProvider(provider))
   }
 
+  const platformSupport = isMac || isWin
   const options = useMemo(() => {
-    const platformFilter = isMac || isWin ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.system
+    const platformFilter = platformSupport ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.system
     return imageProviders.filter(platformFilter).map((p) => ({
       value: p.id,
-      label: isBuiltinOcrProvider(p) ? getBuiltinOcrProviderLabel(p.id) : p.name
+      label: getOcrProviderName(p)
     }))
-  }, [imageProviders])
+  }, [getOcrProviderName, imageProviders, platformSupport])
 
   return (
     <>
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {!isMac && (
+          {!platformSupport && (
             <CustomTag
               icon={<CircleXIcon size={14} color="var(--color-status-error)" />}
               color="var(--color-status-error)">
