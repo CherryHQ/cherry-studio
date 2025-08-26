@@ -2641,14 +2641,18 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     return false
   }
 
+  // Specifically for DeepSeek V3.1. White list for now
+  if (isDeepSeekHybridInferenceModel(model)) {
+    return (['openrouter', 'dashscope', 'doubao'] satisfies SystemProviderId[]).some((id) => id === model.provider)
+  }
+
   return (
     isSupportedThinkingTokenGeminiModel(model) ||
     isSupportedThinkingTokenQwenModel(model) ||
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
-    isSupportedThinkingTokenZhipuModel(model) ||
-    isSupportedThinkingTokenDeepSeekModel(model)
+    isSupportedThinkingTokenZhipuModel(model)
   )
 }
 
