@@ -588,9 +588,13 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
         // 4. 最终请求消息
         let reqMessages: OpenAISdkMessageParam[]
-        if (!systemMessage.content || isNotSupportSystemMessageModel(model)) {
+        if (!systemMessage.content) {
           reqMessages = [...userMessages]
         } else {
+          if (isNotSupportSystemMessageModel(model)) {
+            // transform to user message
+            systemMessage.role = 'user'
+          }
           reqMessages = [systemMessage, ...userMessages].filter(Boolean) as OpenAISdkMessageParam[]
         }
 
