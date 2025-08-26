@@ -1,11 +1,11 @@
-import { DeleteOutlined } from '@ant-design/icons'
+import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { clearHistory, deleteHistory } from '@renderer/services/TranslateService'
+import { clearHistory, deleteHistory, updateTranslateHistory } from '@renderer/services/TranslateService'
 import { TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { Button, Drawer, Dropdown, Empty, Flex, Input, Popconfirm } from 'antd'
+import { Button, Drawer, Empty, Flex, Input, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
@@ -28,7 +28,7 @@ type TranslateHistoryProps = {
 // const logger = loggerService.withContext('TranslateHistory')
 
 // px
-const ITEM_HEIGHT = 140
+const ITEM_HEIGHT = 160
 
 const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItemClick, onClose }) => {
   const { t } = useTranslation()
@@ -36,6 +36,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
   const _translateHistory = useLiveQuery(() => db.translate_history.orderBy('createdAt').reverse().toArray(), [])
   const [search, setSearch] = useState('')
   const [displayedHistory, setDisplayedHistory] = useState<DisplayedTranslateHistoryItem[]>([])
+  const [showStared, setShowStared] = useState<boolean>(false)
 
   const translateHistory: DisplayedTranslateHistoryItem[] = useMemo(() => {
     if (!_translateHistory) return []
@@ -57,15 +58,64 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
     [search]
   )
 
+  const starFilter = useMemo(
+    () => (showStared ? (item: DisplayedTranslateHistoryItem) => !!item.star : () => true),
+    [showStared]
+  )
+
+  const finalFilter = useCallback(
+    (item: DisplayedTranslateHistoryItem) => searchFilter(item) && starFilter(item),
+    [searchFilter, starFilter]
+  )
+
+  const handleStar = useCallback(
+    (id: string) => {
+      const origin = translateHistory.find((item) => item.id === id)
+      if (!origin) {
+        return
+      }
+      updateTranslateHistory(id, { star: !origin.star })
+    },
+    [translateHistory]
+  )
+
+  const handleDelete = useCallback(
+    (id: string) => {
+      try {
+        deleteHistory(id)
+      } catch (e) {
+        window.message.error(t('translate.history.error.delete'))
+      }
+    },
+    [t]
+  )
+
   useEffect(() => {
-    setDisplayedHistory(translateHistory.filter(searchFilter))
-  }, [searchFilter, translateHistory])
+    setDisplayedHistory(translateHistory.filter(finalFilter))
+  }, [finalFilter, translateHistory])
+
+  const Title = () => {
+    return (
+      <Flex align="center">
+        {t('translate.history.title')}
+        <Button
+          icon={showStared ? <StarFilled /> : <StarOutlined />}
+          color="yellow"
+          variant="text"
+          onClick={(e) => {
+            e.stopPropagation()
+            setShowStared(!showStared)
+          }}
+        />
+      </Flex>
+    )
+  }
 
   const deferredHistory = useDeferredValue(displayedHistory)
 
   return (
     <Drawer
-      title={t('translate.history.title')}
+      title={<Title />}
       closeIcon={null}
       open={isOpen}
       maskClosable
@@ -121,38 +171,54 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             <DynamicVirtualList list={deferredHistory} estimateSize={() => ITEM_HEIGHT}>
               {(item) => {
                 return (
-                  <Dropdown
-                    key={item.id}
-                    trigger={['contextMenu']}
-                    menu={{
-                      items: [
-                        {
-                          key: 'delete',
-                          label: t('translate.history.delete'),
-                          icon: <DeleteOutlined />,
-                          danger: true,
-                          onClick: () => deleteHistory(item.id)
-                        }
-                      ]
-                    }}>
-                    <HistoryListItemContainer>
-                      <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                        <Flex justify="space-between" vertical gap={4} style={{ width: '100%' }}>
-                          <Flex align="center" justify="space-between" style={{ flex: 1 }}>
-                            <Flex align="center" gap={6}>
-                              <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
-                              <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
-                            </Flex>
-                            <HistoryListItemDate>{item.createdAt}</HistoryListItemDate>
+                  <HistoryListItemContainer>
+                    <HistoryListItem onClick={() => onHistoryItemClick(item)}>
+                      <Flex justify="space-between" vertical gap={4} style={{ width: '100%', height: '100%', flex: 1 }}>
+                        <Flex align="center" justify="space-between" style={{ height: 30 }}>
+                          <Flex align="center" gap={6}>
+                            <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
+                            <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                           </Flex>
+                          {/* tool bar */}
+                          <Flex align="center" justify="flex-end">
+                            <Button
+                              icon={item.star ? <StarFilled /> : <StarOutlined />}
+                              color="yellow"
+                              variant="text"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleStar(item.id)
+                              }}
+                            />
+                            <Popconfirm
+                              title={t('translate.history.delete')}
+                              onConfirm={() => {
+                                handleDelete(item.id)
+                              }}
+                              onPopupClick={(e) => {
+                                e.stopPropagation()
+                              }}>
+                              <Button
+                                icon={<DeleteOutlined />}
+                                danger
+                                type="text"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                }}
+                              />
+                            </Popconfirm>
+                          </Flex>
+                        </Flex>
+                        <HistoryListItemTextContainer>
                           <HistoryListItemTitle>{item.sourceText}</HistoryListItemTitle>
                           <HistoryListItemTitle style={{ color: 'var(--color-text-2)' }}>
                             {item.targetText}
                           </HistoryListItemTitle>
-                        </Flex>
-                      </HistoryListItem>
-                    </HistoryListItemContainer>
-                  </Dropdown>
+                        </HistoryListItemTextContainer>
+                        <HistoryListItemDate>{item.createdAt}</HistoryListItemDate>
+                      </Flex>
+                    </HistoryListItem>
+                  </HistoryListItemContainer>
                 )
               }}
             </DynamicVirtualList>
@@ -235,6 +301,12 @@ const HistoryListItemDate = styled.div`
 const HistoryListItemLanguage = styled.div`
   font-size: 12px;
   color: var(--color-text-3);
+`
+
+const HistoryListItemTextContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 `
 
 const IconWrapper = styled.div`

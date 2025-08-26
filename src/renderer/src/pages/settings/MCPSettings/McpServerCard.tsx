@@ -1,7 +1,7 @@
 import { DeleteIcon } from '@renderer/components/Icons'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
-import { Badge, Button, Switch, Tag } from 'antd'
+import { Button, Switch, Tag, Typography } from 'antd'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC } from 'react'
 import styled from 'styled-components'
@@ -33,38 +33,49 @@ const McpServerCard: FC<McpServerCardProps> = ({
   }
 
   return (
-    <CardContainer $isActive={server.isActive}>
+    <CardContainer $isActive={server.isActive} onClick={onEdit}>
       <ServerHeader>
-        <ServerName>
+        <ServerNameWrapper>
           {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-          <ServerNameText>{server.name}</ServerNameText>
-          {version && <VersionBadge count={version} color="blue" />}
+          <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
           {server.providerUrl && (
             <Button
               type="text"
               size="small"
               shape="circle"
               icon={<SquareArrowOutUpRight size={14} />}
-              className="nodrag"
               onClick={handleOpenUrl}
+              data-no-dnd
             />
           )}
-        </ServerName>
+        </ServerNameWrapper>
         <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-          <Switch value={server.isActive} key={server.id} loading={isLoading} onChange={onToggle} size="small" />
+          <Switch
+            value={server.isActive}
+            key={server.id}
+            loading={isLoading}
+            onChange={onToggle}
+            size="small"
+            data-no-dnd
+          />
           <Button
             type="text"
             shape="circle"
-            icon={<DeleteIcon size={16} className="lucide-custom" />}
-            className="nodrag"
+            icon={<DeleteIcon size={14} className="lucide-custom" />}
             danger
             onClick={onDelete}
+            data-no-dnd
           />
-          <Button type="text" shape="circle" icon={<Settings2 size={16} />} className="nodrag" onClick={onEdit} />
+          <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
         </ToolbarWrapper>
       </ServerHeader>
       <ServerDescription>{server.description}</ServerDescription>
       <ServerFooter>
+        {version && (
+          <VersionBadge color="#108ee9">
+            <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
+          </VersionBadge>
+        )}
         <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
         {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
         {server.tags
@@ -85,17 +96,17 @@ const CardContainer = styled.div<{ $isActive: boolean }>`
   flex-direction: column;
   border: 0.5px solid var(--color-border);
   border-radius: var(--list-item-border-radius);
-  padding: 10px 16px;
+  padding: 10px 10px 10px 16px;
   transition: all 0.2s ease;
   background-color: var(--color-background);
   margin-bottom: 5px;
   height: 125px;
-  cursor: pointer;
   opacity: ${(props) => (props.$isActive ? 1 : 0.6)};
 
   &:hover {
-    border-color: var(--color-primary);
     opacity: 1;
+    border-color: var(--color-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   }
 `
 
@@ -105,17 +116,16 @@ const ServerHeader = styled.div`
   margin-bottom: 5px;
 `
 
-const ServerName = styled.div`
+const ServerNameWrapper = styled.div`
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   display: flex;
   align-items: center;
   gap: 4px;
 `
 
-const ServerNameText = styled.span`
+const ServerNameText = styled(Typography.Text)`
   font-size: 15px;
   font-weight: 500;
 `
@@ -131,7 +141,7 @@ const ServerLogo = styled.img`
 const ToolbarWrapper = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
+  margin-left: 8px;
 
   > :first-child {
     margin-right: 4px;
@@ -163,19 +173,14 @@ const ServerTag = styled(Tag)`
   margin: 0;
 `
 
-const VersionBadge = styled(Badge)`
-  .ant-badge-count {
-    background-color: var(--color-primary);
-    color: white;
-    font-size: 10px;
-    font-weight: 500;
-    padding: 0 5px;
-    height: 16px;
-    line-height: 16px;
-    border-radius: 8px;
-    min-width: 16px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-  }
+const VersionBadge = styled(ServerTag)`
+  font-weight: 500;
+  max-width: 6rem !important;
+`
+
+const VersionText = styled(Typography.Text)`
+  font-size: inherit;
+  color: white;
 `
 
 export default McpServerCard

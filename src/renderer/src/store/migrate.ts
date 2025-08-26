@@ -3,6 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
+import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
   isSupportArrayContentProvider,
@@ -2177,8 +2178,11 @@ const migrateConfig = {
   },
   '137': (state: RootState) => {
     try {
-      // Add the new rename_topic shortcut after new_topic if missing
-      addShortcuts(state, ['rename_topic'], 'new_topic')
+      state.ocr = {
+        providers: BUILTIN_OCR_PROVIDERS,
+        imageProvider: DEFAULT_OCR_PROVIDER.image
+      }
+      state.translate.translateInput = ''
       return state
     } catch (error) {
       logger.error('migrate 137 error', error as Error)
@@ -2187,7 +2191,7 @@ const migrateConfig = {
   },
   '138': (state: RootState) => {
     try {
-      // Add the new edit_last_user_message shortcut after copy_last_message if missing
+      addShortcuts(state, ['rename_topic'], 'new_topic')
       addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
       return state
     } catch (error) {

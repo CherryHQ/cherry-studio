@@ -148,9 +148,6 @@
     "edit": {
       "title": "Edit Assistant"
     },
-    "error": {
-      "add": "Failed to add assistant"
-    },
     "icon": {
       "type": "Assistant Icon"
     },
@@ -750,6 +747,9 @@
     "enabled": "Enabled",
     "error": "error",
     "expand": "Expand",
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
@@ -790,6 +790,7 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "upload_files": "Upload file",
     "warning": "Warning",
     "you": "You"
   },
@@ -807,6 +808,13 @@
   "error": {
     "backup": {
       "file_format": "Backup file format error"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "Open debug panel",
+        "message": "It seems that something went wrong...",
+        "reload": "Reload"
+      }
     },
     "chat": {
       "chunk": {
@@ -1537,7 +1545,10 @@
     "rerank_model_not_support_provider": "Currently, the reranker model does not support this provider ({{provider}})",
     "rerank_model_support_provider": "Currently, the reranker model only supports some providers ({{provider}})",
     "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
-    "search": "Search models...",
+    "search": {
+      "placeholder": "Search models...",
+      "tooltip": "Search models"
+    },
     "stream_output": "Stream output",
     "type": {
       "embedding": "Embedding",
@@ -1563,6 +1574,26 @@
       "success": "Successfully added {{type}} to the knowledge base"
     },
     "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Cannot delete built-in provider",
+        "existing": "The provider already exists",
+        "not_found": "OCR provider does not exist",
+        "update_failed": "Failed to update configuration"
+      },
+      "unknown": "An error occurred during the OCR process"
+    },
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
+    "processing": "OCR processing...",
+    "warning": {
+      "provider": {
+        "fallback": "Reverted to {{name}}, which may cause issues"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2905,6 +2936,10 @@
         "text": "Text",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "Search MCP servers...",
+        "tooltip": "Search MCP servers"
+      },
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
       "serverSingular": "server",
@@ -3486,6 +3521,20 @@
     },
     "title": "Settings",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "The provider does not exist"
+          },
+          "tesseract": {
+            "langs": "Supported languages",
+            "temp_tooltip": "Currently only Chinese and English are supported"
+          },
+          "title": "Image"
+        },
+        "image_provider": "OCR service provider",
+        "title": "OCR service"
+      },
       "preprocess": {
         "provider": "Document Processing Provider",
         "provider_placeholder": "Choose a document processing provider",
@@ -3726,12 +3775,22 @@
     "exchange": {
       "label": "Swap the source and target languages"
     },
+    "files": {
+      "drag_text": "Drop here",
+      "error": {
+        "multiple": "Multiple file uploads are not allowed",
+        "too_large": "File too large",
+        "unknown": "Failed to read file content"
+      },
+      "reading": "Reading file content..."
+    },
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
-      "delete": "Delete",
+      "delete": "Delete translation history",
       "empty": "No translation history",
       "error": {
+        "delete": "Deletion failed",
         "save": "Failed to save translation history"
       },
       "search": {
@@ -3792,10 +3851,6 @@
     "title": "Update"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "Reverted to default assistant, which may cause issues"
-    },
-    "missing_assistant": "Assistant does not exist",
     "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
   },
   "words": {

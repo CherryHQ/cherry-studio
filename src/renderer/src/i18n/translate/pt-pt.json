@@ -148,9 +148,6 @@
     "edit": {
       "title": "Editar Assistente"
     },
-    "error": {
-      "add": "Falha ao adicionar assistente"
-    },
     "icon": {
       "type": "Ícone do Assistente"
     },
@@ -750,6 +747,9 @@
     "enabled": "Ativado",
     "error": "错误",
     "expand": "Expandir",
+    "file": {
+      "not_supported": "Tipo de arquivo não suportado {{type}}"
+    },
     "footnote": "Nota de rodapé",
     "footnotes": "Notas de rodapé",
     "fullscreen": "Entrou no modo de tela cheia, pressione F11 para sair",
@@ -790,6 +790,7 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
+    "upload_files": "Carregar arquivo",
     "warning": "Aviso",
     "you": "Você"
   },
@@ -807,6 +808,13 @@
   "error": {
     "backup": {
       "file_format": "Formato do arquivo de backup está incorreto"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "Abrir o painel de depuração",
+        "message": "Parece que ocorreu um problema...",
+        "reload": "Recarregar"
+      }
     },
     "chat": {
       "chunk": {
@@ -889,7 +897,7 @@
   "history": {
     "continue_chat": "Continuar conversando",
     "error": {
-      "topic_not_found": "O tópico não existe"
+      "topic_not_found": "Tópico inexistente"
     },
     "locate": {
       "message": "Localizar mensagem"
@@ -1537,7 +1545,10 @@
     "rerank_model_not_support_provider": "Atualmente o modelo de reclassificação não suporta este provedor ({{provider}})",
     "rerank_model_support_provider": "O modelo de reclassificação atualmente suporta apenas alguns provedores ({{provider}})",
     "rerank_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
-    "search": "Procurar modelo...",
+    "search": {
+      "placeholder": "Procurar modelo...",
+      "tooltip": "Procurar modelo"
+    },
     "stream_output": "Saída em fluxo",
     "type": {
       "embedding": "inserção",
@@ -1563,6 +1574,26 @@
       "success": "Adicionado com sucesso {{type}} à base de conhecimento"
     },
     "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
+        "existing": "O provedor já existe",
+        "not_found": "O provedor OCR não existe",
+        "update_failed": "Falha ao atualizar a configuração"
+      },
+      "unknown": "O processo OCR apresentou um erro"
+    },
+    "file": {
+      "not_supported": "Tipo de arquivo não suportado {{type}}"
+    },
+    "processing": "Processamento OCR em andamento...",
+    "warning": {
+      "provider": {
+        "fallback": "Revertido para {{name}}, o que pode causar problemas"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2685,7 +2716,6 @@
         "title": "Atualização automática"
       },
       "avatar": {
-        "builtin": "Avatares integrados",
         "reset": "Redefinir avatar"
       },
       "backup": {
@@ -2904,6 +2934,10 @@
         "size": "Tamanho",
         "text": "Texto",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Buscar servidores MCP...",
+        "tooltip": "Buscar servidores MCP"
       },
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
@@ -3486,6 +3520,20 @@
     },
     "title": "Configurações",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "O provedor não existe"
+          },
+          "tesseract": {
+            "langs": "Idiomas suportados",
+            "temp_tooltip": "No momento, apenas chinês e inglês são suportados."
+          },
+          "title": "Imagem"
+        },
+        "image_provider": "Provedor de serviços OCR",
+        "title": "Serviço OCR"
+      },
       "preprocess": {
         "provider": "prestador de serviços de pré-processamento de documentos",
         "provider_placeholder": "Escolha um fornecedor de pré-processamento de documentos",
@@ -3726,12 +3774,22 @@
     "exchange": {
       "label": "Trocar idioma de origem e idioma de destino"
     },
+    "files": {
+      "drag_text": "Arraste e solte aqui",
+      "error": {
+        "multiple": "Não é permitido fazer upload de vários arquivos",
+        "too_large": "Arquivo muito grande",
+        "unknown": "Falha ao ler o conteúdo do arquivo"
+      },
+      "reading": "Lendo o conteúdo do arquivo..."
+    },
     "history": {
       "clear": "Limpar Histórico",
       "clear_description": "Limpar histórico irá deletar todos os registros de tradução. Deseja continuar?",
-      "delete": "Excluir",
+      "delete": "Apagar histórico de traduções",
       "empty": "Nenhum histórico de tradução disponível",
       "error": {
+        "delete": "Falha ao excluir",
         "save": "Falha ao guardar o histórico de traduções"
       },
       "search": {
@@ -3792,10 +3850,6 @@
     "title": "Atualização"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "Voltou ao assistente padrão, o que pode causar problemas"
-    },
-    "missing_assistant": "O assistente não existe",
     "missing_provider": "O fornecedor não existe; foi revertido para o fornecedor predefinido {{provider}}. Isto pode causar problemas."
   },
   "words": {
