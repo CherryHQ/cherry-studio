@@ -148,9 +148,6 @@
     "edit": {
       "title": "編輯助手"
     },
-    "error": {
-      "add": "添加助手失敗"
-    },
     "icon": {
       "type": "助手圖示"
     },
@@ -3852,10 +3849,6 @@
     "title": "更新提示"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "已回退到預設助手，這可能導致問題"
-    },
-    "missing_assistant": "助手不存在",
     "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {
