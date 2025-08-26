@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { BUILTIN_OCR_PROVIDERS_MAP } from '@renderer/config/ocr'
 import { useAppSelector } from '@renderer/store'
-import { addOcrProvider, removeOcrProvider, updateOcrProviderConfig } from '@renderer/store/ocr'
-import { isBuiltinOcrProviderId, OcrProvider, OcrProviderConfig } from '@renderer/types'
+import { addOcrProvider, removeOcrProvider, setImageOcrProvider, updateOcrProviderConfig } from '@renderer/store/ocr'
+import { ImageOcrProvider, isBuiltinOcrProviderId, OcrProvider, OcrProviderConfig } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
@@ -44,7 +44,11 @@ export const useOcrProviders = () => {
     dispatch(removeOcrProvider(id))
   }
 
-  return { providers, addProvider, removeProvider }
+  const setImageProvider = (p: ImageOcrProvider) => {
+    dispatch(setImageOcrProvider(p))
+  }
+
+  return { providers, addProvider, removeProvider, setImageProvider }
 }
 
 export const useOcrProvider = (id: string) => {
