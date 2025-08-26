@@ -1,4 +1,4 @@
-import { SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -9,26 +9,38 @@ import { LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import db from '@renderer/databases'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
+import { useDrag } from '@renderer/hooks/useDrag'
+import { useFiles } from '@renderer/hooks/useFiles'
+import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
-import { setTranslatedContent as setTranslatedContentAction } from '@renderer/store/translate'
-import type { AutoDetectionMethod, Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
+import {
+  type AutoDetectionMethod,
+  FileMetadata,
+  isSupportedOcrFile,
+  type Model,
+  type TranslateHistory,
+  type TranslateLanguage
+} from '@renderer/types'
+import { getFileExtension, runAsyncFunction } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import {
   createInputScrollHandler,
   createOutputScrollHandler,
   detectLanguage,
   determineTargetLanguage
 } from '@renderer/utils/translate'
-import { Button, Flex, Popover, Tooltip, Typography } from 'antd'
+import { imageExts, MB, textExts } from '@shared/config/constant'
+import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Check, FolderClock, Settings2 } from 'lucide-react'
+import { Check, FolderClock, Settings2, UploadIcon } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -39,7 +51,6 @@ import TranslateSettings from './TranslateSettings'
 const logger = loggerService.withContext('TranslatePage')
 
 // cache variables
-let _text = ''
 let _sourceLanguage: TranslateLanguage | 'auto' = 'auto'
 let _targetLanguage = LanguagesEnum.enUS
 
@@ -49,9 +60,11 @@ const TranslatePage: FC = () => {
   const { translateModel, setTranslateModel } = useDefaultModel()
   const { prompt, getLanguageByLangcode } = useTranslate()
   const { shikiMarkdownIt } = useCodeStyle()
+  const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts] })
+  const { ocr } = useOcr()
 
   // states
-  const [text, setText] = useState(_text)
+  // const [text, setText] = useState(_text)
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyDrawerVisible, setHistoryDrawerVisible] = useState(false)
@@ -67,8 +80,10 @@ const TranslatePage: FC = () => {
   const [sourceLanguage, setSourceLanguage] = useState<TranslateLanguage | 'auto'>(_sourceLanguage)
   const [targetLanguage, setTargetLanguage] = useState<TranslateLanguage>(_targetLanguage)
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
+  const [isProcessing, setIsProcessing] = useState(false)
 
   // redux states
+  const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
 
@@ -80,7 +95,6 @@ const TranslatePage: FC = () => {
 
   const dispatch = useAppDispatch()
 
-  _text = text
   _sourceLanguage = sourceLanguage
   _targetLanguage = targetLanguage
 
@@ -91,6 +105,13 @@ const TranslatePage: FC = () => {
   }
 
   // 控制翻译状态
+  const setText = useCallback(
+    (input: string) => {
+      dispatch(setTranslateInput(input))
+    },
+    [dispatch]
+  )
+
   const setTranslatedContent = useCallback(
     (content: string) => {
       dispatch(setTranslatedContentAction(content))
@@ -414,15 +435,195 @@ const TranslatePage: FC = () => {
       (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
       targetLanguage.langCode === UNKNOWN.langCode ||
       (isBidirectional &&
-        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode))
+        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode)) ||
+      isProcessing
     )
-  }, [bidirectionalPair, isBidirectional, sourceLanguage, targetLanguage.langCode, text])
+  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage.langCode, text])
 
   // 控制token估计
   const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])
 
+  // 统一的文件处理
+  const processFile = useCallback(
+    async (file: FileMetadata) => {
+      // extensible
+      const shouldOCR = isSupportedOcrFile(file)
+
+      if (shouldOCR) {
+        try {
+          const ocrResult = await ocr(file)
+          setText(ocrResult.text)
+        } finally {
+          // do nothing when failed.
+        }
+      } else {
+        // the threshold may be too large
+        if (file.size > 5 * MB) {
+          window.message.error(t('translate.files.error.too_large') + ' (0 ~ 5 MB)')
+        } else {
+          window.message.loading({ content: t('translate.files.reading'), key: 'translate_files_reading', duration: 0 })
+          try {
+            const result = await window.api.fs.readText(file.path)
+            setText(result)
+          } catch (e) {
+            logger.error('Failed to read text file.', e as Error)
+            window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
+          } finally {
+            window.message.destroy('translate_files_reading')
+          }
+        }
+      }
+    },
+    [ocr, setText, t]
+  )
+
+  // 点击上传文件按钮
+  const handleSelectFile = useCallback(async () => {
+    if (selecting) return
+    setIsProcessing(true)
+    try {
+      const [file] = await onSelectFile({ multipleSelections: false })
+      if (!file) {
+        return
+      }
+
+      return await processFile(file)
+    } catch (e) {
+      logger.error('Unknown error when selecting file.', e as Error)
+      window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
+    } finally {
+      clearFiles()
+      setIsProcessing(false)
+    }
+  }, [clearFiles, onSelectFile, processFile, selecting, t])
+
+  const getSingleFile = useCallback(
+    (files: FileMetadata[] | FileList): FileMetadata | File | null => {
+      if (files.length === 0) return null
+      if (files.length > 1) {
+        // 多文件上传时显示提示信息
+        window.message.error({
+          key: 'multiple_files',
+          content: t('translate.files.error.multiple')
+        })
+        return null
+      }
+      return files[0]
+    },
+    [t]
+  )
+
+  // 拖动上传文件
+  const onDrop = useCallback(
+    async (e: React.DragEvent<HTMLDivElement>) => {
+      setIsProcessing(true)
+      // const supportedFiles = await filterSupportedFiles(_files, extensions)
+      const data = await getTextFromDropEvent(e).catch((err) => {
+        logger.error('getTextFromDropEvent', err)
+        window.message.error({
+          key: 'file_error',
+          content: t('translate.files.error.unknown')
+        })
+        return null
+      })
+      if (data === null) {
+        return
+      }
+      setText(text + data)
+
+      const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
+        logger.error('handleDrop:', err)
+        window.message.error({
+          key: 'file_error',
+          content: t('translate.files.error.unknown')
+        })
+        return null
+      })
+
+      if (droppedFiles) {
+        const file = getSingleFile(droppedFiles) as FileMetadata
+        if (!file) return
+        processFile(file)
+      }
+      setIsProcessing(false)
+    },
+    [getSingleFile, processFile, setText, t, text]
+  )
+
+  const {
+    isDragging,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop: preventDrop
+  } = useDrag<HTMLDivElement>()
+  const {
+    isDragging: isDraggingOnInput,
+    handleDragEnter: handleDragEnterInput,
+    handleDragLeave: handleDragLeaveInput,
+    handleDragOver: handleDragOverInput,
+    handleDrop
+  } = useDrag<HTMLDivElement>(onDrop)
+
+  // 粘贴上传文件
+  const onPaste = useCallback(
+    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      setIsProcessing(true)
+      logger.debug('event', event)
+      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+        event.preventDefault()
+        const files = event.clipboardData.files
+        const file = getSingleFile(files) as File
+        if (!file) return
+        try {
+          // 使用新的API获取文件路径
+          const filePath = window.api.file.getPathForFile(file)
+          let selectedFile: FileMetadata | null
+
+          // 如果没有路径，可能是剪贴板中的图像数据
+          if (!filePath) {
+            if (file.type.startsWith('image/')) {
+              const tempFilePath = await window.api.file.createTempFile(file.name)
+              const arrayBuffer = await file.arrayBuffer()
+              const uint8Array = new Uint8Array(arrayBuffer)
+              await window.api.file.write(tempFilePath, uint8Array)
+              selectedFile = await window.api.file.get(tempFilePath)
+            } else {
+              window.message.info({
+                key: 'file_not_supported',
+                content: t('common.file.not_supported', { type: getFileExtension(filePath) })
+              })
+              return
+            }
+          } else {
+            // 有路径的情况
+            selectedFile = await window.api.file.get(filePath)
+          }
+
+          if (!selectedFile) {
+            window.message.error({
+              key: 'file_error',
+              content: t('translate.files.error.unknown')
+            })
+            return
+          }
+          processFile(selectedFile)
+        } catch (error) {
+          logger.error('onPaste:', error as Error)
+          window.message.error(t('chat.input.file_error'))
+        }
+      }
+      setIsProcessing(false)
+    },
+    [getSingleFile, processFile, t]
+  )
   return (
-    <Container id="translate-page">
+    <Container
+      id="translate-page"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={preventDrop}>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
@@ -484,7 +685,27 @@ const TranslatePage: FC = () => {
           </InnerOperationBar>
         </OperationBar>
         <AreaContainer>
-          <InputContainer>
+          <InputContainer
+            style={isDraggingOnInput ? { border: '2px dashed var(--color-primary)' } : undefined}
+            onDragEnter={handleDragEnterInput}
+            onDragLeave={handleDragLeaveInput}
+            onDragOver={handleDragOverInput}
+            onDrop={handleDrop}>
+            {(isDragging || isDraggingOnInput) && (
+              <InputContainerDraggingHintContainer>
+                <UploadIcon color="var(--color-text-3)" />
+                {t('translate.files.drag_text')}
+              </InputContainerDraggingHintContainer>
+            )}
+            <FloatButton
+              style={{ position: 'absolute', left: 8, bottom: 8 }}
+              className="float-button"
+              icon={<PlusOutlined />}
+              tooltip={t('common.upload_files')}
+              shape="circle"
+              type="primary"
+              onClick={handleSelectFile}
+            />
             <Textarea
               ref={textAreaRef}
               variant="borderless"
@@ -493,6 +714,7 @@ const TranslatePage: FC = () => {
               onChange={(e) => setText(e.target.value)}
               onKeyDown={onKeyDown}
               onScroll={handleInputScroll}
+              onPaste={onPaste}
               disabled={translating}
               spellCheck={false}
               allowClear
@@ -583,6 +805,29 @@ const InputContainer = styled.div`
   border-radius: 10px;
   height: calc(100vh - var(--navbar-height) - 70px);
   overflow: hidden;
+  .float-button {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+  }
+
+  &:hover {
+    .float-button {
+      opacity: 1;
+    }
+  }
+`
+
+const InputContainerDraggingHintContainer = styled.div`
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-3);
 `
 
 const Textarea = styled(TextArea)`

@@ -9,6 +9,8 @@ export * from './file'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
+export * from './ocr'
+
 export type Assistant = {
   id: string
   name: string

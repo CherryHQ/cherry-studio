@@ -3,6 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
+import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
   isSupportArrayContentProvider,
@@ -2388,6 +2389,15 @@ const migrateConfig = {
 
       // 7. 添加智谱网络搜索供应商
       addWebSearchProvider(state, 'zhipu')
+
+      // OCR
+      state.ocr = {
+        providers: BUILTIN_OCR_PROVIDERS,
+        imageProvider: DEFAULT_OCR_PROVIDER.image
+      }
+
+      // Translate
+      state.translate.translateInput = ''
 
       return state
     } catch (error) {

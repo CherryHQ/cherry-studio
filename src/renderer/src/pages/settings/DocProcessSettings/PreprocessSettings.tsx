@@ -5,8 +5,8 @@ import { Select } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-import PreprocessProviderSettings from './PreprocessSettings'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import PreprocessProviderSettings from './PreprocessProviderSettings'
 
 const PreprocessSettings: FC = () => {
   const { preprocessProviders } = usePreprocessProviders()
@@ -25,7 +25,7 @@ const PreprocessSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={themeMode}>
+    <>
       <SettingGroup theme={themeMode}>
         <SettingTitle>{t('settings.tool.preprocess.title')}</SettingTitle>
         <SettingDivider />
@@ -52,7 +52,7 @@ const PreprocessSettings: FC = () => {
           <PreprocessProviderSettings provider={selectedProvider} />
         </SettingGroup>
       )}
-    </SettingContainer>
+    </>
   )
 }
 export default PreprocessSettings

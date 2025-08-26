@@ -148,9 +148,6 @@
     "edit": {
       "title": "Editar Asistente"
     },
-    "error": {
-      "add": "Error al agregar asistente"
-    },
     "icon": {
       "type": "Ícono del Asistente"
     },
@@ -750,6 +747,9 @@
     "enabled": "Activado",
     "error": "error",
     "expand": "Expandir",
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
@@ -790,6 +790,7 @@
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
+    "upload_files": "Subir archivo",
     "warning": "Advertencia",
     "you": "Usuario"
   },
@@ -1549,7 +1550,10 @@
     "rerank_model_not_support_provider": "Actualmente, el modelo de reordenamiento no admite este proveedor ({{provider}})",
     "rerank_model_support_provider": "Actualmente, el modelo de reordenamiento solo es compatible con algunos proveedores ({{provider}})",
     "rerank_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
-    "search": "Buscar modelo...",
+    "search": {
+      "placeholder": "Buscar modelo...",
+      "tooltip": "Buscar modelo"
+    },
     "stream_output": "Salida en flujo",
     "type": {
       "embedding": "Incrustación",
@@ -1575,6 +1579,26 @@
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
     "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "No se puede eliminar el proveedor integrado",
+        "existing": "El proveedor ya existe",
+        "not_found": "El proveedor de OCR no existe",
+        "update_failed": "Actualización de la configuración fallida"
+      },
+      "unknown": "El proceso OCR ha fallado"
+    },
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
+    "processing": "Procesando OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "Se ha revertido a {{name}}, lo que podría causar problemas"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2697,7 +2721,6 @@
         "title": "Actualización automática"
       },
       "avatar": {
-        "builtin": "Avatares integrados",
         "reset": "Restablecer avatar"
       },
       "backup": {
@@ -2917,6 +2940,10 @@
         "size": "Tamaño",
         "text": "Texto",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Buscar servidores MCP...",
+        "tooltip": "Buscar servidores MCP"
       },
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
@@ -3497,6 +3524,20 @@
     },
     "title": "Configuración",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "El proveedor no existe"
+          },
+          "tesseract": {
+            "langs": "Idiomas compatibles",
+            "temp_tooltip": "Actualmente solo se admiten chino e inglés."
+          },
+          "title": "Imagen"
+        },
+        "image_provider": "Proveedor de servicios OCR",
+        "title": "Servicio OCR"
+      },
       "preprocess": {
         "provider": "Proveedor de servicios de preprocesamiento de documentos",
         "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
@@ -3737,6 +3778,15 @@
     "exchange": {
       "label": "Intercambiar el idioma de origen y el idioma de destino"
     },
+    "files": {
+      "drag_text": "Arrastrar y soltar aquí",
+      "error": {
+        "multiple": "No se permite cargar varios archivos",
+        "too_large": "El archivo es demasiado grande",
+        "unknown": "Error al leer el contenido del archivo"
+      },
+      "reading": "Leyendo el contenido del archivo..."
+    },
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
@@ -3804,10 +3854,6 @@
     "title": "Actualización"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "Se ha revertido al asistente predeterminado, lo que podría causar problemas"
-    },
-    "missing_assistant": "El asistente no existe",
     "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
   },
   "words": {

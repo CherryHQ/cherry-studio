@@ -148,9 +148,6 @@
     "edit": {
       "title": "编辑助手"
     },
-    "error": {
-      "add": "添加助手失败"
-    },
     "icon": {
       "type": "助手图标"
     },
@@ -750,6 +747,9 @@
     "enabled": "已启用",
     "error": "错误",
     "expand": "展开",
+    "file": {
+      "not_supported": "不支持的文件类型 {{type}}"
+    },
     "footnote": "引用内容",
     "footnotes": "引用内容",
     "fullscreen": "已进入全屏模式，按 F11 退出",
@@ -790,6 +790,7 @@
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
+    "upload_files": "上传文件",
     "warning": "警告",
     "you": "用户"
   },
@@ -1549,7 +1550,10 @@
     "rerank_model_not_support_provider": "目前重排序模型不支持该服务商 ({{provider}})",
     "rerank_model_support_provider": "目前重排序模型仅支持部分服务商 ({{provider}})",
     "rerank_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
-    "search": "搜索模型...",
+    "search": {
+      "placeholder": "搜索模型...",
+      "tooltip": "搜索模型"
+    },
     "stream_output": "流式输出",
     "type": {
       "embedding": "嵌入",
@@ -1575,6 +1579,26 @@
       "success": "成功添加 {{type}} 到知识库"
     },
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "不能删除内置提供商",
+        "existing": "提供商已存在",
+        "not_found": "OCR 提供商不存在",
+        "update_failed": "更新配置失败"
+      },
+      "unknown": "OCR 过程发生错误"
+    },
+    "file": {
+      "not_supported": "不支持的文件类型 {{type}}"
+    },
+    "processing": "OCR 处理中...",
+    "warning": {
+      "provider": {
+        "fallback": "已回退到 {{name}}，这可能导致问题"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2918,6 +2942,10 @@
         "text": "文本",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "搜索 MCP 服务器...",
+        "tooltip": "搜索 MCP 服务器"
+      },
       "searchNpx": "搜索 MCP",
       "serverPlural": "服务器",
       "serverSingular": "服务器",
@@ -3497,6 +3525,20 @@
     },
     "title": "设置",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "该提供商不存在"
+          },
+          "tesseract": {
+            "langs": "支持的语言",
+            "temp_tooltip": "目前暂时只支持中文和英文"
+          },
+          "title": "图片"
+        },
+        "image_provider": "OCR 服务提供商",
+        "title": "OCR 服务"
+      },
       "preprocess": {
         "provider": "文档处理服务商",
         "provider_placeholder": "选择一个文档处理服务商",
@@ -3737,6 +3779,15 @@
     "exchange": {
       "label": "交换源语言与目标语言"
     },
+    "files": {
+      "drag_text": "拖放到此处",
+      "error": {
+        "multiple": "不允许上传多个文件",
+        "too_large": "文件过大",
+        "unknown": "读取文件内容失败"
+      },
+      "reading": "读取文件内容中..."
+    },
     "history": {
       "clear": "清空历史",
       "clear_description": "清空历史将删除所有翻译历史记录，是否继续？",
@@ -3804,10 +3855,6 @@
     "title": "更新提示"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "已回退到默认助手，这可能导致问题"
-    },
-    "missing_assistant": "助手不存在",
     "missing_provider": "供应商不存在，已回退到默认供应商 {{provider}}。这可能导致问题。"
   },
   "words": {

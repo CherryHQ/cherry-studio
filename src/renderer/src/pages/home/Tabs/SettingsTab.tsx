@@ -72,7 +72,7 @@ const SettingsTab: FC<Props> = (props) => {
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
   const { translateLanguages } = useTranslate()
 
   const { t } = useTranslation()

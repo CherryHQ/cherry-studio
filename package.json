@@ -79,6 +79,7 @@
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
     "selection-hook": "^1.0.11",
+    "tesseract.js": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
     "turndown": "7.2.0"
   },
   "devDependencies": {
@@ -257,6 +258,7 @@
     "remove-markdown": "^0.6.2",
     "rollup-plugin-visualizer": "^5.12.0",
     "sass": "^1.88.0",
+    "sharp": "^0.34.3",
     "shiki": "^3.9.1",
     "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
@@ -296,7 +298,8 @@
     "pdf-parse@npm:1.1.1": "patch:pdf-parse@npm%3A1.1.1#~/.yarn/patches/pdf-parse-npm-1.1.1-04a6109b2a.patch",
     "pkce-challenge@npm:^4.1.0": "patch:pkce-challenge@npm%3A4.1.0#~/.yarn/patches/pkce-challenge-npm-4.1.0-fbc51695a3.patch",
     "undici": "6.21.2",
-    "vite": "npm:rolldown-vite@latest"
+    "vite": "npm:rolldown-vite@latest",
+    "tesseract.js@npm:*": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch"
   },
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
