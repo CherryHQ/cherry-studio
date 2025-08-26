@@ -12,31 +12,40 @@ const logger = loggerService.withContext('ProxyManager')
 let byPassRules: string[] = []
 
 const isByPass = (url: string) => {
-  const subjectUrlTokens = new URL(url)
-  for (const rule of byPassRules) {
-    const ruleMatch = rule.replace(/^(?<leadingDot>\.)/, '*').match(/^(?<hostname>.+?)(?::(?<port>\d+))?$/)
-
-    if (!ruleMatch || !ruleMatch.groups) {
-      return false
-    }
-
-    if (!ruleMatch.groups.hostname) {
-      return false
-    }
-
-    const hostnameIsMatch = subjectUrlTokens.hostname === ruleMatch.groups.hostname
-
-    if (
-      hostnameIsMatch &&
-      (!ruleMatch.groups ||
-        !ruleMatch.groups.port ||
-        (subjectUrlTokens.port && subjectUrlTokens.port === ruleMatch.groups.port))
-    ) {
-      return true
-    }
+  if (byPassRules.length === 0) {
+    return false
   }
 
-  return false
+  try {
+    const subjectUrlTokens = new URL(url)
+    for (const rule of byPassRules) {
+      const ruleMatch = rule.replace(/^(?<leadingDot>\.)/, '*').match(/^(?<hostname>.+?)(?::(?<port>\d+))?$/)
+
+      if (!ruleMatch || !ruleMatch.groups) {
+        logger.warn('Failed to parse bypass rule:', { rule })
+        continue
+      }
+
+      if (!ruleMatch.groups.hostname) {
+        continue
+      }
+
+      const hostnameIsMatch = subjectUrlTokens.hostname === ruleMatch.groups.hostname
+
+      if (
+        hostnameIsMatch &&
+        (!ruleMatch.groups ||
+          !ruleMatch.groups.port ||
+          (subjectUrlTokens.port && subjectUrlTokens.port === ruleMatch.groups.port))
+      ) {
+        return true
+      }
+    }
+    return false
+  } catch (error) {
+    logger.error('Failed to check bypass:', error as Error)
+    return false
+  }
 }
 class SelectiveDispatcher extends Dispatcher {
   private proxyDispatcher: Dispatcher
@@ -173,6 +182,7 @@ export class ProxyManager {
       delete process.env.grpc_proxy
       delete process.env.http_proxy
       delete process.env.https_proxy
+      delete process.env.no_proxy
 
       delete process.env.SOCKS_PROXY
       delete process.env.ALL_PROXY
