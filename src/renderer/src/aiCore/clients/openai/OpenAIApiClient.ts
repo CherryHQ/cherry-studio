@@ -621,11 +621,10 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         const lastUserMsg = userMessages.findLast((m) => m.role === 'user')
         if (lastUserMsg) {
           if (isSupportedThinkingTokenQwenModel(model) && !isSupportEnableThinkingProvider(this.provider)) {
-            const postsuffix = '/no_think'
             const qwenThinkModeEnabled = assistant.settings?.qwenThinkMode === true
             const currentContent = lastUserMsg.content
 
-            lastUserMsg.content = processPostsuffixQwen3Model(currentContent, postsuffix, qwenThinkModeEnabled) as any
+            lastUserMsg.content = processPostsuffixQwen3Model(currentContent, qwenThinkModeEnabled)
           }
           if (this.provider.id === SystemProviderIds.poe) {
             // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分

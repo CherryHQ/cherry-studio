@@ -1276,7 +1276,11 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
+  'ollama',
+  'lmstudio',
+  'nvidia'
+] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.
