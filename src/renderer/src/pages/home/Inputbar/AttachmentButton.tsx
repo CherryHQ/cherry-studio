@@ -1,4 +1,4 @@
-import { FileMetadata, FileType } from '@renderer/types'
+import { FileType } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import { Paperclip } from 'lucide-react'
@@ -39,7 +39,7 @@ const AttachmentButton: FC<Props> = ({
     const useAllFiles = extensions.length > 20
 
     setSelecting(true)
-    const _files: FileMetadata[] = await window.api.file.select({
+    const _files = await window.api.file.select({
       properties: ['openFile', 'multiSelections'],
       filters: [
         {

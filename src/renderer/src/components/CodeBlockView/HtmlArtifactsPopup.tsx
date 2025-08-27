@@ -1,7 +1,7 @@
 import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { classNames } from '@renderer/utils'
-import { Button, Modal, Splitter, Tooltip } from 'antd'
+import { Button, Modal, Splitter, Tooltip, Typography } from 'antd'
 import { Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +43,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
       <HeaderLeft $isFullscreen={isFullscreen}>
-        <TitleText>{title}</TitleText>
+        <TitleText ellipsis={{ tooltip: true }}>{title}</TitleText>
       </HeaderLeft>
 
       <HeaderCenter>
@@ -266,13 +266,13 @@ const HeaderRight = styled.div<{ $isFullscreen?: boolean }>`
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? (isWin ? '136px' : isLinux ? '120px' : '12px') : '12px')};
 `
 
-const TitleText = styled.span`
+const TitleText = styled(Typography.Text)`
   font-size: 16px;
-  font-weight: 600;
+  font-weight: bold;
   color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  width: 50%;
 `
 
 const ViewControls = styled.div`

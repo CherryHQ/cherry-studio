@@ -749,6 +749,9 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "expand": "展開",
+    "file": {
+      "not_supported": "不支持的文件類型 {{type}}"
+    },
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
@@ -789,6 +792,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "upload_files": "上傳檔案",
     "warning": "警告",
     "you": "您"
   },
@@ -806,6 +810,13 @@
   "error": {
     "backup": {
       "file_format": "備份檔案格式錯誤"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "打開除錯面板",
+        "message": "似乎出現了一些問題...",
+        "reload": "重新載入"
+      }
     },
     "chat": {
       "chunk": {
@@ -887,6 +898,9 @@
   },
   "history": {
     "continue_chat": "繼續聊天",
+    "error": {
+      "topic_not_found": "話題不存在"
+    },
     "locate": {
       "message": "定位到訊息"
     },
@@ -1533,7 +1547,10 @@
     "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）",
     "rerank_model_support_provider": "目前重排序模型僅支持部分服務商 ({{provider}})",
     "rerank_model_tooltip": "在設定 -> 模型服務中點擊管理按鈕添加",
-    "search": "搜尋模型...",
+    "search": {
+      "placeholder": "搜尋模型...",
+      "tooltip": "搜尋模型"
+    },
     "stream_output": "串流輸出",
     "type": {
       "embedding": "嵌入",
@@ -1552,6 +1569,9 @@
     "hide_sidebar": "隱藏側邊欄",
     "show_sidebar": "顯示側邊欄"
   },
+  "navigate": {
+    "provider_settings": "跳轉到服務商設置界面"
+  },
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
@@ -1559,6 +1579,26 @@
       "success": "成功將 {{type}} 新增至知識庫"
     },
     "tip": "如果回應成功，則只針對超過30秒的訊息發出提醒"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "不能刪除內建提供者",
+        "existing": "提供商已存在",
+        "not_found": "OCR 提供商不存在",
+        "update_failed": "更新配置失敗"
+      },
+      "unknown": "OCR過程發生錯誤"
+    },
+    "file": {
+      "not_supported": "不支持的文件類型 {{type}}"
+    },
+    "processing": "OCR 處理中...",
+    "warning": {
+      "provider": {
+        "fallback": "已回退到 {{name}}，這可能導致問題"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2901,6 +2941,10 @@
         "text": "文字",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "搜索 MCP 伺服器...",
+        "tooltip": "搜索 MCP 伺服器"
+      },
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
@@ -3480,6 +3524,20 @@
     },
     "title": "設定",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "該提供商不存在"
+          },
+          "tesseract": {
+            "langs": "支援的語言",
+            "temp_tooltip": "目前暫時只支援中文和英文"
+          },
+          "title": "圖片"
+        },
+        "image_provider": "OCR 服務提供商",
+        "title": "OCR 服務"
+      },
       "preprocess": {
         "provider": "文件處理供應商",
         "provider_placeholder": "選擇一個文件處理供應商",
@@ -3720,12 +3778,22 @@
     "exchange": {
       "label": "交換源語言與目標語言"
     },
+    "files": {
+      "drag_text": "拖放到此处",
+      "error": {
+        "multiple": "不允许上传多个文件",
+        "too_large": "文件過大",
+        "unknown": "读取文件内容失败"
+      },
+      "reading": "讀取檔案內容中..."
+    },
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
-      "delete": "刪除",
+      "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "delete": "删除失败",
         "save": "保存翻譯歷史失敗"
       },
       "search": {

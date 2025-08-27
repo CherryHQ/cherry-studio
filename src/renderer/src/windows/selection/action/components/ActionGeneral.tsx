@@ -1,4 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -21,6 +22,7 @@ import styled from 'styled-components'
 import { processMessages } from './ActionUtils'
 import WindowFooter from './WindowFooter'
 
+const logger = loggerService.withContext('ActionGeneral')
 interface Props {
   action: ActionItem
   scrollToBottom?: () => void
@@ -112,6 +114,7 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
     }
 
     if (!assistantRef.current || !topicRef.current) return
+    logger.debug('Before peocess message', { assistant: assistantRef.current })
     processMessages(
       assistantRef.current,
       topicRef.current,

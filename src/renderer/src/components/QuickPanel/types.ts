@@ -54,6 +54,12 @@ export type QuickPanelListItem = {
   isSelected?: boolean
   isMenu?: boolean
   disabled?: boolean
+  /**
+   * 固定显示项：不参与过滤，始终出现在列表顶部。
+   * 例如“清除”按钮可设置为 alwaysVisible，从而在有匹配项时始终可见；
+   * 折叠判定依然仅依据非固定项数量，从而在无匹配时整体折叠隐藏。
+   */
+  alwaysVisible?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
 }
 

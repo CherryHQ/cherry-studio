@@ -38,7 +38,6 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
 import Ph8ProviderLogo from '@renderer/assets/images/providers/ph8.png'
-import PoeProviderLogo from '@renderer/assets/images/providers/poe.svg'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import QiniuProviderLogo from '@renderer/assets/images/providers/qiniu.webp'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
@@ -650,7 +649,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: PoeProviderLogo
+  poe: 'svg' // use svg icon component
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1278,7 +1277,11 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
+  'ollama',
+  'lmstudio',
+  'nvidia'
+] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.

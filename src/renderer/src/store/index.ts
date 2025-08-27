@@ -20,6 +20,7 @@ import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
 import nutstore from './nutstore'
+import ocr from './ocr'
 import paintings from './paintings'
 import preprocess from './preprocess'
 import runtime from './runtime'
@@ -55,14 +56,15 @@ const rootReducer = combineReducers({
   messages: newMessagesReducer,
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
-  translate
+  translate,
+  ocr
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 136,
+    version: 137,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },

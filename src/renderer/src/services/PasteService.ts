@@ -5,7 +5,7 @@ import { getFileExtension, isSupportedFile } from '@renderer/utils'
 const logger = loggerService.withContext('PasteService')
 
 // Track last focused component
-type ComponentType = 'inputbar' | 'messageEditor' | null
+type ComponentType = 'inputbar' | 'messageEditor' | 'TranslatePage' | null
 let lastFocusedComponent: ComponentType = 'inputbar' // Default to inputbar
 
 // 处理函数类型
