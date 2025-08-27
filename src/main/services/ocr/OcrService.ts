@@ -25,7 +25,7 @@ export class OcrService {
     if (!handler) {
       throw new Error(`Provider ${provider.id} is not registered`)
     }
-    return handler(file)
+    return handler(file, provider.config)
   }
 }
 
