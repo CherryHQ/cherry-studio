@@ -87,7 +87,7 @@ export class TesseractService extends OcrBaseService {
 
   private async _getLangPath(): Promise<string> {
     const country = await getIpCountry()
-    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : 'https://wrong.url/'
+    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : ''
   }
 
   private async _getCacheDir(): Promise<string> {
