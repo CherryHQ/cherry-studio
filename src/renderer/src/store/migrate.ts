@@ -2188,7 +2188,7 @@ const migrateConfig = {
     try {
       state.ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
-        imageProvider: DEFAULT_OCR_PROVIDER.image
+        imageProviderId: DEFAULT_OCR_PROVIDER.image.id
       }
       state.translate.translateInput = ''
       return state

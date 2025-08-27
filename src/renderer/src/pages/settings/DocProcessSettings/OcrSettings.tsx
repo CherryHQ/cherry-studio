@@ -1,7 +1,7 @@
 import { PictureOutlined } from '@ant-design/icons'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppSelector } from '@renderer/store'
+import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { OcrProvider } from '@renderer/types'
 import { Tabs, TabsProps } from 'antd'
 import { FC, useState } from 'react'
@@ -14,7 +14,7 @@ import OcrProviderSettings from './OcrProviderSettings'
 const OcrSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
-  const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
+  const { imageProvider } = useOcrProviders()
   const [provider, setProvider] = useState<OcrProvider>(imageProvider) // since default to image provider
 
   const tabs: TabsProps['items'] = [

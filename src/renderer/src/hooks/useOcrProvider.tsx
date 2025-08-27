@@ -1,18 +1,20 @@
 import { loggerService } from '@logger'
 import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
-import { BUILTIN_OCR_PROVIDERS_MAP } from '@renderer/config/ocr'
+import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'
-import { addOcrProvider, removeOcrProvider, setImageOcrProvider, updateOcrProviderConfig } from '@renderer/store/ocr'
+import { addOcrProvider, removeOcrProvider, setImageOcrProviderId, updateOcrProviderConfig } from '@renderer/store/ocr'
 import {
   ImageOcrProvider,
   isBuiltinOcrProvider,
   isBuiltinOcrProviderId,
+  isImageOcrProvider,
   OcrProvider,
   OcrProviderConfig
 } from '@renderer/types'
 import { Avatar } from 'antd'
 import { FileQuestionMarkIcon, MonitorIcon } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
@@ -20,7 +22,9 @@ const logger = loggerService.withContext('useOcrProvider')
 
 export const useOcrProviders = () => {
   const providers = useAppSelector((state) => state.ocr.providers)
-  const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
+  const imageProviders = providers.filter(isImageOcrProvider)
+  const imageProviderId = useAppSelector((state) => state.ocr.imageProviderId)
+  const [imageProvider, setImageProvider] = useState<ImageOcrProvider>(DEFAULT_OCR_PROVIDER.image)
   const dispatch = useDispatch()
   const { t } = useTranslation()
 
@@ -29,15 +33,18 @@ export const useOcrProviders = () => {
    * @param provider - OCR提供者对象，包含id和其他配置信息
    * @throws {Error} 当尝试添加一个已存在ID的提供者时抛出错误
    */
-  const addProvider = (provider: OcrProvider) => {
-    if (providers.some((p) => p.id === provider.id)) {
-      const msg = `Provider with id ${provider.id} already exists`
-      logger.error(msg)
-      window.message.error(t('ocr.error.provider.existing'))
-      throw new Error(msg)
-    }
-    dispatch(addOcrProvider(provider))
-  }
+  const addProvider = useCallback(
+    (provider: OcrProvider) => {
+      if (providers.some((p) => p.id === provider.id)) {
+        const msg = `Provider with id ${provider.id} already exists`
+        logger.error(msg)
+        window.message.error(t('ocr.error.provider.existing'))
+        throw new Error(msg)
+      }
+      dispatch(addOcrProvider(provider))
+    },
+    [dispatch, providers, t]
+  )
 
   /**
    * 移除一个OCR服务提供者
@@ -55,9 +62,12 @@ export const useOcrProviders = () => {
     dispatch(removeOcrProvider(id))
   }
 
-  const setImageProvider = (p: ImageOcrProvider) => {
-    dispatch(setImageOcrProvider(p))
-  }
+  const setImageProviderId = useCallback(
+    (id: string) => {
+      dispatch(setImageOcrProviderId(id))
+    },
+    [dispatch]
+  )
 
   const getOcrProviderName = (p: OcrProvider) => {
     return isBuiltinOcrProvider(p) ? getBuiltinOcrProviderLabel(p.id) : p.name
@@ -75,12 +85,27 @@ export const useOcrProviders = () => {
     return <FileQuestionMarkIcon size={size} />
   }
 
+  useEffect(() => {
+    const actualImageProvider = imageProviders.find((p) => p.id === imageProviderId)
+    if (!actualImageProvider) {
+      if (isBuiltinOcrProviderId(imageProviderId)) {
+        logger.warn(`Builtin ocr provider ${imageProviderId} not exist. Will add it to providers.`)
+        addProvider(BUILTIN_OCR_PROVIDERS_MAP[imageProviderId])
+      }
+      setImageProviderId(DEFAULT_OCR_PROVIDER.image.id)
+      setImageProvider(DEFAULT_OCR_PROVIDER.image)
+    } else {
+      setImageProviderId(actualImageProvider.id)
+      setImageProvider(actualImageProvider)
+    }
+  }, [addProvider, imageProviderId, imageProviders, setImageProviderId])
+
   return {
     providers,
     imageProvider,
     addProvider,
     removeProvider,
-    setImageProvider,
+    setImageProviderId,
     getOcrProviderName,
     OcrProviderLogo
   }
