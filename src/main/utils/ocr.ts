@@ -7,6 +7,7 @@ const preprocessImage = async (buffer: Buffer) => {
     .grayscale() // 转为灰度
     .normalize()
     .sharpen()
+    .png({ quality: 100 })
     .toBuffer()
 }
 

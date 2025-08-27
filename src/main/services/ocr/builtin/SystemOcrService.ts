@@ -1,6 +1,6 @@
 import { isMac, isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
-import { recognize } from '@napi-rs/system-ocr'
+import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import { ImageFileMetadata, isImageFileMetadata as isImageFileMetadata, OcrResult, SupportedOcrFile } from '@types'
 
 // const logger = loggerService.withContext('SystemOcrService')
@@ -16,7 +16,7 @@ export class SystemOcrService {
 
   private async ocrImage(file: ImageFileMetadata): Promise<OcrResult> {
     const buffer = await loadOcrImage(file)
-    const result = await recognize(buffer)
+    const result = await recognize(buffer, OcrAccuracy.Accurate, ['zh-cn', 'en-us'])
     return { text: result.text }
   }
 
