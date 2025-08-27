@@ -16,7 +16,7 @@ export const ocr = async (file: SupportedOcrFile, provider: OcrProvider): Promis
   logger.info(`ocr file ${file.path}`)
   if (isOcrApiProvider(provider)) {
     const client = OcrApiClientFactory.create(provider)
-    return client.ocr(file)
+    return client.ocr(file, provider.config)
   } else {
     return window.api.ocr.ocr(file, provider)
   }
