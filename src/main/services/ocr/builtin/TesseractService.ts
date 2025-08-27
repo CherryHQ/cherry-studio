@@ -31,17 +31,20 @@ export class TesseractService extends OcrBaseService {
   }
 
   async getWorker(options?: OcrTesseractConfig): Promise<Tesseract.Worker> {
-    if (!this.worker || !isEqual(this.previousLangs, options?.langs)) {
-      let langsArray: LanguageCode[]
-      if (options?.langs) {
-        // TODO: use type safe objectKeys
-        langsArray = Object.keys(options.langs) as LanguageCode[]
-        if (langsArray.length === 0) {
-          logger.warn('Empty langs option. Fallback to defaultLangs.')
-          langsArray = defaultLangs
-        }
-      } else {
+    let langsArray: LanguageCode[]
+    if (options?.langs) {
+      // TODO: use type safe objectKeys
+      langsArray = Object.keys(options.langs) as LanguageCode[]
+      if (langsArray.length === 0) {
+        logger.warn('Empty langs option. Fallback to defaultLangs.')
         langsArray = defaultLangs
+      }
+    } else {
+      langsArray = defaultLangs
+    }
+    if (!this.worker || !isEqual(this.previousLangs, langsArray)) {
+      if (this.worker) {
+        await this.dispose()
       }
       this.worker = await createWorker(langsArray, undefined, {
         langPath: await this._getLangPath(),
