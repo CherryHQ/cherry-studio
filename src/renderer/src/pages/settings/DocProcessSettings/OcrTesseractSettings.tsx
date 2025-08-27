@@ -1,5 +1,6 @@
 // import { loggerService } from '@logger'
 import InfoTooltip from '@renderer/components/InfoTooltip'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -75,6 +76,9 @@ export const OcrTesseractSettings = () => {
             maxTagCount={1}
             onChange={onChange}
             onBlur={onBlur}
+            // use tag render to disable default close action
+            // don't modify this, because close action won't trigger onBlur to update state
+            tagRender={(props) => <CustomTag color="var(--color-text)">{props.label}</CustomTag>}
           />
         </div>
       </SettingRow>
