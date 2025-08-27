@@ -3545,6 +3545,7 @@
           }
         },
         "tesseract": {
+          "langs_tooltip": "Read the documentation to learn which custom languages are supported",
           "temp_tooltip": "Currently, only Chinese and English are supported."
         },
         "title": "OCR service"

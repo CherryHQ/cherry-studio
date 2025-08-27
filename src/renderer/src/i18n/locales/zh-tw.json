@@ -3545,6 +3545,7 @@
           }
         },
         "tesseract": {
+          "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援",
           "temp_tooltip": "目前暫時只支援中文和英文"
         },
         "title": "OCR 服務"
