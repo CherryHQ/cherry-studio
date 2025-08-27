@@ -3545,8 +3545,7 @@
           }
         },
         "tesseract": {
-          "langs_tooltip": "Lea la documentación para conocer qué idiomas personalizados son compatibles",
-          "temp_tooltip": "Actualmente solo se admiten chino e inglés"
+          "langs_tooltip": "Lea la documentación para conocer qué idiomas personalizados son compatibles"
         },
         "title": "Servicio OCR"
       },
