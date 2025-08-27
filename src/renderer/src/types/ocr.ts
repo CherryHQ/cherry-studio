@@ -65,7 +65,7 @@ export const isOcrProviderApiConfig = (config: unknown): config is OcrProviderAp
  *
  * Extend this type to define provider-specific config types.
  */
-export type OcrProviderConfig = {
+export type OcrProviderBaseConfig = {
   /** Not used for now. Could safely remove. */
   api?: OcrProviderApiConfig
   /** Not used for now. Could safely remove. */
@@ -74,17 +74,21 @@ export type OcrProviderConfig = {
   enabled?: boolean
 }
 
+export type OcrProviderConfig = OcrApiProviderConfig | OcrTesseractConfig | OcrSystemConfig
+
 export type OcrProvider = {
   id: string
   name: string
   capabilities: OcrProviderCapabilityRecord
-  config?: OcrProviderConfig
+  config?: OcrProviderBaseConfig
+}
+
+export type OcrApiProviderConfig = OcrProviderBaseConfig & {
+  api: OcrProviderApiConfig
 }
 
 export type OcrApiProvider = OcrProvider & {
-  config: OcrProviderConfig & {
-    api: OcrProviderApiConfig
-  }
+  config: OcrApiProviderConfig
 }
 
 export const isOcrApiProvider = (p: OcrProvider): p is OcrApiProvider => {
@@ -130,12 +134,12 @@ export type OcrResult = {
   text: string
 }
 
-export type OcrHandler = (file: SupportedOcrFile, options?: OcrProviderConfig) => Promise<OcrResult>
+export type OcrHandler = (file: SupportedOcrFile, options?: OcrProviderBaseConfig) => Promise<OcrResult>
 
-export type OcrImageHandler = (file: ImageFileMetadata, options?: OcrProviderConfig) => Promise<OcrResult>
+export type OcrImageHandler = (file: ImageFileMetadata, options?: OcrProviderBaseConfig) => Promise<OcrResult>
 
 // Tesseract Types
-export type OcrTesseractConfig = OcrProviderConfig & {
+export type OcrTesseractConfig = OcrProviderBaseConfig & {
   langs: Partial<Record<TesseractLangCode, boolean>>
 }
 
@@ -152,7 +156,7 @@ export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvide
 export type TesseractLangCode = Tesseract.LanguageCode
 
 // System Types
-export type OcrSystemConfig = OcrProviderConfig & {
+export type OcrSystemConfig = OcrProviderBaseConfig & {
   langs?: TranslateLanguageCode[]
 }
 
