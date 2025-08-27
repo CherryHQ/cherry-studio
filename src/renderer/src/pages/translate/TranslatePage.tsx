@@ -517,6 +517,7 @@ const TranslatePage: FC = () => {
   const onDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
       setIsProcessing(true)
+      setIsDragging(false)
       // const supportedFiles = await filterSupportedFiles(_files, extensions)
       const data = await getTextFromDropEvent(e).catch((err) => {
         logger.error('getTextFromDropEvent', err)
@@ -552,6 +553,7 @@ const TranslatePage: FC = () => {
 
   const {
     isDragging,
+    setIsDragging,
     handleDragEnter,
     handleDragLeave,
     handleDragOver,
