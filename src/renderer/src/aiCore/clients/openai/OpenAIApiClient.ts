@@ -882,7 +882,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 (typeof (choice.delta as any).reasoning_content === 'string' &&
                   (choice.delta as any).reasoning_content !== '') ||
                 (typeof (choice.delta as any).reasoning === 'string' && (choice.delta as any).reasoning !== '') ||
-                ((choice.delta as any).images && Array.isArray((choice.delta as any).images)))
+                ((choice.delta as OpenAISdkRawContentSource).images && Array.isArray((choice.delta as OpenAISdkRawContentSource).images)))
             ) {
               contentSource = choice.delta
             } else if ('message' in choice) {
@@ -981,30 +981,17 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
             }
 
             // 处理图片内容 (e.g. from OpenRouter Gemini image generation models)
-            // @ts-ignore - images is not in standard OpenAI types but some providers use it
             if (contentSource.images && Array.isArray(contentSource.images)) {
-              // @ts-ignore - images is not in standard OpenAI types but some providers use it
-              const images = contentSource.images
-              const imageUrls: string[] = []
-
-              for (const image of images) {
-                if (image.type === 'image_url' && image.image_url?.url) {
-                  imageUrls.push(image.image_url.url)
+              controller.enqueue({
+                type: ChunkType.IMAGE_CREATED
+              })
+              controller.enqueue({
+                type: ChunkType.IMAGE_COMPLETE,
+                image: {
+                  type: 'base64',
+                  images: contentSource.images.map((image) => image.image_url?.url || '')
                 }
-              }
-
-              if (imageUrls.length > 0) {
-                controller.enqueue({
-                  type: ChunkType.IMAGE_CREATED
-                })
-                controller.enqueue({
-                  type: ChunkType.IMAGE_COMPLETE,
-                  image: {
-                    type: 'base64',
-                    images: imageUrls
-                  }
-                })
-              }
+              })
             }
 
             // 处理工具调用
