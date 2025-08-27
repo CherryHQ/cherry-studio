@@ -17,8 +17,7 @@ const logger = loggerService.withContext('TesseractService')
 const MB_SIZE_THRESHOLD = 50
 const defaultLangs = ['chi_sim', 'chi_tra', 'eng'] satisfies LanguageCode[]
 enum TesseractLangsDownloadUrl {
-  CN = 'https://gitcode.com/beyondkmp/tessdata/releases/download/4.1.0/',
-  GLOBAL = 'https://github.com/tesseract-ocr/tessdata/raw/main/'
+  CN = 'https://gitcode.com/beyondkmp/tessdata-best/releases/download/1.0.0/'
 }
 
 export class TesseractService extends OcrBaseService {
@@ -52,7 +51,6 @@ export class TesseractService extends OcrBaseService {
       this.worker = await createWorker(langsArray, undefined, {
         langPath: await this._getLangPath(),
         cachePath: await this._getCacheDir(),
-        gzip: false,
         logger: (m) => logger.debug('From worker', m),
         errorHandler: (e) => {
           logger.error('Worker Error', e)
@@ -86,7 +84,7 @@ export class TesseractService extends OcrBaseService {
 
   private async _getLangPath(): Promise<string> {
     const country = await getIpCountry()
-    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : TesseractLangsDownloadUrl.GLOBAL
+    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : ''
   }
 
   private async _getCacheDir(): Promise<string> {
