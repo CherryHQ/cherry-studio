@@ -14,7 +14,7 @@ import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, memo, startTransition, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface WebSearchButtonRef {
@@ -67,8 +67,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
 
   const updateWebSearchProvider = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
-      // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
-      startTransition(() => {
+      setTimeoutTimer('updateWebSearchProvider', () => {
         updateAssistant({
           ...assistant,
           webSearchProviderId: providerId,
@@ -76,12 +75,11 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
         })
       })
     },
-    [assistant, updateAssistant]
+    [assistant, setTimeoutTimer, updateAssistant]
   )
 
   const updateQuickPanelItem = useCallback(
     async (providerId?: WebSearchProvider['id']) => {
-      // TODO: updateAssistant有性能问题，会导致关闭快捷面板卡顿
       if (providerId === assistant.webSearchProviderId) {
         updateWebSearchProvider(undefined)
       } else {
