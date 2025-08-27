@@ -717,5 +717,5 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
 
   // Capture service
-  ipcMain.handle(IpcChannel.Capture_HtmlToPng, pageCaptureService.captureHtmlToPng.bind(pageCaptureService))
+  ipcMain.handle(IpcChannel.PageCapture_HtmlToPng, pageCaptureService.captureHtmlToPng.bind(pageCaptureService))
 }

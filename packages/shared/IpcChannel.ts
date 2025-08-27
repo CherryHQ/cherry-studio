@@ -288,5 +288,5 @@ export enum IpcChannel {
   OCR_ocr = 'ocr:ocr',
 
   // Capture
-  Capture_HtmlToPng = 'capture:html-to-png'
+  PageCapture_HtmlToPng = 'page-capture:html-to-png'
 }

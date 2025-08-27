@@ -53,7 +53,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     const currentWidth = Math.floor(rect.width) || 800
 
     // 捕获页面内容
-    const base64 = await window.api.capture.htmlToPng(html, currentWidth)
+    const base64 = await window.api.pageCapture.htmlToPng(html, currentWidth)
     const dataUrl = base64 ? `data:image/png;base64,${base64}` : undefined
 
     // 构造文件名，保存为图片
