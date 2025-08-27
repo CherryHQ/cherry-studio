@@ -415,6 +415,10 @@ const api = {
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider)
+  },
+  capture: {
+    htmlToPng: (html: string, width?: number, height?: number): Promise<string> =>
+      ipcRenderer.invoke(IpcChannel.Capture_HtmlToPng, html, width, height)
   }
 }
 

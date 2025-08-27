@@ -1,9 +1,11 @@
 import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
+import { extractTitle } from '@renderer/utils/formats'
 import { Button, Modal, Splitter, Tooltip, Typography } from 'antd'
-import { Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,7 +23,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [saved, setSaved] = useTemporaryValue(false, 2000)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
+  const previewSectionRef = useRef<HTMLDivElement>(null)
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -38,7 +42,27 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
 
   const handleSave = () => {
     codeEditorRef.current?.save?.()
+    setSaved(true)
   }
+
+  const handleCapture = useCallback(async () => {
+    if (!previewSectionRef.current) return
+
+    // 直接测量当前 PreviewSection 的宽度（不完全准确）
+    const rect = previewSectionRef.current.getBoundingClientRect()
+    const currentWidth = Math.floor(rect.width) || 800
+
+    // 捕获页面内容
+    const base64 = await window.api.capture.htmlToPng(html, currentWidth)
+    const dataUrl = base64 ? `data:image/png;base64,${base64}` : undefined
+
+    // 构造文件名，保存为图片
+    const title = extractTitle(html) || 'HTML Artifacts'
+    const fileName = `${title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-') || 'html-artifact'}`
+    if (fileName && dataUrl) {
+      window.api.file.saveImage(fileName, dataUrl)
+    }
+  }, [html])
 
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
@@ -73,6 +97,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderCenter>
 
       <HeaderRight $isFullscreen={isFullscreen}>
+        <Tooltip title={t('code_block.download.png')} mouseLeaveDelay={0}>
+          <Button onClick={handleCapture} type="text" icon={<Camera size={16} />} className="nodrag" />
+        </Tooltip>
         <Button
           onClick={() => setIsFullscreen(!isFullscreen)}
           type="text"
@@ -104,10 +131,16 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         />
         <ToolbarWrapper>
           <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
-            <Button
+            <ToolbarButton
               shape="circle"
               size="large"
-              icon={<SaveIcon size={16} className="custom-lucide" />}
+              icon={
+                saved ? (
+                  <Check size={16} color="var(--color-status-success)" />
+                ) : (
+                  <SaveIcon size={16} className="custom-lucide" />
+                )
+              }
               onClick={handleSave}
             />
           </Tooltip>
@@ -116,7 +149,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     )
 
     const previewPanel = (
-      <PreviewSection>
+      <PreviewSection ref={previewSectionRef}>
         {html.trim() ? (
           <PreviewFrame
             key={html} // Force recreate iframe when preview content changes
@@ -371,6 +404,14 @@ const ToolbarWrapper = styled.div`
   right: 1rem;
   bottom: 1rem;
   z-index: 1;
+`
+
+const ToolbarButton = styled(Button)`
+  border: none;
+  box-shadow:
+    0 6px 16px 0 rgba(0, 0, 0, 0.08),
+    0 3px 6px -4px rgba(0, 0, 0, 0.12),
+    0 9px 28px 8px rgba(0, 0, 0, 0.05);
 `
 
 export default HtmlArtifactsPopup
