@@ -1,4 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import ModelLabels from '@renderer/components/ModelLabels'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -72,7 +73,38 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         models = filterModelsByKeywords(searchText, models, provider)
       }
 
-      return sortBy(models, ['group', 'name'])
+      // 智谱模型特殊处理
+      if (provider.id === 'zhipu') {
+        const hasApiKey = provider.apiKey && provider.apiKey.trim() !== ''
+
+        // 如果未配置API Key，只显示四个指定模型和嵌入模型
+        if (!hasApiKey) {
+          models = models.filter(
+            (m) =>
+              m.id === 'glm-4.5-flash' ||
+              m.id === 'glm-4.5' ||
+              m.id === 'glm-4.5-air' ||
+              m.id === 'glm-4.5v' ||
+              isEmbeddingModel(m)
+          )
+        }
+
+        // 智谱模型排序：按照新的顺序排序
+        models = sortBy(models, (model) => {
+          // 定义GLM-4.5系列的排序优先级
+          const sortOrder = {
+            'glm-4.5-flash': '0',
+            'glm-4.5': '1',
+            'glm-4.5-air': '2',
+            'glm-4.5v': '3'
+          }
+          return sortOrder[model.id] || model.name // 其他模型按名称排序
+        })
+      } else {
+        models = sortBy(models, ['group', 'name'])
+      }
+
+      return models
     },
     [searchText]
   )
@@ -89,12 +121,13 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         name: (
           <ModelName>
             {model.name}
+            <ModelLabels model={model} providers={providers} parentContainer="SelectModelPopup" />
             {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
           </ModelName>
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={true} />
           </TagsContainer>
         ),
         icon: (
@@ -107,7 +140,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
         isSelected: modelId === currentModelId
       }
     },
-    [currentModelId]
+    [currentModelId, providers]
   )
 
   // 构建扁平化列表数据，并派生出可选择的模型项
@@ -485,11 +518,13 @@ const ModelItemLeft = styled.div`
 
 const ModelName = styled.span`
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
 `
 
 const TagsContainer = styled.div`

@@ -846,7 +846,12 @@
       "title": "渲染錯誤"
     },
     "unknown": "未知錯誤",
-    "user_message_not_found": "無法找到原始用戶訊息"
+    "user_message_not_found": "無法找到原始用戶訊息",
+    "zhipu": {
+      "insufficient_balance": "請前往智譜開放平台充值。",
+      "no_api_key": "您未配置API金鑰，請前往智譜開放平台獲取API金鑰。",
+      "quota_exceeded": "您今日10M Tokens免費配額已用盡，請前往智譜開放平台獲取API金鑰，配置API金鑰後繼續使用。"
+    }
   },
   "export": {
     "assistant": "助手",
@@ -1851,7 +1856,7 @@
     "xirang": "天翼雲息壤",
     "yi": "零一萬物",
     "zhinao": "360 智腦",
-    "zhipu": "智譜 AI"
+    "zhipu": "智譜開放平台"
   },
   "restore": {
     "confirm": {
@@ -2893,7 +2898,8 @@
         "modelscope": "魔搭社區 MCP 伺服器",
         "official": "官方 MCP 伺服器集合",
         "pulsemcp": "Pulse MCP 伺服器",
-        "smithery": "Smithery MCP 工具"
+        "smithery": "Smithery MCP 工具",
+        "zhipu": "精選MCP，極速接入"
       },
       "name": "名稱",
       "newServer": "MCP 伺服器",

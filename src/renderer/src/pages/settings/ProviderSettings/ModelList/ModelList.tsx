@@ -34,7 +34,19 @@ const MODEL_COUNT_THRESHOLD = 10
 const calculateModelGroups = (models: Model[], searchText: string): ModelGroups => {
   const filteredModels = searchText ? filterModelsByKeywords(searchText, models) : models
   const grouped = groupBy(filteredModels, 'group')
-  return sortBy(toPairs(grouped), [0]).reduce((acc, [key, value]) => {
+
+  // 自定义排序逻辑，让智谱的模型系列按版本排序
+  const sortedGroups = sortBy(toPairs(grouped), ([key]) => {
+    // 智谱模型特殊排序
+    if (key === 'GLM-4.5') return '0' // 让 GLM-4.5 排在最前面
+    if (key === 'GLM-4.5V') return '1'
+    if (key === 'GLM-4') return '2'
+    if (key === 'Cogview') return '3'
+    if (key === 'GLM-3') return '4'
+    return key // 其他分组按字母顺序排序
+  })
+
+  return sortedGroups.reduce((acc, [key, value]) => {
     acc[key] = value
     return acc
   }, {})

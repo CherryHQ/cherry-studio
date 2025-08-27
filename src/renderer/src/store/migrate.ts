@@ -2178,11 +2178,227 @@ const migrateConfig = {
   },
   '137': (state: RootState) => {
     try {
+      // 1. 确保智谱供应商被启用
+      const zhipuProvider = state.llm.providers.find((p) => p.id === 'zhipu')
+      if (zhipuProvider) {
+        zhipuProvider.enabled = true
+      }
+
+      // 2. 推荐智谱作为第一位提供商，但只在用户没有自定义过顺序的情况下执行
+      const zhipuIndex = state.llm.providers.findIndex((p) => p.id === 'zhipu')
+      const siliconIndex = state.llm.providers.findIndex((p) => p.id === 'silicon')
+
+      // 如果智谱不在第一位，且硅基在第一位，说明这是默认顺序，我们可以推荐智谱
+      if (zhipuIndex !== 0 && siliconIndex === 0) {
+        // 将智谱移到第一位
+        const zhipuProvider = state.llm.providers[zhipuIndex]
+        state.llm.providers.splice(zhipuIndex, 1)
+        state.llm.providers.unshift(zhipuProvider)
+      }
+
+      // 3. 更新智谱模型列表
+      if (zhipuProvider) {
+        // 添加新的4.5系列模型
+        const newModels = [
+          {
+            id: 'glm-4.5-flash',
+            provider: 'zhipu',
+            name: 'GLM-4.5-Flash',
+            group: 'GLM-4.5',
+            //isFree: true,
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.5',
+            provider: 'zhipu',
+            name: 'GLM-4.5',
+            group: 'GLM-4.5',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.5-x',
+            provider: 'zhipu',
+            name: 'GLM-4.5-X',
+            group: 'GLM-4.5',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.5-air',
+            provider: 'zhipu',
+            name: 'GLM-4.5-Air',
+            group: 'GLM-4.5',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.5-airx',
+            provider: 'zhipu',
+            name: 'GLM-4.5-AirX',
+            group: 'GLM-4.5',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.5v',
+            provider: 'zhipu',
+            name: 'GLM-4.5V',
+            group: 'GLM-4.5V',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4.1v-thinking-flash',
+            provider: 'zhipu',
+            name: 'GLM-4.1V-Thinking-Flash',
+            group: 'GLM-4V',
+            //isFree: true,
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'glm-4v-flash',
+            provider: 'zhipu',
+            name: 'GLM-4V-Flash',
+            group: 'GLM-4V',
+            //isFree: true,
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'cogview-3-flash',
+            provider: 'zhipu',
+            name: 'CogView-3-Flash',
+            group: 'CogView',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'cogview-4-250304',
+            provider: 'zhipu',
+            name: 'CogView-4-250304',
+            group: 'CogView',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          },
+          {
+            id: 'embedding-3',
+            provider: 'zhipu',
+            name: 'Embedding-3',
+            group: 'Embedding',
+            apiKeyLink: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+          }
+        ]
+
+        // 添加新模型或更新现有模型的配置（特别是apiKeyLink）
+        newModels.forEach((newModel) => {
+          const existingModel = zhipuProvider.models.find((m) => m.id === newModel.id)
+          if (!existingModel) {
+            // 如果模型不存在，添加新模型
+            zhipuProvider.models.push(newModel)
+          } else {
+            // 如果模型已存在，更新配置（特别是apiKeyLink）
+            Object.assign(existingModel, newModel)
+          }
+        })
+
+        // 下架旧模型
+        const deprecatedModels = ['glm-4-flash-250414', 'glm-z1-flash']
+        zhipuProvider.models = zhipuProvider.models.filter((m) => !deprecatedModels.includes(m.id))
+
+        // 修正模型名称大小写 - 将全大写的 AIR/FLASH 改为首字母大写
+        zhipuProvider.models.forEach((model) => {
+          // 修正 AIR 和 FLASH 的大小写
+          if (model.name.includes('AIR') || model.name.includes('FLASH')) {
+            model.name = model.name.replace(/\b(AIR|FLASH)\b/g, (match) => {
+              return match.charAt(0) + match.slice(1).toLowerCase()
+            })
+          }
+        })
+
+        // 查找 GLM-4.5-Flash 模型
+        const glm45FlashModel = zhipuProvider.models.find((m) => m.id === 'glm-4.5-flash')
+
+        if (glm45FlashModel) {
+          // 只有当没有默认模型时才设置为 GLM-4.5-Flash
+          if (!state.llm.defaultModel) {
+            state.llm.defaultModel = glm45FlashModel
+          }
+          if (!state.llm.quickModel) {
+            state.llm.quickModel = glm45FlashModel
+          }
+          if (!state.llm.translateModel) {
+            state.llm.translateModel = glm45FlashModel
+          }
+        }
+
+        // 迁移逻辑1: 检测GLM-4V模型，如果有就改成GLM-4V
+        zhipuProvider.models.forEach((model) => {
+          if (model.group === 'GLM 4V') {
+            model.group = 'GLM-4V'
+          }
+        })
+
+        // 迁移逻辑2: 将GLM-4v改为GLM-4V
+        zhipuProvider.models.forEach((model) => {
+          if (model.group === 'GLM-4v') {
+            model.group = 'GLM-4V'
+          }
+        })
+
+        // 迁移逻辑3: 如果GLM-4.5V在GLM-4.5系列下面，要添加GLM-4.5V系列并把GLM-4.5V转移过去
+        const glm45vModel = zhipuProvider.models.find((m) => m.id === 'glm-4.5v')
+        if (glm45vModel && glm45vModel.group === 'GLM-4.5') {
+          glm45vModel.group = 'GLM-4.5V'
+        }
+      }
+
+      // 3. 更新默认绘图供应商为智谱
+      if (state.settings && state.settings.defaultPaintingProvider !== 'zhipu') {
+        state.settings.defaultPaintingProvider = 'zhipu'
+      }
+
+      // 4. 更新默认绘图模型为 CogView-3-Flash
+      // 确保老用户能看到新的绘图模型选项
+      if (state.paintings && state.paintings.paintings) {
+        state.paintings.paintings.forEach((painting) => {
+          // 如果用户没有设置模型，或者使用的是旧模型，更新为 CogView-3-Flash
+          if (!painting.model || painting.model === 'cogview-3' || painting.model === 'cogview-4') {
+            painting.model = 'cogview-3-flash'
+          }
+        })
+      }
+
+      // 5. 更新知识库的默认嵌入模型为智谱的 embedding-3
+      // 这里我们不需要直接修改状态，因为默认模型是在组件中设置的
+      // 这个迁移主要用于版本标记，确保用户知道有新的默认嵌入模型
+
+      // 6. 为 codeTools 设置默认模型
+      if (state.codeTools) {
+        // 查找智谱提供商中的 GLM-4.5-Flash 模型
+        const zhipuProviderForCodeTools = state.llm.providers.find((p) => p.id === 'zhipu')
+        if (zhipuProviderForCodeTools) {
+          const glm45FlashModelForCodeTools = zhipuProviderForCodeTools.models.find((m) => m.id === 'glm-4.5-flash')
+
+          if (glm45FlashModelForCodeTools) {
+            // 为所有 CLI 工具设置默认模型为 GLM-4.5-Flash
+            if (state.codeTools.selectedModels['qwen-code'] === null) {
+              state.codeTools.selectedModels['qwen-code'] = glm45FlashModelForCodeTools
+            }
+            if (state.codeTools.selectedModels['claude-code'] === null) {
+              state.codeTools.selectedModels['claude-code'] = glm45FlashModelForCodeTools
+            }
+            if (state.codeTools.selectedModels['gemini-cli'] === null) {
+              state.codeTools.selectedModels['gemini-cli'] = glm45FlashModelForCodeTools
+            }
+          }
+        }
+      }
+
+      // 7. 添加智谱网络搜索供应商
+      addWebSearchProvider(state, 'zhipu')
+
+      // OCR
       state.ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
         imageProvider: DEFAULT_OCR_PROVIDER.image
       }
+
+      // Translate
       state.translate.translateInput = ''
+
       return state
     } catch (error) {
       logger.error('migrate 137 error', error as Error)

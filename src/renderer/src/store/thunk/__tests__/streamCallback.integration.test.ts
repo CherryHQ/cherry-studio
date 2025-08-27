@@ -44,6 +44,7 @@ const createMockCallbacks = (
 vi.mock('@renderer/config/models', () => ({
   SYSTEM_MODELS: {
     defaultModel: [{}, {}, {}],
+    zhipu: [],
     silicon: [],
     aihubmix: [],
     ocoolai: [],
@@ -69,7 +70,6 @@ vi.mock('@renderer/config/models', () => ({
     vertexai: [],
     github: [],
     copilot: [],
-    zhipu: [],
     yi: [],
     moonshot: [],
     baichuan: [],

@@ -23,6 +23,18 @@ vi.mock('@renderer/utils/naming', () => ({
   getFancyProviderName: (provider: any) => provider.name
 }))
 
+vi.mock('@renderer/config/models', () => ({
+  SYSTEM_MODELS: {
+    zhipu: [
+      { id: 'glm-4.5-flash', name: 'GLM-4.5-Flash', provider: 'zhipu', group: 'GLM-4.5' },
+      { id: 'glm-4.5', name: 'GLM-4.5', provider: 'zhipu', group: 'GLM-4.5' }
+    ],
+    openai: [{ id: 'gpt-4', name: 'GPT-4', provider: 'openai', group: 'chat' }],
+    anthropic: [{ id: 'claude-3', name: 'Claude-3', provider: 'anthropic', group: 'chat' }],
+    defaultModel: [{ id: 'glm-4.5-flash', name: 'GLM-4.5-Flash', provider: 'zhipu', group: 'GLM-4.5' }]
+  }
+}))
+
 // Import after mocking
 import { Provider } from '@renderer/types'
 

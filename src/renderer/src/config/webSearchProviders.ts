@@ -8,6 +8,12 @@ type WebSearchProviderConfig = {
 }
 
 export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchProviderConfig> = {
+  zhipu: {
+    websites: {
+      official: 'https://docs.bigmodel.cn/cn/guide/tools/web-search',
+      apiKey: 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/yv'
+    }
+  },
   tavily: {
     websites: {
       official: 'https://tavily.com',
@@ -49,6 +55,12 @@ export const WEB_SEARCH_PROVIDER_CONFIG: Record<WebSearchProviderId, WebSearchPr
 }
 
 export const WEB_SEARCH_PROVIDERS: WebSearchProvider[] = [
+  {
+    id: 'zhipu',
+    name: 'Zhipu',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/web_search',
+    apiKey: ''
+  },
   {
     id: 'tavily',
     name: 'Tavily',

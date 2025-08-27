@@ -3,6 +3,7 @@ import { Tooltip, Typography } from 'antd'
 import { memo } from 'react'
 import styled from 'styled-components'
 
+import ModelLabels from './ModelLabels'
 import ModelTagsWithLabel from './ModelTagsWithLabel'
 
 interface ModelIdWithTagsProps {
@@ -37,6 +38,7 @@ const ModelIdWithTags = ({
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />
+      <ModelLabels model={model} providers={[]} parentContainer="ModelIdWithTags" />
     </ListItemName>
   )
 }
