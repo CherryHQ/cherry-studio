@@ -3523,6 +3523,9 @@
     "title": "Configuración",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Idiomas compatibles"
+        },
         "error": {
           "not_system": "El OCR del sistema solo admite Windows y MacOS"
         },
@@ -3530,13 +3533,20 @@
           "error": {
             "provider_not_found": "El proveedor no existe"
           },
-          "tesseract": {
-            "langs": "Idiomas compatibles",
-            "temp_tooltip": "Actualmente solo se admiten chino e inglés."
+          "system": {
+            "no_need_configure": "MacOS no requiere configuración"
           },
           "title": "Imagen"
         },
         "image_provider": "Proveedor de servicios OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependiendo de Windows para proporcionar servicios, necesita descargar el paquete de idioma en el sistema para admitir los idiomas correspondientes."
+          }
+        },
+        "tesseract": {
+          "temp_tooltip": "Actualmente solo se admiten chino e inglés"
+        },
         "title": "Servicio OCR"
       },
       "preprocess": {

@@ -3523,6 +3523,9 @@
     "title": "Settings",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Supported languages"
+        },
         "error": {
           "not_system": "System OCR only supports Windows and MacOS"
         },
@@ -3530,13 +3533,20 @@
           "error": {
             "provider_not_found": "The provider does not exist"
           },
-          "tesseract": {
-            "langs": "Supported languages",
-            "temp_tooltip": "Currently only Chinese and English are supported"
+          "system": {
+            "no_need_configure": "MacOS requires no configuration"
           },
           "title": "Image"
         },
         "image_provider": "OCR service provider",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
+          }
+        },
+        "tesseract": {
+          "temp_tooltip": "Currently, only Chinese and English are supported."
+        },
         "title": "OCR service"
       },
       "preprocess": {

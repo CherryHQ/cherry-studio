@@ -3523,6 +3523,9 @@
     "title": "Configurações",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Idiomas suportados"
+        },
         "error": {
           "not_system": "O OCR do sistema suporta apenas Windows e MacOS"
         },
@@ -3530,13 +3533,20 @@
           "error": {
             "provider_not_found": "O provedor não existe"
           },
-          "tesseract": {
-            "langs": "Idiomas suportados",
-            "temp_tooltip": "No momento, apenas chinês e inglês são suportados."
+          "system": {
+            "no_need_configure": "MacOS não requer configuração"
           },
           "title": "Imagem"
         },
         "image_provider": "Provedor de serviços OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependendo do Windows para fornecer serviços, você precisa baixar pacotes de idiomas no sistema para dar suporte aos idiomas relevantes."
+          }
+        },
+        "tesseract": {
+          "temp_tooltip": "Atualmente, apenas chinês e inglês são suportados."
+        },
         "title": "Serviço OCR"
       },
       "preprocess": {

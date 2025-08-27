@@ -3523,6 +3523,9 @@
     "title": "Paramètres",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Langues prises en charge"
+        },
         "error": {
           "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
         },
@@ -3530,13 +3533,20 @@
           "error": {
             "provider_not_found": "Ce fournisseur n'existe pas"
           },
-          "tesseract": {
-            "langs": "Langues prises en charge",
-            "temp_tooltip": "Pour le moment, seuls le chinois et l'anglais sont pris en charge."
+          "system": {
+            "no_need_configure": "MacOS ne nécessite aucune configuration"
           },
           "title": "Image"
         },
         "image_provider": "Fournisseur de service OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dépendre de Windows pour fournir des services, vous devez télécharger des packs linguistiques dans le système afin de prendre en charge les langues concernées."
+          }
+        },
+        "tesseract": {
+          "temp_tooltip": "Pour le moment, seules les langues chinoise et anglaise sont prises en charge."
+        },
         "title": "Service OCR"
       },
       "preprocess": {

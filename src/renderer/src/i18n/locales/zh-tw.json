@@ -3523,6 +3523,9 @@
     "title": "設定",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "支援的語言"
+        },
         "error": {
           "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
         },
@@ -3530,13 +3533,20 @@
           "error": {
             "provider_not_found": "該提供商不存在"
           },
-          "tesseract": {
-            "langs": "支援的語言",
-            "temp_tooltip": "目前暫時只支援中文和英文"
+          "system": {
+            "no_need_configure": "MacOS 無需配置"
           },
           "title": "圖片"
         },
         "image_provider": "OCR 服務提供商",
+        "system": {
+          "win": {
+            "langs_tooltip": "依賴 Windows 提供服務，您需要在系統中下載語言包來支援相關語言。"
+          }
+        },
+        "tesseract": {
+          "temp_tooltip": "目前暫時只支援中文和英文"
+        },
         "title": "OCR 服務"
       },
       "preprocess": {
