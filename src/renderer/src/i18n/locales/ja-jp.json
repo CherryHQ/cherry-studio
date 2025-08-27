@@ -390,8 +390,10 @@
         "parse_tool_call": "有効なツール呼び出し形式に変換できません：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。",
         "multiple_tools": "複数の一致するMCPツールが存在するため、{{tool}} が選択されました",
-        "no_tool": "必要なMCPツール {{tool}} が見つかりません"
+        "no_tool": "必要なMCPツール {{tool}} が見つかりません",
+        "url_context": "Geminiは、URLコンテキストと関数呼び出しを同時に使用することをサポートしていません。"
       }
     },
     "message": {
@@ -1519,6 +1521,10 @@
     "embedding_model": "埋め込み模型",
     "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
     "enable_tool_use": "ツール呼び出し",
+    "filter": {
+      "by_tag": "タグでフィルター",
+      "selected": "選択済みのタグ"
+    },
     "function_calling": "関数呼び出し",
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
@@ -1566,6 +1572,9 @@
     "expand": "ダイアログを展開",
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示"
+  },
+  "navigate": {
+    "provider_settings": "プロバイダー設定に移動"
   },
   "notification": {
     "assistant": "助手回應",

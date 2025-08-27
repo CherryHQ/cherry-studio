@@ -56,6 +56,7 @@ import {
   isSystemProvider,
   OpenAIServiceTiers,
   Provider,
+  ProviderType,
   SystemProvider,
   SystemProviderId
 } from '@renderer/types'
@@ -1276,7 +1277,11 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
+  'ollama',
+  'lmstudio',
+  'nvidia'
+] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.
@@ -1298,4 +1303,17 @@ export const isSupportServiceTierProvider = (provider: Provider) => {
     provider.apiOptions?.isSupportServiceTier === true ||
     (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
+}
+
+const SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES = ['gemini', 'vertexai'] as const satisfies ProviderType[]
+
+export const isSupportUrlContextProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+}
+
+const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]
+
+/** 判断是否是使用 Gemini 原生搜索工具的 provider. 目前假设只有官方 API 使用原生工具 */
+export const isGeminiWebSearchProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS.some((id) => id === provider.id)
 }

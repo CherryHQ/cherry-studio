@@ -22,12 +22,11 @@ import {
 
 const logger = loggerService.withContext('TranslateService')
 interface FetchTranslateProps {
-  content: string
   assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
-async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
+async function fetchTranslate({ assistant, onResponse }: FetchTranslateProps) {
   const model = getTranslateModel() || assistant.model || getDefaultModel()
 
   if (!model) {
@@ -55,7 +54,7 @@ async function fetchTranslate({ content, assistant, onResponse }: FetchTranslate
 
   const params: CompletionsParams = {
     callType: 'translate',
-    messages: content,
+    messages: 'do',
     assistant: { ...assistant, model },
     streamOutput: stream,
     enableReasoning,
@@ -83,7 +82,7 @@ export const translateText = async (
   try {
     const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const translatedText = await fetchTranslate({ content: text, assistant, onResponse })
+    const translatedText = await fetchTranslate({ assistant, onResponse })
 
     const trimmedText = translatedText.trim()
 

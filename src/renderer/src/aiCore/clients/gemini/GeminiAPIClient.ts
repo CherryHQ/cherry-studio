@@ -52,6 +52,7 @@ import {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
   isEnabledToolUse,
@@ -428,8 +429,7 @@ export class GeminiAPIClient extends BaseApiClient<
   private getGenerateImageParameter(): Partial<GenerateContentConfig> {
     return {
       systemInstruction: undefined,
-      responseModalities: [Modality.TEXT, Modality.IMAGE],
-      responseMimeType: 'text/plain'
+      responseModalities: [Modality.TEXT, Modality.IMAGE]
     }
   }
 
@@ -476,16 +476,20 @@ export class GeminiAPIClient extends BaseApiClient<
           }
         }
 
-        if (enableWebSearch) {
-          tools.push({
-            googleSearch: {}
-          })
-        }
+        if (tools.length === 0 || !isToolUseModeFunction(assistant)) {
+          if (enableWebSearch) {
+            tools.push({
+              googleSearch: {}
+            })
+          }
 
-        if (enableUrlContext) {
-          tools.push({
-            urlContext: {}
-          })
+          if (enableUrlContext) {
+            tools.push({
+              urlContext: {}
+            })
+          }
+        } else if (enableWebSearch || enableUrlContext) {
+          logger.warn('Native tools cannot be used with function calling for now.')
         }
 
         if (isGemmaModel(model) && assistant.prompt) {

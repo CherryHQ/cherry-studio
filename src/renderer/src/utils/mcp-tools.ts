@@ -8,6 +8,7 @@ import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
   Assistant,
+  BuiltinMCPServerNames,
   MCPCallToolResponse,
   MCPServer,
   MCPTool,
@@ -28,12 +29,11 @@ import {
   ChatCompletionTool
 } from 'openai/resources'
 
+import { isToolUseModeFunction } from './assistant'
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
 import { filterProperties, processSchemaForO3 } from './mcp-schema'
 
 const logger = loggerService.withContext('Utils:MCPTools')
-
-const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
   return mcpTools.map((tool) => {
@@ -146,7 +146,7 @@ export async function callMCPTool(
       },
       topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
     )
-    if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
+    if (toolResponse.tool.serverName === BuiltinMCPServerNames.mcpAutoInstall) {
       if (resp.data) {
         const mcpServer: MCPServer = {
           id: `f${nanoid()}`,
@@ -823,9 +823,7 @@ export function mcpToolCallResponseToAwsBedrockMessage(
 
 export function isEnabledToolUse(assistant: Assistant) {
   if (assistant.model) {
-    if (isFunctionCallingModel(assistant.model)) {
-      return assistant.settings?.toolUseMode === 'function'
-    }
+    return isFunctionCallingModel(assistant.model) && isToolUseModeFunction(assistant)
   }
 
   return false

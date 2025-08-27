@@ -390,8 +390,10 @@
         "parse_tool_call": "No se puede convertir al formato de llamada de herramienta válido: {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones",
         "multiple_tools": "Existen múltiples herramientas MCP coincidentes, se ha seleccionado {{tool}}",
-        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}"
+        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}",
+        "url_context": "Gemini no admite el uso simultáneo del contexto de la página web y las llamadas a funciones."
       }
     },
     "message": {
@@ -1519,6 +1521,10 @@
     "embedding_model": "Modelo de inmersión",
     "embedding_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
     "enable_tool_use": "Habilitar uso de herramientas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiquetas seleccionadas"
+    },
     "function_calling": "Llamada a función",
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
@@ -1566,6 +1572,9 @@
     "expand": "Expandir cuadro de diálogo",
     "hide_sidebar": "Ocultar barra lateral",
     "show_sidebar": "Mostrar barra lateral"
+  },
+  "navigate": {
+    "provider_settings": "Ir a la configuración del proveedor"
   },
   "notification": {
     "assistant": "Respuesta del asistente",

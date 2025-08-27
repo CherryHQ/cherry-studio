@@ -241,16 +241,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.mentions = mentionedModels
       }
 
-      const assistantWithTopicPrompt = topic.prompt
-        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-        : assistant
-
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
+      dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       // Clear input
       setText('')

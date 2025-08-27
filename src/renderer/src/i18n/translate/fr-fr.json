@@ -390,8 +390,10 @@
         "parse_tool_call": "Impossible de convertir au format d'appel d'outil valide : {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
         "multiple_tools": "Il existe plusieurs outils MCP correspondants, {{tool}} a été sélectionné",
-        "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé"
+        "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé",
+        "url_context": "Gemini ne prend pas en charge l'utilisation simultanée du contexte de la page Web et des appels de fonction"
       }
     },
     "message": {
@@ -1519,6 +1521,10 @@
     "embedding_model": "Modèle d'incrustation",
     "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "enable_tool_use": "Appel d'outil",
+    "filter": {
+      "by_tag": "Filtrer par étiquette",
+      "selected": "Étiquette sélectionnée"
+    },
     "function_calling": "Appel de fonction",
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
@@ -1566,6 +1572,9 @@
     "expand": "Agrandir la boîte de dialogue",
     "hide_sidebar": "Cacher la barre latérale",
     "show_sidebar": "Afficher la barre latérale"
+  },
+  "navigate": {
+    "provider_settings": "Aller aux paramètres du fournisseur"
   },
   "notification": {
     "assistant": "Réponse de l'assistant",

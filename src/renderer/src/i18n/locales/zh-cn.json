@@ -390,8 +390,10 @@
         "parse_tool_call": "无法转换为有效的工具调用格式：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
         "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
-        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}",
+        "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
       }
     },
     "message": {
@@ -1519,6 +1521,10 @@
     "embedding_model": "嵌入模型",
     "embedding_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
     "enable_tool_use": "工具调用",
+    "filter": {
+      "by_tag": "按标签筛选",
+      "selected": "已选标签"
+    },
     "function_calling": "函数调用",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
@@ -1566,6 +1572,9 @@
     "expand": "伸缩对话框",
     "hide_sidebar": "隐藏侧边栏",
     "show_sidebar": "显示侧边栏"
+  },
+  "navigate": {
+    "provider_settings": "跳转到服务商设置界面"
   },
   "notification": {
     "assistant": "助手响应",

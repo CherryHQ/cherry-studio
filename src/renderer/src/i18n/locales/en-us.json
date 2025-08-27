@@ -390,8 +390,10 @@
         "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
         "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}"
+        "no_tool": "No matching MCP tool found for {{tool}}",
+        "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
     "message": {
@@ -1519,6 +1521,10 @@
     "embedding_model": "Embedding Model",
     "embedding_model_tooltip": "Add in Settings->Model Provider->Manage",
     "enable_tool_use": "Enable Tool Use",
+    "filter": {
+      "by_tag": "Filter by tag",
+      "selected": "Selected tags"
+    },
     "function_calling": "Function Calling",
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
@@ -1566,6 +1572,9 @@
     "expand": "Expand Dialog",
     "hide_sidebar": "Hide Sidebar",
     "show_sidebar": "Show Sidebar"
+  },
+  "navigate": {
+    "provider_settings": "Go to provider settings"
   },
   "notification": {
     "assistant": "Assistant Response",
