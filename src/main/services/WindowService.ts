@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
 import { IpcChannel } from '@shared/IpcChannel'
+import { MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT } from '@shared/config/constant'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
 import { join } from 'path'
@@ -47,8 +48,8 @@ export class WindowService {
     }
 
     const mainWindowState = windowStateKeeper({
-      defaultWidth: 500,
-      defaultHeight: 270,
+      defaultWidth: MIN_WINDOW_WIDTH,
+      defaultHeight: MIN_WINDOW_HEIGHT,
       fullScreen: false,
       maximize: false
     })
@@ -58,8 +59,8 @@ export class WindowService {
       y: mainWindowState.y,
       width: mainWindowState.width,
       height: mainWindowState.height,
-      minWidth: 500,
-      minHeight: 270,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
       show: false,
       autoHideMenuBar: true,
       transparent: false,
