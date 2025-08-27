@@ -1,3 +1,4 @@
+import { FileMetadata } from '@renderer/types'
 import { KB, MB } from '@shared/config/constant'
 
 /**
@@ -54,4 +55,40 @@ export function removeSpecialCharactersForFileName(str: string): string {
     .replace(/[<>:"/\\|?*.]/g, '_')
     .replace(/[\r\n]+/g, ' ')
     .trim()
+}
+
+/**
+ * 检查文件是否为支持的类型。
+ * 支持的文件类型包括:
+ * 1. 文件扩展名在supportExts集合中的文件
+ * 2. 文本文件
+ * @param {string} filePath 文件路径
+ * @param {Set<string>} supportExts 支持的文件扩展名集合
+ * @returns {Promise<boolean>} 如果文件类型受支持返回true，否则返回false
+ */
+export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
+  try {
+    if (supportExts.has(getFileExtension(filePath))) {
+      return true
+    }
+
+    if (await window.api.file.isTextFile(filePath)) {
+      return true
+    }
+
+    return false
+  } catch (error) {
+    return false
+  }
+}
+
+export async function filterSupportedFiles(files: FileMetadata[], supportExts: string[]): Promise<FileMetadata[]> {
+  const extensionSet = new Set(supportExts)
+  const validationResults = await Promise.all(
+    files.map(async (file) => ({
+      file,
+      isValid: await isSupportedFile(file.path, extensionSet)
+    }))
+  )
+  return validationResults.filter((result) => result.isValid).map((result) => result.file)
 }

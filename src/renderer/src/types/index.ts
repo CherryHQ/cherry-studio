@@ -9,6 +9,8 @@ export * from './file'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
+export * from './ocr'
+
 export type Assistant = {
   id: string
   name: string
@@ -65,7 +67,8 @@ const ThinkModelTypes = [
   'doubao_no_auto',
   'hunyuan',
   'zhipu',
-  'perplexity'
+  'perplexity',
+  'deepseek_hybrid'
 ] as const
 
 export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
@@ -99,6 +102,13 @@ export type AssistantSettings = {
   defaultModel?: Model
   customParameters?: AssistantSettingCustomParameters[]
   reasoning_effort?: ReasoningEffortOption
+  /** 保留上一次使用思考模型时的 reasoning effort, 在从非思考模型切换到思考模型时恢复.
+   *
+   * TODO: 目前 reasoning_effort === undefined 有两个语义，有的场景是显式关闭思考，有的场景是不传参。
+   * 未来应该重构思考控制，将启用/关闭思考和思考选项分离，这样就不用依赖 cache 了。
+   *
+   */
+  reasoning_effort_cache?: ReasoningEffortOption
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
 }
@@ -673,6 +683,8 @@ export interface TranslateHistory {
   sourceLanguage: TranslateLanguageCode
   targetLanguage: TranslateLanguageCode
   createdAt: string
+  /** 收藏状态 */
+  star?: boolean
 }
 
 export type CustomTranslateLanguage = {
@@ -694,7 +706,15 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-export type SidebarIcon = 'assistants' | 'agents' | 'paintings' | 'translate' | 'minapp' | 'knowledge' | 'files'
+export type SidebarIcon =
+  | 'assistants'
+  | 'agents'
+  | 'paintings'
+  | 'translate'
+  | 'minapp'
+  | 'knowledge'
+  | 'files'
+  | 'code_tools'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -1174,4 +1194,14 @@ export type AtLeast<T extends string, U> = {
   [K in T]: U
 } & {
   [key: string]: U
+}
+
+export type HexColor = string
+
+/**
+ * 检查字符串是否为有效的十六进制颜色值
+ * @param value 待检查的字符串
+ */
+export const isHexColor = (value: string): value is HexColor => {
+  return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }

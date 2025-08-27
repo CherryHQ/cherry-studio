@@ -26,8 +26,9 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, ModelTag, ModelType, objectEntries, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags, isFreeModel } from '@renderer/utils/model'
-import { Avatar, Divider, Empty, Flex, Modal } from 'antd'
+import { Avatar, Button, Divider, Empty, Flex, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
+import { SettingsIcon } from 'lucide-react'
 import React, {
   ReactNode,
   startTransition,
@@ -273,6 +274,22 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
         key: `provider-${p.id}`,
         type: 'group',
         name: getFancyProviderName(p),
+        actions: (
+          <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+            <Button
+              type="text"
+              size="small"
+              shape="circle"
+              icon={<SettingsIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />}
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpen(false)
+                resolve(undefined)
+                window.navigate(`/settings/provider?id=${p.id}`)
+              }}
+            />
+          </Tooltip>
+        ),
         isSelected: false
       })
 
@@ -291,7 +308,8 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
     modelFilter,
     createModelItem,
     t,
-    searchFilter
+    searchFilter,
+    resolve
   ])
 
   const listHeight = useMemo(() => {
@@ -440,7 +458,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
     (item: FlatListItem) => {
       const isFocused = item.key === focusedItemKey
       if (item.type === 'group') {
-        return <GroupItem>{item.name}</GroupItem>
+        return (
+          <GroupItem>
+            {item.name}
+            {item.actions}
+          </GroupItem>
+        )
       }
       return (
         <ModelItem
@@ -553,11 +576,12 @@ const ListContainer = styled.div`
 const GroupItem = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   position: relative;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: normal;
   height: ${ITEM_HEIGHT}px;
-  padding: 5px 10px 5px 18px;
+  padding: 5px 12px 5px 18px;
   color: var(--color-text-3);
   z-index: 1;
   background: var(--modal-background);

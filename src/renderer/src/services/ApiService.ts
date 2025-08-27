@@ -477,8 +477,9 @@ export async function fetchChatCompletion({
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  // NOTE：assistant.enableWebSearch 的语义是是否启用模型内置搜索功能
   const enableWebSearch =
-    (assistant.enableWebSearch && isWebSearchModel(model)) ||
+    (assistant.webSearchProviderId && isWebSearchModel(model)) ||
     isOpenRouterBuiltInWebSearchModel(model) ||
     model.id.includes('sonar') ||
     false
@@ -615,6 +616,14 @@ interface FetchLanguageDetectionProps {
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
+/**
+ * 检测文本语言
+ * @param params - 参数对象
+ * @param {string} params.text - 需要检测语言的文本内容
+ * @param {function} [params.onResponse] - 流式响应回调函数,用于实时获取检测结果
+ * @returns {Promise<string>} 返回检测到的语言代码,如果检测失败会抛出错误
+ * @throws {Error}
+ */
 export async function fetchLanguageDetection({ text, onResponse }: FetchLanguageDetectionProps) {
   const translateLanguageOptions = await getTranslateOptions()
   const listLang = translateLanguageOptions.map((item) => item.langCode)
@@ -661,16 +670,13 @@ export async function fetchLanguageDetection({ text, onResponse }: FetchLanguage
     assistant,
     streamOutput: stream,
     enableReasoning: false,
+    shouldThrow: true,
     onResponse
   }
 
   const AI = new AiProvider(provider)
 
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
-  }
+  return (await AI.completions(params)).getText()
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {

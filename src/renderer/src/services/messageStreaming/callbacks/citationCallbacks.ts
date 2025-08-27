@@ -120,9 +120,6 @@ export const createCitationCallbacks = (deps: CitationCallbacksDependencies) => 
     },
 
     // 暴露给外部的方法，用于textCallbacks中获取citationBlockId
-    getCitationBlockId: () => citationBlockId,
-    setCitationBlockId: (id: string | null) => {
-      citationBlockId = id
-    }
+    getCitationBlockId: () => citationBlockId
   }
 }

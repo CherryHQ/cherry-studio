@@ -201,20 +201,14 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    */
   private async putFile(filePath: string, url: string): Promise<void> {
     try {
-      // 获取文件大小用于设置 Content-Length
-      const stats = await fs.promises.stat(filePath)
-      const fileSize = stats.size
-
       // 创建可读流
       const fileStream = fs.createReadStream(filePath)
 
       const response = await net.fetch(url, {
         method: 'PUT',
         body: fileStream as any, // TypeScript 类型转换，net.fetch 支持 ReadableStream
-        headers: {
-          'Content-Length': fileSize.toString()
-        }
-      })
+        duplex: 'half'
+      } as any) // TypeScript 类型转换，net.fetch 需要 duplex 选项
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)

@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
-import { documentExts, imageExts, MB } from '@shared/config/constant'
+import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { FileMetadata } from '@types'
+import chardet from 'chardet'
 import * as crypto from 'crypto'
 import {
   dialog,
@@ -15,6 +16,7 @@ import {
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
+import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
@@ -629,6 +631,34 @@ class FileStorage {
 
   public getFilePathById(file: FileMetadata): string {
     return path.join(this.storageDir, file.id + file.ext)
+  }
+
+  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const isBinary = await isBinaryFile(filePath)
+      if (isBinary) {
+        return false
+      }
+
+      const length = 8 * KB
+      const fileHandle = await fs.promises.open(filePath, 'r')
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
+      await fileHandle.close()
+
+      const sampleBuffer = buffer.subarray(0, bytesRead)
+      const matches = chardet.analyse(sampleBuffer)
+
+      // 如果检测到的编码置信度较高，认为是文本文件
+      if (matches.length > 0 && matches[0].confidence > 0.8) {
+        return true
+      }
+
+      return false
+    } catch (error) {
+      logger.error('Failed to check if file is text:', error as Error)
+      return false
+    }
   }
 }
 

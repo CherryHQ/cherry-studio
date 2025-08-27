@@ -374,10 +374,10 @@ const ActionButton = styled.div`
   }
   &:hover {
     .btn-icon {
-      color: var(--selection-toolbar-button-icon-color-hover);
+      color: var(--color-primary);
     }
     .btn-title {
-      color: var(--selection-toolbar-button-text-color-hover);
+      color: var(--color-primary);
     }
     background-color: var(--selection-toolbar-button-bgcolor-hover);
   }

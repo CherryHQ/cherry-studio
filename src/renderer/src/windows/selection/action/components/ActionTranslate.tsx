@@ -9,7 +9,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import { getDefaultTopic, getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { Assistant, Topic, TranslateLanguage } from '@renderer/types'
+import { Assistant, Topic, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -114,7 +114,15 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
 
     setIsLoading(true)
 
-    const sourceLanguageCode = await detectLanguage(action.selectedText)
+    let sourceLanguageCode: TranslateLanguageCode
+
+    try {
+      sourceLanguageCode = await detectLanguage(action.selectedText)
+    } catch (err) {
+      onError(err instanceof Error ? err : new Error('An error occurred'))
+      logger.error('Error detecting language:', err as Error)
+      return
+    }
 
     let translateLang: TranslateLanguage
 

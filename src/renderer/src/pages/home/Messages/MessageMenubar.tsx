@@ -150,10 +150,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
       if (!loading) {
-        const assistantWithTopicPrompt = topic.prompt
-          ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-          : assistant
-        await resendMessage(messageUpdate ?? message, assistantWithTopicPrompt)
+        await resendMessage(messageUpdate ?? message, assistant)
       }
     },
     [assistant, loading, message, resendMessage, topic.prompt]
@@ -379,12 +376,8 @@ const MessageMenubar: FC<Props> = (props) => {
     // const _message = resetAssistantMessage(message, selectedModel)
     // editMessage(message.id, { ..._message }) // REMOVED
 
-    const assistantWithTopicPrompt = topic.prompt
-      ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-      : assistant
-
     // Call the function from the hook
-    regenerateAssistantMessage(message, assistantWithTopicPrompt)
+    regenerateAssistantMessage(message, assistant)
   }
 
   // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到

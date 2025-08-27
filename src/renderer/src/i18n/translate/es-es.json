@@ -322,6 +322,7 @@
       "expand": "Expandir",
       "file_error": "Error al procesar el archivo",
       "file_not_supported": "El modelo no admite este tipo de archivo",
+      "file_not_supported_count": "{{count}} archivos no soportados",
       "generate_image": "Generar imagen",
       "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
       "knowledge_base": "Base de conocimientos",
@@ -389,8 +390,10 @@
         "parse_tool_call": "No se puede convertir al formato de llamada de herramienta válido: {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones",
         "multiple_tools": "Existen múltiples herramientas MCP coincidentes, se ha seleccionado {{tool}}",
-        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}"
+        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}",
+        "url_context": "Gemini no admite el uso simultáneo del contexto de la página web y las llamadas a funciones."
       }
     },
     "message": {
@@ -583,7 +586,8 @@
       },
       "edit": {
         "placeholder": "Introduce nuevo nombre",
-        "title": "Editar nombre del tema"
+        "title": "Editar nombre del tema",
+        "title_tip": "Consejos: hacer doble clic en el nombre del tema permite cambiar el nombre directamente en el lugar"
       },
       "export": {
         "image": "Exportar como imagen",
@@ -745,6 +749,9 @@
     "enabled": "Activado",
     "error": "error",
     "expand": "Expandir",
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
@@ -785,6 +792,7 @@
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
+    "upload_files": "Subir archivo",
     "warning": "Advertencia",
     "you": "Usuario"
   },
@@ -802,6 +810,13 @@
   "error": {
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "Abrir el panel de depuración",
+        "message": "Parece que ha surgido un problema...",
+        "reload": "Recargar"
+      }
     },
     "chat": {
       "chunk": {
@@ -883,6 +898,9 @@
   },
   "history": {
     "continue_chat": "Continuar chat",
+    "error": {
+      "topic_not_found": "El tema no existe"
+    },
     "locate": {
       "message": "Localizar mensaje"
     },
@@ -1533,7 +1551,10 @@
     "rerank_model_not_support_provider": "Actualmente, el modelo de reordenamiento no admite este proveedor ({{provider}})",
     "rerank_model_support_provider": "Actualmente, el modelo de reordenamiento solo es compatible con algunos proveedores ({{provider}})",
     "rerank_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
-    "search": "Buscar modelo...",
+    "search": {
+      "placeholder": "Buscar modelo...",
+      "tooltip": "Buscar modelo"
+    },
     "stream_output": "Salida en flujo",
     "type": {
       "embedding": "Incrustación",
@@ -1552,6 +1573,9 @@
     "hide_sidebar": "Ocultar barra lateral",
     "show_sidebar": "Mostrar barra lateral"
   },
+  "navigate": {
+    "provider_settings": "Ir a la configuración del proveedor"
+  },
   "notification": {
     "assistant": "Respuesta del asistente",
     "knowledge": {
@@ -1559,6 +1583,26 @@
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
     "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "No se puede eliminar el proveedor integrado",
+        "existing": "El proveedor ya existe",
+        "not_found": "El proveedor de OCR no existe",
+        "update_failed": "Actualización de la configuración fallida"
+      },
+      "unknown": "El proceso OCR ha fallado"
+    },
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
+    "processing": "Procesando OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "Se ha revertido a {{name}}, lo que podría causar problemas"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2900,6 +2944,10 @@
         "text": "Texto",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "Buscar servidores MCP...",
+        "tooltip": "Buscar servidores MCP"
+      },
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
       "serverSingular": "Servidor",
@@ -3479,6 +3527,20 @@
     },
     "title": "Configuración",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "El proveedor no existe"
+          },
+          "tesseract": {
+            "langs": "Idiomas compatibles",
+            "temp_tooltip": "Actualmente solo se admiten chino e inglés."
+          },
+          "title": "Imagen"
+        },
+        "image_provider": "Proveedor de servicios OCR",
+        "title": "Servicio OCR"
+      },
       "preprocess": {
         "provider": "Proveedor de servicios de preprocesamiento de documentos",
         "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
@@ -3719,13 +3781,26 @@
     "exchange": {
       "label": "Intercambiar el idioma de origen y el idioma de destino"
     },
+    "files": {
+      "drag_text": "Arrastrar y soltar aquí",
+      "error": {
+        "multiple": "No se permite cargar varios archivos",
+        "too_large": "El archivo es demasiado grande",
+        "unknown": "Error al leer el contenido del archivo"
+      },
+      "reading": "Leyendo el contenido del archivo..."
+    },
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
-      "delete": "Eliminar",
+      "delete": "Eliminar historial de traducción",
       "empty": "Sin historial de traducciones por el momento",
       "error": {
+        "delete": "Eliminación fallida",
         "save": "Error al guardar el historial de traducciones"
+      },
+      "search": {
+        "placeholder": "Historial de búsqueda de traducción"
       },
       "title": "Historial de traducciones"
     },

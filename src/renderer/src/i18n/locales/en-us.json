@@ -322,6 +322,7 @@
       "expand": "Expand",
       "file_error": "Error processing file",
       "file_not_supported": "Model does not support this file type",
+      "file_not_supported_count": "{{count}} files are not supported",
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
@@ -389,8 +390,10 @@
         "parse_tool_call": "Unable to convert to a valid tool call format: {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini does not support using native web search tools and function calling simultaneously",
         "multiple_tools": "Multiple matching MCP tools exist, {{tool}} has been selected",
-        "no_tool": "No matching MCP tool found for {{tool}}"
+        "no_tool": "No matching MCP tool found for {{tool}}",
+        "url_context": "Gemini does not support using url context and function calling simultaneously"
       }
     },
     "message": {
@@ -583,7 +586,8 @@
       },
       "edit": {
         "placeholder": "Enter new name",
-        "title": "Edit Name"
+        "title": "Edit Name",
+        "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
         "image": "Export as image",
@@ -745,6 +749,9 @@
     "enabled": "Enabled",
     "error": "error",
     "expand": "Expand",
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
@@ -785,6 +792,7 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "upload_files": "Upload file",
     "warning": "Warning",
     "you": "You"
   },
@@ -802,6 +810,13 @@
   "error": {
     "backup": {
       "file_format": "Backup file format error"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "Open debug panel",
+        "message": "It seems that something went wrong...",
+        "reload": "Reload"
+      }
     },
     "chat": {
       "chunk": {
@@ -883,6 +898,9 @@
   },
   "history": {
     "continue_chat": "Continue Chatting",
+    "error": {
+      "topic_not_found": "Topic not found"
+    },
     "locate": {
       "message": "Locate the message"
     },
@@ -1533,7 +1551,10 @@
     "rerank_model_not_support_provider": "Currently, the reranker model does not support this provider ({{provider}})",
     "rerank_model_support_provider": "Currently, the reranker model only supports some providers ({{provider}})",
     "rerank_model_tooltip": "Click the Manage button in Settings -> Model Services to add.",
-    "search": "Search models...",
+    "search": {
+      "placeholder": "Search models...",
+      "tooltip": "Search models"
+    },
     "stream_output": "Stream output",
     "type": {
       "embedding": "Embedding",
@@ -1552,6 +1573,9 @@
     "hide_sidebar": "Hide Sidebar",
     "show_sidebar": "Show Sidebar"
   },
+  "navigate": {
+    "provider_settings": "Go to provider settings"
+  },
   "notification": {
     "assistant": "Assistant Response",
     "knowledge": {
@@ -1559,6 +1583,26 @@
       "success": "Successfully added {{type}} to the knowledge base"
     },
     "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Cannot delete built-in provider",
+        "existing": "The provider already exists",
+        "not_found": "OCR provider does not exist",
+        "update_failed": "Failed to update configuration"
+      },
+      "unknown": "An error occurred during the OCR process"
+    },
+    "file": {
+      "not_supported": "Unsupported file type {{type}}"
+    },
+    "processing": "OCR processing...",
+    "warning": {
+      "provider": {
+        "fallback": "Reverted to {{name}}, which may cause issues"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2681,7 +2725,8 @@
         "title": "Auto Update"
       },
       "avatar": {
-        "reset": "Reset Avatar"
+        "builtin": "Builtin avatar",
+        "reset": "Reset avatar"
       },
       "backup": {
         "button": "Backup",
@@ -2899,6 +2944,10 @@
         "size": "Size",
         "text": "Text",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Search MCP servers...",
+        "tooltip": "Search MCP servers"
       },
       "searchNpx": "Search MCP",
       "serverPlural": "servers",
@@ -3479,6 +3528,20 @@
     },
     "title": "Settings",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "The provider does not exist"
+          },
+          "tesseract": {
+            "langs": "Supported languages",
+            "temp_tooltip": "Currently only Chinese and English are supported"
+          },
+          "title": "Image"
+        },
+        "image_provider": "OCR service provider",
+        "title": "OCR service"
+      },
       "preprocess": {
         "provider": "Document Processing Provider",
         "provider_placeholder": "Choose a document processing provider",
@@ -3719,13 +3782,26 @@
     "exchange": {
       "label": "Swap the source and target languages"
     },
+    "files": {
+      "drag_text": "Drop here",
+      "error": {
+        "multiple": "Multiple file uploads are not allowed",
+        "too_large": "File too large",
+        "unknown": "Failed to read file content"
+      },
+      "reading": "Reading file content..."
+    },
     "history": {
       "clear": "Clear History",
       "clear_description": "Clear history will delete all translation history, continue?",
-      "delete": "Delete",
+      "delete": "Delete translation history",
       "empty": "No translation history",
       "error": {
+        "delete": "Deletion failed",
         "save": "Failed to save translation history"
+      },
+      "search": {
+        "placeholder": "Search translation history"
       },
       "title": "Translation History"
     },

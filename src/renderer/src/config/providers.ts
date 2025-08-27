@@ -38,7 +38,6 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png'
 import OpenRouterProviderLogo from '@renderer/assets/images/providers/openrouter.png'
 import PerplexityProviderLogo from '@renderer/assets/images/providers/perplexity.png'
 import Ph8ProviderLogo from '@renderer/assets/images/providers/ph8.png'
-import PoeProviderLogo from '@renderer/assets/images/providers/poe.svg'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import QiniuProviderLogo from '@renderer/assets/images/providers/qiniu.webp'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
@@ -57,6 +56,7 @@ import {
   isSystemProvider,
   OpenAIServiceTiers,
   Provider,
+  ProviderType,
   SystemProvider,
   SystemProviderId
 } from '@renderer/types'
@@ -594,7 +594,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
 
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
-const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
+export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -649,7 +649,7 @@ const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: PoeProviderLogo
+  poe: 'svg' // use svg icon component
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1277,7 +1277,11 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
+  'ollama',
+  'lmstudio',
+  'nvidia'
+] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.
@@ -1299,4 +1303,17 @@ export const isSupportServiceTierProvider = (provider: Provider) => {
     provider.apiOptions?.isSupportServiceTier === true ||
     (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
+}
+
+const SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES = ['gemini', 'vertexai'] as const satisfies ProviderType[]
+
+export const isSupportUrlContextProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+}
+
+const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]
+
+/** 判断是否是使用 Gemini 原生搜索工具的 provider. 目前假设只有官方 API 使用原生工具 */
+export const isGeminiWebSearchProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS.some((id) => id === provider.id)
 }

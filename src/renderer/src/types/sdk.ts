@@ -22,6 +22,7 @@ import {
   Tool
 } from '@google/genai'
 import OpenAI, { AzureOpenAI } from 'openai'
+import { ChatCompletionContentPartImage } from 'openai/resources'
 import { Stream } from 'openai/streaming'
 
 import { EndpointType } from './index'
@@ -81,6 +82,10 @@ export type ReasoningEffortOptionalParams = {
   thinking_budget?: number
   incremental_output?: boolean
   enable_reasoning?: boolean
+  // nvidia
+  chat_template_kwargs?: {
+    thinking: boolean
+  }
   extra_body?: {
     google?: {
       thinking_config: {
@@ -103,8 +108,12 @@ export type OpenAISdkRawChunk =
 
 export type OpenAISdkRawOutput = Stream<OpenAI.Chat.Completions.ChatCompletionChunk> | OpenAI.ChatCompletion
 export type OpenAISdkRawContentSource =
-  | OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta
-  | OpenAI.Chat.Completions.ChatCompletionMessage
+  | (OpenAI.Chat.Completions.ChatCompletionChunk.Choice.Delta & {
+      images?: ChatCompletionContentPartImage[]
+    })
+  | (OpenAI.Chat.Completions.ChatCompletionMessage & {
+      images?: ChatCompletionContentPartImage[]
+    })
 
 export type OpenAISdkMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam
 

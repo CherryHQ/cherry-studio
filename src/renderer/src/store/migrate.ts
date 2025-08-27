@@ -3,6 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
+import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
   isSupportArrayContentProvider,
@@ -10,8 +11,10 @@ import {
   isSupportStreamOptionsProvider,
   SYSTEM_PROVIDERS
 } from '@renderer/config/providers'
+import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import {
   Assistant,
   isSystemProvider,
@@ -32,7 +35,7 @@ import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { defaultActionItems } from './selectionStore'
-import { DEFAULT_SIDEBAR_ICONS, initialState as settingsInitialState } from './settings'
+import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 
@@ -2143,6 +2146,46 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 134 error', error as Error)
+      return state
+    }
+  },
+  '135': (state: RootState) => {
+    try {
+      if (!state.assistants.defaultAssistant.settings) {
+        state.assistants.defaultAssistant.settings = DEFAULT_ASSISTANT_SETTINGS
+      } else if (!state.assistants.defaultAssistant.settings.toolUseMode) {
+        state.assistants.defaultAssistant.settings.toolUseMode = 'prompt'
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 135 error', error as Error)
+      return state
+    }
+  },
+  '136': (state: RootState) => {
+    try {
+      state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
+        DEFAULT_SIDEBAR_ICONS.includes(icon)
+      )
+      state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
+        DEFAULT_SIDEBAR_ICONS.includes(icon)
+      )
+      return state
+    } catch (error) {
+      logger.error('migrate 136 error', error as Error)
+      return state
+    }
+  },
+  '137': (state: RootState) => {
+    try {
+      state.ocr = {
+        providers: BUILTIN_OCR_PROVIDERS,
+        imageProvider: DEFAULT_OCR_PROVIDER.image
+      }
+      state.translate.translateInput = ''
+      return state
+    } catch (error) {
+      logger.error('migrate 137 error', error as Error)
       return state
     }
   }

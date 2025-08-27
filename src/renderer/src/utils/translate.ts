@@ -29,7 +29,15 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
   switch (method) {
     case 'auto':
       // hard encoded threshold
-      result = estimateTextTokens(text) < 50 ? await detectLanguageByLLM(text) : detectLanguageByFranc(text)
+      if (estimateTextTokens(text) < 100) {
+        result = await detectLanguageByLLM(text)
+      } else {
+        result = detectLanguageByFranc(text)
+        // fallback to llm when franc fails
+        if (result === UNKNOWN.langCode) {
+          result = await detectLanguageByLLM(text)
+        }
+      }
       break
     case 'franc':
       result = detectLanguageByFranc(text)
@@ -41,14 +49,14 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
       throw new Error('Invalid detection method.')
   }
   logger.info(`Detected Language: ${result}`)
-  return result
+  return result.trim()
 }
 
 const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {
-  logger.info('Detect langugage by llm')
+  logger.info('Detect language by llm')
   let detectedLang = ''
   await fetchLanguageDetection({
-    text: sliceByTokens(inputText, 0, 50),
+    text: sliceByTokens(inputText, 0, 100),
     onResponse: (text) => {
       detectedLang = text.replace(/^\s*\n+/g, '')
     }
@@ -57,7 +65,7 @@ const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguage
 }
 
 const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {
-  logger.info('Detect langugage by franc')
+  logger.info('Detect language by franc')
   const iso3 = franc(inputText)
 
   const isoMap: Record<string, TranslateLanguage> = {
