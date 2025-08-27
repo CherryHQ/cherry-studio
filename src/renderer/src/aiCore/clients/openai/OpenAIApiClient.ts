@@ -882,7 +882,8 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 (typeof (choice.delta as any).reasoning_content === 'string' &&
                   (choice.delta as any).reasoning_content !== '') ||
                 (typeof (choice.delta as any).reasoning === 'string' && (choice.delta as any).reasoning !== '') ||
-                ((choice.delta as OpenAISdkRawContentSource).images && Array.isArray((choice.delta as OpenAISdkRawContentSource).images)))
+                ((choice.delta as OpenAISdkRawContentSource).images &&
+                  Array.isArray((choice.delta as OpenAISdkRawContentSource).images)))
             ) {
               contentSource = choice.delta
             } else if ('message' in choice) {
