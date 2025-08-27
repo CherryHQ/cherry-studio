@@ -1,11 +1,10 @@
 import { loggerService } from '@logger'
-import CustomTag from '@renderer/components/Tags/CustomTag'
+import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { setImageOcrProvider } from '@renderer/store/ocr'
 import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
 import { Select } from 'antd'
-import { CircleXIcon } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
@@ -56,13 +55,7 @@ const OcrImageSettings = ({ setProvider }: Props) => {
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {!platformSupport && (
-            <CustomTag
-              icon={<CircleXIcon size={14} color="var(--color-status-error)" />}
-              color="var(--color-status-error)">
-              {t('settings.tool.ocr.error.not_system')}
-            </CustomTag>
-          )}
+          {!platformSupport && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
           <Select
             value={imageProvider.id}
             style={{ width: '200px' }}
