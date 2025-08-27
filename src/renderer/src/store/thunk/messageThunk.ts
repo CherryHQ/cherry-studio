@@ -288,14 +288,18 @@ const dispatchMultiModelResponses = async (
 }
 
 // --- End Helper Function ---
-
+// 发送和处理助手响应的实现函数，话题提示词在此拼接
 const fetchAndProcessAssistantResponseImpl = async (
   dispatch: AppDispatch,
   getState: () => RootState,
   topicId: string,
-  assistant: Assistant,
+  origAssistant: Assistant,
   assistantMessage: Message // Pass the prepared assistant message (new or reset)
 ) => {
+  const topic = origAssistant.topics.find((t) => t.id === topicId)
+  const assistant = topic?.prompt
+    ? { ...origAssistant, prompt: `${origAssistant.prompt}\n${topic.prompt}` }
+    : origAssistant
   const assistantMsgId = assistantMessage.id
   let callbacks: StreamProcessorCallbacks = {}
   try {

@@ -203,7 +203,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
+      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -307,7 +307,7 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand = isWin ? `${executablePath}` : `${bunPath} ${executablePath}`
+    let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {

@@ -10,8 +10,19 @@ import {
 } from '@hello-pangea/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { droppableReorder } from '@renderer/utils'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { type Key, memo, useCallback, useRef } from 'react'
+import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
+import { type Key, memo, useCallback, useImperativeHandle, useRef } from 'react'
+
+export interface DraggableVirtualListRef {
+  measure: () => void
+  scrollElement: () => HTMLDivElement | null
+  scrollToOffset: (offset: number, options?: ScrollToOptions) => void
+  scrollToIndex: (index: number, options?: ScrollToOptions) => void
+  resizeItem: (index: number, size: number) => void
+  getTotalSize: () => number
+  getVirtualItems: () => VirtualItem[]
+  getVirtualIndexes: () => number[]
+}
 
 /**
  * 泛型 Props，用于配置 DraggableVirtualList。
@@ -31,8 +42,8 @@ import { type Key, memo, useCallback, useRef } from 'react'
  * @property {React.ReactNode} [header] 列表头部内容
  * @property {(item: T, index: number) => React.ReactNode} children 列表项渲染函数
  */
-interface DraggableVirtualListProps<T> {
-  ref?: React.Ref<HTMLDivElement>
+export interface DraggableVirtualListProps<T> {
+  ref?: React.Ref<DraggableVirtualListRef>
   className?: string
   style?: React.CSSProperties
   scrollerStyle?: React.CSSProperties
@@ -100,9 +111,23 @@ function DraggableVirtualList<T>({
     overscan
   })
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      measure: () => virtualizer.measure(),
+      scrollElement: () => virtualizer.scrollElement,
+      scrollToOffset: (offset, options) => virtualizer.scrollToOffset(offset, options),
+      scrollToIndex: (index, options) => virtualizer.scrollToIndex(index, options),
+      resizeItem: (index, size) => virtualizer.resizeItem(index, size),
+      getTotalSize: () => virtualizer.getTotalSize(),
+      getVirtualItems: () => virtualizer.getVirtualItems(),
+      getVirtualIndexes: () => virtualizer.getVirtualIndexes()
+    }),
+    [virtualizer]
+  )
+
   return (
     <div
-      ref={ref}
       className={`${className} draggable-virtual-list`}
       style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}>
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>

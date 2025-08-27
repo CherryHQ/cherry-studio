@@ -1,5 +1,4 @@
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
-import { isAnthropicModel } from '@renderer/config/models'
 import { AnthropicSdkRawChunk, AnthropicSdkRawOutput } from '@renderer/types/sdk'
 
 import { AnthropicStreamListener } from '../../clients/types'
@@ -16,9 +15,8 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
 
     // 在这里可以监听到从SDK返回的最原始流
     if (result.rawOutput) {
-      const model = params.assistant.model
       // TODO: 后面下放到AnthropicAPIClient
-      if (isAnthropicModel(model)) {
+      if (ctx.apiClientInstance instanceof AnthropicAPIClient) {
         const anthropicListener: AnthropicStreamListener<AnthropicSdkRawChunk> = {
           onMessage: (message) => {
             if (ctx._internal?.toolProcessingState) {

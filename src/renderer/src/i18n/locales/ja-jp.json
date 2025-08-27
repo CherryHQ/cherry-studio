@@ -390,8 +390,10 @@
         "parse_tool_call": "有効なツール呼び出し形式に変換できません：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Geminiは、ネイティブのネットワーク検索ツールと関数呼び出しを同時に使用することをサポートしていません。",
         "multiple_tools": "複数の一致するMCPツールが存在するため、{{tool}} が選択されました",
-        "no_tool": "必要なMCPツール {{tool}} が見つかりません"
+        "no_tool": "必要なMCPツール {{tool}} が見つかりません",
+        "url_context": "Geminiは、URLコンテキストと関数呼び出しを同時に使用することをサポートしていません。"
       }
     },
     "message": {
@@ -747,6 +749,9 @@
     "enabled": "有効",
     "error": "エラー",
     "expand": "展開",
+    "file": {
+      "not_supported": "サポートされていないファイルタイプ {{type}}"
+    },
     "footnote": "引用内容",
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
@@ -788,6 +793,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "upload_files": "ファイルをアップロードする",
     "warning": "警告",
     "you": "あなた"
   },
@@ -805,6 +811,13 @@
   "error": {
     "backup": {
       "file_format": "バックアップファイルの形式エラー"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "デバッグパネルを開く",
+        "message": "何か問題が発生したようです...",
+        "reload": "再読み込み"
+      }
     },
     "chat": {
       "chunk": {
@@ -1535,7 +1548,10 @@
     "rerank_model_not_support_provider": "現在、並べ替えモデルはこのプロバイダー ({{provider}}) をサポートしていません。",
     "rerank_model_support_provider": "現在の再順序付けモデルは、{{provider}} のみサポートしています",
     "rerank_model_tooltip": "設定->モデルサービスに移動し、管理ボタンをクリックして追加します。",
-    "search": "モデルを検索...",
+    "search": {
+      "placeholder": "モデルを検索...",
+      "tooltip": "モデルを検索"
+    },
     "stream_output": "ストリーム出力",
     "type": {
       "embedding": "埋め込み",
@@ -1554,6 +1570,9 @@
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示"
   },
+  "navigate": {
+    "provider_settings": "プロバイダー設定に移動"
+  },
   "notification": {
     "assistant": "助手回應",
     "knowledge": {
@@ -1561,6 +1580,26 @@
       "success": "ナレッジベースに{{type}}を正常に追加しました"
     },
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
+        "existing": "プロバイダーはすでに存在します",
+        "not_found": "OCRプロバイダーが存在しません",
+        "update_failed": "更新構成に失敗しました"
+      },
+      "unknown": "OCR処理中にエラーが発生しました"
+    },
+    "file": {
+      "not_supported": "サポートされていないファイルタイプ {{type}}"
+    },
+    "processing": "OCR処理中...",
+    "warning": {
+      "provider": {
+        "fallback": "{{name}} に戻されました。これにより問題が発生する可能性があります。"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2903,6 +2942,10 @@
         "text": "テキスト",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "MCP サーバーを検索...",
+        "tooltip": "MCP サーバーを検索"
+      },
       "searchNpx": "MCP を検索",
       "serverPlural": "サーバー",
       "serverSingular": "サーバー",
@@ -3482,6 +3525,20 @@
     },
     "title": "設定",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "該提供者は存在しません"
+          },
+          "tesseract": {
+            "langs": "サポートされている言語",
+            "temp_tooltip": "現在のところ、中国語と英語のみをサポートしています"
+          },
+          "title": "画像"
+        },
+        "image_provider": "OCRサービスプロバイダー",
+        "title": "OCRサービス"
+      },
       "preprocess": {
         "provider": "プレプロセスプロバイダー",
         "provider_placeholder": "前処理プロバイダーを選択してください",
@@ -3722,12 +3779,22 @@
     "exchange": {
       "label": "入力言語と出力言語を入れ替える"
     },
+    "files": {
+      "drag_text": "ここにドラッグ＆ドロップしてください",
+      "error": {
+        "multiple": "複数のファイルのアップロードは許可されていません",
+        "too_large": "ファイルが大きすぎます",
+        "unknown": "ファイルの内容を読み取るのに失敗しました"
+      },
+      "reading": "ファイルの内容を読み込んでいます..."
+    },
     "history": {
       "clear": "履歴をクリア",
       "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
-      "delete": "削除",
+      "delete": "翻訳履歴を削除する",
       "empty": "翻訳履歴がありません",
       "error": {
+        "delete": "削除に失敗しました",
         "save": "保存翻訳履歴に失敗しました"
       },
       "search": {

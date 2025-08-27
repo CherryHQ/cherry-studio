@@ -30,6 +30,7 @@ import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceServic
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
+import { ocrService } from './services/ocr/OcrService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -469,6 +470,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
+  ipcMain.handle(IpcChannel.Fs_ReadText, FileService.readTextFileWithAutoEncoding.bind(FileService))
 
   // export
   ipcMain.handle(IpcChannel.Export_Word, exportService.exportToWord.bind(exportService))
@@ -709,4 +711,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
+
+  // OCR
+  ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
 }

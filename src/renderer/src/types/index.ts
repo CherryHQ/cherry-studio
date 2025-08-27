@@ -9,6 +9,8 @@ export * from './file'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
 
+export * from './ocr'
+
 export type Assistant = {
   id: string
   name: string
@@ -65,7 +67,8 @@ const ThinkModelTypes = [
   'doubao_no_auto',
   'hunyuan',
   'zhipu',
-  'perplexity'
+  'perplexity',
+  'deepseek_hybrid'
 ] as const
 
 export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
@@ -678,6 +681,8 @@ export interface TranslateHistory {
   sourceLanguage: TranslateLanguageCode
   targetLanguage: TranslateLanguageCode
   createdAt: string
+  /** 收藏状态 */
+  star?: boolean
 }
 
 export type CustomTranslateLanguage = {
@@ -1145,4 +1150,14 @@ export type AtLeast<T extends string, U> = {
   [K in T]: U
 } & {
   [key: string]: U
+}
+
+export type HexColor = string
+
+/**
+ * 检查字符串是否为有效的十六进制颜色值
+ * @param value 待检查的字符串
+ */
+export const isHexColor = (value: string): value is HexColor => {
+  return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }

@@ -57,6 +57,15 @@ export function removeSpecialCharactersForFileName(str: string): string {
     .trim()
 }
 
+/**
+ * 检查文件是否为支持的类型。
+ * 支持的文件类型包括:
+ * 1. 文件扩展名在supportExts集合中的文件
+ * 2. 文本文件
+ * @param {string} filePath 文件路径
+ * @param {Set<string>} supportExts 支持的文件扩展名集合
+ * @returns {Promise<boolean>} 如果文件类型受支持返回true，否则返回false
+ */
 export async function isSupportedFile(filePath: string, supportExts: Set<string>): Promise<boolean> {
   try {
     if (supportExts.has(getFileExtension(filePath))) {

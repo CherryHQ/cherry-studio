@@ -24,13 +24,12 @@ import {
 
 const logger = loggerService.withContext('TranslateService')
 interface FetchTranslateProps {
-  content: string
   assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
   abortKey?: string
 }
 
-async function fetchTranslate({ content, assistant, onResponse, abortKey }: FetchTranslateProps) {
+async function fetchTranslate({ assistant, onResponse, abortKey }: FetchTranslateProps) {
   const model = getTranslateModel() || assistant.model || getDefaultModel()
 
   if (!model) {
@@ -59,7 +58,7 @@ async function fetchTranslate({ content, assistant, onResponse, abortKey }: Fetc
 
   const params: CompletionsParams = {
     callType: 'translate',
-    messages: content,
+    messages: 'do',
     assistant: { ...assistant, model },
     streamOutput: stream,
     enableReasoning,
@@ -99,7 +98,7 @@ export const translateText = async (
   try {
     const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const translatedText = await fetchTranslate({ content: text, assistant, onResponse, abortKey })
+    const translatedText = await fetchTranslate({ assistant, onResponse, abortKey })
 
     const trimmedText = translatedText.trim()
 
@@ -235,12 +234,36 @@ export const saveTranslateHistory = async (
 }
 
 /**
+ * 更新翻译历史记录
+ * @param id - 历史记录ID
+ * @param update - 更新内容
+ * @returns Promise<void>
+ */
+export const updateTranslateHistory = async (id: string, update: Omit<Partial<TranslateHistory>, 'id'>) => {
+  try {
+    const history: Partial<TranslateHistory> = {
+      ...update,
+      id
+    }
+    await db.translate_history.update(id, history)
+  } catch (e) {
+    logger.error('Failed to update translate history', e as Error)
+    throw e
+  }
+}
+
+/**
  * 删除指定的翻译历史记录
  * @param id - 要删除的翻译历史记录ID
  * @returns Promise<void>
  */
 export const deleteHistory = async (id: string) => {
-  db.translate_history.delete(id)
+  try {
+    db.translate_history.delete(id)
+  } catch (e) {
+    logger.error('Failed to delete translate history', e as Error)
+    throw e
+  }
 }
 
 /**

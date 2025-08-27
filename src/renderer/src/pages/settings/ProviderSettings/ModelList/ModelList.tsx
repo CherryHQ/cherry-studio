@@ -106,7 +106,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 {modelCount}
               </CustomTag>
             )}
-            <CollapsibleSearchBar onSearch={setSearchText} />
+            <CollapsibleSearchBar
+              onSearch={setSearchText}
+              placeholder={t('models.search.placeholder')}
+              tooltip={t('models.search.tooltip')}
+            />
           </HStack>
           <HStack>
             <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>

@@ -17,8 +17,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
 
   // Sanitize the SVG content
   const sanitizedContent = DOMPurify.sanitize(svgContent, {
-    USE_PROFILES: { svg: true, svgFilters: true },
-    ADD_TAGS: ['style', 'defs', 'foreignObject']
+    ADD_TAGS: ['foreignObject']
   })
 
   const shadowRoot = hostElement.shadowRoot || hostElement.attachShadow({ mode: 'open' })
