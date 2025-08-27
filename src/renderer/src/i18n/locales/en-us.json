@@ -3813,7 +3813,7 @@
       "title": "Translation History"
     },
     "input": {
-      "placeholder": "Enter text to translate"
+      "placeholder": "Enter text for translation, or drag and drop an image for OCR"
     },
     "language": {
       "not_pair": "Source language is different from the set language",

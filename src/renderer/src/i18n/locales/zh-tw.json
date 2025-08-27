@@ -3813,7 +3813,7 @@
       "title": "翻譯歷史"
     },
     "input": {
-      "placeholder": "輸入文字進行翻譯"
+      "placeholder": "輸入文字進行翻譯，拖入/貼上圖片進行 OCR"
     },
     "language": {
       "not_pair": "源語言與設定的語言不同",

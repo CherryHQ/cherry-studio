@@ -3813,7 +3813,7 @@
       "title": "Historial de traducciones"
     },
     "input": {
-      "placeholder": "Ingrese el texto para traducir"
+      "placeholder": "Introduzca texto para traducir, arrastre y suelte o pegue una imagen para realizar OCR"
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",
