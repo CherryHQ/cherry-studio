@@ -8,6 +8,8 @@ import fs from 'fs'
 import path from 'path'
 import Tesseract, { createWorker, LanguageCode } from 'tesseract.js'
 
+import { OcrBaseService } from './OcrBaseService'
+
 const logger = loggerService.withContext('TesseractService')
 
 // config
@@ -18,8 +20,7 @@ enum TesseractLangsDownloadUrl {
   GLOBAL = 'https://github.com/tesseract-ocr/tessdata/raw/main/'
 }
 
-// TODO: make langs configurable
-export class TesseractService {
+export class TesseractService extends OcrBaseService {
   private worker: Tesseract.Worker | null = null
 
   async getWorker(): Promise<Tesseract.Worker> {
@@ -35,7 +36,7 @@ export class TesseractService {
     return this.worker
   }
 
-  async imageOcr(file: ImageFileMetadata): Promise<OcrResult> {
+  private async imageOcr(file: ImageFileMetadata): Promise<OcrResult> {
     const worker = await this.getWorker()
     const stat = await fs.promises.stat(file.path)
     if (stat.size > MB_SIZE_THRESHOLD * MB) {
@@ -46,7 +47,7 @@ export class TesseractService {
     return { text: result.data.text }
   }
 
-  async ocr(file: SupportedOcrFile): Promise<OcrResult> {
+  public ocr = async (file: SupportedOcrFile): Promise<OcrResult> => {
     if (!isImageFileMetadata(file)) {
       throw new Error('Only image files are supported currently')
     }

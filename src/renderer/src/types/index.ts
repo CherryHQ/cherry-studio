@@ -663,6 +663,7 @@ export type GenerateImageResponse = {
 }
 
 // 为了支持自定义语言，设置为string别名
+/** zh-cn, en-us, etc. */
 export type TranslateLanguageCode = string
 
 // langCode应当能够唯一确认一种语言
