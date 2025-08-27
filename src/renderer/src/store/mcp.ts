@@ -144,6 +144,13 @@ export const builtinMCPServers: MCPServer[] = [
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI'
+  },
+  {
+    id: nanoid(),
+    name: '@cherry/web-search',
+    type: 'inMemory',
+    isActive: false,
+    provider: 'CherryAI'
   }
 ]
 

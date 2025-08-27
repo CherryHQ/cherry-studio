@@ -53,6 +53,7 @@ import {
 import storeSyncService from './services/StoreSyncService'
 import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
+import { webSearchService } from './services/WebSearchService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
@@ -76,6 +77,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // Initialize Python service with main window
   pythonService.setMainWindow(mainWindow)
+
+  // Initialize WebSearch service with main window
+  webSearchService.setMainWindow(mainWindow)
 
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
