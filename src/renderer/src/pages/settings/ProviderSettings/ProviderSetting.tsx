@@ -15,6 +15,7 @@ import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { cleanupProviders } from '@renderer/utils/provider'
 import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
@@ -224,6 +225,16 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       </Tooltip>
     )
   }
+
+  // Clean up provider data on component mount - remove duplicates and add missing system providers
+  useEffect(() => {
+    const { cleanedProviders, hasChanges } = cleanupProviders(allProviders)
+
+    if (hasChanges) {
+      updateProviders(cleanedProviders)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty dependency array to run only on mount
 
   useEffect(() => {
     if (provider.id === 'copilot') {
