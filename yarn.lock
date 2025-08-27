@@ -7546,7 +7546,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/node@npm:^18.11.18, @types/node@npm:^18.19.9":
+"@types/node@npm:^18.11.18":
   version: 18.19.86
   resolution: "@types/node@npm:18.19.86"
   dependencies:
