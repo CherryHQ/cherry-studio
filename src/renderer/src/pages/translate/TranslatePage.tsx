@@ -514,6 +514,15 @@ const TranslatePage: FC = () => {
   )
 
   // 拖动上传文件
+  const {
+    isDragging,
+    setIsDragging,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop: preventDrop
+  } = useDrag<HTMLDivElement>()
+
   const onDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
       setIsProcessing(true)
@@ -548,17 +557,9 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, processFile, setText, t, text]
+    [getSingleFile, processFile, setIsDragging, setText, t, text]
   )
 
-  const {
-    isDragging,
-    setIsDragging,
-    handleDragEnter,
-    handleDragLeave,
-    handleDragOver,
-    handleDrop: preventDrop
-  } = useDrag<HTMLDivElement>()
   const {
     isDragging: isDraggingOnInput,
     handleDragEnter: handleDragEnterInput,
