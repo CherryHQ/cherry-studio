@@ -42,16 +42,26 @@ export class TesseractService extends OcrBaseService {
     } else {
       langsArray = defaultLangs
     }
+    logger.debug('langsArray', langsArray)
     if (!this.worker || !isEqual(this.previousLangs, langsArray)) {
       if (this.worker) {
         await this.dispose()
       }
+      logger.debug('use langsArray to create worker', langsArray)
+      let error: any = undefined
       this.worker = await createWorker(langsArray, undefined, {
         langPath: await this._getLangPath(),
         cachePath: await this._getCacheDir(),
         gzip: false,
-        logger: (m) => logger.debug('From worker', m)
+        logger: (m) => logger.debug('From worker', m),
+        errorHandler: (e) => {
+          logger.error('Worker Error', e)
+          error = e
+        }
       })
+      if (error) {
+        throw error
+      }
     }
     return this.worker
   }
