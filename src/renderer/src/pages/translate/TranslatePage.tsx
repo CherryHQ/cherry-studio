@@ -179,6 +179,7 @@ const TranslatePage: FC = () => {
 
   // 控制翻译按钮，翻译前进行校验
   const onTranslate = useCallback(async () => {
+    if (!couldTranslate) return
     if (!text.trim()) return
     if (!translateModel) {
       window.message.error({
@@ -624,7 +625,7 @@ const TranslatePage: FC = () => {
             })
             return
           }
-          processFile(selectedFile)
+          await processFile(selectedFile)
         } catch (error) {
           logger.error('onPaste:', error as Error)
           window.message.error(t('chat.input.file_error'))
