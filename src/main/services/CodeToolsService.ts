@@ -337,8 +337,9 @@ class CodeToolsService {
         terminalArgs = [
           '-e',
           `tell application "Terminal"
+  set newTab to do script "cd '${directory.replace(/'/g, "\\'")}' && clear"
   activate
-  do script "cd '${directory.replace(/'/g, "\\'")}' && clear && ${command.replace(/"/g, '\\"')}"
+  do script "${command.replace(/"/g, '\\"')}" in newTab
 end tell`
         ]
         break
