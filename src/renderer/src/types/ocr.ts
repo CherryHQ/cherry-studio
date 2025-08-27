@@ -140,7 +140,7 @@ export type OcrImageHandler = (file: ImageFileMetadata, options?: OcrProviderBas
 
 // Tesseract Types
 export type OcrTesseractConfig = OcrProviderBaseConfig & {
-  langs: Partial<Record<TesseractLangCode, boolean>>
+  langs?: Partial<Record<TesseractLangCode, boolean>>
 }
 
 export type OcrTesseractProvider = {
