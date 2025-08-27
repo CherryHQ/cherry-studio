@@ -1,12 +1,14 @@
 // import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
-import { BuiltinOcrProviderIds, isBuiltinOcrProvider, OcrProvider } from '@renderer/types'
+import { isBuiltinOcrProvider, isOcrSystemProvider, OcrProvider } from '@renderer/types'
 import { Divider, Flex } from 'antd'
 import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
+import { OcrSystemSettings } from './OcrSystemSettings'
 import { OcrTesseractSettings } from './OcrTesseractSettings'
 
 // const logger = loggerService.withContext('OcrTesseractSettings')
@@ -18,20 +20,24 @@ type Props = {
 const OcrProviderSettings = ({ provider }: Props) => {
   const { theme: themeMode } = useTheme()
   const { OcrProviderLogo, getOcrProviderName } = useOcrProviders()
-  const getProviderSettings = () => {
+
+  if (!isWin && !isMac && isOcrSystemProvider(provider)) {
+    return null
+  }
+
+  const ProviderSettings = () => {
     if (isBuiltinOcrProvider(provider)) {
       switch (provider.id) {
         case 'tesseract':
           return <OcrTesseractSettings />
+        case 'system':
+          return <OcrSystemSettings />
         default:
           return null
       }
     } else {
       throw new Error('Not supported OCR provider')
     }
-  }
-  if (provider.id === BuiltinOcrProviderIds.system) {
-    return null
   }
 
   return (
@@ -43,7 +49,9 @@ const OcrProviderSettings = ({ provider }: Props) => {
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <ErrorBoundary>{getProviderSettings()}</ErrorBoundary>
+      <ErrorBoundary>
+        <ProviderSettings />
+      </ErrorBoundary>
     </SettingGroup>
   )
 }

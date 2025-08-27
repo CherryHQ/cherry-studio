@@ -26,7 +26,9 @@ const tesseract: OcrTesseractProvider = {
 const systemOcr: OcrSystemProvider = {
   id: 'system',
   name: 'System',
-  config: {},
+  config: {
+    langs: isWin ? ['en-us'] : undefined
+  },
   capabilities: {
     image: true
     // pdf: true
