@@ -47,19 +47,22 @@ export class TesseractService extends OcrBaseService {
         await this.dispose()
       }
       logger.debug('use langsArray to create worker', langsArray)
-      let error: any = undefined
-      this.worker = await createWorker(langsArray, undefined, {
-        langPath: await this._getLangPath(),
-        cachePath: await this._getCacheDir(),
-        logger: (m) => logger.debug('From worker', m),
-        errorHandler: (e) => {
-          logger.error('Worker Error', e)
-          error = e
-        }
+      const langPath = await this._getLangPath()
+      const cachePath = await this._getCacheDir()
+      const promise = new Promise<Tesseract.Worker>((resolve, reject) => {
+        createWorker(langsArray, undefined, {
+          langPath,
+          cachePath,
+          logger: (m) => logger.debug('From worker', m),
+          errorHandler: (e) => {
+            logger.error('Worker Error', e)
+            reject(e)
+          }
+        })
+          .then(resolve)
+          .catch(reject)
       })
-      if (error) {
-        throw error
-      }
+      this.worker = await promise
     }
     return this.worker
   }
@@ -84,7 +87,7 @@ export class TesseractService extends OcrBaseService {
 
   private async _getLangPath(): Promise<string> {
     const country = await getIpCountry()
-    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : ''
+    return country.toLowerCase() === 'cn' ? TesseractLangsDownloadUrl.CN : 'https://wrong.url/'
   }
 
   private async _getCacheDir(): Promise<string> {
