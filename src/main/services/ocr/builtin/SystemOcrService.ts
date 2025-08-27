@@ -22,7 +22,8 @@ export class SystemOcrService extends OcrBaseService {
 
   private async ocrImage(file: ImageFileMetadata, options?: OcrSystemConfig): Promise<OcrResult> {
     const buffer = await loadOcrImage(file)
-    const result = await recognize(buffer, OcrAccuracy.Accurate, options?.langs)
+    const langs = isWin ? options?.langs : undefined
+    const result = await recognize(buffer, OcrAccuracy.Accurate, langs)
     return { text: result.text }
   }
 
