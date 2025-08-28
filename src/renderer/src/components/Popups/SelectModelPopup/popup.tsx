@@ -9,7 +9,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, ModelType, objectEntries, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
-import { Avatar, Button, Divider, Empty, Modal, Tooltip } from 'antd'
+import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
 import { SettingsIcon } from 'lucide-react'
 import React, {
@@ -176,11 +176,10 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         name: getFancyProviderName(p),
         actions: (
           <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
-            <Button
-              type="text"
-              size="small"
-              shape="circle"
-              icon={<SettingsIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />}
+            <SettingsIcon
+              size={14}
+              color="var(--color-text)"
+              className="action-icon"
               onClick={(e) => {
                 e.stopPropagation()
                 setOpen(false)
@@ -464,10 +463,20 @@ const GroupItem = styled.div`
   font-size: 12px;
   font-weight: normal;
   height: ${ITEM_HEIGHT}px;
-  padding: 5px 12px 5px 18px;
+  padding: 5px 18px;
   color: var(--color-text-3);
   z-index: 1;
   background: var(--modal-background);
+
+  .action-icon {
+    cursor: pointer;
+    opacity: 0.3;
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
 `
 
 const ModelItem = styled.div`
