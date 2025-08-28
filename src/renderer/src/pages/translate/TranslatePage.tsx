@@ -27,7 +27,7 @@ import {
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
-import { getFileExtension, runAsyncFunction, uuid } from '@renderer/utils'
+import { getFileExtension, isTextFile, runAsyncFunction, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -465,7 +465,7 @@ const TranslatePage: FC = () => {
   // 统一的文件处理
   const processFile = useCallback(
     async (file: FileMetadata) => {
-      // extensible
+      // extensible, only image for now
       const shouldOCR = isSupportedOcrFile(file)
 
       if (shouldOCR) {
@@ -473,23 +473,45 @@ const TranslatePage: FC = () => {
           const ocrResult = await ocr(file)
           setText(ocrResult.text)
         } finally {
-          // do nothing when failed.
+          // do nothing when failed. because error should be handled inside
         }
       } else {
-        // the threshold may be too large
-        if (file.size > 5 * MB) {
-          window.message.error(t('translate.files.error.too_large') + ' (0 ~ 5 MB)')
-        } else {
+        try {
           window.message.loading({ content: t('translate.files.reading'), key: 'translate_files_reading', duration: 0 })
+          let isText: boolean
           try {
-            const result = await window.api.fs.readText(file.path)
-            setText(result)
+            // 检查文件是否为文本文件
+            isText = await isTextFile(file.path)
           } catch (e) {
-            logger.error('Failed to read text file.', e as Error)
-            window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
-          } finally {
-            window.message.destroy('translate_files_reading')
+            logger.error('Failed to check if file is text.', e as Error)
+            window.message.error(t('translate.files.error.check_type') + ': ' + formatErrorMessage(e))
+            throw e
           }
+
+          if (!isText) {
+            window.message.error({
+              key: 'file_not_supported',
+              content: t('common.file.not_supported', { type: getFileExtension(file.path) })
+            })
+            logger.error('Unsupported file type.')
+            throw new Error('Unsupported file type')
+          }
+
+          // the threshold may be too large
+          if (file.size > 5 * MB) {
+            window.message.error(t('translate.files.error.too_large') + ' (0 ~ 5 MB)')
+          } else {
+            try {
+              const result = await window.api.fs.readText(file.path)
+              setText(result)
+            } catch (e) {
+              logger.error('Failed to read text file.', e as Error)
+              window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
+            }
+          }
+        } finally {
+          // do nothing when failed because error should be handled inside
+          window.message.destroy('translate_files_reading')
         }
       }
     },
@@ -533,9 +555,19 @@ const TranslatePage: FC = () => {
   )
 
   // 拖动上传文件
+  const {
+    isDragging,
+    setIsDragging,
+    handleDragEnter,
+    handleDragLeave,
+    handleDragOver,
+    handleDrop: preventDrop
+  } = useDrag<HTMLDivElement>()
+
   const onDrop = useCallback(
     async (e: React.DragEvent<HTMLDivElement>) => {
       setIsProcessing(true)
+      setIsDragging(false)
       // const supportedFiles = await filterSupportedFiles(_files, extensions)
       const data = await getTextFromDropEvent(e).catch((err) => {
         logger.error('getTextFromDropEvent', err)
@@ -566,16 +598,9 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, processFile, setText, t, text]
+    [getSingleFile, processFile, setIsDragging, setText, t, text]
   )
 
-  const {
-    isDragging,
-    handleDragEnter,
-    handleDragLeave,
-    handleDragOver,
-    handleDrop: preventDrop
-  } = useDrag<HTMLDivElement>()
   const {
     isDragging: isDraggingOnInput,
     handleDragEnter: handleDragEnterInput,

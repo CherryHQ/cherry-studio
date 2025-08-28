@@ -1622,6 +1622,9 @@
     "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
   },
   "ocr": {
+    "builtin": {
+      "system": "OCR del sistema"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "No se puede eliminar el proveedor integrado",
@@ -2762,6 +2765,7 @@
         "title": "Actualización automática"
       },
       "avatar": {
+        "builtin": "Avatares integrados",
         "reset": "Restablecer avatar"
       },
       "backup": {
@@ -3565,17 +3569,30 @@
     "title": "Configuración",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Idiomas compatibles"
+        },
+        "error": {
+          "not_system": "El OCR del sistema solo admite Windows y MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "El proveedor no existe"
           },
-          "tesseract": {
-            "langs": "Idiomas compatibles",
-            "temp_tooltip": "Actualmente solo se admiten chino e inglés."
+          "system": {
+            "no_need_configure": "MacOS no requiere configuración"
           },
           "title": "Imagen"
         },
         "image_provider": "Proveedor de servicios OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependiendo de Windows para proporcionar servicios, necesita descargar el paquete de idioma en el sistema para admitir los idiomas correspondientes."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Lea la documentación para conocer qué idiomas personalizados son compatibles"
+        },
         "title": "Servicio OCR"
       },
       "preprocess": {
@@ -3821,6 +3838,7 @@
     "files": {
       "drag_text": "Arrastrar y soltar aquí",
       "error": {
+        "check_type": "Se produjo un error al verificar el tipo de archivo",
         "multiple": "No se permite cargar varios archivos",
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"
@@ -3845,7 +3863,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Ingrese el texto para traducir"
+      "placeholder": "Se puede pegar o arrastrar texto, archivos e imágenes (compatible con OCR)"
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",

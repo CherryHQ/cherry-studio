@@ -1622,6 +1622,9 @@
     "tip": "応答が成功した場合、30秒を超えるメッセージのみに通知を行います"
   },
   "ocr": {
+    "builtin": {
+      "system": "システム OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "組み込みプロバイダーは削除できません",
@@ -3566,17 +3569,30 @@
     "title": "設定",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "サポートされている言語"
+        },
+        "error": {
+          "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
+        },
         "image": {
           "error": {
             "provider_not_found": "該提供者は存在しません"
           },
-          "tesseract": {
-            "langs": "サポートされている言語",
-            "temp_tooltip": "現在のところ、中国語と英語のみをサポートしています"
+          "system": {
+            "no_need_configure": "MacOS は設定不要"
           },
           "title": "画像"
         },
         "image_provider": "OCRサービスプロバイダー",
+        "system": {
+          "win": {
+            "langs_tooltip": "Windows が提供するサービスに依存しており、関連する言語をサポートするには、システムで言語パックをダウンロードする必要があります。"
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "ドキュメントを読んで、どのカスタム言語がサポートされているかを確認してください。"
+        },
         "title": "OCRサービス"
       },
       "preprocess": {
@@ -3822,6 +3838,7 @@
     "files": {
       "drag_text": "ここにドラッグ＆ドロップしてください",
       "error": {
+        "check_type": "ファイルタイプの確認中にエラーが発生しました",
         "multiple": "複数のファイルのアップロードは許可されていません",
         "too_large": "ファイルが大きすぎます",
         "unknown": "ファイルの内容を読み取るのに失敗しました"
@@ -3846,7 +3863,7 @@
       "aborted": "翻訳中止"
     },
     "input": {
-      "placeholder": "翻訳するテキストを入力"
+      "placeholder": "テキスト、ファイル、画像（OCR対応）を貼り付けたりドラッグアンドドロップしたりできます"
     },
     "language": {
       "not_pair": "ソース言語が設定された言語と異なります",

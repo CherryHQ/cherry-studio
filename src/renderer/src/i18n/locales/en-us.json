@@ -1622,6 +1622,9 @@
     "tip": "If the response is successful, then only messages exceeding 30 seconds will trigger a reminder"
   },
   "ocr": {
+    "builtin": {
+      "system": "System OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Cannot delete built-in provider",
@@ -3566,17 +3569,30 @@
     "title": "Settings",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Supported languages"
+        },
+        "error": {
+          "not_system": "System OCR only supports Windows and MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "The provider does not exist"
           },
-          "tesseract": {
-            "langs": "Supported languages",
-            "temp_tooltip": "Currently only Chinese and English are supported"
+          "system": {
+            "no_need_configure": "MacOS requires no configuration"
           },
           "title": "Image"
         },
         "image_provider": "OCR service provider",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Read the documentation to learn which custom languages are supported"
+        },
         "title": "OCR service"
       },
       "preprocess": {
@@ -3822,6 +3838,7 @@
     "files": {
       "drag_text": "Drop here",
       "error": {
+        "check_type": "An error occurred while checking the file type",
         "multiple": "Multiple file uploads are not allowed",
         "too_large": "File too large",
         "unknown": "Failed to read file content"
@@ -3846,7 +3863,7 @@
       "aborted": "Translation aborted"
     },
     "input": {
-      "placeholder": "Enter text to translate"
+      "placeholder": "Text, files, or images (OCR supported) can be pasted or dragged in"
     },
     "language": {
       "not_pair": "Source language is different from the set language",

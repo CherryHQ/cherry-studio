@@ -1622,6 +1622,9 @@
     "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
   },
   "ocr": {
+    "builtin": {
+      "system": "OCR do sistema"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
@@ -2762,6 +2765,7 @@
         "title": "Atualização automática"
       },
       "avatar": {
+        "builtin": "Avatares embutidos",
         "reset": "Redefinir avatar"
       },
       "backup": {
@@ -3565,17 +3569,30 @@
     "title": "Configurações",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Idiomas suportados"
+        },
+        "error": {
+          "not_system": "O OCR do sistema suporta apenas Windows e MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "O provedor não existe"
           },
-          "tesseract": {
-            "langs": "Idiomas suportados",
-            "temp_tooltip": "No momento, apenas chinês e inglês são suportados."
+          "system": {
+            "no_need_configure": "MacOS não requer configuração"
           },
           "title": "Imagem"
         },
         "image_provider": "Provedor de serviços OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependendo do Windows para fornecer serviços, você precisa baixar pacotes de idiomas no sistema para dar suporte aos idiomas relevantes."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Leia a documentação para saber quais idiomas personalizados são suportados"
+        },
         "title": "Serviço OCR"
       },
       "preprocess": {
@@ -3821,6 +3838,7 @@
     "files": {
       "drag_text": "Arraste e solte aqui",
       "error": {
+        "check_type": "Ocorreu um erro ao verificar o tipo de arquivo",
         "multiple": "Não é permitido fazer upload de vários arquivos",
         "too_large": "Arquivo muito grande",
         "unknown": "Falha ao ler o conteúdo do arquivo"
@@ -3845,7 +3863,7 @@
       "aborted": "Tradução interrompida"
     },
     "input": {
-      "placeholder": "Digite o texto para traduzir"
+      "placeholder": "Pode colar ou arrastar e soltar texto, arquivos e imagens (suporte a OCR)"
     },
     "language": {
       "not_pair": "O idioma de origem é diferente do idioma definido",

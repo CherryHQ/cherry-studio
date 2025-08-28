@@ -1622,6 +1622,9 @@
     "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
   },
   "ocr": {
+    "builtin": {
+      "system": "OCR système"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
@@ -2762,6 +2765,7 @@
         "title": "Mise à jour automatique"
       },
       "avatar": {
+        "builtin": "Avatar intégré",
         "reset": "Réinitialiser l'avatar"
       },
       "backup": {
@@ -3565,17 +3569,30 @@
     "title": "Paramètres",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Langues prises en charge"
+        },
+        "error": {
+          "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "Ce fournisseur n'existe pas"
           },
-          "tesseract": {
-            "langs": "Langues prises en charge",
-            "temp_tooltip": "Pour le moment, seuls le chinois et l'anglais sont pris en charge."
+          "system": {
+            "no_need_configure": "MacOS ne nécessite aucune configuration"
           },
           "title": "Image"
         },
         "image_provider": "Fournisseur de service OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dépendre de Windows pour fournir des services, vous devez télécharger des packs linguistiques dans le système afin de prendre en charge les langues concernées."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Lisez la documentation pour connaître les langues personnalisées prises en charge"
+        },
         "title": "Service OCR"
       },
       "preprocess": {
@@ -3821,6 +3838,7 @@
     "files": {
       "drag_text": "Glisser-déposer ici",
       "error": {
+        "check_type": "Une erreur s'est produite lors de la vérification du type de fichier",
         "multiple": "Impossible de téléverser plusieurs fichiers",
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
@@ -3845,7 +3863,7 @@
       "aborted": "Traduction annulée"
     },
     "input": {
-      "placeholder": "entrez le texte à traduire"
+      "placeholder": "Peut coller ou glisser du texte, des fichiers, des images (avec reconnaissance optique de caractères)"
     },
     "language": {
       "not_pair": "La langue source est différente de la langue définie",

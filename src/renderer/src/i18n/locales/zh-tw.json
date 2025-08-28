@@ -1622,6 +1622,9 @@
     "tip": "如果回應成功，則只針對超過30秒的訊息發出提醒"
   },
   "ocr": {
+    "builtin": {
+      "system": "系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能刪除內建提供者",
@@ -3566,17 +3569,30 @@
     "title": "設定",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "支援的語言"
+        },
+        "error": {
+          "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "該提供商不存在"
           },
-          "tesseract": {
-            "langs": "支援的語言",
-            "temp_tooltip": "目前暫時只支援中文和英文"
+          "system": {
+            "no_need_configure": "MacOS 無需配置"
           },
           "title": "圖片"
         },
         "image_provider": "OCR 服務提供商",
+        "system": {
+          "win": {
+            "langs_tooltip": "依賴 Windows 提供服務，您需要在系統中下載語言包來支援相關語言。"
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援"
+        },
         "title": "OCR 服務"
       },
       "preprocess": {
@@ -3822,6 +3838,7 @@
     "files": {
       "drag_text": "拖放到此处",
       "error": {
+        "check_type": "檢查檔案類型時發生錯誤",
         "multiple": "不允许上传多个文件",
         "too_large": "文件過大",
         "unknown": "读取文件内容失败"
@@ -3846,7 +3863,7 @@
       "aborted": "翻譯中止"
     },
     "input": {
-      "placeholder": "輸入文字進行翻譯"
+      "placeholder": "可粘貼或拖入文字、檔案、圖片（支援OCR）"
     },
     "language": {
       "not_pair": "源語言與設定的語言不同",

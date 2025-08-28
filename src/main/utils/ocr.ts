@@ -2,11 +2,12 @@ import { ImageFileMetadata } from '@types'
 import { readFile } from 'fs/promises'
 import sharp from 'sharp'
 
-const preprocessImage = async (buffer: Buffer) => {
-  return await sharp(buffer)
+const preprocessImage = async (buffer: Buffer): Promise<Buffer> => {
+  return sharp(buffer)
     .grayscale() // 转为灰度
     .normalize()
     .sharpen()
+    .png({ quality: 100 })
     .toBuffer()
 }
 
@@ -23,5 +24,5 @@ const preprocessImage = async (buffer: Buffer) => {
  */
 export const loadOcrImage = async (file: ImageFileMetadata): Promise<Buffer> => {
   const buffer = await readFile(file.path)
-  return await preprocessImage(buffer)
+  return preprocessImage(buffer)
 }

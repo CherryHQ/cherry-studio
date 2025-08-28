@@ -1,16 +1,18 @@
 import { loggerService } from '@logger'
 import * as OcrService from '@renderer/services/ocr/OcrService'
-import { useAppSelector } from '@renderer/store'
-import { ImageFileMetadata, isImageFile, SupportedOcrFile } from '@renderer/types'
+import { ImageFileMetadata, isImageFileMetadata, SupportedOcrFile } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
+import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { useOcrProviders } from './useOcrProvider'
 
 const logger = loggerService.withContext('useOcr')
 
 export const useOcr = () => {
   const { t } = useTranslation()
-  const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
+  const { imageProvider } = useOcrProviders()
 
   /**
    * 对图片文件进行OCR识别
@@ -18,9 +20,13 @@ export const useOcr = () => {
    * @returns OCR识别结果的Promise
    * @throws OCR失败时抛出错误
    */
-  const ocrImage = async (image: ImageFileMetadata) => {
-    return OcrService.ocr(image, imageProvider)
-  }
+  const ocrImage = useCallback(
+    async (image: ImageFileMetadata) => {
+      logger.debug('ocrImage', { config: imageProvider.config })
+      return OcrService.ocr(image, imageProvider)
+    },
+    [imageProvider]
+  )
 
   /**
    * 对支持的文件进行OCR识别.
@@ -33,7 +39,7 @@ export const useOcr = () => {
     window.message.loading({ content: t('ocr.processing'), key, duration: 0 })
     // await to keep show loading message
     try {
-      if (isImageFile(file)) {
+      if (isImageFileMetadata(file)) {
         return await ocrImage(file)
       } else {
         // @ts-expect-error all types should be covered
