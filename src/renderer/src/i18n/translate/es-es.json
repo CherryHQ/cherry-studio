@@ -3827,7 +3827,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Introduzca texto para traducir, arrastre y suelte o pegue una imagen para realizar OCR"
+      "placeholder": "Se puede pegar o arrastrar texto, archivos e imágenes (compatible con OCR)"
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",

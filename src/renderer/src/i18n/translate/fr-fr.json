@@ -3827,7 +3827,7 @@
       "aborted": "Traduction annulée"
     },
     "input": {
-      "placeholder": "Saisissez le texte à traduire, glissez-déposez ou collez une image pour la reconnaissance OCR"
+      "placeholder": "Peut coller ou glisser du texte, des fichiers, des images (avec reconnaissance optique de caractères)"
     },
     "language": {
       "not_pair": "La langue source est différente de la langue définie",

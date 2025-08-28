@@ -3827,7 +3827,7 @@
       "aborted": "Translation aborted"
     },
     "input": {
-      "placeholder": "Enter text for translation, or drag and drop an image for OCR"
+      "placeholder": "Text, files, or images (OCR supported) can be pasted or dragged in"
     },
     "language": {
       "not_pair": "Source language is different from the set language",
