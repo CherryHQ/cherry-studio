@@ -21,8 +21,8 @@ import {
   matchKeywordsInProvider,
   uuid
 } from '@renderer/utils'
-import { Avatar, Button, Card, Dropdown, Input, MenuProps, Tag } from 'antd'
-import { Eye, EyeOff, GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
+import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
+import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
@@ -31,6 +31,7 @@ import styled from 'styled-components'
 import AddProviderPopup from './AddProviderPopup'
 import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
+import UrlSchemaInfoPopup from './UrlSchemaInfoPopup'
 
 const logger = loggerService.withContext('ProviderList')
 
@@ -99,7 +100,7 @@ const ProviderList: FC = () => {
 
   // Handle provider add key from URL schema
   useEffect(() => {
-    const handleProviderAddKey = (data: {
+    const handleProviderAddKey = async (data: {
       id: string
       apiKey: string
       baseUrl: string
@@ -108,163 +109,72 @@ const ProviderList: FC = () => {
     }) => {
       const { id, apiKey: newApiKey, baseUrl, type, name } = data
 
-      // 查找匹配的 provider
-      let existingProvider = providers.find((p) => p.id === id)
-      const isNewProvider = !existingProvider
-
-      if (!existingProvider) {
-        existingProvider = {
-          id,
-          name: name || id,
-          type: type || 'openai',
-          apiKey: '',
-          apiHost: baseUrl || '',
-          models: [],
-          enabled: true,
-          isSystem: false
-        }
+      // 查找匹配的 provider，并构造基础对象
+      const foundProvider = providers.find((p) => p.id === id)
+      const baseProvider: Provider = foundProvider ?? {
+        id,
+        name: name || id,
+        type: type || 'openai',
+        apiKey: '',
+        apiHost: baseUrl || '',
+        models: [],
+        enabled: true,
+        isSystem: false
       }
 
-      const providerDisplayName = isSystemProvider(existingProvider)
-        ? getProviderLabel(existingProvider.id)
-        : existingProvider.name
+      const providerDisplayName = isSystemProvider(baseProvider) ? getProviderLabel(baseProvider.id) : baseProvider.name
 
       // 检查是否已有 API Key
-      const hasExistingKey = existingProvider.apiKey && existingProvider.apiKey.trim() !== ''
+      const hasExistingKey = baseProvider.apiKey && baseProvider.apiKey.trim() !== ''
 
       // 检查新的 API Key 是否已经存在
-      const existingKeys = hasExistingKey ? existingProvider.apiKey.split(',').map((k) => k.trim()) : []
+      const existingKeys = hasExistingKey ? baseProvider.apiKey.split(',').map((k) => k.trim()) : []
       const keyAlreadyExists = existingKeys.includes(newApiKey.trim())
 
       const confirmMessage = keyAlreadyExists
         ? t('settings.models.provider_key_already_exists', {
-            provider: providerDisplayName,
-            key: '*********'
+            provider: providerDisplayName
           })
         : t('settings.models.provider_key_add_confirm', {
-            provider: providerDisplayName,
-            newKey: '*********'
+            provider: providerDisplayName
           })
 
-      const createModalContent = () => {
-        let showApiKey = false
+      const confirmed = await UrlSchemaInfoPopup.show({
+        providerName: providerDisplayName,
+        providerId: id,
+        baseUrl,
+        apiKey: newApiKey,
+        confirmMessage,
+        okText: keyAlreadyExists ? t('common.confirm') : t('common.add')
+      })
 
-        const toggleApiKey = () => {
-          showApiKey = !showApiKey
-          // 重新渲染模态框内容
-          updateModalContent()
+      window.navigate(`/settings/provider?id=${id}`)
+
+      if (confirmed) {
+        if (keyAlreadyExists) {
+          // 如果 key 已经存在，只显示消息，不做任何更改
+          window.message.info(t('settings.models.provider_key_no_change', { provider: providerDisplayName }))
+          return
         }
 
-        const updateModalContent = () => {
-          const content = (
-            <ProviderInfoContainer>
-              <ProviderInfoCard size="small">
-                <ProviderInfoRow>
-                  <ProviderInfoLabel>{t('settings.models.provider_name')}:</ProviderInfoLabel>
-                  <ProviderInfoValue>{providerDisplayName}</ProviderInfoValue>
-                </ProviderInfoRow>
-                <ProviderInfoRow>
-                  <ProviderInfoLabel>{t('settings.models.provider_id')}:</ProviderInfoLabel>
-                  <ProviderInfoValue>{id}</ProviderInfoValue>
-                </ProviderInfoRow>
-                {baseUrl && (
-                  <ProviderInfoRow>
-                    <ProviderInfoLabel>{t('settings.models.base_url')}:</ProviderInfoLabel>
-                    <ProviderInfoValue>{baseUrl}</ProviderInfoValue>
-                  </ProviderInfoRow>
-                )}
-                <ProviderInfoRow>
-                  <ProviderInfoLabel>{t('settings.models.api_key')}:</ProviderInfoLabel>
-                  <ApiKeyContainer>
-                    <ApiKeyValue>{showApiKey ? newApiKey : '*********'}</ApiKeyValue>
-                    <EyeButton onClick={toggleApiKey}>
-                      {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </EyeButton>
-                  </ApiKeyContainer>
-                </ProviderInfoRow>
-              </ProviderInfoCard>
-              <ConfirmMessage>{confirmMessage}</ConfirmMessage>
-            </ProviderInfoContainer>
-          )
+        // 如果 key 不存在，添加到现有 keys 的末尾
+        const finalApiKey = hasExistingKey ? `${baseProvider.apiKey},${newApiKey.trim()}` : newApiKey.trim()
 
-          // 更新模态框内容
-          if (modalInstance) {
-            modalInstance.update({
-              content: content
-            })
-          }
+        const updatedProvider = {
+          ...baseProvider,
+          apiKey: finalApiKey,
+          ...(baseUrl && { apiHost: baseUrl })
         }
 
-        const modalInstance = window.modal.confirm({
-          title: t('settings.models.provider_key_confirm_title', { provider: providerDisplayName }),
-          content: (
-            <ProviderInfoContainer>
-              <ProviderInfoCard size="small">
-                <ProviderInfoRow>
-                  <ProviderInfoLabel>{t('settings.models.provider_name')}:</ProviderInfoLabel>
-                  <ProviderInfoValue>{providerDisplayName}</ProviderInfoValue>
-                </ProviderInfoRow>
-                <ProviderInfoRow>
-                  <ProviderInfoLabel>{t('settings.models.provider_id')}:</ProviderInfoLabel>
-                  <ProviderInfoValue>{id}</ProviderInfoValue>
-                </ProviderInfoRow>
-                {baseUrl && (
-                  <ProviderInfoRow>
-                    <ProviderInfoLabel>{t('settings.models.base_url')}:</ProviderInfoLabel>
-                    <ProviderInfoValue>{baseUrl}</ProviderInfoValue>
-                  </ProviderInfoRow>
-                )}
-                <ProviderInfoRow>
-                  <ProviderInfoLabel>{t('settings.models.api_key')}:</ProviderInfoLabel>
-                  <ApiKeyContainer>
-                    <ApiKeyValue>{showApiKey ? newApiKey : '*********'}</ApiKeyValue>
-                    <EyeButton onClick={toggleApiKey}>
-                      {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </EyeButton>
-                  </ApiKeyContainer>
-                </ProviderInfoRow>
-              </ProviderInfoCard>
-              <ConfirmMessage>{confirmMessage}</ConfirmMessage>
-            </ProviderInfoContainer>
-          ),
-          okText: keyAlreadyExists ? t('common.confirm') : t('common.add'),
-          cancelText: t('common.cancel'),
-          centered: true,
-          onCancel() {
-            window.navigate(`/settings/provider?id=${id}`)
-          },
-          onOk() {
-            window.navigate(`/settings/provider?id=${id}`)
-            if (keyAlreadyExists) {
-              // 如果 key 已经存在，只显示消息，不做任何更改
-              window.message.info(t('settings.models.provider_key_no_change', { provider: providerDisplayName }))
-              return
-            }
+        if (foundProvider) {
+          updateProvider(updatedProvider)
+        } else {
+          addProvider(updatedProvider)
+        }
 
-            // 如果 key 不存在，添加到现有 keys 的末尾
-            const finalApiKey = hasExistingKey ? `${existingProvider.apiKey},${newApiKey.trim()}` : newApiKey.trim()
-
-            const updatedProvider = {
-              ...existingProvider,
-              apiKey: finalApiKey,
-              ...(baseUrl && { apiHost: baseUrl })
-            }
-
-            if (isNewProvider) {
-              addProvider(updatedProvider)
-            } else {
-              updateProvider(updatedProvider)
-            }
-
-            setSelectedProvider(updatedProvider)
-            window.message.success(t('settings.models.provider_key_added', { provider: providerDisplayName }))
-          }
-        })
-
-        return modalInstance
+        setSelectedProvider(updatedProvider)
+        window.message.success(t('settings.models.provider_key_added', { provider: providerDisplayName }))
       }
-
-      createModalContent()
     }
 
     // 检查 URL 参数
@@ -624,98 +534,6 @@ const AddButtonWrapper = styled.div`
   justify-content: center;
   align-items: center;
   padding: 10px 8px;
-`
-
-const ProviderInfoContainer = styled.div`
-  color: var(--color-text);
-`
-
-const ProviderInfoCard = styled(Card)`
-  margin-bottom: 16px;
-  background-color: var(--color-background-soft);
-  border: 1px solid var(--color-border);
-
-  .ant-card-body {
-    padding: 12px;
-  }
-`
-
-const ProviderInfoRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-
-  &:last-child {
-    margin-bottom: 0;
-  }
-`
-
-const ProviderInfoLabel = styled.span`
-  font-weight: 600;
-  color: var(--color-text-2);
-  min-width: 80px;
-`
-
-const ProviderInfoValue = styled.span`
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  background-color: var(--color-background-soft);
-  padding: 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  word-break: break-all;
-  flex: 1;
-  margin-left: 8px;
-`
-
-const ConfirmMessage = styled.div`
-  color: var(--color-text);
-  line-height: 1.5;
-`
-
-const ApiKeyContainer = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1;
-  margin-left: 8px;
-  position: relative;
-`
-
-const ApiKeyValue = styled.span`
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  background-color: var(--color-background-soft);
-  padding: 2px 32px 2px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  word-break: break-all;
-  flex: 1;
-`
-
-const EyeButton = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 2px;
-  transition: all 0.2s ease;
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-
-  &:hover {
-    color: var(--color-text);
-    background-color: var(--color-background-mute);
-  }
-
-  &:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px var(--color-primary-outline);
-  }
 `
 
 export default ProviderList
