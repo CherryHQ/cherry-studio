@@ -916,6 +916,11 @@
     "title": "Recherche de sujets"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "Capturer la page",
+      "to_clipboard": "Copier dans le presse-papiers",
+      "to_file": "Enregistrer en tant qu'image"
+    },
     "code": "Code",
     "empty_preview": "Aucun contenu à afficher",
     "generating": "Génération",

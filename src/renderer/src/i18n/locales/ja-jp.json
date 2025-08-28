@@ -916,6 +916,11 @@
     "title": "トピック検索"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "ページをキャプチャ",
+      "to_clipboard": "クリップボードにコピー",
+      "to_file": "画像として保存"
+    },
     "code": "コード",
     "empty_preview": "表示するコンテンツがありません",
     "generating": "生成中",

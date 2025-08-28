@@ -916,6 +916,11 @@
     "title": "Búsqueda de temas"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "Capturar página",
+      "to_clipboard": "Copiar al portapapeles",
+      "to_file": "Guardar como imagen"
+    },
     "code": "Código",
     "empty_preview": "Sin contenido para mostrar",
     "generating": "Generando",

@@ -916,6 +916,11 @@
     "title": "Topics Search"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "Capture Page",
+      "to_clipboard": "Copy to Clipboard",
+      "to_file": "Save as Image"
+    },
     "code": "Code",
     "empty_preview": "No content to display",
     "generating": "Generating",

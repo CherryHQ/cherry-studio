@@ -916,6 +916,11 @@
     "title": "Procurar Tópicos"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "Capturar página",
+      "to_clipboard": "Copiar para a área de transferência",
+      "to_file": "Salvar como imagem"
+    },
     "code": "Código",
     "empty_preview": "Sem conteúdo para exibir",
     "generating": "Gerando",

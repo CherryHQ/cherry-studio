@@ -20,7 +20,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
+import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -153,7 +153,7 @@ const MessageMenubar: FC<Props> = (props) => {
         await resendMessage(messageUpdate ?? message, assistant)
       }
     },
-    [assistant, loading, message, resendMessage, topic.prompt]
+    [assistant, loading, message, resendMessage]
   )
 
   const { startEditing } = useMessageEditing()
@@ -271,7 +271,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.copy.image'),
             key: 'img',
             onClick: async () => {
-              await captureScrollableDivAsBlob(messageContainerRef, async (blob) => {
+              await captureScrollableAsBlob(messageContainerRef, async (blob) => {
                 if (blob) {
                   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
                 }
@@ -282,7 +282,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.image'),
             key: 'image',
             onClick: async () => {
-              const imageData = await captureScrollableDivAsDataURL(messageContainerRef)
+              const imageData = await captureScrollableAsDataURL(messageContainerRef)
               const title = await getMessageTitle(message)
               if (title && imageData) {
                 window.api.file.saveImage(title, imageData)

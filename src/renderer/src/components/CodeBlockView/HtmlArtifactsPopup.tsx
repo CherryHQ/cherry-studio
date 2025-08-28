@@ -1,9 +1,13 @@
 import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
-import { Button, Modal, Splitter, Tooltip, Typography } from 'antd'
-import { Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
+import { Button, Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
+import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -21,7 +25,9 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [saved, setSaved] = useTemporaryValue(false, 2000)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
+  const previewFrameRef = useRef<HTMLIFrameElement>(null)
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -38,7 +44,31 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
 
   const handleSave = () => {
     codeEditorRef.current?.save?.()
+    setSaved(true)
   }
+
+  const handleCapture = useCallback(
+    async (to: 'file' | 'clipboard') => {
+      const title = extractHtmlTitle(html)
+      const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
+
+      if (to === 'file') {
+        const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
+        if (dataUrl) {
+          window.api.file.saveImage(fileName, dataUrl)
+        }
+      }
+      if (to === 'clipboard') {
+        await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
+          if (blob) {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            window.message.success(t('message.copy.success'))
+          }
+        })
+      }
+    },
+    [html, t]
+  )
 
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
@@ -47,7 +77,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderLeft>
 
       <HeaderCenter>
-        <ViewControls>
+        <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
@@ -72,7 +102,29 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         </ViewControls>
       </HeaderCenter>
 
-      <HeaderRight $isFullscreen={isFullscreen}>
+      <HeaderRight $isFullscreen={isFullscreen} onDoubleClick={(e) => e.stopPropagation()}>
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            items: [
+              {
+                label: t('html_artifacts.capture.to_file'),
+                key: 'capture_to_file',
+                icon: <FilePngIcon size={14} className="lucide-custom" />,
+                onClick: () => handleCapture('file')
+              },
+              {
+                label: t('html_artifacts.capture.to_clipboard'),
+                key: 'capture_to_clipboard',
+                icon: <CopyIcon size={14} className="lucide-custom" />,
+                onClick: () => handleCapture('clipboard')
+              }
+            ]
+          }}>
+          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
+            <Button type="text" icon={<Camera size={16} />} className="nodrag" />
+          </Tooltip>
+        </Dropdown>
         <Button
           onClick={() => setIsFullscreen(!isFullscreen)}
           type="text"
@@ -104,10 +156,16 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         />
         <ToolbarWrapper>
           <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
-            <Button
+            <ToolbarButton
               shape="circle"
               size="large"
-              icon={<SaveIcon size={16} className="custom-lucide" />}
+              icon={
+                saved ? (
+                  <Check size={16} color="var(--color-status-success)" />
+                ) : (
+                  <SaveIcon size={16} className="custom-lucide" />
+                )
+              }
               onClick={handleSave}
             />
           </Tooltip>
@@ -119,6 +177,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       <PreviewSection>
         {html.trim() ? (
           <PreviewFrame
+            ref={previewFrameRef}
             key={html} // Force recreate iframe when preview content changes
             srcDoc={html}
             title="HTML Preview"
@@ -371,6 +430,14 @@ const ToolbarWrapper = styled.div`
   right: 1rem;
   bottom: 1rem;
   z-index: 1;
+`
+
+const ToolbarButton = styled(Button)`
+  border: none;
+  box-shadow:
+    0 6px 16px 0 rgba(0, 0, 0, 0.08),
+    0 3px 6px -4px rgba(0, 0, 0, 0.12),
+    0 9px 28px 8px rgba(0, 0, 0, 0.05);
 `
 
 export default HtmlArtifactsPopup

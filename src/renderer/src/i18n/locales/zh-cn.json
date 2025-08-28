@@ -916,6 +916,11 @@
     "title": "话题搜索"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "捕获页面",
+      "to_clipboard": "复制到剪贴板",
+      "to_file": "保存为图片"
+    },
     "code": "代码",
     "empty_preview": "无内容可展示",
     "generating": "生成中",

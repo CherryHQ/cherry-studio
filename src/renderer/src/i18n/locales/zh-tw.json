@@ -916,6 +916,11 @@
     "title": "搜尋話題"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "捕獲頁面",
+      "to_clipboard": "複製到剪貼簿",
+      "to_file": "保存為圖片"
+    },
     "code": "程式碼",
     "empty_preview": "無內容可展示",
     "generating": "生成中",
