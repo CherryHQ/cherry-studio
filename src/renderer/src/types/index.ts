@@ -863,9 +863,8 @@ const McpServerConfigSchema = z.object({
   /**
    * 传递给命令的参数数组。
    * 通常第一个参数是脚本路径或包名。
-   * 此字段为必需，但可为空。
    */
-  args: z.array(z.string()).describe('The arguments to pass to the command'),
+  args: z.array(z.string()).optional().default([]).describe('The arguments to pass to the command'),
   /**
    * 启动时注入的环境变量对象。
    * 键为变量名，值为字符串。
