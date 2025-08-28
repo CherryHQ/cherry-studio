@@ -819,6 +819,7 @@ export type KnowledgeReference = {
   file?: FileMetadata
 }
 
+// TODO: 把 mcp 相关类型定义迁移到独立文件中
 export type MCPArgType = 'string' | 'list' | 'number'
 export type MCPEnvType = 'string' | 'number'
 export type MCPArgParameter = { [key: string]: MCPArgType }
@@ -830,13 +831,13 @@ export interface MCPServerParameter {
   description: string
 }
 
-export interface MCPConfigSample {
-  command: string
-  args: string[]
-  env?: Record<string, string> | undefined
-}
+const MCPConfigSampleSchema = z.object({
+  command: z.string(),
+  args: z.array(z.string()),
+  env: z.record(z.string(), z.string()).optional()
+})
 
-// TODO: 把 mcp 相关类型定义迁移到独立文件中
+export type MCPConfigSample = z.infer<typeof MCPConfigSampleSchema>
 
 /**
  * 定义 MCP 服务器的通信类型。
@@ -852,15 +853,40 @@ const McpServerTypeSchema = z
  */
 const McpServerConfigSchema = z.object({
   /**
+   * 服务器名称
+   * 可选。用于标识和显示服务器。
+   */
+  name: z.string().optional().describe('Server name for identification and display'),
+  /**
    * 服务器的通信类型。
    * 可选。如果未指定，默认为 "stdio"。
    */
   type: McpServerTypeSchema.optional(),
   /**
+   * 服务器描述
+   * 可选。用于描述服务器的功能和用途。
+   */
+  description: z.string().optional().describe('Server description'),
+  /**
+   * 服务器的URL地址
+   * 可选。用于指定服务器的访问地址。
+   */
+  url: z.string().optional().describe('Server URL address'),
+  /**
+   * url 的内部别名，优先使用 baseUrl 字段。
+   * 可选。用于指定服务器的访问地址。
+   */
+  baseUrl: z.string().optional().describe('Server URL address'),
+  /**
    * 启动服务器的命令 (如 "uvx", "npx")。
    * 可选。如果未指定，默认为空字符串。
    */
   command: z.string().optional().default('').describe("The command to execute (e.g., 'uvx', 'npx')"),
+  /**
+   * registry URL
+   * 可选。用于指定服务器的 registry 地址。
+   */
+  registryUrl: z.string().optional().describe('Registry URL for the server'),
   /**
    * 传递给命令的参数数组。
    * 通常第一个参数是脚本路径或包名。
@@ -874,44 +900,65 @@ const McpServerConfigSchema = z.object({
    */
   env: z.record(z.string(), z.string()).default({}).describe('Environment variables for the server process'),
   /**
-   * 服务器的URL地址
-   * 可选。用于指定服务器的访问地址。
-   */
-  url: z.string().optional().describe('Server URL address'),
-
-  /**
-   * 同 url，优先使用 baseUrl 字段。
-   * 可选。用于指定服务器的访问地址。
-   */
-  baseUrl: z.string().optional().describe('Server URL address'),
-  /**
    * 请求头配置
    * 可选。用于设置请求时的自定义headers。
    */
   headers: z.record(z.string(), z.string()).optional().describe('Custom headers configuration'),
   /**
+   * provider 名称
+   * 可选。用于指定服务器的提供商。
+   */
+  provider: z.string().optional().describe('Provider name for the server'),
+  /**
+   * provider URL
+   * 可选。用于指定服务器提供商的网站或文档地址。
+   */
+  providerUrl: z.string().optional().describe('URL of the provider website or documentation'),
+  /**
+   * logo URL
+   * 可选。用于指定服务器的logo图片地址。
+   */
+  logoUrl: z.string().optional().describe('URL of the server logo'),
+  /**
    * 服务器标签
    * 可选。用于对服务器进行分类和标记。
    */
   tags: z.array(z.string()).optional().describe('Server tags for categorization'),
-
   /**
-   * 服务器描述
-   * 可选。用于描述服务器的功能和用途。
+   * 是否为长期运行的服务器
+   * 可选。用于标识服务器是否需要持续运行。
    */
-  description: z.string().optional().describe('Server description'),
-
+  longRunning: z.boolean().optional().describe('Whether the server is long running'),
   /**
-   * registry URL
-   * 可选。用于指定服务器的 registry 地址。
+   * 请求超时时间
+   * 可选。单位为秒，默认为60秒。
    */
-  registryUrl: z.string().optional().describe('Registry URL for the server'),
-
+  timeout: z.number().optional().describe('Timeout in seconds for requests to this server'),
   /**
-   * provider 名称
-   * 可选。用于指定服务器的提供商。
+   * DXT包版本号
+   * 可选。用于标识DXT包的版本。
    */
-  provider: z.string().optional().describe('Provider name for the server')
+  dxtVersion: z.string().optional().describe('Version of the DXT package'),
+  /**
+   * DXT包解压路径
+   * 可选。指定DXT包解压后的存放路径。
+   */
+  dxtPath: z.string().optional().describe('Path where the DXT package was extracted'),
+  /**
+   * 参考链接
+   * 可选。服务器的文档或主页链接。
+   */
+  reference: z.string().optional().describe('Reference link for the server'),
+  /**
+   * 搜索关键字
+   * 可选。用于服务器搜索的关键字。
+   */
+  searchKey: z.string().optional().describe('Search key for the server'),
+  /**
+   * 配置示例
+   * 可选。服务器配置的示例。
+   */
+  configSample: MCPConfigSampleSchema.optional().describe('Configuration sample for the server')
 })
 
 /**
@@ -968,13 +1015,7 @@ export interface MCPServer {
   registryUrl?: string
   args?: string[]
   env?: Record<string, string>
-  shouldConfig?: boolean
-  isActive: boolean
-  disabledTools?: string[] // List of tool names that are disabled for this server
-  disabledAutoApproveTools?: string[] // Whether to auto-approve tools for this server
-  configSample?: MCPConfigSample
   headers?: Record<string, string> // Custom headers to be sent with requests to this server
-  searchKey?: string
   provider?: string // Provider name for this server like ModelScope, Higress, etc.
   providerUrl?: string // URL of the MCP server in provider's website or documentation
   logoUrl?: string // URL of the MCP server's logo
@@ -984,6 +1025,18 @@ export interface MCPServer {
   dxtVersion?: string // Version of the DXT package
   dxtPath?: string // Path where the DXT package was extracted
   reference?: string // Reference link for the server, e.g., documentation or homepage
+  searchKey?: string
+  configSample?: MCPConfigSample
+
+  // 下面是内部使用字段，从外部传入的MCP服务器不应该编辑这些字段
+  /** 用于标记内置 MCP 是否需要配置 */
+  shouldConfig?: boolean
+  /** 用于标记服务器是否运行中 */
+  isActive: boolean
+  /** List of tool names that are disabled for this server */
+  disabledTools?: string[]
+  /** Whether to auto-approve tools for this server */
+  disabledAutoApproveTools?: string[]
 }
 
 export type BuiltinMCPServer = MCPServer & {
