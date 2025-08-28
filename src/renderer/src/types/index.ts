@@ -846,6 +846,7 @@ export interface MCPConfigSample {
 const McpServerTypeSchema = z
   .union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp')])
   .default('stdio') // 大多数情况下默认使用 stdio
+
 /**
  * 定义单个 MCP 服务器的配置。
  */
@@ -877,17 +878,40 @@ const McpServerConfigSchema = z.object({
    * 可选。用于指定服务器的访问地址。
    */
   url: z.string().optional().describe('Server URL address'),
+
+  /**
+   * 同 url，优先使用 baseUrl 字段。
+   * 可选。用于指定服务器的访问地址。
+   */
+  baseUrl: z.string().optional().describe('Server URL address'),
   /**
    * 请求头配置
    * 可选。用于设置请求时的自定义headers。
    */
   headers: z.record(z.string(), z.string()).optional().describe('Custom headers configuration'),
-
   /**
    * 服务器标签
    * 可选。用于对服务器进行分类和标记。
    */
-  tags: z.array(z.string()).optional().describe('Server tags for categorization')
+  tags: z.array(z.string()).optional().describe('Server tags for categorization'),
+
+  /**
+   * 服务器描述
+   * 可选。用于描述服务器的功能和用途。
+   */
+  description: z.string().optional().describe('Server description'),
+
+  /**
+   * registry URL
+   * 可选。用于指定服务器的 registry 地址。
+   */
+  registryUrl: z.string().optional().describe('Registry URL for the server'),
+
+  /**
+   * provider 名称
+   * 可选。用于指定服务器的提供商。
+   */
+  provider: z.string().optional().describe('Provider name for the server')
 })
 
 /**
@@ -935,8 +959,8 @@ export function safeValidateMcpConfig(config: unknown) {
 }
 
 export interface MCPServer {
-  id: string
-  name: string
+  id: string // internal id
+  name: string // mcp name, generally as unique key
   type?: McpServerType | 'inMemory'
   description?: string
   baseUrl?: string
