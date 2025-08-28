@@ -83,7 +83,6 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   /**
    * 从JSON字符串中解析MCP服务器配置
    * @param inputValue - JSON格式的服务器配置字符串
-   * @param t - i18n翻译函数
    * @returns 包含解析后的服务器配置和可能的错误信息的对象
    * - serverToAdd: 解析成功时返回服务器配置对象，失败时返回null
    * - error: 解析失败时返回错误信息，成功时返回null
