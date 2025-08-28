@@ -41,6 +41,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
   const Fallback = useCallback(
     (props: FallbackProps) => {
       const { error } = props
+      const errorDetails = formatErrorMessage(error)
 
       const ErrorDetails = () => {
         return (
@@ -53,16 +54,27 @@ const McpServerCard: FC<McpServerCardProps> = ({
               marginRight: 20,
               color: 'var(--color-status-error)'
             }}>
-            {formatErrorMessage(error)}
+            {errorDetails}
           </div>
         )
+      }
+
+      const onClickDetails = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.stopPropagation()
+        GeneralPopup.show({ content: <ErrorDetails /> })
       }
       return (
         <Alert
           message={t('error.boundary.mcp.invalid')}
           showIcon
           type="error"
-          style={{ height: 125, alignItems: 'flex-start' }}
+          style={{ height: 125, alignItems: 'flex-start', padding: 12 }}
+          description={
+            <Typography.Paragraph style={{ color: 'var(--color-status-error)' }} ellipsis={{ rows: 3 }}>
+              {errorDetails}
+            </Typography.Paragraph>
+          }
+          onClick={onClickDetails}
           action={
             <Space.Compact>
               <Button
@@ -74,7 +86,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                   </Tooltip>
                 }
                 size="small"
-                onClick={() => GeneralPopup.show({ content: <ErrorDetails /> })}
+                onClick={onClickDetails}
               />
               <Button
                 danger
@@ -85,7 +97,10 @@ const McpServerCard: FC<McpServerCardProps> = ({
                   </Tooltip>
                 }
                 size="small"
-                onClick={onDelete}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete()
+                }}
               />
             </Space.Compact>
           }
