@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
@@ -33,60 +34,62 @@ const McpServerCard: FC<McpServerCardProps> = ({
   }
 
   return (
-    <CardContainer $isActive={server.isActive} onClick={onEdit}>
-      <ServerHeader>
-        <ServerNameWrapper>
-          {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-          <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
-          {server.providerUrl && (
-            <Button
-              type="text"
+    <ErrorBoundary>
+      <CardContainer $isActive={server.isActive} onClick={onEdit}>
+        <ServerHeader>
+          <ServerNameWrapper>
+            {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
+            <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
+            {server.providerUrl && (
+              <Button
+                type="text"
+                size="small"
+                shape="circle"
+                icon={<SquareArrowOutUpRight size={14} />}
+                onClick={handleOpenUrl}
+                data-no-dnd
+              />
+            )}
+          </ServerNameWrapper>
+          <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
+            <Switch
+              value={server.isActive}
+              key={server.id}
+              loading={isLoading}
+              onChange={onToggle}
               size="small"
-              shape="circle"
-              icon={<SquareArrowOutUpRight size={14} />}
-              onClick={handleOpenUrl}
               data-no-dnd
             />
+            <Button
+              type="text"
+              shape="circle"
+              icon={<DeleteIcon size={14} className="lucide-custom" />}
+              danger
+              onClick={onDelete}
+              data-no-dnd
+            />
+            <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
+          </ToolbarWrapper>
+        </ServerHeader>
+        <ServerDescription>{server.description}</ServerDescription>
+        <ServerFooter>
+          {version && (
+            <VersionBadge color="#108ee9">
+              <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
+            </VersionBadge>
           )}
-        </ServerNameWrapper>
-        <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-          <Switch
-            value={server.isActive}
-            key={server.id}
-            loading={isLoading}
-            onChange={onToggle}
-            size="small"
-            data-no-dnd
-          />
-          <Button
-            type="text"
-            shape="circle"
-            icon={<DeleteIcon size={14} className="lucide-custom" />}
-            danger
-            onClick={onDelete}
-            data-no-dnd
-          />
-          <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
-        </ToolbarWrapper>
-      </ServerHeader>
-      <ServerDescription>{server.description}</ServerDescription>
-      <ServerFooter>
-        {version && (
-          <VersionBadge color="#108ee9">
-            <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
-          </VersionBadge>
-        )}
-        <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
-        {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
-        {server.tags
-          ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
-          .map((tag) => (
-            <ServerTag key={tag} color="default">
-              {tag}
-            </ServerTag>
-          ))}
-      </ServerFooter>
-    </CardContainer>
+          <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
+          {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
+          {server.tags
+            ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
+            .map((tag) => (
+              <ServerTag key={tag} color="default">
+                {tag}
+              </ServerTag>
+            ))}
+        </ServerFooter>
+      </CardContainer>
+    </ErrorBoundary>
   )
 }
 
