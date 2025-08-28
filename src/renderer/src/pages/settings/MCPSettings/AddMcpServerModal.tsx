@@ -93,10 +93,18 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   ): { serverToAdd: Partial<ParsedServerData>; error: null } | { serverToAdd: null; error: string } => {
     const trimmedInput = inputValue.trim()
 
+    let parsedJson: object
     let validConfig: McpConfig
     try {
-      validConfig = validateMcpConfig(trimmedInput)
+      parsedJson = JSON.parse(trimmedInput)
     } catch (e) {
+      logger.error('Failed to parse json.', { input: trimmedInput, error: e })
+      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+    }
+    try {
+      validConfig = validateMcpConfig(parsedJson)
+    } catch (e) {
+      logger.error('Failed to validate json.', { parsedJson, error: e })
       return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
 
@@ -107,8 +115,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
     }
 
     if (objectKeys(validConfig.mcpServers).length > 0) {
-      serverToAdd = validConfig.mcpServers[0]
-      serverToAdd.name = objectKeys(validConfig.mcpServers)[0]
+      const key = objectKeys(validConfig.mcpServers)[0]
+      serverToAdd = validConfig.mcpServers[key]
+      serverToAdd.name = key
     } else {
       return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
