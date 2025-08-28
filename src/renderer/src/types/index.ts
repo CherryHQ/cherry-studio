@@ -857,12 +857,13 @@ const McpServerConfigSchema = z.object({
   type: McpServerTypeSchema.optional(),
   /**
    * 启动服务器的命令 (如 "uvx", "npx")。
-   * 此字段为必需。
+   * 可选。如果未指定，默认为空字符串。
    */
-  command: z.string().describe("The command to execute (e.g., 'uvx', 'npx')"),
+  command: z.string().optional().default('').describe("The command to execute (e.g., 'uvx', 'npx')"),
   /**
    * 传递给命令的参数数组。
    * 通常第一个参数是脚本路径或包名。
+   * 可选。如果未指定，默认为空数组。
    */
   args: z.array(z.string()).optional().default([]).describe('The arguments to pass to the command'),
   /**
