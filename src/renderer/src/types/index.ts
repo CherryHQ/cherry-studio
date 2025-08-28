@@ -47,7 +47,7 @@ export type TranslateAssistant = Assistant & {
 }
 
 export const isTranslateAssistant = (assistant: Assistant): assistant is TranslateAssistant => {
-  return (assistant.model && assistant.targetLanguage) !== undefined
+  return (assistant.model && assistant.targetLanguage && typeof assistant.content === 'string') !== undefined
 }
 
 export type AssistantsSortType = 'tags' | 'list'
