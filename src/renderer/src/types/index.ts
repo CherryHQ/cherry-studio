@@ -836,10 +836,91 @@ export interface MCPConfigSample {
   env?: Record<string, string> | undefined
 }
 
+// TODO: 把 mcp 相关类型定义迁移到独立文件中
+
+/**
+ * 定义 MCP 服务器的通信类型。
+ * stdio: 通过标准输入/输出与子进程通信 (最常见)。
+ * sse:  通过HTTP Server-Sent Events 通信。
+ */
+const McpServerTypeSchema = z
+  .union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp')])
+  .default('stdio') // 大多数情况下默认使用 stdio
+/**
+ * 定义单个 MCP 服务器的配置。
+ */
+const McpServerConfigSchema = z.object({
+  /**
+   * 服务器的通信类型。
+   * 可选。如果未指定，默认为 "stdio"。
+   */
+  type: McpServerTypeSchema.optional(),
+  /**
+   * 启动服务器的命令 (如 "uvx", "npx")。
+   * 此字段为必需。
+   */
+  command: z.string().describe("The command to execute (e.g., 'uvx', 'npx')"),
+  /**
+   * 传递给命令的参数数组。
+   * 通常第一个参数是脚本路径或包名。
+   * 此字段为必需，但可为空。
+   */
+  args: z.array(z.string()).describe('The arguments to pass to the command'),
+  /**
+   * 启动时注入的环境变量对象。
+   * 键为变量名，值为字符串。
+   * 可选。如果未指定，默认为空对象。
+   */
+  env: z.record(z.string(), z.string()).default({}).describe('Environment variables for the server process')
+})
+
+/**
+ * 将服务器别名（字符串ID）映射到其配置的对象。
+ * 例如: { "my-tools": { command: "...", args: [...] }, "github": { ... } }
+ */
+const McpServersMapSchema = z.record(z.string(), McpServerConfigSchema)
+/**
+ * 顶层配置对象Schema。
+ * 表示整个MCP配置文件的结构。
+ */
+const McpConfigSchema = z.object({
+  /**
+   * 包含一个或多个MCP服务器定义的映射。
+   * 名称（键）是用户定义的别名。
+   * 此字段为必需。
+   */
+  mcpServers: McpServersMapSchema.describe('Mapping of server aliases to their configurations')
+})
+
+// 数据校验用类型，McpServerType 复用于 MCPServer
+export type McpServerType = z.infer<typeof McpServerTypeSchema>
+export type McpServerConfig = z.infer<typeof McpServerConfigSchema>
+export type McpServersMap = z.infer<typeof McpServersMapSchema>
+export type McpConfig = z.infer<typeof McpConfigSchema>
+
+export { McpConfigSchema }
+
+/**
+ * 验证一个未知对象是否为合法的MCP配置。
+ * @param config - 要验证的配置对象
+ * @returns 如果有效则为解析后的 `McpConfig` 对象，否则抛出 ZodError。
+ */
+export function validateMcpConfig(config: unknown): McpConfig {
+  return McpConfigSchema.parse(config)
+}
+/**
+ * 安全地验证一个未知对象，返回结果和可能的错误。
+ * @param config - 要验证的配置对象
+ * @returns 包含成功/失败状态和数据的 `ZodSafeParseResult`。
+ */
+export function safeValidateMcpConfig(config: unknown) {
+  return McpConfigSchema.safeParse(config)
+}
+
 export interface MCPServer {
   id: string
   name: string
-  type?: 'stdio' | 'sse' | 'inMemory' | 'streamableHttp'
+  type?: McpServerType | 'inMemory'
   description?: string
   baseUrl?: string
   command?: string
