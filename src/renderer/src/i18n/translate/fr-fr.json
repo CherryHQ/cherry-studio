@@ -869,7 +869,7 @@
     "actions": "Actions",
     "all": "Tous les fichiers",
     "batch_delete": "supprimer en masse",
-    "batch_operation": "opérations par lots",
+    "batch_operation": "Tout sélectionner",
     "count": "Nombre de fichiers",
     "created_at": "Date de création",
     "delete": {
@@ -877,7 +877,6 @@
       "db_error": "Échec de la suppression",
       "label": "Supprimer",
       "paintings": {
-        "batch_warning": "Le dessin contient {{count}} fichiers, il est impossible de les supprimer",
         "warning": "Cette image est incluse dans un dessin, elle ne peut pas être supprimée pour l'instant"
       },
       "title": "Supprimer le fichier"

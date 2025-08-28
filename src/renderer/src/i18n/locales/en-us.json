@@ -869,7 +869,7 @@
     "actions": "Actions",
     "all": "All Files",
     "batch_delete": "Batch delete",
-    "batch_operation": "Batch operation",
+    "batch_operation": "Select All",
     "count": "files",
     "created_at": "Created At",
     "delete": {
@@ -877,7 +877,6 @@
       "db_error": "Deletion failed",
       "label": "Delete",
       "paintings": {
-        "batch_warning": "{{count}} files are used in paintings and cannot be deleted",
         "warning": "Image contains this file, deletion is not possible"
       },
       "title": "Delete File"

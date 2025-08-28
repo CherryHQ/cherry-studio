@@ -869,7 +869,7 @@
     "actions": "操作",
     "all": "所有檔案",
     "batch_delete": "批次刪除",
-    "batch_operation": "批量操作",
+    "batch_operation": "全選",
     "count": "個檔案",
     "created_at": "建立時間",
     "delete": {
@@ -877,7 +877,6 @@
       "db_error": "刪除失敗",
       "label": "刪除",
       "paintings": {
-        "batch_warning": "繪圖中包含 {{count}} 個檔案，無法刪除這些檔案",
         "warning": "繪圖中包含該圖片，暫時無法刪除"
       },
       "title": "刪除檔案"

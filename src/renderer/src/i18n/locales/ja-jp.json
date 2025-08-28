@@ -869,7 +869,7 @@
     "actions": "操作",
     "all": "すべてのファイル",
     "batch_delete": "一括削除",
-    "batch_operation": "一括操作",
+    "batch_operation": "すべて選択",
     "count": "ファイル",
     "created_at": "作成日",
     "delete": {
@@ -877,7 +877,6 @@
       "db_error": "削除に失敗しました",
       "label": "削除",
       "paintings": {
-        "batch_warning": "描画には {{count}} 個のファイルが含まれており、これらのファイルを削除できません",
         "warning": "画像に含まれているため、削除できません"
       },
       "title": "ファイルを削除"

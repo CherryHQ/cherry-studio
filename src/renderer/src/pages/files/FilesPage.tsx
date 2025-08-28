@@ -60,15 +60,13 @@ const FilesPage: FC = () => {
 
     if (filesInPaintings.length > 0) {
       window.modal.warning({
-        content: t('files.delete.paintings.batch_warning', { count: filesInPaintings.length }),
+        content: t('files.delete.paintings.warning'),
         centered: true
       })
       return
     }
 
-    for (const fileId of selectedFileIds) {
-      await handleDelete(fileId, t)
-    }
+    await Promise.all(selectedFileIds.map((fileId) => handleDelete(fileId, t)))
 
     setSelectedFileIds([])
   }
@@ -109,7 +107,7 @@ const FilesPage: FC = () => {
           <Button type="text" icon={<EditIcon size={14} />} onClick={() => handleRename(file.id)} />
           <Popconfirm
             title={t('files.delete.title')}
-            description={t('files.delete.content', { count: 1 })}
+            description={t('files.delete.content')}
             okText={t('common.confirm')}
             cancelText={t('common.cancel')}
             onConfirm={() => handleDelete(file.id, t)}
@@ -187,7 +185,7 @@ const FilesPage: FC = () => {
                         <Popconfirm
                           disabled={selectedFileIds.length === 0}
                           title={t('files.delete.title')}
-                          description={t('files.delete.content', { count: selectedFileIds.length })}
+                          description={t('files.delete.content')}
                           okText={t('common.confirm')}
                           cancelText={t('common.cancel')}
                           onConfirm={handleBatchDelete}

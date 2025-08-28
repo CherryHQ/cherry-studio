@@ -869,7 +869,7 @@
     "actions": "Acciones",
     "all": "Todos los archivos",
     "batch_delete": "Eliminación masiva",
-    "batch_operation": "operaciones por lotes",
+    "batch_operation": "Seleccionar todo",
     "count": "Número de archivos",
     "created_at": "Fecha de creación",
     "delete": {
@@ -877,7 +877,6 @@
       "db_error": "Error al eliminar",
       "label": "Eliminar",
       "paintings": {
-        "batch_warning": "El dibujo contiene {{count}} archivos, no se pueden eliminar estos archivos",
         "warning": "La imagen está incluida en un dibujo, por lo que temporalmente no se puede eliminar"
       },
       "title": "Eliminar archivo"
