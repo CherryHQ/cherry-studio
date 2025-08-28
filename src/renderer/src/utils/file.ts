@@ -1,5 +1,5 @@
 import { FileMetadata } from '@renderer/types'
-import { KB, MB } from '@shared/config/constant'
+import { KB, MB, textExts } from '@shared/config/constant'
 
 /**
  * 从文件路径中提取目录路径。
@@ -80,6 +80,11 @@ export async function isSupportedFile(filePath: string, supportExts: Set<string>
   } catch (error) {
     return false
   }
+}
+
+export async function isTextFile(filePath: string): Promise<boolean> {
+  const set = new Set(textExts)
+  return isSupportedFile(filePath, set)
 }
 
 export async function filterSupportedFiles(files: FileMetadata[], supportExts: string[]): Promise<FileMetadata[]> {
