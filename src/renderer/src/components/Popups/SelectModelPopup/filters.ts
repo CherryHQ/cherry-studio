@@ -12,6 +12,16 @@ import { useCallback, useMemo, useState } from 'react'
 
 type ModelPredict = (m: Model) => boolean
 
+const initialTagSelection: Record<ModelTag, boolean> = {
+  vision: false,
+  embedding: false,
+  reasoning: false,
+  function_calling: false,
+  web_search: false,
+  rerank: false,
+  free: false
+}
+
 /**
  * 标签筛选 hook，仅关注标签过滤逻辑
  */
@@ -29,18 +39,7 @@ export function useModelTagFilter() {
     []
   )
 
-  const [tagSelection, setTagSelection] = useState<Record<ModelTag, boolean>>(() => {
-    const initial: Record<ModelTag, boolean> = {
-      vision: false,
-      embedding: false,
-      reasoning: false,
-      function_calling: false,
-      web_search: false,
-      rerank: false,
-      free: false
-    }
-    return initial
-  })
+  const [tagSelection, setTagSelection] = useState<Record<ModelTag, boolean>>(initialTagSelection)
 
   // 已选中的标签
   const selectedTags = useMemo(
@@ -58,15 +57,7 @@ export function useModelTagFilter() {
 
   // 重置标签
   const resetTags = useCallback(() => {
-    setTagSelection({
-      vision: false,
-      embedding: false,
-      reasoning: false,
-      function_calling: false,
-      web_search: false,
-      rerank: false,
-      free: false
-    })
+    setTagSelection(initialTagSelection)
   }, [])
 
   // 根据标签过滤模型
