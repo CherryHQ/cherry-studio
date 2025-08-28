@@ -429,6 +429,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Clear, fileManager.clear.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Read, fileManager.readFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ReadPath, fileManager.readFileInPath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile.bind(fileManager))
   ipcMain.handle('file:deleteDir', fileManager.deleteDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))

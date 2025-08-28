@@ -290,6 +290,26 @@ class FileStorage {
     return path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
   }
 
+  public readFileInPath = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    detectEncoding: boolean = false
+  ): Promise<string | undefined> => {
+    if (!fs.existsSync(filePath)) {
+      return undefined
+    }
+    try {
+      if (detectEncoding) {
+        return readTextFileWithAutoEncoding(filePath)
+      } else {
+        return fs.readFileSync(filePath, 'utf-8')
+      }
+    } catch (error) {
+      logger.error('Failed to read file:', error as Error)
+      throw new Error(`Failed to read file: ${filePath}.`)
+    }
+  }
+
   public writeFile = async (
     _: Electron.IpcMainInvokeEvent,
     filePath: string,

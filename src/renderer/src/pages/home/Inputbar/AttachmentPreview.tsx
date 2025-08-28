@@ -12,6 +12,7 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
+import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata } from '@renderer/types'
@@ -122,7 +123,13 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           }
           const path = FileManager.getSafePath(file)
           if (path) {
-            window.api.file.openPath(path)
+            if (file.type === 'text') {
+              window.api.file.readInPath(path, true).then((fileContent) => {
+                TextFilePreviewPopup.show(fileContent)
+              })
+            } else {
+              window.api.file.openPath(path)
+            }
           }
         }}
         title={fullName}>
