@@ -1,28 +1,18 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
-import {
-  EmbeddingTag,
-  FreeTag,
-  ReasoningTag,
-  RerankerTag,
-  ToolsCallingTag,
-  VisionTag,
-  WebSearchTag
-} from '@renderer/components/Tags/Model'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, ModelTag, ModelType, objectEntries, Provider } from '@renderer/types'
+import { Model, ModelType, objectEntries, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
-import { Avatar, Button, Divider, Empty, Flex, Modal, Tooltip } from 'antd'
+import { Avatar, Button, Divider, Empty, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
 import { SettingsIcon } from 'lucide-react'
 import React, {
-  ReactNode,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -37,6 +27,7 @@ import styled from 'styled-components'
 
 import { useModelTagFilter } from './filters'
 import SelectModelSearchBar from './searchbar'
+import TagFilterSection from './TagFilterSection'
 import { FlatListItem, FlatListModel } from './types'
 
 const PAGE_SIZE = 12
@@ -81,11 +72,11 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     })
   }, [])
 
-  const { filterTags, tagFilter, toggleTag } = useModelTagFilter({
+  const { tagSelection, tagFilter, toggleTag } = useModelTagFilter({
     disabled: !showTagFilter
   })
 
-  // 计算可用标签
+  // 计算要显示的可用标签列表
   const availableTags = useMemo(() => {
     const models = providers.flatMap((p) => p.models).filter(baseFilter ?? (() => true))
     return objectEntries(getModelTags(models))
@@ -93,28 +84,6 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
       .map(([tag]) => tag)
   }, [providers, baseFilter])
 
-  // 筛选项列表
-  const tagsItems: Record<ModelTag, ReactNode> = useMemo(
-    () => ({
-      vision: <VisionTag showLabel inactive={!filterTags.vision} onClick={() => toggleTag('vision')} />,
-      embedding: <EmbeddingTag inactive={!filterTags.embedding} onClick={() => toggleTag('embedding')} />,
-      reasoning: <ReasoningTag showLabel inactive={!filterTags.reasoning} onClick={() => toggleTag('reasoning')} />,
-      function_calling: (
-        <ToolsCallingTag
-          showLabel
-          inactive={!filterTags.function_calling}
-          onClick={() => toggleTag('function_calling')}
-        />
-      ),
-      web_search: <WebSearchTag showLabel inactive={!filterTags.web_search} onClick={() => toggleTag('web_search')} />,
-      rerank: <RerankerTag inactive={!filterTags.rerank} onClick={() => toggleTag('rerank')} />,
-      free: <FreeTag inactive={!filterTags.free} onClick={() => toggleTag('free')} />
-    }),
-    [filterTags, toggleTag]
-  )
-
-  // 要显示的筛选项
-  const displayedTags = useMemo(() => availableTags.map((tag) => tagsItems[tag]), [availableTags, tagsItems])
   // 根据输入的文本筛选模型
   const searchFilter = useCallback(
     (provider: Provider) => {
@@ -455,12 +424,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
       {showTagFilter && (
         <>
-          <FilterContainer>
-            <Flex wrap="wrap" gap={4}>
-              <FilterText>{t('models.filter.by_tag')}</FilterText>
-              {displayedTags.map((item) => item)}
-            </Flex>
-          </FilterContainer>
+          <TagFilterSection availableTags={availableTags} tagSelection={tagSelection} onToggleTag={toggleTag} />
           <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
         </>
       )}
@@ -488,16 +452,6 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     </Modal>
   )
 }
-
-const FilterContainer = styled.div`
-  padding: 8px;
-  padding-left: 18px;
-`
-
-const FilterText = styled.span`
-  color: var(--color-text-3);
-  font-size: 12px;
-`
 
 const ListContainer = styled.div`
   position: relative;

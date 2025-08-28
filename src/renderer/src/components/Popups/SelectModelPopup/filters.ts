@@ -33,7 +33,7 @@ export function useModelTagFilter(options?: UseModelTagFilterOptions) {
     []
   )
 
-  const [filterTags, setFilterTags] = useState<Record<ModelTag, boolean>>(() => {
+  const [tagSelection, setTagSelection] = useState<Record<ModelTag, boolean>>(() => {
     const initial: Record<ModelTag, boolean> = {
       vision: false,
       embedding: false,
@@ -47,22 +47,22 @@ export function useModelTagFilter(options?: UseModelTagFilterOptions) {
   })
 
   // 已选中的标签
-  const selectedFilterTags = useMemo(
+  const selectedTags = useMemo(
     () =>
-      Object.entries(filterTags)
+      Object.entries(tagSelection)
         .filter(([, state]) => state)
         .map(([tag]) => tag as ModelTag),
-    [filterTags]
+    [tagSelection]
   )
 
   // 切换标签
   const toggleTag = useCallback((tag: ModelTag) => {
-    setFilterTags((prev) => ({ ...prev, [tag]: !prev[tag] }))
+    setTagSelection((prev) => ({ ...prev, [tag]: !prev[tag] }))
   }, [])
 
   // 重置标签
   const resetTags = useCallback(() => {
-    setFilterTags({
+    setTagSelection({
       vision: false,
       embedding: false,
       reasoning: false,
@@ -77,15 +77,15 @@ export function useModelTagFilter(options?: UseModelTagFilterOptions) {
   const tagFilter = useCallback(
     (model: Model) => {
       if (options?.disabled) return true
-      if (selectedFilterTags.length === 0) return true
-      return selectedFilterTags.map((tag) => filterConfig[tag]).every((predict) => predict(model))
+      if (selectedTags.length === 0) return true
+      return selectedTags.map((tag) => filterConfig[tag]).every((predict) => predict(model))
     },
-    [filterConfig, selectedFilterTags, options?.disabled]
+    [filterConfig, selectedTags, options?.disabled]
   )
 
   return {
-    filterTags,
-    selectedFilterTags,
+    tagSelection,
+    selectedTags,
     tagFilter,
     toggleTag,
     resetTags
