@@ -3785,6 +3785,7 @@
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "chat_qwen_mt": "Modelos Qwen MT não estão disponíveis para uso em conversas. Por favor, vá para a página de tradução.",
       "detect": {
         "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma",
         "unknown": "Idioma desconhecido detectado",

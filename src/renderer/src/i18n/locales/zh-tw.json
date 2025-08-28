@@ -3785,6 +3785,7 @@
     },
     "empty": "翻譯內容為空",
     "error": {
+      "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，請轉至翻譯頁面",
       "detect": {
         "qwen_mt": "QwenMT模型不能用於語言檢測",
         "unknown": "檢測到未知語言",
