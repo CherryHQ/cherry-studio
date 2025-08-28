@@ -44,8 +44,10 @@ const ITEM_HEIGHT = 36
 
 interface PopupParams {
   model?: Model
-  modelFilter?: (model: Model) => boolean
-  userFilterDisabled?: boolean
+  /** Basic model filter */
+  filter?: (model: Model) => boolean
+  /** Show tag filter section */
+  showTagFilter?: boolean
 }
 
 interface Props extends PopupParams {
@@ -56,7 +58,7 @@ export type FilterType = Exclude<ModelType, 'text'> | 'free'
 
 // const logger = loggerService.withContext('SelectModelPopup')
 
-const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilterDisabled }) => {
+const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFilter = true, resolve }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
@@ -80,16 +82,16 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
   }, [])
 
   const { filterTags, tagFilter, toggleTag } = useModelTagFilter({
-    disabled: userFilterDisabled
+    disabled: !showTagFilter
   })
 
   // 计算可用标签
   const availableTags = useMemo(() => {
-    const models = providers.flatMap((p) => p.models).filter(modelFilter ?? (() => true))
+    const models = providers.flatMap((p) => p.models).filter(baseFilter ?? (() => true))
     return objectEntries(getModelTags(models))
       .filter(([, state]) => state)
       .map(([tag]) => tag)
-  }, [providers, modelFilter])
+  }, [providers, baseFilter])
 
   // 筛选项列表
   const tagsItems: Record<ModelTag, ReactNode> = useMemo(
@@ -165,9 +167,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
     const finalModelFilter = (model: Model) => {
-      const _userFilter = userFilterDisabled || tagFilter(model)
-      const _modelFilter = modelFilter === undefined || modelFilter(model)
-      return _userFilter && _modelFilter
+      const _tagFilter = !showTagFilter || tagFilter(model)
+      const _baseFilter = baseFilter === undefined || baseFilter(model)
+      return _tagFilter && _baseFilter
     }
 
     // 添加置顶模型分组（仅在无搜索文本时）
@@ -234,9 +236,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
     pinnedModels,
     searchText.length,
     providers,
-    userFilterDisabled,
+    showTagFilter,
     tagFilter,
-    modelFilter,
+    baseFilter,
     createModelItem,
     t,
     searchFilter,
@@ -451,7 +453,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
       {/* 搜索框 */}
       <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
-      {!userFilterDisabled && (
+      {showTagFilter && (
         <>
           <FilterContainer>
             <Flex wrap="wrap" gap={4}>
