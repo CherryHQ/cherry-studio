@@ -13,7 +13,14 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
-import { FlexAlignCenter, ItemContainer, ItemHeader, KnowledgeEmptyView, ResponsiveButton, StatusIconWrapper } from '../KnowledgeContent'
+import {
+  FlexAlignCenter,
+  ItemContainer,
+  ItemHeader,
+  KnowledgeEmptyView,
+  ResponsiveButton,
+  StatusIconWrapper
+} from '../KnowledgeContent'
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
