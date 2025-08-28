@@ -4,7 +4,7 @@ import { isEmpty, omit } from 'lodash'
 import React, { useMemo } from 'react'
 import type { Node } from 'unist'
 
-import CitationTooltip from './CitationTooltip'
+import CitationTooltip, { CitationSchema } from './CitationTooltip'
 import Hyperlink from './Hyperlink'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -12,7 +12,11 @@ interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
 }
 
 const Link: React.FC<LinkProps> = (props) => {
-  const citationData = useMemo(() => parseJSON(findCitationInChildren(props.children)), [props.children])
+  const citationData = useMemo(() => {
+    const raw = parseJSON(findCitationInChildren(props.children))
+    const parsed = CitationSchema.safeParse(raw)
+    return parsed.success ? parsed.data : null
+  }, [props.children])
 
   // 处理内部链接
   if (props.href?.startsWith('#')) {

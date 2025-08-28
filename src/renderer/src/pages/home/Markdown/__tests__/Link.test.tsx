@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   CitationTooltip: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="citation-tooltip">{children}</div>
   ),
+  CitationSchema: {
+    safeParse: vi.fn((input: any) => ({ success: !!input, data: input }))
+  },
   Hyperlink: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <div data-testid="hyperlink" data-href={href}>
       {children}
@@ -26,7 +29,8 @@ vi.mock('@renderer/utils/markdown', () => ({
 }))
 
 vi.mock('../CitationTooltip', () => ({
-  default: mocks.CitationTooltip
+  default: mocks.CitationTooltip,
+  CitationSchema: mocks.CitationSchema
 }))
 
 vi.mock('../Hyperlink', () => ({
