@@ -27,6 +27,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -83,7 +84,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
           icon={<Plus size={16} />}
           onClick={(e) => {
@@ -92,7 +93,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           }}
           disabled={disabled}>
           {t('knowledge.add_video')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
       <ItemFlexColumn>
         {videoItems.length === 0 ? (

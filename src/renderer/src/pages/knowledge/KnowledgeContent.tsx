@@ -353,4 +353,12 @@ export const FlexAlignCenter = styled.div`
   justify-content: center;
 `
 
+export const ResponsiveButton = styled(Button)`
+  @media (max-width: 1080px) {
+    .ant-btn-icon + span {
+      display: none;
+    }
+  }
+`
+
 export default KnowledgeContent
