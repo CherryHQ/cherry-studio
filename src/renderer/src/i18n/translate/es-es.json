@@ -868,6 +868,8 @@
   "files": {
     "actions": "Acciones",
     "all": "Todos los archivos",
+    "batch_delete": "Eliminación masiva",
+    "batch_operation": "operaciones por lotes",
     "count": "Número de archivos",
     "created_at": "Fecha de creación",
     "delete": {

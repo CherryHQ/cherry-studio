@@ -868,6 +868,8 @@
   "files": {
     "actions": "Действия",
     "all": "Все файлы",
+    "batch_delete": "массовое удаление",
+    "batch_operation": "Массовые операции",
     "count": "файлов",
     "created_at": "Дата создания",
     "delete": {

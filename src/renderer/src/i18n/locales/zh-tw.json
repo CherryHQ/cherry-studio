@@ -868,6 +868,8 @@
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "batch_delete": "批次刪除",
+    "batch_operation": "批量操作",
     "count": "個檔案",
     "created_at": "建立時間",
     "delete": {

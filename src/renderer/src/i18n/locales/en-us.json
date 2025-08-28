@@ -868,6 +868,8 @@
   "files": {
     "actions": "Actions",
     "all": "All Files",
+    "batch_delete": "Batch delete",
+    "batch_operation": "Batch operation",
     "count": "files",
     "created_at": "Created At",
     "delete": {
