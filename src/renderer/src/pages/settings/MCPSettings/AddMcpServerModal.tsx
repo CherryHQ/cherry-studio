@@ -90,7 +90,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
    */
   const getServerFromJson = (
     inputValue: string
-  ): { serverToAdd: Partial<ParsedServerData> | null; error: string | null } => {
+  ): { serverToAdd: Partial<ParsedServerData>; error: null } | { serverToAdd: null; error: string } => {
     const trimmedInput = inputValue.trim()
 
     let validConfig: McpConfig
@@ -233,7 +233,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         const { serverToAdd, error } = getServerFromJson(inputValue)
 
-        if (error) {
+        if (error !== null) {
           form.setFields([
             {
               name: 'serverConfig',
@@ -245,11 +245,11 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         }
 
         // 檢查重複名稱
-        if (existingServers && existingServers.some((server) => server.name === serverToAdd!.name)) {
+        if (existingServers && existingServers.some((server) => server.name === serverToAdd.name)) {
           form.setFields([
             {
               name: 'serverConfig',
-              errors: [t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd!.name })]
+              errors: [t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd.name })]
             }
           ])
           setLoading(false)
@@ -259,9 +259,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
         const newServer: MCPServer = {
           id: nanoid(),
-          ...serverToAdd!,
-          name: serverToAdd!.name || t('settings.mcp.newServer'),
-          baseUrl: serverToAdd!.baseUrl ?? serverToAdd!.url ?? '',
+          ...serverToAdd,
+          name: serverToAdd.name || t('settings.mcp.newServer'),
+          baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
           isActive: false // 初始狀態為非啟用
         }
 
