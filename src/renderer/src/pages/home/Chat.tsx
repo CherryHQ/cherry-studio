@@ -10,6 +10,7 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
@@ -65,6 +66,9 @@ const Chat: FC<Props> = (props) => {
   useShortcut('rename_topic', async () => {
     const topic = props.activeTopic
     if (!topic) return
+
+    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+
     const name = await PromptPopup.show({
       title: t('chat.topics.edit.title'),
       message: '',
