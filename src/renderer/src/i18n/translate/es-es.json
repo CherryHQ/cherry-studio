@@ -789,6 +789,7 @@
         "label": "Ordenar por pinyin"
       }
     },
+    "stop": "Detener",
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
@@ -1521,6 +1522,10 @@
     "embedding_model": "Modelo de inmersión",
     "embedding_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
     "enable_tool_use": "Habilitar uso de herramientas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiquetas seleccionadas"
+    },
     "function_calling": "Llamada a función",
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
@@ -3799,6 +3804,9 @@
         "placeholder": "Historial de búsqueda de traducción"
       },
       "title": "Historial de traducciones"
+    },
+    "info": {
+      "aborted": "Traducción cancelada"
     },
     "input": {
       "placeholder": "Ingrese el texto para traducir"

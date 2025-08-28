@@ -338,6 +338,8 @@ export type ProviderType =
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
+export type ModelTag = Exclude<ModelType, 'text'> | 'free'
+
 export type EndpointType = 'openai' | 'openai-response' | 'anthropic' | 'gemini' | 'image-generation' | 'jina-rerank'
 
 export type ModelPricing = {
@@ -852,6 +854,34 @@ export interface MCPServer {
   reference?: string // Reference link for the server, e.g., documentation or homepage
 }
 
+export type BuiltinMCPServer = MCPServer & {
+  type: 'inMemory'
+  name: BuiltinMCPServerName
+}
+
+export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServer => {
+  return server.type === 'inMemory' && isBuiltinMCPServerName(server.name)
+}
+
+export const BuiltinMCPServerNames = {
+  mcpAutoInstall: '@cherry/mcp-auto-install',
+  memory: '@cherry/memory',
+  sequentialThinking: '@cherry/sequentialthinking',
+  braveSearch: '@cherry/brave-search',
+  fetch: '@cherry/fetch',
+  filesystem: '@cherry/filesystem',
+  difyKnowledge: '@cherry/dify-knowledge',
+  python: '@cherry/python'
+} as const
+
+export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
+
+export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
+
+export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
+  return BuiltinMCPServerNamesArray.some((n) => n === name)
+}
+
 export interface MCPToolInputSchema {
   type: string
   title: string
@@ -1134,6 +1164,48 @@ export interface MemoryListOptions extends MemoryEntity {
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
 // ========================================================================
+
+/**
+ * 获取对象的所有键名，并保持类型安全
+ * @param obj - 要获取键名的对象
+ * @returns 对象的所有键名数组，类型为对象键名的联合类型
+ * @example
+ * ```ts
+ * const obj = { foo: 1, bar: 'hello' };
+ * const keys = objectKeys(obj); // ['foo', 'bar']
+ * ```
+ */
+export function objectKeys<T extends object>(obj: T): (keyof T)[] {
+  return Object.keys(obj) as (keyof T)[]
+}
+
+/**
+ * 将对象转换为键值对数组，保持类型安全
+ * @template T - 对象类型
+ * @param obj - 要转换的对象
+ * @returns 键值对数组，每个元素是一个包含键和值的元组
+ * @example
+ * const obj = { name: 'John', age: 30 };
+ * const entries = objectEntries(obj); // [['name', 'John'], ['age', 30]]
+ */
+export function objectEntries<T extends object>(obj: T): [keyof T, T[keyof T]][] {
+  return Object.entries(obj) as [keyof T, T[keyof T]][]
+}
+
+/**
+ * 将对象转换为键值对数组，提供更严格的类型检查
+ * @template T - 对象类型，键必须是string、number或symbol，值可以是任意类型
+ * @param obj - 要转换的对象
+ * @returns 键值对数组，每个元素是一个包含键和值的元组，类型完全对应原对象的键值类型
+ * @example
+ * const obj = { name: 'John', age: 30 };
+ * const entries = objectEntriesStrict(obj); // [['name', string], ['age', number]]
+ */
+export function objectEntriesStrict<T extends Record<string | number | symbol, unknown>>(
+  obj: T
+): { [K in keyof T]: [K, T[K]] }[keyof T][] {
+  return Object.entries(obj) as { [K in keyof T]: [K, T[K]] }[keyof T][]
+}
 
 /**
  * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U

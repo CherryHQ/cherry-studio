@@ -27,7 +27,16 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import type { GetResourceResponse, MCPCallToolResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
+import {
+  BuiltinMCPServerNames,
+  type GetResourceResponse,
+  isBuiltinMCPServer,
+  type MCPCallToolResponse,
+  type MCPPrompt,
+  type MCPResource,
+  type MCPServer,
+  type MCPTool
+} from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
@@ -162,7 +171,7 @@ class McpService {
           StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         > => {
           // Create appropriate transport based on configuration
-          if (server.type === 'inMemory') {
+          if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
             logger.debug(`Using in-memory transport for server: ${server.name}`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables

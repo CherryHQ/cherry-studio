@@ -429,8 +429,7 @@ export class GeminiAPIClient extends BaseApiClient<
   private getGenerateImageParameter(): Partial<GenerateContentConfig> {
     return {
       systemInstruction: undefined,
-      responseModalities: [Modality.TEXT, Modality.IMAGE],
-      responseMimeType: 'text/plain'
+      responseModalities: [Modality.TEXT, Modality.IMAGE]
     }
   }
 

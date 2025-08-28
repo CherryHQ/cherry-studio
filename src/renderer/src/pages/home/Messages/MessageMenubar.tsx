@@ -4,7 +4,7 @@ import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/component
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import { isVisionModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -382,8 +382,10 @@ const MessageMenubar: FC<Props> = (props) => {
 
   // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
   const mentionModelFilter = useMemo(() => {
+    const defaultFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+
     if (!isAssistantMessage) {
-      return () => true
+      return defaultFilter
     }
     const state = store.getState()
     const topicMessages: Message[] = selectMessagesForTopic(state, topic.id)
@@ -393,7 +395,7 @@ const MessageMenubar: FC<Props> = (props) => {
     })
     // 无关联用户消息时，默认返回所有模型
     if (!relatedUserMessage) {
-      return () => true
+      return defaultFilter
     }
 
     const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) =>
@@ -401,13 +403,13 @@ const MessageMenubar: FC<Props> = (props) => {
     )
 
     if (!relatedUserMessageBlocks) {
-      return () => true
+      return defaultFilter
     }
 
     if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
-      return (m: Model) => isVisionModel(m)
+      return (m: Model) => isVisionModel(m) && defaultFilter(m)
     } else {
-      return () => true
+      return defaultFilter
     }
   }, [isAssistantMessage, message.askId, topic.id])
 

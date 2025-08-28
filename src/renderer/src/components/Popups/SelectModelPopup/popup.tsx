@@ -1,17 +1,36 @@
 import { PushpinOutlined } from '@ant-design/icons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
+import {
+  EmbeddingTag,
+  FreeTag,
+  ReasoningTag,
+  RerankerTag,
+  ToolsCallingTag,
+  VisionTag,
+  WebSearchTag
+} from '@renderer/components/Tags/Model'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { getModelLogo, isEmbeddingModel, isRerankModel } from '@renderer/config/models'
+import {
+  getModelLogo,
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isRerankModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, Provider } from '@renderer/types'
+import { Model, ModelTag, ModelType, objectEntries, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
-import { Avatar, Button, Divider, Empty, Modal, Tooltip } from 'antd'
+import { getModelTags, isFreeModel } from '@renderer/utils/model'
+import { Avatar, Button, Divider, Empty, Flex, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
 import { SettingsIcon } from 'lucide-react'
 import React, {
+  ReactNode,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -25,22 +44,28 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import SelectModelSearchBar from './searchbar'
-import { FlatListItem } from './types'
+import { FlatListItem, FlatListModel } from './types'
 
-const PAGE_SIZE = 11
+const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
+
+type ModelPredict = (m: Model) => boolean
 
 interface PopupParams {
   model?: Model
   modelFilter?: (model: Model) => boolean
+  userFilterDisabled?: boolean
 }
 
 interface Props extends PopupParams {
   resolve: (value: Model | undefined) => void
-  modelFilter?: (model: Model) => boolean
 }
 
-const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
+export type FilterType = Exclude<ModelType, 'text'> | 'free'
+
+// const logger = loggerService.withContext('SelectModelPopup')
+
+const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilterDisabled }) => {
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { pinnedModels, togglePinnedModel, loading } = usePinnedModels()
@@ -48,6 +73,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
+
+  const allModels: Model[] = useMemo(
+    () => providers.flatMap((p) => p.models).filter(modelFilter ?? (() => true)),
+    [modelFilter, providers]
+  )
 
   // 当前选中的模型ID
   const currentModelId = model ? getModelUniqId(model) : ''
@@ -63,10 +93,99 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     })
   }, [])
 
+  // 管理用户筛选状态
+  /** 从模型列表获取的需要显示的标签 */
+  const availableTags = useMemo(
+    () =>
+      objectEntries(getModelTags(allModels))
+        .filter(([, state]) => state)
+        .map(([tag]) => tag),
+    [allModels]
+  )
+
+  const filterConfig: Record<ModelTag, ModelPredict> = useMemo(
+    () => ({
+      vision: isVisionModel,
+      embedding: isEmbeddingModel,
+      reasoning: isReasoningModel,
+      function_calling: isFunctionCallingModel,
+      web_search: isWebSearchModel,
+      rerank: isRerankModel,
+      free: isFreeModel
+    }),
+    []
+  )
+
+  /** 当前选择的标签，表示是否启用特定tag的筛选 */
+  const [filterTags, setFilterTags] = useState<Record<ModelTag, boolean>>({
+    vision: false,
+    embedding: false,
+    reasoning: false,
+    function_calling: false,
+    web_search: false,
+    rerank: false,
+    free: false
+  })
+  const selectedFilterTags = useMemo(
+    () =>
+      objectEntries(filterTags)
+        .filter(([, state]) => state)
+        .map(([tag]) => tag),
+    [filterTags]
+  )
+
+  const userFilter = useCallback(
+    (model: Model) => {
+      return selectedFilterTags
+        .map((tag) => [tag, filterConfig[tag]] as const)
+        .reduce((prev, [tag, predict]) => {
+          return prev && (!filterTags[tag] || predict(model))
+        }, true)
+    },
+    [filterConfig, filterTags, selectedFilterTags]
+  )
+
+  const onClickTag = useCallback((type: ModelTag) => {
+    startTransition(() => {
+      setFilterTags((prev) => ({ ...prev, [type]: !prev[type] }))
+    })
+  }, [])
+
+  // 筛选项列表
+  const tagsItems: Record<ModelTag, ReactNode> = useMemo(
+    () => ({
+      vision: <VisionTag showLabel inactive={!filterTags.vision} onClick={() => onClickTag('vision')} />,
+      embedding: <EmbeddingTag inactive={!filterTags.embedding} onClick={() => onClickTag('embedding')} />,
+      reasoning: <ReasoningTag showLabel inactive={!filterTags.reasoning} onClick={() => onClickTag('reasoning')} />,
+      function_calling: (
+        <ToolsCallingTag
+          showLabel
+          inactive={!filterTags.function_calling}
+          onClick={() => onClickTag('function_calling')}
+        />
+      ),
+      web_search: <WebSearchTag showLabel inactive={!filterTags.web_search} onClick={() => onClickTag('web_search')} />,
+      rerank: <RerankerTag inactive={!filterTags.rerank} onClick={() => onClickTag('rerank')} />,
+      free: <FreeTag inactive={!filterTags.free} onClick={() => onClickTag('free')} />
+    }),
+    [
+      filterTags.embedding,
+      filterTags.free,
+      filterTags.function_calling,
+      filterTags.reasoning,
+      filterTags.rerank,
+      filterTags.vision,
+      filterTags.web_search,
+      onClickTag
+    ]
+  )
+
+  // 要显示的筛选项
+  const displayedTags = useMemo(() => availableTags.map((tag) => tagsItems[tag]), [availableTags, tagsItems])
   // 根据输入的文本筛选模型
-  const getFilteredModels = useCallback(
+  const searchFilter = useCallback(
     (provider: Provider) => {
-      let models = provider.models.filter((m) => !isEmbeddingModel(m) && !isRerankModel(m))
+      let models = provider.models
 
       if (searchText.trim()) {
         models = filterModelsByKeywords(searchText, models, provider)
@@ -79,7 +198,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
   // 创建模型列表项
   const createModelItem = useCallback(
-    (model: Model, provider: Provider, isPinned: boolean): FlatListItem => {
+    (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
 
@@ -114,7 +233,11 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
   const { listItems, modelItems } = useMemo(() => {
     const items: FlatListItem[] = []
     const pinnedModelIds = new Set(pinnedModels)
-    const finalModelFilter = modelFilter || (() => true)
+    const finalModelFilter = (model: Model) => {
+      const _userFilter = userFilterDisabled || userFilter(model)
+      const _modelFilter = modelFilter === undefined || modelFilter(model)
+      return _userFilter && _modelFilter
+    }
 
     // 添加置顶模型分组（仅在无搜索文本时）
     if (searchText.length === 0 && pinnedModelIds.size > 0) {
@@ -140,7 +263,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
 
     // 添加常规模型分组
     providers.forEach((p) => {
-      const filteredModels = getFilteredModels(p)
+      const filteredModels = searchFilter(p)
         .filter((m) => searchText.length > 0 || !pinnedModelIds.has(getModelUniqId(m)))
         .filter(finalModelFilter)
 
@@ -174,9 +297,20 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     })
 
     // 获取可选择的模型项（过滤掉分组标题）
-    const modelItems = items.filter((item) => item.type === 'model') as FlatListItem[]
+    const modelItems = items.filter((item) => item.type === 'model')
     return { listItems: items, modelItems }
-  }, [pinnedModels, modelFilter, searchText.length, providers, createModelItem, t, getFilteredModels, resolve])
+  }, [
+    pinnedModels,
+    searchText.length,
+    providers,
+    userFilterDisabled,
+    userFilter,
+    modelFilter,
+    createModelItem,
+    t,
+    searchFilter,
+    resolve
+  ])
 
   const listHeight = useMemo(() => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
@@ -374,7 +508,9 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
           borderRadius: 20,
           padding: 0,
           overflow: 'hidden',
-          paddingBottom: 16
+          paddingBottom: 16,
+          // 需要稳定高度避免布局偏移
+          height: userFilterDisabled ? undefined : 530
         },
         body: {
           maxHeight: 'inherit',
@@ -386,6 +522,17 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
       {/* 搜索框 */}
       <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
+      {!userFilterDisabled && (
+        <>
+          <FilterContainer>
+            <Flex wrap="wrap" gap={4}>
+              <FilterText>{t('models.filter.by_tag')}</FilterText>
+              {displayedTags.map((item) => item)}
+            </Flex>
+          </FilterContainer>
+          <Divider style={{ margin: 0, borderBlockStartWidth: 0.5 }} />
+        </>
+      )}
 
       {listItems.length > 0 ? (
         <ListContainer onMouseMove={() => !isMouseOver && setIsMouseOver(true)}>
@@ -410,6 +557,16 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter }) => {
     </Modal>
   )
 }
+
+const FilterContainer = styled.div`
+  padding: 8px;
+  padding-left: 18px;
+`
+
+const FilterText = styled.span`
+  color: var(--color-text-3);
+  font-size: 12px;
+`
 
 const ListContainer = styled.div`
   position: relative;

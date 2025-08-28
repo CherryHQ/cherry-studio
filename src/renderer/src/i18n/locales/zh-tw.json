@@ -789,6 +789,7 @@
         "label": "按拼音排序"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
@@ -1521,6 +1522,10 @@
     "embedding_model": "嵌入模型",
     "embedding_model_tooltip": "在設定 -> 模型服務中點選管理按鈕新增",
     "enable_tool_use": "工具調用",
+    "filter": {
+      "by_tag": "按標籤篩選",
+      "selected": "已選標籤"
+    },
     "function_calling": "函數調用",
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
@@ -3800,6 +3805,9 @@
         "placeholder": "搜索翻譯歷史"
       },
       "title": "翻譯歷史"
+    },
+    "info": {
+      "aborted": "翻譯中止"
     },
     "input": {
       "placeholder": "輸入文字進行翻譯"

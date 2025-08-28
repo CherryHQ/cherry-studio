@@ -17,7 +17,7 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
 import {
   type AutoDetectionMethod,
@@ -27,7 +27,9 @@ import {
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
-import { getFileExtension, runAsyncFunction } from '@renderer/utils'
+import { getFileExtension, runAsyncFunction, uuid } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
+import { isAbortError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import {
@@ -40,7 +42,7 @@ import { imageExts, MB, textExts } from '@shared/config/constant'
 import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
-import { Check, FolderClock, Settings2, UploadIcon } from 'lucide-react'
+import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -86,6 +88,7 @@ const TranslatePage: FC = () => {
   const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
   const translating = useAppSelector((state) => state.runtime.translating)
+  const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
@@ -144,11 +147,16 @@ const TranslatePage: FC = () => {
         }
 
         let translated: string
+        const abortKey = uuid()
+        dispatch(setTranslateAbortKey(abortKey))
+
         try {
-          translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100))
+          translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
         } catch (e) {
-          logger.error('Failed to translate text', e as Error)
-          window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+          if (!isAbortError(e)) {
+            logger.error('Failed to translate text', e as Error)
+            window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+          }
           setTranslating(false)
           return
         }
@@ -166,11 +174,12 @@ const TranslatePage: FC = () => {
         window.message.error(t('translate.error.unknown') + ': ' + (e as Error).message)
       }
     },
-    [setTranslatedContent, setTranslating, t, translating]
+    [dispatch, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮，翻译前进行校验
   const onTranslate = useCallback(async () => {
+    if (!couldTranslate) return
     if (!text.trim()) return
     if (!translateModel) {
       window.message.error({
@@ -236,6 +245,15 @@ const TranslatePage: FC = () => {
     translate,
     translateModel
   ])
+
+  // 控制停止翻译
+  const onAbort = async () => {
+    if (!abortKey || !abortKey.trim()) {
+      logger.error('Failed to abort. Invalid abortKey.')
+      return
+    }
+    abortCompletion(abortKey)
+  }
 
   // 控制双向翻译切换
   const toggleBidirectional = (value: boolean) => {
@@ -607,7 +625,7 @@ const TranslatePage: FC = () => {
             })
             return
           }
-          processFile(selectedFile)
+          await processFile(selectedFile)
         } catch (error) {
           logger.error('onPaste:', error as Error)
           window.message.error(t('chat.input.file_error'))
@@ -672,7 +690,12 @@ const TranslatePage: FC = () => {
               />
             </Tooltip>
             {getLanguageDisplay()}
-            <TranslateButton translating={translating} onTranslate={onTranslate} couldTranslate={couldTranslate} />
+            <TranslateButton
+              translating={translating}
+              onTranslate={onTranslate}
+              couldTranslate={couldTranslate}
+              onAbort={onAbort}
+            />
           </InnerOperationBar>
           <InnerOperationBar style={{ justifyContent: 'flex-end' }}>
             <ModelSelectButton
@@ -903,11 +926,13 @@ const OutputText = styled.div`
 const TranslateButton = ({
   translating,
   onTranslate,
-  couldTranslate
+  couldTranslate,
+  onAbort
 }: {
   translating: boolean
   onTranslate: () => void
   couldTranslate: boolean
+  onAbort: () => void
 }) => {
   const { t } = useTranslation()
   return (
@@ -922,14 +947,16 @@ const TranslateButton = ({
           Shift + Enter: {t('translate.tooltip.newline')}
         </div>
       }>
-      <Button
-        type="primary"
-        loading={translating}
-        onClick={onTranslate}
-        disabled={!couldTranslate}
-        icon={<SendOutlined />}>
-        {t('translate.button.translate')}
-      </Button>
+      {!translating && (
+        <Button type="primary" onClick={onTranslate} disabled={!couldTranslate} icon={<SendOutlined />}>
+          {t('translate.button.translate')}
+        </Button>
+      )}
+      {translating && (
+        <Button danger type="primary" onClick={onAbort} icon={<CirclePause size={14} />}>
+          {t('common.stop')}
+        </Button>
+      )}
     </Tooltip>
   )
 }

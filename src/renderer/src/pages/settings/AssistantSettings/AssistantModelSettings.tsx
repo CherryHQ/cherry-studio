@@ -6,9 +6,10 @@ import { HStack } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
-import { Assistant, AssistantSettingCustomParameters, AssistantSettings } from '@renderer/types'
+import { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
 import { isNull } from 'lodash'
@@ -179,10 +180,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       toolUseMode: 'prompt'
     })
   }
+  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
   const onSelectModel = useCallback(async () => {
     const currentModel = defaultModel ? assistant?.model : undefined
-    const selectedModel = await SelectModelPopup.show({ model: currentModel })
+    const selectedModel = await SelectModelPopup.show({ model: currentModel, modelFilter })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({

@@ -789,6 +789,7 @@
         "label": "ピンインでソート"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
@@ -1521,6 +1522,10 @@
     "embedding_model": "埋め込み模型",
     "embedding_model_tooltip": "設定->モデルサービス->管理で追加",
     "enable_tool_use": "ツール呼び出し",
+    "filter": {
+      "by_tag": "タグでフィルター",
+      "selected": "選択済みのタグ"
+    },
     "function_calling": "関数呼び出し",
     "no_matches": "利用可能なモデルがありません",
     "parameter_name": "パラメータ名",
@@ -3800,6 +3805,9 @@
         "placeholder": "翻訳履歴を検索する"
       },
       "title": "翻訳履歴"
+    },
+    "info": {
+      "aborted": "翻訳中止"
     },
     "input": {
       "placeholder": "翻訳するテキストを入力"

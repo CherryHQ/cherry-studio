@@ -789,6 +789,7 @@
         "label": "Сортировать по пиньинь"
       }
     },
+    "stop": "Arrêter",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
@@ -1521,6 +1522,10 @@
     "embedding_model": "Modèle d'incrustation",
     "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "enable_tool_use": "Appel d'outil",
+    "filter": {
+      "by_tag": "Filtrer par étiquette",
+      "selected": "Étiquette sélectionnée"
+    },
     "function_calling": "Appel de fonction",
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
@@ -3799,6 +3804,9 @@
         "placeholder": "Rechercher l'historique des traductions"
       },
       "title": "Historique des traductions"
+    },
+    "info": {
+      "aborted": "Traduction annulée"
     },
     "input": {
       "placeholder": "entrez le texte à traduire"

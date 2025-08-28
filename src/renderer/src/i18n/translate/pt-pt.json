@@ -789,6 +789,7 @@
         "label": "Ordenar por Pinyin"
       }
     },
+    "stop": "Parar",
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
@@ -1521,6 +1522,10 @@
     "embedding_model": "Modelo de inscrição",
     "embedding_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
     "enable_tool_use": "Chamada de ferramentas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiqueta selecionada"
+    },
     "function_calling": "Chamada de função",
     "no_matches": "Nenhum modelo disponível",
     "parameter_name": "Nome do parâmetro",
@@ -3799,6 +3804,9 @@
         "placeholder": "Pesquisar histórico de tradução"
       },
       "title": "Histórico de Tradução"
+    },
+    "info": {
+      "aborted": "Tradução interrompida"
     },
     "input": {
       "placeholder": "Digite o texto para traduzir"

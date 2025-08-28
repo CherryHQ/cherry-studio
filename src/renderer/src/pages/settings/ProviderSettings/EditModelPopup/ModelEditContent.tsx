@@ -6,7 +6,7 @@ import {
   ToolsCallingTag,
   VisionTag,
   WebSearchTag
-} from '@renderer/components/Tags/ModelCapabilities'
+} from '@renderer/components/Tags/Model'
 import WarnTooltip from '@renderer/components/WarnTooltip'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import {

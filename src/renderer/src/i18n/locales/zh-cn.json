@@ -789,6 +789,7 @@
         "label": "按拼音排序"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
@@ -1521,6 +1522,10 @@
     "embedding_model": "嵌入模型",
     "embedding_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
     "enable_tool_use": "工具调用",
+    "filter": {
+      "by_tag": "按标签筛选",
+      "selected": "已选标签"
+    },
     "function_calling": "函数调用",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
@@ -3800,6 +3805,9 @@
         "placeholder": "搜索翻译历史"
       },
       "title": "翻译历史"
+    },
+    "info": {
+      "aborted": "翻译中止"
     },
     "input": {
       "placeholder": "输入文本进行翻译"
