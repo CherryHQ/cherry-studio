@@ -60,7 +60,6 @@ const MessageItem: FC<Props> = ({
   index,
   hideMenuBar = false,
   isGrouped,
-  isStreaming = false,
   onUpdateUseful,
   isGroupContextMessage
 }) => {
@@ -107,7 +106,7 @@ const MessageItem: FC<Props> = ({
         logger.error('Failed to resend message:', error as Error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]
+    [message, resendUserMessageWithEdit, assistant, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
@@ -116,7 +115,7 @@ const MessageItem: FC<Props> = ({
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
-  const showMenubar = !hideMenuBar && !isStreaming && !message.status.includes('ing') && !isEditing
+  const showMenubar = !hideMenuBar && !isEditing
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
