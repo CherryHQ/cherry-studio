@@ -1,4 +1,4 @@
-import { getProgressLabel } from '@renderer/i18n/label'
+import { getRestoreProgressLabel } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Modal, Progress } from 'antd'
@@ -49,11 +49,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (!progressData) return ''
 
     if (progressData.stage === 'copying_files') {
-      return t('backup.progress.copying_files', {
+      return t('restore.progress.copying_files', {
         progress: Math.floor(progressData.progress)
       })
     }
-    return getProgressLabel(progressData.stage)
+    return getRestoreProgressLabel(progressData.stage)
   }
 
   RestorePopup.hide = onCancel

@@ -177,6 +177,18 @@ const TranslatePage: FC = () => {
     [dispatch, setTranslatedContent, setTranslating, t, translating]
   )
 
+  // 控制翻译按钮是否可用
+  const couldTranslate = useMemo(() => {
+    return !(
+      !text.trim() ||
+      (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
+      targetLanguage.langCode === UNKNOWN.langCode ||
+      (isBidirectional &&
+        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode)) ||
+      isProcessing
+    )
+  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage.langCode, text])
+
   // 控制翻译按钮，翻译前进行校验
   const onTranslate = useCallback(async () => {
     if (!couldTranslate) return
@@ -235,6 +247,7 @@ const TranslatePage: FC = () => {
     }
   }, [
     bidirectionalPair,
+    couldTranslate,
     getLanguageByLangcode,
     isBidirectional,
     setTranslating,
@@ -445,18 +458,6 @@ const TranslatePage: FC = () => {
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
     []
   )
-
-  // 控制翻译按钮是否可用
-  const couldTranslate = useMemo(() => {
-    return !(
-      !text.trim() ||
-      (sourceLanguage !== 'auto' && sourceLanguage.langCode === UNKNOWN.langCode) ||
-      targetLanguage.langCode === UNKNOWN.langCode ||
-      (isBidirectional &&
-        (bidirectionalPair[0].langCode === UNKNOWN.langCode || bidirectionalPair[1].langCode === UNKNOWN.langCode)) ||
-      isProcessing
-    )
-  }, [bidirectionalPair, isBidirectional, isProcessing, sourceLanguage, targetLanguage.langCode, text])
 
   // 控制token估计
   const tokenCount = useMemo(() => estimateTextTokens(text + prompt), [prompt, text])

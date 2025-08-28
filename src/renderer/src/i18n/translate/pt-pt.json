@@ -240,6 +240,7 @@
       "compressing": "Comprimindo arquivo...",
       "copying_files": "Copiando arquivos... {{progress}}%",
       "preparing": "Preparando backup...",
+      "preparing_compression": "Preparando compressão...",
       "title": "Progresso do Backup",
       "writing_data": "Escrevendo dados..."
     },

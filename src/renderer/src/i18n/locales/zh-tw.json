@@ -240,6 +240,7 @@
       "compressing": "壓縮檔案...",
       "copying_files": "複製檔案... {{progress}}%",
       "preparing": "準備備份...",
+      "preparing_compression": "準備壓縮...",
       "title": "備份進度",
       "writing_data": "寫入資料..."
     },

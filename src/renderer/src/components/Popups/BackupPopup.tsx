@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { getProgressLabel } from '@renderer/i18n/label'
+import { getBackupProgressLabel } from '@renderer/i18n/label'
 import { backup } from '@renderer/services/BackupService'
 import store from '@renderer/store'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -61,7 +61,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         progress: Math.floor(progressData.progress)
       })
     }
-    return getProgressLabel(progressData.stage)
+    return getBackupProgressLabel(progressData.stage)
   }
 
   BackupPopup.hide = onCancel

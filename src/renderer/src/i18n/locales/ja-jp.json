@@ -240,6 +240,7 @@
       "compressing": "圧縮中...",
       "copying_files": "ファイルコピー中... {{progress}}%",
       "preparing": "バックアップ準備中...",
+      "preparing_compression": "圧縮準備中...",
       "title": "バックアップ進捗",
       "writing_data": "データ書き込み中..."
     },
