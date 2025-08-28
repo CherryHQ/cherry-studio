@@ -71,7 +71,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderLeft>
 
       <HeaderCenter>
-        <ViewControls>
+        <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
@@ -96,7 +96,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         </ViewControls>
       </HeaderCenter>
 
-      <HeaderRight $isFullscreen={isFullscreen}>
+      <HeaderRight $isFullscreen={isFullscreen} onDoubleClick={(e) => e.stopPropagation()}>
         <Tooltip title={t('code_block.download.png')} mouseLeaveDelay={0}>
           <Button onClick={handleCapture} type="text" icon={<Camera size={16} />} className="nodrag" />
         </Tooltip>
