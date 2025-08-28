@@ -1,10 +1,14 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
-import { Button, Switch, Tag, Typography } from 'antd'
-import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC } from 'react'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
+import { CircleXIcon, Settings2, SquareArrowOutUpRight, Trash2Icon } from 'lucide-react'
+import { FC, useCallback } from 'react'
+import { FallbackProps } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface McpServerCardProps {
@@ -26,6 +30,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
   onEdit,
   onOpenUrl
 }) => {
+  const { t } = useTranslation()
   const handleOpenUrl = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (server.providerUrl) {
@@ -33,8 +38,65 @@ const McpServerCard: FC<McpServerCardProps> = ({
     }
   }
 
+  const Fallback = useCallback(
+    (props: FallbackProps) => {
+      const { error } = props
+
+      const ErrorDetails = () => {
+        return (
+          <div
+            style={{
+              padding: 8,
+              textWrap: 'pretty',
+              fontFamily: 'monospace',
+              userSelect: 'text',
+              marginRight: 20,
+              color: 'var(--color-status-error)'
+            }}>
+            {formatErrorMessage(error)}
+          </div>
+        )
+      }
+      return (
+        <Alert
+          message={t('error.boundary.mcp.invalid')}
+          showIcon
+          type="error"
+          style={{ height: 125, alignItems: 'flex-start' }}
+          action={
+            <Space.Compact>
+              <Button
+                danger
+                type="text"
+                icon={
+                  <Tooltip title={t('error.boundary.details')}>
+                    <CircleXIcon size={16} />
+                  </Tooltip>
+                }
+                size="small"
+                onClick={() => GeneralPopup.show({ content: <ErrorDetails /> })}
+              />
+              <Button
+                danger
+                type="text"
+                icon={
+                  <Tooltip title={t('common.delete')}>
+                    <Trash2Icon size={16} />
+                  </Tooltip>
+                }
+                size="small"
+                onClick={onDelete}
+              />
+            </Space.Compact>
+          }
+        />
+      )
+    },
+    [onDelete, t]
+  )
+
   return (
-    <ErrorBoundary>
+    <ErrorBoundary fallbackComponent={Fallback}>
       <CardContainer $isActive={server.isActive} onClick={onEdit}>
         <ServerHeader>
           <ServerNameWrapper>
