@@ -1,3 +1,4 @@
+import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { Upload } from 'antd'
@@ -34,9 +35,23 @@ const MessageAttachments: FC<Props> = ({ block }) => {
             uid: block.file.id,
             url: 'file://' + FileManager.getSafePath(block.file),
             status: 'done' as const,
-            name: FileManager.formatFileName(block.file)
+            name: FileManager.formatFileName(block.file),
+            type: block.file.type
           }
         ]}
+        onPreview={(file) => {
+          if (file.url === undefined) {
+            return
+          }
+          const path = file.url.slice(7)
+          if (file.type === 'text') {
+            window.api.file.readInPath(path, true).then((fileContent) => {
+              TextFilePreviewPopup.show(fileContent)
+            })
+          } else {
+            window.api.file.openPath(path)
+          }
+        }}
       />
     </Container>
   )
