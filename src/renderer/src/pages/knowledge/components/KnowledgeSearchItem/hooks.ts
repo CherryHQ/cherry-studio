@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isValidUrl } from '@renderer/utils/fetch'
 import { message } from 'antd'
 import React, { ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -53,7 +54,7 @@ export const useKnowledgeItemMetadata = () => {
         href: `http://file/${item.file.name}`,
         text: item.file.origin_name
       }
-    } else if (item.metadata.type !== 'LocalPathLoader') {
+    } else if (isValidUrl(item.metadata.source)) {
       return {
         href: item.metadata.source,
         text: item.metadata.source
