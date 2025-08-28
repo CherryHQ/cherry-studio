@@ -5,7 +5,7 @@ import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
-import { CircleXIcon, Settings2, SquareArrowOutUpRight, Trash2Icon } from 'lucide-react'
+import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback } from 'react'
 import { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
@@ -81,7 +81,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 type="text"
                 icon={
                   <Tooltip title={t('common.delete')}>
-                    <Trash2Icon size={16} />
+                    <DeleteIcon size={16} />
                   </Tooltip>
                 }
                 size="small"
