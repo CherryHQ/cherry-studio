@@ -818,6 +818,10 @@
         "devtools": "Abrir o painel de depuração",
         "message": "Parece que ocorreu um problema...",
         "reload": "Recarregar"
+      },
+      "details": "Detalhes",
+      "mcp": {
+        "invalid": "Servidor MCP inválido"
       }
     },
     "chat": {
