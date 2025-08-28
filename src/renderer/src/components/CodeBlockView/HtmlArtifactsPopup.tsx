@@ -62,11 +62,12 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            window.message.success(t('message.copy.success'))
           }
         })
       }
     },
-    [html]
+    [html, t]
   )
 
   const renderHeader = () => (
