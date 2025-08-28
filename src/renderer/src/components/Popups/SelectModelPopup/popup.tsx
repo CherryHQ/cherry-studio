@@ -72,7 +72,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     })
   }, [])
 
-  const { tagSelection, tagFilter, toggleTag } = useModelTagFilter()
+  const { tagSelection, selectedTags, tagFilter, toggleTag } = useModelTagFilter()
 
   // 计算要显示的可用标签列表
   const availableTags = useMemo(() => {
@@ -216,7 +216,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT
   }, [listItems.length])
 
-  // 处理程序化滚动（加载、搜索开始、搜索清空）
+  // 处理程序化滚动（加载、搜索开始、搜索清空、tag 筛选）
   useLayoutEffect(() => {
     if (loading) return
 
@@ -227,8 +227,8 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
 
     let targetItemKey: string | undefined
 
-    // 启动搜索时，滚动到第一个 item
-    if (searchText) {
+    // 启动搜索或 tag 筛选时，滚动到第一个 item
+    if (searchText || selectedTags.length > 0) {
       targetItemKey = modelItems[0]?.key
     }
     // 初始加载或清空搜索时，滚动到 selected item
@@ -249,7 +249,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         })
       }
     }
-  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight])
+  }, [searchText, listItems, modelItems, loading, setFocusedItemKey, listHeight, selectedTags.length])
 
   const handleItemClick = useCallback(
     (item: FlatListItem) => {
