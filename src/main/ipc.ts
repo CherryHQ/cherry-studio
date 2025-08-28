@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
+import { generateSignature } from '@main/integration/cherryin'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -714,4 +715,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // OCR
   ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
+
+  // CherryIN
+  ipcMain.handle(IpcChannel.Cherryin_GetSignature, (_, params) => generateSignature(params))
 }
