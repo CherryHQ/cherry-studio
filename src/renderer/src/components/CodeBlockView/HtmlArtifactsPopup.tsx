@@ -2,7 +2,7 @@ import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
-import { extractTitle } from '@renderer/utils/formats'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Button, Modal, Splitter, Tooltip, Typography } from 'antd'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -57,8 +57,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     const dataUrl = base64 ? `data:image/png;base64,${base64}` : undefined
 
     // 构造文件名，保存为图片
-    const title = extractTitle(html) || 'HTML Artifacts'
-    const fileName = `${title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-') || 'html-artifact'}`
+    const title = extractHtmlTitle(html)
+    const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
     if (fileName && dataUrl) {
       window.api.file.saveImage(fileName, dataUrl)
     }
