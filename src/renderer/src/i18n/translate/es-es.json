@@ -3801,6 +3801,7 @@
     "files": {
       "drag_text": "Arrastrar y soltar aquí",
       "error": {
+        "check_type": "Se produjo un error al verificar el tipo de archivo",
         "multiple": "No se permite cargar varios archivos",
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"

@@ -3801,6 +3801,7 @@
     "files": {
       "drag_text": "Drop here",
       "error": {
+        "check_type": "An error occurred while checking the file type",
         "multiple": "Multiple file uploads are not allowed",
         "too_large": "File too large",
         "unknown": "Failed to read file content"

@@ -3801,6 +3801,7 @@
     "files": {
       "drag_text": "Glisser-déposer ici",
       "error": {
+        "check_type": "Une erreur s'est produite lors de la vérification du type de fichier",
         "multiple": "Impossible de téléverser plusieurs fichiers",
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
