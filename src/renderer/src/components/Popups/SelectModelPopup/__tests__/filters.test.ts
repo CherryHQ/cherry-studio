@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useModelTagFilter } from '../filters'
 
-// 使用 hoisted mocks 集中管理
 const mocks = vi.hoisted(() => ({
   isVisionModel: vi.fn(),
   isEmbeddingModel: vi.fn(),
