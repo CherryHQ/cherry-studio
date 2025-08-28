@@ -32,11 +32,11 @@ import AddProviderPopup from './AddProviderPopup'
 import ModelNotesPopup from './ModelNotesPopup'
 import ProviderSetting from './ProviderSetting'
 
-const logger = loggerService.withContext('ProvidersList')
+const logger = loggerService.withContext('ProviderList')
 
 const BUTTON_WRAPPER_HEIGHT = 50
 
-const ProvidersList: FC = () => {
+const ProviderList: FC = () => {
   const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
@@ -718,4 +718,4 @@ const EyeButton = styled.button`
   }
 `
 
-export default ProvidersList
+export default ProviderList
