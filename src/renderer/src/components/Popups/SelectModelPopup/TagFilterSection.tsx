@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   EmbeddingTag,
   FreeTag,
@@ -12,6 +13,8 @@ import { Flex } from 'antd'
 import React, { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('TagFilterSection')
 
 interface TagFilterSectionProps {
   availableTags: ModelTag[]
@@ -49,14 +52,18 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
         <FilterText>{t('models.filter.by_tag')}</FilterText>
         {availableTags.map((tag) => {
           const TagElement = tagComponents[tag]
-          return TagElement ? (
+          if (!TagElement) {
+            logger.error(`Tag element not found for tag: ${tag}`)
+            return null
+          }
+          return (
             <TagElement
               key={`tag-${tag}`}
               onClick={() => handleTagClick(tag)}
               inactive={!tagSelection[tag]}
               showLabel
             />
-          ) : null
+          )
         })}
       </Flex>
     </FilterContainer>
