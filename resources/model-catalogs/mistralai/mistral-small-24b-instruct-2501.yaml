@@ -1,0 +1,49 @@
+id: mistralai/mistral-small-24b-instruct-2501
+canonical_slug: mistralai/mistral-small-24b-instruct-2501
+hugging_face_id: mistralai/Mistral-Small-24B-Instruct-2501
+name: 'Mistral: Mistral Small 3'
+type: chat
+created: 1738255409
+description: |-
+  Mistral Small 3 is a 24B-parameter language model optimized for low-latency performance across common AI tasks. Released under the Apache 2.0 license, it features both pre-trained and instruction-tuned versions designed for efficient local deployment.
+
+  The model achieves 81% accuracy on the MMLU benchmark and performs competitively with larger models like Llama 3.3 70B and Qwen 32B, while operating at three times the speed on equivalent hardware. [Read the blog post about the model here.](https://mistral.ai/news/mistral-small-3/)
+context_length: 32768
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.00000005'
+  completion: '0.00000009'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - repetition_penalty
+  - logit_bias
+  - logprobs
+  - top_logprobs
+  - min_p
+  - seed
+  - response_format
+  - tools
+  - tool_choice
+  - structured_outputs
+model_provider: mistralai

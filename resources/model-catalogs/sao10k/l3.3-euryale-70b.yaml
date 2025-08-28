@@ -1,0 +1,41 @@
+id: sao10k/l3.3-euryale-70b
+canonical_slug: sao10k/l3.3-euryale-70b-v2.3
+hugging_face_id: Sao10K/L3.3-70B-Euryale-v2.3
+name: 'Sao10K: Llama 3.3 Euryale 70B'
+type: chat
+created: 1734535928
+description: Euryale L3.3 70B is a model focused on creative roleplay from [Sao10k](https://ko-fi.com/sao10k). It is the successor of [Euryale L3 70B v2.2](/models/sao10k/l3-euryale-70b).
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama3
+  instruct_type: llama3
+pricing:
+  prompt: '0.0000007'
+  completion: '0.0000008'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - response_format
+  - top_k
+  - seed
+  - min_p
+  - logit_bias
+model_provider: sao10k

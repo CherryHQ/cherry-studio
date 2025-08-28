@@ -1,0 +1,42 @@
+id: sao10k/fimbulvetr-11b-v2
+canonical_slug: sao10k/fimbulvetr-11b-v2
+hugging_face_id: Sao10K/Fimbulvetr-11B-v2
+name: Fimbulvetr 11B v2
+type: chat
+created: 1713657600
+description: |-
+  Creative writing model, routed with permission. It's fast, it keeps the conversation going, and it stays in character.
+
+  If you submit a raw prompt, you can use Alpaca or Vicuna formats.
+context_length: 4096
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Llama2
+  instruct_type: alpaca
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+model_provider: sao10k

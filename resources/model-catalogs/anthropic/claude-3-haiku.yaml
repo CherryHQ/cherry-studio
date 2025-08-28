@@ -1,0 +1,43 @@
+id: anthropic/claude-3-haiku
+canonical_slug: anthropic/claude-3-haiku
+hugging_face_id: ''
+name: 'Anthropic: Claude 3 Haiku'
+type: chat
+created: 1710288000
+description: |-
+  Claude 3 Haiku is Anthropic's fastest and most compact model for
+  near-instant responsiveness. Quick and accurate targeted performance.
+
+  See the launch announcement and benchmark results [here](https://www.anthropic.com/news/claude-3-haiku)
+
+  #multimodal
+context_length: 200000
+architecture:
+  modality: text+image->text
+  input_modalities:
+    - text
+    - image
+  output_modalities:
+    - text
+  tokenizer: Claude
+  instruct_type: null
+pricing:
+  prompt: '0.00000025'
+  completion: '0.00000125'
+  input_cache_read: '0.00000003'
+  input_cache_write: '0.0000003'
+  request: '0'
+  image: '0.0004'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - top_k
+  - stop
+model_provider: anthropic

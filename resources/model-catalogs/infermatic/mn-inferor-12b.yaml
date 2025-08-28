@@ -1,0 +1,42 @@
+id: infermatic/mn-inferor-12b
+canonical_slug: infermatic/mn-inferor-12b
+hugging_face_id: Infermatic/MN-12B-Inferor-v0.0
+name: 'Infermatic: Mistral Nemo Inferor 12B'
+type: chat
+created: 1731464428
+description: |
+  Inferor 12B is a merge of top roleplay models, expert on immersive narratives and storytelling.
+
+  This model was merged using the [Model Stock](https://arxiv.org/abs/2403.19522) merge method using [anthracite-org/magnum-v4-12b](https://openrouter.ai/anthracite-org/magnum-v4-72b) as a base.
+context_length: 16384
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: mistral
+pricing:
+  prompt: '0.0000008'
+  completion: '0.0000012'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - repetition_penalty
+  - top_k
+  - min_p
+  - seed
+model_provider: infermatic

@@ -1,0 +1,45 @@
+id: cohere/command-r-plus-08-2024
+canonical_slug: cohere/command-r-plus-08-2024
+hugging_face_id: ''
+name: 'Cohere: Command R+ (08-2024)'
+type: chat
+created: 1724976000
+description: |-
+  command-r-plus-08-2024 is an update of the [Command R+](/models/cohere/command-r-plus) with roughly 50% higher throughput and 25% lower latencies as compared to the previous Command R+ version, while keeping the hardware footprint the same.
+
+  Read the launch post [here](https://docs.cohere.com/changelog/command-gets-refreshed).
+
+  Use of this model is subject to Cohere's [Usage Policy](https://docs.cohere.com/docs/usage-policy) and [SaaS Agreement](https://cohere.com/saas-agreement).
+context_length: 128000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Cohere
+  instruct_type: null
+pricing:
+  prompt: '0.0000025'
+  completion: '0.00001'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - max_tokens
+  - temperature
+  - top_p
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - top_k
+  - seed
+  - response_format
+  - structured_outputs
+model_provider: cohere

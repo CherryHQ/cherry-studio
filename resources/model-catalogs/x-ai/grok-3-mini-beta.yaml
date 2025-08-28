@@ -1,0 +1,41 @@
+id: x-ai/grok-3-mini-beta
+canonical_slug: x-ai/grok-3-mini-beta
+hugging_face_id: ''
+name: 'xAI: Grok 3 Mini Beta'
+type: chat
+created: 1744240195
+description: "Grok 3 Mini is a lightweight, smaller thinking model. Unlike traditional models that generate answers immediately, Grok 3 Mini thinks before responding. It’s ideal for reasoning-heavy tasks that don’t demand extensive domain knowledge, and shines in math-specific and quantitative use cases, such as solving challenging puzzles or math problems.\n\nTransparent \"thinking\" traces accessible. Defaults to low reasoning, can boost with setting `reasoning: { effort: \"high\" }`\n\nNote: That there are two xAI endpoints for this model. By default when using this model we will always route you to the base endpoint. If you want the fast endpoint you can add `provider: { sort: throughput}`, to sort by throughput instead. \n"
+context_length: 131072
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Grok
+  instruct_type: null
+pricing:
+  prompt: '0.0000003'
+  completion: '0.0000005'
+  input_cache_read: '0.000000075'
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - stop
+  - seed
+  - logprobs
+  - top_logprobs
+  - response_format
+model_provider: x-ai

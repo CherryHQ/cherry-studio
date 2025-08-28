@@ -1,0 +1,42 @@
+id: mistralai/magistral-small-2506
+canonical_slug: mistralai/magistral-small-2506
+hugging_face_id: mistralai/Magistral-Small-2506
+name: 'Mistral: Magistral Small 2506'
+type: chat
+created: 1749569561
+description: Magistral Small is a 24B parameter instruction-tuned model based on Mistral-Small-3.1 (2503), enhanced through supervised fine-tuning on traces from Magistral Medium and further refined via reinforcement learning. It is optimized for reasoning and supports a wide multilingual range, including over 20 languages.
+context_length: 40000
+architecture:
+  modality: text->text
+  input_modalities:
+    - text
+  output_modalities:
+    - text
+  tokenizer: Mistral
+  instruct_type: null
+pricing:
+  prompt: '0.0000005'
+  completion: '0.0000015'
+  input_cache_read: ''
+  input_cache_write: ''
+  request: '0'
+  image: '0'
+  web_search: '0'
+  internal_reasoning: '0'
+  unit: 1
+  currency: USD
+supported_parameters:
+  - tools
+  - tool_choice
+  - max_tokens
+  - temperature
+  - top_p
+  - reasoning
+  - include_reasoning
+  - structured_outputs
+  - response_format
+  - stop
+  - frequency_penalty
+  - presence_penalty
+  - seed
+model_provider: mistralai
