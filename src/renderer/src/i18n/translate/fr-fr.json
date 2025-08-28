@@ -766,6 +766,7 @@
     "more": "Plus",
     "name": "Nom",
     "no_results": "Aucun résultat",
+    "off": "Fermer",
     "open": "Ouvrir",
     "paste": "Coller",
     "preview": "Aperçu",
@@ -2727,6 +2728,7 @@
         "title": "Mise à jour automatique"
       },
       "avatar": {
+        "builtin": "Avatar intégré",
         "reset": "Réinitialiser l'avatar"
       },
       "backup": {
@@ -2780,6 +2782,9 @@
         "all": "Effacer",
         "knowledge_base": "Effacer les bases de connaissances sélectionnées",
         "models": "Effacer tous les modèles"
+      },
+      "image_process": {
+        "title": "Traitement d'images"
       },
       "show_translate_confirm": "Afficher la boîte de dialogue de confirmation de traduction",
       "target_language": {
@@ -3210,7 +3215,11 @@
       "translate_model_prompt_message": "Entrez le mot-clé du modèle de traduction",
       "translate_model_prompt_title": "Mot-clé du modèle de traduction",
       "use_assistant": "Utiliser l'assistant",
-      "use_model": "Modèle par défaut"
+      "use_model": "Modèle par défaut",
+      "vision": {
+        "description": "Lorsque le modèle utilisé pour la conversation ne prend pas en charge la vision, il est possible de choisir d'utiliser un modèle visuel pour extraire les informations de l'image, puis de les envoyer au modèle de conversation.",
+        "label": "modèle visuel"
+      }
     },
     "moresetting": {
       "check": {

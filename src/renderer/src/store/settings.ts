@@ -5,6 +5,7 @@ import {
   ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
+  ImageProcessMethod,
   LanguageVarious,
   MathEngine,
   OpenAIServiceTier,
@@ -211,6 +212,8 @@ export interface SettingsState {
   // API Server
   apiServer: ApiServerConfig
   showMessageOutline?: boolean
+  // image process method in chat
+  imageProcessMethod: ImageProcessMethod
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -399,7 +402,8 @@ export const initialState: SettingsState = {
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
   },
-  showMessageOutline: undefined
+  showMessageOutline: undefined,
+  imageProcessMethod: 'off'
 }
 
 const settingsSlice = createSlice({
@@ -831,6 +835,9 @@ const settingsSlice = createSlice({
     },
     setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
       state.showMessageOutline = action.payload
+    },
+    setImageProcessMethod: (state, action: PayloadAction<ImageProcessMethod>) => {
+      state.imageProcessMethod = action.payload
     }
   }
 })
@@ -960,7 +967,8 @@ export const {
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,
-  setApiServerApiKey
+  setApiServerApiKey,
+  setImageProcessMethod
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

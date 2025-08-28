@@ -2,7 +2,7 @@ import { RedoOutlined } from '@ant-design/icons'
 import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel, isVisionModel } from '@renderer/config/models'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
@@ -14,7 +14,7 @@ import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { find } from 'lodash'
-import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
+import { EyeIcon, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -24,8 +24,16 @@ import DefaultAssistantSettings from './DefaultAssistantSettings'
 import TopicNamingModalPopup from './QuickModelPopup'
 
 const ModelSettings: FC = () => {
-  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    quickModel,
+    translateModel,
+    visionModel,
+    setDefaultModel,
+    setQuickModel,
+    setTranslateModel,
+    setVisionModel
+  } = useDefaultModel()
   const { providers } = useProviders()
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
@@ -49,6 +57,11 @@ const ModelSettings: FC = () => {
   const defaultTranslateModel = useMemo(
     () => (hasModel(translateModel) ? getModelUniqId(translateModel) : undefined),
     [translateModel]
+  )
+
+  const defaultVisionModel = useMemo(
+    () => (hasModel(visionModel) ? getModelUniqId(visionModel) : undefined),
+    [visionModel]
   )
 
   const onResetTranslatePrompt = () => {
@@ -129,6 +142,26 @@ const ModelSettings: FC = () => {
           )}
         </HStack>
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
+      </SettingGroup>
+      <SettingGroup theme={theme}>
+        <SettingTitle style={{ marginBottom: 12 }}>
+          <HStack alignItems="center" gap={10}>
+            <EyeIcon size={18} color="var(--color-text)" />
+            {t('settings.models.vision.label')}
+          </HStack>
+        </SettingTitle>
+        <HStack alignItems="center">
+          <ModelSelector
+            providers={providers}
+            predicate={isVisionModel}
+            value={defaultVisionModel}
+            defaultValue={defaultVisionModel}
+            style={{ width: 360 }}
+            onChange={(value) => setVisionModel(find(allModels, JSON.parse(value)) as Model)}
+            placeholder={t('settings.models.empty')}
+          />
+        </HStack>
+        <SettingDescription>{t('settings.models.vision.description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>
   )

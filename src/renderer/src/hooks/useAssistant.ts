@@ -3,6 +3,7 @@ import {
   getThinkModelType,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
+  isVisionModel,
   MODEL_SUPPORTED_OPTIONS,
   MODEL_SUPPORTED_REASONING_EFFORT
 } from '@renderer/config/models'
@@ -24,7 +25,7 @@ import {
   updateTopic,
   updateTopics
 } from '@renderer/store/assistants'
-import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
+import { setDefaultModel, setQuickModel, setTranslateModel, setVisionModel } from '@renderer/store/llm'
 import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -192,15 +193,24 @@ export function useDefaultAssistant() {
 }
 
 export function useDefaultModel() {
-  const { defaultModel, quickModel, translateModel } = useAppSelector((state) => state.llm)
+  const { defaultModel, quickModel, translateModel, visionModel } = useAppSelector((state) => state.llm)
   const dispatch = useAppDispatch()
+  const logger = loggerService.withContext('useDefaultModel')
 
   return {
     defaultModel,
     quickModel,
     translateModel,
+    visionModel,
     setDefaultModel: (model: Model) => dispatch(setDefaultModel({ model })),
     setQuickModel: (model: Model) => dispatch(setQuickModel({ model })),
-    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model }))
+    setTranslateModel: (model: Model) => dispatch(setTranslateModel({ model })),
+    setVisionModel: (model: Model) => {
+      if (isVisionModel(model)) {
+        dispatch(setVisionModel({ model }))
+      } else {
+        logger.warn('Tried to set vision model as a non-vision model.')
+      }
+    }
   }
 }

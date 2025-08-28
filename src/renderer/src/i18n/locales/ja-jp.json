@@ -766,6 +766,7 @@
     "more": "もっと",
     "name": "名前",
     "no_results": "検索結果なし",
+    "off": "オフ",
     "open": "開く",
     "paste": "貼り付け",
     "preview": "プレビュー",
@@ -2782,6 +2783,9 @@
         "knowledge_base": "選択された知識ベースをクリア",
         "models": "すべてのモデルをクリア"
       },
+      "image_process": {
+        "title": "画像処理"
+      },
       "show_translate_confirm": "翻訳確認ダイアログを表示",
       "target_language": {
         "chinese": "簡体字中国語",
@@ -3211,7 +3215,11 @@
       "translate_model_prompt_message": "翻訳モデルのプロンプトを入力してください",
       "translate_model_prompt_title": "翻訳モデルのプロンプト",
       "use_assistant": "アシスタントの活用",
-      "use_model": "デフォルトモデル"
+      "use_model": "デフォルトモデル",
+      "vision": {
+        "description": "対話に使用するモデルが視覚機能をサポートしていない場合、視覚モデルを使用して画像情報を抽出し、その後対話モデルに送信するという選択肢があります。",
+        "label": "視覚モデル"
+      }
     },
     "moresetting": {
       "check": {

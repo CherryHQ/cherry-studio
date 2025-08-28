@@ -766,6 +766,7 @@
     "more": "Mais",
     "name": "Nome",
     "no_results": "Nenhum resultado",
+    "off": "fechar",
     "open": "Abrir",
     "paste": "Colar",
     "preview": "Pré-visualização",
@@ -2727,6 +2728,7 @@
         "title": "Atualização automática"
       },
       "avatar": {
+        "builtin": "Avatares embutidos",
         "reset": "Redefinir avatar"
       },
       "backup": {
@@ -2780,6 +2782,9 @@
         "all": "Limpar",
         "knowledge_base": "Limpar base de conhecimento selecionada",
         "models": "Limpar todos os modelos"
+      },
+      "image_process": {
+        "title": "Processamento de imagens"
       },
       "show_translate_confirm": "Mostrar diálogo de confirmação de tradução",
       "target_language": {
@@ -3210,7 +3215,11 @@
       "translate_model_prompt_message": "Digite o prompt do modelo de tradução",
       "translate_model_prompt_title": "Prompt do modelo de tradução",
       "use_assistant": "Usar Assistente",
-      "use_model": "Modelo Padrão"
+      "use_model": "Modelo Padrão",
+      "vision": {
+        "description": "Quando o modelo usado na conversa não suportar recursos visuais, pode-se optar por usar um modelo visual para extrair as informações da imagem e enviá-las ao modelo de conversa.",
+        "label": "Modelo visual"
+      }
     },
     "moresetting": {
       "check": {
