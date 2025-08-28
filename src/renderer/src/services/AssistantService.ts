@@ -6,6 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { isQwenMTModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -52,11 +53,10 @@ export function getDefaultAssistant(): Assistant {
 }
 
 export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
-  const translateModel = getTranslateModel()
+  const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
-  assistant.model = translateModel
 
-  if (!assistant.model) {
+  if (!model) {
     logger.error('No translate model')
     throw new Error(i18n.t('translate.error.not_configured'))
   }
@@ -66,15 +66,32 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     throw new Error('Unknown target language')
   }
 
-  assistant.settings = {
+  const settings = {
     temperature: 0.7
   }
 
-  assistant.prompt = store
-    .getState()
-    .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
-    .replaceAll('{{text}}', text)
-  return { ...assistant, targetLanguage }
+  let prompt: string
+  let content: string
+  if (isQwenMTModel(model)) {
+    content = text
+    prompt = ''
+  } else {
+    content = 'follow system instruction'
+    prompt = store
+      .getState()
+      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
+      .replaceAll('{{text}}', text)
+  }
+
+  const translateAssistant = {
+    ...assistant,
+    model,
+    settings,
+    prompt,
+    targetLanguage,
+    content
+  } satisfies TranslateAssistant
+  return translateAssistant
 }
 
 export function getDefaultAssistantSettings() {
