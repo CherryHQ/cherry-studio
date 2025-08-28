@@ -9,7 +9,7 @@ import {
 } from '@renderer/components/Tags/Model'
 import { ModelTag } from '@renderer/types'
 import { Flex } from 'antd'
-import React, { ReactNode, startTransition, useCallback, useMemo } from 'react'
+import React, { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -29,47 +29,35 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
     [onToggleTag]
   )
 
-  // 筛选项列表
-  const tagsItems: Record<ModelTag, ReactNode> = useMemo(
+  // 标签组件
+  const tagComponents = useMemo(
     () => ({
-      vision: <VisionTag showLabel inactive={!tagSelection.vision} onClick={() => handleTagClick('vision')} />,
-      embedding: <EmbeddingTag inactive={!tagSelection.embedding} onClick={() => handleTagClick('embedding')} />,
-      reasoning: (
-        <ReasoningTag showLabel inactive={!tagSelection.reasoning} onClick={() => handleTagClick('reasoning')} />
-      ),
-      function_calling: (
-        <ToolsCallingTag
-          showLabel
-          inactive={!tagSelection.function_calling}
-          onClick={() => handleTagClick('function_calling')}
-        />
-      ),
-      web_search: (
-        <WebSearchTag showLabel inactive={!tagSelection.web_search} onClick={() => handleTagClick('web_search')} />
-      ),
-      rerank: <RerankerTag inactive={!tagSelection.rerank} onClick={() => handleTagClick('rerank')} />,
-      free: <FreeTag inactive={!tagSelection.free} onClick={() => handleTagClick('free')} />
+      vision: VisionTag,
+      embedding: EmbeddingTag,
+      reasoning: ReasoningTag,
+      function_calling: ToolsCallingTag,
+      web_search: WebSearchTag,
+      rerank: RerankerTag,
+      free: FreeTag
     }),
-    [
-      handleTagClick,
-      tagSelection.embedding,
-      tagSelection.free,
-      tagSelection.function_calling,
-      tagSelection.reasoning,
-      tagSelection.rerank,
-      tagSelection.vision,
-      tagSelection.web_search
-    ]
+    []
   )
-
-  // 要显示的筛选项
-  const displayedTags = useMemo(() => availableTags.map((tag) => tagsItems[tag]), [availableTags, tagsItems])
 
   return (
     <FilterContainer>
       <Flex wrap="wrap" gap={4}>
         <FilterText>{t('models.filter.by_tag')}</FilterText>
-        {displayedTags.map((item) => item)}
+        {availableTags.map((tag) => {
+          const TagElement = tagComponents[tag]
+          return TagElement ? (
+            <TagElement
+              key={`tag-${tag}`}
+              onClick={() => handleTagClick(tag)}
+              inactive={!tagSelection[tag]}
+              showLabel
+            />
+          ) : null
+        })}
       </Flex>
     </FilterContainer>
   )
