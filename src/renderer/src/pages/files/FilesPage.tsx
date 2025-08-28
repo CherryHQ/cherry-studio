@@ -60,7 +60,7 @@ const FilesPage: FC = () => {
 
     if (filesInPaintings.length > 0) {
       window.modal.warning({
-        content: t('files.delete.paintings.warning', { count: filesInPaintings.length }),
+        content: t('files.delete.paintings.batch_warning', { count: filesInPaintings.length }),
         centered: true
       })
       return
@@ -191,7 +191,7 @@ const FilesPage: FC = () => {
                           okText={t('common.confirm')}
                           cancelText={t('common.cancel')}
                           onConfirm={handleBatchDelete}
-                          icon={<ExclamationCircleOutlined />}>
+                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
                           {t('files.batch_delete')} ({selectedFileIds.length})
                         </Popconfirm>
                       )

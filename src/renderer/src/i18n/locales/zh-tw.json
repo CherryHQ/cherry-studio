@@ -877,6 +877,7 @@
       "db_error": "刪除失敗",
       "label": "刪除",
       "paintings": {
+        "batch_warning": "繪圖中包含 {{count}} 個檔案，無法刪除這些檔案",
         "warning": "繪圖中包含該圖片，暫時無法刪除"
       },
       "title": "刪除檔案"

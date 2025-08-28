@@ -877,6 +877,7 @@
       "db_error": "Échec de la suppression",
       "label": "Supprimer",
       "paintings": {
+        "batch_warning": "Le dessin contient {{count}} fichiers, il est impossible de les supprimer",
         "warning": "Cette image est incluse dans un dessin, elle ne peut pas être supprimée pour l'instant"
       },
       "title": "Supprimer le fichier"

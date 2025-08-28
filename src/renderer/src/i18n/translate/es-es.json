@@ -877,6 +877,7 @@
       "db_error": "Error al eliminar",
       "label": "Eliminar",
       "paintings": {
+        "batch_warning": "El dibujo contiene {{count}} archivos, no se pueden eliminar estos archivos",
         "warning": "La imagen está incluida en un dibujo, por lo que temporalmente no se puede eliminar"
       },
       "title": "Eliminar archivo"
