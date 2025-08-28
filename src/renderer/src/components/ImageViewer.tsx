@@ -1,7 +1,6 @@
 import {
   CopyOutlined,
   DownloadOutlined,
-  FileImageOutlined,
   RotateLeftOutlined,
   RotateRightOutlined,
   SwapOutlined,
@@ -13,10 +12,13 @@ import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { Dropdown, Image as AntImage, ImageProps as AntImageProps, Space } from 'antd'
 import { Base64 } from 'js-base64'
+import { DownloadIcon, ImageIcon } from 'lucide-react'
 import mime from 'mime'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { CopyIcon } from './Icons'
 
 interface ImageViewerProps extends AntImageProps {
   src: string
@@ -72,7 +74,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       {
         key: 'copy-url',
         label: t('common.copy'),
-        icon: <CopyOutlined />,
+        icon: <CopyIcon size={14} />,
         onClick: () => {
           navigator.clipboard.writeText(src)
           window.message.success(t('message.copy.success'))
@@ -81,13 +83,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       {
         key: 'download',
         label: t('common.download'),
-        icon: <DownloadOutlined />,
+        icon: <DownloadIcon size={14} />,
         onClick: () => download(src)
       },
       {
         key: 'copy-image',
         label: t('preview.copy.image'),
-        icon: <FileImageOutlined />,
+        icon: <ImageIcon size={14} />,
         onClick: () => handleCopyImage(src)
       }
     ]
@@ -98,6 +100,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       <AntImage
         src={src}
         style={style}
+        onContextMenu={(e) => e.stopPropagation()}
         {...props}
         preview={{
           mask: typeof props.preview === 'object' ? props.preview.mask : false,
