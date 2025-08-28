@@ -871,7 +871,23 @@ const McpServerConfigSchema = z.object({
    * 键为变量名，值为字符串。
    * 可选。如果未指定，默认为空对象。
    */
-  env: z.record(z.string(), z.string()).default({}).describe('Environment variables for the server process')
+  env: z.record(z.string(), z.string()).default({}).describe('Environment variables for the server process'),
+  /**
+   * 服务器的URL地址
+   * 可选。用于指定服务器的访问地址。
+   */
+  url: z.string().optional().describe('Server URL address'),
+  /**
+   * 请求头配置
+   * 可选。用于设置请求时的自定义headers。
+   */
+  headers: z.record(z.string(), z.string()).optional().describe('Custom headers configuration'),
+
+  /**
+   * 服务器标签
+   * 可选。用于对服务器进行分类和标记。
+   */
+  tags: z.array(z.string()).optional().describe('Server tags for categorization')
 })
 
 /**
@@ -889,6 +905,7 @@ const McpConfigSchema = z.object({
    * 名称（键）是用户定义的别名。
    * 此字段为必需。
    */
+  // 不在这里 refine 服务器数量，因为在类型定义文件中不能用 i18n 处理错误信息
   mcpServers: McpServersMapSchema.describe('Mapping of server aliases to their configurations')
 })
 
