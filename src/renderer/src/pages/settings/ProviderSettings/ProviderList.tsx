@@ -9,7 +9,6 @@ import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getProviderLabel } from '@renderer/i18n/label'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
 import {
@@ -107,74 +106,23 @@ const ProviderList: FC = () => {
       type?: ProviderType
       name?: string
     }) => {
-      const { id, apiKey: newApiKey, baseUrl, type, name } = data
+      const { id } = data
 
-      // 查找匹配的 provider，并构造基础对象
-      const foundProvider = providers.find((p) => p.id === id)
-      const baseProvider: Provider = foundProvider ?? {
-        id,
-        name: name || id,
-        type: type || 'openai',
-        apiKey: '',
-        apiHost: baseUrl || '',
-        models: [],
-        enabled: true,
-        isSystem: false
-      }
-
-      const providerDisplayName = isSystemProvider(baseProvider) ? getProviderLabel(baseProvider.id) : baseProvider.name
-
-      // 检查是否已有 API Key
-      const hasExistingKey = baseProvider.apiKey && baseProvider.apiKey.trim() !== ''
-
-      // 检查新的 API Key 是否已经存在
-      const existingKeys = hasExistingKey ? baseProvider.apiKey.split(',').map((k) => k.trim()) : []
-      const keyAlreadyExists = existingKeys.includes(newApiKey.trim())
-
-      const confirmMessage = keyAlreadyExists
-        ? t('settings.models.provider_key_already_exists', {
-            provider: providerDisplayName
-          })
-        : t('settings.models.provider_key_add_confirm', {
-            provider: providerDisplayName
-          })
-
-      const confirmed = await UrlSchemaInfoPopup.show({
-        providerName: providerDisplayName,
-        providerId: id,
-        baseUrl,
-        apiKey: newApiKey,
-        confirmMessage,
-        okText: keyAlreadyExists ? t('common.confirm') : t('common.add')
-      })
-
+      const { updatedProvider, isNew, displayName } = await UrlSchemaInfoPopup.show(data)
       window.navigate(`/settings/provider?id=${id}`)
 
-      if (confirmed) {
-        if (keyAlreadyExists) {
-          // 如果 key 已经存在，只显示消息，不做任何更改
-          window.message.info(t('settings.models.provider_key_no_change', { provider: providerDisplayName }))
-          return
-        }
-
-        // 如果 key 不存在，添加到现有 keys 的末尾
-        const finalApiKey = hasExistingKey ? `${baseProvider.apiKey},${newApiKey.trim()}` : newApiKey.trim()
-
-        const updatedProvider = {
-          ...baseProvider,
-          apiKey: finalApiKey,
-          ...(baseUrl && { apiHost: baseUrl })
-        }
-
-        if (foundProvider) {
-          updateProvider(updatedProvider)
-        } else {
-          addProvider(updatedProvider)
-        }
-
-        setSelectedProvider(updatedProvider)
-        window.message.success(t('settings.models.provider_key_added', { provider: providerDisplayName }))
+      if (!updatedProvider) {
+        return
       }
+
+      if (isNew) {
+        addProvider(updatedProvider)
+      } else {
+        updateProvider(updatedProvider)
+      }
+
+      setSelectedProvider(updatedProvider)
+      window.message.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
     // 检查 URL 参数
