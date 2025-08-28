@@ -136,13 +136,10 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
 
   const userFilter = useCallback(
     (model: Model) => {
-      return selectedFilterTags
-        .map((tag) => [tag, filterConfig[tag]] as const)
-        .reduce((prev, [tag, predict]) => {
-          return prev && (!filterTags[tag] || predict(model))
-        }, true)
+      if (selectedFilterTags.length === 0) return true
+      return selectedFilterTags.map((tag) => filterConfig[tag]).every((predict) => predict(model))
     },
-    [filterConfig, filterTags, selectedFilterTags]
+    [filterConfig, selectedFilterTags]
   )
 
   const onClickTag = useCallback((type: ModelTag) => {
@@ -508,9 +505,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
           borderRadius: 20,
           padding: 0,
           overflow: 'hidden',
-          paddingBottom: 16,
-          // 需要稳定高度避免布局偏移
-          height: userFilterDisabled ? undefined : 530
+          paddingBottom: 16
         },
         body: {
           maxHeight: 'inherit',
