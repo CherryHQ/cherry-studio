@@ -96,17 +96,32 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(id, providerKeyMap)
 }
 
-const progressKeyMap = {
+const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
   copying_files: 'backup.progress.copying_files',
+  preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
   title: 'backup.progress.title',
   writing_data: 'backup.progress.writing_data'
 } as const
 
-export const getProgressLabel = (key: string): string => {
-  return getLabel(key, progressKeyMap)
+export const getBackupProgressLabel = (key: string): string => {
+  return getLabel(key, backupProgressKeyMap)
+}
+
+const restoreProgressKeyMap = {
+  completed: 'restore.progress.completed',
+  copying_files: 'restore.progress.copying_files',
+  extracted: 'restore.progress.extracted',
+  extracting: 'restore.progress.extracting',
+  preparing: 'restore.progress.preparing',
+  reading_data: 'restore.progress.reading_data',
+  title: 'restore.progress.title'
+}
+
+export const getRestoreProgressLabel = (key: string): string => {
+  return getLabel(key, restoreProgressKeyMap)
 }
 
 const titleKeyMap = {

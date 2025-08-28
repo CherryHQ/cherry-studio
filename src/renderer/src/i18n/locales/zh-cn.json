@@ -240,6 +240,7 @@
       "compressing": "压缩文件...",
       "copying_files": "复制文件... {{progress}}%",
       "preparing": "准备备份...",
+      "preparing_compression": "准备压缩...",
       "title": "备份进度",
       "writing_data": "写入数据..."
     },
