@@ -1073,6 +1073,7 @@
   },
   "memory": {
     "actions": "操作",
+    "active_memory_user": "活躍記憶使用者",
     "add_failed": "新增記憶失敗",
     "add_first_memory": "新增您的第一個記憶",
     "add_memory": "新增記憶",

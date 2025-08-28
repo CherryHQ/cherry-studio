@@ -3,9 +3,9 @@ import { loggerService } from '@logger'
 import { Box } from '@renderer/components/Layout'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
-import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
+import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import { Assistant, AssistantSettings } from '@renderer/types'
-import { Alert, Button, Card, Space, Switch, Tooltip, Typography } from 'antd'
+import { Alert, Button, Card, Select, Space, Switch, Tooltip, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
 import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -28,19 +28,36 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
   const { t } = useTranslation()
   const memoryConfig = useSelector(selectMemoryConfig)
   const globalMemoryEnabled = useSelector(selectGlobalMemoryEnabled)
+  const currentUserId = useSelector(selectCurrentUserId)
   const [memoryStats, setMemoryStats] = useState<{ count: number; loading: boolean }>({
     count: 0,
     loading: true
   })
+  const [availableUsers, setAvailableUsers] = useState<
+    { userId: string; memoryCount: number; lastMemoryDate: string }[]
+  >([])
   const [settingsModalVisible, setSettingsModalVisible] = useState(false)
   const memoryService = MemoryService.getInstance()
   const form = useForm()
+
+  // Load available memory users
+  const loadUsers = useCallback(async () => {
+    try {
+      const users = await memoryService.getUsersList()
+      setAvailableUsers(users)
+    } catch (error) {
+      logger.error('Failed to load memory users:', error as Error)
+      setAvailableUsers([])
+    }
+  }, [memoryService])
 
   // Load memory statistics for this assistant
   const loadMemoryStats = useCallback(async () => {
     setMemoryStats((prev) => ({ ...prev, loading: true }))
     try {
+      const effectiveUserId = memoryService.getEffectiveUserId(assistant, currentUserId)
       const result = await memoryService.list({
+        userId: effectiveUserId,
         agentId: assistant.id,
         limit: 1000
       })
@@ -49,14 +66,23 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       logger.error('Failed to load memory stats:', error as Error)
       setMemoryStats({ count: 0, loading: false })
     }
-  }, [assistant.id, memoryService])
+  }, [assistant, currentUserId, memoryService])
 
   useEffect(() => {
+    loadUsers()
     loadMemoryStats()
-  }, [loadMemoryStats])
+  }, [loadUsers, loadMemoryStats])
 
   const handleMemoryToggle = (enabled: boolean) => {
     updateAssistant({ ...assistant, enableMemory: enabled })
+  }
+
+  const handleMemoryUserChange = (value: string) => {
+    // 'global' means use global default (undefined)
+    const memoryUserId = value === 'global' ? undefined : value
+    updateAssistant({ ...assistant, memoryUserId })
+    // Reload stats after changing user
+    setTimeout(() => loadMemoryStats(), 100)
   }
 
   const handleNavigateToMemory = () => {
@@ -70,6 +96,8 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
 
   const isMemoryConfigured = memoryConfig.embedderApiClient && memoryConfig.llmApiClient
   const isMemoryEnabled = globalMemoryEnabled && isMemoryConfigured
+  const effectiveUserId = memoryService.getEffectiveUserId(assistant, currentUserId)
+  const currentMemoryUser = assistant.memoryUserId || 'global'
 
   return (
     <Container>
@@ -124,11 +152,40 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
         />
       )}
 
+      {/* Memory User Selection */}
+      {assistant.enableMemory && isMemoryEnabled && (
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <div>
+              <Text strong>{t('memory.active_memory_user')}: </Text>
+              <Select
+                value={currentMemoryUser}
+                onChange={handleMemoryUserChange}
+                style={{ width: 200, marginLeft: 8 }}
+                disabled={!assistant.enableMemory}>
+                <Select.Option value="global">
+                  {t('memory.default_user')} ({currentUserId})
+                </Select.Option>
+                {availableUsers.map((user) => (
+                  <Select.Option key={user.userId} value={user.userId}>
+                    {user.userId} ({user.memoryCount} memories)
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
+          </Space>
+        </Card>
+      )}
+
       <Card size="small" style={{ marginBottom: 16 }}>
         <Space direction="vertical" style={{ width: '100%' }}>
           <div>
             <Text strong>{t('memory.stored_memories')}: </Text>
             <Text>{memoryStats.loading ? t('common.loading') : memoryStats.count}</Text>
+          </div>
+          <div>
+            <Text strong>{t('memory.active_memory_user')}: </Text>
+            <Text code>{effectiveUserId}</Text>
           </div>
           {memoryConfig.embedderApiClient && (
             <div>

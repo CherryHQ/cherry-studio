@@ -238,12 +238,10 @@ export class MemoryProcessor {
         limit
       })
 
-      logger.debug(
-        `Searching memories with query: ${query} for user: ${userId} and assistant: ${assistantId} result: ${result}`
-      )
+      logger.debug('Searching memories successful', { query, userId, assistantId, result })
       return result.results
     } catch (error) {
-      logger.error('Error searching memories:', error as Error)
+      logger.error('Searching memories error:', { error })
       return []
     }
   }

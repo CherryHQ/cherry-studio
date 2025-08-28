@@ -1073,6 +1073,7 @@
   },
   "memory": {
     "actions": "アクション",
+    "active_memory_user": "アクティブメモリユーザー",
     "add_failed": "メモリーの追加に失敗しました",
     "add_first_memory": "最初のメモリを追加",
     "add_memory": "メモリーを追加",

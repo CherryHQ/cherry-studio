@@ -64,6 +64,7 @@ import {
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
+import MemoryService from './MemoryService'
 import {
   filterAfterContextClearMessages,
   filterEmptyMessages,
@@ -239,10 +240,12 @@ async function fetchExternalTool(
       }
 
       if (memoryConfig.llmApiClient && memoryConfig.embedderApiClient) {
-        const currentUserId = selectCurrentUserId(store.getState())
-        // Search for relevant memories
-        const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        logger.info(`Searching for relevant memories with content: ${content}`)
+        const globalUserId = selectCurrentUserId(store.getState())
+        const memoryService = MemoryService.getInstance()
+        const effectiveUserId = memoryService.getEffectiveUserId(assistant, globalUserId)
+        // Search for relevant memories using effective user ID
+        const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, effectiveUserId)
+        logger.info(`Searching for relevant memories with content: ${content} for effective user: ${effectiveUserId}`)
         const memoryProcessor = new MemoryProcessor()
         const relevantMemories = await memoryProcessor.searchRelevantMemories(
           content,
@@ -556,7 +559,9 @@ async function processConversationMemory(messages: Message[], assistant: Assista
     // return
     // }
 
-    const currentUserId = selectCurrentUserId(store.getState())
+    const globalUserId = selectCurrentUserId(store.getState())
+    const memoryService = MemoryService.getInstance()
+    const effectiveUserId = memoryService.getEffectiveUserId(assistant, globalUserId)
 
     // Create updated memory config with resolved models
     const updatedMemoryConfig = {
@@ -581,7 +586,7 @@ async function processConversationMemory(messages: Message[], assistant: Assista
     const processorConfig = MemoryProcessor.getProcessorConfig(
       updatedMemoryConfig,
       assistant.id,
-      currentUserId,
+      effectiveUserId,
       lastUserMessage?.id
     )
 

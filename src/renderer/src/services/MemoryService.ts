@@ -1,14 +1,18 @@
 import { loggerService } from '@logger'
+import type { RootState } from '@renderer/store'
 import store from '@renderer/store'
-import { selectMemoryConfig } from '@renderer/store/memory'
+import { selectCurrentUserId, selectMemoryConfig } from '@renderer/store/memory'
 import {
   AddMemoryOptions,
+  Assistant,
   AssistantMessage,
   MemoryHistoryItem,
   MemoryListOptions,
   MemorySearchOptions,
   MemorySearchResult
 } from '@types'
+
+import { getAssistantById } from './AssistantService'
 
 const logger = loggerService.withContext('MemoryService')
 
@@ -26,8 +30,10 @@ interface SearchResult {
 class MemoryService {
   private static instance: MemoryService | null = null
   private currentUserId: string = 'default-user'
+  private getStateFunction: () => RootState
 
-  constructor() {
+  constructor(getStateFunction: () => RootState = () => store.getState()) {
+    this.getStateFunction = getStateFunction
     this.init()
   }
 
@@ -66,6 +72,37 @@ class MemoryService {
    */
   public getCurrentUser(): string {
     return this.currentUserId
+  }
+
+  /**
+   * Gets the effective memory user ID for an assistant using dependency injection
+   * Falls back to global currentUserId when assistant has no specific memoryUserId
+   * @param assistant - The assistant object containing memoryUserId
+   * @param globalUserId - The global user ID to fall back to
+   * @returns The effective user ID to use for memory operations
+   */
+  public getEffectiveUserId(assistant: Assistant, globalUserId: string): string {
+    return assistant.memoryUserId || globalUserId
+  }
+
+  /**
+   * Private helper to resolve user ID for context operations
+   * @param assistant - Optional assistant object to determine effective user ID
+   * @returns The resolved user ID to use for memory operations
+   */
+  private resolveUserId(assistant?: Assistant): string {
+    let globalUserId = this.currentUserId
+
+    if (this.getStateFunction) {
+      try {
+        globalUserId = selectCurrentUserId(this.getStateFunction())
+      } catch (error) {
+        logger.warn('Failed to get state, falling back to internal currentUserId:', error as Error)
+        globalUserId = this.currentUserId
+      }
+    }
+
+    return assistant ? this.getEffectiveUserId(assistant, globalUserId) : globalUserId
   }
 
   /**
@@ -110,12 +147,32 @@ class MemoryService {
    * @returns Promise resolving to search results of added memories
    */
   public async add(messages: string | AssistantMessage[], options: AddMemoryOptions): Promise<MemorySearchResult> {
-    options.userId = this.currentUserId
-    const result: SearchResult = await window.api.memory.add(messages, options)
-    // Convert SearchResult to MemorySearchResult for consistency
-    return {
-      results: result.memories,
-      relations: []
+    const optionsWithUser = {
+      ...options,
+      userId: this.currentUserId
+    }
+
+    try {
+      const result: SearchResult = await window.api.memory.add(messages, optionsWithUser)
+
+      // Handle error responses from main process
+      if (result.error) {
+        logger.error(`Memory service error: ${result.error}`)
+        throw new Error(result.error)
+      }
+
+      // Convert SearchResult to MemorySearchResult for consistency
+      return {
+        results: result.memories || [],
+        relations: []
+      }
+    } catch (error) {
+      logger.error('Failed to add memories:', error as Error)
+      // Return empty result on error to prevent UI crashes
+      return {
+        results: [],
+        relations: []
+      }
     }
   }
 
@@ -126,12 +183,42 @@ class MemoryService {
    * @returns Promise resolving to search results matching the query
    */
   public async search(query: string, options: MemorySearchOptions): Promise<MemorySearchResult> {
-    options.userId = this.currentUserId
-    const result: SearchResult = await window.api.memory.search(query, options)
-    // Convert SearchResult to MemorySearchResult for consistency
-    return {
-      results: result.memories,
-      relations: []
+    const optionsWithUser = {
+      ...options,
+      userId: this.currentUserId
+    }
+
+    // If agentId is provided, resolve userId from assistant's memoryUserId
+    if (optionsWithUser.agentId) {
+      const assistant = getAssistantById(optionsWithUser.agentId)
+      if (assistant) {
+        optionsWithUser.userId = assistant.memoryUserId || this.currentUserId
+      }
+    }
+
+    logger.debug('Searching memories start with options', { query: query, options: optionsWithUser })
+
+    try {
+      const result: SearchResult = await window.api.memory.search(query, optionsWithUser)
+
+      // Handle error responses from main process
+      if (result.error) {
+        logger.error(`Memory service error: ${result.error}`)
+        throw new Error(result.error)
+      }
+
+      // Convert SearchResult to MemorySearchResult for consistency
+      return {
+        results: result.memories || [],
+        relations: []
+      }
+    } catch (error) {
+      logger.error('Failed to search memories:', error as Error)
+      // Return empty result on error to prevent UI crashes
+      return {
+        results: [],
+        relations: []
+      }
     }
   }
 
@@ -197,12 +284,13 @@ class MemoryService {
    */
   public async updateConfig(): Promise<void> {
     try {
-      if (!store || !store.getState) {
-        logger.warn('Store not available, skipping memory config update')
+      if (!this.getStateFunction) {
+        logger.warn('State function not available, skipping memory config update')
         return
       }
 
-      const memoryConfig = selectMemoryConfig(store.getState())
+      const state = this.getStateFunction()
+      const memoryConfig = selectMemoryConfig(state)
       const embedderApiClient = memoryConfig.embedderApiClient
       const llmApiClient = memoryConfig.llmApiClient
 
@@ -216,6 +304,138 @@ class MemoryService {
     } catch (error) {
       logger.warn('Failed to update memory config:', error as Error)
       return
+    }
+  }
+
+  // Enhanced methods with assistant context support
+
+  /**
+   * Lists stored memories with assistant context support
+   * Automatically resolves the effective user ID based on assistant's memoryUserId
+   * @param config - Configuration for filtering memories
+   * @param assistant - Optional assistant object to determine effective user ID
+   * @returns Promise resolving to search results containing filtered memories
+   */
+  public async listWithContext(
+    config?: Omit<MemoryListOptions, 'userId'>,
+    assistant?: Assistant
+  ): Promise<MemorySearchResult> {
+    const effectiveUserId = this.resolveUserId(assistant)
+
+    const configWithUser = {
+      ...config,
+      userId: effectiveUserId
+    }
+
+    try {
+      const result: SearchResult = await window.api.memory.list(configWithUser)
+
+      // Handle error responses from main process
+      if (result.error) {
+        logger.error(`Memory service error: ${result.error}`)
+        throw new Error(result.error)
+      }
+
+      // Convert SearchResult to MemorySearchResult for consistency
+      return {
+        results: result.memories || [],
+        relations: []
+      }
+    } catch (error) {
+      logger.error('Failed to list memories with context:', error as Error)
+      // Return empty result on error to prevent UI crashes
+      return {
+        results: [],
+        relations: []
+      }
+    }
+  }
+
+  /**
+   * Adds new memory entries with assistant context support
+   * Automatically resolves the effective user ID based on assistant's memoryUserId
+   * @param messages - String content or array of assistant messages to store as memory
+   * @param options - Configuration options for adding memory (without userId)
+   * @param assistant - Optional assistant object to determine effective user ID
+   * @returns Promise resolving to search results of added memories
+   */
+  public async addWithContext(
+    messages: string | AssistantMessage[],
+    options: Omit<AddMemoryOptions, 'userId'>,
+    assistant?: Assistant
+  ): Promise<MemorySearchResult> {
+    const effectiveUserId = this.resolveUserId(assistant)
+
+    const optionsWithUser = {
+      ...options,
+      userId: effectiveUserId
+    }
+
+    try {
+      const result: SearchResult = await window.api.memory.add(messages, optionsWithUser)
+
+      // Handle error responses from main process
+      if (result.error) {
+        logger.error(`Memory service error: ${result.error}`)
+        throw new Error(result.error)
+      }
+
+      // Convert SearchResult to MemorySearchResult for consistency
+      return {
+        results: result.memories || [],
+        relations: []
+      }
+    } catch (error) {
+      logger.error('Failed to add memories with context:', error as Error)
+      // Return empty result on error to prevent UI crashes
+      return {
+        results: [],
+        relations: []
+      }
+    }
+  }
+
+  /**
+   * Searches stored memories with assistant context support
+   * Automatically resolves the effective user ID based on assistant's memoryUserId
+   * @param query - Search query string to find relevant memories
+   * @param options - Configuration options for memory search (without userId)
+   * @param assistant - Optional assistant object to determine effective user ID
+   * @returns Promise resolving to search results matching the query
+   */
+  public async searchWithContext(
+    query: string,
+    options: Omit<MemorySearchOptions, 'userId'>,
+    assistant?: Assistant
+  ): Promise<MemorySearchResult> {
+    const effectiveUserId = this.resolveUserId(assistant)
+
+    const optionsWithUser = {
+      ...options,
+      userId: effectiveUserId
+    }
+
+    try {
+      const result: SearchResult = await window.api.memory.search(query, optionsWithUser)
+
+      // Handle error responses from main process
+      if (result.error) {
+        logger.error(`Memory service error: ${result.error}`)
+        throw new Error(result.error)
+      }
+
+      // Convert SearchResult to MemorySearchResult for consistency
+      return {
+        results: result.memories || [],
+        relations: []
+      }
+    } catch (error) {
+      logger.error('Failed to search memories with context:', error as Error)
+      // Return empty result on error to prevent UI crashes
+      return {
+        results: [],
+        relations: []
+      }
     }
   }
 }

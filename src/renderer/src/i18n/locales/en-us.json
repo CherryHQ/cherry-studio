@@ -1073,6 +1073,7 @@
   },
   "memory": {
     "actions": "Actions",
+    "active_memory_user": "Active Memory User",
     "add_failed": "Failed to add memory",
     "add_first_memory": "Add Your First Memory",
     "add_memory": "Add Memory",
