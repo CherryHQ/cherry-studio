@@ -15,12 +15,7 @@ import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { t } from 'i18next'
 
 import { hasApiKey } from './ApiService'
-import {
-  getDefaultModel,
-  getDefaultTranslateAssistant,
-  getProviderByModel,
-  getTranslateModel
-} from './AssistantService'
+import { getDefaultTranslateAssistant, getProviderByModel } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
 interface FetchTranslateProps {
@@ -30,11 +25,7 @@ interface FetchTranslateProps {
 }
 
 async function fetchTranslate({ assistant, onResponse, abortKey }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
-
-  if (!model) {
-    throw new Error(t('translate.error.not_configured'))
-  }
+  const model = assistant.model
 
   const provider = getProviderByModel(model)
 
@@ -58,8 +49,8 @@ async function fetchTranslate({ assistant, onResponse, abortKey }: FetchTranslat
 
   const params: CompletionsParams = {
     callType: 'translate',
-    messages: 'do',
-    assistant: { ...assistant, model },
+    messages: assistant.content,
+    assistant,
     streamOutput: stream,
     enableReasoning,
     onResponse,

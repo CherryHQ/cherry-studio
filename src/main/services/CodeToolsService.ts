@@ -421,7 +421,7 @@ end tell`
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        const linuxTerminals = ['gnome-terminal', 'konsole', 'xterm', 'x-terminal-emulator']
+        const linuxTerminals = ['gnome-terminal', 'konsole', 'deepin-terminal', 'xterm', 'x-terminal-emulator']
         let foundTerminal = 'xterm' // Default to xterm
 
         for (const terminal of linuxTerminals) {
@@ -448,6 +448,9 @@ end tell`
         } else if (foundTerminal === 'konsole') {
           terminalCommand = 'konsole'
           terminalArgs = ['--workdir', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'deepin-terminal') {
+          terminalCommand = 'deepin-terminal'
+          terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
         } else {
           // Default to xterm
           terminalCommand = 'xterm'

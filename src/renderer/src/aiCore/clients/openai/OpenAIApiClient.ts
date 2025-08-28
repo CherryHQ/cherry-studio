@@ -46,6 +46,7 @@ import {
   EFFORT_RATIO,
   FileTypes,
   isSystemProvider,
+  isTranslateAssistant,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
@@ -54,7 +55,6 @@ import {
   Provider,
   SystemProviderIds,
   ToolCallResponse,
-  TranslateAssistant,
   WebSearchSource
 } from '@renderer/types'
 import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
@@ -569,13 +569,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         const extra_body: Record<string, any> = {}
 
         if (isQwenMTModel(model)) {
-          const targetLanguage = (assistant as TranslateAssistant).targetLanguage
-          extra_body.translation_options = {
-            source_lang: 'auto',
-            target_lang: mapLanguageToQwenMTModel(targetLanguage!)
-          }
-          if (!extra_body.translation_options.target_lang) {
-            throw new Error(t('translate.error.not_supported', { language: targetLanguage?.value }))
+          if (isTranslateAssistant(assistant)) {
+            const targetLanguage = assistant.targetLanguage
+            const translationOptions = {
+              source_lang: 'auto',
+              target_lang: mapLanguageToQwenMTModel(targetLanguage)
+            } as const
+            if (!translationOptions.target_lang) {
+              throw new Error(t('translate.error.not_supported', { language: targetLanguage.value }))
+            }
+            extra_body.translation_options = translationOptions
+          } else {
+            throw new Error(t('translate.error.chat_qwen_mt'))
           }
         }
 

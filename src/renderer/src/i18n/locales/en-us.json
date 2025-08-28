@@ -3785,6 +3785,7 @@
     },
     "empty": "Translation content is empty",
     "error": {
+      "chat_qwen_mt": "Qwen MT model cannot be used in chat. Please go to the translation page.",
       "detect": {
         "qwen_mt": "QwenMT model cannot be used for language detection",
         "unknown": "Unknown language detected",
