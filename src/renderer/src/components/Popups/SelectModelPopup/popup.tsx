@@ -72,9 +72,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     })
   }, [])
 
-  const { tagSelection, tagFilter, toggleTag } = useModelTagFilter({
-    disabled: !showTagFilter
-  })
+  const { tagSelection, tagFilter, toggleTag } = useModelTagFilter()
 
   // 计算要显示的可用标签列表
   const availableTags = useMemo(() => {

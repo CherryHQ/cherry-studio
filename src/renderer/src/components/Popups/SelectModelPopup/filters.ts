@@ -12,14 +12,10 @@ import { useCallback, useMemo, useState } from 'react'
 
 type ModelPredict = (m: Model) => boolean
 
-export interface UseModelTagFilterOptions {
-  disabled?: boolean
-}
-
 /**
  * 标签筛选 hook，仅关注标签过滤逻辑
  */
-export function useModelTagFilter(options?: UseModelTagFilterOptions) {
+export function useModelTagFilter() {
   const filterConfig: Record<ModelTag, ModelPredict> = useMemo(
     () => ({
       vision: isVisionModel,
@@ -76,11 +72,10 @@ export function useModelTagFilter(options?: UseModelTagFilterOptions) {
   // 根据标签过滤模型
   const tagFilter = useCallback(
     (model: Model) => {
-      if (options?.disabled) return true
       if (selectedTags.length === 0) return true
       return selectedTags.map((tag) => filterConfig[tag]).every((predict) => predict(model))
     },
-    [filterConfig, selectedTags, options?.disabled]
+    [filterConfig, selectedTags]
   )
 
   return {
