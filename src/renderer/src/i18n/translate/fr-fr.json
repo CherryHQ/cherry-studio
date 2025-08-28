@@ -789,6 +789,7 @@
         "label": "Сортировать по пиньинь"
       }
     },
+    "stop": "Arrêter",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
@@ -3821,6 +3822,9 @@
         "placeholder": "Rechercher l'historique des traductions"
       },
       "title": "Historique des traductions"
+    },
+    "info": {
+      "aborted": "Traduction annulée"
     },
     "input": {
       "placeholder": "Saisissez le texte à traduire, glissez-déposez ou collez une image pour la reconnaissance OCR"

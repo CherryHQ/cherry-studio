@@ -789,6 +789,7 @@
         "label": "Sort by Pinyin"
       }
     },
+    "stop": "Stop",
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
@@ -3821,6 +3822,9 @@
         "placeholder": "Search translation history"
       },
       "title": "Translation History"
+    },
+    "info": {
+      "aborted": "Translation aborted"
     },
     "input": {
       "placeholder": "Enter text for translation, or drag and drop an image for OCR"

@@ -789,6 +789,7 @@
         "label": "Ordenar por pinyin"
       }
     },
+    "stop": "Detener",
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
@@ -3821,6 +3822,9 @@
         "placeholder": "Historial de búsqueda de traducción"
       },
       "title": "Historial de traducciones"
+    },
+    "info": {
+      "aborted": "Traducción cancelada"
     },
     "input": {
       "placeholder": "Introduzca texto para traducir, arrastre y suelte o pegue una imagen para realizar OCR"
