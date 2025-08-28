@@ -35,7 +35,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       if (src.startsWith('data:')) {
         // 处理 base64 格式的图片
         const match = src.match(/^data:(image\/\w+);base64,(.+)$/)
-        if (!match) throw new Error('无效的 base64 图片格式')
+        if (!match) throw new Error('Invalid base64 image format')
         const mimeType = match[1]
         const byteArray = Base64.toUint8Array(match[2])
         const blob = new Blob([byteArray], { type: mimeType })
@@ -64,17 +64,17 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
 
       window.message.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('复制图片失败:', error as Error)
+      logger.error('Failed to copy image:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }
 
-  const getContextMenuItems = (src: string) => {
+  const getContextMenuItems = (src: string, size: number = 14) => {
     return [
       {
         key: 'copy-url',
         label: t('common.copy'),
-        icon: <CopyIcon size={14} />,
+        icon: <CopyIcon size={size} />,
         onClick: () => {
           navigator.clipboard.writeText(src)
           window.message.success(t('message.copy.success'))
@@ -83,13 +83,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       {
         key: 'download',
         label: t('common.download'),
-        icon: <DownloadIcon size={14} />,
+        icon: <DownloadIcon size={size} />,
         onClick: () => download(src)
       },
       {
         key: 'copy-image',
         label: t('preview.copy.image'),
-        icon: <ImageIcon size={14} />,
+        icon: <ImageIcon size={size} />,
         onClick: () => handleCopyImage(src)
       }
     ]
