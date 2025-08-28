@@ -116,7 +116,9 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
     if (objectKeys(validConfig.mcpServers).length > 0) {
       const key = objectKeys(validConfig.mcpServers)[0]
       serverToAdd = validConfig.mcpServers[key]
-      serverToAdd.name = key
+      if (!serverToAdd.name) {
+        serverToAdd.name = key
+      }
     } else {
       return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
