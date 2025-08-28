@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
@@ -100,20 +101,24 @@ const HomePage: FC = () => {
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         {showAssistants && (
-          <HomeTabs
-            activeAssistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
-            setActiveTopic={setActiveTopic}
-            position="left"
-          />
+          <ErrorBoundary>
+            <HomeTabs
+              activeAssistant={activeAssistant}
+              activeTopic={activeTopic}
+              setActiveAssistant={setActiveAssistant}
+              setActiveTopic={setActiveTopic}
+              position="left"
+            />
+          </ErrorBoundary>
         )}
-        <Chat
-          assistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-        />
+        <ErrorBoundary>
+          <Chat
+            assistant={activeAssistant}
+            activeTopic={activeTopic}
+            setActiveTopic={setActiveTopic}
+            setActiveAssistant={setActiveAssistant}
+          />
+        </ErrorBoundary>
       </ContentContainer>
     </Container>
   )

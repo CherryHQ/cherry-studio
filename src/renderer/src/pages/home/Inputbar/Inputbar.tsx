@@ -111,7 +111,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const currentMessageId = useRef<string>('')
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
@@ -242,17 +241,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.mentions = mentionedModels
       }
 
-      const assistantWithTopicPrompt = topic.prompt
-        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-        : assistant
-
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      currentMessageId.current = message.id
-      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
+      dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       // Clear input
       setText('')
@@ -512,30 +506,42 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const cursorPosition = textArea?.selectionStart ?? 0
       const lastSymbol = newText[cursorPosition - 1]
 
-      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
-        const quickPanelMenu =
-          inputbarToolsRef.current?.getQuickPanelMenu({
-            t,
-            files,
-            couldAddImageFile,
-            text: newText,
-            openSelectFileMenu,
-            translate
-          }) || []
+      // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
+      if (enableQuickPanelTriggers && lastSymbol === '/') {
+        if (quickPanel.isVisible && quickPanel.symbol !== '/') {
+          quickPanel.close('switch-symbol')
+        }
+        if (!quickPanel.isVisible || quickPanel.symbol !== '/') {
+          const quickPanelMenu =
+            inputbarToolsRef.current?.getQuickPanelMenu({
+              t,
+              files,
+              couldAddImageFile,
+              text: newText,
+              openSelectFileMenu,
+              translate
+            }) || []
 
-        quickPanel.open({
-          title: t('settings.quickPanel.title'),
-          list: quickPanelMenu,
-          symbol: '/'
-        })
+          quickPanel.open({
+            title: t('settings.quickPanel.title'),
+            list: quickPanelMenu,
+            symbol: '/'
+          })
+        }
       }
 
-      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-        inputbarToolsRef.current?.openMentionModelsPanel({
-          type: 'input',
-          position: cursorPosition - 1,
-          originalText: newText
-        })
+      // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
+      if (enableQuickPanelTriggers && lastSymbol === '@') {
+        if (quickPanel.isVisible && quickPanel.symbol !== '@') {
+          quickPanel.close('switch-symbol')
+        }
+        if (!quickPanel.isVisible || quickPanel.symbol !== '@') {
+          inputbarToolsRef.current?.openMentionModelsPanel({
+            type: 'input',
+            position: cursorPosition - 1,
+            originalText: newText
+          })
+        }
       }
     },
     [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]

@@ -168,6 +168,7 @@ export function getMcpDir() {
  * 读取文件内容并自动检测编码格式进行解码
  * @param filePath - 文件路径
  * @returns 解码后的文件内容
+ * @throws 如果路径不存在抛出错误
  */
 export async function readTextFileWithAutoEncoding(filePath: string): Promise<string> {
   const encoding = (await chardet.detectFile(filePath, { sampleSize: MB })) || 'UTF-8'

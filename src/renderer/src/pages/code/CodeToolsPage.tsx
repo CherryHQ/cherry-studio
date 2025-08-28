@@ -346,11 +346,14 @@ const Container = styled.div`
 const ContentContainer = styled.div`
   display: flex;
   flex: 1;
+  overflow-y: auto;
+  padding: 20px 0;
 `
 
 const MainContent = styled.div`
   width: 600px;
   margin: auto;
+  min-height: fit-content;
 `
 
 const Title = styled.h1`

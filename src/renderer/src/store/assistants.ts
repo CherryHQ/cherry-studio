@@ -32,13 +32,7 @@ const assistantsSlice = createSlice({
       state.assistants = action.payload
     },
     addAssistant: (state, action: PayloadAction<Assistant>) => {
-      const newAssistant = action.payload
-      const existing = state.assistants.find((item) => item.id === newAssistant.id)
-      if (!existing) {
-        state.assistants.push(action.payload)
-      } else {
-        throw new Error('Assistant with this ID already exists')
-      }
+      state.assistants.push(action.payload)
     },
     insertAssistant: (state, action: PayloadAction<{ index: number; assistant: Assistant }>) => {
       const { index, assistant } = action.payload

@@ -3,6 +3,7 @@ import React from 'react'
 import type { Node } from 'unist'
 
 import CitationTooltip from './CitationTooltip'
+import Hyperlink from './Hyperlink'
 
 interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
   node?: Omit<Node, 'type'>
@@ -44,12 +45,14 @@ const Link: React.FC<LinkProps> = (props) => {
 
   // 普通链接
   return (
-    <a
-      {...omit(props, ['node', 'citationData'])}
-      target="_blank"
-      rel="noreferrer"
-      onClick={(e) => e.stopPropagation()}
-    />
+    <Hyperlink href={props.href || ''}>
+      <a
+        {...omit(props, ['node', 'citationData'])}
+        target="_blank"
+        rel="noreferrer"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </Hyperlink>
   )
 }
 

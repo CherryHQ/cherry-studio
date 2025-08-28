@@ -2,6 +2,7 @@ import { CopyOutlined } from '@ant-design/icons'
 import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import { Tooltip, Typography } from 'antd'
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { CopyButton, MetadataContainer, ScoreTag, TagContainer } from '.'
 import { useCopyText, useKnowledgeItemMetadata } from './hooks'
@@ -15,15 +16,15 @@ interface KnowledgeItemMetadataProps {
 }
 
 export const KnowledgeItemMetadata: React.FC<KnowledgeItemMetadataProps> = ({ item }) => {
-  const { getSourceLink, getSourceLabel } = useKnowledgeItemMetadata()
+  const { getSourceLink } = useKnowledgeItemMetadata()
+  const { t } = useTranslation()
 
   const sourceLink = getSourceLink(item)
-  const sourceLabel = getSourceLabel()
 
   return (
     <MetadataContainer>
       <Text type="secondary">
-        {sourceLabel}:{' '}
+        {t('knowledge.source')}:{' '}
         <a href={sourceLink.href} target="_blank" rel="noreferrer">
           {sourceLink.text}
         </a>

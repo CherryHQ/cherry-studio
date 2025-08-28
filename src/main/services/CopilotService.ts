@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
-import { net } from 'electron'
-import { app, safeStorage } from 'electron'
-import fs from 'fs/promises'
+import { app, net, safeStorage } from 'electron'
+import fs from 'fs'
 import path from 'path'
+
+import { getConfigDir } from '../utils/file'
 
 const logger = loggerService.withContext('CopilotService')
 
@@ -28,7 +29,8 @@ const CONFIG = {
     GITHUB_DEVICE_CODE: 'https://github.com/login/device/code',
     GITHUB_ACCESS_TOKEN: 'https://github.com/login/oauth/access_token',
     COPILOT_TOKEN: 'https://api.github.com/copilot_internal/v2/token'
-  }
+  },
+  TOKEN_FILE_NAME: '.copilot_token'
 }
 
 // 接口定义移到顶部，便于查阅
@@ -67,12 +69,20 @@ class CopilotService {
   private headers: Record<string, string>
 
   constructor() {
-    this.tokenFilePath = path.join(app.getPath('userData'), '.copilot_token')
+    this.tokenFilePath = this.getTokenFilePath()
     this.headers = {
       ...CONFIG.DEFAULT_HEADERS,
       accept: 'application/json',
       'user-agent': 'Visual Studio Code (desktop)'
     }
+  }
+
+  private getTokenFilePath = (): string => {
+    const oldTokenFilePath = path.join(app.getPath('userData'), CONFIG.TOKEN_FILE_NAME)
+    if (fs.existsSync(oldTokenFilePath)) {
+      return oldTokenFilePath
+    }
+    return path.join(getConfigDir(), CONFIG.TOKEN_FILE_NAME)
   }
 
   /**
@@ -209,7 +219,13 @@ class CopilotService {
   public saveCopilotToken = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<void> => {
     try {
       const encryptedToken = safeStorage.encryptString(token)
-      await fs.writeFile(this.tokenFilePath, encryptedToken)
+      // 确保目录存在
+      const dir = path.dirname(this.tokenFilePath)
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true })
+      }
+
+      await fs.promises.writeFile(this.tokenFilePath, encryptedToken)
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)
@@ -226,7 +242,7 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const encryptedToken = await fs.readFile(this.tokenFilePath)
+      const encryptedToken = await fs.promises.readFile(this.tokenFilePath)
       const access_token = safeStorage.decryptString(Buffer.from(encryptedToken))
 
       const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
@@ -254,8 +270,8 @@ class CopilotService {
   public logout = async (): Promise<void> => {
     try {
       try {
-        await fs.access(this.tokenFilePath)
-        await fs.unlink(this.tokenFilePath)
+        await fs.promises.access(this.tokenFilePath)
+        await fs.promises.unlink(this.tokenFilePath)
         logger.debug('Successfully logged out from Copilot')
       } catch (error) {
         // 文件不存在不是错误，只是记录一下

@@ -10,56 +10,44 @@ exports[`DraggableList > snapshot > should match snapshot 1`] = `
     >
       <div>
         <div
-          data-testid="virtual-list"
+          class="draggable-list-container"
         >
           <div
-            data-testid="virtual-list-item"
+            data-testid="draggable-a-0"
           >
             <div
-              data-testid="draggable-a-0"
+              style="margin-bottom: 8px;"
             >
               <div
-                style="margin-bottom: 8px;"
+                data-testid="item"
               >
-                <div
-                  data-testid="item"
-                >
-                  A
-                </div>
+                A
               </div>
             </div>
           </div>
           <div
-            data-testid="virtual-list-item"
+            data-testid="draggable-b-1"
           >
             <div
-              data-testid="draggable-b-1"
+              style="margin-bottom: 8px;"
             >
               <div
-                style="margin-bottom: 8px;"
+                data-testid="item"
               >
-                <div
-                  data-testid="item"
-                >
-                  B
-                </div>
+                B
               </div>
             </div>
           </div>
           <div
-            data-testid="virtual-list-item"
+            data-testid="draggable-c-2"
           >
             <div
-              data-testid="draggable-c-2"
+              style="margin-bottom: 8px;"
             >
               <div
-                style="margin-bottom: 8px;"
+                data-testid="item"
               >
-                <div
-                  data-testid="item"
-                >
-                  C
-                </div>
+                C
               </div>
             </div>
           </div>

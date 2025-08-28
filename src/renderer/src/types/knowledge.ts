@@ -74,15 +74,6 @@ export interface PreprocessProvider {
   quota?: number
 }
 
-export interface OcrProvider {
-  id: string
-  name: string
-  apiKey?: string
-  apiHost?: string
-  model?: string
-  options?: any
-}
-
 export type KnowledgeBaseParams = {
   id: string
   dimensions?: number

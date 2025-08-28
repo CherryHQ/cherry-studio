@@ -39,12 +39,7 @@ import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
-import {
-  abortCompletion,
-  addAbortController,
-  createAbortPromise,
-  removeAbortController
-} from '@renderer/utils/abortController'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
@@ -929,10 +924,7 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const controller = new AbortController()
-  const abortFn = () => controller.abort()
   const taskId = uuid()
-  addAbortController(taskId, abortFn)
 
   const ai = new AiProvider(provider)
 
@@ -945,7 +937,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
       await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
-      // 通过该状态判断abort原因
       let streamError: Error | undefined = undefined
 
       // 15s超时
@@ -960,30 +951,24 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        onChunk: () => {
-          // 接收到任意chunk都直接abort
+        onChunk: (chunk: Chunk) => {
+          if (chunk.type === ChunkType.ERROR && !isAbortError(chunk.error)) {
+            streamError = new Error(JSON.stringify(chunk.error))
+          }
           abortCompletion(taskId)
         },
-        onError: (e) => {
-          // 捕获stream error
-          streamError = e
-          abortCompletion(taskId)
-        }
+        shouldThrow: true,
+        abortKey: taskId
       }
 
       // Try streaming check first
       try {
-        await createAbortPromise(controller.signal, ai.completions(params))
-      } catch (e: any) {
-        if (isAbortError(e)) {
-          if (streamError) {
-            throw streamError
-          }
-        } else {
-          throw e
-        }
+        await ai.completions(params)
       } finally {
         clearTimeout(timer)
+      }
+      if (streamError) {
+        throw streamError
       }
     }
   } catch (error: any) {
@@ -1002,8 +987,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
     } else {
       throw error
     }
-  } finally {
-    removeAbortController(taskId, abortFn)
   }
 }
 

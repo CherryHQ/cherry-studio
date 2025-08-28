@@ -148,9 +148,6 @@
     "edit": {
       "title": "Modifier l'Aide"
     },
-    "error": {
-      "add": "Échec de l'ajout de l'assistant"
-    },
     "icon": {
       "type": "Icône de l'assistant"
     },
@@ -243,6 +240,7 @@
       "compressing": "Compression des fichiers...",
       "copying_files": "Copie des fichiers... {{progress}}%",
       "preparing": "Préparation de la sauvegarde...",
+      "preparing_compression": "Préparation de la compression...",
       "title": "Progrès de la sauvegarde",
       "writing_data": "Écriture des données..."
     },
@@ -393,8 +391,10 @@
         "parse_tool_call": "Impossible de convertir au format d'appel d'outil valide : {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini ne prend pas en charge l'utilisation simultanée de l'outil de recherche natif et de l'appel de fonctions",
         "multiple_tools": "Il existe plusieurs outils MCP correspondants, {{tool}} a été sélectionné",
-        "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé"
+        "no_tool": "Aucun outil MCP requis {{tool}} n'a été trouvé",
+        "url_context": "Gemini ne prend pas en charge l'utilisation simultanée du contexte de la page Web et des appels de fonction"
       }
     },
     "message": {
@@ -750,6 +750,9 @@
     "enabled": "Activé",
     "error": "erreur",
     "expand": "Développer",
+    "file": {
+      "not_supported": "Type de fichier non pris en charge {{type}}"
+    },
     "footnote": "Note de bas de page",
     "footnotes": "Notes de bas de page",
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",
@@ -787,9 +790,11 @@
         "label": "Сортировать по пиньинь"
       }
     },
+    "stop": "Arrêter",
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
+    "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
     "you": "Vous"
   },
@@ -807,6 +812,13 @@
   "error": {
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect"
+    },
+    "boundary": {
+      "default": {
+        "devtools": "Ouvrir le panneau de débogage",
+        "message": "Il semble que quelques problèmes soient survenus...",
+        "reload": "Recharger"
+      }
     },
     "chat": {
       "chunk": {
@@ -888,6 +900,9 @@
   },
   "history": {
     "continue_chat": "Continuer la conversation",
+    "error": {
+      "topic_not_found": "Le sujet n'existe pas"
+    },
     "locate": {
       "message": "Localiser le message"
     },
@@ -1543,6 +1558,10 @@
     "embedding_model": "Modèle d'incrustation",
     "embedding_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
     "enable_tool_use": "Appel d'outil",
+    "filter": {
+      "by_tag": "Filtrer par étiquette",
+      "selected": "Étiquette sélectionnée"
+    },
     "function_calling": "Appel de fonction",
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
@@ -1569,7 +1588,10 @@
     "rerank_model_not_support_provider": "Le modèle de réordonnancement ne prend pas en charge ce fournisseur ({{provider}}) pour le moment",
     "rerank_model_support_provider": "Le modèle de réordonnancement ne prend actuellement en charge que certains fournisseurs ({{provider}})",
     "rerank_model_tooltip": "Cliquez sur le bouton Gérer dans Paramètres -> Services de modèles pour ajouter",
-    "search": "Rechercher un modèle...",
+    "search": {
+      "placeholder": "Rechercher un modèle...",
+      "tooltip": "Rechercher un modèle"
+    },
     "stream_output": "Sortie en flux",
     "type": {
       "embedding": "Incorporation",
@@ -1588,6 +1610,9 @@
     "hide_sidebar": "Cacher la barre latérale",
     "show_sidebar": "Afficher la barre latérale"
   },
+  "navigate": {
+    "provider_settings": "Aller aux paramètres du fournisseur"
+  },
   "notification": {
     "assistant": "Réponse de l'assistant",
     "knowledge": {
@@ -1595,6 +1620,26 @@
       "success": "{{type}} ajouté avec succès à la base de connaissances"
     },
     "tip": "Si la réponse est réussie, un rappel est envoyé uniquement pour les messages dépassant 30 secondes"
+  },
+  "ocr": {
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "Impossible de supprimer le fournisseur intégré",
+        "existing": "Le fournisseur existe déjà",
+        "not_found": "Le fournisseur OCR n'existe pas",
+        "update_failed": "Échec de la mise à jour de la configuration"
+      },
+      "unknown": "Une erreur s'est produite lors du processus OCR"
+    },
+    "file": {
+      "not_supported": "Type de fichier non pris en charge {{type}}"
+    },
+    "processing": "Traitement OCR en cours...",
+    "warning": {
+      "provider": {
+        "fallback": "Revenu à {{name}}, ce qui pourrait entraîner des problèmes"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -2717,7 +2762,6 @@
         "title": "Mise à jour automatique"
       },
       "avatar": {
-        "builtin": "Avatar intégré",
         "reset": "Réinitialiser l'avatar"
       },
       "backup": {
@@ -2936,6 +2980,10 @@
         "size": "Размер",
         "text": "Текст",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Rechercher des serveurs MCP...",
+        "tooltip": "Rechercher des serveurs MCP"
       },
       "searchNpx": "Поиск MCP",
       "serverPlural": "Serveurs",
@@ -3516,6 +3564,20 @@
     },
     "title": "Paramètres",
     "tool": {
+      "ocr": {
+        "image": {
+          "error": {
+            "provider_not_found": "Ce fournisseur n'existe pas"
+          },
+          "tesseract": {
+            "langs": "Langues prises en charge",
+            "temp_tooltip": "Pour le moment, seuls le chinois et l'anglais sont pris en charge."
+          },
+          "title": "Image"
+        },
+        "image_provider": "Fournisseur de service OCR",
+        "title": "Service OCR"
+      },
       "preprocess": {
         "provider": "fournisseur de services de prétraitement de documents",
         "provider_placeholder": "Choisissez un prestataire de traitement de documents",
@@ -3756,18 +3818,31 @@
     "exchange": {
       "label": "Échanger la langue source et la langue cible"
     },
+    "files": {
+      "drag_text": "Glisser-déposer ici",
+      "error": {
+        "multiple": "Impossible de téléverser plusieurs fichiers",
+        "too_large": "Fichier trop volumineux",
+        "unknown": "Échec de la lecture du contenu du fichier"
+      },
+      "reading": "Lecture du contenu du fichier en cours..."
+    },
     "history": {
       "clear": "Effacer l'historique",
       "clear_description": "L'effacement de l'historique supprimera toutes les entrées d'historique de traduction, voulez-vous continuer ?",
-      "delete": "Supprimer",
+      "delete": "Supprimer l'historique des traductions",
       "empty": "Aucun historique de traduction pour le moment",
       "error": {
+        "delete": "Échec de la suppression",
         "save": "Échec de la sauvegarde de l'historique des traductions"
       },
       "search": {
         "placeholder": "Rechercher l'historique des traductions"
       },
       "title": "Historique des traductions"
+    },
+    "info": {
+      "aborted": "Traduction annulée"
     },
     "input": {
       "placeholder": "entrez le texte à traduire"
@@ -3822,10 +3897,6 @@
     "title": "Mise à jour"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "Revenu à l'assistant par défaut, ce qui pourrait entraîner des problèmes"
-    },
-    "missing_assistant": "L'assistant n'existe pas",
     "missing_provider": "Le fournisseur n’existe pas, retour au fournisseur par défaut {{provider}}. Cela peut entraîner des problèmes."
   },
   "words": {
