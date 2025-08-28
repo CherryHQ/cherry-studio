@@ -1,4 +1,5 @@
 import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
@@ -108,11 +109,13 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               {
                 label: t('html_artifacts.capture.to_file'),
                 key: 'capture_to_file',
+                icon: <FilePngIcon size={14} className="lucide-custom" />,
                 onClick: () => handleCapture('file')
               },
               {
                 label: t('html_artifacts.capture.to_clipboard'),
                 key: 'capture_to_clipboard',
+                icon: <CopyIcon size={14} className="lucide-custom" />,
                 onClick: () => handleCapture('clipboard')
               }
             ]
