@@ -6,7 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
-import { Model, ModelTag } from '@renderer/types'
+import { Model, ModelTag, objectEntries } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils/model'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -44,9 +44,9 @@ export function useModelTagFilter() {
   // 已选中的标签
   const selectedTags = useMemo(
     () =>
-      Object.entries(tagSelection)
+      objectEntries(tagSelection)
         .filter(([, state]) => state)
-        .map(([tag]) => tag as ModelTag),
+        .map(([tag]) => tag),
     [tagSelection]
   )
 
