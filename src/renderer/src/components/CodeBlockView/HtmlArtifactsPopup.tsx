@@ -3,7 +3,8 @@ import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
-import { Button, Modal, Splitter, Tooltip, Typography } from 'antd'
+import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
+import { Button, Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
 import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +26,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
   const codeEditorRef = useRef<CodeEditorHandles>(null)
-  const previewSectionRef = useRef<HTMLDivElement>(null)
+  const previewFrameRef = useRef<HTMLIFrameElement>(null)
 
   // Prevent body scroll when fullscreen
   useEffect(() => {
@@ -45,24 +46,27 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     setSaved(true)
   }
 
-  const handleCapture = useCallback(async () => {
-    if (!previewSectionRef.current) return
+  const handleCapture = useCallback(
+    async (to: 'file' | 'clipboard') => {
+      const title = extractHtmlTitle(html)
+      const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
 
-    // 直接测量当前 PreviewSection 的宽度（不完全准确）
-    const rect = previewSectionRef.current.getBoundingClientRect()
-    const currentWidth = Math.floor(rect.width) || 800
-
-    // 捕获页面内容
-    const base64 = await window.api.pageCapture.htmlToPng(html, currentWidth)
-    const dataUrl = base64 ? `data:image/png;base64,${base64}` : undefined
-
-    // 构造文件名，保存为图片
-    const title = extractHtmlTitle(html)
-    const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
-    if (fileName && dataUrl) {
-      window.api.file.saveImage(fileName, dataUrl)
-    }
-  }, [html])
+      if (to === 'file') {
+        const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
+        if (dataUrl) {
+          window.api.file.saveImage(fileName, dataUrl)
+        }
+      }
+      if (to === 'clipboard') {
+        await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
+          if (blob) {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+          }
+        })
+      }
+    },
+    [html]
+  )
 
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
@@ -97,9 +101,26 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       </HeaderCenter>
 
       <HeaderRight $isFullscreen={isFullscreen} onDoubleClick={(e) => e.stopPropagation()}>
-        <Tooltip title={t('code_block.download.png')} mouseLeaveDelay={0}>
-          <Button onClick={handleCapture} type="text" icon={<Camera size={16} />} className="nodrag" />
-        </Tooltip>
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            items: [
+              {
+                label: t('html_artifacts.capture.to_file'),
+                key: 'capture_to_file',
+                onClick: () => handleCapture('file')
+              },
+              {
+                label: t('html_artifacts.capture.to_clipboard'),
+                key: 'capture_to_clipboard',
+                onClick: () => handleCapture('clipboard')
+              }
+            ]
+          }}>
+          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
+            <Button type="text" icon={<Camera size={16} />} className="nodrag" />
+          </Tooltip>
+        </Dropdown>
         <Button
           onClick={() => setIsFullscreen(!isFullscreen)}
           type="text"
@@ -149,9 +170,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     )
 
     const previewPanel = (
-      <PreviewSection ref={previewSectionRef}>
+      <PreviewSection>
         {html.trim() ? (
           <PreviewFrame
+            ref={previewFrameRef}
             key={html} // Force recreate iframe when preview content changes
             srcDoc={html}
             title="HTML Preview"

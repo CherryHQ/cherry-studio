@@ -285,8 +285,5 @@ export enum IpcChannel {
   CodeTools_Run = 'code-tools:run',
 
   // OCR
-  OCR_ocr = 'ocr:ocr',
-
-  // Capture
-  PageCapture_HtmlToPng = 'page-capture:html-to-png'
+  OCR_ocr = 'ocr:ocr'
 }

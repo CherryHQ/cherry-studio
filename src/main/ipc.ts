@@ -31,7 +31,6 @@ import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
 import { ocrService } from './services/ocr/OcrService'
-import { pageCaptureService } from './services/PageCaptureService'
 import { proxyManager } from './services/ProxyManager'
 import { pythonService } from './services/PythonService'
 import { FileServiceManager } from './services/remotefile/FileServiceManager'
@@ -715,7 +714,4 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // OCR
   ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
-
-  // Capture service
-  ipcMain.handle(IpcChannel.PageCapture_HtmlToPng, pageCaptureService.captureHtmlToPng.bind(pageCaptureService))
 }

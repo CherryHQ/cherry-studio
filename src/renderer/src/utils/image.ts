@@ -176,6 +176,87 @@ export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement
 }
 
 /**
+ * 捕获 iframe 内部文档的完整内容快照
+ */
+export async function captureScrollableIframe(
+  iframeRef: React.RefObject<HTMLIFrameElement | null>
+): Promise<HTMLCanvasElement | undefined> {
+  const iframe = iframeRef.current
+  if (!iframe) return Promise.resolve(undefined)
+
+  const doc = iframe.contentDocument
+  const win = doc?.defaultView
+  if (!doc || !win) return Promise.resolve(undefined)
+
+  // 等待两帧渲染稳定
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+
+  // 触发懒加载资源尽快加载
+  doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
+  await new Promise((r) => setTimeout(r, 200))
+
+  const de = doc.documentElement
+  const b = doc.body
+
+  // 计算完整尺寸
+  const totalWidth = Math.max(b.scrollWidth, de.scrollWidth, b.clientWidth, de.clientWidth)
+  const totalHeight = Math.max(b.scrollHeight, de.scrollHeight, b.clientHeight, de.clientHeight)
+
+  logger.verbose('The iframe to be captured has size:', { totalWidth, totalHeight })
+
+  // 按比例缩放以不超过上限
+  const MAX = 32767
+  const maxSide = Math.max(totalWidth, totalHeight)
+  const scale = maxSide > MAX ? MAX / maxSide : 1
+  const pixelRatio = (win.devicePixelRatio || 1) * scale
+
+  const bg = win.getComputedStyle(b).backgroundColor || '#ffffff'
+  const fg = win.getComputedStyle(b).color || '#000000'
+
+  try {
+    const canvas = await htmlToImage.toCanvas(de, {
+      backgroundColor: bg,
+      cacheBust: true,
+      pixelRatio,
+      skipAutoScale: true,
+      width: Math.floor(totalWidth),
+      height: Math.floor(totalHeight),
+      style: {
+        backgroundColor: bg,
+        color: fg,
+        width: `${totalWidth}px`,
+        height: `${totalHeight}px`,
+        overflow: 'visible',
+        display: 'block'
+      }
+    })
+
+    return canvas
+  } catch (error) {
+    logger.error('Error capturing iframe full snapshot:', error as Error)
+    return Promise.resolve(undefined)
+  }
+}
+
+export const captureScrollableIframeAsDataURL = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
+  return captureScrollableIframe(iframeRef).then((canvas) => {
+    if (canvas) {
+      return canvas.toDataURL('image/png')
+    }
+    return Promise.resolve(undefined)
+  })
+}
+
+export const captureScrollableIframeAsBlob = async (
+  iframeRef: React.RefObject<HTMLIFrameElement | null>,
+  func: BlobCallback
+) => {
+  await captureScrollableIframe(iframeRef).then((canvas) => {
+    canvas?.toBlob(func, 'image/png')
+  })
+}
+
+/**
  * 将 SVG 元素转换为 Canvas 元素。
  * @param svgElement 要转换的 SVG 元素
  * @param scale 缩放比例
