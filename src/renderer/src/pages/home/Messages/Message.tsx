@@ -107,7 +107,7 @@ const MessageItem: FC<Props> = ({
         logger.error('Failed to resend message:', error as Error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]
+    [message, resendUserMessageWithEdit, assistant, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
