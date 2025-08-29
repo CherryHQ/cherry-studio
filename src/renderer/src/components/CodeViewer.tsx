@@ -257,6 +257,7 @@ const ScrollContainer = styled.div<{
     .line-content {
       flex: 1;
       padding-right: 1em;
+      white-space: pre;
       * {
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};
         overflow-wrap: ${(props) => (props.$wrap ? 'break-word' : 'normal')};
