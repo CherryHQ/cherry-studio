@@ -856,7 +856,7 @@ export interface MCPServer {
   searchKey?: string
   configSample?: MCPConfigSample
 
-  // 下面是内部使用字段，从外部传入的MCP服务器不应该编辑这些字段
+  // 下面是内部使用字段，从外部传入的MCP服务器不应该编辑这些字段，这些字段也不应该以JSON数据格式直接暴露给用户
   /** 用于标记内置 MCP 是否需要配置 */
   shouldConfig?: boolean
   /** 用于标记服务器是否运行中 */
