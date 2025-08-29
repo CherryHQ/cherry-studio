@@ -80,7 +80,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
           height="60vh"
           expanded={false}
-          unwrapped={false}
+          wrapped
           options={{
             lint: true,
             lineNumbers: true,

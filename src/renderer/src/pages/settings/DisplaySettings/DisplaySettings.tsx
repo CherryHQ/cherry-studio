@@ -339,7 +339,7 @@ const DisplaySettings: FC = () => {
           onChange={(value) => dispatch(setCustomCss(value))}
           height="60vh"
           expanded={false}
-          unwrapped={false}
+          wrapped
           options={{
             autocompletion: true,
             lineNumbers: true,

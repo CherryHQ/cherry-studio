@@ -80,10 +80,10 @@ export interface CodeEditorProps {
    */
   expanded?: boolean
   /**
-   * Whether to unwrap the editor.
-   * @default false
+   * Whether the code lines are wrapped.
+   * @default true
    */
-  unwrapped?: boolean
+  wrapped?: boolean
 }
 
 /**
@@ -109,7 +109,7 @@ const CodeEditor = ({
   className,
   editable = true,
   expanded = true,
-  unwrapped = false
+  wrapped = true
 }: CodeEditorProps) => {
   const { fontSize: _fontSize, codeShowLineNumbers: _lineNumbers, codeEditor } = useSettings()
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
@@ -162,12 +162,12 @@ const CodeEditor = ({
     return [
       ...(extensions ?? []),
       ...langExtensions,
-      ...(unwrapped ? [] : [EditorView.lineWrapping]),
+      ...(wrapped ? [EditorView.lineWrapping] : []),
       saveKeymapExtension,
       blurExtension,
       heightListenerExtension
     ].flat()
-  }, [extensions, langExtensions, unwrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
+  }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
   useImperativeHandle(ref, () => ({
     save: handleSave

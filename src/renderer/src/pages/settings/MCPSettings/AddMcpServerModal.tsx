@@ -298,7 +298,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               onChange={handleEditorChange}
               height="60vh"
               expanded={false}
-              unwrapped={false}
+              wrapped
               options={{
                 lint: true,
                 lineNumbers: true,

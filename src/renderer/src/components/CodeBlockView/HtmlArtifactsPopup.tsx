@@ -147,7 +147,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           onSave={onSave}
           height="100%"
           expanded={false}
-          unwrapped={false}
+          wrapped
           style={{ minHeight: 0 }}
           options={{
             stream: true, // FIXME: 避免多余空行

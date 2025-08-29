@@ -100,7 +100,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [hasSpecialView, viewMode])
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
-  const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)
+  const [wrapOverride, setWrapOverride] = useState(codeWrappable)
 
   // 重置用户操作
   useEffect(() => {
@@ -109,11 +109,11 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 重置用户操作
   useEffect(() => {
-    setUnwrapOverride(!codeWrappable)
+    setWrapOverride(codeWrappable)
   }, [codeWrappable])
 
   const shouldExpand = useMemo(() => !codeCollapsible || expandOverride, [codeCollapsible, expandOverride])
-  const shouldUnwrap = useMemo(() => !codeWrappable || unwrapOverride, [codeWrappable, unwrapOverride])
+  const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
 
   const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
   const expandable = useMemo(() => {
@@ -225,9 +225,9 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 源代码视图的自动换行按钮
   useWrapTool({
     enabled: !isInSpecialView,
-    unwrapped: shouldUnwrap,
+    wrapped: shouldWrap,
     wrappable: codeWrappable,
-    toggle: useCallback(() => setUnwrapOverride((prev) => !prev), []),
+    toggle: useCallback(() => setWrapOverride((prev) => !prev), []),
     setTools
   })
 
@@ -252,19 +252,19 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
           options={{ stream: true }}
           expanded={shouldExpand}
-          unwrapped={shouldUnwrap}
+          wrapped={shouldWrap}
         />
       ) : (
         <CodeViewer
           className="source-view"
           language={language}
           expanded={shouldExpand}
-          unwrapped={shouldUnwrap}
+          wrapped={shouldWrap}
           onHeightChange={handleHeightChange}>
           {children}
         </CodeViewer>
       ),
-    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldUnwrap]
+    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
   )
 
   // 特殊视图组件映射
