@@ -45,7 +45,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           }
           const path = file.url.slice(7)
           if (file.type === 'text') {
-            window.api.file.readInPath(path, true).then((fileContent) => {
+            window.api.fs.readText(path).then((fileContent) => {
               TextFilePreviewPopup.show(fileContent)
             })
           } else {

@@ -124,7 +124,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           const path = FileManager.getSafePath(file)
           if (path) {
             if (file.type === 'text') {
-              window.api.file.readInPath(path, true).then((fileContent) => {
+              window.api.fs.readText(path).then((fileContent) => {
                 TextFilePreviewPopup.show(fileContent)
               })
             } else {

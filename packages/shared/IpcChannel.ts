@@ -140,7 +140,6 @@ export enum IpcChannel {
   File_Upload = 'file:upload',
   File_Clear = 'file:clear',
   File_Read = 'file:read',
-  File_ReadPath = 'file:readPath',
   File_Delete = 'file:delete',
   File_DeleteDir = 'file:deleteDir',
   File_Get = 'file:get',
