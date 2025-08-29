@@ -7,9 +7,10 @@ import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store, { useAppSelector } from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
+import { setIsQuickAssistant } from '@renderer/store/runtime'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
 import { ThemeMode, Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
@@ -57,6 +58,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [isOutputted, setIsOutputted] = useState(false)
 
   const [error, setError] = useState<string | null>(null)
+
+  // 快捷助手模式下，设置为 true
+  const dispatch = useAppDispatch()
+  dispatch(setIsQuickAssistant(true))
 
   const { quickAssistantId } = useAppSelector((state) => state.llm)
   const { assistant: currentAssistant } = useAssistant(quickAssistantId)
