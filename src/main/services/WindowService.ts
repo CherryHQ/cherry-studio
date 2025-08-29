@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
@@ -15,7 +16,6 @@ import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { configManager } from './ConfigManager'
 import { contextMenu } from './ContextMenu'
 import { initSessionUserAgent } from './WebviewService'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 
 const DEFAULT_MINIWINDOW_WIDTH = 550
 const DEFAULT_MINIWINDOW_HEIGHT = 400
