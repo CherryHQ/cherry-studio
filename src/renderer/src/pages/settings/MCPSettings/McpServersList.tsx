@@ -215,6 +215,35 @@ const McpServersList: FC = () => {
     [onAddMcpServer, t]
   )
 
+  // 临时测试使用，合并前需要删除
+  const addInvalidServer = () => {
+    const invalidServer = {
+      id: 'invalidServer',
+      isActive: true,
+      provider: {
+        name: 'GIS Operations Server',
+        description: 'GIS MCP - 基于 FastMCP 的 GIS 功能服务'
+      },
+      command: {
+        exec: '/usr/bin/python3',
+        args: ['-m', 'src.server.gis_mcp_server', 'stdio']
+      },
+      workingDirectory: '/Users/hhh/Documents/我的程序/Python/SmartWater_MCP',
+      env: {
+        LOG_LEVEL: 'INFO'
+      },
+      timeouts: {
+        startup: 10000,
+        request: 30000
+      },
+      retries: {
+        maxAttempts: 2
+      }
+    }
+    // @ts-expect-error for test
+    handleAddServerSuccess(invalidServer)
+  }
+
   return (
     <Container ref={scrollRef}>
       <ListHeader>
@@ -229,6 +258,8 @@ const McpServersList: FC = () => {
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
+          {/* 临时测试使用，合并前需要删除 */}
+          <Button onClick={addInvalidServer}>添加无效server</Button>
           <Button icon={<EditIcon size={14} />} type="default" shape="round" onClick={() => EditMcpJsonPopup.show()}>
             {t('common.edit')}
           </Button>

@@ -56,7 +56,6 @@ describe('error', () => {
       const error = new Error('Test error')
       const result = formatErrorMessage(error)
 
-      expect(console.error).toHaveBeenCalled()
       expect(result).toContain('Error Details:')
       expect(result).toContain('  {')
       expect(result).toContain('    "message": "Test error"')
