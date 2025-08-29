@@ -3,7 +3,7 @@ import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/Anthropic
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
 import { VertexAPIClient } from '@renderer/aiCore/clients/gemini/VertexAPIClient'
-import { NewAPIClient } from '@renderer/aiCore/clients/NewAPIClient'
+import { NewAPIClient } from '@renderer/aiCore/clients/newapi/NewAPIClient'
 import { OpenAIAPIClient } from '@renderer/aiCore/clients/openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
 import { EndpointType, Model, Provider } from '@renderer/types'
@@ -16,6 +16,7 @@ vi.mock('@renderer/config/models', () => ({
       { id: 'gpt-4', name: 'GPT-4' },
       { id: 'gpt-4', name: 'GPT-4' }
     ],
+    zhipu: [],
     silicon: [],
     openai: [],
     anthropic: [],
@@ -32,7 +33,13 @@ vi.mock('@renderer/config/models', () => ({
   isWebSearchModel: vi.fn().mockReturnValue(false),
   findTokenLimit: vi.fn().mockReturnValue(4096),
   isFunctionCallingModel: vi.fn().mockReturnValue(false),
-  DEFAULT_MAX_TOKENS: 4096
+  DEFAULT_MAX_TOKENS: 4096,
+  glm45FlashModel: {
+    id: 'glm-4.5-flash',
+    name: 'GLM-4.5-Flash',
+    provider: 'cherryin',
+    group: 'GLM-4.5'
+  }
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({

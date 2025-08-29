@@ -11,6 +11,7 @@ import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-clou
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
+import CherryInProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -65,6 +66,16 @@ import { TOKENFLUX_HOST } from './constant'
 import { SYSTEM_MODELS } from './models'
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
+  cherryin: {
+    id: 'cherryin',
+    name: 'CherryIN',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.cherry-ai.com/',
+    models: SYSTEM_MODELS.cherryin,
+    isSystem: true,
+    enabled: true
+  },
   silicon: {
     id: 'silicon',
     name: 'Silicon',
@@ -73,7 +84,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.siliconflow.cn',
     models: SYSTEM_MODELS.silicon,
     isSystem: true,
-    enabled: true
+    enabled: false
   },
   aihubmix: {
     id: 'aihubmix',
@@ -92,6 +103,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://api.ocoolai.com',
     models: SYSTEM_MODELS.ocoolai,
+    isSystem: true,
+    enabled: false
+  },
+  zhipu: {
+    id: 'zhipu',
+    name: 'ZhiPu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    models: SYSTEM_MODELS.zhipu,
     isSystem: true,
     enabled: false
   },
@@ -319,16 +340,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false,
     isAuthed: false
-  },
-  zhipu: {
-    id: 'zhipu',
-    name: 'ZhiPu',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
-    models: SYSTEM_MODELS.zhipu,
-    isSystem: true,
-    enabled: false
   },
   yi: {
     id: 'yi',
@@ -595,6 +606,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
 export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
+  cherryin: CherryInProviderLogo,
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -673,6 +685,16 @@ type ProviderUrls = {
 }
 
 export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
+  cherryin: {
+    api: {
+      url: 'https://api.cherry-ai.com'
+    },
+    websites: {
+      official: 'https://cherry-ai.com',
+      docs: 'https://docs.cherry-ai.com',
+      models: 'https://docs.cherry-ai.com/pre-basic/providers/cherryin'
+    }
+  },
   ph8: {
     api: {
       url: 'https://ph8.co'

@@ -4,32 +4,29 @@ import { addPainting, removePainting, updatePainting, updatePaintings } from '@r
 import { PaintingAction, PaintingsState } from '@renderer/types'
 
 export function usePaintings() {
-  const paintings = useAppSelector((state) => state.paintings.paintings)
-  const generate = useAppSelector((state) => state.paintings.generate)
-  const remix = useAppSelector((state) => state.paintings.remix)
-  const edit = useAppSelector((state) => state.paintings.edit)
-  const upscale = useAppSelector((state) => state.paintings.upscale)
-  const DMXAPIPaintings = useAppSelector((state) => state.paintings.DMXAPIPaintings)
-  const tokenFluxPaintings = useAppSelector((state) => state.paintings.tokenFluxPaintings)
+  const siliconflow_paintings = useAppSelector((state) => state.paintings.siliconflow_paintings)
+  const dmxapi_paintings = useAppSelector((state) => state.paintings.dmxapi_paintings)
+  const tokenflux_paintings = useAppSelector((state) => state.paintings.tokenflux_paintings)
+  const zhipu_paintings = useAppSelector((state) => state.paintings.zhipu_paintings)
+  const aihubmix_image_generate = useAppSelector((state) => state.paintings.aihubmix_image_generate)
+  const aihubmix_image_remix = useAppSelector((state) => state.paintings.aihubmix_image_remix)
+  const aihubmix_image_edit = useAppSelector((state) => state.paintings.aihubmix_image_edit)
+  const aihubmix_image_upscale = useAppSelector((state) => state.paintings.aihubmix_image_upscale)
   const openai_image_generate = useAppSelector((state) => state.paintings.openai_image_generate)
   const openai_image_edit = useAppSelector((state) => state.paintings.openai_image_edit)
   const dispatch = useAppDispatch()
 
   return {
-    paintings,
-    DMXAPIPaintings,
-    tokenFluxPaintings,
-    persistentData: {
-      generate,
-      remix,
-      edit,
-      upscale,
-      tokenFluxPaintings
-    },
-    newApiPaintings: {
-      openai_image_generate,
-      openai_image_edit
-    },
+    siliconflow_paintings,
+    dmxapi_paintings,
+    tokenflux_paintings,
+    zhipu_paintings,
+    aihubmix_image_generate,
+    aihubmix_image_remix,
+    aihubmix_image_edit,
+    aihubmix_image_upscale,
+    openai_image_generate,
+    openai_image_edit,
     addPainting: (namespace: keyof PaintingsState, painting: PaintingAction) => {
       dispatch(addPainting({ namespace, painting }))
       return painting

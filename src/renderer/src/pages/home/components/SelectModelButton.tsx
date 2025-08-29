@@ -49,7 +49,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     return null
   }
 
-  const providerName = getProviderName(model?.provider)
+  const providerName = getProviderName(model)
 
   return (
     <DropdownButton size="small" type="text" onClick={onSelectModel}>

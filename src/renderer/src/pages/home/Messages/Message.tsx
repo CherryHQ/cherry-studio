@@ -264,7 +264,7 @@ const MessageContainer = styled.div`
 const MessageContentContainer = styled(Scrollbar)`
   max-width: 100%;
   padding-left: 46px;
-  margin-top: 5px;
+  margin-top: 0;
   overflow-y: auto;
 `
 

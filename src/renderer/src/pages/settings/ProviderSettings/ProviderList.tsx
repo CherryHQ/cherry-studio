@@ -9,6 +9,7 @@ import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { EventEmitter } from '@renderer/services/EventService'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
 import {
@@ -24,7 +25,7 @@ import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AddProviderPopup from './AddProviderPopup'
@@ -37,11 +38,12 @@ const logger = loggerService.withContext('ProviderList')
 const BUTTON_WRAPPER_HEIGHT = 50
 
 const ProviderList: FC = () => {
+  const { state } = useLocation()
   const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
-  const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
+  const [selectedProvider, _setSelectedProvider] = useState<Provider>(state?.provider || providers[0])
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
@@ -54,6 +56,11 @@ const ProviderList: FC = () => {
     },
     [_setSelectedProvider]
   )
+
+  useEffect(() => {
+    const unsubscribe = EventEmitter.on('select-provider', setSelectedProvider)
+    return () => unsubscribe()
+  }, [setSelectedProvider])
 
   useEffect(() => {
     const loadAllLogos = async () => {

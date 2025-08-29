@@ -43,7 +43,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     selectedBase.id || ''
   )
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const reversedItems = useMemo(() => [...sitemapItems].reverse(), [sitemapItems])
