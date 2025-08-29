@@ -4674,6 +4674,55 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@napi-rs/system-ocr-darwin-arm64@npm:1.0.2":
+  version: 1.0.2
+  resolution: "@napi-rs/system-ocr-darwin-arm64@npm:1.0.2"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@napi-rs/system-ocr-darwin-x64@npm:1.0.2":
+  version: 1.0.2
+  resolution: "@napi-rs/system-ocr-darwin-x64@npm:1.0.2"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@napi-rs/system-ocr-win32-arm64-msvc@npm:1.0.2":
+  version: 1.0.2
+  resolution: "@napi-rs/system-ocr-win32-arm64-msvc@npm:1.0.2"
+  conditions: os=win32 & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@napi-rs/system-ocr-win32-x64-msvc@npm:1.0.2":
+  version: 1.0.2
+  resolution: "@napi-rs/system-ocr-win32-x64-msvc@npm:1.0.2"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@napi-rs/system-ocr@npm:^1.0.2":
+  version: 1.0.2
+  resolution: "@napi-rs/system-ocr@npm:1.0.2"
+  dependencies:
+    "@napi-rs/system-ocr-darwin-arm64": "npm:1.0.2"
+    "@napi-rs/system-ocr-darwin-x64": "npm:1.0.2"
+    "@napi-rs/system-ocr-win32-arm64-msvc": "npm:1.0.2"
+    "@napi-rs/system-ocr-win32-x64-msvc": "npm:1.0.2"
+  dependenciesMeta:
+    "@napi-rs/system-ocr-darwin-arm64":
+      optional: true
+    "@napi-rs/system-ocr-darwin-x64":
+      optional: true
+    "@napi-rs/system-ocr-win32-arm64-msvc":
+      optional: true
+    "@napi-rs/system-ocr-win32-x64-msvc":
+      optional: true
+  checksum: 10c0/170f89051d2b9da52648ef933ab5e73bbafcb7ffb98948d877d3c9718e308ebf258b7b947b0d4f2bfe65fd8d2adf5acf47e5f7efd59ac0535ca99562e41b833a
+  languageName: node
+  linkType: hard
+
 "@napi-rs/wasm-runtime@npm:^1.0.1":
   version: 1.0.1
   resolution: "@napi-rs/wasm-runtime@npm:1.0.1"
@@ -8692,6 +8741,7 @@ __metadata:
     "@mistralai/mistralai": "npm:^1.7.5"
     "@modelcontextprotocol/sdk": "npm:^1.17.0"
     "@mozilla/readability": "npm:^0.6.0"
+    "@napi-rs/system-ocr": "npm:^1.0.2"
     "@notionhq/client": "npm:^2.2.15"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/core": "npm:2.0.0"

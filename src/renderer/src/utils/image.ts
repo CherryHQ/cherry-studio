@@ -33,18 +33,18 @@ export const compressImage = async (file: File): Promise<File> => {
 }
 
 /**
- * 捕获指定 div 元素的图像数据。
- * @param divRef div 元素的引用
+ * 捕获指定元素的图像数据。
+ * @param elRef 元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export async function captureDiv(divRef: React.RefObject<HTMLDivElement>) {
-  if (divRef.current) {
+export async function captureElement(elRef: React.RefObject<HTMLElement>) {
+  if (elRef.current) {
     try {
-      const canvas = await htmlToImage.toCanvas(divRef.current)
+      const canvas = await htmlToImage.toCanvas(elRef.current)
       const imageData = canvas.toDataURL('image/png')
       return imageData
     } catch (error) {
-      logger.error('Error capturing div:', error as Error)
+      logger.error('Error capturing element:', error as Error)
       return Promise.reject()
     }
   }
@@ -52,50 +52,50 @@ export async function captureDiv(divRef: React.RefObject<HTMLDivElement>) {
 }
 
 /**
- * 捕获可滚动 div 元素的完整内容图像。
- * @param divRef 可滚动 div 元素的引用
+ * 捕获可滚动元素的完整内容图像。
+ * @param elRef 可滚动元素的引用
  * @returns Promise<HTMLCanvasElement | undefined> 捕获的画布对象，如果失败则返回 undefined
  */
-export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElement | null>) => {
-  if (divRef.current) {
+export const captureScrollable = async (elRef: React.RefObject<HTMLElement | null>) => {
+  if (elRef.current) {
     try {
-      const div = divRef.current
+      const el = elRef.current
 
       // Save original styles
       const originalStyle = {
-        height: div.style.height,
-        maxHeight: div.style.maxHeight,
-        overflow: div.style.overflow,
-        position: div.style.position
+        height: el.style.height,
+        maxHeight: el.style.maxHeight,
+        overflow: el.style.overflow,
+        position: el.style.position
       }
 
-      const originalScrollTop = div.scrollTop
+      const originalScrollTop = el.scrollTop
 
       // Hide scrollbars during capture
-      div.classList.add('hide-scrollbar')
+      el.classList.add('hide-scrollbar')
 
       // Modify styles to show full content
-      div.style.height = 'auto'
-      div.style.maxHeight = 'none'
-      div.style.overflow = 'visible'
-      div.style.position = 'static'
+      el.style.height = 'auto'
+      el.style.maxHeight = 'none'
+      el.style.overflow = 'visible'
+      el.style.position = 'static'
 
-      // calculate the size of the div
-      const totalWidth = div.scrollWidth
-      const totalHeight = div.scrollHeight
+      // calculate the size of the element
+      const totalWidth = el.scrollWidth
+      const totalHeight = el.scrollHeight
 
-      // check if the size of the div is too large
+      // check if the size of the element is too large
       const MAX_ALLOWED_DIMENSION = 32767 // the maximum allowed pixel size
       if (totalHeight > MAX_ALLOWED_DIMENSION || totalWidth > MAX_ALLOWED_DIMENSION) {
         // restore the original styles
-        div.style.height = originalStyle.height
-        div.style.maxHeight = originalStyle.maxHeight
-        div.style.overflow = originalStyle.overflow
-        div.style.position = originalStyle.position
+        el.style.height = originalStyle.height
+        el.style.maxHeight = originalStyle.maxHeight
+        el.style.overflow = originalStyle.overflow
+        el.style.position = originalStyle.position
 
         // restore the original scroll position
         setTimeout(() => {
-          div.scrollTop = originalScrollTop
+          el.scrollTop = originalScrollTop
         }, 0)
 
         window.message.error({
@@ -107,16 +107,16 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 
       const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => {
         htmlToImage
-          .toCanvas(div, {
-            backgroundColor: getComputedStyle(div).getPropertyValue('--color-background'),
+          .toCanvas(el, {
+            backgroundColor: getComputedStyle(el).getPropertyValue('--color-background'),
             cacheBust: true,
             pixelRatio: window.devicePixelRatio,
             skipAutoScale: true,
-            canvasWidth: div.scrollWidth,
-            canvasHeight: div.scrollHeight,
+            canvasWidth: el.scrollWidth,
+            canvasHeight: el.scrollHeight,
             style: {
-              backgroundColor: getComputedStyle(div).backgroundColor,
-              color: getComputedStyle(div).color
+              backgroundColor: getComputedStyle(el).backgroundColor,
+              color: getComputedStyle(el).color
             }
           })
           .then((canvas) => resolve(canvas))
@@ -124,25 +124,25 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
       })
 
       // Restore original styles
-      div.style.height = originalStyle.height
-      div.style.maxHeight = originalStyle.maxHeight
-      div.style.overflow = originalStyle.overflow
-      div.style.position = originalStyle.position
+      el.style.height = originalStyle.height
+      el.style.maxHeight = originalStyle.maxHeight
+      el.style.overflow = originalStyle.overflow
+      el.style.position = originalStyle.position
 
       const imageData = canvas
 
       // Restore original scroll position
       setTimeout(() => {
-        div.scrollTop = originalScrollTop
+        el.scrollTop = originalScrollTop
       }, 0)
 
       return imageData
     } catch (error) {
-      logger.error('Error capturing scrollable div:', error as Error)
+      logger.error('Error capturing scrollable element:', error as Error)
       throw error
     } finally {
       // Remove scrollbar hiding class
-      divRef.current?.classList.remove('hide-scrollbar')
+      elRef.current?.classList.remove('hide-scrollbar')
     }
   }
 
@@ -150,12 +150,12 @@ export const captureScrollableDiv = async (divRef: React.RefObject<HTMLDivElemen
 }
 
 /**
- * 将可滚动 div 元素的图像数据转换为 Data URL 格式。
- * @param divRef 可滚动 div 元素的引用
+ * 将可滚动元素的图像数据转换为 Data URL 格式。
+ * @param elRef 可滚动元素的引用
  * @returns Promise<string | undefined> 图像数据 URL，如果失败则返回 undefined
  */
-export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTMLDivElement | null>) => {
-  return captureScrollableDiv(divRef).then((canvas) => {
+export const captureScrollableAsDataURL = async (elRef: React.RefObject<HTMLElement | null>) => {
+  return captureScrollable(elRef).then((canvas) => {
     if (canvas) {
       return canvas.toDataURL('image/png')
     }
@@ -164,16 +164,94 @@ export const captureScrollableDivAsDataURL = async (divRef: React.RefObject<HTML
 }
 
 /**
- * 将可滚动 div 元素的图像数据转换为 Blob 格式。
- * @param divRef 可滚动 div 元素的引用
+ * 将可滚动元素的图像数据转换为 Blob 格式。
+ * @param elRef 可滚动元素的引用
  * @param func Blob 回调函数
  * @returns Promise<void> 处理结果
  */
-export const captureScrollableDivAsBlob = async (
-  divRef: React.RefObject<HTMLDivElement | null>,
+export const captureScrollableAsBlob = async (elRef: React.RefObject<HTMLElement | null>, func: BlobCallback) => {
+  await captureScrollable(elRef).then((canvas) => {
+    canvas?.toBlob(func, 'image/png')
+  })
+}
+
+/**
+ * 捕获 iframe 内部文档的完整内容快照
+ */
+export async function captureScrollableIframe(
+  iframeRef: React.RefObject<HTMLIFrameElement | null>
+): Promise<HTMLCanvasElement | undefined> {
+  const iframe = iframeRef.current
+  if (!iframe) return Promise.resolve(undefined)
+
+  const doc = iframe.contentDocument
+  const win = doc?.defaultView
+  if (!doc || !win) return Promise.resolve(undefined)
+
+  // 等待两帧渲染稳定
+  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+
+  // 触发懒加载资源尽快加载
+  doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
+  await new Promise((r) => setTimeout(r, 200))
+
+  const de = doc.documentElement
+  const b = doc.body
+
+  // 计算完整尺寸
+  const totalWidth = Math.max(b.scrollWidth, de.scrollWidth, b.clientWidth, de.clientWidth)
+  const totalHeight = Math.max(b.scrollHeight, de.scrollHeight, b.clientHeight, de.clientHeight)
+
+  logger.verbose('The iframe to be captured has size:', { totalWidth, totalHeight })
+
+  // 按比例缩放以不超过上限
+  const MAX = 32767
+  const maxSide = Math.max(totalWidth, totalHeight)
+  const scale = maxSide > MAX ? MAX / maxSide : 1
+  const pixelRatio = (win.devicePixelRatio || 1) * scale
+
+  const bg = win.getComputedStyle(b).backgroundColor || '#ffffff'
+  const fg = win.getComputedStyle(b).color || '#000000'
+
+  try {
+    const canvas = await htmlToImage.toCanvas(de, {
+      backgroundColor: bg,
+      cacheBust: true,
+      pixelRatio,
+      skipAutoScale: true,
+      width: Math.floor(totalWidth),
+      height: Math.floor(totalHeight),
+      style: {
+        backgroundColor: bg,
+        color: fg,
+        width: `${totalWidth}px`,
+        height: `${totalHeight}px`,
+        overflow: 'visible',
+        display: 'block'
+      }
+    })
+
+    return canvas
+  } catch (error) {
+    logger.error('Error capturing iframe full snapshot:', error as Error)
+    return Promise.resolve(undefined)
+  }
+}
+
+export const captureScrollableIframeAsDataURL = async (iframeRef: React.RefObject<HTMLIFrameElement | null>) => {
+  return captureScrollableIframe(iframeRef).then((canvas) => {
+    if (canvas) {
+      return canvas.toDataURL('image/png')
+    }
+    return Promise.resolve(undefined)
+  })
+}
+
+export const captureScrollableIframeAsBlob = async (
+  iframeRef: React.RefObject<HTMLIFrameElement | null>,
   func: BlobCallback
 ) => {
-  await captureScrollableDiv(divRef).then((canvas) => {
+  await captureScrollableIframe(iframeRef).then((canvas) => {
     canvas?.toBlob(func, 'image/png')
   })
 }

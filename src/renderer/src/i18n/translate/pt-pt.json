@@ -240,6 +240,7 @@
       "compressing": "Comprimindo arquivo...",
       "copying_files": "Copiando arquivos... {{progress}}%",
       "preparing": "Preparando backup...",
+      "preparing_compression": "Preparando compressão...",
       "title": "Progresso do Backup",
       "writing_data": "Escrevendo dados..."
     },
@@ -390,8 +391,10 @@
         "parse_tool_call": "Não é possível converter para um formato de chamada de ferramenta válido: {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "O Gemini não suporta o uso simultâneo da ferramenta de pesquisa nativa e da chamada de funções.",
         "multiple_tools": "Existem várias ferramentas MCP correspondentes, a ferramenta {{tool}} foi selecionada",
-        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}"
+        "no_tool": "Nenhuma ferramenta MCP necessária correspondente encontrada {{tool}}",
+        "url_context": "O Gemini não suporta o uso simultâneo de contexto da página da web e chamadas de função"
       }
     },
     "message": {
@@ -787,6 +790,7 @@
         "label": "Ordenar por Pinyin"
       }
     },
+    "stop": "Parar",
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
@@ -864,6 +868,8 @@
   "files": {
     "actions": "Ações",
     "all": "Todos os Arquivos",
+    "batch_delete": "excluir em massa",
+    "batch_operation": "Selecionar tudo",
     "count": "Número de Arquivos",
     "created_at": "Data de Criação",
     "delete": {
@@ -912,6 +918,11 @@
     "title": "Procurar Tópicos"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "Capturar página",
+      "to_clipboard": "Copiar para a área de transferência",
+      "to_file": "Salvar como imagem"
+    },
     "code": "Código",
     "empty_preview": "Sem conteúdo para exibir",
     "generating": "Gerando",
@@ -1519,6 +1530,10 @@
     "embedding_model": "Modelo de inscrição",
     "embedding_model_tooltip": "Clique no botão Gerenciar em Configurações -> Serviço de modelos para adicionar",
     "enable_tool_use": "Chamada de ferramentas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiqueta selecionada"
+    },
     "function_calling": "Chamada de função",
     "no_matches": "Nenhum modelo disponível",
     "parameter_name": "Nome do parâmetro",
@@ -1567,6 +1582,9 @@
     "hide_sidebar": "Ocultar barra lateral",
     "show_sidebar": "Mostrar barra lateral"
   },
+  "navigate": {
+    "provider_settings": "Ir para as configurações do provedor"
+  },
   "notification": {
     "assistant": "Resposta do assistente",
     "knowledge": {
@@ -1576,6 +1594,9 @@
     "tip": "Se a resposta for bem-sucedida, lembrete apenas para mensagens que excedam 30 segundos"
   },
   "ocr": {
+    "builtin": {
+      "system": "OCR do sistema"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "Não é possível excluir o provedor integrado",
@@ -2716,6 +2737,7 @@
         "title": "Atualização automática"
       },
       "avatar": {
+        "builtin": "Avatares embutidos",
         "reset": "Redefinir avatar"
       },
       "backup": {
@@ -3521,17 +3543,30 @@
     "title": "Configurações",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "Idiomas suportados"
+        },
+        "error": {
+          "not_system": "O OCR do sistema suporta apenas Windows e MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "O provedor não existe"
           },
-          "tesseract": {
-            "langs": "Idiomas suportados",
-            "temp_tooltip": "No momento, apenas chinês e inglês são suportados."
+          "system": {
+            "no_need_configure": "MacOS não requer configuração"
           },
           "title": "Imagem"
         },
         "image_provider": "Provedor de serviços OCR",
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependendo do Windows para fornecer serviços, você precisa baixar pacotes de idiomas no sistema para dar suporte aos idiomas relevantes."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Leia a documentação para saber quais idiomas personalizados são suportados"
+        },
         "title": "Serviço OCR"
       },
       "preprocess": {
@@ -3759,6 +3794,7 @@
     },
     "empty": "O conteúdo de tradução está vazio",
     "error": {
+      "chat_qwen_mt": "Modelos Qwen MT não estão disponíveis para uso em conversas. Por favor, vá para a página de tradução.",
       "detect": {
         "qwen_mt": "O modelo QwenMT não pode ser usado para detecção de idioma",
         "unknown": "Idioma desconhecido detectado",
@@ -3777,6 +3813,7 @@
     "files": {
       "drag_text": "Arraste e solte aqui",
       "error": {
+        "check_type": "Ocorreu um erro ao verificar o tipo de arquivo",
         "multiple": "Não é permitido fazer upload de vários arquivos",
         "too_large": "Arquivo muito grande",
         "unknown": "Falha ao ler o conteúdo do arquivo"
@@ -3797,8 +3834,11 @@
       },
       "title": "Histórico de Tradução"
     },
+    "info": {
+      "aborted": "Tradução interrompida"
+    },
     "input": {
-      "placeholder": "Digite o texto para traduzir"
+      "placeholder": "Pode colar ou arrastar e soltar texto, arquivos e imagens (suporte a OCR)"
     },
     "language": {
       "not_pair": "O idioma de origem é diferente do idioma definido",

@@ -72,6 +72,7 @@
   "dependencies": {
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
+    "@napi-rs/system-ocr": "^1.0.2",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "graceful-fs": "^4.2.11",
     "jsdom": "26.1.0",

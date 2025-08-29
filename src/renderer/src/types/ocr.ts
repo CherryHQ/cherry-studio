@@ -1,9 +1,10 @@
 import Tesseract from 'tesseract.js'
 
-import { FileMetadata, ImageFileMetadata, isImageFile } from '.'
+import { FileMetadata, ImageFileMetadata, isImageFileMetadata, TranslateLanguageCode } from '.'
 
 export const BuiltinOcrProviderIds = {
-  tesseract: 'tesseract'
+  tesseract: 'tesseract',
+  system: 'system'
 } as const
 
 export type BuiltinOcrProviderId = keyof typeof BuiltinOcrProviderIds
@@ -15,6 +16,7 @@ export const isBuiltinOcrProviderId = (id: string): id is BuiltinOcrProviderId =
 // extensible
 export const OcrProviderCapabilities = {
   image: 'image'
+  // pdf: 'pdf'
 } as const
 
 export type OcrProviderCapability = keyof typeof OcrProviderCapabilities
@@ -63,7 +65,7 @@ export const isOcrProviderApiConfig = (config: unknown): config is OcrProviderAp
  *
  * Extend this type to define provider-specific config types.
  */
-export type OcrProviderConfig = {
+export type OcrProviderBaseConfig = {
   /** Not used for now. Could safely remove. */
   api?: OcrProviderApiConfig
   /** Not used for now. Could safely remove. */
@@ -72,17 +74,21 @@ export type OcrProviderConfig = {
   enabled?: boolean
 }
 
+export type OcrProviderConfig = OcrApiProviderConfig | OcrTesseractConfig | OcrSystemConfig
+
 export type OcrProvider = {
   id: string
   name: string
   capabilities: OcrProviderCapabilityRecord
-  config?: OcrProviderConfig
+  config?: OcrProviderBaseConfig
+}
+
+export type OcrApiProviderConfig = OcrProviderBaseConfig & {
+  api: OcrProviderApiConfig
 }
 
 export type OcrApiProvider = OcrProvider & {
-  config: OcrProviderConfig & {
-    api: OcrProviderApiConfig
-  }
+  config: OcrApiProviderConfig
 }
 
 export const isOcrApiProvider = (p: OcrProvider): p is OcrApiProvider => {
@@ -108,6 +114,12 @@ export type ImageOcrProvider = OcrProvider & {
   }
 }
 
+// export type PdfOcrProvider = OcrProvider & {
+//   capabilities: OcrProviderCapabilityRecord & {
+//     [OcrProviderCapabilities.pdf]: true
+//   }
+// }
+
 export const isImageOcrProvider = (p: OcrProvider): p is ImageOcrProvider => {
   return p.capabilities.image === true
 }
@@ -115,28 +127,46 @@ export const isImageOcrProvider = (p: OcrProvider): p is ImageOcrProvider => {
 export type SupportedOcrFile = ImageFileMetadata
 
 export const isSupportedOcrFile = (file: FileMetadata): file is SupportedOcrFile => {
-  return isImageFile(file)
+  return isImageFileMetadata(file)
 }
 
 export type OcrResult = {
   text: string
 }
 
-export type OcrHandler = (file: SupportedOcrFile) => Promise<OcrResult>
+export type OcrHandler = (file: SupportedOcrFile, options?: OcrProviderBaseConfig) => Promise<OcrResult>
 
-export type OcrImageHandler = (file: ImageFileMetadata) => Promise<OcrResult>
+export type OcrImageHandler = (file: ImageFileMetadata, options?: OcrProviderBaseConfig) => Promise<OcrResult>
 
 // Tesseract Types
-export type OcrTesseractConfig = OcrProviderConfig & {
-  langs: Partial<Record<TesseractLangCode, boolean>>
+export type OcrTesseractConfig = OcrProviderBaseConfig & {
+  langs?: Partial<Record<TesseractLangCode, boolean>>
 }
 
-export type OcrTesseractProvider = BuiltinOcrProvider & {
+export type OcrTesseractProvider = {
+  id: 'tesseract'
   config: OcrTesseractConfig
-}
+} & ImageOcrProvider &
+  BuiltinOcrProvider
 
 export const isOcrTesseractProvider = (p: OcrProvider): p is OcrTesseractProvider => {
   return p.id === BuiltinOcrProviderIds.tesseract
 }
 
 export type TesseractLangCode = Tesseract.LanguageCode
+
+// System Types
+export type OcrSystemConfig = OcrProviderBaseConfig & {
+  langs?: TranslateLanguageCode[]
+}
+
+export type OcrSystemProvider = {
+  id: 'system'
+  config: OcrSystemConfig
+} & ImageOcrProvider &
+  // PdfOcrProvider &
+  BuiltinOcrProvider
+
+export const isOcrSystemProvider = (p: OcrProvider): p is OcrSystemProvider => {
+  return p.id === BuiltinOcrProviderIds.system
+}

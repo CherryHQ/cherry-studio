@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import { ThinkingOption } from '@renderer/types'
+import { BuiltinMCPServerName, BuiltinMCPServerNames, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
 
 import i18n from './index'
 
@@ -95,17 +95,32 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(id, providerKeyMap)
 }
 
-const progressKeyMap = {
+const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
   copying_files: 'backup.progress.copying_files',
+  preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
   title: 'backup.progress.title',
   writing_data: 'backup.progress.writing_data'
 } as const
 
-export const getProgressLabel = (key: string): string => {
-  return getLabel(key, progressKeyMap)
+export const getBackupProgressLabel = (key: string): string => {
+  return getLabel(key, backupProgressKeyMap)
+}
+
+const restoreProgressKeyMap = {
+  completed: 'restore.progress.completed',
+  copying_files: 'restore.progress.copying_files',
+  extracted: 'restore.progress.extracted',
+  extracting: 'restore.progress.extracting',
+  preparing: 'restore.progress.preparing',
+  reading_data: 'restore.progress.reading_data',
+  title: 'restore.progress.title'
+}
+
+export const getRestoreProgressLabel = (key: string): string => {
+  return getLabel(key, restoreProgressKeyMap)
 }
 
 const titleKeyMap = {
@@ -294,17 +309,27 @@ export const getFileFieldLabel = (key: string): string => {
   return getLabel(key, fileFieldKeyMap)
 }
 
-const builtInMcpDescriptionKeyMap = {
-  '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
-  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.memory',
-  '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
-  '@cherry/brave-search': 'settings.mcp.builtinServersDescriptions.brave_search',
-  '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',
-  '@cherry/filesystem': 'settings.mcp.builtinServersDescriptions.filesystem',
-  '@cherry/dify-knowledge': 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python'
+const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
+  [BuiltinMCPServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  [BuiltinMCPServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
+  [BuiltinMCPServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
+  [BuiltinMCPServerNames.braveSearch]: 'settings.mcp.builtinServersDescriptions.brave_search',
+  [BuiltinMCPServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
+  [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
+  [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
+  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
   return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
+}
+
+const builtinOcrProviderKeyMap = {
+  system: 'ocr.builtin.system',
+  tesseract: ''
+} as const satisfies Record<BuiltinOcrProviderId, string>
+
+export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
+  if (key === 'tesseract') return 'Tesseract'
+  else return getLabel(key, builtinOcrProviderKeyMap)
 }

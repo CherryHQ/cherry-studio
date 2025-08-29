@@ -1,11 +1,14 @@
 // import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { isBuiltinOcrProvider, OcrProvider } from '@renderer/types'
-import { getOcrProviderLogo } from '@renderer/utils/ocr'
-import { Avatar, Divider, Flex } from 'antd'
+import { isMac, isWin } from '@renderer/config/constant'
+import { useTheme } from '@renderer/context/ThemeProvider'
+import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
+import { isBuiltinOcrProvider, isOcrSystemProvider, OcrProvider } from '@renderer/types'
+import { Divider, Flex } from 'antd'
 import styled from 'styled-components'
 
-import { SettingTitle } from '..'
+import { SettingGroup, SettingTitle } from '..'
+import { OcrSystemSettings } from './OcrSystemSettings'
 import { OcrTesseractSettings } from './OcrTesseractSettings'
 
 // const logger = loggerService.withContext('OcrTesseractSettings')
@@ -15,12 +18,22 @@ type Props = {
 }
 
 const OcrProviderSettings = ({ provider }: Props) => {
-  // const { t } = useTranslation()
-  const getProviderSettings = () => {
+  const { theme: themeMode } = useTheme()
+  const { OcrProviderLogo, getOcrProviderName } = useOcrProviders()
+
+  if (!isWin && !isMac && isOcrSystemProvider(provider)) {
+    return null
+  }
+
+  const ProviderSettings = () => {
     if (isBuiltinOcrProvider(provider)) {
       switch (provider.id) {
         case 'tesseract':
           return <OcrTesseractSettings />
+        case 'system':
+          return <OcrSystemSettings />
+        default:
+          return null
       }
     } else {
       throw new Error('Not supported OCR provider')
@@ -28,25 +41,24 @@ const OcrProviderSettings = ({ provider }: Props) => {
   }
 
   return (
-    <>
+    <SettingGroup theme={themeMode}>
       <SettingTitle>
         <Flex align="center" gap={8}>
-          <ProviderLogo shape="square" src={getOcrProviderLogo(provider.id)} size={16} />
-          <ProviderName> {provider.name}</ProviderName>
+          <OcrProviderLogo provider={provider} />
+          <ProviderName> {getOcrProviderName(provider)}</ProviderName>
         </Flex>
       </SettingTitle>
       <Divider style={{ width: '100%', margin: '10px 0' }} />
-      <ErrorBoundary>{getProviderSettings()}</ErrorBoundary>
-    </>
+      <ErrorBoundary>
+        <ProviderSettings />
+      </ErrorBoundary>
+    </SettingGroup>
   )
 }
 
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-`
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 export default OcrProviderSettings

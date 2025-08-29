@@ -112,7 +112,7 @@ export default class AiProvider {
         builder.remove(ToolUseExtractionMiddlewareName)
         logger.silly('ToolUseExtractionMiddleware is removed')
       }
-      if (params.callType !== 'chat') {
+      if (params.callType !== 'chat' && params.callType !== 'check' && params.callType !== 'translate') {
         logger.silly('AbortHandlerMiddleware is removed')
         builder.remove(AbortHandlerMiddlewareName)
       }

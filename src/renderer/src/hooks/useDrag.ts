@@ -39,5 +39,5 @@ export const useDrag = <T extends HTMLElement>(onDrop?: (e: React.DragEvent<T>) 
     [onDrop]
   )
 
-  return { isDragging, handleDragOver, handleDragEnter, handleDragLeave, handleDrop }
+  return { isDragging, setIsDragging, handleDragOver, handleDragEnter, handleDragLeave, handleDrop }
 }

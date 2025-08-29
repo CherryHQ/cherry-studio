@@ -1,11 +1,11 @@
 import { loggerService } from '@logger'
-import { useAppSelector } from '@renderer/store'
-import { setImageOcrProvider } from '@renderer/store/ocr'
-import { isImageOcrProvider, OcrProvider } from '@renderer/types'
+import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
+import { isMac, isWin } from '@renderer/config/constant'
+import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
+import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
 import { Select } from 'antd'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch } from 'react-redux'
 
 import { SettingRow, SettingRowTitle } from '..'
 
@@ -17,17 +17,16 @@ type Props = {
 
 const OcrImageSettings = ({ setProvider }: Props) => {
   const { t } = useTranslation()
-  const providers = useAppSelector((state) => state.ocr.providers)
-  const imageProvider = useAppSelector((state) => state.ocr.imageProvider)
+  const { providers, imageProvider, getOcrProviderName, setImageProviderId } = useOcrProviders()
+
   const imageProviders = providers.filter((p) => isImageOcrProvider(p))
-  const dispatch = useDispatch()
 
   // 挂载时更新外部状态
   useEffect(() => {
     setProvider(imageProvider)
   }, [imageProvider, setProvider])
 
-  const updateImageProvider = (id: string) => {
+  const setImageProvider = (id: string) => {
     const provider = imageProviders.find((p) => p.id === id)
     if (!provider) {
       logger.error(`Failed to find image provider by id: ${id}`)
@@ -36,22 +35,29 @@ const OcrImageSettings = ({ setProvider }: Props) => {
     }
 
     setProvider(provider)
-    dispatch(setImageOcrProvider(provider))
+    setImageProviderId(id)
   }
+
+  const platformSupport = isMac || isWin
+  const options = useMemo(() => {
+    const platformFilter = platformSupport ? () => true : (p: ImageOcrProvider) => p.id !== BuiltinOcrProviderIds.system
+    return imageProviders.filter(platformFilter).map((p) => ({
+      value: p.id,
+      label: getOcrProviderName(p)
+    }))
+  }, [getOcrProviderName, imageProviders, platformSupport])
 
   return (
     <>
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {!platformSupport && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
           <Select
             value={imageProvider.id}
             style={{ width: '200px' }}
-            onChange={(id: string) => updateImageProvider(id)}
-            options={imageProviders.map((p) => ({
-              value: p.id,
-              label: p.name
-            }))}
+            onChange={(id: string) => setImageProvider(id)}
+            options={options}
           />
         </div>
       </SettingRow>

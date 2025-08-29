@@ -55,6 +55,9 @@ files:
   - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
   - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
   - '!node_modules/selection-hook/src' # we don't need source files
+  - '!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}' # we don't need source files
+  - '!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}' # we don't need source files
+  - '!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}' # we don't need source files
   - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
 asarUnpack:
   - resources/**

@@ -4,7 +4,7 @@ import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/component
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import { isVisionModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
@@ -20,7 +20,7 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
+import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
@@ -150,13 +150,10 @@ const MessageMenubar: FC<Props> = (props) => {
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
       if (!loading) {
-        const assistantWithTopicPrompt = topic.prompt
-          ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-          : assistant
-        await resendMessage(messageUpdate ?? message, assistantWithTopicPrompt)
+        await resendMessage(messageUpdate ?? message, assistant)
       }
     },
-    [assistant, loading, message, resendMessage, topic.prompt]
+    [assistant, loading, message, resendMessage]
   )
 
   const { startEditing } = useMessageEditing()
@@ -274,7 +271,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.copy.image'),
             key: 'img',
             onClick: async () => {
-              await captureScrollableDivAsBlob(messageContainerRef, async (blob) => {
+              await captureScrollableAsBlob(messageContainerRef, async (blob) => {
                 if (blob) {
                   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
                 }
@@ -285,7 +282,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.image'),
             key: 'image',
             onClick: async () => {
-              const imageData = await captureScrollableDivAsDataURL(messageContainerRef)
+              const imageData = await captureScrollableAsDataURL(messageContainerRef)
               const title = await getMessageTitle(message)
               if (title && imageData) {
                 window.api.file.saveImage(title, imageData)
@@ -379,18 +376,16 @@ const MessageMenubar: FC<Props> = (props) => {
     // const _message = resetAssistantMessage(message, selectedModel)
     // editMessage(message.id, { ..._message }) // REMOVED
 
-    const assistantWithTopicPrompt = topic.prompt
-      ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-      : assistant
-
     // Call the function from the hook
-    regenerateAssistantMessage(message, assistantWithTopicPrompt)
+    regenerateAssistantMessage(message, assistant)
   }
 
   // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
   const mentionModelFilter = useMemo(() => {
+    const defaultFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+
     if (!isAssistantMessage) {
-      return () => true
+      return defaultFilter
     }
     const state = store.getState()
     const topicMessages: Message[] = selectMessagesForTopic(state, topic.id)
@@ -400,7 +395,7 @@ const MessageMenubar: FC<Props> = (props) => {
     })
     // 无关联用户消息时，默认返回所有模型
     if (!relatedUserMessage) {
-      return () => true
+      return defaultFilter
     }
 
     const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) =>
@@ -408,13 +403,13 @@ const MessageMenubar: FC<Props> = (props) => {
     )
 
     if (!relatedUserMessageBlocks) {
-      return () => true
+      return defaultFilter
     }
 
     if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
-      return (m: Model) => isVisionModel(m)
+      return (m: Model) => isVisionModel(m) && defaultFilter(m)
     } else {
-      return () => true
+      return defaultFilter
     }
   }, [isAssistantMessage, message.askId, topic.id])
 

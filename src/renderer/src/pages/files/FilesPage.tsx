@@ -6,9 +6,10 @@ import db from '@renderer/databases'
 import { getFileFieldLabel } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
+import store from '@renderer/store'
 import { FileMetadata, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Empty, Flex, Popconfirm } from 'antd'
+import { Button, Checkbox, Dropdown, Empty, Flex, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -19,7 +20,7 @@ import {
   FileText,
   FileType as FileTypeIcon
 } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -33,6 +34,11 @@ const FilesPage: FC = () => {
   const [fileType, setFileType] = useState<string>('document')
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
+
+  useEffect(() => {
+    setSelectedFileIds([])
+  }, [fileType])
 
   const files = useLiveQuery<FileMetadata[]>(() => {
     if (fileType === 'all') {
@@ -42,6 +48,44 @@ const FilesPage: FC = () => {
   }, [fileType])
 
   const sortedFiles = files ? sortFiles(files, sortField, sortOrder) : []
+
+  const handleBatchDelete = async () => {
+    const selectedFiles = await Promise.all(selectedFileIds.map((id) => FileManager.getFile(id)))
+    const validFiles = selectedFiles.filter((file) => file !== null && file !== undefined)
+
+    const paintings = store.getState().paintings.paintings
+    const paintingsFiles = paintings.flatMap((p) => p.files)
+
+    const filesInPaintings = validFiles.filter((file) => paintingsFiles.some((p) => p.id === file.id))
+
+    if (filesInPaintings.length > 0) {
+      window.modal.warning({
+        content: t('files.delete.paintings.warning'),
+        centered: true
+      })
+      return
+    }
+
+    await Promise.all(selectedFileIds.map((fileId) => handleDelete(fileId, t)))
+
+    setSelectedFileIds([])
+  }
+
+  const handleSelectFile = (fileId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedFileIds((prev) => [...prev, fileId])
+    } else {
+      setSelectedFileIds((prev) => prev.filter((id) => id !== fileId))
+    }
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedFileIds(sortedFiles.map((file) => file.id))
+    } else {
+      setSelectedFileIds([])
+    }
+  }
 
   const dataSource = sortedFiles?.map((file) => {
     return {
@@ -71,6 +115,13 @@ const FilesPage: FC = () => {
             icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
             <Button type="text" danger icon={<DeleteIcon size={14} className="lucide-custom" />} />
           </Popconfirm>
+          {fileType !== 'image' && (
+            <Checkbox
+              checked={selectedFileIds.includes(file.id)}
+              onChange={(e) => handleSelectFile(file.id, e.target.checked)}
+              style={{ margin: '0 8px' }}
+            />
+          )}
         </Flex>
       )
     }
@@ -102,23 +153,58 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            {(['created_at', 'size', 'name'] as const).map((field) => (
-              <SortButton
-                key={field}
-                active={sortField === field}
-                onClick={() => {
-                  if (sortField === field) {
-                    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                  } else {
-                    setSortField(field as 'created_at' | 'size' | 'name')
-                    setSortOrder('desc')
-                  }
-                }}>
-                {getFileFieldLabel(field)}
-                {sortField === field &&
-                  (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
-              </SortButton>
-            ))}
+            <Flex gap={8} align="center">
+              {(['created_at', 'size', 'name'] as const).map((field) => (
+                <SortButton
+                  key={field}
+                  active={sortField === field}
+                  onClick={() => {
+                    if (sortField === field) {
+                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+                    } else {
+                      setSortField(field as 'created_at' | 'size' | 'name')
+                      setSortOrder('desc')
+                    }
+                  }}>
+                  {getFileFieldLabel(field)}
+                  {sortField === field &&
+                    (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
+                </SortButton>
+              ))}
+            </Flex>
+            {fileType !== 'image' && (
+              <Dropdown.Button
+                style={{ width: 'auto' }}
+                menu={{
+                  items: [
+                    {
+                      key: 'delete',
+                      disabled: selectedFileIds.length === 0,
+                      danger: true,
+                      label: (
+                        <Popconfirm
+                          disabled={selectedFileIds.length === 0}
+                          title={t('files.delete.title')}
+                          description={t('files.delete.content')}
+                          okText={t('common.confirm')}
+                          cancelText={t('common.cancel')}
+                          onConfirm={handleBatchDelete}
+                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
+                          {t('files.batch_delete')} ({selectedFileIds.length})
+                        </Popconfirm>
+                      )
+                    }
+                  ]
+                }}
+                trigger={['click']}>
+                <Checkbox
+                  indeterminate={selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length}
+                  checked={selectedFileIds.length === sortedFiles.length && sortedFiles.length > 0}
+                  onChange={(e) => handleSelectAll(e.target.checked)}>
+                  {t('files.batch_operation')}
+                </Checkbox>
+              </Dropdown.Button>
+            )}
           </SortContainer>
           {dataSource && dataSource?.length > 0 ? (
             <FileList id={fileType} list={dataSource} files={sortedFiles} />
@@ -147,6 +233,7 @@ const MainContent = styled.div`
 const SortContainer = styled.div`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 8px 16px;
   border-bottom: 0.5px solid var(--color-border);

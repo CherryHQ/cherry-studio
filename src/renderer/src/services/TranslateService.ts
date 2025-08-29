@@ -9,30 +9,23 @@ import {
 import { db } from '@renderer/databases'
 import { CustomTranslateLanguage, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { TranslateAssistant } from '@renderer/types'
+import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
+import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { t } from 'i18next'
 
 import { hasApiKey } from './ApiService'
-import {
-  getDefaultModel,
-  getDefaultTranslateAssistant,
-  getProviderByModel,
-  getTranslateModel
-} from './AssistantService'
+import { getDefaultTranslateAssistant, getProviderByModel } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
 interface FetchTranslateProps {
-  content: string
   assistant: TranslateAssistant
   onResponse?: (text: string, isComplete: boolean) => void
+  abortKey?: string
 }
 
-async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
-
-  if (!model) {
-    throw new Error(t('translate.error.not_configured'))
-  }
+async function fetchTranslate({ assistant, onResponse, abortKey }: FetchTranslateProps) {
+  const model = assistant.model
 
   const provider = getProviderByModel(model)
 
@@ -52,19 +45,30 @@ async function fetchTranslate({ content, assistant, onResponse }: FetchTranslate
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+  let abortError
 
   const params: CompletionsParams = {
     callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
+    messages: assistant.content,
+    assistant,
     streamOutput: stream,
     enableReasoning,
-    onResponse
+    onResponse,
+    onChunk: (chunk) => {
+      if (chunk.type === ChunkType.ERROR && isAbortError(chunk.error)) {
+        abortError = chunk.error
+      }
+    },
+    abortKey
   }
 
   const AI = new AiProvider(provider)
 
-  return (await AI.completionsForTrace(params)).getText().trim()
+  const result = (await AI.completionsForTrace(params)).getText().trim()
+  if (abortError) {
+    throw abortError
+  }
+  return result
 }
 
 /**
@@ -72,18 +76,20 @@ async function fetchTranslate({ content, assistant, onResponse }: FetchTranslate
  * @param text - 需要翻译的文本内容
  * @param targetLanguage - 目标语言
  * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
+ * @param abortKey - 用于控制 abort 的键
  * @returns 返回翻译后的文本
- * @throws {Error} 当翻译模型未配置或翻译失败时抛出错误
+ * @throws {Error} 翻译中止或失败时抛出异常
  */
 export const translateText = async (
   text: string,
   targetLanguage: TranslateLanguage,
-  onResponse?: (text: string, isComplete: boolean) => void
+  onResponse?: (text: string, isComplete: boolean) => void,
+  abortKey?: string
 ) => {
   try {
     const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const translatedText = await fetchTranslate({ content: text, assistant, onResponse })
+    const translatedText = await fetchTranslate({ assistant, onResponse, abortKey })
 
     const trimmedText = translatedText.trim()
 
@@ -93,10 +99,13 @@ export const translateText = async (
 
     return trimmedText
   } catch (e) {
-    logger.error('Failed to translate', e as Error)
-    const message = e instanceof Error ? e.message : String(e)
-    window.message.error(t('translate.error.failed' + ': ' + message))
-    return ''
+    if (isAbortError(e)) {
+      window.message.info(t('translate.info.aborted'))
+    } else {
+      logger.error('Failed to translate', e as Error)
+      window.message.error(t('translate.error.failed' + ': ' + formatErrorMessage(e)))
+    }
+    throw e
   }
 }
 

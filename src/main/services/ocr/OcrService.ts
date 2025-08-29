@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
-import { tesseractService } from './tesseract/TesseractService'
+import { systemOcrService } from './builtin/SystemOcrService'
+import { tesseractService } from './builtin/TesseractService'
 
 const logger = loggerService.withContext('OcrService')
 
@@ -24,7 +25,7 @@ export class OcrService {
     if (!handler) {
       throw new Error(`Provider ${provider.id} is not registered`)
     }
-    return handler(file)
+    return handler(file, provider.config)
   }
 }
 
@@ -32,3 +33,4 @@ export const ocrService = new OcrService()
 
 // Register built-in providers
 ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
+ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))

@@ -19,7 +19,7 @@ import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
-import { extractTitle } from '@renderer/utils/formats'
+import { extractHtmlTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -136,7 +136,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
     // 尝试提取 HTML 标题
     if (language === 'html' && children.includes('</html>')) {
-      fileName = extractTitle(children) || ''
+      fileName = extractHtmlTitle(children) || ''
     }
 
     // 默认使用日期格式命名

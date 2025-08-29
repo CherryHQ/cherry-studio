@@ -240,6 +240,7 @@
       "compressing": "压缩文件...",
       "copying_files": "复制文件... {{progress}}%",
       "preparing": "准备备份...",
+      "preparing_compression": "准备压缩...",
       "title": "备份进度",
       "writing_data": "写入数据..."
     },
@@ -390,8 +391,10 @@
         "parse_tool_call": "无法转换为有效的工具调用格式：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini 不支持同时使用原生网络搜索工具与函数调用",
         "multiple_tools": "存在多个匹配的MCP工具，已选择 {{tool}}",
-        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}",
+        "url_context": "Gemini 不支持同时使用网页上下文与函数调用"
       }
     },
     "message": {
@@ -787,6 +790,7 @@
         "label": "按拼音排序"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
@@ -864,6 +868,8 @@
   "files": {
     "actions": "操作",
     "all": "所有文件",
+    "batch_delete": "批量删除",
+    "batch_operation": "全选",
     "count": "个文件",
     "created_at": "创建时间",
     "delete": {
@@ -912,6 +918,11 @@
     "title": "话题搜索"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "捕获页面",
+      "to_clipboard": "复制到剪贴板",
+      "to_file": "保存为图片"
+    },
     "code": "代码",
     "empty_preview": "无内容可展示",
     "generating": "生成中",
@@ -1519,6 +1530,10 @@
     "embedding_model": "嵌入模型",
     "embedding_model_tooltip": "在设置 -> 模型服务中点击管理按钮添加",
     "enable_tool_use": "工具调用",
+    "filter": {
+      "by_tag": "按标签筛选",
+      "selected": "已选标签"
+    },
     "function_calling": "函数调用",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
@@ -1567,6 +1582,9 @@
     "hide_sidebar": "隐藏侧边栏",
     "show_sidebar": "显示侧边栏"
   },
+  "navigate": {
+    "provider_settings": "跳转到服务商设置界面"
+  },
   "notification": {
     "assistant": "助手响应",
     "knowledge": {
@@ -1576,6 +1594,9 @@
     "tip": "如果响应成功，则只针对超过30秒的消息进行提醒"
   },
   "ocr": {
+    "builtin": {
+      "system": "系统 OCR"
+    },
     "error": {
       "provider": {
         "cannot_remove_builtin": "不能删除内置提供商",
@@ -3522,17 +3543,30 @@
     "title": "设置",
     "tool": {
       "ocr": {
+        "common": {
+          "langs": "支持的语言"
+        },
+        "error": {
+          "not_system": "系统 OCR 仅支持 Windows 与 MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "该提供商不存在"
           },
-          "tesseract": {
-            "langs": "支持的语言",
-            "temp_tooltip": "目前暂时只支持中文和英文"
+          "system": {
+            "no_need_configure": "MacOS 无需配置"
           },
           "title": "图片"
         },
         "image_provider": "OCR 服务提供商",
+        "system": {
+          "win": {
+            "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "阅读文档以了解哪些自定义语言是受支持的"
+        },
         "title": "OCR 服务"
       },
       "preprocess": {
@@ -3760,6 +3794,7 @@
     },
     "empty": "翻译内容为空",
     "error": {
+      "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，请转至翻译页面",
       "detect": {
         "qwen_mt": "QwenMT模型不能用于语言检测",
         "unknown": "检测到未知语言",
@@ -3778,6 +3813,7 @@
     "files": {
       "drag_text": "拖放到此处",
       "error": {
+        "check_type": "检查文件类型时发生错误",
         "multiple": "不允许上传多个文件",
         "too_large": "文件过大",
         "unknown": "读取文件内容失败"
@@ -3798,8 +3834,11 @@
       },
       "title": "翻译历史"
     },
+    "info": {
+      "aborted": "翻译中止"
+    },
     "input": {
-      "placeholder": "输入文本进行翻译"
+      "placeholder": "可粘贴或拖入文本、文件、图片（支持OCR）"
     },
     "language": {
       "not_pair": "源语言与设置的语言不同",

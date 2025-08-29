@@ -23,8 +23,8 @@ import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer
 import type { Assistant, Topic } from '@renderer/types'
 import { type Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
 import {
-  captureScrollableDivAsBlob,
-  captureScrollableDivAsDataURL,
+  captureScrollableAsBlob,
+  captureScrollableAsDataURL,
   removeSpecialCharactersForFileName,
   runAsyncFunction
 } from '@renderer/utils'
@@ -135,14 +135,14 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
         })
       }),
       EventEmitter.on(EVENT_NAMES.COPY_TOPIC_IMAGE, async () => {
-        await captureScrollableDivAsBlob(scrollContainerRef, async (blob) => {
+        await captureScrollableAsBlob(scrollContainerRef, async (blob) => {
           if (blob) {
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
           }
         })
       }),
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
-        const imageData = await captureScrollableDivAsDataURL(scrollContainerRef)
+        const imageData = await captureScrollableAsDataURL(scrollContainerRef)
         if (imageData) {
           window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }

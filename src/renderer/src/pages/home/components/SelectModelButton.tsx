@@ -1,10 +1,10 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
-import { isWebSearchModel } from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { Assistant } from '@renderer/types'
+import { Assistant, Model } from '@renderer/types'
 import { Button } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
 import { FC, useEffect, useRef } from 'react'
@@ -20,9 +20,11 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { t } = useTranslation()
   const timerRef = useRef<NodeJS.Timeout>(undefined)
 
+  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+
   const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
-    const selectedModel = await SelectModelPopup.show({ model })
+    const selectedModel = await SelectModelPopup.show({ model, modelFilter })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
       clearTimeout(timerRef.current)

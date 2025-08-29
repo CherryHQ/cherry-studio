@@ -3,7 +3,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
-import { BUILTIN_OCR_PROVIDERS, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
+import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
   isSupportArrayContentProvider,
@@ -17,6 +17,7 @@ import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
 import {
   Assistant,
+  BuiltinOcrProvider,
   isSystemProvider,
   Model,
   Provider,
@@ -75,6 +76,13 @@ function addProvider(state: RootState, id: string) {
     if (_provider) {
       state.llm.providers.push(_provider)
     }
+  }
+}
+
+// add ocr provider
+function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
+  if (!state.ocr.providers.find((p) => p.id === provider.id)) {
+    state.ocr.providers.push(provider)
   }
 }
 
@@ -2180,7 +2188,7 @@ const migrateConfig = {
     try {
       state.ocr = {
         providers: BUILTIN_OCR_PROVIDERS,
-        imageProvider: DEFAULT_OCR_PROVIDER.image
+        imageProviderId: DEFAULT_OCR_PROVIDER.image.id
       }
       state.translate.translateInput = ''
       return state
@@ -2190,6 +2198,15 @@ const migrateConfig = {
     }
   },
   '138': (state: RootState) => {
+    try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.system)
+      return state
+    } catch (error) {
+      logger.error('migrate 138 error', error as Error)
+      return state
+    }
+  }
+  '139': (state: RootState) => {
     try {
       addShortcuts(state, ['rename_topic'], 'new_topic')
       addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
