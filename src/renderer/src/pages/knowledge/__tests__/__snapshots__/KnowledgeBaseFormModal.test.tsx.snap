@@ -65,7 +65,7 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
   data-title="Knowledge Base Settings"
   styles="[object Object]"
   transitionname="animation-move-down"
-  width="min(800px, 70vw)"
+  width="min(900px, 75vw)"
 >
   <div
     data-testid="modal-header"

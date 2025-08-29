@@ -336,6 +336,7 @@ async function fetchExternalTool(
 
     if (shouldKnowledgeSearch) {
       knowledgeReferencesFromSearch = await searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
+      processKnowledgeReferences(knowledgeReferencesFromSearch, onChunkReceived)
     }
 
     if (shouldSearchMemory) {
@@ -416,6 +417,60 @@ async function fetchExternalTool(
     }
 
     return { mcpTools: [] }
+  }
+}
+
+/**
+ * 处理知识库搜索结果中的引用
+ * @param references 知识库引用
+ * @param onChunkReceived Chunk接收回调
+ */
+function processKnowledgeReferences(
+  references: KnowledgeReference[] | undefined,
+  onChunkReceived: (chunk: Chunk) => void
+) {
+  if (!references) {
+    return
+  }
+
+  for (const ref of references) {
+    const { content, metadata } = ref
+    if (!metadata?.source) {
+      continue
+    }
+
+    switch (metadata.type) {
+      case 'image': {
+        onChunkReceived({
+          type: ChunkType.IMAGE_SEARCHED,
+          content,
+          metadata
+        })
+        break
+      }
+      case 'youtube': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'url',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
+      case 'video': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'path',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
+    }
   }
 }
 

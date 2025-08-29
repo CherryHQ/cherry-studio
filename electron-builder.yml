@@ -119,6 +119,7 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
+    重构知识库，增加视频嵌入
     输入框快捷菜单增加清除按钮
     侧边栏增加代码工具入口，代码工具增加环境变量设置
     小程序增加多语言显示

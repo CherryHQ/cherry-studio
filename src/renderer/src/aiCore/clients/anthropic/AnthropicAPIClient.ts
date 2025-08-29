@@ -194,12 +194,28 @@ export class AnthropicAPIClient extends BaseApiClient<
    * @returns The message parameter
    */
   public async convertMessageToSdkParam(message: Message): Promise<AnthropicSdkMessageParam> {
+    const { textContent, imageContents } = await this.getMessageContent(message)
+
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: await this.getMessageContent(message)
+        text: textContent
       }
     ]
+
+    if (imageContents.length > 0) {
+      for (const imageContent of imageContents) {
+        const base64Data = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
+        parts.push({
+          type: 'image',
+          source: {
+            data: base64Data.base64,
+            media_type: base64Data.mime.replace('jpg', 'jpeg') as any,
+            type: 'base64'
+          }
+        })
+      }
+    }
 
     // Get and process image blocks
     const imageBlocks = findImageBlocks(message)

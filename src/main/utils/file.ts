@@ -195,3 +195,16 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   logger.error(`File ${filePath} failed to decode with all possible encodings, trying UTF-8 encoding`)
   return iconv.decode(data, 'UTF-8')
 }
+
+export async function base64Image(file: FileMetadata): Promise<{ mime: string; base64: string; data: string }> {
+  const filePath = path.join(getFilesDir(), `${file.id}${file.ext}`)
+  const data = await fs.promises.readFile(filePath)
+  const base64 = data.toString('base64')
+  const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
+  const mime = `image/${ext}`
+  return {
+    mime,
+    base64,
+    data: `data:${mime};base64,${base64}`
+  }
+}

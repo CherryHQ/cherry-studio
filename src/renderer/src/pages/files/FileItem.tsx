@@ -10,7 +10,8 @@ import {
   FileZipFilled,
   FolderOpenFilled,
   GlobalOutlined,
-  LinkOutlined
+  LinkOutlined,
+  VideoCameraFilled
 } from '@ant-design/icons'
 import { Flex } from 'antd'
 import React, { memo } from 'react'
@@ -70,6 +71,10 @@ const getFileIcon = (type?: string) => {
 
   if (['.folder'].includes(ext)) {
     return <FolderOpenFilled />
+  }
+
+  if (['.mp4'].includes(ext)) {
+    return <VideoCameraFilled />
   }
 
   return <FileUnknownFilled />

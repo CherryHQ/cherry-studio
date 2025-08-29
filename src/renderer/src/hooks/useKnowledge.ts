@@ -15,8 +15,14 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { addFilesThunk, addItemThunk, addNoteThunk } from '@renderer/store/thunk/knowledgeThunk'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import {
+  addFilesThunk,
+  addImagesThunk,
+  addItemThunk,
+  addNoteThunk,
+  addVedioThunk
+} from '@renderer/store/thunk/knowledgeThunk'
+import { FileMetadata, KnowledgeBase, KnowledgeItem, MigrationModeEnum, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
@@ -82,6 +88,18 @@ export const useKnowledge = (baseId: string) => {
     dispatch(addItemThunk(baseId, 'directory', path))
     checkAllBases()
   }
+
+  // add video support
+  const addVideo = (files: FileMetadata[]) => {
+    dispatch(addVedioThunk(baseId, 'video', files))
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
+
+  const addImages = (files: FileMetadata[]) => {
+    dispatch(addImagesThunk(baseId, files))
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+  }
+
   // 更新笔记内容
   const updateNoteContent = async (noteId: string, content: string) => {
     const note = await db.knowledge_notes.get(noteId)
@@ -110,18 +128,28 @@ export const useKnowledge = (baseId: string) => {
   // 移除项目
   const removeItem = async (item: KnowledgeItem) => {
     dispatch(removeItemAction({ baseId, item }))
-    if (base) {
-      if (item?.uniqueId && item?.uniqueIds) {
-        await window.api.knowledgeBase.remove({
-          uniqueId: item.uniqueId,
-          uniqueIds: item.uniqueIds,
-          base: getKnowledgeBaseParams(base)
-        })
-      }
+    if (!base || !item?.uniqueId || !item?.uniqueIds) {
+      return
     }
+
+    const removalParams = {
+      uniqueId: item.uniqueId,
+      uniqueIds: item.uniqueIds,
+      base: getKnowledgeBaseParams(base)
+    }
+
+    await window.api.knowledgeBase.remove(removalParams)
+
     if (item.type === 'file' && typeof item.content === 'object') {
+      const file = item.content as FileMetadata
       // name: eg. text.pdf
-      await window.api.file.delete(item.content.name)
+      await window.api.file.delete(file.name)
+    } else if (item.type === 'video') {
+      // video item has srt and video files
+      const files = item.content as FileMetadata[]
+      const deletePromises = files.map((file) => window.api.file.delete(file.name))
+
+      await Promise.allSettled(deletePromises)
     }
   }
   // 刷新项目
@@ -132,6 +160,9 @@ export const useKnowledge = (baseId: string) => {
       return
     }
 
+    if (!base || !item?.uniqueId || !item?.uniqueIds) {
+      return
+    }
     if (base && item.uniqueId && item.uniqueIds) {
       await window.api.knowledgeBase.remove({
         uniqueId: item.uniqueId,
@@ -148,6 +179,24 @@ export const useKnowledge = (baseId: string) => {
       })
       checkAllBases()
     }
+
+    const removalParams = {
+      uniqueId: item.uniqueId,
+      uniqueIds: item.uniqueIds,
+      base: getKnowledgeBaseParams(base)
+    }
+
+    await window.api.knowledgeBase.remove(removalParams)
+
+    updateItem({
+      ...item,
+      processingStatus: 'pending',
+      processingProgress: 0,
+      processingError: '',
+      uniqueId: undefined,
+      updated_at: Date.now()
+    })
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 更新处理状态
@@ -187,7 +236,7 @@ export const useKnowledge = (baseId: string) => {
   }
 
   // 迁移知识库（保留原知识库）
-  const migrateBase = async (newBase: KnowledgeBase) => {
+  const migrateBase = async (newBase: KnowledgeBase, mode: MigrationModeEnum) => {
     if (!base) return
 
     const timestamp = dayjs().format('YYMMDDHHmmss')
@@ -200,8 +249,13 @@ export const useKnowledge = (baseId: string) => {
       name: newName,
       created_at: Date.now(),
       updated_at: Date.now(),
-      items: []
+      items: [],
+      framework: mode === MigrationModeEnum.MigrationToLangChain ? 'langchain' : base.framework
     } as KnowledgeBase
+
+    if (mode === MigrationModeEnum.MigrationToLangChain) {
+      await window.api.knowledgeBase.create(getKnowledgeBaseParams(migratedBase))
+    }
 
     dispatch(addBase(migratedBase))
 
@@ -250,6 +304,8 @@ export const useKnowledge = (baseId: string) => {
   const urlItems = base?.items.filter((item) => item.type === 'url') || []
   const sitemapItems = base?.items.filter((item) => item.type === 'sitemap') || []
   const [noteItems, setNoteItems] = useState<KnowledgeItem[]>([])
+  const videoItems = base?.items.filter((item) => item.type === 'video') || []
+  const imageItems = base?.items.filter((item) => item.type === 'image') || []
 
   useEffect(() => {
     const notes = base?.items.filter((item) => item.type === 'note') || []
@@ -270,6 +326,8 @@ export const useKnowledge = (baseId: string) => {
     urlItems,
     sitemapItems,
     noteItems,
+    videoItems,
+    imageItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
     migrateBase,
@@ -277,6 +335,8 @@ export const useKnowledge = (baseId: string) => {
     addUrl,
     addSitemap,
     addNote,
+    addVideo,
+    addImages,
     updateNoteContent,
     getNoteContent,
     updateItem,
@@ -307,7 +367,9 @@ export const useKnowledgeBases = () => {
   }
 
   const deleteKnowledgeBase = (baseId: string) => {
-    dispatch(deleteBase({ baseId }))
+    const base = bases.find((b) => b.id === baseId)
+    if (!base) return
+    dispatch(deleteBase({ baseId, baseParams: getKnowledgeBaseParams(base) }))
 
     // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {
