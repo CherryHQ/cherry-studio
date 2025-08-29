@@ -249,6 +249,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
+          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
           options={{ stream: true }}
           expanded={shouldExpand}
           unwrapped={shouldUnwrap}

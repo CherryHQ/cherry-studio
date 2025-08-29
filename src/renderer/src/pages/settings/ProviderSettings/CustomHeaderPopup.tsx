@@ -78,7 +78,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           language="json"
           onChange={(value) => setHeaderText(value)}
           placeholder={`{\n  "Header-Name": "Header-Value"\n}`}
-          expanded
+          height="60vh"
+          expanded={false}
           unwrapped={false}
           options={{
             lint: true,

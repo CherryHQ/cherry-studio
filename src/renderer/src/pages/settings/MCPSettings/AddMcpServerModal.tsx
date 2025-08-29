@@ -296,8 +296,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               placeholder={initialJsonExample}
               language="json"
               onChange={handleEditorChange}
-              maxHeight="300px"
-              expanded
+              height="60vh"
+              expanded={false}
               unwrapped={false}
               options={{
                 lint: true,
