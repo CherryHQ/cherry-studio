@@ -15,6 +15,7 @@ export function isJSON(str: any): boolean {
   }
 }
 
+// TODO: unknown 代替 any
 /**
  * 尝试解析 JSON 字符串，如果解析失败则返回 null。
  * @param {string} str 要解析的字符串

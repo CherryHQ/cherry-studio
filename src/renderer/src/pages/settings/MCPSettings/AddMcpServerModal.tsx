@@ -5,7 +5,9 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
-import { McpConfig, MCPServer, objectKeys, validateMcpConfig } from '@renderer/types'
+import { MCPServer, objectKeys, safeValidateMcpConfig } from '@renderer/types'
+import { parseJSON } from '@renderer/utils'
+import { formatZodError } from '@renderer/utils/error'
 import { Button, Form, Modal, Upload } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -91,20 +93,16 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
     inputValue: string
   ): { serverToAdd: Partial<ParsedServerData>; error: null } | { serverToAdd: null; error: string } => {
     const trimmedInput = inputValue.trim()
-
-    let parsedJson: object
-    let validConfig: McpConfig
-    try {
-      parsedJson = JSON.parse(trimmedInput)
-    } catch (e) {
-      logger.error('Failed to parse json.', { input: trimmedInput, error: e })
+    const parsedJson = parseJSON(trimmedInput)
+    if (parsedJson === null) {
+      logger.error('Failed to parse json.', { input: trimmedInput })
       return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
-    try {
-      validConfig = validateMcpConfig(parsedJson)
-    } catch (e) {
-      logger.error('Failed to validate json.', { parsedJson, error: e })
-      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+
+    const { data: validConfig, error } = safeValidateMcpConfig(parsedJson)
+    if (error) {
+      logger.error('Failed to validate json.', { parsedJson, error })
+      return { serverToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
     }
 
     let serverToAdd: Partial<ParsedServerData> | null = null
