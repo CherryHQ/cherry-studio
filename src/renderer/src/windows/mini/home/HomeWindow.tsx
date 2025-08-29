@@ -59,10 +59,6 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const [error, setError] = useState<string | null>(null)
 
-  // 快捷助手模式下，设置为 true
-  const dispatch = useAppDispatch()
-  dispatch(setIsQuickAssistant(true))
-
   const { quickAssistantId } = useAppSelector((state) => state.llm)
   const { assistant: currentAssistant } = useAssistant(quickAssistantId)
 
@@ -80,6 +76,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
+
+  const dispatch = useAppDispatch()
+  // 快捷助手模式下，设置为 true
+  dispatch(setIsQuickAssistant(true))
 
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
@@ -146,7 +146,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     readClipboard()
   }, [readClipboard])
 
-  const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
+  const handleCloseWindow = useCallback(() => {
+    dispatch(setIsQuickAssistant(false))
+    window.api.miniWindow.hide()
+  }, [dispatch])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
