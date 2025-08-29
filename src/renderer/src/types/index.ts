@@ -855,16 +855,15 @@ export interface MCPServer {
   reference?: string // Reference link for the server, e.g., documentation or homepage
   searchKey?: string
   configSample?: MCPConfigSample
-
-  // 下面是内部使用字段，从外部传入的MCP服务器不应该编辑这些字段，这些字段也不应该以JSON数据格式直接暴露给用户
-  /** 用于标记内置 MCP 是否需要配置 */
-  shouldConfig?: boolean
-  /** 用于标记服务器是否运行中 */
-  isActive: boolean
   /** List of tool names that are disabled for this server */
   disabledTools?: string[]
   /** Whether to auto-approve tools for this server */
   disabledAutoApproveTools?: string[]
+
+  /** 用于标记内置 MCP 是否需要配置 */
+  shouldConfig?: boolean
+  /** 用于标记服务器是否运行中 */
+  isActive: boolean
 }
 
 export type BuiltinMCPServer = MCPServer & {
@@ -1247,11 +1246,11 @@ export type AtLeast<T extends string, U> = {
  * @example
  * ```ts
  * const obj = { a: 1, b: 2, c: 3 };
- * const result = strip(obj, 'a', 'b');
+ * const result = strip(obj, ['a', 'b']);
  * // result = { c: 3 }
  * ```
  */
-export function strip<T, K extends keyof T>(obj: T, ...keys: K[]): Omit<T, K> {
+export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   const result = { ...obj }
   for (const key of keys) {
     delete (result as any)[key] // 类型上 Omit 已保证安全

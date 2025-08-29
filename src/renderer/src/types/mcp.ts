@@ -16,8 +16,15 @@ export const McpServerTypeSchema = z
   .default('stdio') // 大多数情况下默认使用 stdio
 /**
  * 定义单个 MCP 服务器的配置。
+ * FIXME: 为了兼容性，暂时允许用户编辑任意字段，这可能会导致问题。
+ * 除了类型匹配以外，目前唯一显式禁止的行为是将 type 设置为 inMemory
  */
 export const McpServerConfigSchema = z.object({
+  /**
+   * 服务器内部ID
+   * 可选。用于内部标识服务器的唯一标识符。
+   */
+  id: z.string().optional().describe('Server internal id.'),
   /**
    * 服务器名称
    * 可选。用于标识和显示服务器。
@@ -45,9 +52,9 @@ export const McpServerConfigSchema = z.object({
   baseUrl: z.string().optional().describe('Server URL address'),
   /**
    * 启动服务器的命令 (如 "uvx", "npx")。
-   * 可选。如果未指定，默认为空字符串。
+   * 可选。
    */
-  command: z.string().optional().default('').describe("The command to execute (e.g., 'uvx', 'npx')"),
+  command: z.string().optional().describe("The command to execute (e.g., 'uvx', 'npx')"),
   /**
    * registry URL
    * 可选。用于指定服务器的 registry 地址。
@@ -56,15 +63,15 @@ export const McpServerConfigSchema = z.object({
   /**
    * 传递给命令的参数数组。
    * 通常第一个参数是脚本路径或包名。
-   * 可选。如果未指定，默认为空数组。
+   * 可选。
    */
-  args: z.array(z.string()).optional().default([]).describe('The arguments to pass to the command'),
+  args: z.array(z.string()).optional().describe('The arguments to pass to the command'),
   /**
    * 启动时注入的环境变量对象。
    * 键为变量名，值为字符串。
-   * 可选。如果未指定，默认为空对象。
+   * 可选。
    */
-  env: z.record(z.string(), z.string()).default({}).describe('Environment variables for the server process'),
+  env: z.record(z.string(), z.string()).optional().describe('Environment variables for the server process'),
   /**
    * 请求头配置
    * 可选。用于设置请求时的自定义headers。
@@ -124,7 +131,20 @@ export const McpServerConfigSchema = z.object({
    * 配置示例
    * 可选。服务器配置的示例。
    */
-  configSample: MCPConfigSampleSchema.optional().describe('Configuration sample for the server')
+  configSample: MCPConfigSampleSchema.optional().describe('Configuration sample for the server'),
+  /**
+   * 禁用的工具列表
+   * 可选。用于指定该服务器上禁用的工具。
+   */
+  disabledTools: z.array(z.string()).optional().describe('List of disabled tools for this server'),
+  /**
+   * 禁用自动批准的工具列表
+   * 可选。用于指定该服务器上禁用自动批准的工具。
+   */
+  disabledAutoApproveTools: z
+    .array(z.string())
+    .optional()
+    .describe('List of tools that are disabled for auto-approval on this server')
 })
 /**
  * 将服务器别名（字符串ID）映射到其配置的对象。
