@@ -15,7 +15,7 @@ import {
 import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata } from '@renderer/types'
+import { FileMetadata, FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
@@ -123,7 +123,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           }
           const path = FileManager.getSafePath(file)
           if (path) {
-            if (file.type === 'text') {
+            if (file.type === FileTypes.TEXT) {
               window.api.fs.readText(path).then((fileContent) => {
                 TextFilePreviewPopup.show(fileContent)
               })

@@ -1,5 +1,6 @@
 import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import FileManager from '@renderer/services/FileManager'
+import { FileTypes } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { Upload } from 'antd'
 import { FC } from 'react'
@@ -44,7 +45,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
             return
           }
           const path = file.url.slice(7)
-          if (file.type === 'text') {
+          if (file.type === FileTypes.TEXT) {
             window.api.fs.readText(path).then((fileContent) => {
               TextFilePreviewPopup.show(fileContent)
             })
