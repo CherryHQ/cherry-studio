@@ -8,7 +8,7 @@ import {
   toggleShowTopics,
   toggleShowWorkspace
 } from '@renderer/store/settings'
-import { AssistantsSortType } from '@renderer/types'
+import type { AssistantsSortType } from '@renderer/types'
 
 export function useShowAssistants() {
   const showAssistants = useAppSelector((state) => state.settings.showAssistants)

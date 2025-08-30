@@ -1,4 +1,4 @@
-import { CSSProperties, SVGProps } from 'react'
+import type { CSSProperties, SVGProps } from 'react'
 
 interface BaseFileIconProps extends SVGProps<SVGSVGElement> {
   size?: string | number

@@ -1,5 +1,5 @@
 import { withSpanResult } from '@renderer/services/SpanManagerService'
-import {
+import type {
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -10,15 +10,16 @@ import {
   SdkToolCall
 } from '@renderer/types/sdk'
 
-import { BaseApiClient } from '../clients'
-import { CompletionsParams, CompletionsResult } from './schemas'
+import type { BaseApiClient } from '../clients'
 import {
-  BaseContext,
-  CompletionsContext,
-  CompletionsMiddleware,
-  MethodMiddleware,
+  type BaseContext,
+  type CompletionsContext,
+  type CompletionsMiddleware,
+  type CompletionsParams,
+  type CompletionsResult,
+  type MethodMiddleware,
   MIDDLEWARE_CONTEXT_SYMBOL,
-  MiddlewareAPI
+  type MiddlewareAPI
 } from './types'
 
 /**

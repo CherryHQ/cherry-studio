@@ -5,8 +5,9 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { Dropdown, Input, MenuProps } from 'antd'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { MenuProps } from 'antd'
+import { Dropdown, Input } from 'antd'
 import {
   ChevronDown,
   ChevronRight,
@@ -19,7 +20,8 @@ import {
   Star,
   StarOff
 } from 'lucide-react'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

@@ -1,6 +1,8 @@
-import Tesseract from 'tesseract.js'
+import type Tesseract from 'tesseract.js'
 
-import { FileMetadata, ImageFileMetadata, isImageFileMetadata, TranslateLanguageCode } from '.'
+import type { FileMetadata, ImageFileMetadata } from './file'
+import { isImageFileMetadata } from './file'
+import type { TranslateLanguageCode } from './translate'
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract',
@@ -32,7 +34,7 @@ export type OcrProviderCapabilityRecord = Partial<Record<OcrProviderCapability, 
 // while a model belonging to that provider may be limited to processing only one specific file type.
 export type OcrModelCapabilityRecord = OcrProviderCapabilityRecord
 
-export interface OcrModel {
+export type OcrModel = {
   id: string
   name: string
   providerId: string

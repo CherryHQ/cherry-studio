@@ -3,12 +3,11 @@ import * as fsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FileTypes } from '@types'
+import { FileTypes } from '@cherry-types'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { readTextFileWithAutoEncoding } from '../file'
 import {
   getAllFiles,
   getAppConfigDir,
@@ -17,6 +16,7 @@ import {
   getFileType,
   getTempDir,
   isPathInside,
+  readTextFileWithAutoEncoding,
   untildify
 } from '../file'
 

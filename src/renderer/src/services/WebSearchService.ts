@@ -5,8 +5,8 @@ import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { setWebSearchStatus } from '@renderer/store/runtime'
-import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
-import {
+import type { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
+import type {
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeReference,
@@ -18,15 +18,14 @@ import {
 import { hasObjectKey, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
 import { LRUCache } from 'lru-cache'
 import { sliceByTokens } from 'tokenx'
 
-import { getKnowledgeBaseParams } from './KnowledgeService'
-import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
+import { getKnowledgeBaseParams, getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
 
 const logger = loggerService.withContext('WebSearchService')
 

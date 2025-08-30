@@ -2,7 +2,8 @@ import { CopyOutlined } from '@ant-design/icons'
 import { DEFAULT_LANGUAGES, getHighlighter, getShiki } from '@renderer/utils/shiki'
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
 import { Button, Select, Tooltip } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
   const { node, updateAttributes } = props

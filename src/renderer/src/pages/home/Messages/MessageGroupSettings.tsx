@@ -1,13 +1,12 @@
 import { SettingOutlined } from '@ant-design/icons'
 import Selector from '@renderer/components/Selector'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { SettingDivider } from '@renderer/pages/settings'
-import { SettingRow } from '@renderer/pages/settings'
+import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { useAppDispatch } from '@renderer/store'
 import { setGridColumns, setGridPopoverTrigger } from '@renderer/store/settings'
-import { Col, Row, Slider } from 'antd'
-import { Popover } from 'antd'
-import { FC, useState } from 'react'
+import { Col, Popover, Row, Slider } from 'antd'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const MessageGroupSettings: FC = () => {

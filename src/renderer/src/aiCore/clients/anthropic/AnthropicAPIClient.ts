@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import {
+import type {
   Base64ImageSource,
   ImageBlockParam,
   MessageParam,
@@ -8,7 +8,7 @@ import {
   ToolUseBlock,
   WebSearchTool20250305
 } from '@anthropic-ai/sdk/resources'
-import {
+import type {
   ContentBlock,
   ContentBlockParam,
   MessageCreateParamsBase,
@@ -23,28 +23,25 @@ import {
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import AnthropicVertex from '@anthropic-ai/vertex-sdk'
+import type AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { loggerService } from '@logger'
-import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import type { GenericChunk } from '@renderer/aiCore/middleware/types'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import {
+import type {
   Assistant,
-  EFFORT_RATIO,
-  FileTypes,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   Model,
   Provider,
-  ToolCallResponse,
-  WebSearchSource
+  ToolCallResponse
 } from '@renderer/types'
-import {
-  ChunkType,
+import { EFFORT_RATIO, FileTypes, WebSearchSource } from '@renderer/types'
+import type {
   ErrorChunk,
   LLMWebSearchCompleteChunk,
   LLMWebSearchInProgressChunk,
@@ -54,8 +51,9 @@ import {
   ThinkingDeltaChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { type Message } from '@renderer/types/newMessage'
-import {
+import type {
   AnthropicSdkMessageParam,
   AnthropicSdkParams,
   AnthropicSdkRawChunk,
@@ -72,7 +70,7 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
-import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
+import type { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
 
 const logger = loggerService.withContext('AnthropicAPIClient')
 

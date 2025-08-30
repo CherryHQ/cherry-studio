@@ -1,5 +1,5 @@
+import type { KnowledgeBaseParams } from '@cherry-types'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { KnowledgeBaseParams } from '@types'
 
 import GeneralReranker from './GeneralReranker'
 

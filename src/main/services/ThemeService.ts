@@ -1,5 +1,5 @@
+import { ThemeMode } from '@cherry-types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { ThemeMode } from '@types'
 import { BrowserWindow, nativeTheme } from 'electron'
 
 import { titleBarOverlayDark, titleBarOverlayLight } from '../config'

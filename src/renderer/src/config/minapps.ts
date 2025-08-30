@@ -57,7 +57,7 @@ import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
 import i18n from '@renderer/i18n'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
 

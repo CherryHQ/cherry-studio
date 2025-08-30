@@ -1,10 +1,10 @@
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { Button, Switch, Tag, Typography } from 'antd'
 import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface McpServerCardProps {

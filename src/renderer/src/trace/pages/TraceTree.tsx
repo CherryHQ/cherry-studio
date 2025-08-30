@@ -1,4 +1,4 @@
-import { TraceModal } from '@renderer/trace/pages/TraceModel'
+import type { TraceModal } from '@renderer/trace/pages/TraceModel'
 import { Divider } from 'antd/lib'
 import * as React from 'react'
 import { useEffect, useState } from 'react'

@@ -1,14 +1,19 @@
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
-import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import type { CompletionsParams } from '@renderer/aiCore/middleware/types'
 import {
   isReasoningModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
-import { CustomTranslateLanguage, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import { TranslateAssistant } from '@renderer/types'
+import type {
+  CustomTranslateLanguage,
+  TranslateAssistant,
+  TranslateHistory,
+  TranslateLanguage,
+  TranslateLanguageCode
+} from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'

@@ -1,4 +1,4 @@
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { KB, MB, textExts } from '@shared/config/constant'
 
 /**

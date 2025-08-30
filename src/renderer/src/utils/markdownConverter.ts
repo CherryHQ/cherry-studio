@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { TurndownPlugin } from '@truto/turndown-plugin-gfm'
+import type { TurndownPlugin } from '@truto/turndown-plugin-gfm'
 import DOMPurify from 'dompurify'
 import he from 'he'
 import MarkdownIt from 'markdown-it'

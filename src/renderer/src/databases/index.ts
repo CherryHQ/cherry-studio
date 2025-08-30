@@ -1,7 +1,13 @@
-import { CustomTranslateLanguage, FileMetadata, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
+import type {
+  CustomTranslateLanguage,
+  FileMetadata,
+  KnowledgeItem,
+  QuickPhrase,
+  TranslateHistory
+} from '@renderer/types'
 // Import necessary types for blocks and new message structure
 import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMessage'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode } from '@renderer/types/note'
 import { Dexie, type EntityTable } from 'dexie'
 
 import { upgradeToV5, upgradeToV7, upgradeToV8 } from './upgrades'

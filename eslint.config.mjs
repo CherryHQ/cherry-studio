@@ -2,10 +2,50 @@ import electronConfigPrettier from '@electron-toolkit/eslint-config-prettier'
 import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
+import tsParser from '@typescript-eslint/parser'
 import { defineConfig } from 'eslint/config'
+import importPlugin from 'eslint-plugin-import'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
+import { dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+const importConfig = {
+  plugins: {
+    import: importPlugin
+  },
+  languageOptions: {
+    parser: tsParser,
+    parserOptions: {
+      project: ['./tsconfig.json', './tsconfig.web.json', './tsconfig.node.json'],
+      tsconfigRootDir: __dirname,
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      ecmaFeatures: {
+        jsx: true
+      }
+    }
+  },
+  settings: {
+    'import/parsers': {
+      '@typescript-eslint/parser': ['.ts', '.tsx']
+    },
+    'import/resolver': {
+      typescript: {
+        project: './tsconfig.json'
+      }
+    }
+  },
+  rules: {
+    'import/no-cycle': 'error',
+    'import/no-duplicates': 'error'
+  },
+  ignores: ['scripts/**/*.js']
+}
 
 export default defineConfig([
   eslint.configs.recommended,
@@ -13,6 +53,7 @@ export default defineConfig([
   electronConfigPrettier,
   eslintReact.configs['recommended-typescript'],
   reactHooks.configs['recommended-latest'],
+  importConfig,
   {
     plugins: {
       'simple-import-sort': simpleImportSort,
@@ -26,7 +67,13 @@ export default defineConfig([
       'simple-import-sort/exports': 'error',
       'unused-imports/no-unused-imports': 'error',
       '@eslint-react/no-prop-types': 'error',
-      'prettier/prettier': ['error']
+      'prettier/prettier': ['error'],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports' // 要求写成 import type { ... }
+        }
+      ]
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules
@@ -117,6 +164,7 @@ export default defineConfig([
       'node_modules/**',
       'build/**',
       'dist/**',
+      'packages/**/dist',
       'out/**',
       'local/**',
       '.yarn/**',
@@ -125,5 +173,17 @@ export default defineConfig([
       'src/main/integration/nutstore/sso/lib/**',
       'src/main/integration/cherryin/index.js'
     ]
+  },
+  {
+    files: ['**/*.config.mjs', 'eslint.config.mjs', 'playwright.config.ts', 'vitest.config.ts', 'resources/**'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        project: null,
+        ecmaVersion: 2022,
+        sourceType: 'module'
+      }
+    },
+    rules: {}
   }
 ])

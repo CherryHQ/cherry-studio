@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { convertSpanToSpanEntity, FunctionSpanExporter, FunctionSpanProcessor } from '@mcp-trace/trace-core'
 import { WebTracer } from '@mcp-trace/trace-web'
-import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 const logger = loggerService.withContext('WebTraceService')
 

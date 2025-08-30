@@ -7,7 +7,9 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*",
-    "scripts",
+    "resources",
+    "tests",
+    "scripts/**/*.ts",
     "packages/mcp-trace/**/*",
     "src/renderer/src/services/traceApi.ts"  ],
   "compilerOptions": {
@@ -20,7 +22,7 @@
     "paths": {
       "@logger": ["src/main/services/LoggerService"],
       "@main/*": ["src/main/*"],
-      "@types": ["src/renderer/src/types/index.ts"],
+      "@cherry-types": ["src/renderer/src/types/index.ts"],
       "@shared/*": ["packages/shared/*"],
       "@mcp-trace/*": ["packages/mcp-trace/*"]
     },

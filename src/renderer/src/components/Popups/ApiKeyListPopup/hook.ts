@@ -3,23 +3,18 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import SelectProviderModelPopup from '@renderer/pages/settings/ProviderSettings/SelectProviderModelPopup'
 import { checkApi } from '@renderer/services/ApiService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import {
-  isPreprocessProviderId,
-  isWebSearchProviderId,
-  Model,
-  PreprocessProvider,
-  Provider,
-  WebSearchProvider
-} from '@renderer/types'
-import { ApiKeyConnectivity, ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
+import type { Model, PreprocessProvider, Provider, WebSearchProvider } from '@renderer/types'
+import { isPreprocessProviderId, isWebSearchProviderId } from '@renderer/types'
+import type { ApiKeyConnectivity, ApiKeyWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ApiKeyValidity, ApiProvider, UpdateApiProviderFunc } from './types'
+import type { ApiKeyValidity, ApiProvider, UpdateApiProviderFunc } from './types'
 
 interface UseApiKeysProps {
   provider: ApiProvider

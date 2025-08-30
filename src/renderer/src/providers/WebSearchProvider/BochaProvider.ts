@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
-import { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { BochaSearchParams, BochaSearchResponse } from '@renderer/utils/bocha'
 
 import BaseWebSearchProvider from './BaseWebSearchProvider'
 

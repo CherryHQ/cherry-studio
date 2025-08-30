@@ -1,6 +1,7 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { RootState } from '@renderer/store/index'
-import { EditorView } from '@renderer/types'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
+import type { RootState } from '@renderer/store/index'
+import type { EditorView } from '@renderer/types'
 
 export interface NotesSettings {
   isFullWidth: boolean

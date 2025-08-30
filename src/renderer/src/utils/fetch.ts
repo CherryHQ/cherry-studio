@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { Readability } from '@mozilla/readability'
 import { nanoid } from '@reduxjs/toolkit'
-import { WebSearchProviderResult } from '@renderer/types'
+import type { WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import TurndownService from 'turndown'

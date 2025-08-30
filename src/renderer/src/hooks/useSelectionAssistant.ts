@@ -12,7 +12,7 @@ import {
   setSelectionEnabled,
   setTriggerMode
 } from '@renderer/store/selectionStore'
-import { ActionItem, FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
+import type { ActionItem, FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
 
 export function useSelectionAssistant() {
   const dispatch = useAppDispatch()

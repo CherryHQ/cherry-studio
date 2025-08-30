@@ -16,6 +16,7 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
+import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@cherry-types'
 import { RAGApplication, RAGApplicationBuilder } from '@cherrystudio/embedjs'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
@@ -35,7 +36,6 @@ import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
 import type { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('MainKnowledgeService')

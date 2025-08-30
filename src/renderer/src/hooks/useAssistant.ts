@@ -25,12 +25,11 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
+import { TopicManager } from '@renderer/store/thunk/topicManager'
+import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { TopicManager } from './useTopic'
 
 export function useAssistants() {
   const { t } = useTranslation()
@@ -167,7 +166,10 @@ export function useAssistant(id: string) {
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    removeAllTopics: () => {
+      assistant.topics.forEach((topic) => TopicManager.removeTopic(topic.id))
+      dispatch(removeAllTopics({ assistantId: assistant.id }))
+    },
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]

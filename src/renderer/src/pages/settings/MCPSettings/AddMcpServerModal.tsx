@@ -5,9 +5,10 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { Button, Form, Modal, Upload } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AddMcpServerModal')

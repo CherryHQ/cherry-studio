@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CONTENT_TYPES } from '../knowledge'
 
 // Simple mocks
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/store/thunk/topicManager', () => ({
   TopicManager: {
     getTopicMessages: vi.fn()
   }
@@ -66,7 +66,7 @@ describe('Topic Knowledge Functions', () => {
     })
 
     it('should handle TopicManager mock correctly', async () => {
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       expect(TopicManager).toHaveProperty('getTopicMessages')
       expect(typeof TopicManager.getTopicMessages).toBe('function')
     })

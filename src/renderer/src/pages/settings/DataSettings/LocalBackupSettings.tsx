@@ -15,7 +15,7 @@ import {
   setLocalBackupSkipBackupFile as _setLocalBackupSkipBackupFile,
   setLocalBackupSyncInterval as _setLocalBackupSyncInterval
 } from '@renderer/store/settings'
-import { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@renderer/types'
 import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'

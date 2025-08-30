@@ -5,7 +5,8 @@ import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoun
 // import { LegacyMessage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
-import { FC, memo, useRef } from 'react'
+import type { FC } from 'react'
+import { memo, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {

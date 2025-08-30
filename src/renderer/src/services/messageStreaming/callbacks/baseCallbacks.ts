@@ -4,23 +4,17 @@ import i18n from '@renderer/i18n'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { NotificationService } from '@renderer/services/NotificationService'
 import { estimateMessagesUsage } from '@renderer/services/TokenService'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { newMessagesActions } from '@renderer/store/newMessage'
+import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import type { Assistant } from '@renderer/types'
-import type { Response } from '@renderer/types/newMessage'
-import {
-  AssistantMessageStatus,
-  MessageBlockStatus,
-  MessageBlockType,
-  PlaceholderMessageBlock
-} from '@renderer/types/newMessage'
+import type { PlaceholderMessageBlock, Response } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
 import { createBaseMessageBlock, createErrorBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isFocused, isOnHomePage } from '@renderer/utils/window'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('BaseCallbacks')
 interface BaseCallbacksDependencies {

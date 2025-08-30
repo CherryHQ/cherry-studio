@@ -24,14 +24,15 @@ import {
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, ModelTag, ModelType, objectEntries, Provider } from '@renderer/types'
+import type { Model, ModelTag, ModelType, Provider } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags, isFreeModel } from '@renderer/utils/model'
 import { Avatar, Button, Divider, Empty, Flex, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import React, {
-  ReactNode,
   startTransition,
   useCallback,
   useDeferredValue,
@@ -45,7 +46,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import SelectModelSearchBar from './searchbar'
-import { FlatListItem, FlatListModel } from './types'
+import type { FlatListItem, FlatListModel } from './types'
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36
