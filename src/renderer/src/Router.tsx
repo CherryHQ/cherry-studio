@@ -15,6 +15,7 @@ import HomePage from './pages/home/HomePage'
 import KnowledgePage from './pages/knowledge/KnowledgePage'
 import LaunchpadPage from './pages/launchpad/LaunchpadPage'
 import MinAppsPage from './pages/minapps/MinAppsPage'
+import NotesPage from './pages/notes/NotesPage'
 import PaintingsRoutePage from './pages/paintings/PaintingsRoutePage'
 import SettingsPage from './pages/settings/SettingsPage'
 import TranslatePage from './pages/translate/TranslatePage'
@@ -31,6 +32,7 @@ const Router: FC = () => {
           <Route path="/paintings/*" element={<PaintingsRoutePage />} />
           <Route path="/translate" element={<TranslatePage />} />
           <Route path="/files" element={<FilesPage />} />
+          <Route path="/notes" element={<NotesPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/apps" element={<MinAppsPage />} />
           <Route path="/code" element={<CodeToolsPage />} />

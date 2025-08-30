@@ -8,6 +8,7 @@ import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -27,6 +28,7 @@ import {
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotes,
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
@@ -78,6 +80,7 @@ const MessageMenubar: FC<Props> = (props) => {
     onUpdateUseful
   } = props
   const { t } = useTranslation()
+  const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [isTranslating, setIsTranslating] = useState(false)
@@ -254,6 +257,15 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: () => {
               SaveToKnowledgePopup.showForMessage(message)
             }
+          },
+          {
+            label: t('notes.save'),
+            key: 'clipboard',
+            onClick: async () => {
+              const title = await getMessageTitle(message)
+              const markdown = messageToMarkdown(message)
+              exportMessageToNotes(title, markdown, notesPath)
+            }
           }
         ]
       },
@@ -355,14 +367,24 @@ const MessageMenubar: FC<Props> = (props) => {
       }
     ],
     [
-      t,
       isEditable,
+      t,
       onEdit,
       onNewBranch,
-      exportMenuOptions,
+      exportMenuOptions.plain_text,
+      exportMenuOptions.image,
+      exportMenuOptions.markdown,
+      exportMenuOptions.markdown_reason,
+      exportMenuOptions.docx,
+      exportMenuOptions.notion,
+      exportMenuOptions.yuque,
+      exportMenuOptions.obsidian,
+      exportMenuOptions.joplin,
+      exportMenuOptions.siyuan,
+      toggleMultiSelectMode,
       message,
       mainTextContent,
-      toggleMultiSelectMode,
+      notesPath,
       messageContainerRef,
       topic.name
     ]

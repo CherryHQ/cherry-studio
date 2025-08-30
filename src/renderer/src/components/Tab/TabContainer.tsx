@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   Monitor,
   Moon,
+  NotepadText,
   Palette,
   Settings,
   Sparkle,
@@ -50,6 +51,8 @@ const getTabIcon = (tabId: string): React.ReactNode | undefined => {
       return <Palette size={14} />
     case 'apps':
       return <LayoutGrid size={14} />
+    case 'notes':
+      return <NotepadText size={14} />
     case 'knowledge':
       return <FileSearch size={14} />
     case 'mcp':

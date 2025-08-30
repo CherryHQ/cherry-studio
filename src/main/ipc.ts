@@ -58,7 +58,15 @@ import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
-import { getCacheDir, getConfigDir, getFilesDir, hasWritePermission, isPathInside, untildify } from './utils/file'
+import {
+  getCacheDir,
+  getConfigDir,
+  getFilesDir,
+  getNotesDir,
+  hasWritePermission,
+  isPathInside,
+  untildify
+} from './utils/file'
 import { updateAppDataConfig } from './utils/init'
 import { compress, decompress } from './utils/zip'
 
@@ -83,6 +91,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
     filesPath: getFilesDir(),
+    notesPath: getNotesDir(),
     configPath: getConfigDir(),
     appDataPath: app.getPath('userData'),
     resourcesPath: getResourcePath(),
@@ -430,16 +439,25 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_Upload, fileManager.uploadFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Clear, fileManager.clear.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Read, fileManager.readFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ReadExternal, fileManager.readExternalFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Delete, fileManager.deleteFile.bind(fileManager))
-  ipcMain.handle('file:deleteDir', fileManager.deleteDir.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_DeleteDir, fileManager.deleteDir.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_DeleteExternalFile, fileManager.deleteExternalFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_DeleteExternalDir, fileManager.deleteExternalDir.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Move, fileManager.moveFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_MoveDir, fileManager.moveDir.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Rename, fileManager.renameFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_RenameDir, fileManager.renameDir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Get, fileManager.getFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SelectFolder, fileManager.selectFolder.bind(fileManager))
   ipcMain.handle(IpcChannel.File_CreateTempFile, fileManager.createTempFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_Mkdir, fileManager.mkdir.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Write, fileManager.writeFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_WriteWithId, fileManager.writeFileWithId.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SaveImage, fileManager.saveImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Base64Image, fileManager.base64Image.bind(fileManager))
   ipcMain.handle(IpcChannel.File_SaveBase64Image, fileManager.saveBase64Image.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_SavePastedImage, fileManager.savePastedImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Base64File, fileManager.base64File.bind(fileManager))
   ipcMain.handle(IpcChannel.File_GetPdfInfo, fileManager.pdfPageCount.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Download, fileManager.downloadFile.bind(fileManager))
@@ -447,6 +465,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_GetDirectoryStructure, fileManager.getDirectoryStructure.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_StartWatcher, fileManager.startFileWatcher.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_StopWatcher, fileManager.stopFileWatcher.bind(fileManager))
 
   // file service
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {

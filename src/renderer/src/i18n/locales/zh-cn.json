@@ -597,6 +597,7 @@
           "label": "导出为 Markdown",
           "reason": "导出为 Markdown (包含思考)"
         },
+        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "obsidian_atributes": "配置笔记属性",
@@ -1292,6 +1293,9 @@
           "specified": "导出 Markdown 文件失败"
         }
       },
+      "notes": {
+        "export": "导出笔记失败"
+      },
       "notion": {
         "export": "导出 Notion 错误，请检查连接状态并对照文档检查配置",
         "no_api_key": "未配置 Notion API Key 或 Notion Database ID",
@@ -1384,6 +1388,9 @@
           "preconf": "成功导出 Markdown 文件到预先设定的路径",
           "specified": "成功导出 Markdown 文件"
         }
+      },
+      "notes": {
+        "export": "成功导出到笔记"
       },
       "notion": {
         "export": "成功导出到 Notion"
@@ -1588,6 +1595,88 @@
   },
   "navigate": {
     "provider_settings": "跳转到服务商设置界面"
+  },
+  "notes": {
+    "characters": "字符",
+    "collapse": "收起",
+    "content_placeholder": "请输入笔记内容...",
+    "copyContent": "复制内容",
+    "delete": "删除",
+    "delete_confirm": "确定要删除这个{{type}}吗？",
+    "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
+    "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
+    "drop_markdown_hint": "拖拽 Markdown 文件到此处导入",
+    "empty": "暂无笔记",
+    "expand": "展开",
+    "export_failed": "导出到知识库失败",
+    "export_knowledge": "导出笔记到知识库",
+    "export_success": "成功导出到知识库",
+    "folder": "文件夹",
+    "new_folder": "新建文件夹",
+    "new_note": "新建笔记",
+    "no_content_to_copy": "没有内容可复制",
+    "only_markdown": "仅支持 Markdown 格式",
+    "open_folder": "打开外部文件夹",
+    "rename": "重命名",
+    "save": "保存到笔记",
+    "settings": {
+      "data": {
+        "apply": "应用",
+        "apply_path_failed": "应用路径失败",
+        "current_work_directory": "当前工作目录",
+        "invalid_directory": "选择的目录无效或无权限",
+        "path_required": "请选择工作目录",
+        "path_updated": "工作目录更新成功",
+        "reset_failed": "重置失败",
+        "reset_to_default": "重置为默认",
+        "select": "选择",
+        "select_directory_failed": "选择目录失败",
+        "title": "数据设置",
+        "work_directory_description": "工作目录是存储所有笔记文件的位置。更改工作目录不会移动现有文件，请手动迁移文件。",
+        "work_directory_placeholder": "选择笔记工作目录"
+      },
+      "display": {
+        "compress_content": "缩减栏宽",
+        "compress_content_description": "开启后将限制每行字数，使屏幕显示的内容减少",
+        "default_font": "默认字体",
+        "font_title": "字体设置",
+        "serif_font": "衬线字体",
+        "title": "显示设置"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "在编辑视图下，新笔记默认采用的编辑模式",
+          "preview_mode": "实时预览",
+          "source_mode": "源码模式",
+          "title": "默认编辑视图"
+        },
+        "title": "编辑器设置",
+        "view_mode": {
+          "description": "新笔记默认的视图模式",
+          "edit_mode": "编辑模式",
+          "read_mode": "阅读模式",
+          "title": "默认视图"
+        },
+        "view_mode_description": "设置新标签页的默认视图模式。"
+      },
+      "title": "笔记"
+    },
+    "show_starred": "显示收藏的笔记",
+    "sort_a2z": "文件名（A-Z）",
+    "sort_created_asc": "创建时间（从旧到新）",
+    "sort_created_desc": "创建时间（从新到旧）",
+    "sort_updated_asc": "更新时间（从旧到新）",
+    "sort_updated_desc": "更新时间（从新到旧）",
+    "sort_z2a": "文件名（Z-A）",
+    "star": "收藏",
+    "starred_notes": "收藏的笔记",
+    "title": "笔记",
+    "unsaved_changes": "你有未保存的内容，确定要离开吗？",
+    "unstar": "取消收藏",
+    "untitled_folder": "新文件夹",
+    "untitled_note": "无标题笔记",
+    "upload_failed": "笔记上传失败",
+    "upload_success": "笔记上传成功"
   },
   "notification": {
     "assistant": "助手响应",
@@ -1892,6 +1981,206 @@
       "title": "恢复进度"
     },
     "title": "数据恢复"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "删除列",
+        "deleteRow": "删除行",
+        "insertColumnAfter": "在右侧插入",
+        "insertColumnBefore": "在左侧插入",
+        "insertRowAfter": "在下方插入",
+        "insertRowBefore": "在上方插入"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "插入数学公式",
+        "title": "数学公式"
+      },
+      "blockquote": {
+        "description": "插入引用文本",
+        "title": "引用"
+      },
+      "bold": {
+        "description": "标记为粗体",
+        "title": "粗体"
+      },
+      "bulletList": {
+        "description": "创建简单的项目符号列表",
+        "title": "无序列表"
+      },
+      "calloutInfo": {
+        "description": "添加信息提示框",
+        "title": "信息提示框"
+      },
+      "calloutWarning": {
+        "description": "添加警告提示框",
+        "title": "警告提示框"
+      },
+      "code": {
+        "description": "插入代码片段",
+        "title": "代码"
+      },
+      "codeBlock": {
+        "description": "插入代码片段",
+        "title": "代码块"
+      },
+      "columns": {
+        "description": "创建分栏布局",
+        "title": "分栏"
+      },
+      "date": {
+        "description": "插入当前日期",
+        "title": "日期"
+      },
+      "divider": {
+        "description": "添加水平分割线",
+        "title": "分割线"
+      },
+      "hardBreak": {
+        "description": "插入换行符",
+        "title": "换行符"
+      },
+      "heading1": {
+        "description": "大段落标题",
+        "title": "一级标题"
+      },
+      "heading2": {
+        "description": "中段落标题",
+        "title": "二级标题"
+      },
+      "heading3": {
+        "description": "小段落标题",
+        "title": "三级标题"
+      },
+      "heading4": {
+        "description": "较小的段落标题",
+        "title": "四级标题"
+      },
+      "heading5": {
+        "description": "更小的段落标题",
+        "title": "五级标题"
+      },
+      "heading6": {
+        "description": "最小的段落标题",
+        "title": "六级标题"
+      },
+      "image": {
+        "description": "插入图片",
+        "title": "图片"
+      },
+      "inlineCode": {
+        "description": "添加行内代码",
+        "title": "行内代码"
+      },
+      "inlineMath": {
+        "description": "插入行内数学公式",
+        "title": "行内数学公式"
+      },
+      "italic": {
+        "description": "标记为斜体",
+        "title": "斜体"
+      },
+      "link": {
+        "description": "添加链接",
+        "title": "链接"
+      },
+      "noCommandsFound": "未找到命令",
+      "orderedList": {
+        "description": "创建带编号的列表",
+        "title": "有序列表"
+      },
+      "paragraph": {
+        "description": "开始编写普通文本",
+        "title": "正文"
+      },
+      "redo": {
+        "description": "重做上一步操作",
+        "title": "重做"
+      },
+      "strike": {
+        "description": "标记为删除线",
+        "title": "删除线"
+      },
+      "table": {
+        "description": "插入表格",
+        "title": "表格"
+      },
+      "taskList": {
+        "description": "创建待办事项清单",
+        "title": "任务列表"
+      },
+      "underline": {
+        "description": "标记为下划线",
+        "title": "下划线"
+      },
+      "undo": {
+        "description": "撤销上一步操作",
+        "title": "撤销"
+      }
+    },
+    "dragHandle": "拖拽块",
+    "image": {
+      "placeholder": "添加图片"
+    },
+    "imageUploader": {
+      "embedImage": "嵌入图片",
+      "embedLink": "嵌入链接",
+      "embedSuccess": "图片嵌入成功",
+      "invalidType": "请选择图片文件",
+      "invalidUrl": "无效的图片链接",
+      "processing": "正在处理图片...",
+      "title": "添加图片",
+      "tooLarge": "图片大小不能超过 10MB",
+      "upload": "上传",
+      "uploadError": "图片上传失败",
+      "uploadFile": "上传文件",
+      "uploadHint": "支持 JPG、PNG、GIF 等格式，最大 10MB",
+      "uploadSuccess": "图片上传成功",
+      "uploadText": "点击或拖拽图片到此处上传",
+      "uploading": "正在上传图片",
+      "urlPlaceholder": "粘贴图片链接地址",
+      "urlRequired": "请输入图片链接地址"
+    },
+    "link": {
+      "remove": "移除链接",
+      "text": "链接标题",
+      "textPlaceholder": "请输入链接标题",
+      "url": "链接地址"
+    },
+    "math": {
+      "placeholder": "输入 LaTeX 公式"
+    },
+    "placeholder": "输入'/'调用命令",
+    "plusButton": "点击在下方添加",
+    "toolbar": {
+      "blockMath": "数学公式块",
+      "blockquote": "引用",
+      "bold": "粗体",
+      "bulletList": "无序列表",
+      "clearMarks": "清除格式",
+      "code": "行内代码",
+      "codeBlock": "代码块",
+      "heading1": "一级标题",
+      "heading2": "二级标题",
+      "heading3": "三级标题",
+      "heading4": "四级标题",
+      "heading5": "五级标题",
+      "heading6": "六级标题",
+      "image": "图片",
+      "inlineMath": "行内数学公式",
+      "italic": "斜体",
+      "link": "链接",
+      "orderedList": "有序列表",
+      "paragraph": "正文",
+      "redo": "重做",
+      "strike": "删除线",
+      "table": "表格",
+      "taskList": "任务清单",
+      "underline": "下划线",
+      "undo": "撤销"
+    }
   },
   "selection": {
     "action": {
@@ -2204,6 +2493,7 @@
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",
         "markdown_reason": "导出为 Markdown（包含思考）",
+        "notes": "导出到笔记",
         "notion": "导出到 Notion",
         "obsidian": "导出到 Obsidian",
         "plain_text": "复制为纯文本",
@@ -3735,6 +4025,7 @@
     "launchpad": "启动台",
     "mcp-servers": "MCP 服务器",
     "memories": "记忆",
+    "notes": "笔记",
     "paintings": "绘画",
     "settings": "设置",
     "translate": "翻译"

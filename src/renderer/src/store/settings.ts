@@ -183,6 +183,7 @@ export interface SettingsState {
     siyuan: boolean
     docx: boolean
     plain_text: boolean
+    notes: boolean
   }
   // OpenAI
   openAI: {
@@ -212,6 +213,8 @@ export interface SettingsState {
   // API Server
   apiServer: ApiServerConfig
   showMessageOutline?: boolean
+  // Notes Related
+  showWorkspace: boolean
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -357,7 +360,8 @@ export const initialState: SettingsState = {
     obsidian: true,
     siyuan: true,
     docx: true,
-    plain_text: true
+    plain_text: true,
+    notes: true
   },
   // OpenAI
   openAI: {
@@ -389,6 +393,7 @@ export const initialState: SettingsState = {
     maxBackups: 0,
     skipBackupFile: false
   },
+
   // Developer mode
   enableDeveloperMode: false,
   // UI
@@ -400,7 +405,9 @@ export const initialState: SettingsState = {
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
   },
-  showMessageOutline: undefined
+  showMessageOutline: undefined,
+  // Notes Related
+  showWorkspace: true
 }
 
 const settingsSlice = createSlice({
@@ -832,6 +839,12 @@ const settingsSlice = createSlice({
     },
     setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
       state.showMessageOutline = action.payload
+    },
+    setShowWorkspace: (state, action: PayloadAction<boolean>) => {
+      state.showWorkspace = action.payload
+    },
+    toggleShowWorkspace: (state) => {
+      state.showWorkspace = !state.showWorkspace
     }
   }
 })
@@ -961,7 +974,9 @@ export const {
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,
-  setApiServerApiKey
+  setApiServerApiKey,
+  setShowWorkspace,
+  toggleShowWorkspace
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

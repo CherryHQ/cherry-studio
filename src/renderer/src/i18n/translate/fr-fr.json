@@ -597,6 +597,7 @@
           "label": "Exporter sous forme de Markdown",
           "reason": "Exporter au format Markdown (avec réflexion)"
         },
+        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "obsidian_atributes": "Configurer les attributs de la note",
@@ -1292,6 +1293,9 @@
           "specified": "Échec de l'exportation vers un fichier Markdown"
         }
       },
+      "notes": {
+        "export": "Échec de l'exportation des notes"
+      },
       "notion": {
         "export": "Erreur lors de l'exportation vers Notion, veuillez vérifier l'état de la connexion et la configuration dans la documentation",
         "no_api_key": "Aucune clé API Notion ou ID de base de données Notion configurée",
@@ -1384,6 +1388,9 @@
           "preconf": "Exportation réussie vers un fichier Markdown dans le chemin prédéfini",
           "specified": "Exportation réussie vers un fichier Markdown"
         }
+      },
+      "notes": {
+        "export": "exportation réussie vers les notes"
       },
       "notion": {
         "export": "Exportation réussie vers Notion"
@@ -1588,6 +1595,88 @@
   },
   "navigate": {
     "provider_settings": "Aller aux paramètres du fournisseur"
+  },
+  "notes": {
+    "characters": "caractère",
+    "collapse": "réduire",
+    "content_placeholder": "Veuillez saisir le contenu de la note...",
+    "copyContent": "contenu copié",
+    "delete": "supprimer",
+    "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
+    "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
+    "delete_note_confirm": "Êtes-vous sûr de vouloir supprimer la note \"{{name}}\" ?",
+    "drop_markdown_hint": "Glissez-déposez le fichier Markdown ici pour l'importer",
+    "empty": "Aucune note pour le moment",
+    "expand": "développer",
+    "export_failed": "Échec de l'exportation vers la base de connaissances",
+    "export_knowledge": "exporter la note vers la base de connaissances",
+    "export_success": "Exporté avec succès vers la base de connaissances",
+    "folder": "dossier",
+    "new_folder": "Nouveau dossier",
+    "new_note": "Nouvelle note",
+    "no_content_to_copy": "Aucun contenu à copier",
+    "only_markdown": "uniquement le format Markdown est pris en charge",
+    "open_folder": "ouvrir le dossier externe",
+    "rename": "renommer",
+    "save": "sauvegarder dans les notes",
+    "settings": {
+      "data": {
+        "apply": "application",
+        "apply_path_failed": "Échec du chemin d'application",
+        "current_work_directory": "répertoire de travail actuel",
+        "invalid_directory": "Le répertoire sélectionné est invalide ou sans autorisation",
+        "path_required": "Veuillez sélectionner le répertoire de travail",
+        "path_updated": "Le répertoire de travail a été mis à jour avec succès",
+        "reset_failed": "Réinitialisation échouée",
+        "reset_to_default": "réinitialiser aux paramètres par défaut",
+        "select": "choix",
+        "select_directory_failed": "Échec de sélection du répertoire",
+        "title": "paramétrage des données",
+        "work_directory_description": "Le répertoire de travail est l'emplacement où sont stockés tous les fichiers de notes. Changer le répertoire de travail ne déplace pas les fichiers existants, veuillez les migrer manuellement.",
+        "work_directory_placeholder": "Sélectionner le répertoire de travail des notes"
+      },
+      "display": {
+        "compress_content": "réduire la largeur des colonnes",
+        "compress_content_description": "L'activation limitera le nombre de caractères par ligne, réduisant ainsi le contenu affiché à l'écran.",
+        "default_font": "police par défaut",
+        "font_title": "paramétrage des polices",
+        "serif_font": "police à empattements",
+        "title": "Paramètres d'affichage"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "En mode édition, le mode d'édition par défaut pour les nouvelles notes",
+          "preview_mode": "Aperçu en temps réel",
+          "source_mode": "mode source",
+          "title": "vue d'édition par défaut"
+        },
+        "title": "Paramètres de l'éditeur",
+        "view_mode": {
+          "description": "Mode de vue par défaut pour les nouvelles notes",
+          "edit_mode": "mode d'édition",
+          "read_mode": "mode lecture",
+          "title": "vue par défaut"
+        },
+        "view_mode_description": "Définir le mode d'affichage par défaut des nouveaux onglets."
+      },
+      "title": "notes"
+    },
+    "show_starred": "Afficher les notes favorites",
+    "sort_a2z": "Nom de fichier (A-Z)",
+    "sort_created_asc": "Date de création (du plus ancien au plus récent)",
+    "sort_created_desc": "Date de création (du plus récent au plus ancien)",
+    "sort_updated_asc": "Heure de mise à jour (du plus ancien au plus récent)",
+    "sort_updated_desc": "Date de mise à jour (du plus récent au plus ancien)",
+    "sort_z2a": "Nom de fichier (Z-A)",
+    "star": "Favori",
+    "starred_notes": "notes de collection",
+    "title": "notes",
+    "unsaved_changes": "Vous avez des modifications non enregistrées, êtes-vous sûr de vouloir quitter ?",
+    "unstar": "annuler la mise en favori",
+    "untitled_folder": "nouveau dossier",
+    "untitled_note": "Note sans titre",
+    "upload_failed": "Échec du téléchargement de la note",
+    "upload_success": "Note téléchargée avec succès"
   },
   "notification": {
     "assistant": "Réponse de l'assistant",
@@ -1892,6 +1981,206 @@
       "title": "Progression de la restauration"
     },
     "title": "Restauration des données"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "supprimer la colonne",
+        "deleteRow": "supprimer la ligne",
+        "insertColumnAfter": "insérer à droite",
+        "insertColumnBefore": "Insérer à gauche",
+        "insertRowAfter": "insérer ci-dessous",
+        "insertRowBefore": "Insérer en haut"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "insérer des formules mathématiques",
+        "title": "formule mathématique"
+      },
+      "blockquote": {
+        "description": "Insérer un texte de référence",
+        "title": "citation"
+      },
+      "bold": {
+        "description": "marqué en gras",
+        "title": "gras"
+      },
+      "bulletList": {
+        "description": "créer une liste à puces simple",
+        "title": "liste à puces"
+      },
+      "calloutInfo": {
+        "description": "ajouter une info-bulle",
+        "title": "boîte de dialogue d'information"
+      },
+      "calloutWarning": {
+        "description": "ajouter une boîte d'avertissement",
+        "title": "boîte d'avertissement"
+      },
+      "code": {
+        "description": "insérer un extrait de code",
+        "title": "code"
+      },
+      "codeBlock": {
+        "description": "insérer un extrait de code",
+        "title": "bloc de code"
+      },
+      "columns": {
+        "description": "créer une disposition en colonnes",
+        "title": "colonnes"
+      },
+      "date": {
+        "description": "insérer la date actuelle",
+        "title": "date"
+      },
+      "divider": {
+        "description": "ajouter une ligne de séparation horizontale",
+        "title": "ligne de séparation"
+      },
+      "hardBreak": {
+        "description": "insérer un saut de ligne",
+        "title": "saut de ligne"
+      },
+      "heading1": {
+        "description": "titre de la grande section",
+        "title": "Titre 1"
+      },
+      "heading2": {
+        "description": "sous-titre de paragraphe",
+        "title": "sous-titre"
+      },
+      "heading3": {
+        "description": "Titre du paragraphe",
+        "title": "titre de niveau trois"
+      },
+      "heading4": {
+        "description": "titres de paragraphes plus petits",
+        "title": "titre de niveau quatre"
+      },
+      "heading5": {
+        "description": "titres de paragraphes plus petits",
+        "title": "Titre de cinquième niveau"
+      },
+      "heading6": {
+        "description": "le plus petit titre de paragraphe",
+        "title": "titre de niveau six"
+      },
+      "image": {
+        "description": "insérer une image",
+        "title": "image"
+      },
+      "inlineCode": {
+        "description": "ajouter du code en ligne",
+        "title": "code en ligne"
+      },
+      "inlineMath": {
+        "description": "insérer une formule mathématique en ligne",
+        "title": "formule mathématique en ligne"
+      },
+      "italic": {
+        "description": "marqué comme italique",
+        "title": "italique"
+      },
+      "link": {
+        "description": "ajouter un lien",
+        "title": "lien"
+      },
+      "noCommandsFound": "Commande introuvable",
+      "orderedList": {
+        "description": "créer une liste numérotée",
+        "title": "liste ordonnée"
+      },
+      "paragraph": {
+        "description": "commencer à écrire du texte ordinaire",
+        "title": "corps de texte"
+      },
+      "redo": {
+        "description": "refaire l'opération précédente",
+        "title": "refaire"
+      },
+      "strike": {
+        "description": "marqué comme barré",
+        "title": "barré"
+      },
+      "table": {
+        "description": "insérer un tableau",
+        "title": "tableau"
+      },
+      "taskList": {
+        "description": "Créer une liste de tâches à faire",
+        "title": "liste des tâches"
+      },
+      "underline": {
+        "description": "marqué comme un soulignement",
+        "title": "soulignement"
+      },
+      "undo": {
+        "description": "annuler l'opération précédente",
+        "title": "annuler"
+      }
+    },
+    "dragHandle": "bloc de glisser-déposer",
+    "image": {
+      "placeholder": "ajouter une image"
+    },
+    "imageUploader": {
+      "embedImage": "insérer une image",
+      "embedLink": "intégrer un lien",
+      "embedSuccess": "Image intégrée avec succès",
+      "invalidType": "Veuillez sélectionner un fichier image",
+      "invalidUrl": "lien d'image invalide",
+      "processing": "Traitement de l'image en cours...",
+      "title": "ajouter une image",
+      "tooLarge": "La taille de l'image ne doit pas dépasser 10 Mo",
+      "upload": "télécharger",
+      "uploadError": "Échec du téléversement de l'image",
+      "uploadFile": "télécharger un fichier",
+      "uploadHint": "prend en charge les formats JPG, PNG, GIF, etc., jusqu'à 10 Mo max.",
+      "uploadSuccess": "L'image a été téléchargée avec succès",
+      "uploadText": "Cliquez ou faites glisser l'image ici pour la télécharger",
+      "uploading": "Téléchargement de l'image en cours",
+      "urlPlaceholder": "coller l'URL de l'image",
+      "urlRequired": "Veuillez entrer l'URL de l'image"
+    },
+    "link": {
+      "remove": "supprimer le lien",
+      "text": "titre du lien",
+      "textPlaceholder": "Veuillez saisir le titre du lien",
+      "url": "lien URL"
+    },
+    "math": {
+      "placeholder": "Entrer une formule LaTeX"
+    },
+    "placeholder": "Tapez '/' pour invoquer une commande",
+    "plusButton": "cliquez ci-dessous pour ajouter",
+    "toolbar": {
+      "blockMath": "bloc de formule mathématique",
+      "blockquote": "citation",
+      "bold": "gras",
+      "bulletList": "liste non ordonnée",
+      "clearMarks": "effacer la mise en forme",
+      "code": "code en ligne",
+      "codeBlock": "bloc de code",
+      "heading1": "Titre de niveau 1",
+      "heading2": "titre de niveau deux",
+      "heading3": "titre de niveau trois",
+      "heading4": "titre de niveau quatre",
+      "heading5": "Titre de niveau 5",
+      "heading6": "titre de niveau six",
+      "image": "image",
+      "inlineMath": "formule mathématique en ligne",
+      "italic": "italique",
+      "link": "lien",
+      "orderedList": "liste ordonnée",
+      "paragraph": "corps de texte",
+      "redo": "refaire",
+      "strike": "barré",
+      "table": "tableau",
+      "taskList": "liste de tâches",
+      "underline": "souligné",
+      "undo": "annuler"
+    }
   },
   "selection": {
     "action": {
@@ -2204,6 +2493,7 @@
         "joplin": "Exporter vers Joplin",
         "markdown": "Exporter au format Markdown",
         "markdown_reason": "Exporter au format Markdown (avec réflexion incluse)",
+        "notes": "Exporter vers les notes",
         "notion": "Exporter vers Notion",
         "obsidian": "Exporter vers Obsidian",
         "plain_text": "Copier en texte brut",
@@ -3735,6 +4025,7 @@
     "launchpad": "Tableau de lancement",
     "mcp-servers": "Serveurs MCP",
     "memories": "Mémoires",
+    "notes": "notes",
     "paintings": "Peintures",
     "settings": "Paramètres",
     "translate": "Traduire"

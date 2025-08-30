@@ -1,4 +1,5 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
@@ -28,6 +29,8 @@ import FileList from './FileList'
 
 type SortField = 'created_at' | 'size' | 'name'
 type SortOrder = 'asc' | 'desc'
+
+const logger = loggerService.withContext('FilesPage')
 
 const FilesPage: FC = () => {
   const { t } = useTranslation()
@@ -91,6 +94,7 @@ const FilesPage: FC = () => {
   }
 
   const dataSource = sortedFiles?.map((file) => {
+    logger.debug('FileItem', file)
     return {
       key: file.id,
       file: (

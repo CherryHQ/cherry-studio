@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import * as z from 'zod/v4'
 
 export * from './file'
+export * from './note'
 
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
@@ -734,6 +735,7 @@ export type SidebarIcon =
   | 'knowledge'
   | 'files'
   | 'code_tools'
+  | 'notes'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -1183,6 +1185,8 @@ export interface MemoryListOptions extends MemoryEntity {
 }
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
+
+export type EditorView = 'preview' | 'source' | 'read' // 实时,源码,预览
 // ========================================================================
 
 /**

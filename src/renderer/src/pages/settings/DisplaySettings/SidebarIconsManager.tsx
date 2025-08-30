@@ -12,7 +12,17 @@ import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
 import { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
-import { Code, FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
+import {
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  MessageSquareQuote,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -115,7 +125,8 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       translate: <Languages size={16} />,
       minapp: <LayoutGrid size={16} />,
       knowledge: <FileSearch size={16} />,
-      files: <Folder size={15} />,
+      files: <Folder size={16} />,
+      notes: <NotepadText size={16} />,
       code_tools: <Code size={16} />
     }),
     []
@@ -214,6 +225,7 @@ const IconList = styled.div`
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 `
 
 const IconItem = styled.div`

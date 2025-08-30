@@ -6,6 +6,7 @@ import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePop
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { finishTopicRenaming, startTopicRenaming, TopicManager } from '@renderer/hooks/useTopic'
@@ -23,6 +24,7 @@ import {
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
+  exportTopicToNotes,
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
@@ -59,9 +61,10 @@ interface Props {
 }
 
 const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic, position }) => {
+  const { t } = useTranslation()
+  const { notesPath } = useNotesSettings()
   const { assistants } = useAssistants()
   const { assistant, removeTopic, moveTopic, updateTopic, updateTopics } = useAssistant(_assistant.id)
-  const { t } = useTranslation()
   const { showTopicTime, pinTopicsToTop, setTopicPosition, topicPosition } = useSettings()
 
   const renamingTopics = useSelector((state: RootState) => state.runtime.chat.renamingTopics)
@@ -342,6 +345,13 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 window.message.error(t('chat.save.topic.knowledge.error.save_failed'))
               }
             }
+          },
+          {
+            label: t('notes.save'),
+            key: 'notes',
+            onClick: async () => {
+              exportTopicToNotes(topic, notesPath)
+            }
           }
         ]
       },
@@ -456,6 +466,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
     exportMenuOptions.joplin,
     exportMenuOptions.siyuan,
     assistants,
+    notesPath,
     assistant,
     updateTopic,
     activeTopic.id,
@@ -594,26 +605,29 @@ const TopicListItem = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  position: relative;
   cursor: pointer;
-  position: relative;
   width: calc(var(--assistants-width) - 20px);
+
   .menu {
     opacity: 0;
     color: var(--color-text-3);
   }
+
   &:hover {
     background-color: var(--color-list-item-hover);
     transition: background-color 0.1s;
+
     .menu {
       opacity: 1;
     }
   }
+
   &.active {
     background-color: var(--color-list-item);
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     .menu {
       opacity: 1;
+
       &:hover {
         color: var(--color-text-2);
       }

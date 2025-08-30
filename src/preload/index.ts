@@ -4,6 +4,7 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
@@ -141,33 +142,33 @@ const api = {
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
     delete: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Delete, fileId),
     deleteDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteDir, dirPath),
+    deleteExternalFile: (filePath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalFile, filePath),
+    deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
+    move: (path: string, newPath: string) => ipcRenderer.invoke(IpcChannel.File_Move, path, newPath),
+    moveDir: (dirPath: string, newDirPath: string) => ipcRenderer.invoke(IpcChannel.File_MoveDir, dirPath, newDirPath),
+    rename: (path: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_Rename, path, newName),
+    renameDir: (dirPath: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_RenameDir, dirPath, newName),
     read: (fileId: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
+    readExternal: (filePath: string, detectEncoding?: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_ReadExternal, filePath, detectEncoding),
     clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
     get: (filePath: string): Promise<FileMetadata | null> => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
-    /**
-     * 创建一个空的临时文件
-     * @param fileName 文件名
-     * @returns 临时文件路径
-     */
     createTempFile: (fileName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.File_CreateTempFile, fileName),
-    /**
-     * 写入文件
-     * @param filePath 文件路径
-     * @param data 数据
-     */
+    mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
     write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
-
     writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
     open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
-    selectFolder: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, spanContext),
+    selectFolder: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
     base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
     saveBase64Image: (data: string) => ipcRenderer.invoke(IpcChannel.File_SaveBase64Image, data),
+    savePastedImage: (imageData: Uint8Array, extension?: string) =>
+      ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     download: (url: string, isUseContentType?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
     copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
@@ -175,7 +176,23 @@ const api = {
     pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
-    isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath)
+    isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
+    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
+    checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
+      ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
+    validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
+    startFileWatcher: (dirPath: string, config?: any) =>
+      ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
+    stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
+    onFileChange: (callback: (data: FileChangeEvent) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: any) => {
+        if (data && typeof data === 'object') {
+          callback(data)
+        }
+      }
+      ipcRenderer.on('file-change', listener)
+      return () => ipcRenderer.off('file-change', listener)
+    }
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),

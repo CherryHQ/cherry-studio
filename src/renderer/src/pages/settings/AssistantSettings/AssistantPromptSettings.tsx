@@ -1,18 +1,18 @@
 import 'emoji-picker-element'
 
 import { CloseCircleFilled } from '@ant-design/icons'
-import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import RichEditor from '@renderer/components/RichEditor'
+import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
-import { Edit, Eye, HelpCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Edit, HelpCircle, Save } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
@@ -28,9 +28,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
+  const [showPreview, setShowPreview] = useState(assistant.prompt.length > 0)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
-  const [showPreview, setShowPreview] = useState(prompt.length > 0)
+  const editorRef = useRef<RichEditorRef>(null)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -46,7 +47,9 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   })
 
   const onUpdate = () => {
-    const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
+    const text = editorRef.current?.getMarkdown() || ''
+    setPrompt(text)
+    const _assistant = { ...assistant, name: name.trim(), emoji, prompt: text }
     updateAssistant(_assistant)
     window.message.success(t('common.saved'))
   }
@@ -64,6 +67,13 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   }
 
   const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+
+  const handleCommandsReady = (commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
+    const disabledCommands = ['image', 'inlineMath']
+    disabledCommands.forEach((commandId) => {
+      commandAPI.unregisterCommand(commandId)
+    })
+  }
 
   return (
     <Container>
@@ -118,42 +128,40 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
         </Popover>
       </HStack>
       <TextAreaContainer>
-        {showPreview ? (
-          <MarkdownContainer className="markdown" onClick={() => setShowPreview(false)}>
-            <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
-            <div style={{ height: '30px' }} />
-          </MarkdownContainer>
-        ) : (
-          <CodeEditor
-            value={prompt}
-            language="markdown"
-            placeholder={t('common.assistant') + t('common.prompt')}
-            onChange={setPrompt}
-            onBlur={onUpdate}
-            height="calc(80vh - 202px)"
-            fontSize="var(--ant-font-size)"
-            expanded={false}
-            wrapped
-            options={{
-              autocompletion: false,
-              keymap: true,
-              lineNumbers: false,
-              lint: false
-            }}
-            style={{
-              border: '0.5px solid var(--color-border)',
-              borderRadius: '5px'
-            }}
+        <RichEditorContainer>
+          <RichEditor
+            key={showPreview ? 'preview' : 'edit'}
+            ref={editorRef}
+            initialContent={showPreview ? processedPrompt : prompt}
+            onCommandsReady={handleCommandsReady}
+            showToolbar={!showPreview}
+            editable={!showPreview}
+            showTableOfContents={false}
+            enableContentSearch={false}
+            isFullWidth={true}
+            className="prompt-rich-editor"
           />
-        )}
+        </RichEditorContainer>
       </TextAreaContainer>
       <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
         <Button
           type="primary"
-          icon={showPreview ? <Edit size={14} /> : <Eye size={14} />}
-          onClick={() => setShowPreview((prev) => !prev)}>
-          {showPreview ? t('common.edit') : t('common.preview')}
+          icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
+          onClick={() => {
+            const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+            if (showPreview) {
+              setShowPreview(false)
+              requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+            } else {
+              onUpdate()
+              requestAnimationFrame(() => {
+                setShowPreview(true)
+                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+              })
+            }
+          }}>
+          {showPreview ? t('common.edit') : t('common.save')}
         </Button>
       </HSpaceBetweenStack>
     </Container>
@@ -189,12 +197,27 @@ const TokenCount = styled.div`
   user-select: none;
 `
 
-const MarkdownContainer = styled.div`
-  min-height: calc(80vh - 200px);
-  max-height: calc(80vh - 200px);
-  padding-right: 2px;
-  overflow: auto;
-  overflow-x: hidden;
+const RichEditorContainer = styled.div`
+  height: calc(80vh - 202px);
+  border: 0.5px solid var(--color-border);
+  border-radius: 5px;
+  overflow: hidden;
+
+  .prompt-rich-editor {
+    border: none;
+    height: 100%;
+
+    .rich-editor-wrapper {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rich-editor-content {
+      flex: 1;
+      overflow: auto;
+    }
+  }
 `
 
 export default AssistantPromptSettings

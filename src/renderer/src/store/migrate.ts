@@ -40,6 +40,7 @@ import { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
+import { initialState as notesInitialState } from './note'
 import { defaultActionItems } from './selectionStore'
 import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
@@ -2285,6 +2286,32 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 140 error', error as Error)
+      return state
+    }
+  },
+  '141': (state: RootState) => {
+    try {
+      if (state.settings && state.settings.sidebarIcons) {
+        // Check if 'notes' is not already in visible icons
+        if (!state.settings.sidebarIcons.visible.includes('notes')) {
+          state.settings.sidebarIcons.visible = [...state.settings.sidebarIcons.visible, 'notes']
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 141 error', error as Error)
+      return state
+    }
+  },
+  '142': (state: RootState) => {
+    try {
+      // Initialize notes settings if not present
+      if (!state.note) {
+        state.note = notesInitialState
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 142 error', error as Error)
       return state
     }
   }
