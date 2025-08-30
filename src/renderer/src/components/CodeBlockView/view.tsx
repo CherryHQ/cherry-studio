@@ -371,9 +371,10 @@ const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boo
   &:not(:has(+ [class*='Container'])) {
     // 特殊视图的 header 会隐藏，所以全都使用圆角
     border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
+    // FIXME: 滚动条边缘会溢出，可以考虑增加 padding，但是要保证代码主题颜色铺满容器。
+    // overflow: hidden;
     .code-viewer {
-      border-radius: 0 0 8px 8px;
-      overflow: hidden;
+      border-radius: inherit;
     }
   }
 
