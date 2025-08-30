@@ -105,7 +105,9 @@ function addWebSearchProvider(state: RootState, id: string) {
     if (!state.websearch.providers.find((p) => p.id === id)) {
       const provider = defaultWebSearchProviders.find((p) => p.id === id)
       if (provider) {
-        state.websearch.providers.push(provider)
+        // Prevent mutating read only property of object
+        // Otherwise, it will cause the error: Cannot assign to read only property 'apiKey' of object '#<Object>'
+        state.websearch.providers.push({ ...provider })
       }
     }
   }
@@ -2241,6 +2243,15 @@ const migrateConfig = {
 
         // Add zhipu web search provider
         addWebSearchProvider(state, 'zhipu')
+
+        // Update zhipu web search provider api key
+        if (zhipuProvider.apiKey) {
+          state?.websearch?.providers.forEach((provider) => {
+            if (provider.id === 'zhipu') {
+              provider.apiKey = zhipuProvider.apiKey
+            }
+          })
+        }
       }
 
       return state
@@ -2270,6 +2281,7 @@ const migrateConfig = {
         openai_image_generate: state?.paintings?.openai_image_generate || [],
         openai_image_edit: state?.paintings?.openai_image_edit || []
       }
+
       return state
     } catch (error) {
       logger.error('migrate 140 error', error as Error)
