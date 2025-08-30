@@ -2,11 +2,11 @@ import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 
 import type { FileMetadata } from './file'
-import { KnowledgeReference } from './knowledge'
-import { MCPServer, MCPToolResponse } from './mcp'
-import { Model } from './model'
-import { GenerateImageResponse, Metrics, Usage } from './newMessage'
-import { WebSearchProviderResponse } from './websearch'
+import type { KnowledgeReference } from './knowledge'
+import type { MCPServer, MCPToolResponse } from './mcp'
+import type { Model } from './model'
+import type { GenerateImageResponse, Metrics, Usage } from './newMessage'
+import type { WebSearchProviderResponse } from './websearch'
 
 export type LegacyMessage = {
   id: string

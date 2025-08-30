@@ -1,6 +1,8 @@
-import { Dropdown, DropdownProps } from 'antd'
+import type { DropdownProps } from 'antd'
+import { Dropdown } from 'antd'
 import { Check, ChevronsUpDown } from 'lucide-react'
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled, { css } from 'styled-components'
 

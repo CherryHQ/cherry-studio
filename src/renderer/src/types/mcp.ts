@@ -1,8 +1,8 @@
 import * as z from 'zod/v4'
 
-import { KnowledgeReference } from './knowledge'
-import { MemoryItem } from './memory'
-import { WebSearchResponse } from './websearch'
+import type { KnowledgeReference } from './knowledge'
+import type { MemoryItem } from './memory'
+import type { WebSearchResponse } from './websearch'
 
 export interface MCPTool {
   id: string

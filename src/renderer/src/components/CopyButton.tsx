@@ -1,6 +1,6 @@
 import { Tooltip } from 'antd'
 import { Copy } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

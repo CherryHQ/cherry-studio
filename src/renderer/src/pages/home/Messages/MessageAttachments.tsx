@@ -1,7 +1,7 @@
 import FileManager from '@renderer/services/FileManager'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { Upload } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface Props {

@@ -1,11 +1,11 @@
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 import { syncPreprocessProvider as _syncPreprocessProvider } from '@renderer/store/knowledge'
 import {
   setDefaultPreprocessProvider as _setDefaultPreprocessProvider,
   updatePreprocessProvider as _updatePreprocessProvider,
   updatePreprocessProviders as _updatePreprocessProviders
 } from '@renderer/store/preprocess'
-import { PreprocessProvider, PreprocessProviderId } from '@renderer/types'
+import type { PreprocessProvider, PreprocessProviderId } from '@renderer/types'
 import { useDispatch, useSelector } from 'react-redux'
 
 export const usePreprocessProvider = (id: PreprocessProviderId) => {

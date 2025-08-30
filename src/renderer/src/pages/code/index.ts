@@ -1,4 +1,4 @@
-import { EndpointType, Model, Provider } from '@renderer/types'
+import type { EndpointType, Model, Provider } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {

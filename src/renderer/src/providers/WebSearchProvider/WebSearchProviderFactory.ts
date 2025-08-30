@@ -1,6 +1,6 @@
-import { WebSearchProvider } from '@renderer/types'
+import type { WebSearchProvider } from '@renderer/types'
 
-import BaseWebSearchProvider from './BaseWebSearchProvider'
+import type BaseWebSearchProvider from './BaseWebSearchProvider'
 import BochaProvider from './BochaProvider'
 import DefaultProvider from './DefaultProvider'
 import ExaProvider from './ExaProvider'

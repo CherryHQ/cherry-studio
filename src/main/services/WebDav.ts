@@ -1,16 +1,16 @@
-import { WebDavConfig } from '@cherry-types'
+import type { WebDavConfig } from '@cherry-types'
 import { loggerService } from '@logger'
 import https from 'https'
 import path from 'path'
-import Stream from 'stream'
-import {
+import type Stream from 'stream'
+import type {
   BufferLike,
-  createClient,
   CreateDirectoryOptions,
   GetFileContentsOptions,
   PutFileContentsOptions,
   WebDAVClient
 } from 'webdav'
+import { createClient } from 'webdav'
 
 const logger = loggerService.withContext('WebDav')
 

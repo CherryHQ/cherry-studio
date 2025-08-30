@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { builtinLanguages, UNKNOWN } from '@renderer/config/translate'
 import { useAppSelector } from '@renderer/store'
-import { TranslateLanguage } from '@renderer/types'
+import type { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { getTranslateOptions } from '@renderer/utils/translate'
 import { useCallback, useEffect, useState } from 'react'

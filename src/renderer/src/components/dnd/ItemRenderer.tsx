@@ -1,5 +1,5 @@
-import { DraggableSyntheticListeners } from '@dnd-kit/core'
-import { Transform } from '@dnd-kit/utilities'
+import type { DraggableSyntheticListeners } from '@dnd-kit/core'
+import type { Transform } from '@dnd-kit/utilities'
 import { classNames } from '@renderer/utils'
 import React, { useEffect } from 'react'
 import styled from 'styled-components'

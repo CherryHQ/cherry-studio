@@ -1,10 +1,9 @@
 import { FormOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { EventEmitter } from '@renderer/services/EventService'
-import { EVENT_NAMES } from '@renderer/services/EventService'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { ThemeMode } from '@renderer/types'
 import { Button as AntdButton } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

@@ -1,4 +1,4 @@
-import { CompletionsMiddleware, MethodMiddleware } from './types'
+import type { CompletionsMiddleware, MethodMiddleware } from './types'
 
 // /**
 //  * Wraps a provider instance with middlewares.

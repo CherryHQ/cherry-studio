@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import {
+import type {
   OAuthClientInformation,
   OAuthClientInformationFull,
   OAuthTokens
@@ -7,7 +7,8 @@ import {
 import fs from 'fs/promises'
 import path from 'path'
 
-import { IOAuthStorage, OAuthStorageData, OAuthStorageSchema } from './types'
+import type { IOAuthStorage, OAuthStorageData } from './types'
+import { OAuthStorageSchema } from './types'
 
 const logger = loggerService.withContext('MCP:OAuthStorage')
 

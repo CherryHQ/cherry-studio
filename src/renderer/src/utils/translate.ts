@@ -4,9 +4,10 @@ import db from '@renderer/databases'
 import { fetchLanguageDetection } from '@renderer/services/ApiService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
-import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import type { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { franc } from 'franc-min'
-import React, { RefObject } from 'react'
+import type { RefObject } from 'react'
+import type React from 'react'
 import { sliceByTokens } from 'tokenx'
 
 const logger = loggerService.withContext('Utils:translate')

@@ -10,7 +10,7 @@ import {
   updateBaseItemUniqueId,
   updateItemProcessingStatus
 } from '@renderer/store/knowledge'
-import { KnowledgeItem } from '@renderer/types'
+import type { KnowledgeItem } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import type { LoaderReturn } from '@shared/config/types'
 import { t } from 'i18next'

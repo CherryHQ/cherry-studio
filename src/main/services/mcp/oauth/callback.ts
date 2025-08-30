@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import EventEmitter from 'events'
+import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
 
-import { OAuthCallbackServerOptions } from './types'
+import type { OAuthCallbackServerOptions } from './types'
 
 const logger = loggerService.withContext('MCP:OAuthCallbackServer')
 

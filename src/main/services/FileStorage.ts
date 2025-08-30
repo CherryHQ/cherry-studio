@@ -1,18 +1,11 @@
-import { FileMetadata } from '@cherry-types'
+import type { FileMetadata } from '@cherry-types'
 import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import chardet from 'chardet'
 import * as crypto from 'crypto'
-import {
-  dialog,
-  net,
-  OpenDialogOptions,
-  OpenDialogReturnValue,
-  SaveDialogOptions,
-  SaveDialogReturnValue,
-  shell
-} from 'electron'
+import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
+import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'

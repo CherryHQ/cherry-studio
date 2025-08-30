@@ -21,7 +21,7 @@ import { messageBlocksSelectors, updateOneBlock } from '@renderer/store/messageB
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { saveMessageAndBlocksToDB, updateMessageAndBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Topic } from '@renderer/types'
-import { type Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
+import type { type Message, MessageBlock, MessageBlockType } from '@renderer/types/newMessage'
 import {
   captureScrollableAsBlob,
   captureScrollableAsDataURL,

@@ -1,11 +1,11 @@
-import { KnowledgeBase } from './knowledge'
-import { MCPServer } from './mcp'
-import { Model } from './model'
-import { QuickPhrase } from './quickphrase'
-import { ReasoningEffortOption } from './reasoning'
-import { Topic } from './topic'
-import { TranslateLanguage } from './translate'
-import { WebSearchProvider } from './websearch'
+import type { KnowledgeBase } from './knowledge'
+import type { MCPServer } from './mcp'
+import type { Model } from './model'
+import type { QuickPhrase } from './quickphrase'
+import type { ReasoningEffortOption } from './reasoning'
+import type { Topic } from './topic'
+import type { TranslateLanguage } from './translate'
+import type { WebSearchProvider } from './websearch'
 
 export type Assistant = {
   id: string

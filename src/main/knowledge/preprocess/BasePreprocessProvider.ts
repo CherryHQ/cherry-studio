@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { FileMetadata, PreprocessProvider } from '@cherry-types'
+import type { FileMetadata, PreprocessProvider } from '@cherry-types'
 import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
 import { getFileExt, getTempDir } from '@main/utils/file'

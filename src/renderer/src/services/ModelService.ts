@@ -1,5 +1,5 @@
 import store from '@renderer/store'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { pick } from 'lodash'
 

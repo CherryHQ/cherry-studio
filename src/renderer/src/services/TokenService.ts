@@ -1,4 +1,5 @@
-import { Assistant, FileMetadata, FileTypes, Usage } from '@renderer/types'
+import type { Assistant, FileMetadata, Usage } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { findFileBlocks, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { flatten, takeRight } from 'lodash'

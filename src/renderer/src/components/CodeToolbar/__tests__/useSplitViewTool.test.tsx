@@ -1,4 +1,4 @@
-import { ViewMode } from '@renderer/components/CodeBlockView/types'
+import type { ViewMode } from '@renderer/components/CodeBlockView/types'
 import { useSplitViewTool } from '@renderer/components/CodeToolbar/hooks/useSplitViewTool'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises'
 
-import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@cherry-types'
+import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@cherry-types'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { Mistral } from '@mistralai/mistralai'
+import type { Mistral } from '@mistralai/mistralai'
 
 import { MistralClientManager } from '../MistralClientManager'
 import { BaseFileService } from './BaseFileService'

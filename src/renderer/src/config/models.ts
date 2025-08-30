@@ -149,16 +149,16 @@ import YiModelLogoDark from '@renderer/assets/images/models/yi_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import { getProviderByModel } from '@renderer/services/AssistantService'
-import {
-  isSystemProviderId,
+import type {
   Model,
   ReasoningEffortConfig,
   SystemProviderId,
   ThinkingModelType,
   ThinkingOptionConfig
 } from '@renderer/types'
+import { isSystemProviderId } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
 import { getWebSearchTools } from './tools'

@@ -1,4 +1,5 @@
-import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@cherry-types'
+import type { OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@cherry-types'
+import { BuiltinOcrProviderIds } from '@cherry-types'
 import { loggerService } from '@logger'
 
 import { systemOcrService } from './builtin/SystemOcrService'

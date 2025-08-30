@@ -3,16 +3,16 @@ import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   setNotionApiKey,
   setNotionDatabaseID,
   setNotionExportReasoning,
   setNotionPageNameKey
 } from '@renderer/store/settings'
-import { Button, Space, Switch, Tooltip } from 'antd'
-import { Input } from 'antd'
-import { FC } from 'react'
+import { Button, Input, Space, Switch, Tooltip } from 'antd'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 

@@ -1,8 +1,9 @@
-import { FileType } from '@renderer/types'
+import type { FileType } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import { Paperclip } from 'lucide-react'
-import { FC, useCallback, useImperativeHandle, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface AttachmentButtonRef {

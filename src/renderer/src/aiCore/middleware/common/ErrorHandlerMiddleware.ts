@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
-import { Chunk } from '@renderer/types/chunk'
+import type { Chunk } from '@renderer/types/chunk'
 
-import { CompletionsResult } from '../schemas'
-import { CompletionsContext } from '../types'
+import type { CompletionsContext, CompletionsResult } from '../types'
 import { createErrorChunk } from '../utils'
 
 const logger = loggerService.withContext('ErrorHandlerMiddleware')

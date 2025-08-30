@@ -1,4 +1,4 @@
-import { MCPTool } from '@renderer/types'
+import type { MCPTool } from '@renderer/types'
 
 export const thinkTool: MCPTool = {
   id: 'dummy-server-think',

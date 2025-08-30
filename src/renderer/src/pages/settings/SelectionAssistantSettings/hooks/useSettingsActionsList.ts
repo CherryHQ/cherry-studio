@@ -1,4 +1,4 @@
-import { DropResult } from '@hello-pangea/dnd'
+import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import { defaultActionItems } from '@renderer/store/selectionStore'
 import type { ActionItem } from '@renderer/types/selectionTypes'

@@ -1,5 +1,6 @@
 import i18n from '@renderer/i18n'
-import { Input, InputRef, Tooltip } from 'antd'
+import type { InputRef } from 'antd'
+import { Input, Tooltip } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'

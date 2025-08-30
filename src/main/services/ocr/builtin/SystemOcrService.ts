@@ -1,10 +1,5 @@
-import {
-  ImageFileMetadata,
-  isImageFileMetadata as isImageFileMetadata,
-  OcrResult,
-  OcrSystemConfig,
-  SupportedOcrFile
-} from '@cherry-types'
+import type { ImageFileMetadata, OcrResult, OcrSystemConfig, SupportedOcrFile } from '@cherry-types'
+import { isImageFileMetadata as isImageFileMetadata } from '@cherry-types'
 import { isMac, isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'

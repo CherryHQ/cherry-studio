@@ -1,14 +1,9 @@
-import {
+import type {
   Content,
-  createPartFromUri,
   File,
   FunctionCall,
   GenerateContentConfig,
   GenerateImagesConfig,
-  GoogleGenAI,
-  HarmBlockThreshold,
-  HarmCategory,
-  Modality,
   Model as GeminiModel,
   Part,
   SafetySetting,
@@ -16,9 +11,10 @@ import {
   ThinkingConfig,
   Tool
 } from '@google/genai'
+import { createPartFromUri, GoogleGenAI, HarmBlockThreshold, HarmCategory, Modality } from '@google/genai'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import type { GenericChunk } from '@renderer/aiCore/middleware/types'
 import {
   findTokenLimit,
   GEMINI_FLASH_MODEL_REGEX,
@@ -27,11 +23,9 @@ import {
   isVisionModel
 } from '@renderer/config/models'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import {
+import type {
   Assistant,
-  EFFORT_RATIO,
   FileMetadata,
-  FileTypes,
   FileUploadResponse,
   GenerateImageParams,
   MCPCallToolResponse,
@@ -39,12 +33,13 @@ import {
   MCPToolResponse,
   Model,
   Provider,
-  ToolCallResponse,
-  WebSearchSource
+  ToolCallResponse
 } from '@renderer/types'
-import { ChunkType, LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import { EFFORT_RATIO, FileTypes, WebSearchSource } from '@renderer/types'
+import type { LLMWebSearchCompleteChunk, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   GeminiOptions,
   GeminiSdkMessageParam,
   GeminiSdkParams,
@@ -64,7 +59,7 @@ import { defaultTimeout, MB } from '@shared/config/constant'
 import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
-import { RequestTransformer, ResponseChunkTransformer } from '../types'
+import type { RequestTransformer, ResponseChunkTransformer } from '../types'
 
 const logger = loggerService.withContext('GeminiAPIClient')
 

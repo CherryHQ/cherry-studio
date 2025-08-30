@@ -1,4 +1,4 @@
-import { ActionTool } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
 import { HStack } from '@renderer/components/Layout'
 import { Tooltip } from 'antd'
 import { EllipsisVertical } from 'lucide-react'

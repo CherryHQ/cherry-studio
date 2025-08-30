@@ -1,5 +1,5 @@
-import { ApiClient } from './api'
-import { Model } from './model'
+import type { ApiClient } from './api'
+import type { Model } from './model'
 
 export interface MemoryConfig {
   /**

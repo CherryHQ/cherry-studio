@@ -8,21 +8,23 @@ import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
-import { OpenAIVerbosity } from '@renderer/types'
-import {
+import type {
   GroqServiceTiers,
   Model,
   OpenAIServiceTier,
   OpenAIServiceTiers,
   OpenAISummaryText,
+  OpenAIVerbosity,
   ServiceTier,
   SystemProviderIds
 } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 

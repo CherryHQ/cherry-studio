@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { isOcrApiProvider, OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
+import type { OcrProvider, OcrResult, SupportedOcrFile } from '@renderer/types'
+import { isOcrApiProvider } from '@renderer/types'
 
 import { OcrApiClientFactory } from './clients/OcrApiClientFactory'
 

@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import { Model, Provider } from '@renderer/types'
-import { ApiKeyWithStatus, HealthStatus, ModelCheckOptions, ModelWithStatus } from '@renderer/types/healthCheck'
+import type { Model, Provider } from '@renderer/types'
+import type { ApiKeyWithStatus, ModelCheckOptions, ModelWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { aggregateApiKeyResults } from '@renderer/utils/healthCheck'
 

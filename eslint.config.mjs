@@ -66,7 +66,13 @@ export default defineConfig([
       'simple-import-sort/exports': 'error',
       'unused-imports/no-unused-imports': 'error',
       '@eslint-react/no-prop-types': 'error',
-      'prettier/prettier': ['error']
+      'prettier/prettier': ['error'],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports' // 要求写成 import type { ... }
+        }
+      ]
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules

@@ -1,6 +1,6 @@
-import { Provider } from '@cherry-types'
+import type { Provider } from '@cherry-types'
 
-import { BaseFileService } from './BaseFileService'
+import type { BaseFileService } from './BaseFileService'
 import { GeminiService } from './GeminiService'
 import { MistralService } from './MistralService'
 

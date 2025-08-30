@@ -20,7 +20,8 @@ import {
 } from '@renderer/store/settings'
 import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'

@@ -1,9 +1,9 @@
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
+import type { BasicSetupOptions, Extension } from '@uiw/react-codemirror'
+import CodeMirror, { Annotation, EditorView } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
-import { memo } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 
 import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
 

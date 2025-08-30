@@ -1,6 +1,6 @@
-import { PreprocessProvider } from '@cherry-types'
+import type { PreprocessProvider } from '@cherry-types'
 
-import BasePreprocessProvider from './BasePreprocessProvider'
+import type BasePreprocessProvider from './BasePreprocessProvider'
 import DefaultPreprocessProvider from './DefaultPreprocessProvider'
 import Doc2xPreprocessProvider from './Doc2xPreprocessProvider'
 import MineruPreprocessProvider from './MineruPreprocessProvider'

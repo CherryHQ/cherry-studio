@@ -1,7 +1,6 @@
 import { TopicManager } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import type { FileType, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import type {
   CitationMessageBlock,
   CodeMessageBlock,
@@ -9,6 +8,8 @@ import type {
   FileMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
+  Message,
+  MessageBlock,
   ThinkingMessageBlock,
   ToolMessageBlock,
   TranslationMessageBlock

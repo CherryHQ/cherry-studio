@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
 
 const logger = loggerService.withContext('PasteService')

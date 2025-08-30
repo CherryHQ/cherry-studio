@@ -1,7 +1,7 @@
 import type { Assistant, Topic } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 import { processMessages } from '../ActionUtils'

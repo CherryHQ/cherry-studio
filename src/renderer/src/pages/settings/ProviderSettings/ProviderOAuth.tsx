@@ -12,7 +12,7 @@ import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

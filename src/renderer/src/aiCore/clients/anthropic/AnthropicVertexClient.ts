@@ -1,8 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
+import type Anthropic from '@anthropic-ai/sdk'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
 import { loggerService } from '@logger'
 import { getVertexAILocation, getVertexAIProjectId, getVertexAIServiceAccount } from '@renderer/hooks/useVertexAI'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { isEmpty } from 'lodash'
 
 import { AnthropicAPIClient } from './AnthropicAPIClient'

@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { getModel } from '@renderer/hooks/useModel'
-import { MemoryConfig, MemoryItem } from '@renderer/types'
-import { AssistantMessage } from '@renderer/types'
+import type { AssistantMessage, MemoryConfig, MemoryItem } from '@renderer/types'
 import {
   FactRetrievalSchema,
   getFactRetrievalMessages,

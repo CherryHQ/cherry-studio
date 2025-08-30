@@ -1,8 +1,8 @@
-import { ApiClient } from './api'
-import { ProcessingStatus } from './common'
+import type { ApiClient } from './api'
+import type { ProcessingStatus } from './common'
 import type { FileMetadata } from './file'
-import { Model } from './model'
-import { PreprocessProvider } from './preprocess'
+import type { Model } from './model'
+import type { PreprocessProvider } from './preprocess'
 
 export type KnowledgeItem = {
   id: string

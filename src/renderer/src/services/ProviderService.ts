@@ -1,5 +1,5 @@
 import store from '@renderer/store'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 
 export function getProviderName(id: string) {

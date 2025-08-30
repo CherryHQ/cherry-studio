@@ -1,4 +1,4 @@
-import {
+import type {
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
@@ -20,16 +20,17 @@ import {
 } from '@cherry-types'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { OcrResult } from '@napi-rs/system-ocr'
-import { SpanContext } from '@opentelemetry/api'
-import { UpgradeChannel } from '@shared/config/constant'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { OcrResult } from '@napi-rs/system-ocr'
+import type { SpanContext } from '@opentelemetry/api'
+import type { UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { Notification } from 'src/renderer/src/types/notification'
-import { ActionItem } from 'src/renderer/src/types/selectionTypes'
-import { CreateDirectoryOptions } from 'webdav'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { Notification } from 'src/renderer/src/types/notification'
+import type { ActionItem } from 'src/renderer/src/types/selectionTypes'
+import type { CreateDirectoryOptions } from 'webdav'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {

@@ -1,15 +1,13 @@
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
+import type {
   DroppableProps,
   DropResult,
   OnDragEndResponder,
   OnDragStartResponder,
   ResponderProvided
 } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
-import { FC, HTMLAttributes } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 
 interface Props<T> {
   list: T[]

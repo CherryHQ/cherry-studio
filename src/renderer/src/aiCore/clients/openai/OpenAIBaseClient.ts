@@ -8,9 +8,9 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { SettingsState } from '@renderer/store/settings'
-import { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
-import {
+import type { SettingsState } from '@renderer/store/settings'
+import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
+import type {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
   OpenAIResponseSdkRawChunk,

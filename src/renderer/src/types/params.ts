@@ -1,7 +1,7 @@
 import type { CompletionUsage } from 'openai/resources'
 
 import type { Assistant } from './assistant'
-import { FileMetadata } from './file'
+import type { FileMetadata } from './file'
 import type { MCPServer } from './mcp'
 import type { Model } from './model'
 import type { Topic } from './topic'

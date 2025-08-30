@@ -13,7 +13,7 @@ import {
 } from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Button, Select, Switch, Tooltip } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

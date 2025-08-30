@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
-import { MCPTool } from '@renderer/types'
+import type { MCPTool } from '@renderer/types'
 
 const logger = loggerService.withContext('Utils:Prompt')
 

@@ -1,5 +1,6 @@
 import { throttle } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface Props extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {

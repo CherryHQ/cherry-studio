@@ -1,4 +1,4 @@
-import { KnowledgeBaseParams } from '@cherry-types'
+import type { KnowledgeBaseParams } from '@cherry-types'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 
 export default abstract class BaseReranker {

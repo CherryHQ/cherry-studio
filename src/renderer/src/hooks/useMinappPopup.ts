@@ -8,7 +8,7 @@ import {
   setOpenedKeepAliveMinapps,
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
 

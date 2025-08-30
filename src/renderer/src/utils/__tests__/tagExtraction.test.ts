@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 
-import { TagConfig, TagExtractor } from '../tagExtraction'
+import type { TagConfig } from '../tagExtraction'
+import { TagExtractor } from '../tagExtraction'
 
 describe('TagExtractor', () => {
   describe('基本标签提取', () => {

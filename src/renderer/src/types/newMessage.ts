@@ -1,7 +1,7 @@
 import type { PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 
-import { FileMetadata } from './file'
+import type { FileMetadata } from './file'
 import type { KnowledgeReference } from './knowledge'
 import type { MCPServer, MCPToolResponse } from './mcp'
 import type { MemoryItem } from './memory'

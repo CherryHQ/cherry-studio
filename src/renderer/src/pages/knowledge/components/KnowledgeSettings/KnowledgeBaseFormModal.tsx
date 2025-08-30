@@ -1,5 +1,6 @@
 import { HStack } from '@renderer/components/Layout'
-import { Menu, Modal, ModalProps } from 'antd'
+import type { ModalProps } from 'antd'
+import { Menu, Modal } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'
 

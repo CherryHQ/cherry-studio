@@ -1,4 +1,4 @@
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { isOpenAIProvider } from '@renderer/utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

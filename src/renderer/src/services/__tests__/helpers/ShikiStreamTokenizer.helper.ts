@@ -1,5 +1,5 @@
-import { ShikiStreamTokenizer } from '@renderer/services/ShikiStreamTokenizer'
-import { getTokenStyleObject, HighlighterCore, stringifyTokenStyle, type ThemedToken } from 'shiki/core'
+import type { ShikiStreamTokenizer } from '@renderer/services/ShikiStreamTokenizer'
+import type { getTokenStyleObject, HighlighterCore, stringifyTokenStyle, type ThemedToken } from 'shiki/core'
 
 /**
  * 使用 ShikiStreamTokenizer 获取流式高亮代码

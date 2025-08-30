@@ -1,6 +1,7 @@
-import { BuiltinMCPServerName, BuiltinMCPServerNames } from '@cherry-types'
+import type { BuiltinMCPServerName } from '@cherry-types'
+import { BuiltinMCPServerNames } from '@cherry-types'
 import { loggerService } from '@logger'
-import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 
 import BraveSearchServer from './brave-search'
 import DifyKnowledgeServer from './dify-knowledge'

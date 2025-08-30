@@ -1,9 +1,9 @@
 import { db } from '@renderer/databases'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
-import { FileMetadata, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, KnowledgeItem } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { AppDispatch } from '..'
+import type { AppDispatch } from '..'
 
 /**
  * Creates a new knowledge item with default values.

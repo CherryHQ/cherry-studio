@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import type { CompletionsParams } from '@renderer/aiCore/middleware/types'
 import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
 import {
   isEmbeddingModel,
@@ -24,7 +24,7 @@ import i18n from '@renderer/i18n'
 import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import {
+import type {
   Assistant,
   ExternalToolResult,
   KnowledgeReference,
@@ -32,16 +32,17 @@ import {
   MemoryItem,
   Model,
   Provider,
-  WebSearchResponse,
-  WebSearchSource
+  WebSearchResponse
 } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import { SdkModel } from '@renderer/types/sdk'
+import type { Message } from '@renderer/types/newMessage'
+import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
-import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
+import { extractInfoFromXML } from '@renderer/utils/extract'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {

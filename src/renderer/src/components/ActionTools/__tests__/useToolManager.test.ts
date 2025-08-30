@@ -1,4 +1,5 @@
-import { ActionTool, useToolManager } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { useToolManager } from '@renderer/components/ActionTools'
 import { act, renderHook } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it } from 'vitest'

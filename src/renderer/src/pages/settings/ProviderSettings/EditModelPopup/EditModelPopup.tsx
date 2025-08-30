@@ -4,7 +4,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import ModelEditContent from '@renderer/pages/settings/ProviderSettings/EditModelPopup/ModelEditContent'
 import { useAppDispatch } from '@renderer/store'
 import { setModel } from '@renderer/store/assistants'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import React, { useCallback, useState } from 'react'
 
 interface ShowParams {

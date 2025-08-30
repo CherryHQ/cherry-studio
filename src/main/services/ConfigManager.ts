@@ -1,5 +1,7 @@
-import { LanguageVarious, Shortcut, ThemeMode } from '@cherry-types'
-import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
+import type { LanguageVarious, Shortcut } from '@cherry-types'
+import { ThemeMode } from '@cherry-types'
+import type { UpgradeChannel } from '@shared/config/constant'
+import { defaultLanguage, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { app } from 'electron'
 import Store from 'electron-store'
 
