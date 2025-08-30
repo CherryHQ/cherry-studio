@@ -13,7 +13,6 @@ import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import StatusIcon from '../components/StatusIcon'
 import {
   ClickableSpan,
   FlexAlignCenter,
@@ -22,7 +21,8 @@ import {
   KnowledgeEmptyView,
   RefreshIcon,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/shared'
+import StatusIcon from '../components/StatusIcon'
 
 const logger = loggerService.withContext('KnowledgeDirectories')
 

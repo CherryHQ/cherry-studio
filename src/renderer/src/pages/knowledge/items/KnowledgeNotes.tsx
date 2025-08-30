@@ -12,8 +12,8 @@ import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { FlexAlignCenter, ItemContainer, ItemHeader, KnowledgeEmptyView, StatusIconWrapper } from '../components/shared'
 import StatusIcon from '../components/StatusIcon'
-import { FlexAlignCenter, ItemContainer, ItemHeader, KnowledgeEmptyView, StatusIconWrapper } from '../KnowledgeContent'
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase

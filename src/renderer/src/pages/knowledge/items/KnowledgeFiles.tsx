@@ -28,7 +28,7 @@ import {
   KnowledgeEmptyView,
   RefreshIcon,
   StatusIconWrapper
-} from '../KnowledgeContent'
+} from '../components/shared'
 
 const { Dragger } = Upload
 
