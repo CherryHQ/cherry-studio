@@ -116,7 +116,7 @@ export const SidebarOpenedMinappTabs: FC = () => {
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()
 
-  const handleOnClick = (app) => {
+  const handleOnClick = (app: MinAppType) => {
     if (minappShow && currentMinappId === app.id) {
       hideMinappPopup()
     } else {

@@ -24,6 +24,7 @@ const WebviewContainer = memo(
     const webviewRef = useRef<WebviewTag | null>(null)
     const { enableSpellCheck } = useSettings()
     const { isLeftNavbar } = useNavbarPosition()
+    const { isTopNavbar } = useNavbarPosition()
 
     const setRef = (appid: string) => {
       onSetRefCallback(appid, null)
@@ -74,7 +75,7 @@ const WebviewContainer = memo(
 
     const WebviewStyle: React.CSSProperties = {
       width: isLeftNavbar ? 'calc(100vw - var(--sidebar-width))' : '100vw',
-      height: 'calc(100vh - var(--navbar-height))',
+      height: isTopNavbar ? '100vh' : 'calc(100vh - var(--navbar-height))',
       backgroundColor: 'var(--color-background)',
       display: 'inline-flex'
     }

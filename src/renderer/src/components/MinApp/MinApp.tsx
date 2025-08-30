@@ -13,6 +13,7 @@ import { Dropdown } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
+import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 interface Props {
@@ -30,6 +31,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
   const { openedKeepAliveMinapps, currentMinappId, minappShow } = useRuntime()
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
   const isActive = minappShow && currentMinappId === app.id
@@ -37,7 +39,13 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { isTopNavbar } = useNavbarPosition()
 
   const handleClick = () => {
-    openMinappKeepAlive(app)
+    if (isTopNavbar) {
+      // 顶部导航栏：导航到小程序页面
+      navigate(`/apps/${app.id}`)
+    } else {
+      // 侧边导航栏：保持原有弹窗行为
+      openMinappKeepAlive(app)
+    }
     onClick?.()
   }
 
