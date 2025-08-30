@@ -416,7 +416,6 @@ export class SelectionService {
       hasShadow: false,
       thickFrame: false,
       roundedCorners: true,
-      backgroundMaterial: 'auto',
 
       // Platform specific settings
       //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
