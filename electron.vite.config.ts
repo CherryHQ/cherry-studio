@@ -49,7 +49,8 @@ export default defineConfig({
     resolve: {
       alias: {
         '@shared': resolve('packages/shared'),
-        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
+        '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
+        '@cherry-types': resolve('src/renderer/src/types')
       }
     },
     build: {

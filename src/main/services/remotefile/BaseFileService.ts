@@ -1,4 +1,5 @@
-import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@cherry-types'
+import { FileListResponse, FileMetadata, FileUploadResponse } from '@cherry-types'
+import { Provider } from '@cherry-types/provider'
 
 export abstract class BaseFileService {
   protected readonly provider: Provider

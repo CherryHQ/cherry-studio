@@ -16,7 +16,9 @@
 import * as fs from 'node:fs'
 import path from 'node:path'
 
-import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@cherry-types'
+import { FileMetadata } from '@cherry-types'
+import { KnowledgeBaseParams } from '@cherry-types/knowledge'
+import { KnowledgeItem } from '@cherry-types/knowledge'
 import { RAGApplication, RAGApplicationBuilder } from '@cherrystudio/embedjs'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'

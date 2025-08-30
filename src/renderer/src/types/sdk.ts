@@ -25,7 +25,7 @@ import OpenAI, { AzureOpenAI } from 'openai'
 import { ChatCompletionContentPartImage } from 'openai/resources'
 import { Stream } from 'openai/streaming'
 
-import { EndpointType } from './index'
+import { EndpointType } from './model'
 
 export type SdkInstance = OpenAI | AzureOpenAI | Anthropic | AnthropicVertex | GoogleGenAI | AwsBedrockSdkInstance
 export type SdkParams =

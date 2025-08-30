@@ -1,4 +1,5 @@
-import { Model, Provider } from '.'
+import { Provider } from './provider'
+import { Model } from './model'
 
 /**
  * 健康检查的通用状态枚举

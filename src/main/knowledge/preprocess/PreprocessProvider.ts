@@ -1,4 +1,5 @@
-import { FileMetadata, PreprocessProvider as Provider } from '@cherry-types'
+import { FileMetadata } from '@cherry-types'
+import { PreprocessProvider as Provider } from '@cherry-types/preprocess'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 import PreprocessProviderFactory from './PreprocessProviderFactory'

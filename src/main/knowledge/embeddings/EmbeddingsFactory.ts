@@ -1,4 +1,4 @@
-import { ApiClient } from '@cherry-types'
+import { ApiClient } from '@cherry-types/api'
 import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'

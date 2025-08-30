@@ -1,4 +1,4 @@
-import { ApiClient } from '@cherry-types'
+import { ApiClient } from '@cherry-types/api'
 import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { TraceMethod } from '@mcp-trace/trace-core'
 

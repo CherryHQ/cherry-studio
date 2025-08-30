@@ -1,22 +1,15 @@
-import {
-  AddMemoryOptions,
-  AssistantMessage,
-  FileListResponse,
-  FileMetadata,
-  FileUploadResponse,
-  KnowledgeBaseParams,
-  KnowledgeItem,
-  MCPServer,
-  MemoryConfig,
-  MemoryListOptions,
-  MemorySearchOptions,
-  Provider,
-  S3Config,
-  Shortcut,
-  ThemeMode,
-  WebDavConfig
-} from '@cherry-types'
+import { FileListResponse, FileMetadata, FileUploadResponse, S3Config, ThemeMode, WebDavConfig } from '@cherry-types'
+import { AddMemoryOptions } from '@cherry-types'
+import { AssistantMessage } from '@cherry-types/assistant'
+import { KnowledgeBaseParams } from '@cherry-types/knowledge'
+import { KnowledgeItem } from '@cherry-types/knowledge'
+import { MCPServer } from '@cherry-types/mcp'
+import { MemoryListOptions } from '@cherry-types/memory'
+import { MemorySearchOptions } from '@cherry-types/memory'
+import { MemoryConfig } from '@cherry-types/memory'
 import { OcrProvider, SupportedOcrFile } from '@cherry-types/ocr'
+import { Provider } from '@cherry-types/provider'
+import { Shortcut } from '@cherry-types/shortcut'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'

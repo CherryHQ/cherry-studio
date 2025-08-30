@@ -1,4 +1,8 @@
-import { ExternalToolResult, KnowledgeReference, MCPToolResponse, ToolUseResponse, WebSearchResponse } from '.'
+import { WebSearchResponse } from './websearch'
+import { ExternalToolResult } from './mcp'
+import { MCPToolResponse } from './mcp'
+import { ToolUseResponse } from './mcp'
+import { KnowledgeReference } from './knowledge'
 import { Response, ResponseError } from './newMessage'
 import { SdkToolCall } from './sdk'
 

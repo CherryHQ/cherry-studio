@@ -1,4 +1,4 @@
-import { Provider } from '@cherry-types'
+import { Provider } from '@cherry-types/provider'
 import { Mistral } from '@mistralai/mistralai'
 
 export class MistralClientManager {

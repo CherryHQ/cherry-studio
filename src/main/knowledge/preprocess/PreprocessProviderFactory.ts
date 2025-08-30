@@ -1,4 +1,4 @@
-import { PreprocessProvider } from '@cherry-types'
+import { PreprocessProvider } from '@cherry-types/preprocess'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 import DefaultPreprocessProvider from './DefaultPreprocessProvider'

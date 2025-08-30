@@ -1,4 +1,5 @@
-import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@cherry-types'
+import { FileListResponse, FileMetadata, FileUploadResponse } from '@cherry-types'
+import { Provider } from '@cherry-types/provider'
 import { File, Files, FileState, GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'

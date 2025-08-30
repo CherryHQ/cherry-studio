@@ -1,20 +1,17 @@
+import type { PersonGeneration } from '@google/genai'
+import type OpenAI from 'openai'
 import type { CompletionUsage } from 'openai/resources'
 
-import type {
-  Assistant,
-  FileMetadata,
-  GenerateImageResponse,
-  KnowledgeReference,
-  MCPServer,
-  MCPToolResponse,
-  MemoryItem,
-  Metrics,
-  Model,
-  Topic,
-  Usage,
-  WebSearchResponse,
-  WebSearchSource
-} from '.'
+import type { Assistant } from './assistant'
+import { FileMetadata } from './file'
+import type { KnowledgeReference } from './knowledge'
+import type { MCPServer } from './mcp'
+import type { MCPToolResponse } from './mcp'
+import type { MemoryItem } from './memory'
+import type { Model } from './model'
+import type { Topic } from './topic'
+import type { WebSearchResponse } from './websearch'
+import type { WebSearchSource } from './websearch'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -219,4 +216,32 @@ export interface MessageInputBaseParams {
    */
   enabledMCPs?: MCPServer[]
   usage?: CompletionUsage
+}
+export type Usage = OpenAI.Completions.CompletionUsage & {
+  thoughts_tokens?: number
+  // OpenRouter specific fields
+  cost?: number
+}
+export type Metrics = {
+  completion_tokens: number
+  time_completion_millsec: number
+  time_first_token_millsec?: number
+  time_thinking_millsec?: number
+}
+export type GenerateImageResponse = {
+  type: 'url' | 'base64'
+  images: string[]
+}
+export type GenerateImageParams = {
+  model: string
+  prompt: string
+  negativePrompt?: string
+  imageSize: string
+  batchSize: number
+  seed?: string
+  numInferenceSteps?: number
+  guidanceScale?: number
+  signal?: AbortSignal
+  promptEnhancement?: boolean
+  personGeneration?: PersonGeneration
 }

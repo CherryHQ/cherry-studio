@@ -1,4 +1,5 @@
-import { BuiltinMCPServerName, BuiltinMCPServerNames } from '@cherry-types'
+import { BuiltinMCPServerName } from '@cherry-types/mcp'
+import { BuiltinMCPServerNames } from '@cherry-types/mcp'
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 
