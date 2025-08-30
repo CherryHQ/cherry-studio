@@ -439,7 +439,7 @@ const MessageMenubar: FC<Props> = (props) => {
     async (e: React.MouseEvent) => {
       e.stopPropagation()
       if (loading) return
-      const selectedModel = await SelectModelPopup.show({ model, modelFilter: mentionModelFilter })
+      const selectedModel = await SelectModelPopup.show({ model, filter: mentionModelFilter })
       if (!selectedModel) return
       appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
     },

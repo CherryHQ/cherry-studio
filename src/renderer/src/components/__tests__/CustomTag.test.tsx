@@ -41,4 +41,15 @@ describe('CustomTag', () => {
     expect(document.querySelector('.ant-tooltip')).toBeNull()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
+
+  it('should not allow click when disabled', async () => {
+    render(
+      <CustomTag color={COLOR} disabled>
+        custom-tag
+      </CustomTag>
+    )
+    const tag = screen.getByText('custom-tag')
+    expect(tag).toBeInTheDocument()
+    expect(tag).toHaveStyle({ cursor: 'not-allowed' })
+  })
 })
