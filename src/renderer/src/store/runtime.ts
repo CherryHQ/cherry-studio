@@ -39,6 +39,8 @@ export interface RuntimeState {
   openedOneOffMinapp: MinAppType | null
   /** the current minapp id */
   currentMinappId: string
+  /** whether current window is quick assistant */
+  isQuickAssistant: boolean
   searching: boolean
   filesPath: string
   resourcesPath: string
@@ -60,6 +62,7 @@ const initialState: RuntimeState = {
   openedKeepAliveMinapps: [],
   openedOneOffMinapp: null,
   currentMinappId: '',
+  isQuickAssistant: false,
   searching: false,
   filesPath: '',
   resourcesPath: '',
@@ -113,6 +116,9 @@ const runtimeSlice = createSlice({
     },
     setCurrentMinappId: (state, action: PayloadAction<string>) => {
       state.currentMinappId = action.payload
+    },
+    setIsQuickAssistant: (state, action: PayloadAction<boolean>) => {
+      state.isQuickAssistant = action.payload
     },
     setSearching: (state, action: PayloadAction<boolean>) => {
       state.searching = action.payload
@@ -171,6 +177,7 @@ export const {
   setOpenedKeepAliveMinapps,
   setOpenedOneOffMinapp,
   setCurrentMinappId,
+  setIsQuickAssistant,
   setSearching,
   setFilesPath,
   setResourcesPath,

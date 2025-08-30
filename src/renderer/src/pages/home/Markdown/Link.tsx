@@ -1,3 +1,4 @@
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { parseJSON } from '@renderer/utils/json'
 import { findCitationInChildren } from '@renderer/utils/markdown'
 import { isEmpty, omit } from 'lodash'
@@ -12,6 +13,8 @@ interface LinkProps extends React.AnchorHTMLAttributes<HTMLAnchorElement> {
 }
 
 const Link: React.FC<LinkProps> = (props) => {
+  const { isQuickAssistant } = useRuntime()
+
   const citationData = useMemo(() => {
     const raw = parseJSON(findCitationInChildren(props.children))
     const parsed = CitationSchema.safeParse(raw)
@@ -53,7 +56,14 @@ const Link: React.FC<LinkProps> = (props) => {
         {...omit(props, ['node', 'citationData'])}
         target="_blank"
         rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          // 快捷助手中的链接，使用浏览器打开
+          if (isQuickAssistant) {
+            e.preventDefault()
+            props.href && window.api.openWebsite(props.href)
+          }
+        }}
       />
     </Hyperlink>
   )

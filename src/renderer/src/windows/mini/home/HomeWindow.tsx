@@ -7,9 +7,10 @@ import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
-import store, { useAppSelector } from '@renderer/store'
+import store, { useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
+import { setIsQuickAssistant } from '@renderer/store/runtime'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
 import { ThemeMode, Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
@@ -76,6 +77,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     return userInputText.trim()
   }, [isFirstMessage, referenceText, userInputText])
 
+  const dispatch = useAppDispatch()
+  // 快捷助手模式下，设置为 true
+  dispatch(setIsQuickAssistant(true))
+
   useEffect(() => {
     i18n.changeLanguage(language || navigator.language || defaultLanguage)
   }, [language])
@@ -141,7 +146,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     readClipboard()
   }, [readClipboard])
 
-  const handleCloseWindow = useCallback(() => window.api.miniWindow.hide(), [])
+  const handleCloseWindow = useCallback(() => {
+    dispatch(setIsQuickAssistant(false))
+    window.api.miniWindow.hide()
+  }, [dispatch])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // 使用非直接输入法时（例如中文、日文输入法），存在输入法键入过程
