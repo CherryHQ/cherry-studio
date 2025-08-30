@@ -6,7 +6,8 @@
     "local/src/renderer/**/*",
     "packages/shared/**/*",
     "tests/__mocks__/**/*",
-    "packages/mcp-trace/**/*"
+    "packages/mcp-trace/**/*",
+    "src/main/integration/cherryin/index.js"
   ],
   "compilerOptions": {
     "composite": true,

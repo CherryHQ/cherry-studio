@@ -145,9 +145,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           language="html"
           editable={true}
           onSave={onSave}
-          style={{ height: '100%' }}
-          expanded
-          unwrapped={false}
+          height="100%"
+          expanded={false}
+          wrapped
+          style={{ minHeight: 0 }}
           options={{
             stream: true, // FIXME: 避免多余空行
             lineNumbers: true,
@@ -388,12 +389,8 @@ const CodeSection = styled.div`
   width: 100%;
   overflow: hidden;
   position: relative;
-
-  .monaco-editor,
-  .cm-editor,
-  .cm-scroller {
-    height: 100% !important;
-  }
+  display: grid;
+  grid-template-rows: 1fr auto;
 `
 
 const PreviewSection = styled.div`

@@ -134,8 +134,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           language="json"
           onChange={(value) => setJsonConfig(value)}
           height="60vh"
-          expanded
-          unwrapped={false}
+          expanded={false}
+          wrapped
           options={{
             lint: true,
             lineNumbers: true,

@@ -756,6 +756,7 @@
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
+    "go_to_settings": "前往設定",
     "i_know": "我知道了",
     "inspect": "檢查",
     "knowledge_base": "知識庫",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "返回了無效的資料格式"
       },
+      "insufficient_balance": "請前往 <provider>{{provider}}</provider> 充值",
+      "no_api_key": "您未配置 API 密钥，请前往 <provider>{{provider}}</provider> 获取API密钥",
+      "quota_exceeded": "您今日{{quota}}免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
     "http": {
@@ -868,6 +872,8 @@
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "batch_delete": "批次刪除",
+    "batch_operation": "全選",
     "count": "個檔案",
     "created_at": "建立時間",
     "delete": {
@@ -1822,6 +1828,7 @@
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
     "deepseek": "深度求索",
@@ -1867,7 +1874,7 @@
     "xirang": "天翼雲息壤",
     "yi": "零一萬物",
     "zhinao": "360 智腦",
-    "zhipu": "智譜 AI"
+    "zhipu": "智譜開放平台"
   },
   "restore": {
     "confirm": {
@@ -2909,7 +2916,8 @@
         "modelscope": "魔搭社區 MCP 伺服器",
         "official": "官方 MCP 伺服器集合",
         "pulsemcp": "Pulse MCP 伺服器",
-        "smithery": "Smithery MCP 工具"
+        "smithery": "Smithery MCP 工具",
+        "zhipu": "精選MCP，極速接入"
       },
       "name": "名稱",
       "newServer": "MCP 伺服器",
@@ -3194,11 +3202,11 @@
       "provider_key_add_failed_by_empty_data": "添加提供者 API 密鑰失敗，數據為空",
       "provider_key_add_failed_by_invalid_data": "添加提供者 API 密鑰失敗，數據格式錯誤",
       "provider_key_added": "成功為 {{provider}} 添加 API 密鑰",
-      "provider_key_already_exists": "{{provider}} 已存在相同API 密鑰, 不會重複添加",
+      "provider_key_already_exists": "{{provider}} 已存在相同API 密鑰，不會重複添加",
       "provider_key_confirm_title": "為{{provider}}添加 API 密鑰",
       "provider_key_no_change": "{{provider}} 的 API 密鑰沒有變化",
       "provider_key_overridden": "成功更新 {{provider}} 的 API 密鑰",
-      "provider_key_override_confirm": "{{provider}} 已存在相同 API 金鑰, 是否覆蓋？",
+      "provider_key_override_confirm": "{{provider}} 已存在相同 API 金鑰，是否覆蓋？",
       "provider_name": "提供者名稱",
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",

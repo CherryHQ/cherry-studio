@@ -1,4 +1,3 @@
-import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
@@ -15,39 +14,81 @@ export interface CodeEditorHandles {
   save?: () => void
 }
 
-interface CodeEditorProps {
+export interface CodeEditorProps {
   ref?: React.RefObject<CodeEditorHandles | null>
+  /** Value used in controlled mode, e.g., code blocks. */
   value: string
+  /** Placeholder when the editor content is empty. */
   placeholder?: string | HTMLElement
+  /** Code language, supports aliases. */
   language: string
+  /** Fired when ref.save() is called or the save shortcut is triggered. */
   onSave?: (newContent: string) => void
+  /** Fired when the editor content changes. */
   onChange?: (newContent: string) => void
+  /** Fired when the editor loses focus. */
   onBlur?: (newContent: string) => void
+  /** Fired when the editor height changes. */
   onHeightChange?: (scrollHeight: number) => void
+  /**
+   * Fixed editor height, not exceeding maxHeight.
+   * Only works when expanded is false.
+   */
   height?: string
-  minHeight?: string
+  /**
+   * Maximum editor height.
+   * Only works when expanded is false.
+   */
   maxHeight?: string
+  /** Minimum editor height. */
+  minHeight?: string
+  /** Font size that overrides the app setting. */
   fontSize?: string
-  /** 用于覆写编辑器的某些设置 */
+  /** Editor options that extend BasicSetupOptions. */
   options?: {
-    stream?: boolean // 用于流式响应场景，默认 false
+    /**
+     * Whether to enable special treatment for stream response.
+     * @default false
+     */
+    stream?: boolean
+    /**
+     * Whether to enable linting.
+     * @default false
+     */
     lint?: boolean
+    /**
+     * Whether to enable keymap.
+     * @default false
+     */
     keymap?: boolean
   } & BasicSetupOptions
-  /** 用于追加 extensions */
+  /** Additional extensions for CodeMirror. */
   extensions?: Extension[]
-  /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
+  /** Style overrides for the editor, passed directly to CodeMirror's style property. */
   style?: React.CSSProperties
+  /** CSS class name appended to the default `code-editor` class. */
   className?: string
+  /**
+   * Whether the editor is editable.
+   * @default true
+   */
   editable?: boolean
+  /**
+   * Whether the editor is expanded.
+   * If true, the height and maxHeight props are ignored.
+   * @default true
+   */
   expanded?: boolean
-  unwrapped?: boolean
+  /**
+   * Whether the code lines are wrapped.
+   * @default true
+   */
+  wrapped?: boolean
 }
 
 /**
- * 源代码编辑器，基于 CodeMirror，封装了 ReactCodeMirror。
- *
- * 目前必须和 CodeToolbar 配合使用。
+ * A code editor component based on CodeMirror.
+ * This is a wrapper of ReactCodeMirror.
  */
 const CodeEditor = ({
   ref,
@@ -59,8 +100,8 @@ const CodeEditor = ({
   onBlur,
   onHeightChange,
   height,
-  minHeight,
   maxHeight,
+  minHeight,
   fontSize,
   options,
   extensions,
@@ -68,7 +109,7 @@ const CodeEditor = ({
   className,
   editable = true,
   expanded = true,
-  unwrapped = false
+  wrapped = true
 }: CodeEditorProps) => {
   const { fontSize: _fontSize, codeShowLineNumbers: _lineNumbers, codeEditor } = useSettings()
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
@@ -121,12 +162,12 @@ const CodeEditor = ({
     return [
       ...(extensions ?? []),
       ...langExtensions,
-      ...(unwrapped ? [] : [EditorView.lineWrapping]),
+      ...(wrapped ? [EditorView.lineWrapping] : []),
       saveKeymapExtension,
       blurExtension,
       heightListenerExtension
     ].flat()
-  }, [extensions, langExtensions, unwrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
+  }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
 
   useImperativeHandle(ref, () => ({
     save: handleSave
@@ -138,9 +179,9 @@ const CodeEditor = ({
       value={initialContent.current}
       placeholder={placeholder}
       width="100%"
-      height={height}
+      height={expanded ? undefined : height}
+      maxHeight={expanded ? undefined : maxHeight}
       minHeight={minHeight}
-      maxHeight={expanded ? 'none' : (maxHeight ?? `${MAX_COLLAPSED_CODE_HEIGHT}px`)}
       editable={editable}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}

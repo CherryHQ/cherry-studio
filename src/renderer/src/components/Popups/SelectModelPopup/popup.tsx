@@ -1,4 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
@@ -11,7 +12,7 @@ import { classNames, filterModelsByKeywords, getFancyProviderName } from '@rende
 import { getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { SettingsIcon } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import React, {
   startTransition,
   useCallback,
@@ -101,6 +102,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
+      const isCherryin = provider.id === 'cherryin'
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
@@ -109,11 +111,12 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
           <ModelName>
             {model.name}
             {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+            {isCherryin && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
         icon: (
@@ -176,8 +179,8 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         name: getFancyProviderName(p),
         actions: (
           <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
-            <SettingsIcon
-              size={14}
+            <Settings2
+              size={12}
               color="var(--color-text)"
               className="action-icon"
               onClick={(e) => {
@@ -458,7 +461,7 @@ const ListContainer = styled.div`
 const GroupItem = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   position: relative;
   font-size: 12px;
   font-weight: normal;
@@ -470,12 +473,15 @@ const GroupItem = styled.div`
 
   .action-icon {
     cursor: pointer;
-    opacity: 0.3;
+    opacity: 0;
     transition: opacity 0.2s;
 
     &:hover {
-      opacity: 1;
+      opacity: 1 !important;
     }
+  }
+  &:hover .action-icon {
+    opacity: 0.3;
   }
 `
 
@@ -532,13 +538,16 @@ const ModelItemLeft = styled.div`
   }
 `
 
-const ModelName = styled.span`
+const ModelName = styled.div`
+  display: flex;
+  flex-direction: row;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
+  gap: 5px;
 `
 
 const TagsContainer = styled.div`

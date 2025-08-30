@@ -2,7 +2,12 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { isFunctionCallingModel, isNotSupportedTextDelta, SYSTEM_MODELS } from '@renderer/config/models'
+import {
+  glm45FlashModel,
+  isFunctionCallingModel,
+  isNotSupportedTextDelta,
+  SYSTEM_MODELS
+} from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
@@ -100,7 +105,9 @@ function addWebSearchProvider(state: RootState, id: string) {
     if (!state.websearch.providers.find((p) => p.id === id)) {
       const provider = defaultWebSearchProviders.find((p) => p.id === id)
       if (provider) {
-        state.websearch.providers.push(provider)
+        // Prevent mutating read only property of object
+        // Otherwise, it will cause the error: Cannot assign to read only property 'apiKey' of object '#<Object>'
+        state.websearch.providers.push({ ...provider })
       }
     }
   }
@@ -1563,8 +1570,8 @@ const migrateConfig = {
   },
   '107': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.DMXAPIPaintings) {
-        state.paintings.DMXAPIPaintings = []
+      if (state.paintings && !state.paintings.dmxapi_paintings) {
+        state.paintings.dmxapi_paintings = []
       }
       return state
     } catch (error) {
@@ -1593,8 +1600,8 @@ const migrateConfig = {
   },
   '110': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.tokenFluxPaintings) {
-        state.paintings.tokenFluxPaintings = []
+      if (state.paintings && !state.paintings.tokenflux_paintings) {
+        state.paintings.tokenflux_paintings = []
       }
       state.settings.showTokens = true
       state.settings.testPlan = false
@@ -2203,6 +2210,81 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 138 error', error as Error)
+      return state
+    }
+  },
+  '139': (state: RootState) => {
+    try {
+      addProvider(state, 'cherryin')
+      state.llm.providers = moveProvider(state.llm.providers, 'cherryin', 1)
+
+      const zhipuProvider = state.llm.providers.find((p) => p.id === 'zhipu')
+
+      if (zhipuProvider) {
+        // Update zhipu model list
+        if (!zhipuProvider.enabled) {
+          zhipuProvider.models = SYSTEM_MODELS.zhipu
+        }
+
+        // Update zhipu model list
+        if (zhipuProvider.models.length === 0) {
+          zhipuProvider.models = SYSTEM_MODELS.zhipu
+        }
+
+        // Add GLM-4.5-Flash model if not exists
+        const hasGlm45FlashModel = zhipuProvider?.models.find((m) => m.id === 'glm-4.5-flash')
+
+        if (!hasGlm45FlashModel) {
+          zhipuProvider?.models.push(glm45FlashModel)
+        }
+
+        // Update default painting provider to zhipu
+        state.settings.defaultPaintingProvider = 'zhipu'
+
+        // Add zhipu web search provider
+        addWebSearchProvider(state, 'zhipu')
+
+        // Update zhipu web search provider api key
+        if (zhipuProvider.apiKey) {
+          state?.websearch?.providers.forEach((provider) => {
+            if (provider.id === 'zhipu') {
+              provider.apiKey = zhipuProvider.apiKey
+            }
+          })
+        }
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 139 error', error as Error)
+      return state
+    }
+  },
+  '140': (state: RootState) => {
+    try {
+      state.paintings = {
+        // @ts-ignore paintings
+        siliconflow_paintings: state?.paintings?.paintings || [],
+        // @ts-ignore DMXAPIPaintings
+        dmxapi_paintings: state?.paintings?.DMXAPIPaintings || [],
+        // @ts-ignore tokenFluxPaintings
+        tokenflux_paintings: state?.paintings?.tokenFluxPaintings || [],
+        zhipu_paintings: [],
+        // @ts-ignore generate
+        aihubmix_image_generate: state?.paintings?.generate || [],
+        // @ts-ignore remix
+        aihubmix_image_remix: state?.paintings?.remix || [],
+        // @ts-ignore edit
+        aihubmix_image_edit: state?.paintings?.edit || [],
+        // @ts-ignore upscale
+        aihubmix_image_upscale: state?.paintings?.upscale || [],
+        openai_image_generate: state?.paintings?.openai_image_generate || [],
+        openai_image_edit: state?.paintings?.openai_image_edit || []
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 140 error', error as Error)
       return state
     }
   }

@@ -132,8 +132,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
             onBlur={onUpdate}
             height="calc(80vh - 202px)"
             fontSize="var(--ant-font-size)"
-            expanded
-            unwrapped={false}
+            expanded={false}
+            wrapped
             options={{
               autocompletion: false,
               keymap: true,

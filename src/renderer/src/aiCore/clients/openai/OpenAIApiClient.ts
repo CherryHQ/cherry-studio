@@ -122,13 +122,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     if (!isReasoningModel(model)) {
       return {}
     }
+
     const reasoningEffort = assistant?.settings?.reasoning_effort
 
     if (isSupportedThinkingTokenZhipuModel(model)) {
-      if (!reasoningEffort) {
-        return { thinking: { type: 'disabled' } }
-      }
-      return { thinking: { type: 'enabled' } }
+      return { thinking: { type: reasoningEffort ? 'enabled' : 'disabled' } }
     }
 
     if (!reasoningEffort) {

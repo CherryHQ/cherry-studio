@@ -57,6 +57,9 @@ const CodeToolsPage: FC = () => {
       if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
         return false
       }
+      if (m.provider === 'cherryin') {
+        return false
+      }
       if (selectedCliTool === 'claude-code') {
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
