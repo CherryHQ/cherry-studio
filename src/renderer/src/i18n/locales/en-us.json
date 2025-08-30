@@ -597,6 +597,7 @@
           "label": "Export as markdown",
           "reason": "Export as Markdown (with reasoning)"
         },
+        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "obsidian_atributes": "Configure Note Attributes",
@@ -1292,6 +1293,9 @@
           "specified": "Failed to export the Markdown file"
         }
       },
+      "notes": {
+        "export": "Failed to export notes"
+      },
       "notion": {
         "export": "Failed to export to Notion. Please check connection status and configuration according to documentation",
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
@@ -1384,6 +1388,9 @@
           "preconf": "Successfully exported the Markdown file to the preconfigured path",
           "specified": "Successfully exported the Markdown file"
         }
+      },
+      "notes": {
+        "export": "Successfully exported to notes"
       },
       "notion": {
         "export": "Successfully exported to Notion"
@@ -1588,6 +1595,88 @@
   },
   "navigate": {
     "provider_settings": "Go to provider settings"
+  },
+  "notes": {
+    "characters": "Characters",
+    "collapse": "Collapse",
+    "content_placeholder": "Please enter the note content...",
+    "copyContent": "Copy Content",
+    "delete": "delete",
+    "delete_confirm": "Are you sure you want to delete this {{type}}?",
+    "delete_folder_confirm": "Are you sure you want to delete the folder \"{{name}}\" and all of its contents?",
+    "delete_note_confirm": "Are you sure you want to delete the note \"{{name}}\"?",
+    "drop_markdown_hint": "Drop markdown files here to import",
+    "empty": "No notes available yet",
+    "expand": "unfold",
+    "export_failed": "Failed to export to knowledge base",
+    "export_knowledge": "Export notes to knowledge base",
+    "export_success": "Successfully exported to the knowledge base",
+    "folder": "folder",
+    "new_folder": "New Folder",
+    "new_note": "Create a new note",
+    "no_content_to_copy": "No content to copy",
+    "only_markdown": "Only Markdown files are supported",
+    "open_folder": "Open an external folder",
+    "rename": "Rename",
+    "save": "Save to Notes",
+    "settings": {
+      "data": {
+        "apply": "Apply",
+        "apply_path_failed": "Failed to apply path",
+        "current_work_directory": "Current Work Directory",
+        "invalid_directory": "Selected directory is invalid or access denied",
+        "path_required": "Please select a work directory",
+        "path_updated": "Work directory updated successfully",
+        "reset_failed": "Reset failed",
+        "reset_to_default": "Reset to Default",
+        "select": "Select",
+        "select_directory_failed": "Failed to select directory",
+        "title": "Data Settings",
+        "work_directory_description": "Work directory is where all note files are stored. Changing the work directory won't move existing files, please migrate files manually.",
+        "work_directory_placeholder": "Select notes work directory"
+      },
+      "display": {
+        "compress_content": "Content Compression",
+        "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
+        "default_font": "Default font",
+        "font_title": "Font settings",
+        "serif_font": "Serif font",
+        "title": "Display Settings"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "In Edit View, the default editing mode for new notes",
+          "preview_mode": "Live preview",
+          "source_mode": "Source code mode",
+          "title": "Default edit view"
+        },
+        "title": "Editor Settings",
+        "view_mode": {
+          "description": "New Notes Default View Mode",
+          "edit_mode": "Editing mode",
+          "read_mode": "Reading mode",
+          "title": "Default view"
+        },
+        "view_mode_description": "Sets the default view mode for the new tab page."
+      },
+      "title": "Notes"
+    },
+    "show_starred": "Show favorite notes",
+    "sort_a2z": "File name (A-Z)",
+    "sort_created_asc": "Creation time (oldest first)",
+    "sort_created_desc": "Creation time (newest first)",
+    "sort_updated_asc": "Update time (oldest first)",
+    "sort_updated_desc": "Update time (newest first)",
+    "sort_z2a": "File name (Z-A)",
+    "star": "Favorite",
+    "starred_notes": "Collected notes",
+    "title": "Notes",
+    "unsaved_changes": "You have unsaved content, are you sure you want to leave?",
+    "unstar": "Unfavorite",
+    "untitled_folder": "New Folder",
+    "untitled_note": "Untitled Note",
+    "upload_failed": "Note upload failed",
+    "upload_success": "Note uploaded success"
   },
   "notification": {
     "assistant": "Assistant Response",
@@ -1892,6 +1981,206 @@
       "title": "Restore Progress"
     },
     "title": "Data Restore"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "Delete columns",
+        "deleteRow": "Delete rows",
+        "insertColumnAfter": "Insert After",
+        "insertColumnBefore": "Insert Before",
+        "insertRowAfter": "Insert Below",
+        "insertRowBefore": "Insert Above"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "Insert mathematical formula",
+        "title": "Math Formula"
+      },
+      "blockquote": {
+        "description": "Capture a quote",
+        "title": "Quote"
+      },
+      "bold": {
+        "description": "Marked in bold",
+        "title": "Bold"
+      },
+      "bulletList": {
+        "description": "Create a simple bulleted list",
+        "title": "Bulleted list"
+      },
+      "calloutInfo": {
+        "description": "Add an info callout box",
+        "title": "Info Callout"
+      },
+      "calloutWarning": {
+        "description": "Add a warning callout box",
+        "title": "Warning Callout"
+      },
+      "code": {
+        "description": "Insert code snippet",
+        "title": "Code"
+      },
+      "codeBlock": {
+        "description": "Capture a code snippet",
+        "title": "Code"
+      },
+      "columns": {
+        "description": "Create column layout",
+        "title": "Columns"
+      },
+      "date": {
+        "description": "Insert current date",
+        "title": "Date"
+      },
+      "divider": {
+        "description": "Add a horizontal line",
+        "title": "Divider"
+      },
+      "hardBreak": {
+        "description": "Insert a line break",
+        "title": "Line Break"
+      },
+      "heading1": {
+        "description": "Big section heading",
+        "title": "Heading 1"
+      },
+      "heading2": {
+        "description": "Medium section heading",
+        "title": "Heading 2"
+      },
+      "heading3": {
+        "description": "Small section heading",
+        "title": "Heading 3"
+      },
+      "heading4": {
+        "description": "Smaller section heading",
+        "title": "Heading 4"
+      },
+      "heading5": {
+        "description": "Even smaller section heading",
+        "title": "Heading 5"
+      },
+      "heading6": {
+        "description": "Smallest section heading",
+        "title": "Heading 6"
+      },
+      "image": {
+        "description": "Insert an image",
+        "title": "Image"
+      },
+      "inlineCode": {
+        "description": "Add inline code",
+        "title": "Inline Code"
+      },
+      "inlineMath": {
+        "description": "Insert inline mathematical formulas",
+        "title": "Inline Math"
+      },
+      "italic": {
+        "description": "Marked as italic",
+        "title": "Italic"
+      },
+      "link": {
+        "description": "Add a link",
+        "title": "Link"
+      },
+      "noCommandsFound": "No commands found",
+      "orderedList": {
+        "description": "Create a list with numbering",
+        "title": "Numbered list"
+      },
+      "paragraph": {
+        "description": "Start writing with plain text",
+        "title": "Text"
+      },
+      "redo": {
+        "description": "Redo the last action",
+        "title": "Redo"
+      },
+      "strike": {
+        "description": "Mark as a delete line",
+        "title": "Delete line"
+      },
+      "table": {
+        "description": "Insert a table",
+        "title": "Table"
+      },
+      "taskList": {
+        "description": "Create a checklist",
+        "title": "Task List"
+      },
+      "underline": {
+        "description": "Mark as underlined",
+        "title": "Underline"
+      },
+      "undo": {
+        "description": "Undo the last action",
+        "title": "Undo"
+      }
+    },
+    "dragHandle": "Drag to move",
+    "image": {
+      "placeholder": "Add a picture"
+    },
+    "imageUploader": {
+      "embedImage": "Embed image",
+      "embedLink": "Embed link",
+      "embedSuccess": "Image embedded successfully",
+      "invalidType": "Please select an image file",
+      "invalidUrl": "Invalid image URL",
+      "processing": "Processing image...",
+      "title": "Add an image",
+      "tooLarge": "Image size cannot exceed 10MB",
+      "upload": "Upload",
+      "uploadError": "Image upload failed",
+      "uploadFile": "Upload file",
+      "uploadHint": "Supports JPG, PNG, GIF and other formats, max 10MB",
+      "uploadSuccess": "Image uploaded successfully",
+      "uploadText": "Click or drag image here to upload",
+      "uploading": "Uploading image",
+      "urlPlaceholder": "Paste image link",
+      "urlRequired": "Please enter image URL"
+    },
+    "link": {
+      "remove": "Remove link",
+      "text": "Link Title",
+      "textPlaceholder": "Please enter the link title",
+      "url": "Link URL"
+    },
+    "math": {
+      "placeholder": "Enter LaTeX formula"
+    },
+    "placeholder": "Write '/' for commands",
+    "plusButton": "Click to add below",
+    "toolbar": {
+      "blockMath": "Block Math",
+      "blockquote": "Quote",
+      "bold": "Bold",
+      "bulletList": "Bullet List",
+      "clearMarks": "Clear Formatting",
+      "code": "Inline Code",
+      "codeBlock": "Code Block",
+      "heading1": "Heading 1",
+      "heading2": "Heading 2",
+      "heading3": "Heading 3",
+      "heading4": "Heading 4",
+      "heading5": "Heading 5",
+      "heading6": "Heading 6",
+      "image": "Image",
+      "inlineMath": "Inline Equation",
+      "italic": "Italic",
+      "link": "Link",
+      "orderedList": "Ordered List",
+      "paragraph": "Paragraph",
+      "redo": "Redo",
+      "strike": "Strikethrough",
+      "table": "Table",
+      "taskList": "Task List",
+      "underline": "Underline",
+      "undo": "Undo"
+    }
   },
   "selection": {
     "action": {
@@ -2204,6 +2493,7 @@
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",
         "markdown_reason": "Export as Markdown (with reasoning)",
+        "notes": "Export to Notes",
         "notion": "Export to Notion",
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
@@ -3356,7 +3646,7 @@
         "label": "HTTP authentication",
         "password": {
           "label": "Password",
-          "tip": ""
+          "tip": "Enter your password"
         },
         "tip": "Applicable to instances deployed remotely (see the documentation). Currently, only the Basic scheme (RFC 7617) is supported.",
         "user_name": {
@@ -3735,6 +4025,7 @@
     "launchpad": "Launchpad",
     "mcp-servers": "MCP Servers",
     "memories": "Memories",
+    "notes": "Notes",
     "paintings": "Paintings",
     "settings": "Settings",
     "translate": "Translate"

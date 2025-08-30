@@ -10,6 +10,7 @@ export * from './memory'
 export * from './message'
 export * from './model'
 export * from './newMessage'
+export * from './note'
 export * from './ocr'
 export * from './painting'
 export * from './params'
@@ -89,6 +90,7 @@ export type SidebarIcon =
   | 'knowledge'
   | 'files'
   | 'code_tools'
+  | 'notes'
 
 export interface Citation {
   number: number

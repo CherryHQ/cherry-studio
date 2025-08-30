@@ -346,7 +346,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   }
 `
 
-const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
+const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
   display: flex;
   align-items: center;
   color: var(--color-text);

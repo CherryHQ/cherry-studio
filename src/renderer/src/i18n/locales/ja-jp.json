@@ -597,6 +597,7 @@
           "label": "Markdownとしてエクスポート",
           "reason": "Markdown としてエクスポート (思考内容を含む)"
         },
+        "notes": "ノートにエクスポート",
         "notion": "Notion にエクスポート",
         "obsidian": "Obsidian にエクスポート",
         "obsidian_atributes": "ノートの属性を設定",
@@ -1292,6 +1293,9 @@
           "specified": "Markdown ファイルのエクスポートに失敗しました"
         }
       },
+      "notes": {
+        "export": "ノートのエクスポートに失敗しました"
+      },
       "notion": {
         "export": "Notionへのエクスポートに失敗しました。接続状態と設定を確認してください",
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
@@ -1384,6 +1388,9 @@
           "preconf": "Markdown ファイルを事前設定されたパスに正常にエクスポートしました",
           "specified": "Markdown ファイルを正常にエクスポートしました"
         }
+      },
+      "notes": {
+        "export": "成功的にノートにエクスポートされました"
       },
       "notion": {
         "export": "Notionへのエクスポートに成功しました"
@@ -1588,6 +1595,88 @@
   },
   "navigate": {
     "provider_settings": "プロバイダー設定に移動"
+  },
+  "notes": {
+    "characters": "文字",
+    "collapse": "閉じる",
+    "content_placeholder": "メモの内容を入力してください...",
+    "copyContent": "コンテンツをコピーします",
+    "delete": "削除",
+    "delete_confirm": "この{{type}}を本当に削除しますか？",
+    "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
+    "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
+    "drop_markdown_hint": "マークダウンファイルをドラッグアンドドロップしてここにインポートします",
+    "empty": "暫無ノート",
+    "expand": "展開",
+    "export_failed": "知識ベースへのエクスポートに失敗しました",
+    "export_knowledge": "ノートをナレッジベースにエクスポートする",
+    "export_success": "知識ベースへのエクスポートが成功しました",
+    "folder": "フォルダー",
+    "new_folder": "新しいフォルダーを作成する",
+    "new_note": "新規ノート作成",
+    "no_content_to_copy": "コピーするコンテンツはありません",
+    "only_markdown": "Markdown ファイルのみをアップロードできます",
+    "open_folder": "外部フォルダーを開きます",
+    "rename": "名前の変更",
+    "save": "メモに保存する",
+    "settings": {
+      "data": {
+        "apply": "応用",
+        "apply_path_failed": "アプリケーションパスが失敗しました",
+        "current_work_directory": "現在の作業ディレクトリ",
+        "invalid_directory": "選択したディレクトリは無効であるか、権限がありません",
+        "path_required": "ワーキングディレクトリを選択してください",
+        "path_updated": "ワーキングディレクトリの更新は正常に更新されます",
+        "reset_failed": "リセットに失敗しました",
+        "reset_to_default": "デフォルトにリセットします",
+        "select": "選ぶ",
+        "select_directory_failed": "ディレクトリの選択に失敗しました",
+        "title": "データ設定",
+        "work_directory_description": "作業ディレクトリは、すべてのメモが保存される場所です。ワーキングディレクトリを変更しても、既存のファイルは移動しません。ファイルを手動で移行してください。",
+        "work_directory_placeholder": "ノートワークディレクトリを選択します"
+      },
+      "display": {
+        "compress_content": "バーの幅を減らします",
+        "compress_content_description": "有効にすると、1行あたりの単語数が制限され、画面に表示されるコンテンツが減少します。",
+        "default_font": "デフォルトフォント",
+        "font_title": "フォント設定",
+        "serif_font": "セリフフォント",
+        "title": "見せる"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "編集ビューでは、新しいメモのデフォルトの編集モード",
+          "preview_mode": "ライブプレビュー",
+          "source_mode": "ソースコードモード",
+          "title": "デフォルトの編集ビュー"
+        },
+        "title": "エディター設定",
+        "view_mode": {
+          "description": "新しいノートデフォルトビューモード",
+          "edit_mode": "編集モード",
+          "read_mode": "読み取りモード",
+          "title": "デフォルトビュー"
+        },
+        "view_mode_description": "新しいタブページのデフォルトビューモードを設定します。"
+      },
+      "title": "その他のオプション"
+    },
+    "show_starred": "お気に入りのノートを表示する",
+    "sort_a2z": "ファイル名（A-Z）",
+    "sort_created_asc": "作成日時（古い順）",
+    "sort_created_desc": "作成日時（新しい順）",
+    "sort_updated_asc": "更新日時（古い順）",
+    "sort_updated_desc": "更新日時（新しい順）",
+    "sort_z2a": "ファイル名（Z-A）",
+    "star": "お気に入りに追加する",
+    "starred_notes": "収集したノート",
+    "title": "ノート",
+    "unsaved_changes": "保存されていないコンテンツがあります。本当に離れますか？",
+    "unstar": "お気に入りを解除する",
+    "untitled_folder": "新ファイル夹",
+    "untitled_note": "無題のメモ",
+    "upload_failed": "ノートのアップロードに失敗しました",
+    "upload_success": "ノートのアップロードが成功しました"
   },
   "notification": {
     "assistant": "助手回應",
@@ -1892,6 +1981,206 @@
       "title": "復元進捗"
     },
     "title": "データ復元"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "列を削除",
+        "deleteRow": "行を削除",
+        "insertColumnAfter": "右に挿入",
+        "insertColumnBefore": "左に挿入",
+        "insertRowAfter": "下に挿入",
+        "insertRowBefore": "上に挿入"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "数式を挿入します",
+        "title": "数式"
+      },
+      "blockquote": {
+        "description": "参照されたテキストを挿入します",
+        "title": "引用"
+      },
+      "bold": {
+        "description": "太字でマークされています",
+        "title": "大胆な"
+      },
+      "bulletList": {
+        "description": "シンプルな弾丸リストを作成します",
+        "title": "順序付けられていないリスト"
+      },
+      "calloutInfo": {
+        "description": "メッセージプロンプトボックスを追加します",
+        "title": "情報プロンプトボックス"
+      },
+      "calloutWarning": {
+        "description": "警告ボックスを追加します",
+        "title": "警告プロンプトボックス"
+      },
+      "code": {
+        "description": "コードスニペットを挿入します",
+        "title": "コード"
+      },
+      "codeBlock": {
+        "description": "コードスニペットを挿入します",
+        "title": "コードブロック"
+      },
+      "columns": {
+        "description": "列レイアウトを作成します",
+        "title": "セクション列"
+      },
+      "date": {
+        "description": "現在の日付を挿入します",
+        "title": "日付"
+      },
+      "divider": {
+        "description": "水平方向のスプリットラインを追加します",
+        "title": "分割線"
+      },
+      "hardBreak": {
+        "description": "ラインブレークを挿入します",
+        "title": "ラインブレーク"
+      },
+      "heading1": {
+        "description": "大きな段落タイトル",
+        "title": "レベル1タイトル"
+      },
+      "heading2": {
+        "description": "真ん中の段落タイトル",
+        "title": "二次タイトル"
+      },
+      "heading3": {
+        "description": "小さな段落タイトル",
+        "title": "レベル3タイトル"
+      },
+      "heading4": {
+        "description": "より小さな段落タイトル",
+        "title": "レベル4タイトル"
+      },
+      "heading5": {
+        "description": "より小さな段落タイトル",
+        "title": "レベル5タイトル"
+      },
+      "heading6": {
+        "description": "最小限の段落タイトル",
+        "title": "レベル6タイトル"
+      },
+      "image": {
+        "description": "画像を挿入します",
+        "title": "写真"
+      },
+      "inlineCode": {
+        "description": "インラインコードを追加します",
+        "title": "インラインコード"
+      },
+      "inlineMath": {
+        "description": "行に数式を挿入します",
+        "title": "業界の数式"
+      },
+      "italic": {
+        "description": "イタリックとしてマークされています",
+        "title": "イタリック"
+      },
+      "link": {
+        "description": "リンクを追加します",
+        "title": "リンク"
+      },
+      "noCommandsFound": "コマンドが見つかりません",
+      "orderedList": {
+        "description": "番号付きリストを作成します",
+        "title": "注文リスト"
+      },
+      "paragraph": {
+        "description": "プレーンテキストの書き始めます",
+        "title": "文章"
+      },
+      "redo": {
+        "description": "前のステップを作り直します",
+        "title": "やり直し"
+      },
+      "strike": {
+        "description": "削除行としてマークします",
+        "title": "行を削除します"
+      },
+      "table": {
+        "description": "テーブルを挿入します",
+        "title": "シート"
+      },
+      "taskList": {
+        "description": "To Doリストを作成します",
+        "title": "タスクリスト"
+      },
+      "underline": {
+        "description": "下線付けのマーク",
+        "title": "下線"
+      },
+      "undo": {
+        "description": "前の操作を元に戻します",
+        "title": "取り消す"
+      }
+    },
+    "dragHandle": "ブロックをドラッグします",
+    "image": {
+      "placeholder": "写真を追加します"
+    },
+    "imageUploader": {
+      "embedImage": "埋め込まれた写真",
+      "embedLink": "埋め込みリンク",
+      "embedSuccess": "画像埋め込みは正常に埋め込まれています",
+      "invalidType": "画像ファイルを選択してください",
+      "invalidUrl": "無効な画像リンク",
+      "processing": "写真を扱う...",
+      "title": "写真を追加します",
+      "tooLarge": "画像サイズは10MBを超えることはできません",
+      "upload": "アップロード",
+      "uploadError": "画像のアップロードに失敗しました",
+      "uploadFile": "ファイルをアップロード",
+      "uploadHint": "JPG、PNG、GIFおよびその他の形式をサポートし、最大10MB",
+      "uploadSuccess": "画像アップロードに正常にアップロードします",
+      "uploadText": "画像をクリックまたはドラッグしてここにアップロードします",
+      "uploading": "写真のアップロード",
+      "urlPlaceholder": "画像リンクアドレスを貼り付けます",
+      "urlRequired": "画像リンクアドレスを入力してください"
+    },
+    "link": {
+      "remove": "リンクを削除します",
+      "text": "リンクタイトル",
+      "textPlaceholder": "リンクタイトルを入力してください",
+      "url": "リンクアドレス"
+    },
+    "math": {
+      "placeholder": "ラテックスフォーミュラを入力します"
+    },
+    "placeholder": "'/'を入力してコマンドを呼び出します",
+    "plusButton": "クリックして以下を追加します",
+    "toolbar": {
+      "blockMath": "数式",
+      "blockquote": "引用",
+      "bold": "大胆な",
+      "bulletList": "順序付けられていないリスト",
+      "clearMarks": "クリア形式",
+      "code": "インラインコード",
+      "codeBlock": "コードブロック",
+      "heading1": "レベル1タイトル",
+      "heading2": "二次タイトル",
+      "heading3": "レベル3タイトル",
+      "heading4": "レベル4タイトル",
+      "heading5": "レベル5タイトル",
+      "heading6": "CET-6タイトル",
+      "image": "写真",
+      "inlineMath": "業界の数式",
+      "italic": "イタリック",
+      "link": "リンク",
+      "orderedList": "注文リスト",
+      "paragraph": "文章",
+      "redo": "やり直し",
+      "strike": "行を削除します",
+      "table": "シート",
+      "taskList": "タスクリスト",
+      "underline": "下線",
+      "undo": "取り消す"
+    }
   },
   "selection": {
     "action": {
@@ -2204,6 +2493,7 @@
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
+        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -3356,7 +3646,7 @@
         "label": "HTTP 認証",
         "password": {
           "label": "パスワード",
-          "tip": ""
+          "tip": "パスワードを入力してください"
         },
         "tip": "サーバー展開によるインスタンスに適用されます（ドキュメントを参照）。現在はBasicスキーム（RFC7617）のみをサポートしています。",
         "user_name": {
@@ -3735,6 +4025,7 @@
     "launchpad": "ランチパッド",
     "mcp-servers": "MCP サーバー",
     "memories": "メモリ",
+    "notes": "ノート",
     "paintings": "ペインティング",
     "settings": "設定",
     "translate": "翻訳"

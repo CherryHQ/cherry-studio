@@ -19,6 +19,7 @@ import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
+import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
 import paintings from './paintings'
@@ -57,14 +58,15 @@ const rootReducer = combineReducers({
   messageBlocks: messageBlocksReducer,
   inputTools: inputToolsReducer,
   translate,
-  ocr
+  ocr,
+  note
 })
 
 const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 140,
+    version: 142,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },
@@ -83,7 +85,7 @@ const persistedReducer = persistReducer(
  * Call storeSyncService.subscribe() in the window's entryPoint.tsx
  */
 storeSyncService.setOptions({
-  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/']
+  syncList: ['assistants/', 'settings/', 'llm/', 'selectionStore/', 'note/']
 })
 
 const store = configureStore({

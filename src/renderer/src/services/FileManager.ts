@@ -10,8 +10,7 @@ const logger = loggerService.withContext('FileManager')
 
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
-    const files = await window.api.file.select(options)
-    return files
+    return await window.api.file.select(options)
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {

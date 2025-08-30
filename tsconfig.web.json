@@ -7,7 +7,8 @@
     "packages/shared/**/*",
     "tests/__mocks__/**/*",
     "packages/mcp-trace/**/*",
-    "src/main/integration/cherryin/index.js"
+    "src/main/integration/cherryin/index.js",
+    "packages/extension-table-plus/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -20,7 +21,8 @@
       "@shared/*": ["packages/shared/*"],
       "@cherry-types": ["src/renderer/src/types/index.ts"],
       "@cherry-types/*": ["src/renderer/src/types/*"],
-      "@mcp-trace/*": ["packages/mcp-trace/*"]
+      "@mcp-trace/*": ["packages/mcp-trace/*"],
+      "@cherrystudio/extension-table-plus": ["packages/extension-table-plus/src/index.ts"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
