@@ -7,7 +7,7 @@ import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
-import { addTab, removeTab, setActiveTab } from '@renderer/store/tabs'
+import { addTab, removeTab, reorderTabs, setActiveTab } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
@@ -28,7 +28,7 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -81,6 +81,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean
+    dragIndex: number
+    dragOverIndex: number
+  }>({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -142,14 +147,65 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    if (tabs[index].id === 'home') {
+      e.preventDefault()
+      return
+    }
+    setDragState({ isDragging: true, dragIndex: index, dragOverIndex: -1 })
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', index.toString())
+  }
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    if (tabs[index].id === 'home') return
+    e.preventDefault()
+    setDragState((prev) => ({ ...prev, dragOverIndex: index }))
+  }
+
+  const handleDragLeave = () => {
+    setDragState((prev) => ({ ...prev, dragOverIndex: -1 }))
+  }
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault()
+    const dragIndex = dragState.dragIndex
+
+    if (dragIndex !== -1 && dragIndex !== dropIndex && tabs[dragIndex].id !== 'home' && tabs[dropIndex].id !== 'home') {
+      dispatch(reorderTabs({ fromIndex: dragIndex, toIndex: dropIndex }))
+    }
+
+    setDragState({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
+  }
+
+  const handleDragEnd = () => {
+    setDragState({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
+  }
+
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
         {tabs
           .filter((tab) => !specialTabs.includes(tab.id))
-          .map((tab) => {
+          .map((tab, index) => {
+            const isDragOver = dragState.dragOverIndex === index
+            const isDragging = dragState.isDragging && dragState.dragIndex === index
+            const canDrag = tab.id !== 'home'
+
             return (
-              <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
+              <Tab
+                key={tab.id}
+                active={tab.id === activeTabId}
+                onClick={() => handleTabClick(tab)}
+                draggable={canDrag}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
+                $isDragOver={isDragOver}
+                $isDragging={isDragging}
+                $canDrag={canDrag}>
                 <TabHeader>
                   {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
                   <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
@@ -221,7 +277,12 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   }
 `
 
-const Tab = styled.div<{ active?: boolean }>`
+const Tab = styled.div<{
+  active?: boolean
+  $isDragOver?: boolean
+  $isDragging?: boolean
+  $canDrag?: boolean
+}>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -229,11 +290,18 @@ const Tab = styled.div<{ active?: boolean }>`
   padding-right: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
   border-radius: var(--list-item-border-radius);
-  cursor: pointer;
+  cursor: ${(props) => (props.$canDrag ? 'grab' : 'pointer')};
   user-select: none;
   height: 30px;
   min-width: 90px;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  opacity: ${(props) => (props.$isDragging ? 0.5 : 1)};
+  transform: ${(props) => (props.$isDragOver ? 'scale(1.02)' : 'scale(1)')};
+  border: ${(props) => (props.$isDragOver ? '2px dashed var(--color-primary)' : '2px solid transparent')};
+
+  &:active {
+    cursor: ${(props) => (props.$canDrag ? 'grabbing' : 'pointer')};
+  }
   .close-button {
     opacity: 0;
     transition: opacity 0.2s;
@@ -244,6 +312,10 @@ const Tab = styled.div<{ active?: boolean }>`
     .close-button {
       opacity: 1;
     }
+  }
+
+  &:not([draggable='true']) {
+    cursor: pointer;
   }
 `
 
@@ -337,7 +409,6 @@ const TabContent = styled.div`
   margin: 6px;
   margin-top: 0;
   border-radius: 8px;
-  overflow: hidden;
 `
 
 export default TabsContainer
