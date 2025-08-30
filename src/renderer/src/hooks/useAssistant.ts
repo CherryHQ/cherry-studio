@@ -166,7 +166,10 @@ export function useAssistant(id: string) {
     },
     updateTopic: (topic: Topic) => dispatch(updateTopic({ assistantId: assistant.id, topic })),
     updateTopics: (topics: Topic[]) => dispatch(updateTopics({ assistantId: assistant.id, topics })),
-    removeAllTopics: () => dispatch(removeAllTopics({ assistantId: assistant.id })),
+    removeAllTopics: () => {
+      assistant.topics.forEach((topic) => TopicManager.removeTopic(topic.id))
+      dispatch(removeAllTopics({ assistantId: assistant.id }))
+    },
     setModel: useCallback(
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]
