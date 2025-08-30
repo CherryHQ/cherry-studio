@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "埋め込み",
       "free": "無料",
-      "free_trial": "無料体験",
       "function_calling": "ツール",
       "reasoning": "推論",
       "rerank": "再順序付け",

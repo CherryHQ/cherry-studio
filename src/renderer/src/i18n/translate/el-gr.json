@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "ενσωμάτωση",
       "free": "δωρεάν",
-      "free_trial": "δωρεάν δοκιμή",
       "function_calling": "κλήση συνάρτησης",
       "reasoning": "λογική",
       "rerank": "Τακτοποιώ",

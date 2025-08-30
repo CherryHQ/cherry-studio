@@ -1,6 +1,5 @@
 import {
   isEmbeddingModel,
-  isFreeTrialModel,
   isFunctionCallingModel,
   isReasoningModel,
   isRerankModel,
@@ -22,7 +21,6 @@ import {
   VisionTag,
   WebSearchTag
 } from './Tags/Model'
-import { FreeTrialTag } from './Tags/Model/FreeTag'
 
 interface ModelTagsProps {
   model: Model
@@ -77,7 +75,6 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
 
   return (
     <Container ref={containerRef} style={style}>
-      {isFreeTrialModel(model) && <FreeTrialTag size={size} showTooltip={showTooltip} />}
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (

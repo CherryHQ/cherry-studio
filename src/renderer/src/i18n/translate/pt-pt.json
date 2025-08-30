@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "inserção",
       "free": "Grátis",
-      "free_trial": "Avaliação grátis",
       "function_calling": "chamada de função",
       "reasoning": "raciocínio",
       "rerank": "Reclassificar",

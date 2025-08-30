@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "Embedding",
       "free": "Free",
-      "free_trial": "Free Trial",
       "function_calling": "Tool",
       "reasoning": "Reasoning",
       "rerank": "Reranker",

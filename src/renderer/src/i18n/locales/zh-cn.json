@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "嵌入",
       "free": "免费",
-      "free_trial": "免费体验",
       "function_calling": "工具",
       "reasoning": "推理",
       "rerank": "重排",

@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "Incrustación",
       "free": "Gratis",
-      "free_trial": "Prueba gratuita",
       "function_calling": "Llamada a función",
       "reasoning": "Razonamiento",
       "rerank": "Reclasificar",

@@ -1572,7 +1572,6 @@
     "type": {
       "embedding": "Incorporation",
       "free": "Gratuit",
-      "free_trial": "Essai gratuit",
       "function_calling": "Appel de fonction",
       "reasoning": "Raisonnement",
       "rerank": "Reclasser",

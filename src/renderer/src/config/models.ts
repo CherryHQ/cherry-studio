@@ -3257,9 +3257,5 @@ export const isOpenAIOpenWeightModel = (model: Model) => {
   return modelId.includes('gpt-oss')
 }
 
-export const isFreeTrialModel = (model: Model) => {
-  return model.provider === 'cherryin'
-}
-
 // zhipu 视觉推理模型用这组 special token 标记推理结果
 export const ZHIPU_RESULT_TOKENS = ['<|begin_of_box|>', '<|end_of_box|>'] as const
