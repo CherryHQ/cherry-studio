@@ -32,7 +32,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     selectedBase.id || ''
   )
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const reversedItems = useMemo(() => [...noteItems].reverse(), [noteItems])

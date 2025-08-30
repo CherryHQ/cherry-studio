@@ -756,6 +756,7 @@
     "footnote": "Reference content",
     "footnotes": "References",
     "fullscreen": "Entered fullscreen mode. Press F11 to exit",
+    "go_to_settings": "Go to settings",
     "i_know": "I know",
     "inspect": "Inspect",
     "knowledge_base": "Knowledge Base",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "Returned an invalid data format"
       },
+      "insufficient_balance": "Please go to the <provider>{{provider}}</provider> to recharge.",
+      "no_api_key": "You have not configured an API key. Please go to the <provider>{{provider}}</provider> to obtain an API key.",
+      "quota_exceeded": "Your daily {{quota}} free quota has been exhausted. Please go to the <provider>{{provider}}</provider> to obtain an API key and configure the API key to continue using.",
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
     "http": {
@@ -1824,6 +1828,7 @@
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -1869,7 +1874,7 @@
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
     "zhinao": "360AI",
-    "zhipu": "ZHIPU AI"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2911,7 +2916,8 @@
         "modelscope": "ModelScope Community MCP Server",
         "official": "Official MCP Server Collection",
         "pulsemcp": "Pulse MCP Server",
-        "smithery": "Smithery MCP Tools"
+        "smithery": "Smithery MCP Tools",
+        "zhipu": "Curated MCP, Fast Integration"
       },
       "name": "Name",
       "newServer": "MCP Server",

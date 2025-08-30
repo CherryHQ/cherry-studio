@@ -756,6 +756,7 @@
     "footnote": "Nota de rodapé",
     "footnotes": "Notas de rodapé",
     "fullscreen": "Entrou no modo de tela cheia, pressione F11 para sair",
+    "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
     "inspect": "Verificar",
     "knowledge_base": "Base de Conhecimento",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "Devolveu um formato de dados inválido"
       },
+      "insufficient_balance": "Por favor, vá para <provider>{{provider}}</provider> para recarregar.",
+      "no_api_key": "Você não configurou uma chave API. Por favor, vá para <provider>{{provider}}</provider> para obter uma chave API.",
+      "quota_exceeded": "Sua cota gratuita diária de {{quota}} tokens foi esgotada. Por favor, vá para <provider>{{provider}}</provider> para obter uma chave API e configurar a chave API para continuar usando.",
       "response": "Ocorreu um erro, se a chave da API não foi configurada, por favor vá para Configurações > Provedores de Modelo para configurar a chave"
     },
     "http": {
@@ -1824,6 +1828,7 @@
     "baidu-cloud": "Nuvem Baidu",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -1869,7 +1874,7 @@
     "xirang": "XiRang do Nuvem Telecom",
     "yi": "ZeroUmTudo",
     "zhinao": "360 Inteligência Artificial",
-    "zhipu": "ZhiPu IA"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2911,7 +2916,8 @@
         "modelscope": "Servidor MCP da comunidade ModelScope",
         "official": "Coleção oficial de servidores MCP",
         "pulsemcp": "Servidor MCP Pulse",
-        "smithery": "Ferramentas Smithery MCP"
+        "smithery": "Ferramentas Smithery MCP",
+        "zhipu": "MCP Curado, Integração Rápida"
       },
       "name": "Nome",
       "newServer": "Servidor MCP",

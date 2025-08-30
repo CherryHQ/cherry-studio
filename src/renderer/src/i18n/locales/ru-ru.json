@@ -756,6 +756,7 @@
     "footnote": "Цитируемый контент",
     "footnotes": "Сноски",
     "fullscreen": "Вы вошли в полноэкранный режим. Нажмите F11 для выхода",
+    "go_to_settings": "Перейти в настройки",
     "i_know": "Я понял",
     "inspect": "Осмотреть",
     "knowledge_base": "База знаний",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "Вернулся недопустимый формат данных"
       },
+      "insufficient_balance": "Пожалуйста, перейдите в <provider>{{provider}}</provider> для пополнения баланса.",
+      "no_api_key": "Вы не настроили ключ API. Пожалуйста, перейдите в <provider>{{provider}}</provider> для получения ключа API.",
+      "quota_exceeded": "Ваша ежедневная {{quota}} бесплатная квота исчерпана. Пожалуйста, перейдите в <provider>{{provider}}</provider> для получения ключа API и настройте ключ API для продолжения использования.",
       "response": "Что-то пошло не так. Пожалуйста, проверьте, установлен ли ваш ключ API в Настройки > Провайдеры"
     },
     "http": {
@@ -1824,6 +1828,7 @@
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -1869,7 +1874,7 @@
     "xirang": "State Cloud Xirang",
     "yi": "Yi",
     "zhinao": "360AI",
-    "zhipu": "ZHIPU AI"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2911,7 +2916,8 @@
         "modelscope": "Сервер MCP сообщества ModelScope",
         "official": "Официальная коллекция серверов MCP",
         "pulsemcp": "Сервер Pulse MCP",
-        "smithery": "Инструменты Smithery MCP"
+        "smithery": "Инструменты Smithery MCP",
+        "zhipu": "Кураторские MCP, быстрая интеграция"
       },
       "name": "Имя",
       "newServer": "MCP сервер",

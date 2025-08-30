@@ -34,7 +34,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
   const [preprocessMap, setPreprocessMap] = useState<Map<string, boolean>>(new Map())
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
 
   useEffect(() => {
     const handlers = [

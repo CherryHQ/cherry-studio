@@ -3,12 +3,12 @@ import { isSupportedModel } from '@renderer/config/models'
 import type { Model, Provider } from '@renderer/types'
 import type { NewApiModel } from '@renderer/types/sdk'
 
-import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
-import type { BaseApiClient } from './BaseApiClient'
-import { GeminiAPIClient } from './gemini/GeminiAPIClient'
-import { MixedBaseAPIClient } from './MixedBaseApiClient'
-import { OpenAIAPIClient } from './openai/OpenAIApiClient'
-import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
+import { AnthropicAPIClient } from '../anthropic/AnthropicAPIClient'
+import type { BaseApiClient } from '../BaseApiClient'
+import { GeminiAPIClient } from '../gemini/GeminiAPIClient'
+import { MixedBaseAPIClient } from '../MixedBaseApiClient'
+import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
+import { OpenAIResponseAPIClient } from '../openai/OpenAIResponseAPIClient'
 
 const logger = loggerService.withContext('NewAPIClient')
 

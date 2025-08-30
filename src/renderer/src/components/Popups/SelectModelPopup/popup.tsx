@@ -1,4 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import {
   EmbeddingTag,
@@ -29,7 +30,7 @@ import { classNames, filterModelsByKeywords, getFancyProviderName } from '@rende
 import { getModelTags, isFreeModel } from '@renderer/utils/model'
 import { Avatar, Button, Divider, Empty, Flex, Modal, Tooltip } from 'antd'
 import { first, sortBy } from 'lodash'
-import { SettingsIcon } from 'lucide-react'
+import { Settings2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import React, {
   startTransition,
@@ -202,6 +203,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
     (model: Model, provider: Provider, isPinned: boolean): FlatListModel => {
       const modelId = getModelUniqId(model)
       const groupName = getFancyProviderName(provider)
+      const isCherryin = provider.id === 'cherryin'
 
       return {
         key: isPinned ? `${modelId}_pinned` : modelId,
@@ -210,11 +212,12 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
           <ModelName>
             {model.name}
             {isPinned && <span style={{ color: 'var(--color-text-3)' }}> | {groupName}</span>}
+            {isCherryin && <FreeTrialModelTag model={model} showLabel={false} />}
           </ModelName>
         ),
         tags: (
           <TagsContainer>
-            <ModelTagsWithLabel model={model} size={11} showLabel={false} showTooltip={false} />
+            <ModelTagsWithLabel model={model} size={11} showLabel={true} />
           </TagsContainer>
         ),
         icon: (
@@ -281,7 +284,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
               type="text"
               size="small"
               shape="circle"
-              icon={<SettingsIcon size={14} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />}
+              icon={<Settings2 size={12} color="var(--color-text-3)" style={{ pointerEvents: 'none' }} />}
               onClick={(e) => {
                 e.stopPropagation()
                 setOpen(false)
@@ -577,7 +580,7 @@ const ListContainer = styled.div`
 const GroupItem = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 2px;
   position: relative;
   font-size: 12px;
   font-weight: normal;
@@ -586,6 +589,17 @@ const GroupItem = styled.div`
   color: var(--color-text-3);
   z-index: 1;
   background: var(--modal-background);
+
+  &:hover {
+    .ant-btn {
+      opacity: 1;
+    }
+  }
+
+  .ant-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
 `
 
 const ModelItem = styled.div`
@@ -641,13 +655,16 @@ const ModelItemLeft = styled.div`
   }
 `
 
-const ModelName = styled.span`
+const ModelName = styled.div`
+  display: flex;
+  flex-direction: row;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
   margin: 0 8px;
   min-width: 0;
+  gap: 5px;
 `
 
 const TagsContainer = styled.div`

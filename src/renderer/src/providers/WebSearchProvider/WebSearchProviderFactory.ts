@@ -9,10 +9,13 @@ import LocalBingProvider from './LocalBingProvider'
 import LocalGoogleProvider from './LocalGoogleProvider'
 import SearxngProvider from './SearxngProvider'
 import TavilyProvider from './TavilyProvider'
+import ZhipuProvider from './ZhipuProvider'
 
 export default class WebSearchProviderFactory {
   static create(provider: WebSearchProvider): BaseWebSearchProvider {
     switch (provider.id) {
+      case 'zhipu':
+        return new ZhipuProvider(provider)
       case 'tavily':
         return new TavilyProvider(provider)
       case 'bocha':

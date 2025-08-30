@@ -31,6 +31,7 @@ export type Provider = {
   extra_headers?: Record<string, string>
 }
 export const SystemProviderIds = {
+  cherryin: 'cherryin',
   silicon: 'silicon',
   aihubmix: 'aihubmix',
   ocoolai: 'ocoolai',

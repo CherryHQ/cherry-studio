@@ -14,7 +14,7 @@ const t = i18n.t
 
 const logger = loggerService.withContext('i18n:label')
 
-const getLabel = (key: string, keyMap: Record<string, string>, fallback?: string) => {
+const getLabel = (keyMap: Record<string, string>, key: string, fallback?: string) => {
   const result = keyMap[key]
   if (result) {
     return t(result)
@@ -35,6 +35,7 @@ const providerKeyMap = {
   'baidu-cloud': 'provider.baidu-cloud',
   burncloud: 'provider.burncloud',
   cephalon: 'provider.cephalon',
+  cherryin: 'provider.cherryin',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',
@@ -93,7 +94,7 @@ const providerKeyMap = {
  * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
 export const getProviderLabel = (id: string): string => {
-  return getLabel(id, providerKeyMap)
+  return getLabel(providerKeyMap, id)
 }
 
 const backupProgressKeyMap = {
@@ -107,7 +108,7 @@ const backupProgressKeyMap = {
 } as const
 
 export const getBackupProgressLabel = (key: string): string => {
-  return getLabel(key, backupProgressKeyMap)
+  return getLabel(backupProgressKeyMap, key)
 }
 
 const restoreProgressKeyMap = {
@@ -121,7 +122,7 @@ const restoreProgressKeyMap = {
 }
 
 export const getRestoreProgressLabel = (key: string): string => {
-  return getLabel(key, restoreProgressKeyMap)
+  return getLabel(restoreProgressKeyMap, key)
 }
 
 const titleKeyMap = {
@@ -140,7 +141,7 @@ const titleKeyMap = {
 } as const
 
 export const getTitleLabel = (key: string): string => {
-  return getLabel(key, titleKeyMap)
+  return getLabel(titleKeyMap, key)
 }
 
 const themeModeKeyMap = {
@@ -150,7 +151,7 @@ const themeModeKeyMap = {
 } as const
 
 export const getThemeModeLabel = (key: string): string => {
-  return getLabel(key, themeModeKeyMap)
+  return getLabel(themeModeKeyMap, key)
 }
 
 const sidebarIconKeyMap = {
@@ -165,7 +166,7 @@ const sidebarIconKeyMap = {
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
-  return getLabel(key, sidebarIconKeyMap)
+  return getLabel(sidebarIconKeyMap, key)
 }
 
 const shortcutKeyMap = {
@@ -199,7 +200,7 @@ const shortcutKeyMap = {
 } as const
 
 export const getShortcutLabel = (key: string): string => {
-  return getLabel(key, shortcutKeyMap)
+  return getLabel(shortcutKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {
@@ -208,7 +209,7 @@ const selectionDescriptionKeyMap = {
 } as const
 
 export const getSelectionDescriptionLabel = (key: string): string => {
-  return getLabel(key, selectionDescriptionKeyMap)
+  return getLabel(selectionDescriptionKeyMap, key)
 }
 
 const paintingsImageSizeOptionsKeyMap = {
@@ -216,7 +217,7 @@ const paintingsImageSizeOptionsKeyMap = {
 } as const
 
 export const getPaintingsImageSizeOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsImageSizeOptionsKeyMap)
+  return getLabel(paintingsImageSizeOptionsKeyMap, key)
 }
 
 const paintingsQualityOptionsKeyMap = {
@@ -227,7 +228,7 @@ const paintingsQualityOptionsKeyMap = {
 } as const
 
 export const getPaintingsQualityOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsQualityOptionsKeyMap)
+  return getLabel(paintingsQualityOptionsKeyMap, key)
 }
 
 const paintingsModerationOptionsKeyMap = {
@@ -236,7 +237,7 @@ const paintingsModerationOptionsKeyMap = {
 } as const
 
 export const getPaintingsModerationOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsModerationOptionsKeyMap)
+  return getLabel(paintingsModerationOptionsKeyMap, key)
 }
 
 const paintingsBackgroundOptionsKeyMap = {
@@ -246,7 +247,7 @@ const paintingsBackgroundOptionsKeyMap = {
 } as const
 
 export const getPaintingsBackgroundOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsBackgroundOptionsKeyMap)
+  return getLabel(paintingsBackgroundOptionsKeyMap, key)
 }
 
 const mcpTypeKeyMap = {
@@ -257,7 +258,7 @@ const mcpTypeKeyMap = {
 } as const
 
 export const getMcpTypeLabel = (key: string): string => {
-  return getLabel(key, mcpTypeKeyMap)
+  return getLabel(mcpTypeKeyMap, key)
 }
 
 const miniappsStatusKeyMap = {
@@ -266,7 +267,7 @@ const miniappsStatusKeyMap = {
 } as const
 
 export const getMiniappsStatusLabel = (key: string): string => {
-  return getLabel(key, miniappsStatusKeyMap)
+  return getLabel(miniappsStatusKeyMap, key)
 }
 
 const httpMessageKeyMap = {
@@ -282,7 +283,7 @@ const httpMessageKeyMap = {
 } as const
 
 export const getHttpMessageLabel = (key: string): string => {
-  return getLabel(key, httpMessageKeyMap)
+  return getLabel(httpMessageKeyMap, key)
 }
 
 const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
@@ -295,7 +296,7 @@ const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
 } as const
 
 export const getReasoningEffortOptionsLabel = (key: string): string => {
-  return getLabel(key, reasoningEffortOptionsKeyMap)
+  return getLabel(reasoningEffortOptionsKeyMap, key)
 }
 
 const fileFieldKeyMap = {
@@ -305,7 +306,7 @@ const fileFieldKeyMap = {
 } as const
 
 export const getFileFieldLabel = (key: string): string => {
-  return getLabel(key, fileFieldKeyMap)
+  return getLabel(fileFieldKeyMap, key)
 }
 
 const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
@@ -320,7 +321,7 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
-  return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
+  return getLabel(builtInMcpDescriptionKeyMap, key, t('settings.mcp.builtinServersDescriptions.no'))
 }
 
 const builtinOcrProviderKeyMap = {
@@ -330,5 +331,5 @@ const builtinOcrProviderKeyMap = {
 
 export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   if (key === 'tesseract') return 'Tesseract'
-  else return getLabel(key, builtinOcrProviderKeyMap)
+  else return getLabel(builtinOcrProviderKeyMap, key)
 }

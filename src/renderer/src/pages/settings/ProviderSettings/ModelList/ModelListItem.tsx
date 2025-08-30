@@ -1,3 +1,4 @@
+import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
@@ -46,6 +47,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
             overflow: 'hidden'
           }}
         />
+        <FreeTrialModelTag model={model} />
       </HStack>
       <HStack alignItems="center" gap={6}>
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />

@@ -1,6 +1,6 @@
-import type { PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 
+import type { GenerateImageResponse } from './api'
 import type { FileMetadata } from './file'
 import type { KnowledgeReference } from './knowledge'
 import type { MCPServer, MCPToolResponse } from './mcp'
@@ -209,21 +209,4 @@ export type Metrics = {
   time_completion_millsec: number
   time_first_token_millsec?: number
   time_thinking_millsec?: number
-}
-export type GenerateImageResponse = {
-  type: 'url' | 'base64'
-  images: string[]
-}
-export type GenerateImageParams = {
-  model: string
-  prompt: string
-  negativePrompt?: string
-  imageSize: string
-  batchSize: number
-  seed?: string
-  numInferenceSteps?: number
-  guidanceScale?: number
-  signal?: AbortSignal
-  promptEnhancement?: boolean
-  personGeneration?: PersonGeneration
 }

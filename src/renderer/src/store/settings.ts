@@ -1,5 +1,6 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
+import { isMac } from '@renderer/config/constant'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import type {
@@ -241,7 +242,7 @@ export const initialState: SettingsState = {
   userTheme: {
     colorPrimary: '#00b96b'
   },
-  windowStyle: 'opaque',
+  windowStyle: isMac ? 'transparent' : 'opaque',
   fontSize: 14,
   topicPosition: 'left',
   showTopicTime: false,
@@ -376,7 +377,7 @@ export const initialState: SettingsState = {
   localBackupSyncInterval: 0,
   localBackupMaxBackups: 0,
   localBackupSkipBackupFile: false,
-  defaultPaintingProvider: 'aihubmix',
+  defaultPaintingProvider: 'zhipu',
   s3: {
     endpoint: '',
     region: '',

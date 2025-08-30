@@ -40,7 +40,7 @@ const logger = loggerService.withContext('ProviderList')
 const BUTTON_WRAPPER_HEIGHT = 50
 
 const ProviderList: FC = () => {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
@@ -51,12 +51,9 @@ const ProviderList: FC = () => {
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
 
-  const setSelectedProvider = useCallback(
-    (provider: Provider) => {
-      startTransition(() => _setSelectedProvider(provider))
-    },
-    [_setSelectedProvider]
-  )
+  const setSelectedProvider = useCallback((provider: Provider) => {
+    startTransition(() => _setSelectedProvider(provider))
+  }, [])
 
   useEffect(() => {
     const loadAllLogos = async () => {
@@ -97,8 +94,10 @@ const ProviderList: FC = () => {
       } else {
         setSelectedProvider(providers[0])
       }
+      searchParams.delete('id')
+      setSearchParams(searchParams)
     }
-  }, [providers, searchParams, setSelectedProvider, setTimeoutTimer])
+  }, [providers, searchParams, setSearchParams, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
   useEffect(() => {

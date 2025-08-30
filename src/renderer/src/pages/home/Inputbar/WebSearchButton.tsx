@@ -1,6 +1,6 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo } from '@renderer/components/Icons'
+import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isWebSearchModel } from '@renderer/config/models'
@@ -52,6 +52,8 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
           return <ExaLogo width={size - 2} height={size} color={color} />
         case 'tavily':
           return <TavilyLogo width={size} height={size} color={color} />
+        case 'zhipu':
+          return <ZhipuLogo width={size} height={size} color={color} />
         case 'searxng':
           return <SearXNGLogo width={size} height={size} color={color} />
         case 'local-baidu':

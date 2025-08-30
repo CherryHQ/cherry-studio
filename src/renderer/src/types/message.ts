@@ -5,7 +5,8 @@ import type { FileMetadata } from './file'
 import type { KnowledgeReference } from './knowledge'
 import type { MCPServer, MCPToolResponse } from './mcp'
 import type { Model } from './model'
-import type { GenerateImageResponse, Metrics, Usage } from './newMessage'
+import type { Metrics, Usage } from './newMessage'
+import type { GenerateImageResponse } from './api'
 import type { WebSearchProviderResponse } from './websearch'
 
 export type LegacyMessage = {

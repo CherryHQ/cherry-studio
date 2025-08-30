@@ -756,6 +756,7 @@
     "footnote": "引用内容",
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
+    "go_to_settings": "設定に移動",
     "i_know": "わかりました",
     "inspect": "検査",
     "knowledge_base": "ナレッジベース",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "無効なデータ形式が返されました"
       },
+      "insufficient_balance": "<provider>{{provider}}</provider>でチャージしてください。",
+      "no_api_key": "APIキーが設定されていません。<provider>{{provider}}</provider>でAPIキーを取得してください。",
+      "quota_exceeded": "本日の{{quota}}無料クォータが使い果たされました。<provider>{{provider}}</provider>でAPIキーを取得し、APIキーを設定して使用を続けてください。",
       "response": "エラーが発生しました。APIキーが設定されていない場合は、設定 > プロバイダーでキーを設定してください"
     },
     "http": {
@@ -1824,6 +1828,7 @@
     "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -1869,7 +1874,7 @@
     "xirang": "天翼クラウド 息壤",
     "yi": "零一万物",
     "zhinao": "360智脳",
-    "zhipu": "智譜AI"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2911,7 +2916,8 @@
         "modelscope": "魔搭コミュニティ MCP サーバー",
         "official": "公式 MCP サーバーコレクション",
         "pulsemcp": "Pulse MCP サーバー",
-        "smithery": "Smithery MCP ツール"
+        "smithery": "Smithery MCP ツール",
+        "zhipu": "厳選MCP、高速統合"
       },
       "name": "名前",
       "newServer": "MCP サーバー",

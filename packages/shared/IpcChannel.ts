@@ -285,5 +285,8 @@ export enum IpcChannel {
   CodeTools_Run = 'code-tools:run',
 
   // OCR
-  OCR_ocr = 'ocr:ocr'
+  OCR_ocr = 'ocr:ocr',
+
+  // Cherryin
+  Cherryin_GetSignature = 'cherryin:get-signature'
 }

@@ -3,6 +3,7 @@ import type { GroundingMetadata } from '@google/genai'
 import type OpenAI from 'openai'
 
 export const WebSearchProviderIds = {
+  zhipu: 'zhipu',
   tavily: 'tavily',
   searxng: 'searxng',
   exa: 'exa',

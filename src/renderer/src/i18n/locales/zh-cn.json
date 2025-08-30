@@ -756,6 +756,7 @@
     "footnote": "引用内容",
     "footnotes": "引用内容",
     "fullscreen": "已进入全屏模式，按 F11 退出",
+    "go_to_settings": "前往设置",
     "i_know": "我知道了",
     "inspect": "检查",
     "knowledge_base": "知识库",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "返回了无效的数据格式"
       },
+      "insufficient_balance": "请前往 <provider>{{provider}}</provider> 充值",
+      "no_api_key": "您未配置 API 密钥，请前往 <provider>{{provider}}</provider> 获取API密钥",
+      "quota_exceeded": "您今日免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
     },
     "http": {
@@ -1824,6 +1828,7 @@
     "baidu-cloud": "百度云千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里云百炼",
     "deepseek": "深度求索",
@@ -1869,7 +1874,7 @@
     "xirang": "天翼云息壤",
     "yi": "零一万物",
     "zhinao": "360 智脑",
-    "zhipu": "智谱 AI"
+    "zhipu": "智谱开放平台"
   },
   "restore": {
     "confirm": {
@@ -2911,7 +2916,8 @@
         "modelscope": "魔搭社区 MCP 服务器",
         "official": "官方 MCP 服务器集合",
         "pulsemcp": "Pulse MCP 服务器",
-        "smithery": "Smithery MCP 工具"
+        "smithery": "Smithery MCP 工具",
+        "zhipu": "精选MCP，极速接入"
       },
       "name": "名称",
       "newServer": "MCP 服务器",

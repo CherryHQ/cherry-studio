@@ -756,6 +756,7 @@
     "footnote": "Παραπομπή",
     "footnotes": "Παραπομπές",
     "fullscreen": "Εισήχθη σε πλήρη οθόνη, πατήστε F11 για να έξω",
+    "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "i_know": "Το έχω καταλάβει",
     "inspect": "Επιθεώρηση",
     "knowledge_base": "Βάση Γνώσεων",
@@ -824,6 +825,9 @@
       "chunk": {
         "non_json": "Επέστρεψε μη έγκυρη μορφή δεδομένων"
       },
+      "insufficient_balance": "Παρακαλώ μεταβείτε στο <provider>{{provider}}</provider> για επαναφόρτωση.",
+      "no_api_key": "Δεν έχετε ρυθμίσει το κλειδί API. Παρακαλώ μεταβείτε στο <provider>{{provider}}</provider> για να λάβετε ένα κλειδί API.",
+      "quota_exceeded": "Η ημερήσια δωρεάν ποσόστωση {{quota}} tokens σας έχει εξαντληθεί. Παρακαλώ μεταβείτε στο <provider>{{provider}}</provider> για να λάβετε ένα κλειδί API και να ρυθμίσετε το κλειδί API για να συνεχίσετε τη χρήση.",
       "response": "Σφάλμα. Εάν δεν έχετε ρυθμίσει το κλειδί API, πηγαίνετε στο ρυθμισμένα > παρέχοντας το πρόσωπο του μοντέλου"
     },
     "http": {
@@ -1824,6 +1828,7 @@
     "baidu-cloud": "Baidu Cloud Qianfan",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "AliCloud Bailian",
     "deepseek": "Βαθιά Αναζήτηση",
@@ -1869,7 +1874,7 @@
     "xirang": "China Telecom Xiran",
     "yi": "Zero One Wanyiwu",
     "zhinao": "360 Intelligent Brain",
-    "zhipu": "Zhipu AI"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -2911,7 +2916,8 @@
         "modelscope": "Διακομιστής MCP κοινότητας ModelScope",
         "official": "Επίσημη συλλογή διακομιστών MCP",
         "pulsemcp": "Διακομιστής Pulse MCP",
-        "smithery": "Εργαλείο Smithery MCP"
+        "smithery": "Εργαλείο Smithery MCP",
+        "zhipu": "Επιλεγμένο MCP, Γρήγορη Ενσωμάτωση"
       },
       "name": "Όνομα",
       "newServer": "Διακομιστής MCP",

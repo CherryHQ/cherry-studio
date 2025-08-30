@@ -168,7 +168,8 @@ export default defineConfig([
       '.yarn/**',
       '.gitignore',
       'scripts/cloudflare-worker.js',
-      'src/main/integration/nutstore/sso/lib/**'
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/main/integration/cherryin/index.js'
     ]
   },
   {
