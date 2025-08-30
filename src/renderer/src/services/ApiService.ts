@@ -959,14 +959,14 @@ export async function checkModel(provider: Provider, model: Model, timeout = 150
 //  因为之前只被ApiService使用，且二者彼此耦合，有无法解决的循环依赖问题，现在将其移动到ApiService中作为不对外导出的类。
 // =============
 
-export interface MemoryProcessorConfig {
+interface MemoryProcessorConfig {
   memoryConfig: MemoryConfig
   assistantId?: string
   userId?: string
   lastMessageId?: string
 }
 
-export class MemoryProcessor {
+class MemoryProcessor {
   private logger = loggerService.withContext('MemoryProcessor')
   private memoryService: MemoryService
 
