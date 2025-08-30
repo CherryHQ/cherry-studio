@@ -228,6 +228,12 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
       return
     }
 
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onCancel()
+      return
+    }
+
     // keep the same enter behavior as inputbar
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {

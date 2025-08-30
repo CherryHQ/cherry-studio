@@ -54,6 +54,13 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'rename_topic',
+      shortcut: ['CommandOrControl', 'T'],
+      editable: true,
+      enabled: false,
+      system: false
+    },
+    {
       key: 'toggle_show_assistants',
       shortcut: ['CommandOrControl', '['],
       editable: true,
@@ -71,6 +78,13 @@ const initialState: ShortcutsState = {
     {
       key: 'copy_last_message',
       shortcut: ['CommandOrControl', 'Shift', 'C'],
+      editable: true,
+      enabled: false,
+      system: false
+    },
+    {
+      key: 'edit_last_user_message',
+      shortcut: ['CommandOrControl', 'Shift', 'E'],
       editable: true,
       enabled: false,
       system: false
