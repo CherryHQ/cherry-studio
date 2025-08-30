@@ -5,7 +5,7 @@ import { MCPTool } from '@renderer/types'
 const logger = loggerService.withContext('Utils:Prompt')
 
 export const SYSTEM_PROMPT = `In this environment you have access to a set of tools you can use to answer the user's question. \
-You can use one or more tools per message, and will receive the result of that tool use in the user's response. You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
+You can use one or more tools per message, and will receive the result of that tool use in the user's response. You may use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 
 ## Tool Use Formatting
 
@@ -52,12 +52,12 @@ Here are the rules you should always follow to solve your task:
 2. Call a tool only when needed: do not call the search agent if you do not need information, try to solve the task yourself.
 3. If no tool call is needed, just answer the question directly.
 4. Never re-do a tool call that you previously did with the exact same parameters.
-5. For tool use, MARK SURE use XML tag format as shown in the examples above. Do not use any other format.
+5. For tool use, MAKE SURE you use the XML tag format EXACTLY as shown in the examples above. Do not use any other format.
 
 # User Instructions
 {{ USER_SYSTEM_PROMPT }}
-Response in user query language.
-Now Begin! If you solve the task correctly, you will receive a reward of $1,000,000.
+Ensure your response matches the language of the user's query.
+Respond to the following user query following all of your instructions:
 `
 
 export const THINK_TOOL_PROMPT = `{{ USER_SYSTEM_PROMPT }}`
@@ -89,7 +89,7 @@ User: <tool_use_result>
   <result>image.png</result>
 </tool_use_result>
 
-Assistant: the image is generated as image.png
+Assistant: The image is generated as image.png
 
 ---
 User: "What is the result of the following operation: 5 + 3 + 1294.678?"
@@ -108,7 +108,7 @@ User: <tool_use_result>
 Assistant: The result of the operation is 1302.678.
 
 ---
-User: "Which city has the highest population , Guangzhou or Shanghai?"
+User: "Which city has the highest population, Guangzhou or Shanghai?"
 
 Assistant: I can use the search tool to find the population of Guangzhou.
 <tool_use>
