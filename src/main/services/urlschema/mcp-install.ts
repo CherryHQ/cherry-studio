@@ -2,12 +2,15 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MCPServer } from '@types'
+import z from 'zod'
 
 import { windowService } from '../WindowService'
 
 const logger = loggerService.withContext('URLSchema:handleMcpProtocolUrl')
 
-function installMCPServer(server: MCPServer) {
+type UrlMcpServer = Omit<MCPServer, 'id' | 'isActive'> & Partial<Pick<MCPServer, 'id'>>
+
+function installMCPServer(server: UrlMcpServer) {
   const mainWindow = windowService.getMainWindow()
 
   if (!server.id) {
@@ -19,7 +22,7 @@ function installMCPServer(server: MCPServer) {
   }
 }
 
-function installMCPServers(servers: Record<string, MCPServer>) {
+function installMCPServers(servers: Record<string, UrlMcpServer>) {
   for (const name in servers) {
     const server = servers[name]
     if (!server.name) {
@@ -52,11 +55,38 @@ export function handleMcpProtocolUrl(url: URL) {
       if (data) {
         const stringify = Buffer.from(data, 'base64').toString('utf8')
         logger.debug(`install MCP servers from urlschema: ${stringify}`)
-        const jsonConfig = JSON.parse(stringify)
+        // 定义 MCP 服务器配置的 schema
+        const MCPServerSchema = z.object({
+          id: z.string().optional(),
+          name: z.string(),
+          command: z.string(),
+          args: z.array(z.string())
+        })
+
+        // 定义配置文件的 schema
+        const ConfigSchema = z.union([
+          z.object({ mcpServers: z.record(MCPServerSchema) }),
+          z.array(MCPServerSchema),
+          MCPServerSchema
+        ])
+
+        let jsonConfig: z.infer<typeof ConfigSchema>
+        try {
+          const parsedJson = JSON.parse(stringify)
+          // 使用 zod 验证解析后的 JSON
+          jsonConfig = ConfigSchema.parse(parsedJson)
+        } catch (error) {
+          logger.error(`Failed to parse or validate JSON string: ${stringify}`, error as Error)
+          const mainWindow = windowService.getMainWindow()
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send(IpcChannel.Mcp_AddServer, null)
+          }
+          return
+        }
         logger.debug(`install MCP servers from urlschema: ${JSON.stringify(jsonConfig)}`)
 
         // support both {mcpServers: [servers]}, [servers] and {server}
-        if (jsonConfig.mcpServers) {
+        if ('mcpServers' in jsonConfig) {
           installMCPServers(jsonConfig.mcpServers)
         } else if (Array.isArray(jsonConfig)) {
           for (const server of jsonConfig) {

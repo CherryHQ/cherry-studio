@@ -4,16 +4,31 @@ import store, { RootState, useAppDispatch, useAppSelector } from '@renderer/stor
 import { addMCPServer, deleteMCPServer, setMCPServers, updateMCPServer } from '@renderer/store/mcp'
 import { MCPServer } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import { t } from 'i18next'
 
 // Listen for server changes from main process
 window.electron.ipcRenderer.on(IpcChannel.Mcp_ServersChanged, (_event, servers) => {
   store.dispatch(setMCPServers(servers))
 })
 
-window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer) => {
-  store.dispatch(addMCPServer(server))
-  NavigationService.navigate?.('/settings/mcp')
-  NavigationService.navigate?.(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
+window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: MCPServer | null) => {
+  if (server === null) {
+    window.message.error(t('error.mcp.add.invalid_server'))
+    return
+  }
+  // Prepare MCP data for URL parameter
+  const mcpData = {
+    id: server.id,
+    name: server.name,
+    command: server.command,
+    baseUrl: server.baseUrl,
+    type: server.type,
+    description: server.description
+  }
+
+  // Navigate to MCP settings with addMcpData parameter
+  const addMcpDataParam = encodeURIComponent(JSON.stringify(mcpData))
+  NavigationService.navigate?.(`/settings/mcp?addMcpData=${addMcpDataParam}`)
 })
 
 const selectMcpServers = (state: RootState) => state.mcp.servers
