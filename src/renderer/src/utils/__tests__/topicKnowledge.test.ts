@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CONTENT_TYPES } from '../knowledge'
 
 // Simple mocks
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/store/thunk/topicManager', () => ({
   TopicManager: {
     getTopicMessages: vi.fn()
   }
