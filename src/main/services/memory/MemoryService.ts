@@ -1,6 +1,3 @@
-import { Client, createClient } from '@libsql/client'
-import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/embeddings/Embeddings'
 import type {
   AddMemoryOptions,
   AssistantMessage,
@@ -9,7 +6,10 @@ import type {
   MemoryItem,
   MemoryListOptions,
   MemorySearchOptions
-} from '@types'
+} from '@cherry-types'
+import { Client, createClient } from '@libsql/client'
+import { loggerService } from '@logger'
+import Embeddings from '@main/knowledge/embeddings/Embeddings'
 import crypto from 'crypto'
 import { app } from 'electron'
 import path from 'path'

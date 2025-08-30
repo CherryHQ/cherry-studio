@@ -10,6 +10,7 @@ import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
+import { OpenAIVerbosity } from '@renderer/types'
 import {
   GroqServiceTiers,
   Model,
@@ -19,7 +20,6 @@ import {
   ServiceTier,
   SystemProviderIds
 } from '@renderer/types'
-import { OpenAIVerbosity } from '@types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'

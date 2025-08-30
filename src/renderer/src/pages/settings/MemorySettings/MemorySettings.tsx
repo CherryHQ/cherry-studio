@@ -14,7 +14,7 @@ import {
   setCurrentUserId,
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
-import type { MemoryItem } from '@types'
+import type { MemoryItem } from '@renderer/types'
 import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'

@@ -8,7 +8,7 @@ import {
   MemoryListOptions,
   MemorySearchOptions,
   MemorySearchResult
-} from '@types'
+} from '@renderer/types'
 
 const logger = loggerService.withContext('MemoryService')
 

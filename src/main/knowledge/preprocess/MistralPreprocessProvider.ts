@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { FileMetadata, FileTypes, PreprocessProvider, Provider } from '@cherry-types'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { MistralClientManager } from '@main/services/MistralClientManager'
@@ -8,7 +9,6 @@ import { Mistral } from '@mistralai/mistralai'
 import { DocumentURLChunk } from '@mistralai/mistralai/models/components/documenturlchunk'
 import { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
 import { OCRResponse } from '@mistralai/mistralai/models/components/ocrresponse'
-import { FileMetadata, FileTypes, PreprocessProvider, Provider } from '@types'
 import path from 'path'
 
 import BasePreprocessProvider from './BasePreprocessProvider'

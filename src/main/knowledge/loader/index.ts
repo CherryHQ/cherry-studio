@@ -1,10 +1,10 @@
+import { FileMetadata, KnowledgeBaseParams } from '@cherry-types'
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import { LoaderReturn } from '@shared/config/types'
-import { FileMetadata, KnowledgeBaseParams } from '@types'
 
 import { DraftsExportLoader } from './draftsExportLoader'
 import { EpubLoader } from './epubLoader'

@@ -1,6 +1,6 @@
+import { Shortcut } from '@cherry-types'
 import { loggerService } from '@logger'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { Shortcut } from '@types'
 import { BrowserWindow, globalShortcut } from 'electron'
 
 import { configManager } from './ConfigManager'

@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
-import { isBuiltinOcrProvider, isOcrSystemProvider, OcrProvider } from '@renderer/types'
+import { isBuiltinOcrProvider, isOcrSystemProvider, OcrProvider } from '@renderer/types/ocr'
 import { Divider, Flex } from 'antd'
 import styled from 'styled-components'
 

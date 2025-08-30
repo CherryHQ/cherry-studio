@@ -1,10 +1,3 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { SpanContext } from '@opentelemetry/api'
-import { UpgradeChannel } from '@shared/config/constant'
-import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
   AssistantMessage,
@@ -17,15 +10,21 @@ import {
   MemoryConfig,
   MemoryListOptions,
   MemorySearchOptions,
-  OcrProvider,
-  OcrResult,
   Provider,
   S3Config,
   Shortcut,
-  SupportedOcrFile,
   ThemeMode,
   WebDavConfig
-} from '@types'
+} from '@cherry-types'
+import { OcrProvider, SupportedOcrFile } from '@cherry-types/ocr'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { electronAPI } from '@electron-toolkit/preload'
+import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import { OcrResult } from '@napi-rs/system-ocr'
+import { SpanContext } from '@opentelemetry/api'
+import { UpgradeChannel } from '@shared/config/constant'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import { IpcChannel } from '@shared/IpcChannel'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'

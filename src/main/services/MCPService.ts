@@ -2,6 +2,16 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
+import {
+  BuiltinMCPServerNames,
+  type GetResourceResponse,
+  isBuiltinMCPServer,
+  type MCPCallToolResponse,
+  type MCPPrompt,
+  type MCPResource,
+  type MCPServer,
+  type MCPTool
+} from '@cherry-types'
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
@@ -27,16 +37,6 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import {
-  BuiltinMCPServerNames,
-  type GetResourceResponse,
-  isBuiltinMCPServer,
-  type MCPCallToolResponse,
-  type MCPPrompt,
-  type MCPResource,
-  type MCPServer,
-  type MCPTool
-} from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'

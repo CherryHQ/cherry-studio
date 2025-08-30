@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { Middleware } from '@reduxjs/toolkit'
+import type { StoreSyncAction } from '@renderer/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { StoreSyncAction } from '@types'
 
 const logger = loggerService.withContext('StoreSyncService')
 

@@ -1,5 +1,5 @@
+import { Provider } from '@cherry-types'
 import { Mistral } from '@mistralai/mistralai'
-import { Provider } from '@types'
 
 export class MistralClientManager {
   private static instance: MistralClientManager

@@ -9,6 +9,7 @@ import {
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
+  OpenAIVerbosity,
   PaintingProvider,
   S3Config,
   SidebarIcon,
@@ -17,7 +18,6 @@ import {
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import { OpenAIVerbosity } from '@types'
 
 import { RemoteSyncState } from './backup'
 

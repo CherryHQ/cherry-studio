@@ -1,5 +1,5 @@
+import { WebDavConfig } from '@cherry-types'
 import { loggerService } from '@logger'
-import { WebDavConfig } from '@types'
 import https from 'https'
 import path from 'path'
 import Stream from 'stream'

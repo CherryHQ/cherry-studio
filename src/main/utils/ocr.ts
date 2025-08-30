@@ -1,4 +1,4 @@
-import { ImageFileMetadata } from '@types'
+import { ImageFileMetadata } from '@cherry-types'
 import { readFile } from 'fs/promises'
 import sharp from 'sharp'
 

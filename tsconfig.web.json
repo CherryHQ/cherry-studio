@@ -17,7 +17,7 @@
       "@logger": ["src/renderer/src/services/LoggerService"],
       "@renderer/*": ["src/renderer/src/*"],
       "@shared/*": ["packages/shared/*"],
-      "@types": ["src/renderer/src/types/index.ts"],
+      "@cherry-types/*": ["src/renderer/src/types/*"],
       "@mcp-trace/*": ["packages/mcp-trace/*"]
     },
     "experimentalDecorators": true,

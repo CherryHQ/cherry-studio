@@ -17,7 +17,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@main': resolve('src/main'),
-        '@types': resolve('src/renderer/src/types'),
+        '@cherry-types': resolve('src/renderer/src/types'),
         '@shared': resolve('packages/shared'),
         '@logger': resolve('src/main/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),

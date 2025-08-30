@@ -1,7 +1,7 @@
+import { FileMetadata } from '@cherry-types'
 import { loggerService } from '@logger'
 import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
-import { FileMetadata } from '@types'
 import chardet from 'chardet'
 import * as crypto from 'crypto'
 import {
