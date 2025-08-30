@@ -67,7 +67,7 @@
     "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "test:scripts": "vitest scripts",
     "format": "prettier --write .",
-    "lint": "eslint src --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
+    "lint": "eslint src --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
   },
   "dependencies": {

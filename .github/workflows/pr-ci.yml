@@ -54,5 +54,8 @@ jobs:
       - name: i18n Check
         run: yarn check:i18n
 
+      - name: Circular Dependencies Check
+        run: yarn check:circ
+
       - name: Test
         run: yarn test
