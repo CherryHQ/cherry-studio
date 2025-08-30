@@ -2,10 +2,48 @@ import electronConfigPrettier from '@electron-toolkit/eslint-config-prettier'
 import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
+import tsParser from '@typescript-eslint/parser'
 import { defineConfig } from 'eslint/config'
+import importPlugin from 'eslint-plugin-import'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
+import { dirname } from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+const importConfig = {
+  plugins: {
+    import: importPlugin
+  },
+  languageOptions: {
+    parser: tsParser,
+    parserOptions: {
+      project: ['./tsconfig.json', './tsconfig.web.json', './tsconfig.node.json'],
+      tsconfigRootDir: __dirname,
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      ecmaFeatures: {
+        jsx: true
+      }
+    }
+  },
+  settings: {
+    'import/parsers': {
+      '@typescript-eslint/parser': ['.ts', '.tsx']
+    },
+    'import/resolver': {
+      typescript: {
+        project: './tsconfig.json'
+      }
+    }
+  },
+  rules: {
+    'import/no-cycle': 'error'
+  }
+}
 
 export default defineConfig([
   eslint.configs.recommended,
@@ -13,6 +51,7 @@ export default defineConfig([
   electronConfigPrettier,
   eslintReact.configs['recommended-typescript'],
   reactHooks.configs['recommended-latest'],
+  importConfig,
   {
     plugins: {
       'simple-import-sort': simpleImportSort,
@@ -124,5 +163,17 @@ export default defineConfig([
       'scripts/cloudflare-worker.js',
       'src/main/integration/nutstore/sso/lib/**'
     ]
+  },
+  {
+    files: ['**/*.config.mjs', 'eslint.config.mjs'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        project: null,
+        ecmaVersion: 2022,
+        sourceType: 'module'
+      }
+    },
+    rules: {}
   }
 ])
