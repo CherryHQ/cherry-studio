@@ -6,6 +6,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
+import { ConversationService } from '@renderer/services/ConversationService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
@@ -262,13 +263,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         }
         newAssistant.settings.streamOutput = true
         // 显式关闭这些功能
-        // newAssistant.webSearchProviderId = undefined
+        newAssistant.webSearchProviderId = undefined
         newAssistant.mcpServers = undefined
-        // newAssistant.knowledge_bases = undefined
+        newAssistant.knowledge_bases = undefined
+        const llmMessages = await ConversationService.prepareMessagesForModel(messagesForContext, newAssistant)
 
         await fetchChatCompletion({
-          messages: messagesForContext,
+          messages: llmMessages,
           assistant: newAssistant,
+          options: {},
+          topicId,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:

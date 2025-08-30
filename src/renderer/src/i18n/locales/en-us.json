@@ -742,6 +742,7 @@
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
     "description": "Description",
+    "detail": "Detail",
     "disabled": "Disabled",
     "docs": "Docs",
     "download": "Download",
@@ -826,6 +827,8 @@
       },
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
+    "detail": "Error Details",
+    "details": "Details",
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
@@ -837,6 +840,7 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "message": "Error Message",
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
       "exists": "Model already exists",
@@ -849,6 +853,10 @@
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
     },
+    "requestBody": "Request Body",
+    "requestUrl": "Request URL",
+    "stack": "Stack Trace",
+    "status": "Status Code",
     "unknown": "Unknown error",
     "user_message_not_found": "Cannot find original user message to resend"
   },
@@ -1428,7 +1436,7 @@
     },
     "websearch": {
       "cutoff": "Truncating search content...",
-      "fetch_complete": "Completed {{count}} searches...",
+      "fetch_complete": "{{count}} search result(s)",
       "rag": "Executing RAG...",
       "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
       "rag_failed": "RAG failed, returning empty results..."

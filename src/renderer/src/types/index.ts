@@ -6,8 +6,11 @@ import * as z from 'zod/v4'
 
 export * from './file'
 
+import type { StreamTextParams } from './aiCoreTypes'
+import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
+import type { BaseTool, MCPTool } from './tool'
 
 export * from './ocr'
 
@@ -323,6 +326,15 @@ export type SystemProvider = Provider & {
   id: SystemProviderId
   isSystem: true
   apiOptions?: never
+}
+
+export type VertexProvider = Provider & {
+  googleCredentials: {
+    privateKey: string
+    clientEmail: string
+  }
+  project: string
+  location: string
 }
 
 /**
@@ -795,7 +807,8 @@ export enum WebSearchSource {
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
   ZHIPU = 'zhipu',
-  GROK = 'grok'
+  GROK = 'grok',
+  AISDK = 'ai-sdk'
 }
 
 export type WebSearchResponse = {
@@ -906,17 +919,6 @@ export const MCPToolOutputSchema = z.object({
   required: z.array(z.string())
 })
 
-export interface MCPTool {
-  id: string
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema: MCPToolInputSchema
-  outputSchema?: z.infer<typeof MCPToolOutputSchema>
-  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
-}
-
 export interface MCPPromptArguments {
   name: string
   description?: string
@@ -955,7 +957,7 @@ export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done
 
 interface BaseToolResponse {
   id: string // unique id
-  tool: MCPTool
+  tool: BaseTool | MCPTool
   arguments: Record<string, unknown> | undefined
   status: MCPToolResponseStatus
   response?: any
@@ -970,7 +972,17 @@ export interface ToolCallResponse extends BaseToolResponse {
   toolCallId?: string
 }
 
-export type MCPToolResponse = ToolUseResponse | ToolCallResponse
+// export type MCPToolResponse = ToolUseResponse | ToolCallResponse
+export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
+  tool: MCPTool
+  toolCallId?: string
+  toolUseId?: string
+}
+
+export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
+  tool: BaseTool
+  toolCallId: string
+}
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -1096,6 +1108,7 @@ export interface ApiServerConfig {
   port: number
   apiKey: string
 }
+export * from './tool'
 
 // Memory Service Types
 // ========================================================================
@@ -1243,3 +1256,30 @@ export type HexColor = string
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
+
+export type FetchChatCompletionOptions = {
+  signal?: AbortSignal
+  timeout?: number
+  headers?: Record<string, string>
+}
+
+type BaseParams = {
+  assistant: Assistant
+  options?: FetchChatCompletionOptions
+  onChunkReceived: (chunk: Chunk) => void
+  topicId?: string // 添加 topicId 参数
+}
+
+type MessagesParams = BaseParams & {
+  messages: StreamTextParams['messages']
+  prompt?: never
+}
+
+type PromptParams = BaseParams & {
+  messages?: never
+  // prompt: StreamTextParams['prompt']
+  // see https://github.com/vercel/ai/issues/8363
+  prompt: string
+}
+
+export type FetchChatCompletionParams = MessagesParams | PromptParams

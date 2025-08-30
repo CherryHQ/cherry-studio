@@ -155,7 +155,7 @@ const TranslatePage: FC = () => {
         } catch (e) {
           if (!isAbortError(e)) {
             logger.error('Failed to translate text', e as Error)
-            window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+            window.message.error(t('translate.error.failed') + ': ' + formatErrorMessage(e))
           }
           setTranslating(false)
           return
@@ -167,11 +167,11 @@ const TranslatePage: FC = () => {
           await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
         } catch (e) {
           logger.error('Failed to save translate history', e as Error)
-          window.message.error(t('translate.history.error.save') + ': ' + (e as Error).message)
+          window.message.error(t('translate.history.error.save') + ': ' + formatErrorMessage(e))
         }
       } catch (e) {
         logger.error('Failed to translate', e as Error)
-        window.message.error(t('translate.error.unknown') + ': ' + (e as Error).message)
+        window.message.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
     [dispatch, setTranslatedContent, setTranslating, t, translating]

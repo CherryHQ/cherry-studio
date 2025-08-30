@@ -1,7 +1,7 @@
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import React from 'react'
 
-import MessageTools from '../MessageTools'
+import MessageTools from '../Tools/MessageTools'
 
 interface Props {
   block: ToolMessageBlock

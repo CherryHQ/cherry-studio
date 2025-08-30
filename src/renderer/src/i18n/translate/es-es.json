@@ -1428,7 +1428,7 @@
     },
     "websearch": {
       "cutoff": "Truncando el contenido de búsqueda...",
-      "fetch_complete": "Búsqueda completada {{count}} veces...",
+      "fetch_complete": "{{count}} resultados de búsqueda",
       "rag": "Ejecutando RAG...",
       "rag_complete": "Conservando {{countAfter}} de los {{countBefore}} resultados...",
       "rag_failed": "RAG fallido, devolviendo resultados vacíos..."

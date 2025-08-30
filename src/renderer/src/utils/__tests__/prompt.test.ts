@@ -49,7 +49,8 @@ const createMockTool = (id: string, description: string, inputSchema: any = {}):
     title: `${id}-schema`,
     properties: {},
     ...inputSchema
-  }
+  },
+  type: 'mcp'
 })
 
 // Helper to create a mock Assistant

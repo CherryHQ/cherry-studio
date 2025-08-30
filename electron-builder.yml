@@ -119,11 +119,41 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    输入框快捷菜单增加清除按钮
-    侧边栏增加代码工具入口，代码工具增加环境变量设置
-    小程序增加多语言显示
-    优化 MCP 服务器列表
-    新增 Web 搜索图标
-    优化 SVG 预览，优化 HTML 内容样式
-    修复知识库文档预处理失败问题
-    稳定性改进和错误修复
+    🎉 新增功能：
+    - 新增 ErrorBoundary 组件包裹 mini 窗口内容，提升错误处理能力
+    - 新增智谱AI模型支持，扩展AI提供商生态
+    - 新增系统 OCR 功能，支持 MacOS 和 Windows 原生文字识别
+    - 新增文件页面批量删除功能，提升文件管理效率
+    - 新增超链接工具提示功能，增强用户体验
+    - 新增 iframe 截图功能，支持更多内容捕获场景
+    - 新增提示变量替换功能，增强编排服务能力
+    - 新增文本增量累积可配置支持，优化流式响应体验
+    - 新增 AbortController 管理功能，改进请求取消机制
+
+    🔧 优化改进：
+    - 重构翻译服务架构，统一使用新的API接口
+    - 重构语言检测功能，使用通用聊天接口替代专用接口
+    - 重构 provider 注册和模型解析逻辑，提升扩展性
+    - 重构 fetchChatCompletion 参数类型定义，增强类型安全
+    - 重构 provider 列表和 URL Schema 弹窗界面
+    - 增强模型推理控制逻辑，支持更多提供商和模型类型
+    - 优化 MCP 工具可见性控制，根据工具状态动态显示知识图标
+    - 改进日志记录机制，将 console.log 替换为 logger.debug
+    - 升级核心依赖包（mermaid, shiki, tanstack 等）
+
+    🐛 问题修复：
+    - 修复 API 检查时的错误处理和取消逻辑
+    - 修复翻译过程中中止控制器的错误处理
+    - 修复 useAssistant hook 导致快捷助手渲染问题
+    - 修复 MCP 标签溢出显示问题
+    - 修复缺失的模型图标显示
+    - 修复 ImageViewer 双重菜单问题，改进图标显示
+    - 修复 Qwen MT 模型翻译功能
+    - 修复 Deepin 系统不使用系统默认终端的问题
+    - 修复备份/恢复进度的国际化显示问题
+    - 修复相关依赖缺失问题
+
+    ⚡ 性能提升：
+    - 优化构建配置，排除不必要的 Tesseract.js 核心文件
+    - 提升代码类型定义复用性，减少重复代码
+    - 优化 provider 配置构建逻辑，提升初始化性能
