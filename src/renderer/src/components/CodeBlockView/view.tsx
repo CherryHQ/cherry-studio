@@ -371,7 +371,10 @@ const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boo
   &:not(:has(+ [class*='Container'])) {
     // 特殊视图的 header 会隐藏，所以全都使用圆角
     border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
-    overflow: hidden;
+    .code-viewer {
+      border-radius: 0 0 8px 8px;
+      overflow: hidden;
+    }
   }
 
   // 在 split 模式下添加中间分隔线
