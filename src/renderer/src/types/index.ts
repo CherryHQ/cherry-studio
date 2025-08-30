@@ -92,7 +92,7 @@ export type SidebarIcon =
   | 'code_tools'
   | 'notes'
 
-export interface Citation {
+export type Citation = {
   number: number
   url: string
   title?: string
@@ -105,7 +105,7 @@ export interface Citation {
 
 export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
-export interface StoreSyncAction {
+export type StoreSyncAction = {
   type: string
   payload: any
   meta?: {

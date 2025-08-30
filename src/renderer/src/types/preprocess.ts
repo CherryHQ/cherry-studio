@@ -1,4 +1,4 @@
-export interface PreprocessProvider {
+export type PreprocessProvider = {
   id: PreprocessProviderId
   name: string
   apiKey?: string

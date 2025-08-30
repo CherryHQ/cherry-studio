@@ -8,7 +8,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
-export interface Painting extends PaintingParams {
+export type Painting = PaintingParams & {
   model?: string
   prompt?: string
   negativePrompt?: string
@@ -19,7 +19,7 @@ export interface Painting extends PaintingParams {
   guidanceScale?: number
   promptEnhancement?: boolean
 }
-export interface GeneratePainting extends PaintingParams {
+export type GeneratePainting = PaintingParams & {
   model: string
   prompt: string
   aspectRatio?: string
@@ -40,7 +40,7 @@ export interface GeneratePainting extends PaintingParams {
   width?: number
   height?: number
 }
-export interface EditPainting extends PaintingParams {
+export type EditPainting = PaintingParams & {
   imageFile: string
   mask: FileMetadata
   model: string
@@ -51,7 +51,7 @@ export interface EditPainting extends PaintingParams {
   magicPromptOption?: boolean
   renderingSpeed?: string
 }
-export interface RemixPainting extends PaintingParams {
+export type RemixPainting = PaintingParams & {
   imageFile: string
   model: string
   prompt: string
@@ -64,7 +64,7 @@ export interface RemixPainting extends PaintingParams {
   magicPromptOption?: boolean
   renderingSpeed?: string
 }
-export interface ScalePainting extends PaintingParams {
+export type ScalePainting = PaintingParams & {
   imageFile: string
   prompt: string
   resemblance?: number
@@ -74,7 +74,7 @@ export interface ScalePainting extends PaintingParams {
   magicPromptOption?: boolean
   renderingSpeed?: string
 }
-export interface DmxapiPainting extends PaintingParams {
+export type DmxapiPainting = PaintingParams & {
   model?: string
   prompt?: string
   n?: number
@@ -86,7 +86,7 @@ export interface DmxapiPainting extends PaintingParams {
   generationMode?: generationModeType
   priceModel?: string
 }
-export interface TokenFluxPainting extends PaintingParams {
+export type TokenFluxPainting = PaintingParams & {
   generationId?: string
   model?: string
   prompt?: string
@@ -97,7 +97,7 @@ export type PaintingAction = Partial<
   GeneratePainting & RemixPainting & EditPainting & ScalePainting & DmxapiPainting & TokenFluxPainting
 > &
   PaintingParams
-export interface PaintingsState {
+export type PaintingsState = {
   // SiliconFlow
   siliconflow_paintings: Painting[]
   // DMXAPI

@@ -1,7 +1,7 @@
 import type { File } from '@google/genai'
 import type { FileSchema } from '@mistralai/mistralai/models/components'
 
-export interface RemoteFile {
+export type RemoteFile = {
   type: 'gemini' | 'mistral'
   file: File | FileSchema
 }
@@ -26,14 +26,14 @@ export const isMistralFile = (file: RemoteFile): file is RemoteFile & { type: 'm
 
 export type FileStatus = 'success' | 'processing' | 'failed' | 'unknown'
 
-export interface FileUploadResponse {
+export type FileUploadResponse = {
   fileId: string
   displayName: string
   status: FileStatus
   originalFile?: RemoteFile
 }
 
-export interface FileListResponse {
+export type FileListResponse = {
   files: Array<{
     id: string
     displayName: string
@@ -44,10 +44,9 @@ export interface FileListResponse {
 }
 
 /**
- * @interface
  * @description 文件元数据接口
  */
-export interface FileMetadata {
+export type FileMetadata = {
   /**
    * 文件的唯一标识符
    */
@@ -90,7 +89,7 @@ export interface FileMetadata {
   tokens?: number
 }
 
-export interface FileType extends FileMetadata {}
+export type FileType = FileMetadata
 
 export enum FileTypes {
   IMAGE = 'image',

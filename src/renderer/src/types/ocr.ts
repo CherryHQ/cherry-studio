@@ -34,7 +34,7 @@ export type OcrProviderCapabilityRecord = Partial<Record<OcrProviderCapability, 
 // while a model belonging to that provider may be limited to processing only one specific file type.
 export type OcrModelCapabilityRecord = OcrProviderCapabilityRecord
 
-export interface OcrModel {
+export type OcrModel = {
   id: string
   name: string
   providerId: string

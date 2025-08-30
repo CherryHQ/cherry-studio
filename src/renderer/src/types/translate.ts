@@ -8,7 +8,7 @@ export type TranslateLanguage = {
   label: () => string
   emoji: string
 }
-export interface TranslateHistory {
+export type TranslateHistory = {
   id: string
   sourceText: string
   targetText: string

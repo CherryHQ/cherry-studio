@@ -23,7 +23,7 @@ export type KnowledgeItem = {
 
 export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
 
-export interface KnowledgeBase {
+export type KnowledgeBase = {
   id: string
   name: string
   model: Model

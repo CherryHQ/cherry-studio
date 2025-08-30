@@ -7,7 +7,7 @@ export type ApiClient = {
   apiVersion?: string
   baseURL: string
 }
-export interface ApiServerConfig {
+export type ApiServerConfig = {
   enabled: boolean
   host: string
   port: number

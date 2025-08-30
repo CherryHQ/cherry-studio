@@ -1,7 +1,7 @@
 import type { ApiClient } from './api'
 import type { Model } from './model'
 
-export interface MemoryConfig {
+export type MemoryConfig = {
   /**
    * @deprecated use embedderApiClient instead
    */
@@ -18,7 +18,7 @@ export interface MemoryConfig {
   /** Indicates whether embedding dimensions are automatically detected */
   isAutoDimensions?: boolean
 }
-export interface MemoryItem {
+export type MemoryItem = {
   id: string
   memory: string
   hash?: string
@@ -27,31 +27,31 @@ export interface MemoryItem {
   score?: number
   metadata?: Record<string, any>
 }
-export interface MemorySearchResult {
+export type MemorySearchResult = {
   results: MemoryItem[]
   relations?: any[]
 }
-export interface MemoryEntity {
+export type MemoryEntity = {
   userId?: string
   agentId?: string
   runId?: string
 }
-export interface MemorySearchFilters {
+export type MemorySearchFilters = {
   userId?: string
   agentId?: string
   runId?: string
   [key: string]: any
 }
-export interface AddMemoryOptions extends MemoryEntity {
+export type AddMemoryOptions = MemoryEntity & {
   metadata?: Record<string, any>
   filters?: MemorySearchFilters
   infer?: boolean
 }
-export interface MemorySearchOptions extends MemoryEntity {
+export type MemorySearchOptions = MemoryEntity & {
   limit?: number
   filters?: MemorySearchFilters
 }
-export interface MemoryHistoryItem {
+export type MemoryHistoryItem = {
   id: number
   memoryId: string
   previousValue?: string
@@ -61,8 +61,8 @@ export interface MemoryHistoryItem {
   updatedAt: string
   isDeleted: boolean
 }
-export interface MemoryListOptions extends MemoryEntity {
+export type MemoryListOptions = MemoryEntity & {
   limit?: number
   offset?: number
 }
-export interface MemoryDeleteAllOptions extends MemoryEntity {}
+export type MemoryDeleteAllOptions = MemoryEntity

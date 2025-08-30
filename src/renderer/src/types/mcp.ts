@@ -4,7 +4,7 @@ import type { KnowledgeReference } from './knowledge'
 import type { MemoryItem } from './memory'
 import type { WebSearchResponse } from './websearch'
 
-export interface MCPTool {
+export type MCPTool = {
   id: string
   serverId: string
   serverName: string
@@ -14,12 +14,12 @@ export interface MCPTool {
   outputSchema?: z.infer<typeof MCPToolOutputSchema>
   isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
 }
-export interface MCPPromptArguments {
+export type MCPPromptArguments = {
   name: string
   description?: string
   required?: boolean
 }
-export interface MCPPrompt {
+export type MCPPrompt = {
   id: string
   name: string
   description?: string
@@ -27,7 +27,7 @@ export interface MCPPrompt {
   serverId: string
   serverName: string
 }
-export interface GetMCPPromptResponse {
+export type GetMCPPromptResponse = {
   description?: string
   messages: {
     role: string
@@ -39,7 +39,7 @@ export interface GetMCPPromptResponse {
     }
   }[]
 }
-export interface MCPConfig {
+export type MCPConfig = {
   servers: MCPServer[]
   isUvInstalled: boolean
   isBunInstalled: boolean
@@ -51,7 +51,7 @@ export const MCPToolOutputSchema = z.object({
   required: z.array(z.string())
 })
 export type MCPToolResponse = ToolUseResponse | ToolCallResponse
-export interface MCPToolResultContent {
+export type MCPToolResultContent = {
   type: 'text' | 'image' | 'audio' | 'resource'
   text?: string
   data?: string
@@ -63,11 +63,11 @@ export interface MCPToolResultContent {
     blob?: string
   }
 }
-export interface MCPCallToolResponse {
+export type MCPCallToolResponse = {
   content: MCPToolResultContent[]
   isError?: boolean
 }
-export interface MCPResource {
+export type MCPResource = {
   serverId: string
   serverName: string
   uri: string
@@ -78,24 +78,24 @@ export interface MCPResource {
   text?: string
   blob?: string
 }
-export interface GetResourceResponse {
+export type GetResourceResponse = {
   contents: MCPResource[]
 }
-export interface BaseToolResponse {
+export type BaseToolResponse = {
   id: string // unique id
   tool: MCPTool
   arguments: Record<string, unknown> | undefined
   status: MCPToolResponseStatus
   response?: any
 }
-export interface ToolUseResponse extends BaseToolResponse {
+export type ToolUseResponse = BaseToolResponse & {
   toolUseId: string
 }
-export interface ToolCallResponse extends BaseToolResponse {
+export type ToolCallResponse = BaseToolResponse & {
   // gemini tool call id might be undefined
   toolCallId?: string
 }
-export interface MCPServer {
+export type MCPServer = {
   id: string
   name: string
   type?: 'stdio' | 'sse' | 'inMemory' | 'streamableHttp'
@@ -139,7 +139,7 @@ export const BuiltinMCPServerNames = {
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python'
 } as const
-export interface MCPConfigSample {
+export type MCPConfigSample = {
   command: string
   args: string[]
   env?: Record<string, string> | undefined
@@ -148,7 +148,7 @@ export type MCPArgType = 'string' | 'list' | 'number'
 export type MCPEnvType = 'string' | 'number'
 export type MCPArgParameter = { [key: string]: MCPArgType }
 export type MCPEnvParameter = { [key: string]: MCPEnvType }
-export interface MCPServerParameter {
+export type MCPServerParameter = {
   name: string
   type: MCPArgType | MCPEnvType
   description: string
@@ -158,7 +158,7 @@ export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
 export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
   return BuiltinMCPServerNamesArray.some((n) => n === name)
 }
-export interface MCPToolInputSchema {
+export type MCPToolInputSchema = {
   type: string
   title: string
   description?: string

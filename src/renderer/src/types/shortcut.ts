@@ -1,4 +1,4 @@
-export interface Shortcut {
+export type Shortcut = {
   key: string
   shortcut: string[]
   editable: boolean

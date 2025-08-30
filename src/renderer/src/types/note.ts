@@ -7,10 +7,9 @@ export type NotesSortType =
   | 'sort_created_asc' // 创建时间（从旧到新）
 
 /**
- * @interface
- * @description 笔记树节点接口
+ * @description 笔记树节点
  */
-export interface NotesTreeNode {
+export type NotesTreeNode = {
   id: string
   name: string // 不包含扩展名
   type: 'folder' | 'file'

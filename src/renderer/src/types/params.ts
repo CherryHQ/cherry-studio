@@ -6,7 +6,7 @@ import type { MCPServer } from './mcp'
 import type { Model } from './model'
 import type { Topic } from './topic'
 
-export interface MessageInputBaseParams {
+export type MessageInputBaseParams = {
   assistant: Assistant
   topic: Topic
   content?: string

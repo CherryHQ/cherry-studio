@@ -33,7 +33,7 @@ export enum MessageBlockStatus {
 }
 
 // BaseMessageBlock 基础类型 - 更简洁，只包含必要通用属性
-export interface BaseMessageBlock {
+export type BaseMessageBlock = {
   id: string // 块ID
   messageId: string // 所属消息ID
   type: MessageBlockType // 块类型
@@ -45,12 +45,12 @@ export interface BaseMessageBlock {
   error?: Record<string, any> // Added optional error field to base
 }
 
-export interface PlaceholderMessageBlock extends BaseMessageBlock {
+export type PlaceholderMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.UNKNOWN
 }
 
 // 主文本块 - 核心内容
-export interface MainTextMessageBlock extends BaseMessageBlock {
+export type MainTextMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.MAIN_TEXT
   content: string
   knowledgeBaseIds?: string[]
@@ -62,14 +62,14 @@ export interface MainTextMessageBlock extends BaseMessageBlock {
 }
 
 // 思考块 - 模型推理过程
-export interface ThinkingMessageBlock extends BaseMessageBlock {
+export type ThinkingMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.THINKING
   content: string
   thinking_millsec?: number
 }
 
 // 翻译块
-export interface TranslationMessageBlock extends BaseMessageBlock {
+export type TranslationMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.TRANSLATION
   content: string
   sourceBlockId?: string // Optional: ID of the block that was translated
@@ -78,13 +78,13 @@ export interface TranslationMessageBlock extends BaseMessageBlock {
 }
 
 // 代码块 - 专门处理代码
-export interface CodeMessageBlock extends BaseMessageBlock {
+export type CodeMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.CODE
   content: string
   language: string // 代码语言
 }
 
-export interface ImageMessageBlock extends BaseMessageBlock {
+export type ImageMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.IMAGE
   url?: string // For generated images or direct links
   file?: FileMetadata // For user uploaded image files
@@ -96,7 +96,7 @@ export interface ImageMessageBlock extends BaseMessageBlock {
 }
 
 // Added unified ToolBlock
-export interface ToolMessageBlock extends BaseMessageBlock {
+export type ToolMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.TOOL
   toolId: string
   toolName?: string
@@ -108,7 +108,7 @@ export interface ToolMessageBlock extends BaseMessageBlock {
 }
 
 // Consolidated and Enhanced Citation Block
-export interface CitationMessageBlock extends BaseMessageBlock {
+export type CitationMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.CITATION
   response?: WebSearchResponse
   knowledge?: KnowledgeReference[]
@@ -116,12 +116,12 @@ export interface CitationMessageBlock extends BaseMessageBlock {
 }
 
 // 文件块
-export interface FileMessageBlock extends BaseMessageBlock {
+export type FileMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.FILE
   file: FileMetadata // 文件信息
 }
 // 错误块
-export interface ErrorMessageBlock extends BaseMessageBlock {
+export type ErrorMessageBlock = BaseMessageBlock & {
   type: MessageBlockType.ERROR
 }
 
@@ -186,7 +186,7 @@ export type Message = {
   traceId?: string
 }
 
-export interface Response {
+export type Response = {
   text?: string
   reasoning_content?: string
   usage?: Usage

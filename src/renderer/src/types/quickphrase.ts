@@ -1,4 +1,4 @@
-export interface QuickPhrase {
+export type QuickPhrase = {
   id: string
   title: string
   content: string
