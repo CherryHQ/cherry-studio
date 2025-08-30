@@ -53,8 +53,11 @@ const FilesPage: FC = () => {
     const selectedFiles = await Promise.all(selectedFileIds.map((id) => FileManager.getFile(id)))
     const validFiles = selectedFiles.filter((file) => file !== null && file !== undefined)
 
-    const paintings = store.getState().paintings.paintings
-    const paintingsFiles = paintings.flatMap((p) => p.files)
+    const paintings = store.getState().paintings
+    const paintingsFiles = Object.values(paintings)
+      .flat()
+      .filter((painting) => painting?.files?.length > 0)
+      .flatMap((painting) => painting.files)
 
     const filesInPaintings = validFiles.filter((file) => paintingsFiles.some((p) => p.id === file.id))
 

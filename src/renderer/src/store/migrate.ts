@@ -1568,8 +1568,8 @@ const migrateConfig = {
   },
   '107': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.DMXAPIPaintings) {
-        state.paintings.DMXAPIPaintings = []
+      if (state.paintings && !state.paintings.dmxapi_paintings) {
+        state.paintings.dmxapi_paintings = []
       }
       return state
     } catch (error) {
@@ -1598,8 +1598,8 @@ const migrateConfig = {
   },
   '110': (state: RootState) => {
     try {
-      if (state.paintings && !state.paintings.tokenFluxPaintings) {
-        state.paintings.tokenFluxPaintings = []
+      if (state.paintings && !state.paintings.tokenflux_paintings) {
+        state.paintings.tokenflux_paintings = []
       }
       state.settings.showTokens = true
       state.settings.testPlan = false

@@ -2,7 +2,7 @@ import { Provider } from '@renderer/types'
 import { isOpenAIProvider } from '@renderer/utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AihubmixAPIClient } from '../AihubmixAPIClient'
+import { AihubmixAPIClient } from '../aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from '../anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '../ApiClientFactory'
 import { AwsBedrockAPIClient } from '../aws/AwsBedrockAPIClient'
@@ -26,7 +26,7 @@ const createTestProvider = (id: string, type: string): Provider => ({
 })
 
 // Mock 所有客户端模块
-vi.mock('../AihubmixAPIClient', () => ({
+vi.mock('../aihubmix/AihubmixAPIClient', () => ({
   AihubmixAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
 vi.mock('../anthropic/AnthropicAPIClient', () => ({
@@ -41,7 +41,7 @@ vi.mock('../gemini/GeminiAPIClient', () => ({
 vi.mock('../gemini/VertexAPIClient', () => ({
   VertexAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
-vi.mock('../NewAPIClient', () => ({
+vi.mock('../newapi/NewAPIClient', () => ({
   NewAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
 vi.mock('../openai/OpenAIApiClient', () => ({

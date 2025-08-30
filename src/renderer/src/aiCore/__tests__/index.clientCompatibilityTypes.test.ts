@@ -1,4 +1,4 @@
-import { AihubmixAPIClient } from '@renderer/aiCore/clients/AihubmixAPIClient'
+import { AihubmixAPIClient } from '@renderer/aiCore/clients/aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
