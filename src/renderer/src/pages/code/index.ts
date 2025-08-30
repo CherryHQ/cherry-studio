@@ -131,5 +131,3 @@ export const generateToolEnvironment = ({
 
   return env
 }
-
-export { default } from './CodeToolsPage'
