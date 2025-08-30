@@ -463,6 +463,7 @@ const GroupItem = styled.div`
   align-items: center;
   gap: 8px;
   position: relative;
+  line-height: 1;
   font-size: 12px;
   font-weight: normal;
   height: ${ITEM_HEIGHT}px;
