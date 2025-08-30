@@ -100,6 +100,7 @@ const ProviderList: FC = () => {
       } else {
         setSelectedProvider(providers[0])
       }
+      searchParams.delete('id')
     }
   }, [providers, searchParams, setSelectedProvider, setTimeoutTimer])
 
