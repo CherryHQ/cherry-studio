@@ -25,7 +25,7 @@ import styled from 'styled-components'
 
 import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
-import { ToolbarButton } from '../Inputbar/Inputbar'
+import { ToolbarButton } from '../Inputbar/shared'
 
 interface Props {
   message: Message

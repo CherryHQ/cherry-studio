@@ -36,8 +36,16 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
-import type { MessageInputBaseParams } from '@renderer/types/newMessage'
+import {
+  Assistant,
+  FileType,
+  FileTypes,
+  KnowledgeBase,
+  KnowledgeItem,
+  MessageInputBaseParams,
+  Model,
+  Topic
+} from '@renderer/types'
 import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import {

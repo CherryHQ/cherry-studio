@@ -21,7 +21,6 @@
       "@logger": ["src/main/services/LoggerService"],
       "@main/*": ["src/main/*"],
       "@cherry-types": ["src/renderer/src/types/index.ts"],
-      "@cherry-types/*": ["src/renderer/src/types/*"],
       "@shared/*": ["packages/shared/*"],
       "@mcp-trace/*": ["packages/mcp-trace/*"]
     },

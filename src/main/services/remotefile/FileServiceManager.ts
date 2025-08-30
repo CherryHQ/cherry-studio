@@ -1,4 +1,4 @@
-import { Provider } from '@cherry-types/provider'
+import { Provider } from '@cherry-types'
 
 import { BaseFileService } from './BaseFileService'
 import { GeminiService } from './GeminiService'

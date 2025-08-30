@@ -1,5 +1,4 @@
-import { FileMetadata } from '@cherry-types'
-import { KnowledgeBaseParams } from '@cherry-types/knowledge'
+import { FileMetadata, KnowledgeBaseParams } from '@cherry-types'
 import { JsonLoader, LocalPathLoader, RAGApplication, TextLoader } from '@cherrystudio/embedjs'
 import type { AddLoaderReturn } from '@cherrystudio/embedjs-interfaces'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'

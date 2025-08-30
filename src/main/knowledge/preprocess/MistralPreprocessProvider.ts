@@ -1,8 +1,6 @@
 import fs from 'node:fs'
 
-import { FileMetadata, FileTypes } from '@cherry-types'
-import { PreprocessProvider } from '@cherry-types/preprocess'
-import { Provider } from '@cherry-types/provider'
+import { FileMetadata, FileTypes, PreprocessProvider, Provider } from '@cherry-types'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { MistralClientManager } from '@main/services/MistralClientManager'

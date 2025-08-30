@@ -1,17 +1,27 @@
 import type { CSSProperties } from 'react'
 
+export * from './api'
 export * from './assistant'
+export * from './common'
 export * from './file'
 export * from './knowledge'
 export * from './mcp'
 export * from './memory'
 export * from './message'
 export * from './model'
+export * from './newMessage'
 export * from './ocr'
 export * from './painting'
+export * from './params'
+export * from './preprocess'
 export * from './provider'
+export * from './quickphrase'
+export * from './reasoning'
+export * from './selectionTypes'
+export * from './shortcut'
 export * from './topic'
 export * from './translate'
+export * from './websearch'
 
 export type User = {
   id: string

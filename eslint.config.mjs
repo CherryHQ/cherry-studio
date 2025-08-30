@@ -41,7 +41,8 @@ const importConfig = {
     }
   },
   rules: {
-    'import/no-cycle': 'error'
+    'import/no-cycle': 'error',
+    'import/no-duplicates': 'error'
   }
 }
 

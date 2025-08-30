@@ -1,4 +1,4 @@
-import { KnowledgeBaseParams } from '@cherry-types/knowledge'
+import { KnowledgeBaseParams } from '@cherry-types'
 import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { net } from 'electron'
 

@@ -1,4 +1,4 @@
-import { ProcessingStatus } from '@cherry-types/common'
+import { ProcessingStatus } from '@cherry-types'
 
 export type LoaderReturn = {
   entriesAdded: number

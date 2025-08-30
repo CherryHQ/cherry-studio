@@ -1,4 +1,4 @@
-import { ToolbarButton } from '@renderer/pages/home/Inputbar/Inputbar'
+import { ToolbarButton } from '@renderer/pages/home/Inputbar/shared'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'

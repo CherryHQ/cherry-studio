@@ -1,8 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { FileMetadata } from '@cherry-types'
-import { PreprocessProvider } from '@cherry-types/preprocess'
+import { FileMetadata, PreprocessProvider } from '@cherry-types'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import AdmZip from 'adm-zip'

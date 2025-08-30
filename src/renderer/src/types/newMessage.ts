@@ -1,17 +1,12 @@
 import type { PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
-import type { CompletionUsage } from 'openai/resources'
 
-import type { Assistant } from './assistant'
 import { FileMetadata } from './file'
 import type { KnowledgeReference } from './knowledge'
-import type { MCPServer } from './mcp'
-import type { MCPToolResponse } from './mcp'
+import type { MCPServer, MCPToolResponse } from './mcp'
 import type { MemoryItem } from './memory'
 import type { Model } from './model'
-import type { Topic } from './topic'
-import type { WebSearchResponse } from './websearch'
-import type { WebSearchSource } from './websearch'
+import type { WebSearchResponse, WebSearchSource } from './websearch'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -204,19 +199,6 @@ export interface Response {
 
 export type ResponseError = Record<string, any>
 
-export interface MessageInputBaseParams {
-  assistant: Assistant
-  topic: Topic
-  content?: string
-  files?: FileMetadata[]
-  knowledgeBaseIds?: string[]
-  mentions?: Model[]
-  /**
-   * @deprecated
-   */
-  enabledMCPs?: MCPServer[]
-  usage?: CompletionUsage
-}
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
   // OpenRouter specific fields

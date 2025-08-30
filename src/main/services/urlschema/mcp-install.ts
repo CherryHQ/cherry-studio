@@ -1,4 +1,4 @@
-import { MCPServer } from '@cherry-types/mcp'
+import { MCPServer } from '@cherry-types'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { IpcChannel } from '@shared/IpcChannel'

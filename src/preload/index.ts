@@ -1,15 +1,24 @@
-import { FileListResponse, FileMetadata, FileUploadResponse, S3Config, ThemeMode, WebDavConfig } from '@cherry-types'
-import { AddMemoryOptions } from '@cherry-types'
-import { AssistantMessage } from '@cherry-types/assistant'
-import { KnowledgeBaseParams } from '@cherry-types/knowledge'
-import { KnowledgeItem } from '@cherry-types/knowledge'
-import { MCPServer } from '@cherry-types/mcp'
-import { MemoryListOptions } from '@cherry-types/memory'
-import { MemorySearchOptions } from '@cherry-types/memory'
-import { MemoryConfig } from '@cherry-types/memory'
-import { OcrProvider, SupportedOcrFile } from '@cherry-types/ocr'
-import { Provider } from '@cherry-types/provider'
-import { Shortcut } from '@cherry-types/shortcut'
+import {
+  ActionItem,
+  AddMemoryOptions,
+  AssistantMessage,
+  FileListResponse,
+  FileMetadata,
+  FileUploadResponse,
+  KnowledgeBaseParams,
+  KnowledgeItem,
+  MCPServer,
+  MemoryConfig,
+  MemoryListOptions,
+  MemorySearchOptions,
+  OcrProvider,
+  Provider,
+  S3Config,
+  Shortcut,
+  SupportedOcrFile,
+  ThemeMode,
+  WebDavConfig
+} from '@cherry-types'
 import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -21,8 +30,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
-
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {

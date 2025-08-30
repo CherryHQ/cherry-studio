@@ -2,14 +2,15 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
-import { BuiltinMCPServerNames } from '@cherry-types/mcp'
-import { isBuiltinMCPServer } from '@cherry-types/mcp'
-import { type MCPServer } from '@cherry-types/mcp'
-import { type GetResourceResponse } from '@cherry-types/mcp'
-import { type MCPResource } from '@cherry-types/mcp'
-import { type MCPCallToolResponse } from '@cherry-types/mcp'
-import { type MCPPrompt } from '@cherry-types/mcp'
-import { type MCPTool } from '@cherry-types/mcp'
+import { BuiltinMCPServerNames, isBuiltinMCPServer } from '@cherry-types'
+import {
+  type GetResourceResponse,
+  type MCPCallToolResponse,
+  type MCPPrompt,
+  type MCPResource,
+  type MCPServer,
+  type MCPTool
+} from '@cherry-types'
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
