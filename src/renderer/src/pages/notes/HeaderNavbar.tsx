@@ -3,7 +3,6 @@ import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/ap
 import { HStack } from '@renderer/components/Layout'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useShowWorkspace } from '@renderer/hooks/useStore'
 import { findNodeInTree } from '@renderer/services/NotesTreeService'
 import { Breadcrumb, BreadcrumbProps, Dropdown, Tooltip } from 'antd'
@@ -17,7 +16,6 @@ import { menuItems } from './MenuConfig'
 const logger = loggerService.withContext('HeaderNavbar')
 
 const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
-  const { isTopNavbar } = useNavbarPosition()
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree)
   const [breadcrumbItems, setBreadcrumbItems] = useState<Required<BreadcrumbProps>['items']>([])
@@ -113,14 +111,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
   return (
     <NavbarHeader className="home-navbar" style={{ justifyContent: 'flex-start' }}>
       <HStack alignItems="center" flex="0 0 auto">
-        {isTopNavbar && showWorkspace && (
+        {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-        {isTopNavbar && !showWorkspace && (
+        {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
