@@ -870,6 +870,9 @@
     "all": "所有檔案",
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
+    "click": {
+      "error": "[to be translated]:打开文件失败"
+    },
     "count": "個檔案",
     "created_at": "建立時間",
     "delete": {

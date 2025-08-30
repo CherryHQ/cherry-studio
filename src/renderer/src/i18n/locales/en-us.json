@@ -870,6 +870,9 @@
     "all": "All Files",
     "batch_delete": "Batch delete",
     "batch_operation": "Select All",
+    "click": {
+      "error": "Failed to open file"
+    },
     "count": "files",
     "created_at": "Created At",
     "delete": {

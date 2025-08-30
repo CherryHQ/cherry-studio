@@ -870,6 +870,9 @@
     "all": "Все файлы",
     "batch_delete": "массовое удаление",
     "batch_operation": "Выделить всё",
+    "click": {
+      "error": "[to be translated]:打开文件失败"
+    },
     "count": "файлов",
     "created_at": "Дата создания",
     "delete": {

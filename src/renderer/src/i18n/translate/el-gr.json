@@ -870,6 +870,9 @@
     "all": "Όλα τα αρχεία",
     "batch_delete": "μαζική διαγραφή",
     "batch_operation": "Επιλογή όλων",
+    "click": {
+      "error": "[to be translated]:打开文件失败"
+    },
     "count": "Αριθμός αρχείων",
     "created_at": "Ημερομηνία δημιουργίας",
     "delete": {

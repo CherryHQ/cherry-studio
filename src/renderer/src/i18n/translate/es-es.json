@@ -870,6 +870,9 @@
     "all": "Todos los archivos",
     "batch_delete": "Eliminación masiva",
     "batch_operation": "Seleccionar todo",
+    "click": {
+      "error": "[to be translated]:打开文件失败"
+    },
     "count": "Número de archivos",
     "created_at": "Fecha de creación",
     "delete": {
