@@ -11,15 +11,15 @@ import type {
 } from '@renderer/types/sdk'
 
 import type { BaseApiClient } from '../clients'
-import type {
-  BaseContext,
-  CompletionsContext,
-  CompletionsMiddleware,
-  CompletionsParams,
-  CompletionsResult,
-  MethodMiddleware,
+import {
+  type BaseContext,
+  type CompletionsContext,
+  type CompletionsMiddleware,
+  type CompletionsParams,
+  type CompletionsResult,
+  type MethodMiddleware,
   MIDDLEWARE_CONTEXT_SYMBOL,
-  MiddlewareAPI
+  type MiddlewareAPI
 } from './types'
 
 /**

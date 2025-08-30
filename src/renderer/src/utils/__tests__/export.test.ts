@@ -455,7 +455,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
@@ -555,7 +555,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
 
@@ -590,7 +590,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithEmpty])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
@@ -611,7 +611,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithSpecial])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
@@ -637,7 +637,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
@@ -658,7 +658,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return empty array
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
@@ -677,7 +677,7 @@ describe('export', () => {
         updatedAt: ''
       }
       // Mock TopicManager.getTopicMessages to return empty array for null case
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
 
       const result = await topicToPlainText(testTopic)

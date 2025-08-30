@@ -11,16 +11,8 @@ import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import type { RootState } from '@renderer/store'
 import { useAppDispatch } from '@renderer/store'
 import { setOpenAISummaryText, setOpenAIVerbosity } from '@renderer/store/settings'
-import type {
-  GroqServiceTiers,
-  Model,
-  OpenAIServiceTier,
-  OpenAIServiceTiers,
-  OpenAISummaryText,
-  OpenAIVerbosity,
-  ServiceTier,
-  SystemProviderIds
-} from '@renderer/types'
+import type { Model, OpenAIServiceTier, OpenAISummaryText, OpenAIVerbosity, ServiceTier } from '@renderer/types'
+import { GroqServiceTiers, OpenAIServiceTiers, SystemProviderIds } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'

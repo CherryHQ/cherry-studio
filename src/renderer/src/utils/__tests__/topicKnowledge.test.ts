@@ -66,7 +66,7 @@ describe('Topic Knowledge Functions', () => {
     })
 
     it('should handle TopicManager mock correctly', async () => {
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
+      const { TopicManager } = await import('@renderer/store/thunk/topicManager')
       expect(TopicManager).toHaveProperty('getTopicMessages')
       expect(typeof TopicManager.getTopicMessages).toBe('function')
     })

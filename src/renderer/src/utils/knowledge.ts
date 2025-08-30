@@ -1,5 +1,5 @@
-import { TopicManager } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
+import { TopicManager } from '@renderer/store/thunk/topicManager'
 import type { FileType, Topic } from '@renderer/types'
 import type {
   CitationMessageBlock,

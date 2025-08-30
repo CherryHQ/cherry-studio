@@ -19,14 +19,8 @@ import { saveTranslateHistory, translateText } from '@renderer/services/Translat
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
-import type {
-  type AutoDetectionMethod,
-  FileMetadata,
-  isSupportedOcrFile,
-  type Model,
-  type TranslateHistory,
-  type TranslateLanguage
-} from '@renderer/types'
+import type { AutoDetectionMethod, FileMetadata, Model, TranslateHistory, TranslateLanguage } from '@renderer/types'
+import { isSupportedOcrFile } from '@renderer/types'
 import { getFileExtension, isTextFile, runAsyncFunction, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'

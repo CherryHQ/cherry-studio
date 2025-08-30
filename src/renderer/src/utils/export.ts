@@ -125,7 +125,7 @@ const sanitizeReasoningContent = (content: string): string => {
  * @returns 话题消息列表
  */
 async function fetchTopicMessages(topicId: string): Promise<Message[]> {
-  const { TopicManager } = await import('@renderer/hooks/useTopic')
+  const { TopicManager } = await import('@renderer/store/thunk/topicManager')
   return await TopicManager.getTopicMessages(topicId)
 }
 
