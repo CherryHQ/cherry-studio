@@ -25,12 +25,11 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
+import { TopicManager } from '@renderer/store/thunk/topicManager'
 import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { TopicManager } from './useTopic'
 
 export function useAssistants() {
   const { t } = useTranslation()
