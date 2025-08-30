@@ -1,4 +1,5 @@
-import { Context, ContextManager, ROOT_CONTEXT } from '@opentelemetry/api'
+import type { Context, ContextManager } from '@opentelemetry/api'
+import { ROOT_CONTEXT } from '@opentelemetry/api'
 
 export class TopicContextManager implements ContextManager {
   private topicContextStack: Map<string, Context[]>

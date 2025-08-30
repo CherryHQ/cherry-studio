@@ -43,7 +43,8 @@ const importConfig = {
   rules: {
     'import/no-cycle': 'error',
     'import/no-duplicates': 'error'
-  }
+  },
+  ignores: ['scripts/**/*.js']
 }
 
 export default defineConfig([
@@ -163,6 +164,7 @@ export default defineConfig([
       'node_modules/**',
       'build/**',
       'dist/**',
+      'packages/**/dist',
       'out/**',
       'local/**',
       '.yarn/**',
@@ -173,7 +175,7 @@ export default defineConfig([
     ]
   },
   {
-    files: ['**/*.config.mjs', 'eslint.config.mjs'],
+    files: ['**/*.config.mjs', 'eslint.config.mjs', 'playwright.config.ts', 'vitest.config.ts', 'resources/**'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

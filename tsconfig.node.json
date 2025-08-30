@@ -7,7 +7,9 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*",
-    "scripts",
+    "resources",
+    "tests",
+    "scripts/**/*.ts",
     "packages/mcp-trace/**/*",
     "src/renderer/src/services/traceApi.ts"  ],
   "compilerOptions": {
