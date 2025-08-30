@@ -317,18 +317,12 @@ export const markdownToPlainText = (markdown: string): string => {
  * 清理 Markdown 中的 base64 图片链接
  *
  * 将 Markdown 中的 base64 格式图片链接替换为普通链接格式。
- * 例如:
- * - 输入: ![image](data:image/png;base64,iVBORw0...)
- * - 输出: [image](image_url)
  *
  * @param {string} markdown - 包含图片链接的 Markdown 文本
  * @returns {string} 处理后的 Markdown 文本，所有 base64 图片链接都被替换为普通链接
- *
  * @example
- * ```ts
- * const md = '![test](data:image/png;base64,iVBORw0...)'
- * purifyMarkdownImages(md) // 返回 '[test](image_url)'
- * ```
+ * - 输入: `![image](data:image/png;base64,iVBORw0...)`
+ * - 输出: `![image](image_url)`
  */
 export const purifyMarkdownImages = (markdown: string): string => {
   return markdown.replace(
