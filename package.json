@@ -63,7 +63,7 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:e2e": "yarn playwright test",
-    "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "test:lint": "eslint src --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "test:scripts": "vitest scripts",
     "format": "prettier --write .",
     "lint": "eslint src --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
