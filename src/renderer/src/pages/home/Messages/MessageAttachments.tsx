@@ -1,9 +1,10 @@
-import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
+import { handleClick } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import { FileTypes } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { Upload } from 'antd'
 import { FC } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
@@ -22,6 +23,7 @@ const StyledUpload = styled(Upload)`
 `
 
 const MessageAttachments: FC<Props> = ({ block }) => {
+  const { t } = useTranslation()
   if (!block.file) {
     return null
   }
@@ -41,20 +43,14 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           }
         ]}
         onPreview={(file) => {
-          if (file.url === undefined) {
+          if (file.url === undefined || file.type === undefined) {
             return
           }
           let path = file.url
           if (path.startsWith('file://')) {
             path = path.replace('file://', '')
           }
-          if (file.type === FileTypes.TEXT) {
-            window.api.fs.readText(path).then((fileContent) => {
-              TextFilePreviewPopup.show(fileContent)
-            })
-          } else {
-            window.api.file.openPath(path)
-          }
+          handleClick(path, file.type as FileTypes, t)
         }}
       />
     </Container>

@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import TextEditPopup from '@renderer/components/Popups/TextEditPopup'
+import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileType } from '@renderer/types'
+import { FileType, FileTypes } from '@renderer/types'
 import { Message } from '@renderer/types/newMessage'
 import dayjs from 'dayjs'
 
@@ -96,5 +97,25 @@ export async function handleRename(fileId: string) {
   const newName = await TextEditPopup.show({ text: file.origin_name })
   if (newName) {
     FileManager.updateFile({ ...file, origin_name: newName })
+  }
+}
+
+/**
+ * 处理附件点击事件：
+ * 如果是文本文件，在 Preview 视图中打开，
+ * 否则使用默认打开接口
+ */
+export async function handleClick(path: string | undefined, fileType: FileTypes, t: (string) => string) {
+  if (path === undefined) return
+  try {
+    if (fileType === FileTypes.TEXT) {
+      const content = await window.api.fs.readText(path)
+      TextFilePreviewPopup.show(content)
+    } else {
+      window.api.file.openPath(path)
+    }
+  } catch (err) {
+    logger.error(`Error opening ${path}:`, err as Error)
+    window.modal.error({ content: t('files.click.error'), centered: true })
   }
 }
