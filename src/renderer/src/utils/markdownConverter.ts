@@ -625,7 +625,9 @@ export const sanitizeHtml = (html: string): string => {
       'td',
       'th',
       'input',
-      'label'
+      'label',
+      'details',
+      'summary'
     ],
     ALLOWED_ATTR: [
       'href',
