@@ -218,6 +218,7 @@
     "lru-cache": "^11.1.0",
     "lucide-react": "^0.525.0",
     "macos-release": "^3.4.0",
+    "madge": "^8.0.0",
     "markdown-it": "^14.1.0",
     "mermaid": "^11.10.1",
     "mime": "^4.0.4",
