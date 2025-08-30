@@ -871,7 +871,7 @@
     "batch_delete": "excluir em massa",
     "batch_operation": "Selecionar tudo",
     "click": {
-      "error": "[to be translated]:打开文件失败"
+      "error": "Falha ao abrir o arquivo"
     },
     "count": "Número de Arquivos",
     "created_at": "Data de Criação",

@@ -871,7 +871,7 @@
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
     "click": {
-      "error": "[to be translated]:打开文件失败"
+      "error": "開啟檔案失敗"
     },
     "count": "個檔案",
     "created_at": "建立時間",
