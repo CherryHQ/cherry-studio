@@ -15,6 +15,7 @@ import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/compon
 import {
   getModelLogo,
   isEmbeddingModel,
+  isFreeTrialModel,
   isFunctionCallingModel,
   isReasoningModel,
   isRerankModel,
@@ -112,7 +113,7 @@ const PopupContainer: React.FC<Props> = ({ model, resolve, modelFilter, userFilt
       function_calling: isFunctionCallingModel,
       web_search: isWebSearchModel,
       rerank: isRerankModel,
-      free: isFreeModel
+      free: (m: Model) => isFreeModel(m) || isFreeTrialModel(m)
     }),
     []
   )
