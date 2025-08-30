@@ -6,8 +6,7 @@ import {
   WebSearchResultBlock,
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
-import { FinishReason, MediaModality } from '@google/genai'
-import { FunctionCall } from '@google/genai'
+import { FinishReason, FunctionCall, MediaModality } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
 import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'

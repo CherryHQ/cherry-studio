@@ -1,5 +1,4 @@
 import {
-  ActionItem,
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
@@ -29,6 +28,7 @@ import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
+import { ActionItem } from 'src/renderer/src/types/selectionTypes'
 import { CreateDirectoryOptions } from 'webdav'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
