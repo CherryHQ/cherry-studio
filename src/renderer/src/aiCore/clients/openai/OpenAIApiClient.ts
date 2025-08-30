@@ -203,10 +203,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               enable_thinking: true,
               incremental_output: true
             }
-          case SystemProviderIds.silicon:
-            return {
-              enable_thinking: true
-            }
           case SystemProviderIds.doubao:
             return {
               thinking: {
@@ -225,10 +221,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 thinking: true
               }
             }
+          case SystemProviderIds.silicon:
+          case SystemProviderIds.ppio:
+            return {
+              enable_thinking: true
+            }
           default:
             logger.warn(
-              `Skipping thinking options for provider ${this.provider.name} as DeepSeek v3.1 thinking control method is unknown`
+              `Use enable_thinking option as fallback for provider ${this.provider.name} since DeepSeek v3.1 thinking control method is unknown`
             )
+            return {
+              enable_thinking: true
+            }
         }
       }
     }
