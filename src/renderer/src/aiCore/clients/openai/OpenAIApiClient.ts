@@ -137,6 +137,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       // }
 
       // openrouter: use reasoning
+      // openrouter 如果关闭思考，会隐藏思考内容，所以对于总是思考的模型需要特别处理
       if (model.provider === SystemProviderIds.openrouter) {
         // Don't disable reasoning for Gemini models that support thinking tokens
         if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -144,6 +145,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         // Don't disable reasoning for models that require it
         if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model)) {
+          return {}
+        }
+        if (isReasoningModel(model) && !isSupportedThinkingTokenModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
