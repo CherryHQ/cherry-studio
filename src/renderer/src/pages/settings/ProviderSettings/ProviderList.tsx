@@ -9,7 +9,6 @@ import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { EventEmitter } from '@renderer/services/EventService'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
 import {
@@ -38,7 +37,7 @@ const logger = loggerService.withContext('ProviderList')
 const BUTTON_WRAPPER_HEIGHT = 50
 
 const ProviderList: FC = () => {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
@@ -49,17 +48,9 @@ const ProviderList: FC = () => {
   const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
 
-  const setSelectedProvider = useCallback(
-    (provider: Provider) => {
-      startTransition(() => _setSelectedProvider(provider))
-    },
-    [_setSelectedProvider]
-  )
-
-  useEffect(() => {
-    const unsubscribe = EventEmitter.on('select-provider', setSelectedProvider)
-    return () => unsubscribe()
-  }, [setSelectedProvider])
+  const setSelectedProvider = useCallback((provider: Provider) => {
+    startTransition(() => _setSelectedProvider(provider))
+  }, [])
 
   useEffect(() => {
     const loadAllLogos = async () => {
@@ -101,8 +92,9 @@ const ProviderList: FC = () => {
         setSelectedProvider(providers[0])
       }
       searchParams.delete('id')
+      setSearchParams(searchParams)
     }
-  }, [providers, searchParams, setSelectedProvider, setTimeoutTimer])
+  }, [providers, searchParams, setSearchParams, setSelectedProvider, setTimeoutTimer])
 
   // Handle provider add key from URL schema
   useEffect(() => {

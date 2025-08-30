@@ -1,7 +1,5 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
-import { getProviderById } from '@renderer/services/ProviderService'
 import { Model } from '@renderer/types'
 import { ArrowUpRight } from 'lucide-react'
 import { FC, MouseEvent } from 'react'
@@ -32,17 +30,13 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   }
 
   const onSelectProvider = () => {
-    const provider = getProviderById(providerId)
-    if (provider) {
-      EventEmitter.emit('select-provider', provider)
-    }
+    NavigationService.navigate!(`/settings/provider?id=${providerId}`)
   }
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
     SelectModelPopup.hide()
-    const provider = getProviderById(providerId)
-    NavigationService.navigate!(`/settings/provider?id=${provider?.id}`)
+    NavigationService.navigate!(`/settings/provider?id=${providerId}`)
   }
 
   if (!showLabel) {
