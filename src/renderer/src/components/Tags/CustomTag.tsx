@@ -89,6 +89,7 @@ const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $cli
     color: ${({ $color }) => $color};
   }
 
+  transition: opacity 0.2s ease;
   &:hover {
     opacity: ${({ $clickable }) => ($clickable ? 0.8 : 1)};
   }
