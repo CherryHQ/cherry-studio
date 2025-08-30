@@ -60,7 +60,7 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
 }))
 
 // Mock TopicManager for dynamic import
-vi.mock('@renderer/hooks/useTopic', () => ({
+vi.mock('@renderer/store/thunk/topicManager', () => ({
   TopicManager: {
     getTopicMessages: vi.fn()
   }
