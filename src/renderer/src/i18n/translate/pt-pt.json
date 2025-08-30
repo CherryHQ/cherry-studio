@@ -875,6 +875,9 @@
     "all": "Todos os Arquivos",
     "batch_delete": "excluir em massa",
     "batch_operation": "Selecionar tudo",
+    "click": {
+      "error": "Falha ao abrir o arquivo"
+    },
     "count": "Número de Arquivos",
     "created_at": "Data de Criação",
     "delete": {

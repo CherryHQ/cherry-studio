@@ -875,6 +875,9 @@
     "all": "所有檔案",
     "batch_delete": "批次刪除",
     "batch_operation": "全選",
+    "click": {
+      "error": "開啟檔案失敗"
+    },
     "count": "個檔案",
     "created_at": "建立時間",
     "delete": {
