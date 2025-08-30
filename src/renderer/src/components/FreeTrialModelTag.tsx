@@ -42,7 +42,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
     e.stopPropagation()
     SelectModelPopup.hide()
     const provider = getProviderById(providerId)
-    NavigationService.navigate!('/settings/provider', { state: { provider } })
+    NavigationService.navigate!(`/settings/provider?id=${provider?.id}`)
   }
 
   if (!showLabel) {

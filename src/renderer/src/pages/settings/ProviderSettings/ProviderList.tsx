@@ -25,7 +25,7 @@ import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import styled from 'styled-components'
 
 import AddProviderPopup from './AddProviderPopup'
@@ -38,12 +38,11 @@ const logger = loggerService.withContext('ProviderList')
 const BUTTON_WRAPPER_HEIGHT = 50
 
 const ProviderList: FC = () => {
-  const { state } = useLocation()
   const [searchParams] = useSearchParams()
   const providers = useAllProviders()
   const { updateProviders, addProvider, removeProvider, updateProvider } = useProviders()
   const { setTimeoutTimer } = useTimer()
-  const [selectedProvider, _setSelectedProvider] = useState<Provider>(state?.provider || providers[0])
+  const [selectedProvider, _setSelectedProvider] = useState<Provider>(providers[0])
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
