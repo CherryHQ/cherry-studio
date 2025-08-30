@@ -52,7 +52,13 @@ const tabsSlice = createSlice({
     },
     reorderTabs: (state, action: PayloadAction<{ fromIndex: number; toIndex: number }>) => {
       const { fromIndex, toIndex } = action.payload
-      if (fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0 && fromIndex < state.tabs.length && toIndex < state.tabs.length) {
+      if (
+        fromIndex !== toIndex &&
+        fromIndex >= 0 &&
+        toIndex >= 0 &&
+        fromIndex < state.tabs.length &&
+        toIndex < state.tabs.length
+      ) {
         const [movedTab] = state.tabs.splice(fromIndex, 1)
         state.tabs.splice(toIndex, 0, movedTab)
       }
