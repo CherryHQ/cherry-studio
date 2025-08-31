@@ -31,10 +31,10 @@ const NotesSettings: FC = () => {
 
   // Update tempPath when notesPath changes (e.g., after initialization)
   useEffect(() => {
-    if (notesPath && tempPath !== notesPath) {
+    if (notesPath) {
       setTempPath(notesPath)
     }
-  }, [notesPath, tempPath])
+  }, [notesPath])
 
   const handleSelectWorkDirectory = async () => {
     try {
