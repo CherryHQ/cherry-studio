@@ -2,13 +2,14 @@ import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { Dropdown, Input, MenuProps } from 'antd'
+import { Dropdown, Input, InputRef, MenuProps } from 'antd'
 import {
   ChevronDown,
   ChevronRight,
@@ -21,7 +22,7 @@ import {
   Star,
   StarOff
 } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -61,7 +62,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { activeNode } = useActiveNode(notesTree)
   const sortType = useAppSelector(selectSortType)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
-  const [editingName, setEditingName] = useState('')
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<'before' | 'inside' | 'after'>('inside')
@@ -71,6 +71,19 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const scrollbarRef = useRef<any>(null)
+
+  const inPlaceEdit = useInPlaceEdit({
+    onSave: (newName: string) => {
+      if (editingNodeId && newName) {
+        onRenameNode(editingNodeId, newName)
+        logger.debug(`Renamed node ${editingNodeId} to "${newName}"`)
+      }
+      setEditingNodeId(null)
+    },
+    onCancel: () => {
+      setEditingNodeId(null)
+    }
+  })
 
   // 滚动到活动节点
   useEffect(() => {
@@ -122,24 +135,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onSortNodes]
   )
 
-  const handleStartEdit = useCallback((node: NotesTreeNode) => {
-    setEditingNodeId(node.id)
-    setEditingName(node.name)
-  }, [])
-
-  const handleFinishEdit = useCallback(() => {
-    if (editingNodeId && editingName.trim()) {
-      onRenameNode(editingNodeId, editingName.trim())
-    }
-    setEditingNodeId(null)
-    setEditingName('')
-    logger.debug(`Renamed node ${editingNodeId} to "${editingName.trim()}"`)
-  }, [editingNodeId, editingName, onRenameNode])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingNodeId(null)
-    setEditingName('')
-  }, [])
+  const handleStartEdit = useCallback(
+    (node: NotesTreeNode) => {
+      setEditingNodeId(node.id)
+      inPlaceEdit.startEdit(node.name)
+    },
+    [inPlaceEdit]
+  )
 
   const handleDeleteNode = useCallback(
     (node: NotesTreeNode) => {
@@ -343,8 +345,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const renderTreeNode = useCallback(
     (node: NotesTreeNode, depth: number = 0) => {
-      const isActive = node.id === activeNode?.id || (node.type === 'folder' && node.id === selectedFolderId)
-      const isEditing = editingNodeId === node.id
+      const isActive = selectedFolderId
+        ? node.type === 'folder' && node.id === selectedFolderId
+        : node.id === activeNode?.id
+      const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
       const hasChildren = node.children && node.children.length > 0
       const isDragging = draggedNodeId === node.id
       const isDragOver = dragOverNodeId === node.id
@@ -399,15 +403,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
                   {isEditing ? (
                     <EditInput
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onPressEnter={handleFinishEdit}
-                      onBlur={handleFinishEdit}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          handleCancelEdit()
-                        }
-                      }}
+                      ref={inPlaceEdit.inputRef as Ref<InputRef>}
+                      value={inPlaceEdit.editValue}
+                      onChange={inPlaceEdit.handleInputChange}
+                      onPressEnter={inPlaceEdit.saveEdit}
+                      onBlur={inPlaceEdit.saveEdit}
+                      onKeyDown={inPlaceEdit.handleKeyDown}
+                      onClick={(e) => e.stopPropagation()}
                       autoFocus
                       size="small"
                     />
@@ -426,24 +428,27 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       )
     },
     [
-      activeNode,
       selectedFolderId,
+      activeNode?.id,
       editingNodeId,
-      editingName,
+      inPlaceEdit.isEditing,
+      inPlaceEdit.inputRef,
+      inPlaceEdit.editValue,
+      inPlaceEdit.handleInputChange,
+      inPlaceEdit.saveEdit,
+      inPlaceEdit.handleKeyDown,
       draggedNodeId,
       dragOverNodeId,
       dragPosition,
-      onSelectNode,
-      onToggleExpanded,
-      handleFinishEdit,
-      handleCancelEdit,
+      getMenuItems,
+      handleDragLeave,
+      handleDragEnd,
+      t,
       handleDragStart,
       handleDragOver,
-      handleDragLeave,
       handleDrop,
-      handleDragEnd,
-      getMenuItems,
-      t
+      onSelectNode,
+      onToggleExpanded
     ]
   )
 
