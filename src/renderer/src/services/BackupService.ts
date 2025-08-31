@@ -120,9 +120,10 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          await localStorage.clear()
+          localStorage.clear()
           await clearDatabase()
           await window.api.file.clear()
+          window.api.config.reset()
           window.api.reload()
         }
       })
