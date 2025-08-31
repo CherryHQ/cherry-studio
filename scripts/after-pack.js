@@ -17,6 +17,14 @@ exports.default = async function (context) {
     )
 
     keepPackageNodeFiles(node_modules_path, '@libsql', arch === Arch.arm64 ? ['darwin-arm64'] : ['darwin-x64'])
+
+    keepPackageNodeFiles(
+      node_modules_path,
+      '@img',
+      arch === Arch.arm64
+        ? ['sharp-darwin-arm64', 'sharp-libvips-darwin-arm64']
+        : ['sharp-darwin-x64', 'sharp-libvips-darwin-x64']
+    )
   }
 
   if (platform === 'linux') {
@@ -24,8 +32,13 @@ exports.default = async function (context) {
     const _arch = arch === Arch.arm64 ? ['linux-arm64-gnu', 'linux-arm64-musl'] : ['linux-x64-gnu', 'linux-x64-musl']
     keepPackageNodeFiles(node_modules_path, '@libsql', _arch)
 
-    // 删除 macOS 专用的 OCR 包
-    removeMacOnlyPackages(node_modules_path)
+    keepPackageNodeFiles(
+      node_modules_path,
+      '@img',
+      arch === Arch.arm64
+        ? ['sharp-libvips-linux-arm64', 'sharp-linux-arm64']
+        : ['sharp-libvips-linux-x64', 'sharp-linux-x64']
+    )
   }
 
   if (platform === 'windows') {
@@ -39,29 +52,19 @@ exports.default = async function (context) {
       keepPackageNodeFiles(node_modules_path, '@libsql', ['win32-x64-msvc'])
     }
 
-    removeMacOnlyPackages(node_modules_path)
+    keepPackageNodeFiles(
+      node_modules_path,
+      '@img',
+      arch === Arch.arm64
+        ? ['sharp-win32-arm64', 'sharp-libvips-win32-arm64']
+        : ['sharp-win32-x64', 'sharp-libvips-win32-x64']
+    )
   }
 
   if (platform === 'windows') {
     fs.rmSync(path.join(context.appOutDir, 'LICENSE.electron.txt'), { force: true })
     fs.rmSync(path.join(context.appOutDir, 'LICENSES.chromium.html'), { force: true })
   }
-}
-
-/**
- * 删除 macOS 专用的包
- * @param {string} nodeModulesPath
- */
-function removeMacOnlyPackages(nodeModulesPath) {
-  const macOnlyPackages = []
-
-  macOnlyPackages.forEach((packageName) => {
-    const packagePath = path.join(nodeModulesPath, packageName)
-    if (fs.existsSync(packagePath)) {
-      fs.rmSync(packagePath, { recursive: true, force: true })
-      console.log(`[After Pack] Removed macOS-only package: ${packageName}`)
-    }
-  })
 }
 
 /**
