@@ -3033,6 +3033,7 @@
       },
       "avatar": {
         "builtin": "Builtin avatar",
+        "edit": "Edit Avatar",
         "reset": "Reset avatar"
       },
       "backup": {
