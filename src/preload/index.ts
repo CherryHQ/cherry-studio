@@ -4,6 +4,7 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import { UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import { Config } from '@shared/config/manager'
 import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
@@ -44,7 +45,7 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 // Custom APIs for renderer
 const api = {
   getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
-  reload: () => ipcRenderer.invoke(IpcChannel.App_Reload),
+  reload: (): Promise<void> => ipcRenderer.invoke(IpcChannel.App_Reload),
   setProxy: (proxy: string | undefined, bypassRules?: string) =>
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
@@ -282,7 +283,9 @@ const api = {
   config: {
     set: (key: string, value: any, isNotify: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
-    get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key)
+    get: (key: string) => ipcRenderer.invoke(IpcChannel.Config_Get, key),
+    reset: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Config_Reset),
+    restore: (config: Config): Promise<void> => ipcRenderer.invoke(IpcChannel.Config_Restore, config)
   },
   miniWindow: {
     show: () => ipcRenderer.invoke(IpcChannel.MiniWindow_Show),

@@ -9,6 +9,7 @@ import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/pro
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
+import { Config } from '@shared/config/manager'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
@@ -212,6 +213,14 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.Config_Get, (_, key: string) => {
     return configManager.get(key)
+  })
+
+  ipcMain.handle(IpcChannel.Config_Reset, () => {
+    configManager.clearStore()
+  })
+
+  ipcMain.handle(IpcChannel.Config_Restore, (_, data: Config) => {
+    configManager.restore(data)
   })
 
   // theme

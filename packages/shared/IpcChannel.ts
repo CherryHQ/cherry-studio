@@ -57,6 +57,8 @@ export enum IpcChannel {
 
   Config_Set = 'config:set',
   Config_Get = 'config:get',
+  Config_Restore = 'config:restore',
+  Config_Reset = 'config:reset',
 
   MiniWindow_Show = 'miniwindow:show',
   MiniWindow_Hide = 'miniwindow:hide',

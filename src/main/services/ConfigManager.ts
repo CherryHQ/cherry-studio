@@ -14,6 +14,21 @@ export class ConfigManager {
     this.store = new Store()
   }
 
+  clearStore() {
+    this.store.clear()
+  }
+
+  update(data: Config) {
+    objectEntries(data).forEach(([key, value]) => {
+      this.set(key, value)
+    })
+  }
+
+  restore(data: Config) {
+    this.clearStore()
+    this.update(data)
+  }
+
   getLanguage(): LanguageVarious {
     const locale = Object.keys(locales).includes(app.getLocale()) ? app.getLocale() : defaultLanguage
     return this.get(ConfigKeys.Language, locale) as LanguageVarious
@@ -152,6 +167,7 @@ export class ConfigManager {
   }
 
   setSelectionAssistantEnabled(value: boolean) {
+    if (value === this.getSelectionAssistantEnabled()) return
     this.setAndNotify(ConfigKeys.SelectionAssistantEnabled, value)
   }
 
