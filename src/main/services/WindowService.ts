@@ -5,7 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
@@ -70,7 +70,7 @@ export class WindowService {
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 13 },
+      trafficLightPosition: { x: TRAFFIC_LIGHT_X, y: TRAFFIC_LIGHT_Y },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),

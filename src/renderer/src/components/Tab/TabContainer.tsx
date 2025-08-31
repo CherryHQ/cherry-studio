@@ -11,7 +11,7 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { TRAFFIC_LIGHT_DIAMETER, TRAFFIC_LIGHT_WIDTH } from '@shared/config/constant'
+import { TRAFFIC_LIGHT_DIAMETER, TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y } from '@shared/config/constant'
 import { Tooltip } from 'antd'
 import {
   FileSearch,
@@ -93,10 +93,14 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
       } else {
         ref.current.style.zoom = ''
       }
-      if (zoom >= 1 && isMac) {
-        const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
-        const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
-        window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
+      if (isMac) {
+        if (zoom === 1) {
+          window.api.mac.setTrafficLightPosition(TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y)
+        } else if (zoom > 1) {
+          const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
+          const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
+          window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
+        }
       }
     }
   }, [ref, zoom])

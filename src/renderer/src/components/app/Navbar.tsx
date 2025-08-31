@@ -3,7 +3,7 @@ import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useZoom } from '@renderer/hooks/useZoom'
-import { TRAFFIC_LIGHT_DIAMETER, TRAFFIC_LIGHT_WIDTH } from '@shared/config/constant'
+import { TRAFFIC_LIGHT_DIAMETER, TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y } from '@shared/config/constant'
 import type { HTMLAttributes } from 'react'
 import { type FC, type PropsWithChildren, useEffect, useRef } from 'react'
 import styled from 'styled-components'
@@ -29,10 +29,14 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
         ref.current.style.zoom = ''
         ref.current.style.paddingLeft = ''
       }
-      if (zoom >= 1 && isMac) {
-        const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
-        const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
-        window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
+      if (isMac) {
+        if (zoom === 1) {
+          window.api.mac.setTrafficLightPosition(TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y)
+        } else if (zoom > 1) {
+          const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
+          const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
+          window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
+        }
       }
     }
   }, [ref, zoom])
