@@ -204,6 +204,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     ipcMain.handle(IpcChannel.App_SetTrafficLightPosition, (env, x: number, y: number) => {
       const fromWindow = BrowserWindow.fromWebContents(env.sender) ?? mainWindow
       fromWindow.setWindowButtonPosition({ x, y })
+      // Force refresh layout to change traffic light hover trigger position
+      const { width, height } = fromWindow.getContentBounds()
+      fromWindow.setContentSize(width, height + 1)
+      fromWindow.setContentSize(width, height)
     })
   }
 
