@@ -16,7 +16,7 @@ import {
 } from '@renderer/services/NotesService'
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectActiveFilePath, setActiveFilePath } from '@renderer/store/note'
+import { selectActiveFilePath, selectSortType, setActiveFilePath, setSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -37,6 +37,7 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useSettings()
   const dispatch = useAppDispatch()
   const activeFilePath = useAppSelector(selectActiveFilePath)
+  const sortType = useAppSelector(selectSortType)
   const { settings, notesPath, updateNotesPath } = useNotesSettings()
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
@@ -133,7 +134,7 @@ const NotesPage: FC = () => {
     async function applyInitialSort() {
       if (notesTree.length > 0 && !isInitialSortApplied.current) {
         try {
-          await sortAllLevels('sort_a2z')
+          await sortAllLevels(sortType)
           isInitialSortApplied.current = true
         } catch (error) {
           logger.error('Failed to apply initial sorting:', error as Error)
@@ -142,7 +143,7 @@ const NotesPage: FC = () => {
     }
 
     applyInitialSort()
-  }, [notesTree.length])
+  }, [notesTree.length, sortType])
 
   // 处理树同步时的状态管理
   useEffect(() => {
@@ -338,8 +339,7 @@ const NotesPage: FC = () => {
         dispatch(setActiveFilePath(newNote.externalPath))
         setSelectedFolderId(null)
 
-        // 重新应用排序以保持文件顺序
-        await sortAllLevels('sort_a2z')
+        await sortAllLevels(sortType)
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
       } finally {
@@ -349,7 +349,7 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [dispatch, getTargetFolderPath]
+    [dispatch, getTargetFolderPath, sortType]
   )
 
   // 切换展开状态
@@ -550,14 +550,19 @@ const NotesPage: FC = () => {
   )
 
   // 处理节点排序
-  const handleSortNodes = useCallback(async (sortType: NotesSortType) => {
-    try {
-      await sortAllLevels(sortType)
-    } catch (error) {
-      logger.error('Failed to sort notes:', error as Error)
-      throw error
-    }
-  }, [])
+  const handleSortNodes = useCallback(
+    async (newSortType: NotesSortType) => {
+      try {
+        // 更新Redux中的排序类型
+        dispatch(setSortType(newSortType))
+        await sortAllLevels(newSortType)
+      } catch (error) {
+        logger.error('Failed to sort notes:', error as Error)
+        throw error
+      }
+    },
+    [dispatch]
+  )
 
   const getCurrentNoteContent = useCallback(() => {
     if (settings.defaultEditMode === 'source') {

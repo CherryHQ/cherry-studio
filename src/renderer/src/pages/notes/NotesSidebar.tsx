@@ -5,6 +5,8 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import { useAppSelector } from '@renderer/store'
+import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { Dropdown, Input, MenuProps } from 'antd'
 import {
@@ -57,6 +59,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
   const { activeNode } = useActiveNode(notesTree)
+  const sortType = useAppSelector(selectSortType)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
@@ -66,23 +69,41 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
-  const [sortType, setSortType] = useState<NotesSortType>('sort_a2z')
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
   const scrollbarRef = useRef<any>(null)
 
   // 滚动到活动节点
   useEffect(() => {
-    if (activeNode?.id && !isShowStarred && !isShowSearch) {
+    if (activeNode?.id && !isShowStarred && !isShowSearch && scrollbarRef.current) {
       // 延迟一下确保DOM已更新
       setTimeout(() => {
-        const activeElement = document.querySelector(`[data-node-id="${activeNode.id}"]`)
-        if (activeElement && scrollbarRef.current) {
-          activeElement.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-          })
+        const scrollContainer = scrollbarRef.current as HTMLElement
+        if (scrollContainer) {
+          const activeElement = scrollContainer.querySelector(`[data-node-id="${activeNode.id}"]`) as HTMLElement
+          if (activeElement) {
+            // 获取元素相对于滚动容器的位置
+            const containerHeight = scrollContainer.clientHeight
+            const elementOffsetTop = activeElement.offsetTop
+            const elementHeight = activeElement.offsetHeight
+            const currentScrollTop = scrollContainer.scrollTop
+
+            // 检查元素是否在可视区域内
+            const elementTop = elementOffsetTop
+            const elementBottom = elementOffsetTop + elementHeight
+            const viewTop = currentScrollTop
+            const viewBottom = currentScrollTop + containerHeight
+
+            // 如果元素不在可视区域内，滚动到中心位置
+            if (elementTop < viewTop || elementBottom > viewBottom) {
+              const targetScrollTop = elementOffsetTop - (containerHeight - elementHeight) / 2
+              scrollContainer.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth'
+              })
+            }
+          }
         }
-      }, 100)
+      }, 200)
     }
   }, [activeNode?.id, isShowStarred, isShowSearch])
 
@@ -96,7 +117,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const handleSelectSortType = useCallback(
     (selectedSortType: NotesSortType) => {
-      setSortType(selectedSortType)
       onSortNodes(selectedSortType)
     },
     [onSortNodes]
