@@ -747,7 +747,7 @@ const TranslatePage: FC = () => {
               </InputContainerDraggingHintContainer>
             )}
             <FloatButton
-              style={{ position: 'absolute', left: 8, bottom: 8 }}
+              style={{ position: 'absolute', left: 10, bottom: 10, width: 35, height: 35 }}
               className="float-button"
               icon={<PlusOutlined />}
               tooltip={t('common.upload_files')}

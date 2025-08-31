@@ -12,7 +12,7 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileMetadata, PaintingsState } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
 import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
@@ -37,13 +37,13 @@ import {
   STYLE_TYPE_OPTIONS,
   TOP_UP_URL
 } from './config/DmxapiConfig'
+import { checkProviderEnabled } from './utils'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [mode] = useState<keyof PaintingsState>('DMXAPIPaintings')
-  const { DMXAPIPaintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<DmxapiPainting>(DMXAPIPaintings?.[0] || DEFAULT_PAINTING)
+  const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
+  const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
@@ -144,7 +144,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const updatePaintingState = (updates: Partial<DmxapiPainting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting('DMXAPIPaintings', updatedPainting)
+    updatePainting('dmxapi_paintings', updatedPainting)
   }
 
   const getFirstModelInfo = (v: generationModeType) => {
@@ -197,7 +197,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       id: uuid()
     }
 
-    setPainting(addPainting('DMXAPIPaintings', copyPainting))
+    setPainting(addPainting('dmxapi_paintings', copyPainting))
   }
 
   const onSelectModel = (modelId: string) => {
@@ -316,7 +316,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         generationMode: v,
         model
       })
-      const addedPainting = addPainting('DMXAPIPaintings', newPainting)
+      const addedPainting = addPainting('dmxapi_paintings', newPainting)
       setPainting(addedPainting)
     } else {
       // 否则更新当前painting
@@ -333,7 +333,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (isLoading) {
       return
     }
-    setPainting(addPainting('DMXAPIPaintings', getNewPainting()))
+    setPainting(addPainting('dmxapi_paintings', getNewPainting()))
   }
 
   // 检查提供者状态函数
@@ -536,6 +536,12 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (isLoading) {
       return
     }
+
+    if (!dmxapiProvider.enabled) {
+      checkProviderEnabled(dmxapiProvider, t)
+      return
+    }
+
     try {
       // 获取提示词
       const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -624,23 +630,23 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         return
       }
 
-      const currentIndex = DMXAPIPaintings.findIndex((p) => p.id === paintingToDelete.id)
+      const currentIndex = dmxapi_paintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
-        setPainting(DMXAPIPaintings[currentIndex - 1])
-      } else if (DMXAPIPaintings.length > 1) {
-        setPainting(DMXAPIPaintings[1])
+        setPainting(dmxapi_paintings[currentIndex - 1])
+      } else if (dmxapi_paintings.length > 1) {
+        setPainting(dmxapi_paintings[1])
       }
     }
 
     // 删除绘画
-    await removePainting(mode, paintingToDelete)
+    await removePainting('dmxapi_paintings', paintingToDelete)
 
     // 检查是否删除空了
-    if (!DMXAPIPaintings || DMXAPIPaintings.length === 1) {
+    if (!dmxapi_paintings || dmxapi_paintings.length === 1) {
       // 如果删除后没有绘画了，创建一个新的
       const newPainting = getNewPainting()
-      const addedPainting = addPainting('DMXAPIPaintings', newPainting)
+      const addedPainting = addPainting('dmxapi_paintings', newPainting)
       setPainting(addedPainting)
     }
   }
@@ -692,7 +698,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    if (painting?.urls?.length > 0 || DMXAPIPaintings?.length > 1) {
+    if (painting?.urls?.length > 0 || dmxapi_paintings?.length > 1) {
       return null
     } else {
       return (
@@ -733,22 +739,22 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    if (!DMXAPIPaintings || DMXAPIPaintings.length === 0) {
+    if (!dmxapi_paintings || dmxapi_paintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('DMXAPIPaintings', newPainting)
+      addPainting('dmxapi_paintings', newPainting)
       setPainting(newPainting)
     } else if (painting && !painting.generationMode) {
       // 如果当前painting没有generationMode，添加默认值
       const updatedPainting = { ...painting, generationMode: MODEOPTIONS[0].value }
       setPainting(updatedPainting)
-      updatePainting('DMXAPIPaintings', updatedPainting)
+      updatePainting('dmxapi_paintings', updatedPainting)
     }
 
     // 确保所有paintings都有generationMode属性
-    DMXAPIPaintings.forEach((p) => {
+    dmxapi_paintings.forEach((p) => {
       if (!p.generationMode) {
         const updatedPainting = { ...p, generationMode: MODEOPTIONS[0].value }
-        updatePainting('DMXAPIPaintings', updatedPainting)
+        updatePainting('dmxapi_paintings', updatedPainting)
       }
     })
 
@@ -816,7 +822,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               />
             </div>
           </ProviderTitleContainer>
-          <Select value={providerOptions[2].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
+          <Select value={providerOptions[3].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
@@ -1005,8 +1011,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </InputContainer>
         </MainContainer>
         <PaintingsList
-          namespace="DMXAPIPaintings"
-          paintings={DMXAPIPaintings}
+          namespace="dmxapi_paintings"
+          paintings={dmxapi_paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}

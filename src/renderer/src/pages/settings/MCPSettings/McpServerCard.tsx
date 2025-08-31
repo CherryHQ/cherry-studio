@@ -1,6 +1,7 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -240,12 +241,19 @@ const ServerDescription = styled.div`
   height: 50px;
 `
 
-const ServerFooter = styled.div`
+const ServerFooter = styled(Scrollbar)`
   display: flex;
   align-items: center;
-  gap: 4px;
   justify-content: flex-start;
+  flex-direction: row;
+  overflow-x: auto;
+  min-height: 22px;
+  gap: 4px;
   margin-top: 10px;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 `
 
 const ServerTag = styled(Tag)`

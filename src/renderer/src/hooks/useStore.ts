@@ -3,8 +3,10 @@ import {
   setAssistantsTabSortType,
   setShowAssistants,
   setShowTopics,
+  setShowWorkspace,
   toggleShowAssistants,
-  toggleShowTopics
+  toggleShowTopics,
+  toggleShowWorkspace
 } from '@renderer/store/settings'
 import { AssistantsSortType } from '@renderer/types'
 
@@ -37,5 +39,16 @@ export function useAssistantsTabSortType() {
   return {
     assistantsTabSortType,
     setAssistantsTabSortType: (sortType: AssistantsSortType) => dispatch(setAssistantsTabSortType(sortType))
+  }
+}
+
+export function useShowWorkspace() {
+  const showWorkspace = useAppSelector((state) => state.settings.showWorkspace)
+  const dispatch = useAppDispatch()
+
+  return {
+    showWorkspace,
+    setShowWorkspace: (show: boolean) => dispatch(setShowWorkspace(show)),
+    toggleShowWorkspace: () => dispatch(toggleShowWorkspace())
   }
 }

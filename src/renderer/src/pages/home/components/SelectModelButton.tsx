@@ -24,7 +24,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
 
   const onSelectModel = async (event: React.MouseEvent<HTMLElement>) => {
     event.currentTarget.blur()
-    const selectedModel = await SelectModelPopup.show({ model, modelFilter })
+    const selectedModel = await SelectModelPopup.show({ model, filter: modelFilter })
     if (selectedModel) {
       // 避免更新数据造成关闭弹框的卡顿
       clearTimeout(timerRef.current)
@@ -49,7 +49,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
     return null
   }
 
-  const providerName = getProviderName(model?.provider)
+  const providerName = getProviderName(model)
 
   return (
     <DropdownButton size="small" type="text" onClick={onSelectModel}>

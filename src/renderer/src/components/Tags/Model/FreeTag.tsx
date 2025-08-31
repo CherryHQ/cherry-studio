@@ -15,6 +15,7 @@ export const FreeTag = ({ size, showTooltip, ...restProps }: Props) => {
       color="#7cb305"
       icon={t('models.type.free')}
       tooltip={showTooltip ? t('models.type.free') : undefined}
-      {...restProps}></CustomTag>
+      {...restProps}
+    />
   )
 }

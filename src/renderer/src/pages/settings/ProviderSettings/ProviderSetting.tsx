@@ -11,6 +11,8 @@ import i18n from '@renderer/i18n'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { useAppDispatch } from '@renderer/store'
+import { updateWebSearchProvider } from '@renderer/store/websearch'
 import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
@@ -55,10 +57,11 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { setTimeoutTimer } = useTimer()
+  const dispatch = useAppDispatch()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
-
   const isDmxapi = provider.id === 'dmxapi'
+  const hideApiInput = ['vertexai', 'aws-bedrock', 'cherryin'].includes(provider.id)
 
   const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
@@ -73,10 +76,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     checking: false
   })
 
+  const updateWebSearchProviderKey = ({ apiKey }: { apiKey: string }) => {
+    provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
     debounce((value) => {
       updateProvider({ apiKey: formatApiKeys(value) })
+      updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
     }, 150),
     []
   )
@@ -268,7 +276,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
-      {provider.id !== 'vertexai' && provider.id !== 'aws-bedrock' && (
+      {!hideApiInput && (
         <>
           <SettingSubtitle
             style={{

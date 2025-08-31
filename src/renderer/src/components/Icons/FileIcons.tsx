@@ -1,7 +1,7 @@
 import { CSSProperties, SVGProps } from 'react'
 
 interface BaseFileIconProps extends SVGProps<SVGSVGElement> {
-  size?: string
+  size?: string | number
   text?: string
 }
 

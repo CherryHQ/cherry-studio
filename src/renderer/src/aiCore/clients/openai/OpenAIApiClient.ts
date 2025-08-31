@@ -122,13 +122,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     if (!isReasoningModel(model)) {
       return {}
     }
+
     const reasoningEffort = assistant?.settings?.reasoning_effort
 
     if (isSupportedThinkingTokenZhipuModel(model)) {
-      if (!reasoningEffort) {
-        return { thinking: { type: 'disabled' } }
-      }
-      return { thinking: { type: 'enabled' } }
+      return { thinking: { type: reasoningEffort ? 'enabled' : 'disabled' } }
     }
 
     if (!reasoningEffort) {
@@ -139,6 +137,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       // }
 
       // openrouter: use reasoning
+      // openrouter 如果关闭思考，会隐藏思考内容，所以对于总是思考的模型需要特别处理
       if (model.provider === SystemProviderIds.openrouter) {
         // Don't disable reasoning for Gemini models that support thinking tokens
         if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -146,6 +145,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         // Don't disable reasoning for models that require it
         if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model)) {
+          return {}
+        }
+        if (isReasoningModel(model) && !isSupportedThinkingTokenModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -205,10 +207,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               enable_thinking: true,
               incremental_output: true
             }
-          case SystemProviderIds.silicon:
-            return {
-              enable_thinking: true
-            }
           case SystemProviderIds.doubao:
             return {
               thinking: {
@@ -227,10 +225,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 thinking: true
               }
             }
+          case SystemProviderIds.silicon:
+          case SystemProviderIds.ppio:
+            return {
+              enable_thinking: true
+            }
           default:
             logger.warn(
-              `Skipping thinking options for provider ${this.provider.name} as DeepSeek v3.1 thinking control method is unknown`
+              `Use enable_thinking option as fallback for provider ${this.provider.name} since DeepSeek v3.1 thinking control method is unknown`
             )
+            return {
+              enable_thinking: true
+            }
         }
       }
     }
