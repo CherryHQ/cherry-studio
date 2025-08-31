@@ -20,6 +20,7 @@ interface ProgressData {
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
+  const [isRestoring, setIsRestoring] = useState(false)
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -33,7 +34,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [])
 
   const onOk = async () => {
+    setIsRestoring(true)
     await restore()
+    setIsRestoring(false)
     setOpen(false)
   }
 
@@ -68,7 +71,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       okText={t('restore.confirm.button')}
-      okButtonProps={{ disabled: isDisabled }}
+      okButtonProps={{ disabled: isDisabled, loading: isRestoring }}
       cancelButtonProps={{ disabled: isDisabled }}
       maskClosable={false}
       transitionName="animation-move-down"
