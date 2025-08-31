@@ -119,11 +119,24 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    输入框快捷菜单增加清除按钮
-    侧边栏增加代码工具入口，代码工具增加环境变量设置
-    小程序增加多语言显示
-    优化 MCP 服务器列表
-    新增 Web 搜索图标
-    优化 SVG 预览，优化 HTML 内容样式
-    修复知识库文档预处理失败问题
-    稳定性改进和错误修复
+    ✨ 重要更新：
+    - 新增笔记模块，支持富文本编辑和管理
+    - 内置 GLM-4.5-Flash 免费模型（由智谱开放平台提供）
+    - 内置 Qwen3-8B 免费模型（由硅基流动提供）
+    - 新增 Nano Banana（Gemini 2.5 Flash Image）模型支持
+    - 新增系统 OCR 功能 (macOS & Windows)
+    - 新增图片 OCR 识别和翻译功能
+    - 模型切换支持通过标签筛选
+    - 翻译功能增强：历史搜索和收藏
+
+    🔧 性能优化：
+    - 优化历史页面搜索性能
+    - 优化拖拽列表组件交互
+    - 升级 Electron 到 37.4.0
+
+    🐛 修复问题：
+    - 修复知识库加密 PDF 文档处理
+    - 修复导航栏在左侧时笔记侧边栏按钮缺失
+    - 修复多个模型兼容性问题
+    - 修复 MCP 相关问题
+    - 其他稳定性改进
