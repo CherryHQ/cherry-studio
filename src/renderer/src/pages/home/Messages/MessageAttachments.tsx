@@ -1,4 +1,4 @@
-import { handleClick } from '@renderer/services/FileAction'
+import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import { FileTypes } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
@@ -24,6 +24,7 @@ const StyledUpload = styled(Upload)`
 
 const MessageAttachments: FC<Props> = ({ block }) => {
   const { t } = useTranslation()
+  const { handleClick } = useAttachment()
   if (!block.file) {
     return null
   }

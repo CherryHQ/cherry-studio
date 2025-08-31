@@ -13,7 +13,7 @@ import {
   LinkOutlined
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { handleClick } from '@renderer/services/FileAction'
+import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -84,6 +84,7 @@ export const getFileIcon = (type?: string) => {
 
 export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   const { t } = useTranslation()
+  const { handleClick } = useAttachment()
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext.toLocaleLowerCase())
