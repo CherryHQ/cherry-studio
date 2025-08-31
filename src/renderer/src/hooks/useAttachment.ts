@@ -17,7 +17,11 @@ export function useAttachment() {
     try {
       if (fileType === FileTypes.TEXT) {
         const content = await window.api.fs.readText(path)
-        TextFilePreviewPopup.show(content, extension)
+        let ext = extension
+        if (ext?.startsWith('.')) {
+          ext = ext.replace('.', '')
+        }
+        TextFilePreviewPopup.show(content, ext)
       } else {
         window.api.file.openPath(path)
       }
