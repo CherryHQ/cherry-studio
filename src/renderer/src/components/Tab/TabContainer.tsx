@@ -11,6 +11,7 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { TRAFFIC_LIGHT_DIAMETER, TRAFFIC_LIGHT_WIDTH } from '@shared/config/constant'
 import { Tooltip } from 'antd'
 import {
   FileSearch,
@@ -35,7 +36,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { TopNavbarOpenedMinappTabs } from '../app/PinnedMinapps'
-import { TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_DIAMETER } from '@shared/config/constant'
 
 interface TabsContainerProps {
   children: React.ReactNode
