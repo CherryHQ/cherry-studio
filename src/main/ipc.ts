@@ -206,6 +206,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     mainWindow.setFullScreen(value)
   })
 
+  ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
+    return mainWindow.isFullScreen()
+  })
+
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
     configManager.set(key, value, isNotify)
   })
