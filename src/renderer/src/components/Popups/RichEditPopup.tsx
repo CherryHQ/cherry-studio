@@ -108,6 +108,7 @@ const PopupContainer: React.FC<Props> = ({
           onCommandsReady={handleCommandsReady}
           minHeight={300}
           maxHeight={500}
+          isFullWidth={true}
           className="rich-edit-popup-editor"
         />
       </EditorContainer>
