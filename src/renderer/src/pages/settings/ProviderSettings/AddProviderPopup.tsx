@@ -7,7 +7,8 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
-import React, { useEffect, useState } from 'react'
+import { ItemType } from 'antd/es/menu/interface'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,6 +27,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
+  const uploadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (provider?.id) {
@@ -147,36 +149,27 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               window.message.error(error.message)
             }
           }}>
-          <MenuItem>{t('settings.general.image_upload')}</MenuItem>
+          <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
         </Upload>
-      )
+      ),
+      onClick: () => {
+        uploadRef.current?.click()
+      }
     },
     {
       key: 'builtin',
-      label: (
-        <MenuItem
-          onClick={(e) => {
-            e.stopPropagation()
-            setDropdownOpen(false)
-            setLogoPickerOpen(true)
-          }}>
-          {t('settings.general.avatar.builtin')}
-        </MenuItem>
-      )
+      label: <MenuItem>{t('settings.general.avatar.builtin')}</MenuItem>,
+      onClick: () => {
+        setDropdownOpen(false)
+        setLogoPickerOpen(true)
+      }
     },
     {
       key: 'reset',
-      label: (
-        <MenuItem
-          onClick={(e) => {
-            e.stopPropagation()
-            handleReset()
-          }}>
-          {t('settings.general.avatar.reset')}
-        </MenuItem>
-      )
+      label: <MenuItem>{t('settings.general.avatar.reset')}</MenuItem>,
+      onClick: handleReset
     }
-  ]
+  ] satisfies ItemType[]
 
   // for logo
   const backgroundColor = generateColorFromChar(name)
@@ -204,7 +197,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             open={dropdownOpen}
             align={{ offset: [0, 4] }}
             placement="bottom"
-            overlayClassName="add-provider-popup" // FIXME: 避免点击边缘无法触发点击回调，但没有找到比类名控制控制更好的方式，可以的话尽量不想把局部样式加到外部文件里
             onOpenChange={(visible) => {
               setDropdownOpen(visible)
               if (visible) {
@@ -300,7 +292,6 @@ const ProviderInitialsLogo = styled.div`
 `
 
 const MenuItem = styled.div`
-  padding: 5px 8px;
   width: 100%;
   text-align: center;
 `
