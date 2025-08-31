@@ -8,7 +8,9 @@ import { getNormalizedExtension } from './utils'
 
 const logger = loggerService.withContext('CodeEditorHooks')
 
-// 语言对应的 linter 加载器
+/** 语言对应的 linter 加载器
+ * key: 语言文件扩展名（不包含 `.`）
+ */
 const linterLoaders: Record<string, () => Promise<any>> = {
   json: async () => {
     const jsonParseLinter = await import('@codemirror/lang-json').then((mod) => mod.jsonParseLinter)
@@ -64,13 +66,15 @@ async function loadLanguageExtension(language: string): Promise<Extension | null
  * 加载 linter 扩展
  */
 async function loadLinterExtension(language: string): Promise<Extension | null> {
-  const loader = linterLoaders[language]
+  const fileExt = await getNormalizedExtension(language)
+
+  const loader = linterLoaders[fileExt]
   if (!loader) return null
 
   try {
     return await loader()
   } catch (error) {
-    logger.debug(`Failed to load linter for ${language}`, error as Error)
+    logger.debug(`Failed to load linter for ${language} (${fileExt})`, error as Error)
     return null
   }
 }

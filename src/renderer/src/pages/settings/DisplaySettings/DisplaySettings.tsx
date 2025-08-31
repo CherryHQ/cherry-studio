@@ -338,8 +338,8 @@ const DisplaySettings: FC = () => {
           placeholder={t('settings.display.custom.css.placeholder')}
           onChange={(value) => dispatch(setCustomCss(value))}
           height="60vh"
-          expanded
-          unwrapped={false}
+          expanded={false}
+          wrapped
           options={{
             autocompletion: true,
             lineNumbers: true,

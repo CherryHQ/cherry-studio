@@ -32,6 +32,7 @@ import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingsList from './components/PaintingsList'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
+import { checkProviderEnabled } from './utils'
 import TokenFluxService from './utils/TokenFluxService'
 
 const logger = loggerService.withContext('TokenFluxPage')
@@ -48,8 +49,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
-  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
-  const tokenFluxPaintings = useMemo(() => persistentData.tokenFluxPaintings || [], [persistentData.tokenFluxPaintings])
+  const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
+  const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
   )
@@ -105,7 +106,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     (updates: Partial<TokenFluxPainting>) => {
       setPainting((prevPainting) => {
         const updatedPainting = { ...prevPainting, ...updates }
-        updatePainting('tokenFluxPaintings', updatedPainting)
+        updatePainting('tokenflux_paintings', updatedPainting)
         return updatedPainting
       })
     },
@@ -137,6 +138,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(tokenfluxProvider, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -148,22 +151,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
-
-    if (!tokenfluxProvider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
-
-    if (!tokenfluxProvider.apiKey) {
-      window.modal.error({
-        content: t('error.no_api_key'),
-        centered: true
-      })
-      return
-    }
 
     if (!selectedModel || !prompt) {
       window.modal.error({
@@ -236,8 +223,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const handleAddPainting = () => {
-    const newPainting = addPainting('tokenFluxPaintings', getNewPainting())
-    updatePainting('tokenFluxPaintings', newPainting)
+    const newPainting = addPainting('tokenflux_paintings', getNewPainting())
+    updatePainting('tokenflux_paintings', newPainting)
     setPainting(newPainting as TokenFluxPainting)
     return newPainting
   }
@@ -253,7 +240,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    removePainting('tokenFluxPaintings', paintingToDelete)
+    removePainting('tokenflux_paintings', paintingToDelete)
   }
 
   const translate = async () => {
@@ -338,7 +325,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     if (tokenFluxPaintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('tokenFluxPaintings', newPainting)
+      addPainting('tokenflux_paintings', newPainting)
       setPainting(newPainting)
     }
   }, [tokenFluxPaintings, addPainting, getNewPainting])
@@ -573,7 +560,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         </MainContainer>
 
         <PaintingsList
-          namespace="tokenFluxPaintings"
+          namespace="tokenflux_paintings"
           paintings={tokenFluxPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting as any}

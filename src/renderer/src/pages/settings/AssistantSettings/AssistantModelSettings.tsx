@@ -184,7 +184,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   const onSelectModel = useCallback(async () => {
     const currentModel = defaultModel ? assistant?.model : undefined
-    const selectedModel = await SelectModelPopup.show({ model: currentModel, modelFilter })
+    const selectedModel = await SelectModelPopup.show({ model: currentModel, filter: modelFilter })
     if (selectedModel) {
       setDefaultModel(selectedModel)
       updateAssistant({

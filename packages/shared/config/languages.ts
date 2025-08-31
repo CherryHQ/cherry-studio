@@ -2020,6 +2020,10 @@ export const languages: Record<string, LanguageData> = {
     extensions: ['.nginx', '.nginxconf', '.vhost'],
     aliases: ['nginx configuration file']
   },
+  Nickel: {
+    type: 'programming',
+    extensions: ['.ncl']
+  },
   Nim: {
     type: 'programming',
     extensions: ['.nim', '.nim.cfg', '.nimble', '.nimrod', '.nims']
@@ -3061,7 +3065,7 @@ export const languages: Record<string, LanguageData> = {
   },
   SWIG: {
     type: 'programming',
-    extensions: ['.i']
+    extensions: ['.i', '.swg', '.swig']
   },
   SystemVerilog: {
     type: 'programming',

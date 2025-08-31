@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import * as z from 'zod/v4'
 
 export * from './file'
+export * from './note'
 
 import type { FileMetadata } from './file'
 import type { Message } from './newMessage'
@@ -259,6 +260,7 @@ export type Provider = {
 }
 
 export const SystemProviderIds = {
+  cherryin: 'cherryin',
   silicon: 'silicon',
   aihubmix: 'aihubmix',
   ocoolai: 'ocoolai',
@@ -394,7 +396,7 @@ export type PaintingParams = {
   files: FileMetadata[]
 }
 
-export type PaintingProvider = 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
+export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api'
 
 export interface Painting extends PaintingParams {
   model?: string
@@ -500,13 +502,20 @@ export type PaintingAction = Partial<
   PaintingParams
 
 export interface PaintingsState {
-  paintings: Painting[]
-  generate: Partial<GeneratePainting> & PaintingParams[]
-  remix: Partial<RemixPainting> & PaintingParams[]
-  edit: Partial<EditPainting> & PaintingParams[]
-  upscale: Partial<ScalePainting> & PaintingParams[]
-  DMXAPIPaintings: DmxapiPainting[]
-  tokenFluxPaintings: TokenFluxPainting[]
+  // SiliconFlow
+  siliconflow_paintings: Painting[]
+  // DMXAPI
+  dmxapi_paintings: DmxapiPainting[]
+  // TokenFlux
+  tokenflux_paintings: TokenFluxPainting[]
+  // Zhipu
+  zhipu_paintings: Painting[]
+  // Aihubmix
+  aihubmix_image_generate: Partial<GeneratePainting> & PaintingParams[]
+  aihubmix_image_remix: Partial<RemixPainting> & PaintingParams[]
+  aihubmix_image_edit: Partial<EditPainting> & PaintingParams[]
+  aihubmix_image_upscale: Partial<ScalePainting> & PaintingParams[]
+  // OpenAI
   openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
   openai_image_edit: Partial<EditPainting> & PaintingParams[]
 }
@@ -667,6 +676,7 @@ export type GenerateImageParams = {
   signal?: AbortSignal
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
+  quality?: string
 }
 
 export type GenerateImageResponse = {
@@ -725,6 +735,7 @@ export type SidebarIcon =
   | 'knowledge'
   | 'files'
   | 'code_tools'
+  | 'notes'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]
@@ -735,6 +746,7 @@ export type ExternalToolResult = {
 }
 
 export const WebSearchProviderIds = {
+  zhipu: 'zhipu',
   tavily: 'tavily',
   searxng: 'searxng',
   exa: 'exa',
@@ -1173,6 +1185,8 @@ export interface MemoryListOptions extends MemoryEntity {
 }
 
 export interface MemoryDeleteAllOptions extends MemoryEntity {}
+
+export type EditorView = 'preview' | 'source' | 'read' // 实时,源码,预览
 // ========================================================================
 
 /**

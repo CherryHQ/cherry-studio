@@ -122,13 +122,11 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     if (!isReasoningModel(model)) {
       return {}
     }
+
     const reasoningEffort = assistant?.settings?.reasoning_effort
 
     if (isSupportedThinkingTokenZhipuModel(model)) {
-      if (!reasoningEffort) {
-        return { thinking: { type: 'disabled' } }
-      }
-      return { thinking: { type: 'enabled' } }
+      return { thinking: { type: reasoningEffort ? 'enabled' : 'disabled' } }
     }
 
     if (!reasoningEffort) {
@@ -139,6 +137,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       // }
 
       // openrouter: use reasoning
+      // openrouter 如果关闭思考，会隐藏思考内容，所以对于总是思考的模型需要特别处理
       if (model.provider === SystemProviderIds.openrouter) {
         // Don't disable reasoning for Gemini models that support thinking tokens
         if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
@@ -146,6 +145,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         }
         // Don't disable reasoning for models that require it
         if (isGrokReasoningModel(model) || isOpenAIReasoningModel(model)) {
+          return {}
+        }
+        if (isReasoningModel(model) && !isSupportedThinkingTokenModel(model)) {
           return {}
         }
         return { reasoning: { enabled: false, exclude: true } }
@@ -205,10 +207,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
               enable_thinking: true,
               incremental_output: true
             }
-          case SystemProviderIds.silicon:
-            return {
-              enable_thinking: true
-            }
           case SystemProviderIds.doubao:
             return {
               thinking: {
@@ -227,10 +225,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
                 thinking: true
               }
             }
+          case SystemProviderIds.silicon:
+          case SystemProviderIds.ppio:
+            return {
+              enable_thinking: true
+            }
           default:
             logger.warn(
-              `Skipping thinking options for provider ${this.provider.name} as DeepSeek v3.1 thinking control method is unknown`
+              `Use enable_thinking option as fallback for provider ${this.provider.name} since DeepSeek v3.1 thinking control method is unknown`
             )
+            return {
+              enable_thinking: true
+            }
         }
       }
     }
@@ -633,12 +639,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           }
           if (this.provider.id === SystemProviderIds.poe) {
             // 如果以后 poe 支持 reasoning_effort 参数了，可以删掉这部分
+            let suffix = ''
             if (isGPT5SeriesModel(model) && reasoningEffort.reasoning_effort) {
-              lastUserMsg.content += ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
+              suffix = ` --reasoning_effort ${reasoningEffort.reasoning_effort}`
             } else if (isClaudeReasoningModel(model) && reasoningEffort.thinking?.budget_tokens) {
-              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
+              suffix = ` --thinking_budget ${reasoningEffort.thinking.budget_tokens}`
             } else if (isGeminiReasoningModel(model) && reasoningEffort.extra_body?.google?.thinking_config) {
-              lastUserMsg.content += ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
+              suffix = ` --thinking_budget ${reasoningEffort.extra_body.google.thinking_config.thinking_budget}`
+            }
+            // FIXME: poe 不支持多个text part，上传文本文件的时候用的不是file part而是text part，因此会出问题
+            // 临时解决方案是强制poe用string content，但是其实poe部分支持array
+            if (typeof lastUserMsg.content === 'string') {
+              lastUserMsg.content += suffix
             }
           }
         }
