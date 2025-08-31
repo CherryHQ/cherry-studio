@@ -3034,7 +3034,6 @@
       "avatar": {
         "builtin": "Builtin avatar",
         "drag_corners_to_resize": "Drag crop box corners to adjust crop area size",
-        "drag_to_move": "Drag image to move and position",
         "edit": "Edit Avatar",
         "edit_tools": "Edit Tools",
         "editing_failed": "Image editing failed",
