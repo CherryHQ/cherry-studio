@@ -224,7 +224,6 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   height: var(--navbar-height);
   position: relative;
-  zoom: calc(1 / var(--zoom));
   -webkit-app-region: drag;
 
   /* 确保交互元素在拖拽区域之上 */

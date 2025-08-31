@@ -14,7 +14,9 @@ export function useZoom() {
 
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on(IpcChannel.Windows_ZoomChange, callback)
-
+    window.api.handleZoomFactor(0).then((zoomLevel) => {
+      setZoom(zoomLevel)
+    })
     return () => {
       cleanup()
     }
