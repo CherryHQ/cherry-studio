@@ -452,6 +452,7 @@ const NotesPage: FC = () => {
           (nodeToDelete.externalPath === activeFilePath || isParentNode(notesTree, nodeId, activeNode?.id || ''))
 
         await deleteNode(nodeId)
+        await sortAllLevels(sortType)
 
         // 如果删除的是当前活动节点或其父节点，清空编辑器
         if (isActiveNodeOrParent) {
@@ -464,7 +465,7 @@ const NotesPage: FC = () => {
         logger.error('Failed to delete node:', error as Error)
       }
     },
-    [activeFilePath, activeNode, notesTree, dispatch, findNodeById]
+    [findNodeById, notesTree, activeFilePath, activeNode?.id, sortType, dispatch]
   )
 
   // 重命名节点
@@ -481,8 +482,15 @@ const NotesPage: FC = () => {
           const renamedNode = await renameNode(nodeId, newName)
 
           if (renamedNode.type === 'file' && activeFilePath === oldExternalPath) {
-            // 更新活动文件路径
             dispatch(setActiveFilePath(renamedNode.externalPath))
+          } else if (
+            renamedNode.type === 'folder' &&
+            activeFilePath &&
+            activeFilePath.startsWith(oldExternalPath + '/')
+          ) {
+            const relativePath = activeFilePath.substring(oldExternalPath.length)
+            const newFilePath = renamedNode.externalPath + relativePath
+            dispatch(setActiveFilePath(newFilePath))
           }
           if (renamedNode.name !== newName) {
             window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
@@ -542,11 +550,12 @@ const NotesPage: FC = () => {
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       try {
         await moveNode(sourceNodeId, targetNodeId, position)
+        await sortAllLevels(sortType)
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
       }
     },
-    []
+    [sortType]
   )
 
   // 处理节点排序
