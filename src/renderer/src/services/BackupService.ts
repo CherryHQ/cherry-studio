@@ -5,7 +5,7 @@ import i18n from '@renderer/i18n'
 import store, { RootState } from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
 import { S3Config, WebDavConfig } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { parseJsonRecursive, uuid } from '@renderer/utils'
 import { Config } from '@shared/config/manager'
 import dayjs from 'dayjs'
 
@@ -825,35 +825,42 @@ export async function getBackupData() {
 /************************************* Backup Utils ************************************** */
 async function restoreState(data: Record<string, any>) {
   localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
-  const state = data.localStorage['persist:cherry-studio']
+  const stateStr = data.localStorage['persist:cherry-studio']
+  // syncConfig is type safe, the type annotation RootState is just for intellisense.
+  const state = parseJsonRecursive(stateStr) as RootState
+  if (state === null) {
+    logger.warn('Failed to sync config.')
+    return
+  }
   await syncConfig(state)
 }
 
 async function syncConfig(state: RootState) {
   // NOTE: zoom factor 不在 redux state 中保存
   const config: Config = {
-    language: state.settings.language,
-    theme: state.settings.theme,
-    launchToTray: state.settings.launchToTray,
-    tray: state.settings.tray,
-    trayOnClose: state.settings.trayOnClose,
-    shortcuts: state.shortcuts.shortcuts,
-    clickTrayToShowQuickAssistant: state.settings.clickTrayToShowQuickAssistant,
-    enableQuickAssistant: state.settings.enableQuickAssistant,
-    autoUpdate: state.settings.autoCheckUpdate,
-    testPlan: state.settings.testPlan,
-    testChannel: state.settings.testChannel,
-    enableDataCollection: state.settings.enableDataCollection,
-    selectionAssistantEnabled: state.selectionStore.selectionEnabled,
-    selectionAssistantTriggerMode: state.selectionStore.triggerMode,
-    selectionAssistantFollowToolbar: state.selectionStore.isFollowToolbar,
-    selectionAssistantRemeberWinSize: state.selectionStore.isRemeberWinSize,
-    selectionAssistantFilterMode: state.selectionStore.filterMode,
-    selectionAssistantFilterList: state.selectionStore.filterList,
-    disableHardwareAcceleration: state.settings.disableHardwareAcceleration,
-    proxy: state.settings.proxyUrl,
-    enableDeveloperMode: state.settings.enableDeveloperMode
+    language: state?.settings?.language,
+    theme: state?.settings?.theme,
+    launchToTray: state?.settings?.launchToTray,
+    tray: state?.settings?.tray,
+    trayOnClose: state?.settings?.trayOnClose,
+    shortcuts: state?.shortcuts?.shortcuts,
+    clickTrayToShowQuickAssistant: state?.settings?.clickTrayToShowQuickAssistant,
+    enableQuickAssistant: state?.settings?.enableQuickAssistant,
+    autoUpdate: state?.settings?.autoCheckUpdate,
+    testPlan: state?.settings?.testPlan,
+    testChannel: state?.settings?.testChannel,
+    enableDataCollection: state?.settings?.enableDataCollection,
+    selectionAssistantEnabled: state?.selectionStore?.selectionEnabled,
+    selectionAssistantTriggerMode: state?.selectionStore?.triggerMode,
+    selectionAssistantFollowToolbar: state?.selectionStore?.isFollowToolbar,
+    selectionAssistantRemeberWinSize: state?.selectionStore?.isRemeberWinSize,
+    selectionAssistantFilterMode: state?.selectionStore?.filterMode,
+    selectionAssistantFilterList: state?.selectionStore?.filterList,
+    disableHardwareAcceleration: state?.settings?.disableHardwareAcceleration,
+    proxy: state?.settings?.proxyUrl, // seems not available
+    enableDeveloperMode: state?.settings?.enableDeveloperMode
   }
+  logger.debug('syncConfig', { config, state })
   return window.api.config.restore(config)
 }
 

@@ -1,11 +1,13 @@
+import { loggerService } from '@logger'
 import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
 import { Config, ConfigKeys } from '@shared/config/manager'
-import { LanguageVarious, objectEntries, Shortcut, ThemeMode } from '@types'
+import { LanguageVarious, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
 
+const logger = loggerService.withContext('ConfigManager')
 export class ConfigManager {
   private store: Store
   private subscribers: Map<string, Array<(newValue: any) => void>> = new Map()
@@ -16,17 +18,83 @@ export class ConfigManager {
 
   clearStore() {
     this.store.clear()
+    // 用默认值触发部分notify
+    this.setZoomFactor(1.0)
+    this.setEnableQuickAssistant(false)
+    this.setSelectionAssistantEnabled(false)
+    logger.info('Config cleared')
   }
 
   update(data: Config) {
-    objectEntries(data).forEach(([key, value]) => {
-      this.set(key, value)
-    })
+    if (data[ConfigKeys.Language]) {
+      this.setLanguage(data[ConfigKeys.Language])
+    }
+    if (data[ConfigKeys.Theme]) {
+      this.setTheme(data[ConfigKeys.Theme])
+    }
+    if (data[ConfigKeys.LaunchToTray] !== undefined) {
+      this.setLaunchToTray(data[ConfigKeys.LaunchToTray])
+    }
+    if (data[ConfigKeys.Tray] !== undefined) {
+      this.setTray(data[ConfigKeys.Tray])
+    }
+    if (data[ConfigKeys.TrayOnClose] !== undefined) {
+      this.setTrayOnClose(data[ConfigKeys.TrayOnClose])
+    }
+    if (data[ConfigKeys.ZoomFactor]) {
+      this.setZoomFactor(data[ConfigKeys.ZoomFactor])
+    }
+    if (data[ConfigKeys.Shortcuts]) {
+      this.setShortcuts(data[ConfigKeys.Shortcuts])
+    }
+    if (data[ConfigKeys.ClickTrayToShowQuickAssistant] !== undefined) {
+      this.setClickTrayToShowQuickAssistant(data[ConfigKeys.ClickTrayToShowQuickAssistant])
+    }
+    if (data[ConfigKeys.EnableQuickAssistant] !== undefined) {
+      this.setEnableQuickAssistant(data[ConfigKeys.EnableQuickAssistant])
+    }
+    if (data[ConfigKeys.AutoUpdate] !== undefined) {
+      this.setAutoUpdate(data[ConfigKeys.AutoUpdate])
+    }
+    if (data[ConfigKeys.TestPlan] !== undefined) {
+      this.setTestPlan(data[ConfigKeys.TestPlan] as boolean)
+    }
+    if (data[ConfigKeys.TestChannel]) {
+      this.setTestChannel(data[ConfigKeys.TestChannel])
+    }
+    if (data[ConfigKeys.EnableDataCollection] !== undefined) {
+      this.setEnableDataCollection(data[ConfigKeys.EnableDataCollection])
+    }
+    if (data[ConfigKeys.SelectionAssistantEnabled] !== undefined) {
+      this.setSelectionAssistantEnabled(data[ConfigKeys.SelectionAssistantEnabled])
+    }
+    if (data[ConfigKeys.SelectionAssistantTriggerMode]) {
+      this.setSelectionAssistantTriggerMode(data[ConfigKeys.SelectionAssistantTriggerMode])
+    }
+    if (data[ConfigKeys.SelectionAssistantFollowToolbar] !== undefined) {
+      this.setSelectionAssistantFollowToolbar(data[ConfigKeys.SelectionAssistantFollowToolbar])
+    }
+    if (data[ConfigKeys.SelectionAssistantRemeberWinSize] !== undefined) {
+      this.setSelectionAssistantRemeberWinSize(data[ConfigKeys.SelectionAssistantRemeberWinSize])
+    }
+    if (data[ConfigKeys.SelectionAssistantFilterMode]) {
+      this.setSelectionAssistantFilterMode(data[ConfigKeys.SelectionAssistantFilterMode])
+    }
+    if (data[ConfigKeys.SelectionAssistantFilterList]) {
+      this.setSelectionAssistantFilterList(data[ConfigKeys.SelectionAssistantFilterList])
+    }
+    if (data[ConfigKeys.DisableHardwareAcceleration] !== undefined) {
+      this.setDisableHardwareAcceleration(data[ConfigKeys.DisableHardwareAcceleration])
+    }
+    if (data[ConfigKeys.EnableDeveloperMode] !== undefined) {
+      this.setEnableDeveloperMode(data[ConfigKeys.EnableDeveloperMode])
+    }
   }
 
   restore(data: Config) {
     this.clearStore()
     this.update(data)
+    logger.info('Config restored.')
   }
 
   getLanguage(): LanguageVarious {
@@ -167,7 +235,8 @@ export class ConfigManager {
   }
 
   setSelectionAssistantEnabled(value: boolean) {
-    if (value === this.getSelectionAssistantEnabled()) return
+    // notify only when toggled
+    if (value === this.get<boolean>(ConfigKeys.SelectionAssistantEnabled)) return
     this.setAndNotify(ConfigKeys.SelectionAssistantEnabled, value)
   }
 

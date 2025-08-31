@@ -48,7 +48,7 @@ export type Config = Partial<{
   [ConfigKeys.SelectionAssistantFilterMode]: string
   [ConfigKeys.SelectionAssistantFilterList]: string[]
   [ConfigKeys.DisableHardwareAcceleration]: boolean
-  [ConfigKeys.Proxy]: string
+  [ConfigKeys.Proxy]: string // proxy 似乎没在 config manager里面管理，我也不知道为什么这里有个键
   [ConfigKeys.EnableDeveloperMode]: boolean
 }>
 
