@@ -19,6 +19,7 @@ import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
+import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
@@ -104,7 +105,23 @@ const store = configureStore({
 export type RootState = ReturnType<typeof rootReducer>
 export type AppDispatch = typeof store.dispatch
 
-export const persistor = persistStore(store)
+export const persistor = persistStore(store, undefined, () => {
+  // Initialize notes path after rehydration if empty
+  const state = store.getState()
+  if (!state.note.notesPath) {
+    // Use setTimeout to ensure this runs after the store is fully initialized
+    setTimeout(async () => {
+      try {
+        const info = await window.api.getAppInfo()
+        store.dispatch(setNotesPath(info.notesPath))
+        logger.info('Initialized notes path on startup:', info.notesPath)
+      } catch (error) {
+        logger.error('Failed to initialize notes path on startup:', error as Error)
+      }
+    }, 0)
+  }
+})
+
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()
 export const useAppStore = useStore.withTypes<typeof store>()

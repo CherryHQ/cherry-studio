@@ -6,7 +6,7 @@ import { initWorkSpace } from '@renderer/services/NotesService'
 import { EditorView } from '@renderer/types'
 import { Button, Input, message, Switch } from 'antd'
 import { FolderOpen } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -28,6 +28,13 @@ const NotesSettings: FC = () => {
   const { settings, updateSettings, notesPath, updateNotesPath } = useNotesSettings()
   const [tempPath, setTempPath] = useState<string>(notesPath || '')
   const [isSelecting, setIsSelecting] = useState(false)
+
+  // Update tempPath when notesPath changes (e.g., after initialization)
+  useEffect(() => {
+    if (notesPath) {
+      setTempPath(notesPath)
+    }
+  }, [notesPath])
 
   const handleSelectWorkDirectory = async () => {
     try {
