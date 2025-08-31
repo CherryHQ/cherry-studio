@@ -1,5 +1,6 @@
 .tiptap {
-  padding: 12px 60px;
+  // 预留5px给scrollbar
+  padding: 12px 55px 12px 60px;
   outline: none;
   min-height: 120px;
   overflow-wrap: break-word;
