@@ -84,11 +84,13 @@ const NotesPage: FC = () => {
 
       try {
         await window.api.file.write(activeFilePath, content)
+        // 保存后立即刷新缓存，确保下次读取时获取最新内容
+        invalidateFileContent(activeFilePath)
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
       }
     },
-    [activeFilePath, currentContent]
+    [activeFilePath, currentContent, invalidateFileContent]
   )
 
   // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
