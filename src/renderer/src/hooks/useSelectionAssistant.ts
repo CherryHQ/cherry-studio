@@ -13,20 +13,44 @@ import {
   setTriggerMode
 } from '@renderer/store/selectionStore'
 import { ActionItem, FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
+import { useEffect } from 'react'
 
 export function useSelectionAssistant() {
   const dispatch = useAppDispatch()
   const selectionStore = useAppSelector((state) => state.selectionStore)
 
+  // 自动同步设置到main，不依赖set函数的行为
+  useEffect(() => {
+    window.api.selection.setEnabled(selectionStore.selectionEnabled)
+  }, [selectionStore.selectionEnabled])
+
+  useEffect(() => {
+    window.api.selection.setTriggerMode(selectionStore.triggerMode)
+  }, [selectionStore.triggerMode])
+
+  useEffect(() => {
+    window.api.selection.setFollowToolbar(selectionStore.isFollowToolbar)
+  }, [selectionStore.isFollowToolbar])
+
+  useEffect(() => {
+    window.api.selection.setRemeberWinSize(selectionStore.isRemeberWinSize)
+  }, [selectionStore.isRemeberWinSize])
+
+  useEffect(() => {
+    window.api.selection.setFilterMode(selectionStore.filterMode)
+  }, [selectionStore.filterMode])
+
+  useEffect(() => {
+    window.api.selection.setFilterList(selectionStore.filterList)
+  }, [selectionStore.filterList])
+
   return {
     ...selectionStore,
     setSelectionEnabled: (enabled: boolean) => {
       dispatch(setSelectionEnabled(enabled))
-      window.api.selection.setEnabled(enabled)
     },
     setTriggerMode: (mode: TriggerMode) => {
       dispatch(setTriggerMode(mode))
-      window.api.selection.setTriggerMode(mode)
     },
     setIsCompact: (isCompact: boolean) => {
       dispatch(setIsCompact(isCompact))
@@ -39,19 +63,15 @@ export function useSelectionAssistant() {
     },
     setIsFollowToolbar: (isFollowToolbar: boolean) => {
       dispatch(setIsFollowToolbar(isFollowToolbar))
-      window.api.selection.setFollowToolbar(isFollowToolbar)
     },
     setIsRemeberWinSize: (isRemeberWinSize: boolean) => {
       dispatch(setIsRemeberWinSize(isRemeberWinSize))
-      window.api.selection.setRemeberWinSize(isRemeberWinSize)
     },
     setFilterMode: (mode: FilterMode) => {
       dispatch(setFilterMode(mode))
-      window.api.selection.setFilterMode(mode)
     },
     setFilterList: (list: string[]) => {
       dispatch(setFilterList(list))
-      window.api.selection.setFilterList(list)
     },
     setActionWindowOpacity: (opacity: number) => {
       dispatch(setActionWindowOpacity(opacity))
