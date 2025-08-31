@@ -3034,7 +3034,6 @@
       "avatar": {
         "builtin": "內置頭像",
         "drag_corners_to_resize": "拖動裁剪框角落調整裁剪區域大小",
-        "drag_to_move": "拖動圖片進行移動和定位",
         "edit": "編輯頭像",
         "edit_tools": "編輯工具",
         "editing_failed": "圖片編輯失敗",

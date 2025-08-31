@@ -3034,7 +3034,6 @@
       "avatar": {
         "builtin": "内蔵アバター",
         "drag_corners_to_resize": "切り抜き枠の角をドラッグしてサイズ調整",
-        "drag_to_move": "画像をドラッグして移動・位置調整",
         "edit": "アバターを編集",
         "edit_tools": "編集ツール",
         "editing_failed": "画像編集に失敗しました",
