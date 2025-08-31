@@ -2,10 +2,11 @@ import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
-import store from '@renderer/store'
+import store, { RootState } from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
 import { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { Config } from '@shared/config/manager'
 import dayjs from 'dayjs'
 
 import { NotificationService } from './NotificationService'
@@ -822,6 +823,41 @@ export async function getBackupData() {
 }
 
 /************************************* Backup Utils ************************************** */
+async function restoreState(data: Record<string, any>) {
+  localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+  const state = data.localStorage['persist:cherry-studio']
+  await syncConfig(state)
+}
+
+async function syncConfig(state: RootState) {
+  // NOTE: zoom factor 不在 redux state 中保存
+  const config: Config = {
+    language: state.settings.language,
+    theme: state.settings.theme,
+    launchToTray: state.settings.launchToTray,
+    tray: state.settings.tray,
+    trayOnClose: state.settings.trayOnClose,
+    shortcuts: state.shortcuts.shortcuts,
+    clickTrayToShowQuickAssistant: state.settings.clickTrayToShowQuickAssistant,
+    enableQuickAssistant: state.settings.enableQuickAssistant,
+    autoUpdate: state.settings.autoCheckUpdate,
+    testPlan: state.settings.testPlan,
+    testChannel: state.settings.testChannel,
+    enableDataCollection: state.settings.enableDataCollection,
+    selectionAssistantEnabled: state.selectionStore.selectionEnabled,
+    selectionAssistantTriggerMode: state.selectionStore.triggerMode,
+    selectionAssistantFollowToolbar: state.selectionStore.isFollowToolbar,
+    selectionAssistantRemeberWinSize: state.selectionStore.isRemeberWinSize,
+    selectionAssistantFilterMode: state.selectionStore.filterMode,
+    selectionAssistantFilterList: state.selectionStore.filterList,
+    disableHardwareAcceleration: state.settings.disableHardwareAcceleration,
+    proxy: state.settings.proxyUrl,
+    enableDeveloperMode: state.settings.enableDeveloperMode
+  }
+  return window.api.config.restore(config)
+}
+
+// FIXME: 这里假设data总是合法，但未必
 export async function handleData(data: Record<string, any>) {
   if (data.version === 1) {
     await clearDatabase()
@@ -835,14 +871,14 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    await restoreState(data)
     window.message.success({ content: i18n.t('message.restore.success'), key: 'restore' })
     setTimeout(() => window.api.reload(), 1000)
     return
   }
 
   if (data.version >= 2) {
-    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    await restoreState(data)
     await restoreDatabase(data.indexedDB)
 
     if (data.version === 3) {

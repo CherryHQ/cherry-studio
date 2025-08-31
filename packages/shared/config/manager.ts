@@ -38,7 +38,7 @@ export type Config = Partial<{
   [ConfigKeys.ClickTrayToShowQuickAssistant]: boolean
   [ConfigKeys.EnableQuickAssistant]: boolean
   [ConfigKeys.AutoUpdate]: boolean
-  [ConfigKeys.TestPlan]: string
+  [ConfigKeys.TestPlan]: boolean
   [ConfigKeys.TestChannel]: UpgradeChannel
   [ConfigKeys.EnableDataCollection]: boolean
   [ConfigKeys.SelectionAssistantEnabled]: boolean
