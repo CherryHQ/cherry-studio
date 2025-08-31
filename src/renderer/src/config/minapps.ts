@@ -56,6 +56,7 @@ import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
+import LongCatAppLogo from '@renderer/assets/images/apps/longcat.png?url'
 import i18n from '@renderer/i18n'
 import { MinAppType } from '@renderer/types'
 
@@ -476,6 +477,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
+  },
+  {
+    id: `LongCat`,
+    name: `LongCat`,
+    logo: LongCatAppLogo,
+    url: `https://longcat.chat/`,
+    bodered: true,
   }
 ]
 
