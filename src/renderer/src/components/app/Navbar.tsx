@@ -29,7 +29,7 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
         ref.current.style.zoom = ''
         ref.current.style.paddingLeft = ''
       }
-      if (zoom >= 1) {
+      if (zoom >= 1 && isMac) {
         const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
         const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
         window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
