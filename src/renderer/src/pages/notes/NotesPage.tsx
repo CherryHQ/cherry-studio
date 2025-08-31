@@ -16,7 +16,7 @@ import {
 } from '@renderer/services/NotesService'
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectActiveFilePath, setActiveFilePath } from '@renderer/store/note'
+import { selectActiveFilePath, selectSortType, setActiveFilePath, setSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -37,6 +37,7 @@ const NotesPage: FC = () => {
   const { showWorkspace } = useSettings()
   const dispatch = useAppDispatch()
   const activeFilePath = useAppSelector(selectActiveFilePath)
+  const sortType = useAppSelector(selectSortType)
   const { settings, notesPath, updateNotesPath } = useNotesSettings()
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
@@ -53,6 +54,8 @@ const NotesPage: FC = () => {
   const isEditorInitialized = useRef(false)
   const lastContentRef = useRef<string>('')
   const isInitialSortApplied = useRef(false)
+  const isRenamingRef = useRef(false)
+  const isCreatingNoteRef = useRef(false)
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -131,7 +134,7 @@ const NotesPage: FC = () => {
     async function applyInitialSort() {
       if (notesTree.length > 0 && !isInitialSortApplied.current) {
         try {
-          await sortAllLevels('sort_a2z')
+          await sortAllLevels(sortType)
           isInitialSortApplied.current = true
         } catch (error) {
           logger.error('Failed to apply initial sorting:', error as Error)
@@ -140,14 +143,21 @@ const NotesPage: FC = () => {
     }
 
     applyInitialSort()
-  }, [notesTree.length])
+  }, [notesTree.length, sortType])
 
   // 处理树同步时的状态管理
   useEffect(() => {
     if (notesTree.length === 0) return
 
     // 如果有activeFilePath但找不到对应节点，清空选择
-    if (activeFilePath && !activeNode) {
+    // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
+    if (
+      activeFilePath &&
+      !activeNode &&
+      !isSyncingTreeRef.current &&
+      !isRenamingRef.current &&
+      !isCreatingNoteRef.current
+    ) {
       dispatch(setActiveFilePath(undefined))
     }
   }, [notesTree, activeFilePath, activeNode, dispatch])
@@ -191,7 +201,7 @@ const NotesPage: FC = () => {
                   invalidateFileContent(filePath)
                 }
               } else {
-                await initWorkSpace(notesPath)
+                await initWorkSpace(notesPath, sortType)
               }
               break
             }
@@ -210,7 +220,7 @@ const NotesPage: FC = () => {
 
               // 重新同步数据库，useLiveQuery会自动响应数据库变化
               try {
-                await initWorkSpace(notesPath)
+                await initWorkSpace(notesPath, sortType)
               } catch (error) {
                 logger.error('Failed to sync database:', error as Error)
               } finally {
@@ -264,7 +274,8 @@ const NotesPage: FC = () => {
     dispatch,
     currentContent,
     debouncedSave,
-    saveCurrentNote
+    saveCurrentNote,
+    sortType
   ])
 
   useEffect(() => {
@@ -273,7 +284,7 @@ const NotesPage: FC = () => {
       // 标记编辑器已初始化
       isEditorInitialized.current = true
     }
-  }, [currentContent])
+  }, [currentContent, activeFilePath])
 
   // 切换文件时重置编辑器初始化状态并兜底保存
   useEffect(() => {
@@ -319,17 +330,27 @@ const NotesPage: FC = () => {
   const handleCreateNote = useCallback(
     async (name: string) => {
       try {
+        isCreatingNoteRef.current = true
+
         const targetPath = getTargetFolderPath()
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
         const newNote = await createNote(name, '', targetPath)
         dispatch(setActiveFilePath(newNote.externalPath))
+        setSelectedFolderId(null)
+
+        await sortAllLevels(sortType)
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
+      } finally {
+        // 延迟重置标志，给数据库同步一些时间
+        setTimeout(() => {
+          isCreatingNoteRef.current = false
+        }, 500)
       }
     },
-    [dispatch, getTargetFolderPath]
+    [dispatch, getTargetFolderPath, sortType]
   )
 
   // 切换展开状态
@@ -410,10 +431,7 @@ const NotesPage: FC = () => {
           logger.error('Failed to load note:', error as Error)
         }
       } else if (node.type === 'folder') {
-        // 设置选中的文件夹，同时清除活动文件
         setSelectedFolderId(node.id)
-        // 清除活动文件状态，这样文件的高亮会被清除
-        dispatch(setActiveFilePath(undefined))
         await handleToggleExpanded(node.id)
       }
     },
@@ -432,6 +450,7 @@ const NotesPage: FC = () => {
           (nodeToDelete.externalPath === activeFilePath || isParentNode(notesTree, nodeId, activeNode?.id || ''))
 
         await deleteNode(nodeId)
+        await sortAllLevels(sortType)
 
         // 如果删除的是当前活动节点或其父节点，清空编辑器
         if (isActiveNodeOrParent) {
@@ -444,24 +463,47 @@ const NotesPage: FC = () => {
         logger.error('Failed to delete node:', error as Error)
       }
     },
-    [activeFilePath, activeNode, notesTree, dispatch, findNodeById]
+    [findNodeById, notesTree, activeFilePath, activeNode?.id, sortType, dispatch]
   )
 
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
       try {
+        isRenamingRef.current = true
+
         const tree = await getNotesTree()
         const node = findNodeById(tree, nodeId)
 
         if (node && node.name !== newName) {
-          await renameNode(nodeId, newName)
+          const oldExternalPath = node.externalPath
+          const renamedNode = await renameNode(nodeId, newName)
+
+          if (renamedNode.type === 'file' && activeFilePath === oldExternalPath) {
+            dispatch(setActiveFilePath(renamedNode.externalPath))
+          } else if (
+            renamedNode.type === 'folder' &&
+            activeFilePath &&
+            activeFilePath.startsWith(oldExternalPath + '/')
+          ) {
+            const relativePath = activeFilePath.substring(oldExternalPath.length)
+            const newFilePath = renamedNode.externalPath + relativePath
+            dispatch(setActiveFilePath(newFilePath))
+          }
+          await sortAllLevels(sortType)
+          if (renamedNode.name !== newName) {
+            window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
+          }
         }
       } catch (error) {
         logger.error('Failed to rename node:', error as Error)
+      } finally {
+        setTimeout(() => {
+          isRenamingRef.current = false
+        }, 500)
       }
     },
-    [findNodeById]
+    [activeFilePath, dispatch, findNodeById, sortType, t]
   )
 
   // 处理文件上传
@@ -507,22 +549,28 @@ const NotesPage: FC = () => {
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       try {
         await moveNode(sourceNodeId, targetNodeId, position)
+        await sortAllLevels(sortType)
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
       }
     },
-    []
+    [sortType]
   )
 
   // 处理节点排序
-  const handleSortNodes = useCallback(async (sortType: NotesSortType) => {
-    try {
-      await sortAllLevels(sortType)
-    } catch (error) {
-      logger.error('Failed to sort notes:', error as Error)
-      throw error
-    }
-  }, [])
+  const handleSortNodes = useCallback(
+    async (newSortType: NotesSortType) => {
+      try {
+        // 更新Redux中的排序类型
+        dispatch(setSortType(newSortType))
+        await sortAllLevels(newSortType)
+      } catch (error) {
+        logger.error('Failed to sort notes:', error as Error)
+        throw error
+      }
+    },
+    [dispatch]
+  )
 
   const getCurrentNoteContent = useCallback(() => {
     if (settings.defaultEditMode === 'source') {

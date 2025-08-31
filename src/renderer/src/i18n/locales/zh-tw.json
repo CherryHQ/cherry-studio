@@ -1615,9 +1615,12 @@
     "new_folder": "新建文件夾",
     "new_note": "新建筆記",
     "no_content_to_copy": "沒有內容可複制",
+    "no_file_selected": "請選擇要上傳的文件",
     "only_markdown": "僅支援 Markdown 格式",
+    "only_one_file_allowed": "只能上傳一個文件",
     "open_folder": "打開外部文件夾",
     "rename": "重命名",
+    "rename_changed": "由於安全策略，文件名已從 {{original}} 更改為 {{final}}",
     "save": "儲存到筆記",
     "settings": {
       "data": {

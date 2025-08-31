@@ -1615,9 +1615,12 @@
     "new_folder": "New Folder",
     "new_note": "Create a new note",
     "no_content_to_copy": "No content to copy",
+    "no_file_selected": "Please select the file to upload",
     "only_markdown": "Only Markdown files are supported",
+    "only_one_file_allowed": "Only one file can be uploaded",
     "open_folder": "Open an external folder",
     "rename": "Rename",
+    "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",
     "settings": {
       "data": {

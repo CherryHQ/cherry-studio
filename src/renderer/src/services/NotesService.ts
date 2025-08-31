@@ -22,9 +22,9 @@ const logger = loggerService.withContext('NotesService')
 /**
  * 初始化/同步笔记树结构
  */
-export async function initWorkSpace(folderPath: string): Promise<void> {
+export async function initWorkSpace(folderPath: string, sortType: NotesSortType): Promise<void> {
   const tree = await window.api.file.getDirectoryStructure(folderPath)
-  await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
+  await sortAllLevels(sortType, tree)
 }
 
 /**
@@ -326,9 +326,11 @@ function getSortFunction(sortType: NotesSortType): (a: NotesTreeNode, b: NotesTr
 /**
  * 递归排序笔记树中的所有层级
  */
-export async function sortAllLevels(sortType: NotesSortType): Promise<void> {
+export async function sortAllLevels(sortType: NotesSortType, tree?: NotesTreeNode[]): Promise<void> {
   try {
-    const tree = await getNotesTree()
+    if (!tree) {
+      tree = await getNotesTree()
+    }
     sortNodesArray(tree, sortType)
     recursiveSortNodes(tree, sortType)
     await db.notes_tree.put({ id: NOTES_TREE_ID, tree })
