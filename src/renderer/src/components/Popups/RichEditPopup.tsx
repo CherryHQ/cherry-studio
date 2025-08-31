@@ -97,6 +97,7 @@ const PopupContainer: React.FC<Props> = ({
       afterClose={onClose}
       afterOpenChange={handleAfterOpenChange}
       maskClosable={false}
+      keyboard={false}
       centered>
       <EditorContainer>
         <RichEditor
