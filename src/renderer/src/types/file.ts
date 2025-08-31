@@ -117,3 +117,10 @@ export type PdfFileMetadata = FileMetadata & {
 export const isImageFileMetadata = (file: FileMetadata): file is ImageFileMetadata => {
   return file.type === FileTypes.IMAGE
 }
+
+export function parseFileTypes(str: string): FileTypes | undefined {
+  if (Object.values(FileTypes).includes(str as FileTypes)) {
+    return str as FileTypes
+  }
+  return undefined
+}

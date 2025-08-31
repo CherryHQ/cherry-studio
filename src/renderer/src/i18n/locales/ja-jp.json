@@ -875,9 +875,6 @@
     "all": "すべてのファイル",
     "batch_delete": "一括削除",
     "batch_operation": "すべて選択",
-    "click": {
-      "error": "ファイルを開くのに失敗しました"
-    },
     "count": "ファイル",
     "created_at": "作成日",
     "delete": {
@@ -895,6 +892,9 @@
     "image": "画像",
     "name": "名前",
     "open": "開く",
+    "preview": {
+      "error": "ファイルを開くのに失敗しました"
+    },
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",

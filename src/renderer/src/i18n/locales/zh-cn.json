@@ -875,9 +875,6 @@
     "all": "所有文件",
     "batch_delete": "批量删除",
     "batch_operation": "全选",
-    "click": {
-      "error": "打开文件失败"
-    },
     "count": "个文件",
     "created_at": "创建时间",
     "delete": {
@@ -895,6 +892,9 @@
     "image": "图片",
     "name": "文件名",
     "open": "打开",
+    "preview": {
+      "error": "打开文件失败"
+    },
     "size": "大小",
     "text": "文本",
     "title": "文件",

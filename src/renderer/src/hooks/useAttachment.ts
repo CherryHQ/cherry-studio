@@ -12,8 +12,7 @@ const logger = loggerService.withContext('FileAction')
  */
 export function useAttachment() {
   const { t } = useTranslation()
-  const preview = async (path: string | undefined, title: string, fileType: FileTypes, extension?: string) => {
-    if (path === undefined) return
+  const preview = async (path: string, title: string, fileType: FileTypes, extension?: string) => {
     try {
       if (fileType === FileTypes.TEXT) {
         const content = await window.api.fs.readText(path)
@@ -27,7 +26,7 @@ export function useAttachment() {
       }
     } catch (err) {
       logger.error(`Error opening ${path}:`, err as Error)
-      window.modal.error({ content: t('files.click.error'), centered: true })
+      window.modal.error({ content: t('files.preview.error'), centered: true })
     }
   }
   return {

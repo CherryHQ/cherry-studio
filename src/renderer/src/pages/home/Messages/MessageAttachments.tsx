@@ -1,8 +1,9 @@
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
-import { FileTypes } from '@renderer/types'
+import { parseFileTypes } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { Upload } from 'antd'
+import { t } from 'i18next'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -46,11 +47,16 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           if (file.url === undefined || file.type === undefined) {
             return
           }
+          const fileType = parseFileTypes(file.type)
+          if (fileType === undefined) {
+            window.modal.error({ content: t('files.preview.error'), centered: true })
+            return
+          }
           let path = file.url
           if (path.startsWith('file://')) {
             path = path.replace('file://', '')
           }
-          preview(path, file.name, file.type as FileTypes, file.preview)
+          preview(path, file.name, fileType, file.preview)
         }}
       />
     </Container>

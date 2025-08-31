@@ -875,9 +875,6 @@
     "all": "Todos los archivos",
     "batch_delete": "Eliminación masiva",
     "batch_operation": "Seleccionar todo",
-    "click": {
-      "error": "No se pudo abrir el archivo"
-    },
     "count": "Número de archivos",
     "created_at": "Fecha de creación",
     "delete": {
@@ -895,6 +892,9 @@
     "image": "Imagen",
     "name": "Nombre del archivo",
     "open": "Abrir",
+    "preview": {
+      "error": "No se pudo abrir el archivo"
+    },
     "size": "Tamaño",
     "text": "Texto",
     "title": "Archivo",
