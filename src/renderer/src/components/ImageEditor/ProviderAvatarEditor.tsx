@@ -188,7 +188,6 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
 
           <TipText>
             💡 {t('settings.general.avatar.usage_guide')}
-            <br />• {t('settings.general.avatar.drag_to_move')}
             <br />• {t('settings.general.avatar.drag_corners_to_resize')}
             <br />• {t('settings.general.avatar.scroll_to_zoom')}
             <br />• {t('settings.general.avatar.use_tools_for_transform')}
