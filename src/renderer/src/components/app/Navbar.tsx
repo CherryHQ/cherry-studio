@@ -1,8 +1,8 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { useSafeArea } from '@renderer/hooks/useSafeArea'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useZoom } from '@renderer/hooks/useZoom'
 import type { HTMLAttributes } from 'react'
 import { type FC, type PropsWithChildren, useEffect, useRef } from 'react'
 import styled from 'styled-components'
@@ -12,14 +12,27 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
-  const { safeWidth } = useSafeArea()
+  const { zoom, defaultWidth } = useZoom()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (ref.current !== undefined) {
-      ref.current?.style.setProperty('--safe-left', `${safeWidth}px`)
+    if (ref.current !== null) {
+      if (zoom <= 1) {
+        let width = defaultWidth
+        const sidebar = document.querySelector('#app-sidebar')
+        if (sidebar !== null) {
+          width -= sidebar.clientWidth * zoom
+        }
+        ref.current.style.marginLeft = '0'
+        ref.current.style.zoom = `${1 / zoom}`
+        ref.current.style.paddingLeft = `${width}px`
+      } else {
+        ref.current.style.marginLeft = ''
+        ref.current.style.zoom = ''
+        ref.current.style.paddingLeft = ''
+      }
     }
-  }, [ref, safeWidth])
+  }, [ref, zoom, defaultWidth])
 
   if (isTopNavbar) {
     return null
@@ -69,7 +82,7 @@ const NavbarContainer = styled.div`
   min-height: var(--navbar-height);
   max-height: var(--navbar-height);
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'var(--safe-left)' : 0};
+  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
   -webkit-app-region: drag;
 `
 

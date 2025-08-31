@@ -2,16 +2,14 @@ import { TRAFFIC_LIGHT_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 
-export function useSafeArea(padding: number = 0) {
+export function useZoom() {
   const defaultWidth =
     8 + // padding left
-    TRAFFIC_LIGHT_WIDTH +
-    padding // padding right
-  const [safeWidth, setWidth] = useState(defaultWidth)
+    TRAFFIC_LIGHT_WIDTH
+  const [zoom, setZoom] = useState(1)
 
-  const callback = (_: any, zoom: number) => {
-    const newWidth = defaultWidth / zoom
-    setWidth(newWidth)
+  const callback = (_: any, zoomLevel: number) => {
+    setZoom(zoomLevel)
   }
 
   useEffect(() => {
@@ -22,5 +20,5 @@ export function useSafeArea(padding: number = 0) {
     }
   }, [])
 
-  return { safeWidth }
+  return { defaultWidth, zoom }
 }

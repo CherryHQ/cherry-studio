@@ -3,7 +3,7 @@ import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useSafeArea } from '@renderer/hooks/useSafeArea'
+import { useZoom } from '@renderer/hooks/useZoom'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -82,14 +82,18 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
-  const { safeWidth } = useSafeArea(14)
+  const { zoom } = useZoom()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (ref.current !== undefined) {
-      ref.current?.style.setProperty('--safe-left', `${safeWidth}px`)
+    if (ref.current !== null) {
+      if (zoom <= 1) {
+        ref.current.style.zoom = `${1 / zoom}`
+      } else {
+        ref.current.style.zoom = ''
+      }
     }
-  }, [ref, safeWidth])
+  }, [ref, zoom])
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -152,8 +156,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   }
 
   return (
-    <Container ref={ref}>
-      <TabsBar $isFullscreen={isFullscreen}>
+    <Container>
+      <TabsBar ref={ref} $isFullscreen={isFullscreen}>
         {tabs
           .filter((tab) => !specialTabs.includes(tab.id))
           .map((tab) => {
@@ -216,10 +220,11 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'var(--safe-left)' : '15px')};
+  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   height: var(--navbar-height);
   position: relative;
+  zoom: calc(1 / var(--zoom));
   -webkit-app-region: drag;
 
   /* 确保交互元素在拖拽区域之上 */
