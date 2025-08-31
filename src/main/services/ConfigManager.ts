@@ -1,34 +1,10 @@
 import { defaultLanguage, UpgradeChannel, ZOOM_SHORTCUTS } from '@shared/config/constant'
-import { LanguageVarious, Shortcut, ThemeMode } from '@types'
+import { Config, ConfigKeys } from '@shared/config/manager'
+import { LanguageVarious, objectEntries, Shortcut, ThemeMode } from '@types'
 import { app } from 'electron'
 import Store from 'electron-store'
 
 import { locales } from '../utils/locales'
-
-export enum ConfigKeys {
-  Language = 'language',
-  Theme = 'theme',
-  LaunchToTray = 'launchToTray',
-  Tray = 'tray',
-  TrayOnClose = 'trayOnClose',
-  ZoomFactor = 'ZoomFactor',
-  Shortcuts = 'shortcuts',
-  ClickTrayToShowQuickAssistant = 'clickTrayToShowQuickAssistant',
-  EnableQuickAssistant = 'enableQuickAssistant',
-  AutoUpdate = 'autoUpdate',
-  TestPlan = 'testPlan',
-  TestChannel = 'testChannel',
-  EnableDataCollection = 'enableDataCollection',
-  SelectionAssistantEnabled = 'selectionAssistantEnabled',
-  SelectionAssistantTriggerMode = 'selectionAssistantTriggerMode',
-  SelectionAssistantFollowToolbar = 'selectionAssistantFollowToolbar',
-  SelectionAssistantRemeberWinSize = 'selectionAssistantRemeberWinSize',
-  SelectionAssistantFilterMode = 'selectionAssistantFilterMode',
-  SelectionAssistantFilterList = 'selectionAssistantFilterList',
-  DisableHardwareAcceleration = 'disableHardwareAcceleration',
-  Proxy = 'proxy',
-  EnableDeveloperMode = 'enableDeveloperMode'
-}
 
 export class ConfigManager {
   private store: Store

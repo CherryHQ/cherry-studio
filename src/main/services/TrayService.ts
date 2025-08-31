@@ -1,11 +1,12 @@
 import { isLinux, isMac, isWin } from '@main/constant'
 import { locales } from '@main/utils/locales'
+import { ConfigKeys } from '@shared/config/manager'
 import { app, Menu, MenuItemConstructorOptions, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'
 import iconLight from '../../../build/tray_icon_light.png?asset'
-import { ConfigKeys, configManager } from './ConfigManager'
+import { configManager } from './ConfigManager'
 import selectionService from './SelectionService'
 import { windowService } from './WindowService'
 

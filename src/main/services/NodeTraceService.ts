@@ -3,10 +3,11 @@ import { isDev } from '@main/constant'
 import { CacheBatchSpanProcessor, FunctionSpanExporter } from '@mcp-trace/trace-core'
 import { NodeTracer as MCPNodeTracer } from '@mcp-trace/trace-node/nodeTracer'
 import { context, SpanContext, trace } from '@opentelemetry/api'
+import { ConfigKeys } from '@shared/config/manager'
 import { BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
 
-import { ConfigKeys, configManager } from './ConfigManager'
+import { configManager } from './ConfigManager'
 import { spanCacheService } from './SpanCacheService'
 
 export const TRACER_NAME = 'CherryStudio'

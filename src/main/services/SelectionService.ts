@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
+import { ConfigKeys } from '@shared/config/manager'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import { join } from 'path'
@@ -13,7 +14,7 @@ import type {
 } from 'selection-hook'
 
 import type { ActionItem } from '../../renderer/src/types/selectionTypes'
-import { ConfigKeys, configManager } from './ConfigManager'
+import { configManager } from './ConfigManager'
 import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
