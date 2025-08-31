@@ -1541,10 +1541,10 @@ export function initSelectionService(): boolean {
       return
     }
 
+    // 如果有已有的就先关闭
+    ss.stop()
     if (enabled) {
       ss.start()
-    } else {
-      ss.stop()
     }
   })
 
