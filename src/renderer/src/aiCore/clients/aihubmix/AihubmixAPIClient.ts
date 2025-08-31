@@ -1,12 +1,12 @@
 import { isOpenAILLMModel } from '@renderer/config/models'
 import { Model, Provider } from '@renderer/types'
 
-import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
-import { BaseApiClient } from './BaseApiClient'
-import { GeminiAPIClient } from './gemini/GeminiAPIClient'
-import { MixedBaseAPIClient } from './MixedBaseApiClient'
-import { OpenAIAPIClient } from './openai/OpenAIApiClient'
-import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
+import { AnthropicAPIClient } from '../anthropic/AnthropicAPIClient'
+import { BaseApiClient } from '../BaseApiClient'
+import { GeminiAPIClient } from '../gemini/GeminiAPIClient'
+import { MixedBaseAPIClient } from '../MixedBaseApiClient'
+import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
+import { OpenAIResponseAPIClient } from '../openai/OpenAIResponseAPIClient'
 
 /**
  * AihubmixAPIClient - 根据模型类型自动选择合适的ApiClient

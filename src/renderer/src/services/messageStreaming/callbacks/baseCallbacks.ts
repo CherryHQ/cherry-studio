@@ -83,7 +83,9 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
         originalMessage: error.message,
         stack: error.stack,
         status: error.status || error.code,
-        requestId: error.request_id
+        requestId: error.request_id,
+        providerId: error.providerId,
+        i18nKey: error.i18nKey
       }
 
       const duration = Date.now() - startTime

@@ -1,4 +1,5 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
@@ -29,6 +30,8 @@ import FileList from './FileList'
 type SortField = 'created_at' | 'size' | 'name'
 type SortOrder = 'asc' | 'desc'
 
+const logger = loggerService.withContext('FilesPage')
+
 const FilesPage: FC = () => {
   const { t } = useTranslation()
   const [fileType, setFileType] = useState<string>('document')
@@ -53,8 +56,11 @@ const FilesPage: FC = () => {
     const selectedFiles = await Promise.all(selectedFileIds.map((id) => FileManager.getFile(id)))
     const validFiles = selectedFiles.filter((file) => file !== null && file !== undefined)
 
-    const paintings = store.getState().paintings.paintings
-    const paintingsFiles = paintings.flatMap((p) => p.files)
+    const paintings = store.getState().paintings
+    const paintingsFiles = Object.values(paintings)
+      .flat()
+      .filter((painting) => painting?.files?.length > 0)
+      .flatMap((painting) => painting.files)
 
     const filesInPaintings = validFiles.filter((file) => paintingsFiles.some((p) => p.id === file.id))
 
@@ -88,6 +94,7 @@ const FilesPage: FC = () => {
   }
 
   const dataSource = sortedFiles?.map((file) => {
+    logger.debug('FileItem', file)
     return {
       key: file.id,
       file: (

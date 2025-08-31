@@ -50,7 +50,7 @@ describe('useWrapTool', () => {
   const createMockProps = (overrides: Partial<Parameters<typeof useWrapTool>[0]> = {}) => {
     const defaultProps = {
       enabled: true,
-      unwrapped: false,
+      wrapped: true,
       wrappable: true,
       toggle: vi.fn(),
       setTools: vi.fn()
@@ -90,8 +90,8 @@ describe('useWrapTool', () => {
       expect(mockRegisterTool).not.toHaveBeenCalled()
     })
 
-    it('should re-register tool when unwrapped changes', () => {
-      const props = createMockProps({ unwrapped: false })
+    it('should re-register tool when wrapped changes', () => {
+      const props = createMockProps({ wrapped: true })
       const { rerender } = renderHook((hookProps) => useWrapTool(hookProps), {
         initialProps: props
       })
@@ -100,8 +100,8 @@ describe('useWrapTool', () => {
       const firstCall = mockRegisterTool.mock.calls[0][0]
       expect(firstCall.tooltip).toBe('code_block.wrap.off')
 
-      // Change unwrapped to true and rerender
-      const newProps = { ...props, unwrapped: true }
+      // Change wrapped to false and rerender
+      const newProps = { ...props, wrapped: false }
       rerender(newProps)
 
       expect(mockRegisterTool).toHaveBeenCalledTimes(2)

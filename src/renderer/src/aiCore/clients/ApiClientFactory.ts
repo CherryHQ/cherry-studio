@@ -1,16 +1,18 @@
 import { loggerService } from '@logger'
 import { Provider } from '@renderer/types'
 
-import { AihubmixAPIClient } from './AihubmixAPIClient'
+import { AihubmixAPIClient } from './aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { AwsBedrockAPIClient } from './aws/AwsBedrockAPIClient'
 import { BaseApiClient } from './BaseApiClient'
+import { CherryinAPIClient } from './cherryin/CherryinAPIClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
-import { NewAPIClient } from './NewAPIClient'
+import { NewAPIClient } from './newapi/NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
+import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
 
 const logger = loggerService.withContext('ApiClientFactory')
 
@@ -31,24 +33,36 @@ export class ApiClientFactory {
 
     let instance: BaseApiClient
 
-    // 首先检查特殊的provider id
+    // 首先检查特殊的 Provider ID
+    if (provider.id === 'cherryin') {
+      instance = new CherryinAPIClient(provider) as BaseApiClient
+      return instance
+    }
+
     if (provider.id === 'aihubmix') {
       logger.debug(`Creating AihubmixAPIClient for provider: ${provider.id}`)
       instance = new AihubmixAPIClient(provider) as BaseApiClient
       return instance
     }
+
     if (provider.id === 'new-api') {
       logger.debug(`Creating NewAPIClient for provider: ${provider.id}`)
       instance = new NewAPIClient(provider) as BaseApiClient
       return instance
     }
+
     if (provider.id === 'ppio') {
       logger.debug(`Creating PPIOAPIClient for provider: ${provider.id}`)
       instance = new PPIOAPIClient(provider) as BaseApiClient
       return instance
     }
 
-    // 然后检查标准的provider type
+    if (provider.id === 'zhipu') {
+      instance = new ZhipuAPIClient(provider) as BaseApiClient
+      return instance
+    }
+
+    // 然后检查标准的 Provider Type
     switch (provider.type) {
       case 'openai':
         instance = new OpenAIAPIClient(provider) as BaseApiClient
@@ -78,8 +92,3 @@ export class ApiClientFactory {
     return instance
   }
 }
-
-// 移除这个函数，它已经移动到 utils/index.ts
-// export function isOpenAIProvider(provider: Provider) {
-//   return !['anthropic', 'gemini'].includes(provider.type)
-// }

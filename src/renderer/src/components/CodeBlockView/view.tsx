@@ -100,7 +100,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [hasSpecialView, viewMode])
 
   const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
-  const [unwrapOverride, setUnwrapOverride] = useState(!codeWrappable)
+  const [wrapOverride, setWrapOverride] = useState(codeWrappable)
 
   // 重置用户操作
   useEffect(() => {
@@ -109,11 +109,11 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 重置用户操作
   useEffect(() => {
-    setUnwrapOverride(!codeWrappable)
+    setWrapOverride(codeWrappable)
   }, [codeWrappable])
 
   const shouldExpand = useMemo(() => !codeCollapsible || expandOverride, [codeCollapsible, expandOverride])
-  const shouldUnwrap = useMemo(() => !codeWrappable || unwrapOverride, [codeWrappable, unwrapOverride])
+  const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
 
   const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
   const expandable = useMemo(() => {
@@ -225,9 +225,9 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 源代码视图的自动换行按钮
   useWrapTool({
     enabled: !isInSpecialView,
-    unwrapped: shouldUnwrap,
+    wrapped: shouldWrap,
     wrappable: codeWrappable,
-    toggle: useCallback(() => setUnwrapOverride((prev) => !prev), []),
+    toggle: useCallback(() => setWrapOverride((prev) => !prev), []),
     setTools
   })
 
@@ -249,21 +249,22 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
+          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
           options={{ stream: true }}
           expanded={shouldExpand}
-          unwrapped={shouldUnwrap}
+          wrapped={shouldWrap}
         />
       ) : (
         <CodeViewer
           className="source-view"
           language={language}
           expanded={shouldExpand}
-          unwrapped={shouldUnwrap}
+          wrapped={shouldWrap}
           onHeightChange={handleHeightChange}>
           {children}
         </CodeViewer>
       ),
-    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldUnwrap]
+    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
   )
 
   // 特殊视图组件映射
@@ -344,7 +345,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   }
 `
 
-const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
+const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
   display: flex;
   align-items: center;
   color: var(--color-text);
@@ -370,7 +371,11 @@ const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boo
   &:not(:has(+ [class*='Container'])) {
     // 特殊视图的 header 会隐藏，所以全都使用圆角
     border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
-    overflow: hidden;
+    // FIXME: 滚动条边缘会溢出，可以考虑增加 padding，但是要保证代码主题颜色铺满容器。
+    // overflow: hidden;
+    .code-viewer {
+      border-radius: inherit;
+    }
   }
 
   // 在 split 模式下添加中间分隔线

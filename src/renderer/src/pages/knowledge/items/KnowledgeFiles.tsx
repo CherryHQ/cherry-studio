@@ -62,7 +62,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const estimateSize = useCallback(() => 75, [])

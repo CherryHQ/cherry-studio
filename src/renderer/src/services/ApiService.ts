@@ -42,6 +42,7 @@ import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { purifyMarkdownImages } from '@renderer/utils/markdown'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {
@@ -699,7 +700,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
       role: message.role,
-      mainText: getMainTextContent(message)
+      mainText: purifyMarkdownImages(getMainTextContent(message))
     }
 
     // 让LLM知道消息中包含的文件，但只提供文件名
@@ -809,7 +810,7 @@ export async function fetchGenerate({
 
 export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
+  if (['ollama', 'lmstudio', 'vertexai', 'cherryin'].includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 

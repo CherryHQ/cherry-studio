@@ -3,17 +3,19 @@ import { Client } from '@notionhq/client'
 import i18n from '@renderer/i18n'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
+import { createNote } from '@renderer/services/NotesService'
 import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { NotesTreeNode } from '@renderer/types/note'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
-import { appendBlocks } from 'notion-helper' // 引入 notion-helper 的 appendBlocks 函数
+import { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('Utils:export')
 
@@ -43,7 +45,7 @@ const sanitizeReasoningContent = (content: string): string => {
   const contentWithBr = content.replace(/\n/g, '<br>')
 
   // 使用 DOMPurify 清理内容，保留常用的安全标签和属性
-  const cleanContent = DOMPurify.sanitize(contentWithBr, {
+  return DOMPurify.sanitize(contentWithBr, {
     ALLOWED_TAGS: [
       // 换行和基础结构
       'br',
@@ -114,8 +116,6 @@ const sanitizeReasoningContent = (content: string): string => {
     // 允许的协议（预留，虽然目前没有允许链接标签）
     ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
   })
-
-  return cleanContent
 }
 
 /**
@@ -1074,4 +1074,63 @@ async function createSiyuanDoc(
   }
 
   return data.data
+}
+
+/**
+ * 导出消息到笔记工作区
+ * @returns 创建的笔记节点
+ * @param title
+ * @param content
+ * @param folderPath
+ */
+export const exportMessageToNotes = async (
+  title: string,
+  content: string,
+  folderPath: string
+): Promise<NotesTreeNode> => {
+  try {
+    const cleanedContent = content.replace(/^## 🤖 Assistant(\n|$)/m, '')
+    const note = await createNote(title, cleanedContent, folderPath)
+
+    window.message.success({
+      content: i18n.t('message.success.notes.export'),
+      key: 'notes-export-success'
+    })
+
+    return note
+  } catch (error) {
+    logger.error('导出到笔记失败:', error as Error)
+    window.message.error({
+      content: i18n.t('message.error.notes.export'),
+      key: 'notes-export-error'
+    })
+    throw error
+  }
+}
+
+/**
+ * 导出话题到笔记工作区
+ * @param topic 要导出的话题
+ * @param folderPath
+ * @returns 创建的笔记节点
+ */
+export const exportTopicToNotes = async (topic: Topic, folderPath: string): Promise<NotesTreeNode> => {
+  try {
+    const content = await topicToMarkdown(topic)
+    const note = await createNote(topic.name, content, folderPath)
+
+    window.message.success({
+      content: i18n.t('message.success.notes.export'),
+      key: 'notes-export-success'
+    })
+
+    return note
+  } catch (error) {
+    logger.error('导出到笔记失败:', error as Error)
+    window.message.error({
+      content: i18n.t('message.error.notes.export'),
+      key: 'notes-export-error'
+    })
+    throw error
+  }
 }
