@@ -201,7 +201,7 @@ const NotesPage: FC = () => {
                   invalidateFileContent(filePath)
                 }
               } else {
-                await initWorkSpace(notesPath)
+                await initWorkSpace(notesPath, sortType)
               }
               break
             }
@@ -220,7 +220,7 @@ const NotesPage: FC = () => {
 
               // 重新同步数据库，useLiveQuery会自动响应数据库变化
               try {
-                await initWorkSpace(notesPath)
+                await initWorkSpace(notesPath, sortType)
               } catch (error) {
                 logger.error('Failed to sync database:', error as Error)
               } finally {
@@ -274,7 +274,8 @@ const NotesPage: FC = () => {
     dispatch,
     currentContent,
     debouncedSave,
-    saveCurrentNote
+    saveCurrentNote,
+    sortType
   ])
 
   useEffect(() => {
@@ -492,6 +493,7 @@ const NotesPage: FC = () => {
             const newFilePath = renamedNode.externalPath + relativePath
             dispatch(setActiveFilePath(newFilePath))
           }
+          await sortAllLevels(sortType)
           if (renamedNode.name !== newName) {
             window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
           }
@@ -504,7 +506,7 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [activeFilePath, dispatch, findNodeById, t]
+    [activeFilePath, dispatch, findNodeById, sortType, t]
   )
 
   // 处理文件上传
