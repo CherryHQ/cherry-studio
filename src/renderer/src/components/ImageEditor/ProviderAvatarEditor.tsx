@@ -8,9 +8,10 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { VStack } from '@renderer/components/Layout'
-import { Button, message, Modal, Space } from 'antd'
+import { Button, Modal, Space } from 'antd'
 import React, { useCallback, useRef, useState } from 'react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('ProviderAvatarEditor')
@@ -31,11 +32,12 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
   imageSrc,
   onCancel,
   onConfirm,
-  title = '编辑头像',
+  title,
   aspectRatio = 1, // 默认正方形
   maxWidth = 200,
   maxHeight = 200
 }) => {
+  const { t } = useTranslation()
   const cropperRef = useRef<ReactCropperElement>(null)
   const [scaleX, setScaleX] = useState(1)
   const [scaleY, setScaleY] = useState(1)
@@ -78,7 +80,7 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
 
   const handleConfirm = useCallback(async () => {
     if (!cropperRef.current?.cropper) {
-      message.error('图片编辑器未准备就绪')
+      window.message.error(t('settings.general.avatar.editor_not_ready'))
       return
     }
 
@@ -96,7 +98,7 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
           if (blob) {
             onConfirm(blob)
           } else {
-            message.error('图片处理失败')
+            window.message.error(t('settings.general.avatar.processing_failed'))
           }
         },
         'image/png',
@@ -104,9 +106,9 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
       )
     } catch (error) {
       logger.error('Image editing failed:', error as Error)
-      message.error('图片编辑失败')
+      window.message.error(t('settings.general.avatar.editing_failed'))
     }
-  }, [maxWidth, maxHeight, onConfirm])
+  }, [maxWidth, maxHeight, onConfirm, t])
 
   const handleCancel = useCallback(() => {
     resetTransforms()
@@ -119,16 +121,16 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
 
   return (
     <Modal
-      title={title}
+      title={title || t('settings.general.avatar.edit')}
       open={open}
       onCancel={handleCancel}
       width={600}
       footer={[
         <Button key="cancel" onClick={handleCancel} icon={<CloseOutlined />}>
-          取消
+          {t('common.cancel')}
         </Button>,
         <Button key="confirm" type="primary" onClick={handleConfirm} icon={<CheckOutlined />}>
-          确认
+          {t('common.confirm')}
         </Button>
       ]}
       destroyOnClose
@@ -164,32 +166,32 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
         {/* 控制面板 */}
         <ControlPanel>
           <ControlSection>
-            <SectionTitle>编辑工具</SectionTitle>
+            <SectionTitle>{t('settings.general.avatar.edit_tools')}</SectionTitle>
             <Space size="middle" wrap>
               <Button icon={<RotateLeftOutlined />} onClick={handleRotateLeft} size="small">
-                左转
+                {t('settings.general.avatar.rotate_left')}
               </Button>
               <Button icon={<RotateRightOutlined />} onClick={handleRotateRight} size="small">
-                右转
+                {t('settings.general.avatar.rotate_right')}
               </Button>
               <Button icon={<SwapOutlined />} onClick={handleFlipHorizontal} size="small">
-                水平翻转
+                {t('settings.general.avatar.flip_horizontal')}
               </Button>
               <Button icon={<SwapOutlined rotate={90} />} onClick={handleFlipVertical} size="small">
-                垂直翻转
+                {t('settings.general.avatar.flip_vertical')}
               </Button>
               <Button icon={<UndoOutlined />} onClick={resetTransforms} size="small">
-                重置
+                {t('common.reset')}
               </Button>
             </Space>
           </ControlSection>
 
           <TipText>
-            💡 使用指南：
-            <br />• 拖动图片进行移动和定位
-            <br />• 拖动裁剪框角落调整裁剪区域大小
-            <br />• 鼠标滚轮缩放图片
-            <br />• 使用上方工具进行旋转和翻转
+            💡 {t('settings.general.avatar.usage_guide')}
+            <br />• {t('settings.general.avatar.drag_to_move')}
+            <br />• {t('settings.general.avatar.drag_corners_to_resize')}
+            <br />• {t('settings.general.avatar.scroll_to_zoom')}
+            <br />• {t('settings.general.avatar.use_tools_for_transform')}
           </TipText>
         </ControlPanel>
       </VStack>

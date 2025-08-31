@@ -131,7 +131,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
       setDropdownOpen(false)
     } catch (error: any) {
-      window.message.error('保存编辑后的图片失败: ' + error.message)
+      window.message.error(t('settings.general.avatar.save_failed') + ': ' + error.message)
     }
   }
 
