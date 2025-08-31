@@ -431,7 +431,6 @@ const NotesPage: FC = () => {
           logger.error('Failed to load note:', error as Error)
         }
       } else if (node.type === 'folder') {
-        // 设置选中的文件夹，但不自动展开/关闭，避免重命名时意外触发
         setSelectedFolderId(node.id)
         await handleToggleExpanded(node.id)
       }
