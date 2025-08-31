@@ -9,6 +9,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useZoom } from '@renderer/hooks/useZoom'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
@@ -28,7 +29,7 @@ import {
   Sparkle,
   Sun
 } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -49,6 +50,26 @@ const Sidebar: FC = () => {
   const avatar = useAvatar()
   const { t } = useTranslation()
 
+  const { zoom } = useZoom()
+  const ref = useRef<HTMLDivElement>(null)
+  const isFullscreen = useFullscreen()
+
+  useEffect(() => {
+    if (ref.current !== null) {
+      if (isMac && !isFullscreen) {
+        if (zoom <= 1) {
+          // base on var(--navbar-height)
+          const navbarHeight = 44
+          ref.current.style.marginTop = `${navbarHeight / zoom}px`
+        } else {
+          ref.current.style.marginTop = ''
+        }
+      } else {
+        ref.current.style.marginTop = ''
+      }
+    }
+  }, [ref, zoom, isFullscreen])
+
   const onEditUser = () => UserPopup.show()
 
   const backgroundColor = useNavBackgroundColor()
@@ -60,12 +81,11 @@ const Sidebar: FC = () => {
     navigate(path)
   }
 
-  const isFullscreen = useFullscreen()
-
   return (
     <Container
       $isFullscreen={isFullscreen}
       id="app-sidebar"
+      ref={ref}
       style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
