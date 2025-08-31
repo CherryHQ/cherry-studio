@@ -483,7 +483,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: `LongCat`,
     logo: LongCatAppLogo,
     url: `https://longcat.chat/`,
-    bodered: true,
+    bodered: true
   }
 ]
 
