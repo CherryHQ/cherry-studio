@@ -7,11 +7,12 @@ import { TopView } from '../TopView'
 
 interface Props {
   text: string
+  title: string
   extension?: string
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ text, extension, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) => {
   const [open, setOpen] = useState(true)
 
   const onOk = () => {
@@ -34,15 +35,14 @@ const PopupContainer: React.FC<Props> = ({ text, extension, resolve }) => {
       onOk={onOk}
       onCancel={onCancel}
       afterClose={onClose}
-      title={null}
+      title={title}
       width={700}
       transitionName="animation-move-down"
       styles={{
         content: {
           borderRadius: 20,
           padding: 0,
-          overflow: 'hidden',
-          paddingBottom: 16
+          overflow: 'hidden'
         },
         body: {
           height: '80vh',
@@ -51,10 +51,17 @@ const PopupContainer: React.FC<Props> = ({ text, extension, resolve }) => {
         }
       }}
       centered
-      closable={false}
+      closable={true}
       footer={null}>
       {extension !== undefined ? (
-        <CodeEditor editable={false} value={text} language={extension} />
+        <CodeEditor
+          editable={false}
+          expanded={false}
+          height="100%"
+          style={{ height: '100%' }}
+          value={text}
+          language={extension}
+        />
       ) : (
         <Text>{text}</Text>
       )}
@@ -72,11 +79,12 @@ export default class TextFilePreviewPopup {
   static hide() {
     TopView.hide('TextFilePreviewPopup')
   }
-  static show(text: string, extension?: string) {
+  static show(text: string, title: string, extension?: string) {
     return new Promise<any>((resolve) => {
       TopView.show(
         <PopupContainer
           text={text}
+          title={title}
           extension={extension}
           resolve={(v) => {
             resolve(v)

@@ -12,7 +12,7 @@ const logger = loggerService.withContext('FileAction')
  */
 export function useAttachment() {
   const { t } = useTranslation()
-  const preview = async (path: string | undefined, fileType: FileTypes, extension?: string) => {
+  const preview = async (path: string | undefined, title: string, fileType: FileTypes, extension?: string) => {
     if (path === undefined) return
     try {
       if (fileType === FileTypes.TEXT) {
@@ -21,7 +21,7 @@ export function useAttachment() {
         if (ext?.startsWith('.')) {
           ext = ext.replace('.', '')
         }
-        TextFilePreviewPopup.show(content, ext)
+        TextFilePreviewPopup.show(content, title, ext)
       } else {
         window.api.file.openPath(path)
       }
