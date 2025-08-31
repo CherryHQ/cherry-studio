@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import TextFilePreviewPopup from '@renderer/components/Popups/TextFilePreview'
 import { FileTypes } from '@renderer/types'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('FileAction')
 
@@ -10,7 +11,8 @@ const logger = loggerService.withContext('FileAction')
  * 否则使用默认打开接口
  */
 export function useAttachment() {
-  const handleClick = async (path: string | undefined, fileType: FileTypes, t: (args: string) => string) => {
+  const { t } = useTranslation()
+  const preview = async (path: string | undefined, fileType: FileTypes) => {
     if (path === undefined) return
     try {
       if (fileType === FileTypes.TEXT) {
@@ -25,6 +27,6 @@ export function useAttachment() {
     }
   }
   return {
-    handleClick
+    preview
   }
 }

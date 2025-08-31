@@ -20,7 +20,6 @@ import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
@@ -83,8 +82,7 @@ export const getFileIcon = (type?: string) => {
 }
 
 export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
-  const { t } = useTranslation()
-  const { handleClick } = useAttachment()
+  const { preview } = useAttachment()
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
     return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext.toLocaleLowerCase())
@@ -125,7 +123,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
             return
           }
           const path = FileManager.getSafePath(file)
-          handleClick(path, file.type, t)
+          preview(path, file.type)
         }}
         title={fullName}>
         {displayName}

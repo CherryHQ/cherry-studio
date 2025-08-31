@@ -4,7 +4,6 @@ import { FileTypes } from '@renderer/types'
 import type { FileMessageBlock } from '@renderer/types/newMessage'
 import { Upload } from 'antd'
 import { FC } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
@@ -23,8 +22,7 @@ const StyledUpload = styled(Upload)`
 `
 
 const MessageAttachments: FC<Props> = ({ block }) => {
-  const { t } = useTranslation()
-  const { handleClick } = useAttachment()
+  const { preview } = useAttachment()
   if (!block.file) {
     return null
   }
@@ -51,7 +49,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           if (path.startsWith('file://')) {
             path = path.replace('file://', '')
           }
-          handleClick(path, file.type as FileTypes, t)
+          preview(path, file.type as FileTypes)
         }}
       />
     </Container>
