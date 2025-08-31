@@ -475,6 +475,7 @@ export async function fetchChatCompletion({
 
   // NOTE：assistant.enableWebSearch 的语义是是否启用模型内置搜索功能
   const enableWebSearch =
+    assistant.enableWebSearch ||
     (assistant.webSearchProviderId && isWebSearchModel(model)) ||
     isOpenRouterBuiltInWebSearchModel(model) ||
     model.id.includes('sonar') ||
