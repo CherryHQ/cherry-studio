@@ -38,8 +38,12 @@ const CustomTag: FC<CustomTagProps> = ({
         $color={actualColor}
         $size={size}
         $closable={closable}
+        $clickable={!disabled && !!onClick}
         onClick={disabled ? undefined : onClick}
-        style={{ cursor: disabled ? 'not-allowed' : onClick ? 'pointer' : 'auto', ...style }}>
+        style={{
+          ...(disabled && { cursor: 'not-allowed' }),
+          ...style
+        }}>
         {icon && icon} {children}
         {closable && (
           <CloseIcon
@@ -67,7 +71,7 @@ const CustomTag: FC<CustomTagProps> = ({
 
 export default memo(CustomTag)
 
-const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
+const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $clickable: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -80,9 +84,15 @@ const Tag = styled.div<{ $color: string; $size: number; $closable: boolean }>`
   line-height: 1;
   white-space: nowrap;
   position: relative;
+  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
   .iconfont {
     font-size: ${({ $size }) => $size}px;
     color: ${({ $color }) => $color};
+  }
+
+  transition: opacity 0.2s ease;
+  &:hover {
+    opacity: ${({ $clickable }) => ($clickable ? 0.8 : 1)};
   }
 `
 
