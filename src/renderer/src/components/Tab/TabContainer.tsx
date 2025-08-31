@@ -3,6 +3,7 @@ import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useSafeArea } from '@renderer/hooks/useSafeArea'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -34,7 +35,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { TopNavbarOpenedMinappTabs } from '../app/PinnedMinapps'
-import { useSafeArea } from '@renderer/hooks/useSafeArea'
 
 interface TabsContainerProps {
   children: React.ReactNode

@@ -1,7 +1,7 @@
+import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
 import { configManager } from '../services/ConfigManager'
-import { IpcChannel } from '@shared/IpcChannel'
 
 export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: boolean = false) {
   if (reset) {

@@ -3,8 +3,8 @@ import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useSafeArea } from '@renderer/hooks/useSafeArea'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
-import { useEffect, useRef, type FC, type PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
+import { type FC, type PropsWithChildren, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
@@ -15,15 +15,15 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   const { safeWidth } = useSafeArea()
   const ref = useRef<HTMLDivElement>(null)
 
-  if (isTopNavbar) {
-    return null
-  }
-
   useEffect(() => {
     if (ref.current !== undefined) {
       ref.current?.style.setProperty('--safe-left', `${safeWidth}px`)
     }
   }, [ref, safeWidth])
+
+  if (isTopNavbar) {
+    return null
+  }
 
   return (
     <NavbarContainer ref={ref} {...props} style={{ backgroundColor }}>
