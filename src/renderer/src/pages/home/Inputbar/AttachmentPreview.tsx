@@ -123,7 +123,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
             return
           }
           const path = FileManager.getSafePath(file)
-          preview(path, file.type)
+          preview(path, file.type, file.ext)
         }}
         title={fullName}>
         {displayName}

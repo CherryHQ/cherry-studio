@@ -2,14 +2,16 @@ import { Modal } from 'antd'
 import { useState } from 'react'
 import styled from 'styled-components'
 
+import CodeEditor from '../CodeEditor'
 import { TopView } from '../TopView'
 
 interface Props {
   text: string
+  extension?: string
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ text, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ text, extension, resolve }) => {
   const [open, setOpen] = useState(true)
 
   const onOk = () => {
@@ -51,7 +53,11 @@ const PopupContainer: React.FC<Props> = ({ text, resolve }) => {
       centered
       closable={false}
       footer={null}>
-      <Text>{text}</Text>
+      {extension !== undefined ? (
+        <CodeEditor editable={false} value={text} language={extension} />
+      ) : (
+        <Text>{text}</Text>
+      )}
     </Modal>
   )
 }
@@ -66,11 +72,12 @@ export default class TextFilePreviewPopup {
   static hide() {
     TopView.hide('TextFilePreviewPopup')
   }
-  static show(text: string) {
+  static show(text: string, extension?: string) {
     return new Promise<any>((resolve) => {
       TopView.show(
         <PopupContainer
           text={text}
+          extension={extension}
           resolve={(v) => {
             resolve(v)
             TopView.hide('TextFilePreviewPopup')

@@ -12,12 +12,12 @@ const logger = loggerService.withContext('FileAction')
  */
 export function useAttachment() {
   const { t } = useTranslation()
-  const preview = async (path: string | undefined, fileType: FileTypes) => {
+  const preview = async (path: string | undefined, fileType: FileTypes, extension?: string) => {
     if (path === undefined) return
     try {
       if (fileType === FileTypes.TEXT) {
         const content = await window.api.fs.readText(path)
-        TextFilePreviewPopup.show(content)
+        TextFilePreviewPopup.show(content, extension)
       } else {
         window.api.file.openPath(path)
       }

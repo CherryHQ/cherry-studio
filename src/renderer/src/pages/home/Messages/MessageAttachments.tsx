@@ -38,7 +38,8 @@ const MessageAttachments: FC<Props> = ({ block }) => {
             url: 'file://' + FileManager.getSafePath(block.file),
             status: 'done' as const,
             name: FileManager.formatFileName(block.file),
-            type: block.file.type
+            type: block.file.type,
+            preview: block.file.ext
           }
         ]}
         onPreview={(file) => {
@@ -49,7 +50,7 @@ const MessageAttachments: FC<Props> = ({ block }) => {
           if (path.startsWith('file://')) {
             path = path.replace('file://', '')
           }
-          preview(path, file.type as FileTypes)
+          preview(path, file.type as FileTypes, file.preview)
         }}
       />
     </Container>
