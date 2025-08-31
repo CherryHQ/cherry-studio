@@ -1,8 +1,9 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
+import { useSafeArea } from '@renderer/hooks/useSafeArea'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
-import type { FC, PropsWithChildren } from 'react'
+import { useEffect, useRef, type FC, type PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
@@ -11,13 +12,21 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
+  const { safeWidth } = useSafeArea()
+  const ref = useRef<HTMLDivElement>(null)
 
   if (isTopNavbar) {
     return null
   }
 
+  useEffect(() => {
+    if (ref.current !== undefined) {
+      ref.current?.style.setProperty('--safe-left', `${safeWidth}px`)
+    }
+  }, [ref, safeWidth])
+
   return (
-    <NavbarContainer {...props} style={{ backgroundColor }}>
+    <NavbarContainer ref={ref} {...props} style={{ backgroundColor }}>
       {children}
     </NavbarContainer>
   )
@@ -60,7 +69,7 @@ const NavbarContainer = styled.div`
   min-height: var(--navbar-height);
   max-height: var(--navbar-height);
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
+  padding-left: ${isMac ? 'var(--safe-left)' : 0};
   -webkit-app-region: drag;
 `
 

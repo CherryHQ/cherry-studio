@@ -122,6 +122,7 @@ export enum IpcChannel {
   Windows_SetMinimumSize = 'window:set-minimum-size',
   Windows_Resize = 'window:resize',
   Windows_GetSize = 'window:get-size',
+  Windows_ZoomChange = 'window:zoom-change',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',

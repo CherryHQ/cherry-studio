@@ -1,11 +1,13 @@
 import { BrowserWindow } from 'electron'
 
 import { configManager } from '../services/ConfigManager'
+import { IpcChannel } from '@shared/IpcChannel'
 
 export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: boolean = false) {
   if (reset) {
     wins.forEach((win) => {
       win.webContents.setZoomFactor(1)
+      win.webContents.send(IpcChannel.Windows_ZoomChange, 1)
     })
     configManager.setZoomFactor(1)
     return
@@ -20,6 +22,7 @@ export function handleZoomFactor(wins: BrowserWindow[], delta: number, reset: bo
   if (newZoom >= 0.5 && newZoom <= 2.0) {
     wins.forEach((win) => {
       win.webContents.setZoomFactor(newZoom)
+      win.webContents.send(IpcChannel.Windows_ZoomChange, newZoom)
     })
     configManager.setZoomFactor(newZoom)
   }

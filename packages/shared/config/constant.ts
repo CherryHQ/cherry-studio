@@ -210,6 +210,7 @@ export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 export const MIN_WINDOW_WIDTH = 960
 export const SECOND_MIN_WINDOW_WIDTH = 520
 export const MIN_WINDOW_HEIGHT = 600
+export const TRAFFIC_LIGHT_WIDTH = 13 * 3 + 7 * 2
 export const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
 export enum codeTools {

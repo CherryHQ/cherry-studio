@@ -28,12 +28,13 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { TopNavbarOpenedMinappTabs } from '../app/PinnedMinapps'
+import { useSafeArea } from '@renderer/hooks/useSafeArea'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -81,6 +82,14 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
+  const { safeWidth } = useSafeArea(14)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (ref.current !== undefined) {
+      ref.current?.style.setProperty('--safe-left', `${safeWidth}px`)
+    }
+  }, [ref, safeWidth])
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -143,7 +152,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   }
 
   return (
-    <Container>
+    <Container ref={ref}>
       <TabsBar $isFullscreen={isFullscreen}>
         {tabs
           .filter((tab) => !specialTabs.includes(tab.id))
@@ -207,7 +216,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
+  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'var(--safe-left)' : '15px')};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   height: var(--navbar-height);
   position: relative;
