@@ -54,7 +54,7 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
       closable={true}
       footer={null}>
       {extension !== undefined ? (
-        <CodeEditor
+        <Editor
           editable={false}
           expanded={false}
           height="100%"
@@ -72,6 +72,13 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
 const Text = styled.div`
   padding: 16px;
   white-space: pre;
+  cursor: text;
+`
+
+const Editor = styled(CodeEditor)`
+  .cm-line {
+    cursor: text;
+  }
 `
 
 export default class TextFilePreviewPopup {
