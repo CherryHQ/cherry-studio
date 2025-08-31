@@ -311,8 +311,7 @@ export async function scanDir(dirPath: string, depth = 0, basePath?: string): Pr
  */
 export function getName(baseDir: string, fileName: string, isFile: boolean): string {
   // 首先清理文件名
-  const sanitizedName = sanitizeFilename(fileName)
-  const baseName = sanitizedName.replace(/\d+$/, '')
+  const baseName = sanitizeFilename(fileName)
   let candidate = isFile ? baseName + '.md' : baseName
   let counter = 1
 

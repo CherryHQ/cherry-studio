@@ -1618,6 +1618,7 @@
     "only_markdown": "Markdown ファイルのみをアップロードできます",
     "open_folder": "外部フォルダーを開きます",
     "rename": "名前の変更",
+    "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "save": "メモに保存する",
     "settings": {
       "data": {

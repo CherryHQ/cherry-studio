@@ -1618,6 +1618,7 @@
     "only_markdown": "Только Markdown",
     "open_folder": "Откройте внешнюю папку",
     "rename": "переименовать",
+    "rename_changed": "В связи с политикой безопасности имя файла было изменено с {{Original}} на {{final}}",
     "save": "Сохранить в заметки",
     "settings": {
       "data": {

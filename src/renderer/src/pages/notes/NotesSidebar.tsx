@@ -19,7 +19,7 @@ import {
   Star,
   StarOff
 } from 'lucide-react'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -68,6 +68,23 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
   const [sortType, setSortType] = useState<NotesSortType>('sort_a2z')
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
+  const scrollbarRef = useRef<any>(null)
+
+  // 滚动到活动节点
+  useEffect(() => {
+    if (activeNode?.id && !isShowStarred && !isShowSearch) {
+      // 延迟一下确保DOM已更新
+      setTimeout(() => {
+        const activeElement = document.querySelector(`[data-node-id="${activeNode.id}"]`)
+        if (activeElement && scrollbarRef.current) {
+          activeElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          })
+        }
+      }, 100)
+    }
+  }, [activeNode?.id, isShowStarred, isShowSearch])
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))
@@ -328,6 +345,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 isDragInside={isDragInside}
                 isDragAfter={isDragAfter}
                 draggable={!isEditing}
+                data-node-id={node.id}
                 onDragStart={(e) => handleDragStart(e, node)}
                 onDragOver={(e) => handleDragOver(e, node)}
                 onDragLeave={handleDragLeave}
@@ -451,7 +469,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       />
 
       <NotesTreeContainer>
-        <StyledScrollbar>
+        <StyledScrollbar ref={scrollbarRef}>
           <TreeContent>
             {filteredTree.map((node) => renderTreeNode(node))}
             {!isShowStarred && !isShowSearch && (

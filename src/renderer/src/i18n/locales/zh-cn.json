@@ -1618,6 +1618,7 @@
     "only_markdown": "仅支持 Markdown 格式",
     "open_folder": "打开外部文件夹",
     "rename": "重命名",
+    "rename_changed": "由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "保存到笔记",
     "settings": {
       "data": {

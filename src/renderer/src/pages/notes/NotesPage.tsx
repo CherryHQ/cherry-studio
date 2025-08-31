@@ -53,6 +53,8 @@ const NotesPage: FC = () => {
   const isEditorInitialized = useRef(false)
   const lastContentRef = useRef<string>('')
   const isInitialSortApplied = useRef(false)
+  const isRenamingRef = useRef(false)
+  const isCreatingNoteRef = useRef(false)
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -147,7 +149,14 @@ const NotesPage: FC = () => {
     if (notesTree.length === 0) return
 
     // 如果有activeFilePath但找不到对应节点，清空选择
-    if (activeFilePath && !activeNode) {
+    // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
+    if (
+      activeFilePath &&
+      !activeNode &&
+      !isSyncingTreeRef.current &&
+      !isRenamingRef.current &&
+      !isCreatingNoteRef.current
+    ) {
       dispatch(setActiveFilePath(undefined))
     }
   }, [notesTree, activeFilePath, activeNode, dispatch])
@@ -273,7 +282,7 @@ const NotesPage: FC = () => {
       // 标记编辑器已初始化
       isEditorInitialized.current = true
     }
-  }, [currentContent])
+  }, [currentContent, activeFilePath])
 
   // 切换文件时重置编辑器初始化状态并兜底保存
   useEffect(() => {
@@ -319,14 +328,25 @@ const NotesPage: FC = () => {
   const handleCreateNote = useCallback(
     async (name: string) => {
       try {
+        isCreatingNoteRef.current = true
+
         const targetPath = getTargetFolderPath()
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
         const newNote = await createNote(name, '', targetPath)
         dispatch(setActiveFilePath(newNote.externalPath))
+        setSelectedFolderId(null)
+
+        // 重新应用排序以保持文件顺序
+        await sortAllLevels('sort_a2z')
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
+      } finally {
+        // 延迟重置标志，给数据库同步一些时间
+        setTimeout(() => {
+          isCreatingNoteRef.current = false
+        }, 500)
       }
     },
     [dispatch, getTargetFolderPath]
@@ -451,17 +471,32 @@ const NotesPage: FC = () => {
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
       try {
+        isRenamingRef.current = true
+
         const tree = await getNotesTree()
         const node = findNodeById(tree, nodeId)
 
         if (node && node.name !== newName) {
-          await renameNode(nodeId, newName)
+          const oldExternalPath = node.externalPath
+          const renamedNode = await renameNode(nodeId, newName)
+
+          if (renamedNode.type === 'file' && activeFilePath === oldExternalPath) {
+            // 更新活动文件路径
+            dispatch(setActiveFilePath(renamedNode.externalPath))
+          }
+          if (renamedNode.name !== newName) {
+            window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
+          }
         }
       } catch (error) {
         logger.error('Failed to rename node:', error as Error)
+      } finally {
+        setTimeout(() => {
+          isRenamingRef.current = false
+        }, 500)
       }
     },
-    [findNodeById]
+    [activeFilePath, dispatch, findNodeById, t]
   )
 
   // 处理文件上传

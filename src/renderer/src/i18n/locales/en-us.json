@@ -1618,6 +1618,7 @@
     "only_markdown": "Only Markdown files are supported",
     "open_folder": "Open an external folder",
     "rename": "Rename",
+    "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",
     "settings": {
       "data": {
