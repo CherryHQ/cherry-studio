@@ -83,7 +83,8 @@ const api = {
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
-    requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)
+    requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust),
+    setTrafficLightPosition: (x: number, y: number) => ipcRenderer.invoke(IpcChannel.App_SetTrafficLightPosition, x, y)
   },
   notification: {
     send: (notification: Notification) => ipcRenderer.invoke(IpcChannel.Notification_Send, notification)

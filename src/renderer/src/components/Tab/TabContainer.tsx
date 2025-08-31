@@ -35,6 +35,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import { TopNavbarOpenedMinappTabs } from '../app/PinnedMinapps'
+import { TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_DIAMETER } from '@shared/config/constant'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -91,6 +92,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         ref.current.style.zoom = `${1 / zoom}`
       } else {
         ref.current.style.zoom = ''
+      }
+      if (zoom >= 1) {
+        const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
+        const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
+        window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
       }
     }
   }, [ref, zoom])

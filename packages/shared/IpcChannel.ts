@@ -17,6 +17,7 @@ export enum IpcChannel {
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',
+  App_SetTrafficLightPosition = 'app:set-traffic-light-position',
   App_HandleZoomFactor = 'app:handle-zoom-factor',
   App_Select = 'app:select',
   App_HasWritePermission = 'app:has-write-permission',

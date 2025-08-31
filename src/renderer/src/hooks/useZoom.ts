@@ -1,11 +1,7 @@
-import { TRAFFIC_LIGHT_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 
 export function useZoom() {
-  const defaultWidth =
-    8 + // padding left
-    TRAFFIC_LIGHT_WIDTH
   const [zoom, setZoom] = useState(1)
 
   const callback = (_: any, zoomLevel: number) => {
@@ -22,5 +18,5 @@ export function useZoom() {
     }
   }, [])
 
-  return { defaultWidth, zoom }
+  return { zoom }
 }

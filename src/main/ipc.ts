@@ -200,6 +200,11 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     ipcMain.handle(IpcChannel.App_MacRequestProcessTrust, (): boolean => {
       return systemPreferences.isTrustedAccessibilityClient(true)
     })
+
+    ipcMain.handle(IpcChannel.App_SetTrafficLightPosition, (env, x: number, y: number) => {
+      const fromWindow = BrowserWindow.fromWebContents(env.sender) ?? mainWindow
+      fromWindow.setWindowButtonPosition({ x, y })
+    })
   }
 
   ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {

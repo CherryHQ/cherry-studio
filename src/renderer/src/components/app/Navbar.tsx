@@ -3,6 +3,7 @@ import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useZoom } from '@renderer/hooks/useZoom'
+import { TRAFFIC_LIGHT_DIAMETER, TRAFFIC_LIGHT_WIDTH } from '@shared/config/constant'
 import type { HTMLAttributes } from 'react'
 import { type FC, type PropsWithChildren, useEffect, useRef } from 'react'
 import styled from 'styled-components'
@@ -12,17 +13,14 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
-  const { zoom, defaultWidth } = useZoom()
+  const { zoom } = useZoom()
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (ref.current !== null) {
-      if (zoom <= 1) {
-        let width = defaultWidth
-        const sidebar = document.querySelector('#app-sidebar')
-        if (sidebar !== null) {
-          width -= sidebar.clientWidth * zoom
-        }
+      const sidebar = document.querySelector('#app-sidebar')
+      if (zoom < 1 && sidebar !== null) {
+        const width = sidebar.clientWidth * (1 - zoom)
         ref.current.style.marginLeft = '0'
         ref.current.style.zoom = `${1 / zoom}`
         ref.current.style.paddingLeft = `${width}px`
@@ -31,8 +29,13 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
         ref.current.style.zoom = ''
         ref.current.style.paddingLeft = ''
       }
+      if (zoom >= 1) {
+        const trafficLightNewX = (75 * zoom - TRAFFIC_LIGHT_WIDTH) / 2
+        const trafficLightNewY = (ref.current.clientHeight * zoom - TRAFFIC_LIGHT_DIAMETER) / 2
+        window.api.mac.setTrafficLightPosition(trafficLightNewX, trafficLightNewY)
+      }
     }
-  }, [ref, zoom, defaultWidth])
+  }, [ref, zoom])
 
   if (isTopNavbar) {
     return null
