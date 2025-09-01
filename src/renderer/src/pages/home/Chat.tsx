@@ -20,7 +20,6 @@ import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
 import Inputbar from './Inputbar/Inputbar'
-import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Reader from './Reader'
 import Tabs from './Tabs'
@@ -35,12 +34,12 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { activeTopic, assistant, setActiveTopic, setActiveAssistant } = props        
-  const { assistant } = useAssistant(props.assistant.id)
-  const { topicPosition, messageStyle, showAssistants, messageNavigation } = useSettings()
+  const { activeTopic, assistant, setActiveTopic, setActiveAssistant } = props
+  const { topicPosition, messageStyle, showAssistants } = useSettings()
   const { showTopics } = useShowTopics()
-  const { isMultiSelectMode } = useChatContext(props.activeTopic)
+  const { isMultiSelectMode } = useChatContext(activeTopic)
   const { isTopNavbar } = useNavbarPosition()
+  const { setTimeoutTimer } = useTimer()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -50,9 +49,6 @@ const Chat: FC<Props> = (props) => {
   const [wrapperWidth, setWrapperWidth] = useState<number>(0)
   const [isCollapse, setIsCollapse] = useState(false)
   const { assistant: currentAssistant } = useAssistant(assistant.id)
-
-  const maxWidth = useChatMaxWidth()
-  const { setTimeoutTimer } = useTimer() 
 
   useEffect(() => {
     const handleResize = () => {
@@ -155,7 +151,7 @@ const Chat: FC<Props> = (props) => {
     ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
     : 'calc(100vh - var(--navbar-height))'
 
-    const pageWidth = useMemo(() => (wrapperWidth ? wrapperWidth * 0.5 - 56 : 0), [wrapperWidth])
+  const pageWidth = useMemo(() => (wrapperWidth ? wrapperWidth * 0.5 - 56 : 0), [wrapperWidth])
 
   const sidePageWidth = useMemo(() => {
     if (isCollapse || !currentAssistant.attachedDocument) {
@@ -199,7 +195,7 @@ const Chat: FC<Props> = (props) => {
 
     return UnCollapsedIcon
   }, [isCollapse, currentAssistant.reader?.position])
-  
+
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       {isTopNavbar && (
@@ -212,59 +208,65 @@ const Chat: FC<Props> = (props) => {
         />
       )}
       <HStack>
-      <Wrapper ref={wrapperRef} data-position={currentAssistant.reader?.position}>
-        {currentAssistant.attachedDocument && (
-          <ReaderContainer
-            data-position={currentAssistant.reader?.position}
-            style={{
-              width: isCollapse ? 0 : pageWidth + 24
-            }}>
-            <CollapseButton
-              $isCollapse={isCollapse}
-              $position={currentAssistant.reader?.position}
-              onClick={() => {
-                setIsCollapse(!isCollapse)
+        <Wrapper ref={wrapperRef} data-position={currentAssistant.reader?.position}>
+          {currentAssistant.attachedDocument && (
+            <ReaderContainer
+              data-position={currentAssistant.reader?.position}
+              style={{
+                width: isCollapse ? 0 : pageWidth + 24
               }}>
-              <CollapseIcon size={14} />
-            </CollapseButton>
-            <Reader assistant={currentAssistant} topic={activeTopic} pageWidth={pageWidth} />
-          </ReaderContainer>
-        )}
-        <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ maxWidth }}>
-          <ContentSearch
-            ref={contentSearchRef}
-            searchTarget={mainRef as React.RefObject<HTMLElement>}
-            filter={contentSearchFilter}
-            includeUser={filterIncludeUser}
-            onIncludeUserChange={userOutlinedItemClickHandler}
-          />
-          <Messages
-            key={activeTopic.id}
-            assistant={assistant}
-            topic={activeTopic}
-            setActiveTopic={setActiveTopic}
-            onComponentUpdate={messagesComponentUpdateHandler}
-            onFirstUpdate={messagesComponentFirstUpdateHandler}
-          />
-          <ContentSearch
-            ref={contentSearchRef}
-            searchTarget={mainRef as React.RefObject<HTMLElement>}
-            filter={contentSearchFilter}
-            includeUser={filterIncludeUser}
-            onIncludeUserChange={userOutlinedItemClickHandler}
-          />
-          <QuickPanelProvider>
-            <Inputbar assistant={assistant} setActiveTopic={setActiveTopic} topic={activeTopic} />
-            {isMultiSelectMode && <MultiSelectActionPopup topic={activeTopic} />}
-          </QuickPanelProvider>
-        </Main>
-      </Wrapper>
+              <CollapseButton
+                $isCollapse={isCollapse}
+                $position={currentAssistant.reader?.position}
+                onClick={() => {
+                  setIsCollapse(!isCollapse)
+                }}>
+                <CollapseIcon size={14} />
+              </CollapseButton>
+              <Reader assistant={currentAssistant} topic={activeTopic} pageWidth={pageWidth} />
+            </ReaderContainer>
+          )}
+          <Main
+            ref={mainRef}
+            id="chat-main"
+            vertical
+            flex={1}
+            justify="space-between"
+            style={{ maxWidth, height: mainHeight }}>
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={userOutlinedItemClickHandler}
+            />
+            <Messages
+              key={activeTopic.id}
+              assistant={assistant}
+              topic={activeTopic}
+              setActiveTopic={setActiveTopic}
+              onComponentUpdate={messagesComponentUpdateHandler}
+              onFirstUpdate={messagesComponentFirstUpdateHandler}
+            />
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={userOutlinedItemClickHandler}
+            />
+            <QuickPanelProvider>
+              <Inputbar assistant={assistant} setActiveTopic={setActiveTopic} topic={activeTopic} />
+              {isMultiSelectMode && <MultiSelectActionPopup topic={activeTopic} />}
+            </QuickPanelProvider>
+          </Main>
+        </Wrapper>
         {topicPosition === 'right' && showTopics && (
           <Tabs
             activeAssistant={assistant}
-            activeTopic={props.activeTopic}
-            setActiveAssistant={props.setActiveAssistant}
-            setActiveTopic={props.setActiveTopic}
+            activeTopic={activeTopic}
+            setActiveAssistant={setActiveAssistant}
+            setActiveTopic={setActiveTopic}
             position="right"
           />
         )}
@@ -285,14 +287,13 @@ export const useChatMaxWidth = () => {
 }
 
 const Container = styled.div`
-  height: 100%;
   display: flex;
   flex: 1;
   flex-direction: column;
-  justify-content: space-between; 
+  justify-content: space-between;
   height: calc(100vh - var(--navbar-height));
   [navbar-position='top'] & {
-    height: calc(100vh - var(--navbar-height) -6px);
+    height: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;

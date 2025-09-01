@@ -13,8 +13,8 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
-import { useActiveTopic, useTopic } from '@renderer/hooks/useTopic'
 import CustomTag from '@renderer/components/Tags/CustomTag'
+import { useActiveTopic, useTopic } from '@renderer/hooks/useTopic'
 import FileManager from '@renderer/services/FileManager'
 import { Assistant, AttachedPage, FileMetadata, Topic } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'

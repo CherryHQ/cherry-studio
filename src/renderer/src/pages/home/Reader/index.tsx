@@ -1,6 +1,7 @@
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
+import { loggerService } from '@logger'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useActiveTopic, useTopic } from '@renderer/hooks/useTopic'
 import { Assistant, AttachedPage, Topic } from '@renderer/types'
@@ -18,6 +19,8 @@ interface Props {
   topic: Topic
   pageWidth: number
 }
+
+const logger = loggerService.withContext('Reader')
 
 const Reader: React.FC<Props> = (props) => {
   const { topic, pageWidth, assistant } = props
@@ -57,7 +60,7 @@ const Reader: React.FC<Props> = (props) => {
           )
           setFile(new File([data], assistant.attachedDocument.name, { type: mime }))
         } catch (error) {
-          console.error('Failed to load PDF file:', error)
+          logger.error('Failed to load PDF file:', error as Error)
           setFile(null)
         }
       } else {

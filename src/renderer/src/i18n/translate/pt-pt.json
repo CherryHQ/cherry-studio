@@ -181,6 +181,14 @@
       "model": "Configurações do Modelo",
       "more": "Configurações do Assistente",
       "prompt": "Configurações de Prompt",
+      "reader": {
+        "confirm": "[to be translated]:确认选择该文档吗？",
+        "pickFromFiles": "[to be translated]:从文件中选择",
+        "reference": "[to be translated]:选择参考资料",
+        "reupload": "[to be translated]:重新上传",
+        "title": "[to be translated]:阅读器设置",
+        "upload": "[to be translated]:点击上传"
+      },
       "reasoning_effort": {
         "default": "Padrão",
         "high": "Longo",
@@ -1619,9 +1627,12 @@
     "new_folder": "Nova pasta",
     "new_note": "Nova nota",
     "no_content_to_copy": "Não há conteúdo para copiar",
+    "no_file_selected": "[to be translated]:请选择要上传的文件",
     "only_markdown": "Apenas o formato Markdown é suportado",
+    "only_one_file_allowed": "[to be translated]:只能上传一个文件",
     "open_folder": "Abrir pasta externa",
     "rename": "renomear",
+    "rename_changed": "[to be translated]:由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "salvar em notas",
     "settings": {
       "data": {
@@ -1968,6 +1979,22 @@
     "yi": "ZeroUmTudo",
     "zhinao": "360 Inteligência Artificial",
     "zhipu": "BigModel"
+  },
+  "reader": {
+    "attaching": "[to be translated]:正在关联",
+    "close": "[to be translated]:关闭阅读器",
+    "enableDragMode": "[to be translated]:启用拖拽模式",
+    "enableTextSelection": "[to be translated]:启用文字选择",
+    "move": "[to be translated]:拖动",
+    "outlineEmpty": "[to be translated]:无可读目录",
+    "pageIndex": "[to be translated]:第{{index}}页",
+    "reference": "[to be translated]:参考资料",
+    "selectReference": "[to be translated]:选择参考资料",
+    "showOutline": "[to be translated]:目录",
+    "showSelect": "[to be translated]:页面选择",
+    "switchPosition": "[to be translated]:切换位置",
+    "zoomIn": "[to be translated]:放大",
+    "zoomOut": "[to be translated]:缩小"
   },
   "restore": {
     "confirm": {

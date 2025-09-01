@@ -74,7 +74,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
     },
     {
       key: 'document',
-      label: t('assistants.settings.reader')
+      label: t('assistants.settings.reader.title')
     },
     showKnowledgeIcon && {
       key: 'knowledge_base',

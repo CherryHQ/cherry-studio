@@ -181,6 +181,14 @@
       "model": "模型设置",
       "more": "助手设置",
       "prompt": "提示词设置",
+      "reader": {
+        "confirm": "确认选择该文档吗？",
+        "pickFromFiles": "从文件中选择",
+        "reference": "选择参考资料",
+        "reupload": "重新上传",
+        "title": "阅读器设置",
+        "upload": "点击上传"
+      },
       "reasoning_effort": {
         "default": "默认",
         "high": "沉思",
@@ -1971,6 +1979,22 @@
     "yi": "零一万物",
     "zhinao": "360 智脑",
     "zhipu": "智谱开放平台"
+  },
+  "reader": {
+    "attaching": "正在关联",
+    "close": "关闭阅读器",
+    "enableDragMode": "启用拖拽模式",
+    "enableTextSelection": "启用文字选择",
+    "move": "拖动",
+    "outlineEmpty": "无可读目录",
+    "pageIndex": "第{{index}}页",
+    "reference": "参考资料",
+    "selectReference": "选择参考资料",
+    "showOutline": "目录",
+    "showSelect": "页面选择",
+    "switchPosition": "切换位置",
+    "zoomIn": "放大",
+    "zoomOut": "缩小"
   },
   "restore": {
     "confirm": {

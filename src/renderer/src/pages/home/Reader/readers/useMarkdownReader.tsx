@@ -22,8 +22,7 @@ const useMarkdownReader = (props: Props) => {
   const { markdownContent } = props
 
   const processedContent = useMemo(() => {
-    const content = removeSvgEmptyLines(processLatexBrackets(markdownContent))
-    return content
+    return removeSvgEmptyLines(processLatexBrackets(markdownContent))
   }, [markdownContent])
 
   const rehypePlugins = useMemo(() => {

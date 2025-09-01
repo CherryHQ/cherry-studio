@@ -53,7 +53,7 @@ const AssistantDocumentSettings: React.FC<Props> = ({ assistant, updateAssistant
     const onSelectFile = (file: FileType) => {
       window.modal.confirm({
         centered: true,
-        content: t('assistants.settings.reader.pickFromFiles.confirm'),
+        content: t('assistants.settings.reader.confirm'),
         onOk: () => {
           updateAssistant({ ...assistant, attachedDocument: file })
           setShowAssistants(false)

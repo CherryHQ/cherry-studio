@@ -301,6 +301,7 @@
     "unified": "^11.0.5",
     "uuid": "^10.0.0",
     "vite": "npm:rolldown-vite@latest",
+    "vite-plugin-static-copy": "^2.3.1",
     "vitest": "^3.2.4",
     "webdav": "^5.8.0",
     "winston": "^3.17.0",

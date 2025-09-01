@@ -22,8 +22,8 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
-import { useTopic } from '@renderer/hooks/useTopic'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { useTopic } from '@renderer/hooks/useTopic'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -274,7 +274,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, setTimeoutTimer, text, _topic, topic])
+  }, [
+    assistant,
+    dispatch,
+    files,
+    inputEmpty,
+    loading,
+    mentionedModels,
+    resizeTextArea,
+    setTimeoutTimer,
+    text,
+    _topic,
+    topic
+  ])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -873,15 +885,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             files={files}
             setFiles={setFiles}
           />
-          {selectedKnowledgeBases.length > 0 && (
-            <KnowledgeBaseInput
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
-            />
-          )}
-          {mentionedModels.length > 0 && (
-            <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
-          )}
           <Textarea
             value={text}
             onChange={onChange}
