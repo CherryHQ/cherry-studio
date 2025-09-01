@@ -40,7 +40,6 @@
     "build:linux": "dotenv npm run build && electron-builder --linux --x64 --arm64",
     "build:linux:arm64": "dotenv npm run build && electron-builder --linux --arm64",
     "build:linux:x64": "dotenv npm run build && electron-builder --linux --x64",
-    "build:npm": "node scripts/build-npm.js",
     "release": "node scripts/version.js",
     "publish": "yarn build:check && yarn release patch push",
     "pulish:artifacts": "cd packages/artifacts && npm publish && cd -",
