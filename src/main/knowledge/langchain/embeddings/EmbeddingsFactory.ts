@@ -11,23 +11,19 @@ export default class EmbeddingsFactory {
     const batchSize = 10
     const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
     if (provider === 'ollama') {
+      let baseUrl = baseURL
       if (baseURL.includes('v1/')) {
-        return new OllamaEmbeddings({
-          model: model,
-          baseUrl: baseURL.replace('v1/', ''),
-          requestOptions: {
-            // @ts-ignore expected
-            'encoding-format': 'float'
-          }
-        })
+        baseUrl = baseURL.replace('v1/', '')
       }
+      const headers = apiKey
+        ? {
+            Authorization: `Bearer ${apiKey}`
+          }
+        : undefined
       return new OllamaEmbeddings({
         model: model,
-        baseUrl: baseURL,
-        requestOptions: {
-          // @ts-ignore expected
-          'encoding-format': 'float'
-        }
+        baseUrl,
+        ...headers
       })
     } else if (provider === 'voyageai') {
       return new VoyageEmbeddings({
