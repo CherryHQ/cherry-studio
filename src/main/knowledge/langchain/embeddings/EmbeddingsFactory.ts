@@ -4,7 +4,7 @@ import { OllamaEmbeddings } from '@langchain/ollama'
 import { AzureOpenAIEmbeddings, OpenAIEmbeddings } from '@langchain/openai'
 import { ApiClient } from '@types'
 
-import { JinaEmbeddings } from './JinaEmbeddings'
+import { isJinaEmbeddingsModel, JinaEmbeddings } from './JinaEmbeddings'
 
 export default class EmbeddingsFactory {
   static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): Embeddings {
@@ -37,7 +37,7 @@ export default class EmbeddingsFactory {
         batchSize: 8
       })
     }
-    if (model.includes('jina')) {
+    if (isJinaEmbeddingsModel(model)) {
       return new JinaEmbeddings({
         model: model,
         apiKey,

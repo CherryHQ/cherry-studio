@@ -1,21 +1,30 @@
 import { Embeddings, type EmbeddingsParams } from '@langchain/core/embeddings'
 import { chunkArray } from '@langchain/core/utils/chunk_array'
 import { getEnvironmentVariable } from '@langchain/core/utils/env'
+import z from 'zod/v4'
 
-export interface JinaEmbeddingsParams extends EmbeddingsParams {
+const jinaModelSchema = z.union([
+  z.literal('jina-clip-v2'),
+  z.literal('jina-embeddings-v3'),
+  z.literal('jina-colbert-v2'),
+  z.literal('jina-clip-v1'),
+  z.literal('jina-colbert-v1-en'),
+  z.literal('jina-embeddings-v2-base-es'),
+  z.literal('jina-embeddings-v2-base-code'),
+  z.literal('jina-embeddings-v2-base-de'),
+  z.literal('jina-embeddings-v2-base-zh'),
+  z.literal('jina-embeddings-v2-base-en')
+])
+
+type JinaModel = z.infer<typeof jinaModelSchema>
+
+export const isJinaEmbeddingsModel = (model: string): model is JinaModel => {
+  return jinaModelSchema.safeParse(model).success
+}
+
+interface JinaEmbeddingsParams extends EmbeddingsParams {
   /** Model name to use */
-  model:
-    | 'jina-clip-v2'
-    | 'jina-embeddings-v3'
-    | 'jina-colbert-v2'
-    | 'jina-clip-v1'
-    | 'jina-colbert-v1-en'
-    | 'jina-embeddings-v2-base-es'
-    | 'jina-embeddings-v2-base-code'
-    | 'jina-embeddings-v2-base-de'
-    | 'jina-embeddings-v2-base-zh'
-    | 'jina-embeddings-v2-base-en'
-    | string
+  model: JinaModel
 
   baseUrl?: string
 
@@ -55,7 +64,7 @@ type JinaMultiModelInput =
       text?: never
     }
 
-export type JinaEmbeddingsInput = string | JinaMultiModelInput
+type JinaEmbeddingsInput = string | JinaMultiModelInput
 
 interface EmbeddingCreateParams {
   model: JinaEmbeddingsParams['model']
@@ -65,7 +74,7 @@ interface EmbeddingCreateParams {
    */
   input: JinaEmbeddingsInput[]
   dimensions: number
-  task: 'retrieval.query' | 'retrieval.passage' | undefined
+  task?: 'retrieval.query' | 'retrieval.passage'
 }
 
 interface EmbeddingResponse {
