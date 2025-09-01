@@ -73,7 +73,12 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  * @returns {string} 小写的基础名称
  */
 export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
-  return getBaseModelName(id, delimiter).toLowerCase()
+  const baseModelName = getBaseModelName(id, delimiter).toLowerCase()
+  // for openrouter
+  if (baseModelName.endsWith(':free')) {
+    return baseModelName.replace(':free', '')
+  }
+  return baseModelName
 }
 
 /**

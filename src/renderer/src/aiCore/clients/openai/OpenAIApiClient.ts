@@ -60,6 +60,8 @@ import {
 import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import {
+  OpenAIExtraBody,
+  OpenAIModality,
   OpenAISdkMessageParam,
   OpenAISdkParams,
   OpenAISdkRawChunk,
@@ -564,7 +566,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         messages: OpenAISdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch, enableGenerateImage } = coreRequest
         let { streamOutput } = coreRequest
 
         // Qwen3商业版（思考模式）、Qwen3开源版、QwQ、QVQ只支持流式输出。
@@ -572,18 +574,18 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           streamOutput = true
         }
 
-        const extra_body: Record<string, any> = {}
+        const extra_body: OpenAIExtraBody = {}
 
         if (isQwenMTModel(model)) {
           if (isTranslateAssistant(assistant)) {
-            const targetLanguage = assistant.targetLanguage
+            const targetLanguage = mapLanguageToQwenMTModel(assistant.targetLanguage)
+            if (!targetLanguage) {
+              throw new Error(t('translate.error.not_supported', { language: assistant.targetLanguage.value }))
+            }
             const translationOptions = {
               source_lang: 'auto',
-              target_lang: mapLanguageToQwenMTModel(targetLanguage)
+              target_lang: targetLanguage
             } as const
-            if (!translationOptions.target_lang) {
-              throw new Error(t('translate.error.not_supported', { language: targetLanguage.value }))
-            }
             extra_body.translation_options = translationOptions
           } else {
             throw new Error(t('translate.error.chat_qwen_mt'))
@@ -684,6 +686,15 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           reasoningEffort.reasoning_effort = 'low'
         }
 
+        const modalities: {
+          modalities?: OpenAIModality[]
+        } = {}
+        // for openrouter generate image
+        // https://openrouter.ai/docs/features/multimodal/image-generation
+        if (enableGenerateImage && this.provider.id === SystemProviderIds.openrouter) {
+          modalities.modalities = ['image', 'text']
+        }
+
         const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
@@ -696,6 +707,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           tools: tools.length > 0 ? tools : undefined,
           stream: streamOutput,
           ...(shouldIncludeStreamOptions ? { stream_options: { include_usage: true } } : {}),
+          ...modalities,
           // groq 有不同的 service tier 配置，不符合 openai 接口类型
           service_tier: this.getServiceTier(model) as OpenAIServiceTier,
           ...this.getProviderSpecificParameters(assistant, model),
@@ -703,7 +715,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...getOpenAIWebSearchParams(model, enableWebSearch),
           // OpenRouter usage tracking
           ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
-          ...(isQwenMTModel(model) ? extra_body : {}),
+          ...extra_body,
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
