@@ -22,7 +22,17 @@ import {
   addNoteThunk,
   addVedioThunk
 } from '@renderer/store/thunk/knowledgeThunk'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, MigrationModeEnum, ProcessingStatus } from '@renderer/types'
+import {
+  FileMetadata,
+  isKnowledgeFileItem,
+  isKnowledgeNoteItem,
+  isKnowledgeVideoItem,
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeNoteItem,
+  MigrationModeEnum,
+  ProcessingStatus
+} from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
@@ -140,13 +150,13 @@ export const useKnowledge = (baseId: string) => {
 
     await window.api.knowledgeBase.remove(removalParams)
 
-    if (item.type === 'file' && typeof item.content === 'object') {
-      const file = item.content as FileMetadata
+    if (isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)) {
+      const file = item.content
       // name: eg. text.pdf
       await window.api.file.delete(file.name)
-    } else if (item.type === 'video') {
+    } else if (isKnowledgeVideoItem(item)) {
       // video item has srt and video files
-      const files = item.content as FileMetadata[]
+      const files = item.content
       const deletePromises = files.map((file) => window.api.file.delete(file.name))
 
       await Promise.allSettled(deletePromises)
@@ -251,7 +261,7 @@ export const useKnowledge = (baseId: string) => {
       updated_at: Date.now(),
       items: [],
       framework: mode === MigrationModeEnum.MigrationToLangChain ? 'langchain' : base.framework
-    } as KnowledgeBase
+    } satisfies KnowledgeBase
 
     if (mode === MigrationModeEnum.MigrationToLangChain) {
       await window.api.knowledgeBase.create(getKnowledgeBaseParams(migratedBase))
@@ -266,23 +276,27 @@ export const useKnowledge = (baseId: string) => {
       switch (item.type) {
         case 'file':
           if (typeof item.content === 'object' && item.content !== null && 'path' in item.content) {
-            files.push(item.content as FileMetadata)
+            files.push(item.content)
           }
           break
         case 'note':
           try {
             const note = await db.knowledge_notes.get(item.id)
-            const content = (note?.content || '') as string
+            const content = note?.content || ''
             await dispatch(addNoteThunk(newBase.id, content))
           } catch (error) {
             throw new Error(`Failed to migrate note item ${item.id}: ${error}`)
           }
           break
         default:
-          try {
-            dispatch(addItemThunk(newBase.id, item.type, item.content as string))
-          } catch (error) {
-            throw new Error(`Failed to migrate item ${item.id}: ${error}`)
+          if (typeof item.content === 'string') {
+            try {
+              dispatch(addItemThunk(newBase.id, item.type, item.content))
+            } catch (error) {
+              throw new Error(`Failed to migrate item ${item.id}: ${error}`)
+            }
+          } else {
+            throw new Error(`Not a valid item: ${JSON.stringify(item)}`)
           }
           break
       }
@@ -308,15 +322,15 @@ export const useKnowledge = (baseId: string) => {
   const imageItems = base?.items.filter((item) => item.type === 'image') || []
 
   useEffect(() => {
-    const notes = base?.items.filter((item) => item.type === 'note') || []
+    const notes = base?.items.filter(isKnowledgeNoteItem) ?? []
     runAsyncFunction(async () => {
       const newNoteItems = await Promise.all(
         notes.map(async (item) => {
           const note = await db.knowledge_notes.get(item.id)
-          return { ...item, content: note?.content || '' }
+          return { ...item, content: note?.content ?? '' } satisfies KnowledgeNoteItem
         })
       )
-      setNoteItems(newNoteItems.filter((note) => note !== undefined) as KnowledgeItem[])
+      setNoteItems(newNoteItems)
     })
   }, [base?.items])
 

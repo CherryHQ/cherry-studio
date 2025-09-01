@@ -21,6 +21,36 @@ export type KnowledgeItem = {
   isPreprocessed?: boolean
 }
 
+export type KnowledgeFileItem = KnowledgeItem & {
+  type: 'file'
+  content: FileMetadata
+}
+
+export const isKnowledgeFileItem = (item: KnowledgeItem): item is KnowledgeFileItem => {
+  return item.type === 'file'
+}
+
+export type KnowledgeVideoItem = KnowledgeItem & {
+  type: 'video'
+  content: FileMetadata[]
+}
+
+export const isKnowledgeVideoItem = (item: KnowledgeItem): item is KnowledgeVideoItem => {
+  return item.type === 'video'
+}
+
+export type KnowledgeNoteItem = KnowledgeItem & {
+  type: 'note'
+  content: string
+}
+
+export const isKnowledgeNoteItem = (item: KnowledgeItem): item is KnowledgeNoteItem => {
+  return item.type === 'note'
+}
+
+export type KnowledgeGeneralItem = KnowledgeItem & {
+  content: string
+}
 export interface KnowledgeBase {
   id: string
   name: string
