@@ -7,7 +7,6 @@ import {
   isOpenRouterBuiltInWebSearchModel,
   isQwenMTModel,
   isReasoningModel,
-  isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
@@ -483,8 +482,7 @@ export async function fetchChatCompletion({
 
   const enableUrlContext = assistant.enableUrlContext || false
 
-  const enableGenerateImage =
-    isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
+  const enableGenerateImage = isGenerateImageModel(model) && assistant.enableGenerateImage
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })

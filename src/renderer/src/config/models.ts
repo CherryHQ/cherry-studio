@@ -166,242 +166,6 @@ import OpenAI from 'openai'
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from './prompts'
 import { getWebSearchTools } from './tools'
 
-// Vision models
-const visionAllowedModels = [
-  'llava',
-  'moondream',
-  'minicpm',
-  'gemini-1\\.5',
-  'gemini-2\\.0',
-  'gemini-2\\.5',
-  'gemini-exp',
-  'claude-3',
-  'claude-sonnet-4',
-  'claude-opus-4',
-  'vision',
-  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
-  'qwen-vl',
-  'qwen2-vl',
-  'qwen2.5-vl',
-  'qwen2.5-omni',
-  'qvq',
-  'internvl2',
-  'grok-vision-beta',
-  'grok-4(?:-[\\w-]+)?',
-  'pixtral',
-  'gpt-4(?:-[\\w-]+)',
-  'gpt-4.1(?:-[\\w-]+)?',
-  'gpt-4o(?:-[\\w-]+)?',
-  'gpt-4.5(?:-[\\w-]+)',
-  'gpt-5(?:-[\\w-]+)?',
-  'chatgpt-4o(?:-[\\w-]+)?',
-  'o1(?:-[\\w-]+)?',
-  'o3(?:-[\\w-]+)?',
-  'o4(?:-[\\w-]+)?',
-  'deepseek-vl(?:[\\w-]+)?',
-  'kimi-latest',
-  'gemma-3(?:-[\\w-]+)',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
-  'kimi-thinking-preview',
-  `gemma3(?:[-:\\w]+)?`,
-  'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
-  'llama-guard-4(?:-[\\w-]+)?',
-  'llama-4(?:-[\\w-]+)?',
-  'step-1o(?:.*vision)?',
-  'step-1v(?:-[\\w-]+)?'
-]
-
-const visionExcludedModels = [
-  'gpt-4-\\d+-preview',
-  'gpt-4-turbo-preview',
-  'gpt-4-32k',
-  'gpt-4-\\d+',
-  'o1-mini',
-  'o3-mini',
-  'o1-preview',
-  'AIDC-AI/Marco-o1'
-]
-export const VISION_REGEX = new RegExp(
-  `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
-  'i'
-)
-
-// For middleware to identify models that must use the dedicated Image API
-export const DEDICATED_IMAGE_MODELS = ['grok-2-image', 'dall-e-3', 'dall-e-2', 'gpt-image-1']
-export const isDedicatedImageGenerationModel = (model: Model): boolean => {
-  const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS.filter((m) => modelId.includes(m)).length > 0
-}
-
-// Text to image models
-export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
-
-// Reasoning models
-export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4)(?:-[\w-]+)?\b.*)$/i
-
-// Embedding models
-export const EMBEDDING_REGEX =
-  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
-
-// Rerank models
-export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
-
-export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
-
-// Tool calling models
-export const FUNCTION_CALLING_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4',
-  'gpt-4.5',
-  'gpt-oss(?:-[\\w-]+)',
-  'gpt-5(?:-[0-9-]+)?',
-  'o(1|3|4)(?:-[\\w-]+)?',
-  'claude',
-  'qwen',
-  'qwen3',
-  'hunyuan',
-  'deepseek',
-  'glm-4(?:-[\\w-]+)?',
-  'glm-4.5(?:-[\\w-]+)?',
-  'learnlm(?:-[\\w-]+)?',
-  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
-  'grok-3(?:-[\\w-]+)?',
-  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
-  'kimi-k2(?:-[\\w-]+)?'
-]
-
-const FUNCTION_CALLING_EXCLUDED_MODELS = [
-  'aqa(?:-[\\w-]+)?',
-  'imagen(?:-[\\w-]+)?',
-  'o1-mini',
-  'o1-preview',
-  'AIDC-AI/Marco-o1',
-  'gemini-1(?:\\.[\\w-]+)?',
-  'qwen-mt(?:-[\\w-]+)?',
-  'gpt-5-chat(?:-[\\w-]+)?',
-  'glm-4\\.5v'
-]
-
-export const FUNCTION_CALLING_REGEX = new RegExp(
-  `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
-  'i'
-)
-
-export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
-  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
-  'i'
-)
-
-// 模型类型到支持的reasoning_effort的映射表
-// TODO: refactor this. too many identical options
-export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
-  default: ['low', 'medium', 'high'] as const,
-  o: ['low', 'medium', 'high'] as const,
-  gpt5: ['minimal', 'low', 'medium', 'high'] as const,
-  grok: ['low', 'high'] as const,
-  gemini: ['low', 'medium', 'high', 'auto'] as const,
-  gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
-  qwen: ['low', 'medium', 'high'] as const,
-  qwen_thinking: ['low', 'medium', 'high'] as const,
-  doubao: ['auto', 'high'] as const,
-  doubao_no_auto: ['high'] as const,
-  hunyuan: ['auto'] as const,
-  zhipu: ['auto'] as const,
-  perplexity: ['low', 'medium', 'high'] as const,
-  deepseek_hybrid: ['auto'] as const
-} as const
-
-// 模型类型到支持选项的映射表
-export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
-  default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
-  o: MODEL_SUPPORTED_REASONING_EFFORT.o,
-  gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
-  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
-  gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
-  gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
-  qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
-  qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
-  doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
-  doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
-  hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
-  zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
-  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
-  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
-} as const
-
-export const getThinkModelType = (model: Model): ThinkingModelType => {
-  let thinkingModelType: ThinkingModelType = 'default'
-  if (isGPT5SeriesModel(model)) {
-    thinkingModelType = 'gpt5'
-  } else if (isSupportedReasoningEffortOpenAIModel(model)) {
-    thinkingModelType = 'o'
-  } else if (isSupportedThinkingTokenGeminiModel(model)) {
-    if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-      thinkingModelType = 'gemini'
-    } else {
-      thinkingModelType = 'gemini_pro'
-    }
-  } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
-  else if (isSupportedThinkingTokenQwenModel(model)) {
-    if (isQwenAlwaysThinkModel(model)) {
-      thinkingModelType = 'qwen_thinking'
-    }
-    thinkingModelType = 'qwen'
-  } else if (isSupportedThinkingTokenDoubaoModel(model)) {
-    if (isDoubaoThinkingAutoModel(model)) {
-      thinkingModelType = 'doubao'
-    } else {
-      thinkingModelType = 'doubao_no_auto'
-    }
-  } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
-  else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
-  else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
-  else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
-  return thinkingModelType
-}
-
-export function isFunctionCallingModel(model?: Model): boolean {
-  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id)
-
-  if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
-    return isUserSelectedModelType(model, 'function_calling')!
-  }
-
-  if (model.provider === 'qiniu') {
-    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(modelId)
-  }
-
-  if (model.provider === 'doubao' || modelId.includes('doubao')) {
-    return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
-  }
-
-  if (['deepseek', 'anthropic', 'kimi', 'moonshot'].includes(model.provider)) {
-    return true
-  }
-
-  // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
-  // 先默认支持
-  if (isDeepSeekHybridInferenceModel(model)) {
-    if (isSystemProviderId(model.provider)) {
-      switch (model.provider) {
-        case 'dashscope':
-        case 'doubao':
-          // case 'nvidia': // nvidia api 太烂了 测不了能不能用 先假设能用
-          return false
-      }
-    }
-    return true
-  }
-
-  return FUNCTION_CALLING_REGEX.test(modelId)
-}
-
 export function getModelLogo(modelId: string) {
   const isLight = true
 
@@ -2317,106 +2081,292 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ]
 }
 
-export const TEXT_TO_IMAGES_MODELS = [
-  {
-    id: 'Kwai-Kolors/Kolors',
-    provider: 'silicon',
-    name: 'Kolors',
-    group: 'Kwai-Kolors'
+// Vision models
+const visionAllowedModels = [
+  'llava',
+  'moondream',
+  'minicpm',
+  'gemini-1\\.5',
+  'gemini-2\\.0',
+  'gemini-2\\.5',
+  'gemini-exp',
+  'claude-3',
+  'claude-sonnet-4',
+  'claude-opus-4',
+  'vision',
+  'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
+  'qwen-vl',
+  'qwen2-vl',
+  'qwen2.5-vl',
+  'qwen2.5-omni',
+  'qvq',
+  'internvl2',
+  'grok-vision-beta',
+  'grok-4(?:-[\\w-]+)?',
+  'pixtral',
+  'gpt-4(?:-[\\w-]+)',
+  'gpt-4.1(?:-[\\w-]+)?',
+  'gpt-4o(?:-[\\w-]+)?',
+  'gpt-4.5(?:-[\\w-]+)',
+  'gpt-5(?:-[\\w-]+)?',
+  'chatgpt-4o(?:-[\\w-]+)?',
+  'o1(?:-[\\w-]+)?',
+  'o3(?:-[\\w-]+)?',
+  'o4(?:-[\\w-]+)?',
+  'deepseek-vl(?:[\\w-]+)?',
+  'kimi-latest',
+  'gemma-3(?:-[\\w-]+)',
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-thinking-preview',
+  `gemma3(?:[-:\\w]+)?`,
+  'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
+  'llama-guard-4(?:-[\\w-]+)?',
+  'llama-4(?:-[\\w-]+)?',
+  'step-1o(?:.*vision)?',
+  'step-1v(?:-[\\w-]+)?'
+]
+
+const visionExcludedModels = [
+  'gpt-4-\\d+-preview',
+  'gpt-4-turbo-preview',
+  'gpt-4-32k',
+  'gpt-4-\\d+',
+  'o1-mini',
+  'o3-mini',
+  'o1-preview',
+  'AIDC-AI/Marco-o1'
+]
+export const VISION_REGEX = new RegExp(
+  `\\b(?!(?:${visionExcludedModels.join('|')})\\b)(${visionAllowedModels.join('|')})\\b`,
+  'i'
+)
+
+// Text to image models
+export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
+
+// Reasoning models
+export const REASONING_REGEX =
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4)(?:-[\w-]+)?\b.*)$/i
+
+// Embedding models
+export const EMBEDDING_REGEX =
+  /(?:^text-|embed|bge-|e5-|LLM2Vec|retrieval|uae-|gte-|jina-clip|jina-embeddings|voyage-)/i
+
+// Rerank models
+export const RERANKING_REGEX = /(?:rerank|re-rank|re-ranker|re-ranking|retrieval|retriever)/i
+
+export const NOT_SUPPORTED_REGEX = /(?:^tts|whisper|speech)/i
+
+// Tool calling models
+export const FUNCTION_CALLING_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4',
+  'gpt-4.5',
+  'gpt-oss(?:-[\\w-]+)',
+  'gpt-5(?:-[0-9-]+)?',
+  'o(1|3|4)(?:-[\\w-]+)?',
+  'claude',
+  'qwen',
+  'qwen3',
+  'hunyuan',
+  'deepseek',
+  'glm-4(?:-[\\w-]+)?',
+  'glm-4.5(?:-[\\w-]+)?',
+  'learnlm(?:-[\\w-]+)?',
+  'gemini(?:-[\\w-]+)?', // 提前排除了gemini的嵌入模型
+  'grok-3(?:-[\\w-]+)?',
+  'doubao-seed-1[.-]6(?:-[\\w-]+)?',
+  'kimi-k2(?:-[\\w-]+)?'
+]
+
+const FUNCTION_CALLING_EXCLUDED_MODELS = [
+  'aqa(?:-[\\w-]+)?',
+  'imagen(?:-[\\w-]+)?',
+  'o1-mini',
+  'o1-preview',
+  'AIDC-AI/Marco-o1',
+  'gemini-1(?:\\.[\\w-]+)?',
+  'qwen-mt(?:-[\\w-]+)?',
+  'gpt-5-chat(?:-[\\w-]+)?',
+  'glm-4\\.5v'
+]
+
+export const FUNCTION_CALLING_REGEX = new RegExp(
+  `\\b(?!(?:${FUNCTION_CALLING_EXCLUDED_MODELS.join('|')})\\b)(?:${FUNCTION_CALLING_MODELS.join('|')})\\b`,
+  'i'
+)
+
+export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
+  `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
+  'i'
+)
+
+// 模型类型到支持的reasoning_effort的映射表
+// TODO: refactor this. too many identical options
+export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
+  default: ['low', 'medium', 'high'] as const,
+  o: ['low', 'medium', 'high'] as const,
+  gpt5: ['minimal', 'low', 'medium', 'high'] as const,
+  grok: ['low', 'high'] as const,
+  gemini: ['low', 'medium', 'high', 'auto'] as const,
+  gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
+  qwen: ['low', 'medium', 'high'] as const,
+  qwen_thinking: ['low', 'medium', 'high'] as const,
+  doubao: ['auto', 'high'] as const,
+  doubao_no_auto: ['high'] as const,
+  hunyuan: ['auto'] as const,
+  zhipu: ['auto'] as const,
+  perplexity: ['low', 'medium', 'high'] as const,
+  deepseek_hybrid: ['auto'] as const
+} as const
+
+// 模型类型到支持选项的映射表
+export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
+  default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
+  o: MODEL_SUPPORTED_REASONING_EFFORT.o,
+  gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
+  gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
+  gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
+  qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
+  qwen_thinking: MODEL_SUPPORTED_REASONING_EFFORT.qwen_thinking,
+  doubao: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
+  doubao_no_auto: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
+  hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
+  zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
+  perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
+  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
+} as const
+
+export const getThinkModelType = (model: Model): ThinkingModelType => {
+  let thinkingModelType: ThinkingModelType = 'default'
+  if (isGPT5SeriesModel(model)) {
+    thinkingModelType = 'gpt5'
+  } else if (isSupportedReasoningEffortOpenAIModel(model)) {
+    thinkingModelType = 'o'
+  } else if (isSupportedThinkingTokenGeminiModel(model)) {
+    if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
+      thinkingModelType = 'gemini'
+    } else {
+      thinkingModelType = 'gemini_pro'
+    }
+  } else if (isSupportedReasoningEffortGrokModel(model)) thinkingModelType = 'grok'
+  else if (isSupportedThinkingTokenQwenModel(model)) {
+    if (isQwenAlwaysThinkModel(model)) {
+      thinkingModelType = 'qwen_thinking'
+    }
+    thinkingModelType = 'qwen'
+  } else if (isSupportedThinkingTokenDoubaoModel(model)) {
+    if (isDoubaoThinkingAutoModel(model)) {
+      thinkingModelType = 'doubao'
+    } else {
+      thinkingModelType = 'doubao_no_auto'
+    }
+  } else if (isSupportedThinkingTokenHunyuanModel(model)) thinkingModelType = 'hunyuan'
+  else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
+  else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
+  else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
+  return thinkingModelType
+}
+
+export function isFunctionCallingModel(model?: Model): boolean {
+  if (!model || isEmbeddingModel(model) || isRerankModel(model) || isTextToImageModel(model)) {
+    return false
   }
-  // {
-  //   id: 'black-forest-labs/FLUX.1-schnell',
-  //   provider: 'silicon',
-  //   name: 'FLUX.1 Schnell',
-  //   group: 'FLUX'
-  // },
-  // {
-  //   id: 'black-forest-labs/FLUX.1-dev',
-  //   provider: 'silicon',
-  //   name: 'FLUX.1 Dev',
-  //   group: 'FLUX'
-  // },
-  // {
-  //   id: 'black-forest-labs/FLUX.1-pro',
-  //   provider: 'silicon',
-  //   name: 'FLUX.1 Pro',
-  //   group: 'FLUX'
-  // },
-  // {
-  //   id: 'Pro/black-forest-labs/FLUX.1-schnell',
-  //   provider: 'silicon',
-  //   name: 'FLUX.1 Schnell Pro',
-  //   group: 'FLUX'
-  // },
-  // {
-  //   id: 'LoRA/black-forest-labs/FLUX.1-dev',
-  //   provider: 'silicon',
-  //   name: 'FLUX.1 Dev LoRA',
-  //   group: 'FLUX'
-  // },
-  // {
-  //   id: 'deepseek-ai/Janus-Pro-7B',
-  //   provider: 'silicon',
-  //   name: 'Janus-Pro-7B',
-  //   group: 'deepseek-ai'
-  // },
-  // {
-  //   id: 'stabilityai/stable-diffusion-3-5-large',
-  //   provider: 'silicon',
-  //   name: 'Stable Diffusion 3.5 Large',
-  //   group: 'Stable Diffusion'
-  // },
-  // {
-  //   id: 'stabilityai/stable-diffusion-3-5-large-turbo',
-  //   provider: 'silicon',
-  //   name: 'Stable Diffusion 3.5 Large Turbo',
-  //   group: 'Stable Diffusion'
-  // },
-  // {
-  //   id: 'stabilityai/stable-diffusion-3-medium',
-  //   provider: 'silicon',
-  //   name: 'Stable Diffusion 3 Medium',
-  //   group: 'Stable Diffusion'
-  // },
-  // {
-  //   id: 'stabilityai/stable-diffusion-2-1',
-  //   provider: 'silicon',
-  //   name: 'Stable Diffusion 2.1',
-  //   group: 'Stable Diffusion'
-  // },
-  // {
-  //   id: 'stabilityai/stable-diffusion-xl-base-1.0',
-  //   provider: 'silicon',
-  //   name: 'Stable Diffusion XL Base 1.0',
-  //   group: 'Stable Diffusion'
-  // }
+
+  const modelId = getLowerBaseModelName(model.id)
+
+  if (isUserSelectedModelType(model, 'function_calling') !== undefined) {
+    return isUserSelectedModelType(model, 'function_calling')!
+  }
+
+  if (model.provider === 'qiniu') {
+    return ['deepseek-v3-tool', 'deepseek-v3-0324', 'qwq-32b', 'qwen2.5-72b-instruct'].includes(modelId)
+  }
+
+  if (model.provider === 'doubao' || modelId.includes('doubao')) {
+    return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
+  }
+
+  if (['deepseek', 'anthropic', 'kimi', 'moonshot'].includes(model.provider)) {
+    return true
+  }
+
+  // 2025/08/26 百炼与火山引擎均不支持 v3.1 函数调用
+  // 先默认支持
+  if (isDeepSeekHybridInferenceModel(model)) {
+    if (isSystemProviderId(model.provider)) {
+      switch (model.provider) {
+        case 'dashscope':
+        case 'doubao':
+          // case 'nvidia': // nvidia api 太烂了 测不了能不能用 先假设能用
+          return false
+      }
+    }
+    return true
+  }
+
+  return FUNCTION_CALLING_REGEX.test(modelId)
+}
+
+// For middleware to identify models that must use the dedicated Image API
+export const DEDICATED_IMAGE_MODELS = [
+  'grok-2-image',
+  'grok-2-image-1212',
+  'grok-2-image-latest',
+  'dall-e-3',
+  'dall-e-2',
+  'gpt-image-1'
 ]
 
-export const TEXT_TO_IMAGES_MODELS_SUPPORT_IMAGE_ENHANCEMENT = [
-  'stabilityai/stable-diffusion-2-1',
-  'stabilityai/stable-diffusion-xl-base-1.0'
-]
-
-export const SUPPORTED_DISABLE_GENERATION_MODELS = [
-  'gemini-2.0-flash-exp',
+export const OPENAI_IMAGE_GENERATION_MODELS = [
+  'o3',
   'gpt-4o',
   'gpt-4o-mini',
   'gpt-4.1',
   'gpt-4.1-mini',
   'gpt-4.1-nano',
-  'o3'
+  'gpt-5',
+  'gpt-image-1'
 ]
 
 export const GENERATE_IMAGE_MODELS = [
+  'gemini-2.0-flash-exp',
   'gemini-2.0-flash-exp-image-generation',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-2.5-flash-image-preview',
-  'grok-2-image-1212',
-  'grok-2-image',
-  'grok-2-image-latest',
-  'gpt-image-1',
-  ...SUPPORTED_DISABLE_GENERATION_MODELS
+  ...DEDICATED_IMAGE_MODELS
 ]
+
+export const isDedicatedImageGenerationModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id)
+  return DEDICATED_IMAGE_MODELS.filter((m) => modelId.includes(m)).length > 0
+}
+
+export function isGenerateImageModel(model: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const provider = getProviderByModel(model)
+
+  if (!provider) {
+    return false
+  }
+
+  if (isEmbeddingModel(model)) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+
+  if (provider && provider.type === 'openai-response') {
+    return OPENAI_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel))
+  }
+
+  return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
+}
 
 export const GEMINI_SEARCH_REGEX = new RegExp('gemini-2\\..*', 'i')
 
@@ -3025,36 +2975,6 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
 
   return isOpenAIWebSearchChatCompletionOnlyModel(model) || modelId.includes('sonar')
-}
-
-export function isGenerateImageModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
-    return false
-  }
-
-  const isEmbedding = isEmbeddingModel(model)
-
-  if (isEmbedding) {
-    return false
-  }
-
-  const modelId = getLowerBaseModelName(model.id, '/')
-
-  return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
-}
-
-export function isSupportedDisableGenerationModel(model: Model): boolean {
-  if (!model) {
-    return false
-  }
-
-  return SUPPORTED_DISABLE_GENERATION_MODELS.includes(getLowerBaseModelName(model.id))
 }
 
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
