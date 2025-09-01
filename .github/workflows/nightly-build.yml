@@ -94,7 +94,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get install -y rpm
-          yarn build:npm linux
           yarn build:linux
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -107,7 +106,6 @@ jobs:
       - name: Build Mac
         if: matrix.os == 'macos-latest'
         run: |
-          yarn build:npm mac
           yarn build:mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -125,7 +123,6 @@ jobs:
       - name: Build Windows
         if: matrix.os == 'windows-latest'
         run: |
-          yarn build:npm windows
           yarn build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -7034,14 +7034,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@strongtz/win32-arm64-msvc@npm:^0.4.7":
-  version: 0.4.7
-  resolution: "@strongtz/win32-arm64-msvc@npm:0.4.7"
-  checksum: 10c0/21946f2ed43ff0b2381f945e22cf7f5ef6de412347c36523ed1d72f33591b2b85bf4cc9dd493f0eab95ed5e152d3944a2329791c3d8ed88c7ad450ccd9078015
-  conditions: os=win32 & cpu=arm64
-  languageName: node
-  linkType: hard
-
 "@swc/core-darwin-arm64@npm:1.11.21":
   version: 1.11.21
   resolution: "@swc/core-darwin-arm64@npm:1.11.21"
@@ -9417,7 +9409,6 @@ __metadata:
     "@playwright/test": "npm:^1.52.0"
     "@reduxjs/toolkit": "npm:^2.2.5"
     "@shikijs/markdown-it": "npm:^3.12.0"
-    "@strongtz/win32-arm64-msvc": "npm:^0.4.7"
     "@swc/plugin-styled-components": "npm:^7.1.5"
     "@tanstack/react-query": "npm:^5.85.5"
     "@tanstack/react-virtual": "npm:^3.13.12"
