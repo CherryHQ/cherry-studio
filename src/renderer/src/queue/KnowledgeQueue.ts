@@ -136,7 +136,7 @@ class KnowledgeQueue {
         case 'note':
           note = await db.knowledge_notes.get(item.id)
           if (note) {
-            content = note.content as string
+            content = note.content
             logger.info('{ ...sourceItem, content }', { ...sourceItem, content })
             result = await window.api.knowledgeBase.add({ base: baseParams, item: { ...sourceItem, content } })
           }
@@ -145,7 +145,7 @@ class KnowledgeQueue {
           result = await window.api.knowledgeBase.add({
             base: baseParams,
             item: sourceItem,
-            userId: userId as string
+            userId: userId
           })
           break
         }
