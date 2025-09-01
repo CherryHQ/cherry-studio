@@ -1,7 +1,7 @@
 const { Arch } = require('electron-builder')
 const { downloadNpmPackage } = require('./utils')
 
-// if you want to add new packages with different architectures, you can add them here
+// if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from yarn.lock
 const allArm64 = {
   '@img/sharp-darwin-arm64': '0.34.3',
