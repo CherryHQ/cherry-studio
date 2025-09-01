@@ -203,7 +203,7 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
         parts.push({
           detail: 'auto',
           type: 'input_image',
-          image_url: image.data as string
+          image_url: image.data
         })
       }
     }
