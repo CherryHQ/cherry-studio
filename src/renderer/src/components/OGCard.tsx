@@ -33,11 +33,7 @@ export const OGCard = ({ link, show }: Props) => {
   }, [parseMetadata, isLoading, show])
 
   if (isLoading) {
-    return (
-      <SkeletonContainer>
-        <CardSkeleton />
-      </SkeletonContainer>
-    )
+    return <CardSkeleton />
   }
 
   return (
@@ -82,7 +78,20 @@ export const OGCard = ({ link, show }: Props) => {
 }
 
 const CardSkeleton = () => {
-  return <Skeleton active></Skeleton>
+  return (
+    <SkeletonContainer>
+      <Skeleton.Image style={{ width: '100%', height: 140 }} active />
+      <Skeleton
+        paragraph={{
+          rows: 1,
+          style: {
+            margin: '8px 0'
+          }
+        }}
+        active
+      />
+    </SkeletonContainer>
+  )
 }
 
 const StyledHyperLink = styled.div`
@@ -127,7 +136,10 @@ const SkeletonContainer = styled.div`
   width: 380px;
   height: 220px;
   padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
   background: var(--color-background);
   border: 1px solid var(--color-border);
   border-radius: 8px;
+  gap: 16px;
 `
