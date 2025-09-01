@@ -99,9 +99,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
 
   const modeOptions = [
-    { label: t('paintings.mode.generate'), value: 'generate' },
-    { label: t('paintings.mode.remix'), value: 'remix' },
-    { label: t('paintings.mode.upscale'), value: 'upscale' }
+    { label: t('paintings.mode.generate'), value: 'aihubmix_image_generate' },
+    { label: t('paintings.mode.remix'), value: 'aihubmix_image_remix' },
+    { label: t('paintings.mode.upscale'), value: 'aihubmix_image_upscale' }
   ]
 
   const getNewPainting = useCallback(() => {
