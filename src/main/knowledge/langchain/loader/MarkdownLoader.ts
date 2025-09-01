@@ -1,6 +1,6 @@
 import { BaseDocumentLoader } from '@langchain/core/document_loaders/base'
 import { Document } from '@langchain/core/documents'
-import * as fs from 'fs'
+import { readTextFileWithAutoEncoding } from '@main/utils/file'
 import MarkdownIt from 'markdown-it'
 
 export class MarkdownLoader extends BaseDocumentLoader {
@@ -13,7 +13,7 @@ export class MarkdownLoader extends BaseDocumentLoader {
     this.md = new MarkdownIt()
   }
   public async load(): Promise<Document[]> {
-    const content = await fs.readFileSync(this.path, 'utf-8')
+    const content = await readTextFileWithAutoEncoding(this.path)
     return this.parseMarkdown(content)
   }
 

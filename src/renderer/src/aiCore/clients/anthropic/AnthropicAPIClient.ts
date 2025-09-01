@@ -69,6 +69,7 @@ import {
   mcpToolsToAnthropicTools
 } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { isImageMimeType } from '@shared/config/mime'
 import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
@@ -206,14 +207,19 @@ export class AnthropicAPIClient extends BaseApiClient<
     if (imageContents.length > 0) {
       for (const imageContent of imageContents) {
         const base64Data = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
-        parts.push({
-          type: 'image',
-          source: {
-            data: base64Data.base64,
-            media_type: base64Data.mime.replace('jpg', 'jpeg') as any,
-            type: 'base64'
-          }
-        })
+        base64Data.mime = base64Data.mime.replace('jpg', 'jpeg')
+        if (isImageMimeType(base64Data.mime)) {
+          parts.push({
+            type: 'image',
+            source: {
+              data: base64Data.base64,
+              media_type: base64Data.mime,
+              type: 'base64'
+            }
+          })
+        } else {
+          logger.warn('Unsupported image type, ignored.', { mime: base64Data.mime })
+        }
       }
     }
 
