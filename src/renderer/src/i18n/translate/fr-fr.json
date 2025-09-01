@@ -288,7 +288,7 @@
         "placeholder": "Rechercher"
       }
     },
-    "deeply_thought": "Profondément réfléchi ({{secounds}} secondes)",
+    "deeply_thought": "Profondément réfléchi ({{seconds}} secondes)",
     "default": {
       "description": "Bonjour, je suis l'assistant par défaut. Vous pouvez commencer à discuter avec moi tout de suite.",
       "name": "Assistant par défaut",
