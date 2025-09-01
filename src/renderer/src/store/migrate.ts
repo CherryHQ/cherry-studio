@@ -1604,7 +1604,6 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.tokenflux_paintings) {
         state.paintings.tokenflux_paintings = []
       }
-      state.settings.showTokens = true
       state.settings.testPlan = false
       return state
     } catch (error) {
