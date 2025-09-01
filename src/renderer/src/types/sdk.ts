@@ -72,7 +72,7 @@ export type RequestOptions = Anthropic.RequestOptions | OpenAI.RequestOptions | 
  * OpenAI
  */
 
-type OpenAIParamsWithoutReasoningEffort = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'reasoning_effort'>
+type OpenAIParamsPurified = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'reasoning_effort' | 'modalities'>
 
 export type ReasoningEffortOptionalParams = {
   thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
@@ -97,7 +97,7 @@ export type ReasoningEffortOptionalParams = {
   // Add any other potential reasoning-related keys here if they exist
 }
 
-export type OpenAISdkParams = OpenAIParamsWithoutReasoningEffort & ReasoningEffortOptionalParams
+export type OpenAISdkParams = OpenAIParamsPurified & ReasoningEffortOptionalParams & OpenAIModalities & OpenAIExtraBody
 
 // OpenRouter may include additional fields like cost
 export type OpenAISdkRawChunk =
@@ -116,7 +116,18 @@ export type OpenAISdkRawContentSource =
     })
 
 export type OpenAISdkMessageParam = OpenAI.Chat.Completions.ChatCompletionMessageParam
-
+export type OpenAIExtraBody = {
+  // for qwen mt
+  translation_options?: {
+    source_lang: 'auto'
+    target_lang: string
+  }
+}
+// image is for openrouter. audio is ignored for now
+export type OpenAIModality = OpenAI.ChatCompletionModality | 'image'
+export type OpenAIModalities = {
+  modalities?: OpenAIModality[]
+}
 /**
  * OpenAI Response
  */

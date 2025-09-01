@@ -51,12 +51,12 @@ export type ConfigItem = {
   condition?: (painting: PaintingAction) => boolean
 }
 
-export type AihubmixMode = 'generate' | 'remix' | 'upscale'
+export type AihubmixMode = 'aihubmix_image_generate' | 'aihubmix_image_remix' | 'aihubmix_image_upscale'
 
 // 创建配置项函数
 export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   return {
-    generate: [
+    aihubmix_image_generate: [
       {
         type: 'select',
         key: 'model',
@@ -266,7 +266,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
       }
     ],
-    remix: [
+    aihubmix_image_remix: [
       {
         type: 'image',
         key: 'imageFile',
@@ -349,7 +349,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         tooltip: 'paintings.remix.magic_prompt_option_tip'
       }
     ],
-    upscale: [
+    aihubmix_image_upscale: [
       {
         type: 'image',
         key: 'imageFile',

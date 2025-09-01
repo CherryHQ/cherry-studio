@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isImageBlock, isMainTextBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion } from 'motion/react'
@@ -114,16 +114,20 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           const groupKey = block.map((b) => b.id).join('-')
 
           if (block[0].type === MessageBlockType.IMAGE) {
+            if (block.length === 1) {
+              return (
+                <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                  <ImageBlock key={block[0].id} block={block[0] as ImageMessageBlock} isSingle={true} />
+                </AnimatedBlockWrapper>
+              )
+            }
+            // 多张图片使用 ImageBlockGroup 包装
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
                 <ImageBlockGroup count={block.length}>
-                  {block.map((imageBlock) => {
-                    if (!isImageBlock(imageBlock)) {
-                      logger.warn('Expected image block but got different type', imageBlock)
-                      return null
-                    }
-                    return <ImageBlock key={imageBlock.id} block={imageBlock} />
-                  })}
+                  {block.map((imageBlock) => (
+                    <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} isSingle={false} />
+                  ))}
                 </ImageBlockGroup>
               </AnimatedBlockWrapper>
             )
@@ -216,8 +220,8 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 export default React.memo(MessageBlockRenderer)
 
 const ImageBlockGroup = styled.div<{ count: number }>`
-  display: grid;
-  grid-template-columns: repeat(${({ count }) => Math.min(count, 3)}, minmax(200px, 1fr));
-  gap: 8px;
-  max-width: 960px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 100%;
 `

@@ -88,7 +88,7 @@ export function useAssistant(id: string) {
   const settingsRef = useRef(assistant?.settings)
 
   useEffect(() => {
-    settingsRef.current = assistant.settings
+    settingsRef.current = assistant?.settings
   }, [assistant?.settings])
 
   const updateAssistantSettings = useCallback(

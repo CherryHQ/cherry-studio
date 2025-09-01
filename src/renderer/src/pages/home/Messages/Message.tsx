@@ -107,7 +107,7 @@ const MessageItem: FC<Props> = ({
         logger.error('Failed to resend message:', error as Error)
       }
     },
-    [message, resendUserMessageWithEdit, assistant, stopEditing, topic.prompt]
+    [message, resendUserMessageWithEdit, assistant, stopEditing]
   )
 
   const handleEditCancel = useCallback(() => {
@@ -264,7 +264,7 @@ const MessageContainer = styled.div`
 const MessageContentContainer = styled(Scrollbar)`
   max-width: 100%;
   padding-left: 46px;
-  margin-top: 5px;
+  margin-top: 0;
   overflow-y: auto;
 `
 

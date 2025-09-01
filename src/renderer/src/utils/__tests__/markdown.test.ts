@@ -9,6 +9,7 @@ import {
   isHtmlCode,
   markdownToPlainText,
   processLatexBrackets,
+  purifyMarkdownImages,
   removeTrailingDoubleSpaces,
   updateCodeBlock
 } from '../markdown'
@@ -632,6 +633,72 @@ $$
       expect(isHtmlCode('')).toBe(false)
       expect(isHtmlCode('Hello world')).toBe(false)
       expect(isHtmlCode('a < b')).toBe(false)
+    })
+  })
+
+  describe('purifyMarkdownImages', () => {
+    it('should replace base64 image with placeholder', () => {
+      const input = '![cat](data:image/png;base64,iVBORw0KGgo)'
+      const expected = '![cat](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle multiple base64 images', () => {
+      const input = `
+      ![dog](data:image/jpeg;base64,ABC123)
+      Some text
+      ![avatar](data:image/png;base64,XYZ789)
+    `
+      const expected = `
+      ![dog](image_url)
+      Some text
+      ![avatar](image_url)
+    `
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should ignore normal image links', () => {
+      const input = '![cat](https://example.com/cat.png)'
+      expect(purifyMarkdownImages(input)).toBe(input)
+    })
+
+    it('should handle whitespace in base64 url', () => {
+      const input = '![logo](  data:image/svg+xml;base64,CONTENT  )'
+      const expected = '![logo](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should preserve alt text', () => {
+      const input = '![User Avatar](data:image/png;base64,xxx)'
+      const expected = '![User Avatar](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle uppercase data URL', () => {
+      const input = '![test](DATA:IMAGE/PNG;BASE64,ABC)'
+      const expected = '![test](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should not modify text that is not image', () => {
+      const input = 'This is a data:image/png;base64,iVBORw line of text'
+      expect(purifyMarkdownImages(input)).toBe(input)
+    })
+
+    it('should handle mixed content', () => {
+      const input = `
+      Regular: ![cat](https://example.com/cat.png)
+      Base64: ![dog](data:image/jpeg;base64,BASE64DATA)
+      Another: ![bird](https://example.com/bird.gif)
+      Inline: ![icon](  data:image/x-icon;base64,ICONDATA  )
+    `
+      const expected = `
+      Regular: ![cat](https://example.com/cat.png)
+      Base64: ![dog](image_url)
+      Another: ![bird](https://example.com/bird.gif)
+      Inline: ![icon](image_url)
+    `
+      expect(purifyMarkdownImages(input)).toBe(expected)
     })
   })
 })
