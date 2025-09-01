@@ -27,6 +27,7 @@ import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
+import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
@@ -476,6 +477,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
+  },
+  {
+    id: 'longcat',
+    name: 'LongCat',
+    logo: LongCatAppLogo,
+    url: 'https://longcat.chat/',
+    bodered: true
   }
 ]
 
