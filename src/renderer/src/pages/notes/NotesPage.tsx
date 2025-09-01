@@ -53,6 +53,7 @@ const NotesPage: FC = () => {
   const isSyncingTreeRef = useRef(false)
   const isEditorInitialized = useRef(false)
   const lastContentRef = useRef<string>('')
+  const lastFilePathRef = useRef<string | undefined>(undefined)
   const isInitialSortApplied = useRef(false)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
@@ -82,13 +83,14 @@ const NotesPage: FC = () => {
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
-    async (content: string) => {
-      if (!activeFilePath || content === currentContent) return
+    async (content: string, filePath?: string) => {
+      const targetPath = filePath || activeFilePath
+      if (!targetPath || content === currentContent) return
 
       try {
-        await window.api.file.write(activeFilePath, content)
+        await window.api.file.write(targetPath, content)
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
-        invalidateFileContent(activeFilePath)
+        invalidateFileContent(targetPath)
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
       }
@@ -99,19 +101,22 @@ const NotesPage: FC = () => {
   // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
   const debouncedSave = useMemo(
     () =>
-      debounce((content: string) => {
-        saveCurrentNote(content)
+      debounce((content: string, filePath: string | undefined) => {
+        saveCurrentNote(content, filePath)
       }, 800), // 800ms防抖延迟
     [saveCurrentNote]
   )
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
-      // 记录最新内容，用于兜底保存
+      // 记录最新内容和文件路径，用于兜底保存
       lastContentRef.current = newMarkdown
-      debouncedSave(newMarkdown)
+      lastFilePathRef.current = activeFilePath
+      // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
+      const currentFilePath = activeFilePath
+      debouncedSave(newMarkdown, currentFilePath)
     },
-    [debouncedSave]
+    [debouncedSave, activeFilePath]
   )
 
   useEffect(() => {
@@ -148,16 +153,16 @@ const NotesPage: FC = () => {
   // 处理树同步时的状态管理
   useEffect(() => {
     if (notesTree.length === 0) return
-
     // 如果有activeFilePath但找不到对应节点，清空选择
     // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
-    if (
-      activeFilePath &&
-      !activeNode &&
-      !isSyncingTreeRef.current &&
-      !isRenamingRef.current &&
-      !isCreatingNoteRef.current
-    ) {
+    const shouldClearPath =
+      activeFilePath && !activeNode && !isSyncingTreeRef.current && !isRenamingRef.current && !isCreatingNoteRef.current
+
+    if (shouldClearPath) {
+      logger.warn('Clearing activeFilePath - node not found in tree', {
+        activeFilePath,
+        reason: 'Node not found in current tree'
+      })
       dispatch(setActiveFilePath(undefined))
     }
   }, [notesTree, activeFilePath, activeNode, dispatch])
@@ -257,8 +262,8 @@ const NotesPage: FC = () => {
       })
 
       // 如果有未保存的内容，立即保存
-      if (lastContentRef.current && lastContentRef.current !== currentContent) {
-        saveCurrentNote(lastContentRef.current).catch((error) => {
+      if (lastContentRef.current && lastContentRef.current !== currentContent && lastFilePathRef.current) {
+        saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
           logger.error('Emergency save failed:', error as Error)
         })
       }
@@ -288,8 +293,8 @@ const NotesPage: FC = () => {
 
   // 切换文件时重置编辑器初始化状态并兜底保存
   useEffect(() => {
-    if (lastContentRef.current && lastContentRef.current !== currentContent) {
-      saveCurrentNote(lastContentRef.current).catch((error) => {
+    if (lastContentRef.current && lastContentRef.current !== currentContent && lastFilePathRef.current) {
+      saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
         logger.error('Emergency save before file switch failed:', error as Error)
       })
     }
@@ -297,6 +302,7 @@ const NotesPage: FC = () => {
     // 重置状态
     isEditorInitialized.current = false
     lastContentRef.current = ''
+    lastFilePathRef.current = undefined
   }, [activeFilePath, currentContent, saveCurrentNote])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
@@ -425,6 +431,7 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           dispatch(setActiveFilePath(node.externalPath))
+          invalidateFileContent(node.externalPath)
           // 清除文件夹选择状态
           setSelectedFolderId(null)
         } catch (error) {
@@ -435,7 +442,7 @@ const NotesPage: FC = () => {
         await handleToggleExpanded(node.id)
       }
     },
-    [dispatch, handleToggleExpanded]
+    [dispatch, handleToggleExpanded, invalidateFileContent]
   )
 
   // 删除节点

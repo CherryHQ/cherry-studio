@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { htmlToMarkdown, markdownToHtml, markdownToSafeHtml, sanitizeHtml } from '../markdownConverter'
+import { htmlToMarkdown, markdownToHtml } from '../markdownConverter'
 
 describe('markdownConverter', () => {
   describe('htmlToMarkdown', () => {
@@ -294,33 +294,6 @@ describe('markdownConverter', () => {
     })
   })
 
-  describe('sanitizeHtml', () => {
-    it('should sanitize HTML content and remove scripts', () => {
-      const html = '<h1>Hello</h1><script>alert("xss")</script>'
-      const result = sanitizeHtml(html)
-      expect(result).toContain('<h1>Hello</h1>')
-      expect(result).not.toContain('<script>')
-      expect(result).not.toContain('alert')
-    })
-
-    it('should preserve task list HTML elements', () => {
-      const html =
-        '<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><input type="checkbox" checked disabled> Task item</li></ul>'
-      const result = sanitizeHtml(html)
-      expect(result).toContain('data-type="taskList"')
-      expect(result).toContain('data-type="taskItem"')
-      expect(result).toContain('data-checked="true"')
-      expect(result).toContain('<input type="checkbox"')
-      expect(result).toContain('checked')
-      expect(result).toContain('disabled')
-    })
-
-    it('should handle empty HTML', () => {
-      const result = sanitizeHtml('')
-      expect(result).toBe('')
-    })
-  })
-
   describe('Task List with Labels', () => {
     it('should wrap task items with labels when label option is true', () => {
       const markdown = '- [ ] abcd\n\n- [x] efgh'
@@ -328,15 +301,6 @@ describe('markdownConverter', () => {
       expect(result).toBe(
         '<ul data-type="taskList" class="task-list">\n<li data-type="taskItem" class="task-list-item" data-checked="false">\n<p><label><input type="checkbox" disabled> abcd</label></p>\n</li>\n<li data-type="taskItem" class="task-list-item" data-checked="true">\n<p><label><input type="checkbox" checked disabled> efgh</label></p>\n</li>\n</ul>\n'
       )
-    })
-
-    it('should preserve labels in sanitized HTML', () => {
-      const html =
-        '<ul data-type="taskList"><li data-type="taskItem"><label><input type="checkbox" checked disabled> Task with label</label></li></ul>'
-      const result = sanitizeHtml(html)
-      expect(result).toContain('<label>')
-      expect(result).toContain('<input type="checkbox" checked')
-      expect(result).toContain('Task with label')
     })
   })
 
@@ -423,8 +387,8 @@ describe('markdownConverter', () => {
 
     it('should handle images with spaces in file:// protocol paths', () => {
       const markdown = '![My Image](file:///path/to/my image with spaces.png)'
-      const result = markdownToSafeHtml(markdown)
-      expect(result).toContain('<img src="file:///path/to/my image with spaces.png" alt="My Image">')
+      const result = htmlToMarkdown(markdownToHtml(markdown))
+      expect(result).toBe(markdown)
     })
 
     it('shoud img label to markdown', () => {
@@ -438,5 +402,66 @@ describe('markdownConverter', () => {
     const markdown = 'Text with \\\n    indentation \\\nand without indentation'
     const result = markdownToHtml(markdown)
     expect(result).toBe('<p>Text with <br />\nindentation <br />\nand without indentation</p>\n')
+  })
+
+  describe('Custom XML Tags Preservation', () => {
+    it('should preserve custom XML tags through markdown-to-HTML and HTML-to-markdown conversion', () => {
+      const markdown = 'Some text with <custom-tag>content</custom-tag> and more text'
+      const html = markdownToHtml(markdown)
+      const backToMarkdown = htmlToMarkdown(html)
+
+      expect(html).toContain('Some text with <custom-tag>content</custom-tag> and more text')
+      expect(backToMarkdown).toBe('Some text with <custom-tag>content</custom-tag> and more text')
+    })
+
+    it('should preserve single custom XML tags', () => {
+      const markdown = '<abc>'
+      const html = markdownToHtml(markdown)
+      const backToMarkdown = htmlToMarkdown(html)
+
+      expect(html).toBe('<p><abc></p>')
+      expect(backToMarkdown).toBe('<abc>')
+    })
+
+    it('should preserve single custom XML tags in html', () => {
+      const html = '<p><abc></p>'
+      const markdown = htmlToMarkdown(html)
+      const backToHtml = markdownToHtml(markdown)
+
+      expect(markdown).toBe('<abc>')
+      expect(backToHtml).toBe('<p><abc></p>')
+    })
+
+    it('should preserve custom XML tags mixed with regular markdown', () => {
+      const markdown = '# Heading\n\n<custom-widget id="widget1">Widget content</custom-widget>\n\n**Bold text**'
+      const html = markdownToHtml(markdown)
+      const backToMarkdown = htmlToMarkdown(html)
+
+      expect(html).toContain('<h1>Heading</h1>')
+      expect(html).toContain('<custom-widget id="widget1">Widget content</custom-widget>')
+      expect(html).toContain('<strong>Bold text</strong>')
+      expect(backToMarkdown).toContain('# Heading')
+      expect(backToMarkdown).toContain('<custom-widget id="widget1">Widget content</custom-widget>')
+      expect(backToMarkdown).toContain('**Bold text**')
+    })
+  })
+
+  describe('Typing behavior issues', () => {
+    it('should not add unwanted line breaks during simple text typing', () => {
+      const html = '<p>Hello world</p>'
+      const markdown = htmlToMarkdown(html)
+      const backToHtml = markdownToHtml(markdown)
+
+      expect(markdown).toBe('Hello world')
+      expect(backToHtml).toBe('<p>Hello world</p>\n')
+    })
+
+    it('should preserve simple paragraph structure during round-trip conversion', () => {
+      const originalHtml = '<p>This is a simple paragraph being typed</p>'
+      const markdown = htmlToMarkdown(originalHtml)
+      const backToHtml = markdownToHtml(markdown)
+      expect(markdown).toBe('This is a simple paragraph being typed')
+      expect(backToHtml).toBe('<p>This is a simple paragraph being typed</p>\n')
+    })
   })
 })

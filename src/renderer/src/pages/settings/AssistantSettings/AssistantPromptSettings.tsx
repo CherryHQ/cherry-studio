@@ -1,9 +1,10 @@
 import 'emoji-picker-element'
 
 import { CloseCircleFilled } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
+import CodeViewer from '@renderer/components/CodeViewer'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
-import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -47,9 +48,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   })
 
   const onUpdate = () => {
-    const text = editorRef.current?.getMarkdown() || ''
-    setPrompt(text)
-    const _assistant = { ...assistant, name: name.trim(), emoji, prompt: text }
+    const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
     window.message.success(t('common.saved'))
   }
@@ -67,13 +66,6 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   }
 
   const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
-
-  const handleCommandsReady = (commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
-    const disabledCommands = ['image', 'inlineMath']
-    disabledCommands.forEach((commandId) => {
-      commandAPI.unregisterCommand(commandId)
-    })
-  }
 
   return (
     <Container>
@@ -129,18 +121,20 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       </HStack>
       <TextAreaContainer>
         <RichEditorContainer>
-          <RichEditor
-            key={showPreview ? 'preview' : 'edit'}
-            ref={editorRef}
-            initialContent={showPreview ? processedPrompt : prompt}
-            onCommandsReady={handleCommandsReady}
-            showToolbar={!showPreview}
-            editable={!showPreview}
-            showTableOfContents={false}
-            enableContentSearch={false}
-            isFullWidth={true}
-            className="prompt-rich-editor"
-          />
+          {showPreview ? (
+            <CodeViewer children={processedPrompt} language="markdown" expanded={true} height="100%" />
+          ) : (
+            <CodeEditor
+              value={prompt}
+              language="markdown"
+              onChange={setPrompt}
+              height="100%"
+              expanded={false}
+              style={{
+                height: '100%'
+              }}
+            />
+          )}
         </RichEditorContainer>
       </TextAreaContainer>
       <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">

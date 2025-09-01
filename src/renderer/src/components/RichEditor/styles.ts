@@ -61,15 +61,13 @@ export const ToolbarButton = styled.button<{
   height: 32px;
   border: none;
   border-radius: 4px;
-  background: ${({ $active }) => ($active ? 'var(--color-primary)' : 'transparent')};
-  color: ${({ $active, $disabled }) =>
-    $disabled ? 'var(--color-text-3)' : $active ? 'var(--color-white)' : 'var(--color-text)'};
+  background: transparent;
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   transition: all 0.2s ease;
   flex-shrink: 0; /* 防止按钮收缩 */
 
   &:hover:not(:disabled) {
-    background: ${({ $active }) => ($active ? 'var(--color-primary)' : 'var(--color-hover)')};
+    background: var(--color-hover);
   }
 
   &:disabled {
