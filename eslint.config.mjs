@@ -53,7 +53,7 @@ export default tseslint.config([
   reactHooks.configs['recommended-latest'],
   // js eslint. I really don't know why so many types
   {
-    files: ['scripts/*.js', 'eslint.config.mjs', 'resources/scripts/*.js'],
+    files: ['scripts/*.js', 'resources/scripts/*.js'],
     languageOptions: {
       parser: espree,
       ecmaVersion: 2022,
