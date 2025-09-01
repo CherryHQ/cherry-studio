@@ -499,7 +499,10 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed) {
-              editor.commands.focus('end')
+              const isLong = editor.getText().length > 2000
+              if (!isLong) {
+                editor.commands.focus('end')
+              }
             }
           }, 0)
         } catch (error) {
