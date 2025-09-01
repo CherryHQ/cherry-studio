@@ -85,7 +85,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   // 使用外部搜索工具

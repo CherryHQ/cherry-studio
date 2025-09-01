@@ -1,6 +1,7 @@
 import { Tooltip } from 'antd'
 import type { TFunction } from 'i18next'
-import React, { useEffect, useState } from 'react'
+import { LucideProps } from 'lucide-react'
+import React, { ForwardRefExoticComponent, RefAttributes, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getCommandsByGroup } from './command'
@@ -12,7 +13,7 @@ import type { FormattingCommand, FormattingState, ToolbarProps } from './types'
 interface ToolbarItemInternal {
   id: string
   command?: FormattingCommand
-  icon?: React.ComponentType
+  icon?: ForwardRefExoticComponent<Omit<LucideProps, 'ref'> & RefAttributes<SVGSVGElement>>
   type?: 'divider'
   handler?: () => void
 }
@@ -170,7 +171,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
             disabled={isDisabled}
             onClick={() => handleCommand(command)}
             data-testid={`toolbar-${command}`}>
-            <Icon />
+            <Icon color={isActive ? 'var(--color-primary)' : 'var(--color-text)'} />
           </ToolbarButton>
         )
 

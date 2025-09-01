@@ -1,12 +1,76 @@
 import { loggerService } from '@logger'
 import { TurndownPlugin } from '@truto/turndown-plugin-gfm'
-import DOMPurify from 'dompurify'
 import he from 'he'
+import htmlTags, { type HtmlTags } from 'html-tags'
+import * as htmlparser2 from 'htmlparser2'
 import MarkdownIt from 'markdown-it'
 import striptags from 'striptags'
 import TurndownService from 'turndown'
 
 const logger = loggerService.withContext('markdownConverter')
+
+function escapeCustomTags(html: string) {
+  let result = ''
+  let currentPos = 0
+  const processedPositions = new Set<number>()
+
+  const parser = new htmlparser2.Parser({
+    onopentagname(tagname) {
+      const startPos = parser.startIndex
+      const endPos = parser.endIndex
+
+      // Add content before this tag
+      result += html.slice(currentPos, startPos)
+
+      if (!htmlTags.includes(tagname as HtmlTags)) {
+        // This is a custom tag, escape it
+        const tagHtml = html.slice(startPos, endPos + 1)
+        result += tagHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      } else {
+        // This is a standard HTML tag, keep it as-is
+        result += html.slice(startPos, endPos + 1)
+      }
+
+      currentPos = endPos + 1
+    },
+
+    onclosetag(tagname) {
+      const startPos = parser.startIndex
+      const endPos = parser.endIndex
+
+      // Skip if we've already processed this position (handles malformed HTML)
+      if (processedPositions.has(endPos) || endPos + 1 <= currentPos) {
+        return
+      }
+
+      processedPositions.add(endPos)
+
+      // Get the actual HTML content at this position to verify what tag it really is
+      const actualTagHtml = html.slice(startPos, endPos + 1)
+      const actualTagMatch = actualTagHtml.match(/<\/([^>]+)>/)
+      const actualTagName = actualTagMatch ? actualTagMatch[1] : tagname
+
+      if (!htmlTags.includes(actualTagName as HtmlTags)) {
+        // This is a custom tag, escape it
+        result += html.slice(currentPos, startPos)
+        result += actualTagHtml.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        currentPos = endPos + 1
+      } else {
+        // This is a standard HTML tag, add content up to and including the closing tag
+        result += html.slice(currentPos, endPos + 1)
+        currentPos = endPos + 1
+      }
+    },
+
+    onend() {
+      result += html.slice(currentPos)
+    }
+  })
+
+  parser.write(html)
+  parser.end()
+  return result
+}
 
 export interface TaskListOptions {
   label?: boolean
@@ -537,7 +601,10 @@ export const htmlToMarkdown = (html: string | null | undefined): string => {
   }
 
   try {
-    return turndownService.turndown(html).trim()
+    const encodedHtml = escapeCustomTags(html)
+    const turndownResult = turndownService.turndown(encodedHtml).trim()
+    const finalResult = he.decode(turndownResult)
+    return finalResult
   } catch (error) {
     logger.error('Error converting HTML to Markdown:', error as Error)
     return ''
@@ -572,92 +639,22 @@ export const markdownToHtml = (markdown: string | null | undefined): string => {
       }
     )
 
-    return md.render(processedMarkdown)
+    let html = md.render(processedMarkdown)
+    const trimmedMarkdown = processedMarkdown.trim()
+    if (html.trim() === trimmedMarkdown) {
+      const singleTagMatch = trimmedMarkdown.match(/^<([a-zA-Z][^>\s]*)\/?>$/)
+      if (singleTagMatch) {
+        const tagName = singleTagMatch[1]
+        if (!htmlTags.includes(tagName.toLowerCase() as any)) {
+          html = `<p>${html}</p>`
+        }
+      }
+    }
+    return html
   } catch (error) {
     logger.error('Error converting Markdown to HTML:', error as Error)
     return ''
   }
-}
-
-/**
- * Sanitizes HTML content using DOMPurify
- * @param html - HTML string to sanitize
- * @returns Sanitized HTML string
- */
-export const sanitizeHtml = (html: string): string => {
-  if (!html || typeof html !== 'string') {
-    return ''
-  }
-
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
-      'h1',
-      'h2',
-      'h3',
-      'h4',
-      'h5',
-      'h6',
-      'div',
-      'span',
-      'p',
-      'br',
-      'hr',
-      'strong',
-      'b',
-      'em',
-      'i',
-      'u',
-      's',
-      'del',
-      'ul',
-      'ol',
-      'li',
-      'blockquote',
-      'code',
-      'pre',
-      'a',
-      'img',
-      'table',
-      'thead',
-      'tbody',
-      'tfoot',
-      'tr',
-      'td',
-      'th',
-      'input',
-      'label',
-      'details',
-      'summary'
-    ],
-    ALLOWED_ATTR: [
-      'href',
-      'title',
-      'alt',
-      'src',
-      'class',
-      'id',
-      'colspan',
-      'rowspan',
-      'type',
-      'checked',
-      'disabled',
-      'width',
-      'height',
-      'loading'
-    ],
-    ALLOW_DATA_ATTR: true,
-    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|file|mailto|tel|callto|cid|xmpp):|[^a-z]|[a-z+.\\-]+(?:[^a-z+.\-:]|$))/i
-  })
-}
-
-/**
- * Converts Markdown to safe HTML (combines conversion and sanitization)
- * @param markdown - Markdown string to convert
- * @returns Safe HTML string
- */
-export const markdownToSafeHtml = (markdown: string): string => {
-  const html = markdownToHtml(markdown)
-  return sanitizeHtml(html)
 }
 
 /**
