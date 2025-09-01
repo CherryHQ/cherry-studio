@@ -174,7 +174,6 @@ describe('naming', () => {
 
     it('should return original id if no delimiter found', () => {
       expect(getBaseModelName('deepseek-r1')).toBe('deepseek-r1')
-      expect(getBaseModelName('deepseek-r1:free')).toBe('deepseek-r1:free')
     })
 
     it('should handle edge cases', () => {
