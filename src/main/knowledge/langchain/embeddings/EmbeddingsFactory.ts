@@ -2,7 +2,7 @@ import { VoyageEmbeddings } from '@langchain/community/embeddings/voyage'
 import type { Embeddings } from '@langchain/core/embeddings'
 import { OllamaEmbeddings } from '@langchain/ollama'
 import { AzureOpenAIEmbeddings, OpenAIEmbeddings } from '@langchain/openai'
-import { ApiClient } from '@types'
+import { ApiClient, SystemProviderIds } from '@types'
 
 import { isJinaEmbeddingsModel, JinaEmbeddings } from './JinaEmbeddings'
 
@@ -10,7 +10,7 @@ export default class EmbeddingsFactory {
   static create({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }): Embeddings {
     const batchSize = 10
     const { model, provider, apiKey, apiVersion, baseURL } = embedApiClient
-    if (provider === 'ollama') {
+    if (provider === SystemProviderIds.ollama) {
       let baseUrl = baseURL
       if (baseURL.includes('v1/')) {
         baseUrl = baseURL.replace('v1/', '')
@@ -25,7 +25,7 @@ export default class EmbeddingsFactory {
         baseUrl,
         ...headers
       })
-    } else if (provider === 'voyageai') {
+    } else if (provider === SystemProviderIds.voyageai) {
       return new VoyageEmbeddings({
         modelName: model,
         apiKey,
