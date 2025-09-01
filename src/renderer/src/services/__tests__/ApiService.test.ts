@@ -233,7 +233,8 @@ vi.mock('@renderer/store/llm.ts', () => {
         secretAccessKey: '',
         region: ''
       }
-    }
+    },
+    logos: {}
   } satisfies LlmState
 
   const mockReducer = (state = mockInitialState) => {

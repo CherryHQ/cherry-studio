@@ -4,10 +4,10 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -17,7 +17,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Select, Tooltip } from 'antd'
+import { Button, Select, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -50,6 +50,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
   const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
+  const { ProviderAvatar } = useProviderAvatar()
   const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
@@ -383,7 +384,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
-              <ProviderLogo shape="square" src={getProviderLogo('tokenflux')} size={16} style={{ marginLeft: 5 }} />
+              <ProviderAvatar pid={'tokenflux'} size={16} style={{ marginLeft: 5 }} />
             </SettingHelpLink>
           </ProviderTitleContainer>
 
@@ -394,7 +395,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <ProviderAvatar pid={provider.value} size={16} />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -763,10 +764,6 @@ const InfoIcon = styled(Info)`
   &:hover {
     opacity: 1;
   }
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ProviderTitleContainer = styled.div`

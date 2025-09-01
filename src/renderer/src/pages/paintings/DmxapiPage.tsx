@@ -4,9 +4,9 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
@@ -15,7 +15,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
-import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
+import { Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import React, { FC, useEffect, useRef, useState } from 'react'
@@ -46,6 +46,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
+  const { ProviderAvatar } = useProviderAvatar()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
@@ -814,19 +815,15 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
               </SettingHelpLink>
-              <ProviderLogo
-                shape="square"
-                src={getProviderLogo(dmxapiProvider.id)}
-                size={16}
-                style={{ marginLeft: 5 }}
-              />
+              <ProviderAvatar pid={dmxapiProvider.id} size={16} style={{ marginLeft: 5 }} />
             </div>
           </ProviderTitleContainer>
           <Select value={providerOptions[3].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <ProviderAvatar pid={provider.value || ''} size={16} />
+
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -1038,9 +1035,6 @@ const ProviderTitleContainer = styled.div`
   margin-bottom: 5px;
 `
 
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
-`
 const SelectOptionContainer = styled.div`
   display: flex;
   align-items: center;

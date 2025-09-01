@@ -4,16 +4,16 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
+import { Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,6 +39,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<any>(zhipu_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
+  const { ProviderAvatar } = useProviderAvatar()
 
   // 确保painting使用智谱的cogview系列模型
   useEffect(() => {
@@ -368,19 +369,14 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               <SettingHelpLink target="_blank" href={COURSE_URL}>
                 {t('paintings.paint_course')}
               </SettingHelpLink>
-              <ProviderLogo
-                shape="square"
-                src={getProviderLogo(zhipuProvider.id)}
-                size={16}
-                style={{ marginLeft: 5 }}
-              />
+              <ProviderAvatar pid={zhipuProvider.id} size={16} style={{ marginLeft: 5 }} />
             </div>
           </ProviderTitleContainer>
           <Select value={providerOptions[0].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <ProviderAvatar pid={provider.value} size={16} />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -579,10 +575,6 @@ const SelectOptionContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border-radius: 4px;
 `
 
 export default ZhipuPage

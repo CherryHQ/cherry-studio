@@ -1,6 +1,9 @@
 import { SearchOutlined } from '@ant-design/icons'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { getProviderLabel } from '@renderer/i18n/label'
+import { useAppSelector } from '@renderer/store'
+import { isSystemProvider } from '@renderer/types'
 import { Input, Tooltip } from 'antd'
 import { FC, useMemo, useState } from 'react'
 import styled from 'styled-components'
@@ -12,19 +15,21 @@ interface Props {
 // 用于选择内置头像的提供商Logo选择器组件
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
+  const providers = useAppSelector((state) => state.llm.providers)
 
+  const { ProviderAvatar } = useProviderAvatar()
   const filteredProviders = useMemo(() => {
-    const providers = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
-      id,
-      logo,
-      name: getProviderLabel(id)
+    const _providers = providers.filter(isSystemProvider).map((p) => ({
+      id: p.id,
+      name: p.name,
+      label: getProviderLabel(p.id),
+      logo: PROVIDER_LOGO_MAP[p.id]
     }))
-
-    if (!searchText) return providers
+    if (!searchText) return _providers
 
     const searchLower = searchText.toLowerCase()
-    return providers.filter((p) => p.name.toLowerCase().includes(searchLower))
-  }, [searchText])
+    return _providers.filter((p) => `${p.name} ${p.id} ${p.label}`.toLowerCase().includes(searchLower))
+  }, [providers, searchText])
 
   const handleProviderClick = (event: React.MouseEvent, providerId: string) => {
     event.stopPropagation()
@@ -48,10 +53,10 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         />
       </SearchContainer>
       <LogoGrid>
-        {filteredProviders.map(({ id, logo, name }) => (
-          <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
+        {filteredProviders.map(({ id, label }) => (
+          <Tooltip key={id} title={label} placement="top" mouseLeaveDelay={0}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
-              <img src={logo} alt={name} draggable={false} />
+              <ProviderAvatar pid={id} size={32} />
             </LogoItem>
           </Tooltip>
         ))}
