@@ -564,7 +564,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         messages: OpenAISdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const { messages, mcpTools, maxTokens, enableWebSearch } = coreRequest
+        const { messages, mcpTools, maxTokens, enableWebSearch, enableGenerateImage } = coreRequest
         let { streamOutput } = coreRequest
 
         // Qwen3商业版（思考模式）、Qwen3开源版、QwQ、QVQ只支持流式输出。
@@ -684,6 +684,12 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           reasoningEffort.reasoning_effort = 'low'
         }
 
+        // for openrouter generate image
+        // https://openrouter.ai/docs/features/multimodal/image-generation
+        if (enableGenerateImage && this.provider.id === SystemProviderIds.openrouter) {
+          extra_body.modalities = ['image', 'text']
+        }
+
         const commonParams: OpenAISdkParams = {
           model: model.id,
           messages:
@@ -703,7 +709,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
           ...getOpenAIWebSearchParams(model, enableWebSearch),
           // OpenRouter usage tracking
           ...(this.provider.id === 'openrouter' ? { usage: { include: true } } : {}),
-          ...(isQwenMTModel(model) ? extra_body : {}),
+          ...extra_body,
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
           // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
