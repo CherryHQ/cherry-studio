@@ -6,11 +6,11 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
+import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import {
@@ -29,7 +29,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
+import { Avatar, Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import React, { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -47,7 +47,6 @@ const logger = loggerService.withContext('NewApiPage')
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
   const { addPainting, removePainting, updatePainting, openai_image_generate, openai_image_edit } = usePaintings()
-  const { ProviderAvatar } = useProviderAvatar()
 
   const newApiPaintings = useMemo(() => {
     return {
@@ -510,7 +509,12 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={'https://docs.newapi.pro/apps/cherry-studio/'}>
               {t('paintings.learn_more')}
-              <ProviderAvatar pid={newApiProvider.id} size={16} style={{ marginLeft: 5 }} />
+              <ProviderLogo
+                shape="square"
+                src={getProviderLogo(newApiProvider.id)}
+                size={16}
+                style={{ marginLeft: 5 }}
+              />
             </SettingHelpLink>
           </ProviderTitleContainer>
 
@@ -521,7 +525,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderAvatar pid={provider.value} size={16} />
+                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -788,6 +792,10 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
+`
+
+const ProviderLogo = styled(Avatar)`
+  border: 0.5px solid var(--color-border);
 `
 
 // 添加新的样式组件

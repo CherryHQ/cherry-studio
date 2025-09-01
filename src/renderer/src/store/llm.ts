@@ -39,7 +39,6 @@ export interface LlmState {
   translateModel: Model
   quickAssistantId: string
   settings: LlmSettings
-  logos: Record<string, string>
 }
 
 export const initialState: LlmState = {
@@ -72,8 +71,7 @@ export const initialState: LlmState = {
       secretAccessKey: '',
       region: ''
     }
-  },
-  logos: {}
+  }
 }
 
 // 由于 isLocalAi 目前总是为false，该函数暂未被使用
@@ -221,17 +219,6 @@ const llmSlice = createSlice({
           provider.models[modelIndex] = action.payload.model
         }
       }
-    },
-    setLogos: (state, action: PayloadAction<Record<string, string>>) => {
-      state.logos = action.payload
-    },
-    setLogo: (state, action: PayloadAction<{ id: string; logo: string }>) => {
-      const { id, logo } = action.payload
-      state.logos[id] = logo
-    },
-    removeLogo: (state, action: PayloadAction<string>) => {
-      const id = action.payload
-      delete state.logos[id]
     }
   }
 })
@@ -257,10 +244,7 @@ export const {
   setAwsBedrockAccessKeyId,
   setAwsBedrockSecretAccessKey,
   setAwsBedrockRegion,
-  updateModel,
-  setLogos,
-  setLogo,
-  removeLogo
+  updateModel
 } = llmSlice.actions
 
 export default llmSlice.reducer
