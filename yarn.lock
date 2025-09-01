@@ -7819,6 +7819,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@types/mime-types@npm:^3":
+  version: 3.0.1
+  resolution: "@types/mime-types@npm:3.0.1"
+  checksum: 10c0/61c2056529dc5bc73c25b2a053e21f063fd547c21e12a2be94ca78b89b0f83c9a75afed9a8bda3c78592ee880acc82778302651527f7882cf5ba8e58ab320e29
+  languageName: node
+  linkType: hard
+
 "@types/ms@npm:*":
   version: 2.1.0
   resolution: "@types/ms@npm:2.1.0"
@@ -8970,6 +8977,7 @@ __metadata:
     "@types/lodash": "npm:^4.17.5"
     "@types/markdown-it": "npm:^14"
     "@types/md5": "npm:^2.3.5"
+    "@types/mime-types": "npm:^3"
     "@types/node": "npm:^22.17.1"
     "@types/pako": "npm:^1.0.2"
     "@types/react": "npm:^19.0.12"
@@ -9046,6 +9054,7 @@ __metadata:
     markdown-it: "npm:^14.1.0"
     mermaid: "npm:^11.9.0"
     mime: "npm:^4.0.4"
+    mime-types: "npm:^3.0.1"
     motion: "npm:^12.10.5"
     node-stream-zip: "npm:^1.15.0"
     notion-helper: "npm:^1.3.22"
