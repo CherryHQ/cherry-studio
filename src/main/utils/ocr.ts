@@ -1,8 +1,8 @@
 import { ImageFileMetadata } from '@types'
 import { readFile } from 'fs/promises'
-import sharp from 'sharp'
 
 const preprocessImage = async (buffer: Buffer): Promise<Buffer> => {
+  const sharp = require('sharp')
   return sharp(buffer)
     .grayscale() // 转为灰度
     .normalize()
