@@ -1,14 +1,9 @@
 import { loggerService } from '@logger'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type {
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  Message,
-  MessageBlock,
-  VideoMessageBlock
-} from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { isImageBlock, isMainTextBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
@@ -79,12 +74,18 @@ const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBl
       }
     } else if (currentBlock.type === MessageBlockType.VIDEO) {
       // 对于VIDEO类型，按相同filePath分组
-      const videoBlock = currentBlock as VideoMessageBlock
+      if (!isVideoBlock(currentBlock)) {
+        logger.warn('Block type is VIDEO but failed type guard check', currentBlock)
+        acc.push(currentBlock)
+        return acc
+      }
+      const videoBlock = currentBlock
       const existingGroup = acc.find(
         (group) =>
           Array.isArray(group) &&
           group[0].type === MessageBlockType.VIDEO &&
-          (group[0] as VideoMessageBlock).filePath === videoBlock.filePath
+          isVideoBlock(group[0]) &&
+          group[0].filePath === videoBlock.filePath
       ) as MessageBlock[] | undefined
 
       if (existingGroup) {
@@ -116,15 +117,23 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
                 <ImageBlockGroup count={block.length}>
-                  {block.map((imageBlock) => (
-                    <ImageBlock key={imageBlock.id} block={imageBlock as ImageMessageBlock} />
-                  ))}
+                  {block.map((imageBlock) => {
+                    if (!isImageBlock(imageBlock)) {
+                      logger.warn('Expected image block but got different type', imageBlock)
+                      return null
+                    }
+                    return <ImageBlock key={imageBlock.id} block={imageBlock} />
+                  })}
                 </ImageBlockGroup>
               </AnimatedBlockWrapper>
             )
           } else if (block[0].type === MessageBlockType.VIDEO) {
             // 对于相同路径的video，只渲染第一个
-            const firstVideoBlock = block[0] as VideoMessageBlock
+            if (!isVideoBlock(block[0])) {
+              logger.warn('Expected video block but got different type', block[0])
+              return null
+            }
+            const firstVideoBlock = block[0]
             return (
               <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
                 <VideoBlock key={firstVideoBlock.id} block={firstVideoBlock} />
@@ -144,7 +153,11 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
             break
           case MessageBlockType.MAIN_TEXT:
           case MessageBlockType.CODE: {
-            const mainTextBlock = block as MainTextMessageBlock
+            if (!isMainTextBlock(block)) {
+              logger.warn('Expected main text block but got different type', block)
+              break
+            }
+            const mainTextBlock = block
             // Find the associated citation block ID from the references
             const citationBlockId = mainTextBlock.citationReferences?.[0]?.citationBlockId
 
