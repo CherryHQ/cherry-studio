@@ -225,8 +225,22 @@ export class GeminiAPIClient extends BaseApiClient<
 
     // If file is not found, upload it to Gemini
     const result = await window.api.fileService.upload(this.provider, file)
-    const remoteFile = result.originalFile?.file as File
-    return createPartFromUri(remoteFile.uri!, remoteFile.mimeType!)
+    const remoteFile = result.originalFile
+    if (!remoteFile) {
+      throw new Error('File upload failed, please try again')
+    }
+    if (remoteFile.type === 'gemini') {
+      const file = remoteFile.file
+      if (!file.uri) {
+        throw new Error('File URI is required but not found')
+      }
+      if (!file.mimeType) {
+        throw new Error('File MIME type is required but not found')
+      }
+      return createPartFromUri(file.uri, file.mimeType)
+    } else {
+      throw new Error('Unsupported file type for Gemini API')
+    }
   }
 
   /**
@@ -246,7 +260,7 @@ export class GeminiAPIClient extends BaseApiClient<
           inlineData: {
             data: image.base64,
             mimeType: image.mime
-          } as Part['inlineData']
+          } satisfies Part['inlineData']
         })
       }
     }
@@ -269,7 +283,7 @@ export class GeminiAPIClient extends BaseApiClient<
                 inlineData: {
                   data: base64Data,
                   mimeType: mimeType
-                } as Part['inlineData']
+                } satisfies Part['inlineData']
               })
             }
           }
@@ -282,7 +296,7 @@ export class GeminiAPIClient extends BaseApiClient<
           inlineData: {
             data: base64Data.base64,
             mimeType: base64Data.mime
-          } as Part['inlineData']
+          } satisfies Part['inlineData']
         })
       }
     }
@@ -296,7 +310,7 @@ export class GeminiAPIClient extends BaseApiClient<
           inlineData: {
             data: base64Data.base64,
             mimeType: base64Data.mime
-          } as Part['inlineData']
+          } satisfies Part['inlineData']
         })
       }
 
@@ -340,7 +354,7 @@ export class GeminiAPIClient extends BaseApiClient<
                 inlineData: {
                   data: base64Data,
                   mimeType: mimeType
-                } as Part['inlineData']
+                } satisfies Part['inlineData']
               })
             }
           }
@@ -353,7 +367,7 @@ export class GeminiAPIClient extends BaseApiClient<
           inlineData: {
             data: base64Data.base64,
             mimeType: base64Data.mime
-          } as Part['inlineData']
+          } satisfies Part['inlineData']
         })
       }
     }
@@ -368,7 +382,7 @@ export class GeminiAPIClient extends BaseApiClient<
    * @returns The safety settings
    */
   private getSafetySettings(): SafetySetting[] {
-    const safetyThreshold = 'OFF' as HarmBlockThreshold
+    const safetyThreshold = HarmBlockThreshold.OFF
 
     return [
       {
@@ -432,7 +446,7 @@ export class GeminiAPIClient extends BaseApiClient<
         thinkingConfig: {
           ...(budget > 0 ? { thinkingBudget: budget } : {}),
           includeThoughts: true
-        } as ThinkingConfig
+        } satisfies ThinkingConfig
       }
     }
 
@@ -509,9 +523,7 @@ export class GeminiAPIClient extends BaseApiClient<
           const isFirstMessage = history.length === 0
           if (isFirstMessage && messageContents) {
             const userMessageText =
-              messageContents.parts && messageContents.parts.length > 0
-                ? (messageContents.parts[0] as Part).text || ''
-                : ''
+              messageContents.parts && messageContents.parts.length > 0 ? (messageContents.parts[0].text ?? '') : ''
             const systemMessage = [
               {
                 text:
@@ -522,7 +534,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   userMessageText +
                   '<end_of_turn>'
               }
-            ] as Part[]
+            ] satisfies Part[]
             if (messageContents && messageContents.parts) {
               messageContents.parts[0] = systemMessage[0]
             }
@@ -593,7 +605,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   if (isFirstThinkingChunk) {
                     controller.enqueue({
                       type: ChunkType.THINKING_START
-                    } as ThinkingStartChunk)
+                    } satisfies ThinkingStartChunk)
                     isFirstThinkingChunk = false
                   }
                   controller.enqueue({
@@ -604,7 +616,7 @@ export class GeminiAPIClient extends BaseApiClient<
                   if (isFirstTextChunk) {
                     controller.enqueue({
                       type: ChunkType.TEXT_START
-                    } as TextStartChunk)
+                    } satisfies TextStartChunk)
                     isFirstTextChunk = false
                   }
                   controller.enqueue({
@@ -637,7 +649,7 @@ export class GeminiAPIClient extends BaseApiClient<
                     results: candidate.groundingMetadata,
                     source: WebSearchSource.GEMINI
                   }
-                } as LLMWebSearchCompleteChunk)
+                } satisfies LLMWebSearchCompleteChunk)
               }
               if (toolCalls.length > 0) {
                 controller.enqueue({
@@ -694,7 +706,7 @@ export class GeminiAPIClient extends BaseApiClient<
       tool: mcpTool,
       arguments: parsedArgs,
       status: 'pending'
-    } as ToolCallResponse
+    } satisfies ToolCallResponse
   }
 
   public convertMcpToolResponseToSdkMessageParam(
