@@ -25,6 +25,12 @@ exports.default = async function (context) {
         ? ['sharp-darwin-arm64', 'sharp-libvips-darwin-arm64']
         : ['sharp-darwin-x64', 'sharp-libvips-darwin-x64']
     )
+
+    keepPackageNodeFiles(
+      node_modules_path,
+      '@napi-rs',
+      arch === Arch.arm64 ? ['system-ocr-darwin-arm64'] : ['system-ocr-darwin-x64']
+    )
   }
 
   if (platform === 'linux') {
@@ -58,6 +64,12 @@ exports.default = async function (context) {
       arch === Arch.arm64
         ? ['sharp-win32-arm64', 'sharp-libvips-win32-arm64']
         : ['sharp-win32-x64', 'sharp-libvips-win32-x64']
+    )
+
+    keepPackageNodeFiles(
+      node_modules_path,
+      '@napi-rs',
+      arch === Arch.arm64 ? ['system-ocr-win32-arm64-msvc'] : ['system-ocr-win32-x64-msvc']
     )
   }
 
