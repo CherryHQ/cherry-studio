@@ -295,6 +295,11 @@ const ProviderList: FC = () => {
     }
 
     const customLogo = providerLogos[provider.id]
+    if (customLogo === 'svg') {
+      // 目前只有poe是'svg'，所以直接返回，未来如果有多个svg，需要额外信息来区分
+      return <PoeLogo fontSize={size} />
+    }
+
     if (customLogo) {
       return <ProviderLogo draggable="false" shape="square" src={customLogo} size={size} />
     }
