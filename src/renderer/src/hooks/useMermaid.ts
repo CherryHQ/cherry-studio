@@ -33,6 +33,7 @@ export const useMermaid = () => {
   const { theme } = useTheme()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [forceRenderKey, setForceRenderKey] = useState(0)
 
   // 初始化 mermaid 并监听主题变化
   useEffect(() => {
@@ -51,6 +52,7 @@ export const useMermaid = () => {
           theme: theme === ThemeMode.dark ? 'dark' : 'default'
         })
 
+        setForceRenderKey((prev) => prev + 1)
         setError(null)
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to initialize Mermaid')
@@ -71,6 +73,7 @@ export const useMermaid = () => {
   return {
     mermaid: mermaidModule,
     isLoading,
-    error
+    error,
+    forceRenderKey
   }
 }

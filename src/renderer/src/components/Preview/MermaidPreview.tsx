@@ -18,7 +18,7 @@ const MermaidPreview = ({
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
-  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError } = useMermaid()
+  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [isVisible, setIsVisible] = useState(true)
 
@@ -56,7 +56,7 @@ const MermaidPreview = ({
         document.body.removeChild(measureEl)
       }
     },
-    [diagramId, mermaid]
+    [diagramId, mermaid, forceRenderKey]
   )
 
   // 可见性检测函数

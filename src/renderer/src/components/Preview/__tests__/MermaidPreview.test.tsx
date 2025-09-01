@@ -60,7 +60,8 @@ describe('MermaidPreview', () => {
     mocks.useMermaid.mockReturnValue({
       mermaid: mockMermaid,
       isLoading: false,
-      error: null
+      error: null,
+      forceRenderKey: 0
     })
 
     mocks.useDebouncedRender.mockReturnValue(createMockHookReturn())
@@ -116,7 +117,8 @@ describe('MermaidPreview', () => {
       mocks.useMermaid.mockReturnValue({
         mermaid: mockMermaid,
         isLoading: true,
-        error: null
+        error: null,
+        forceRenderKey: 0
       })
 
       render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
@@ -145,7 +147,8 @@ describe('MermaidPreview', () => {
       mocks.useMermaid.mockReturnValue({
         mermaid: mockMermaid,
         isLoading: false,
-        error: mermaidError
+        error: mermaidError,
+        forceRenderKey: 0
       })
 
       render(<MermaidPreview>{mermaidCode}</MermaidPreview>)
@@ -173,7 +176,8 @@ describe('MermaidPreview', () => {
       mocks.useMermaid.mockReturnValue({
         mermaid: mockMermaid,
         isLoading: false,
-        error: mermaidError
+        error: mermaidError,
+        forceRenderKey: 0
       })
       mocks.useDebouncedRender.mockReturnValue(createMockHookReturn({ error: renderError }))
 
