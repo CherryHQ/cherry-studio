@@ -60,9 +60,10 @@ import {
   SystemProviderIds,
   WebSearchSource
 } from '@renderer/types'
-import { ChunkType, TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import type { TextStartChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   OpenAIExtraBody,
   OpenAIModality,
   OpenAISdkMessageParam,

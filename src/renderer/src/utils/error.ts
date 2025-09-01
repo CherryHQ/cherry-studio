@@ -1,6 +1,6 @@
 // import { loggerService } from '@logger'
 import { t } from 'i18next'
-import z from 'zod'
+import type z from 'zod'
 
 // const logger = loggerService.withContext('Utils:error')
 
