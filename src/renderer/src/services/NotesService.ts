@@ -222,12 +222,12 @@ export async function moveNode(
       if (targetParent) {
         targetPath = targetParent.externalPath
       } else {
-        targetPath = getFileDirectory(targetNode.externalPath!)
+        targetPath = getFileDirectory(targetNode.externalPath)
       }
     }
 
     // 构建新的文件路径
-    const sourceName = sourceNode.externalPath!.split('/').pop()!
+    const sourceName = sourceNode.externalPath.split('/').pop()!
     const sourceNameWithoutExt = sourceName.replace(sourceNode.type === 'file' ? MARKDOWN_EXT : '', '')
 
     const { safeName } = await window.api.file.checkFileName(

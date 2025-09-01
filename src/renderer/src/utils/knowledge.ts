@@ -1,19 +1,7 @@
 import i18n from '@renderer/i18n'
 import { TopicManager } from '@renderer/store/thunk/topicManager'
 import type { FileType, Topic } from '@renderer/types'
-import type {
-  CitationMessageBlock,
-  CodeMessageBlock,
-  ErrorMessageBlock,
-  FileMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  Message,
-  MessageBlock,
-  ThinkingMessageBlock,
-  ToolMessageBlock,
-  TranslationMessageBlock
-} from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
 import { findAllBlocks } from './messageUtils/find'
@@ -100,14 +88,14 @@ export function analyzeMessageContent(message: Message): MessageContentStats {
   for (const block of blocks) {
     switch (block.type) {
       case MessageBlockType.MAIN_TEXT: {
-        const mainTextBlock = block as MainTextMessageBlock
+        const mainTextBlock = block
         if (mainTextBlock.content?.trim()) {
           stats.text++
         }
         break
       }
       case MessageBlockType.CODE: {
-        const codeBlock = block as CodeMessageBlock
+        const codeBlock = block
         if (codeBlock.content?.trim()) {
           stats.code++
         }
@@ -184,26 +172,26 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
   switch (block.type) {
     case MessageBlockType.MAIN_TEXT: {
       if (!selectedTypes.has(CONTENT_TYPES.TEXT)) return ''
-      const mainTextBlock = block as MainTextMessageBlock
+      const mainTextBlock = block
       return mainTextBlock.content || ''
     }
 
     case MessageBlockType.CODE: {
       if (!selectedTypes.has(CONTENT_TYPES.CODE)) return ''
-      const codeBlock = block as CodeMessageBlock
+      const codeBlock = block
       return codeBlock.content || ''
     }
 
     case MessageBlockType.THINKING: {
       if (!selectedTypes.has(CONTENT_TYPES.THINKING)) return ''
-      const thinkingBlock = block as ThinkingMessageBlock
+      const thinkingBlock = block
       const thinkingContent = thinkingBlock.content || ''
       return `<think>\n${thinkingContent}\n</think>`
     }
 
     case MessageBlockType.TOOL: {
       if (!selectedTypes.has(CONTENT_TYPES.TOOL_USE)) return ''
-      const toolBlock = block as ToolMessageBlock
+      const toolBlock = block
       const rawResponse = toolBlock.metadata?.rawMcpToolResponse
       const toolInfo = {
         id: toolBlock.toolId,
@@ -218,7 +206,7 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
 
     case MessageBlockType.IMAGE: {
       if (!selectedTypes.has(CONTENT_TYPES.IMAGES)) return ''
-      const imageBlock = block as ImageMessageBlock
+      const imageBlock = block
       if (imageBlock.file) {
         return `<image id="${imageBlock.id}" filename="${imageBlock.file.name}" type="${imageBlock.file.type}" />`
       } else if (imageBlock.url) {
@@ -230,13 +218,13 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
     case MessageBlockType.FILE: {
       // 文件信息在文本中只作为元信息记录，实际文件在files数组中
       if (!selectedTypes.has(CONTENT_TYPES.FILE)) return ''
-      const fileBlock = block as FileMessageBlock
+      const fileBlock = block
       return `<file id="${fileBlock.id}" filename="${fileBlock.file.name}" type="${fileBlock.file.type}" size="${fileBlock.file.size}" />`
     }
 
     case MessageBlockType.CITATION: {
       if (!selectedTypes.has(CONTENT_TYPES.CITATION)) return ''
-      const citationBlock = block as CitationMessageBlock
+      const citationBlock = block
       const citationInfo = {
         id: citationBlock.id,
         response: citationBlock.response,
@@ -250,14 +238,14 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
 
     case MessageBlockType.ERROR: {
       if (!selectedTypes.has(CONTENT_TYPES.ERROR)) return ''
-      const errorBlock = block as ErrorMessageBlock
+      const errorBlock = block
       const errorContent = errorBlock.error ? JSON.stringify(errorBlock.error) : 'Error occurred'
       return `<error>\n${errorContent}\n</error>`
     }
 
     case MessageBlockType.TRANSLATION: {
       if (!selectedTypes.has(CONTENT_TYPES.TRANSLATION)) return ''
-      const translationBlock = block as TranslationMessageBlock
+      const translationBlock = block
       return `<translation target="${translationBlock.targetLanguage}">\n${translationBlock.content}\n</translation>`
     }
 
@@ -279,7 +267,7 @@ function processTextlikeBlocks(block: MessageBlock, selectedTypes: Set<ContentTy
 function processFileBlocks(block: MessageBlock): FileType | null {
   switch (block.type) {
     case MessageBlockType.FILE: {
-      const fileBlock = block as FileMessageBlock
+      const fileBlock = block
       return fileBlock.file
     }
 

@@ -37,7 +37,7 @@ export default class AppUpdater {
     }
 
     autoUpdater.on('error', (error) => {
-      logger.error('update error', error as Error)
+      logger.error('update error', error)
       windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateError, error)
     })
 

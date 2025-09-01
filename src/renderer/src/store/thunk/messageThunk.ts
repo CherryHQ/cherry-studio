@@ -9,7 +9,7 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import {
@@ -1069,7 +1069,7 @@ export const cloneMessagesToNewTopicThunk =
               newBlockIds.push(newBlockId)
 
               if (newBlock.type === MessageBlockType.FILE || newBlock.type === MessageBlockType.IMAGE) {
-                const fileInfo = (newBlock as FileMessageBlock | ImageMessageBlock).file
+                const fileInfo = newBlock.file
                 if (fileInfo) {
                   filesToUpdateCount.push(fileInfo)
                 }

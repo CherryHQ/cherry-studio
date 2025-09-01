@@ -51,7 +51,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               if (chunk.type === ChunkType.THINKING_DELTA) {
-                const thinkingChunk = chunk as ThinkingDeltaChunk
+                const thinkingChunk = chunk
 
                 // 第一次接收到思考内容时记录开始时间
                 if (!hasThinkingContent) {

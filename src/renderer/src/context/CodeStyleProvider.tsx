@@ -60,7 +60,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
       return ['auto', 'light', 'dark']
         .concat(Object.keys(cmThemes))
         .filter((item) => typeof cmThemes[item as keyof typeof cmThemes] !== 'function')
-        .filter((item) => !/^(defaultSettings)/.test(item as string) && !/(Style)$/.test(item as string))
+        .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
     }
 
     // Shiki 主题，取出所有 BundledThemeInfo 的 id 作为主题名
@@ -113,7 +113,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 流式代码高亮，返回已高亮的 token lines
   const highlightCodeChunk = useCallback(
     async (trunk: string, language: string, callerId: string) => {
-      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.highlightCodeChunk(trunk, normalizedLang, activeShikiTheme, callerId)
     },
     [activeShikiTheme, languageAliases]
@@ -127,7 +127,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 高亮流式输出的代码
   const highlightStreamingCode = useCallback(
     async (fullContent: string, language: string, callerId: string) => {
-      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.highlightStreamingCode(fullContent, normalizedLang, activeShikiTheme, callerId)
     },
     [activeShikiTheme, languageAliases]
@@ -136,7 +136,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
   // 获取 Shiki pre 标签属性
   const getShikiPreProperties = useCallback(
     async (language: string) => {
-      const normalizedLang = languageAliases[language as keyof typeof languageAliases] || language.toLowerCase()
+      const normalizedLang = languageAliases[language] || language.toLowerCase()
       return shikiStreamService.getShikiPreProperties(normalizedLang, activeShikiTheme)
     },
     [activeShikiTheme, languageAliases]

@@ -27,7 +27,7 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
           // }
         }
 
-        const specificApiClient = ctx.apiClientInstance as AnthropicAPIClient
+        const specificApiClient = ctx.apiClientInstance
 
         const monitoredOutput = specificApiClient.attachRawStreamListener(
           result.rawOutput as AnthropicSdkRawOutput,

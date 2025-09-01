@@ -138,7 +138,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         selectedTypes.map((type) => {
           const existingCapability = modelCapabilities?.find((m) => m.type === type)
           return {
-            type: type as ModelType,
+            type: type,
             isUserSelected: existingCapability?.isUserSelected ?? undefined
           }
         }),

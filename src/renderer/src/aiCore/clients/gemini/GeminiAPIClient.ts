@@ -491,9 +491,7 @@ export class GeminiAPIClient extends BaseApiClient<
           const isFirstMessage = history.length === 0
           if (isFirstMessage && messageContents) {
             const userMessageText =
-              messageContents.parts && messageContents.parts.length > 0
-                ? (messageContents.parts[0] as Part).text || ''
-                : ''
+              messageContents.parts && messageContents.parts.length > 0 ? messageContents.parts[0].text || '' : ''
             const systemMessage = [
               {
                 text:

@@ -43,7 +43,7 @@ export class CallBackServer {
 
     // Handle server errors
     server.on('error', (error) => {
-      logger.error('OAuth callback server error:', error as Error)
+      logger.error('OAuth callback server error:', error)
     })
 
     return new Promise<http.Server>((resolve, reject) => {

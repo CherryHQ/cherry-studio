@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-
 // Simple mock LoggerService class for renderer process
 export class MockRendererLoggerService {
   private static instance: MockRendererLoggerService

@@ -27,7 +27,7 @@ const MessageGroupSettings: FC = () => {
             <Selector
               size={14}
               value={gridPopoverTrigger || 'hover'}
-              onChange={(value) => dispatch(setGridPopoverTrigger(value as 'hover' | 'click'))}
+              onChange={(value) => dispatch(setGridPopoverTrigger(value))}
               options={[
                 { label: t('settings.messages.grid_popover_trigger.hover'), value: 'hover' },
                 { label: t('settings.messages.grid_popover_trigger.click'), value: 'click' }

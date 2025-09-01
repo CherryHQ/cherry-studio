@@ -213,7 +213,7 @@ export const useKnowledge = (baseId: string) => {
       switch (item.type) {
         case 'file':
           if (typeof item.content === 'object' && item.content !== null && 'path' in item.content) {
-            files.push(item.content as FileMetadata)
+            files.push(item.content)
           }
           break
         case 'note':

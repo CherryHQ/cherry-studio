@@ -1807,7 +1807,7 @@ describe('ApiService', () => {
     expect(firstChunk.type).toBe(ChunkType.TEXT_START)
 
     // 验证TEXT_DELTA chunks的内容
-    const textDeltaChunks = chunks.filter((chunk) => chunk.type === ChunkType.TEXT_DELTA) as TextDeltaChunk[]
+    const textDeltaChunks = chunks.filter((chunk) => chunk.type === ChunkType.TEXT_DELTA)
     expect(textDeltaChunks.length).toBeGreaterThan(0)
 
     // 验证文本内容
@@ -2159,7 +2159,7 @@ describe('ApiService', () => {
   it('should handle openai thinking chunk correctly', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockOpenaiApiClient as unknown as BaseApiClient)
-    const AI = new AiProvider(mockProvider as Provider)
+    const AI = new AiProvider(mockProvider)
     const result = await AI.completions({
       callType: 'test',
       messages: [],
@@ -2250,7 +2250,7 @@ describe('ApiService', () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     // @ts-ignore mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
     mockCreate.mockReturnValue(mockOpenaiNeedExtractContentApiClient as unknown as OpenAIAPIClient)
-    const AI = new AiProvider(mockProvider as Provider)
+    const AI = new AiProvider(mockProvider)
     const result = await AI.completions({
       callType: 'test',
       messages: [],
@@ -2721,7 +2721,7 @@ describe('ApiService', () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     // @ts-ignore mockOpenaiApiClient_ is a OpenAIAPIClient
     mockCreate.mockReturnValue(mockOpenaiApiClient_ as unknown as OpenAIAPIClient)
-    const AI = new AiProvider(mockProvider as Provider)
+    const AI = new AiProvider(mockProvider)
 
     const result = await AI.completions({
       callType: 'test',

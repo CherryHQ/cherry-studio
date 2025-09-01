@@ -117,7 +117,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const [modelOptions, setModelOptions] = useState(() => {
     // 根据当前painting的generationMode初始化modelOptions
-    const currentMode = painting?.generationMode || (MODEOPTIONS[0].value as generationModeType)
+    const currentMode = painting?.generationMode || MODEOPTIONS[0].value
     return getModelOptions(currentMode)
   })
 
@@ -760,13 +760,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     // 确保modelOptions与当前painting的generationMode保持一致
     if (painting?.generationMode) {
-      setModelOptions(getModelOptions(painting.generationMode as generationModeType))
+      setModelOptions(getModelOptions(painting.generationMode))
     }
 
     // 如果当前painting没有model，设置默认模型
     if (painting && !painting.model && allModels.length > 0) {
       const currentMode = painting.generationMode || MODEOPTIONS[0].value
-      const modelGroups = getModelOptions(currentMode as generationModeType)
+      const modelGroups = getModelOptions(currentMode)
       let firstModel = ''
       let priceModel = ''
       for (const provider of Object.keys(modelGroups)) {

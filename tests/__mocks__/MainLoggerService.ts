@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
-
 // Simple mock LoggerService class for main process
 export class MockMainLoggerService {
   private static instance: MockMainLoggerService

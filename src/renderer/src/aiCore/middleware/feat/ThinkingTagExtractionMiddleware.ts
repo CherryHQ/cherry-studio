@@ -88,7 +88,7 @@ export const ThinkingTagExtractionMiddleware: CompletionsMiddleware =
               logger.silly('chunk', chunk)
 
               if (chunk.type === ChunkType.TEXT_DELTA) {
-                const textChunk = chunk as TextDeltaChunk
+                const textChunk = chunk
 
                 // 使用 TagExtractor 处理文本
                 const extractionResults = tagExtractor.processText(textChunk.text)

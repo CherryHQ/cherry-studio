@@ -120,9 +120,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       setAnalysisLoading(true)
       setContentStats(null)
       try {
-        const stats = isTopicMode
-          ? await analyzeTopicContent(source?.data as Topic)
-          : analyzeMessageContent(source?.data as Message)
+        const stats = isTopicMode ? await analyzeTopicContent(source?.data) : analyzeMessageContent(source?.data)
         setContentStats(stats)
       } catch (error) {
         logger.error('analyze content failed:', error as Error)
@@ -251,7 +249,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
 
     try {
       if (isNoteMode) {
-        const note = source.data as NotesTreeNode
+        const note = source.data
         const content = await window.api.file.read(note.id + '.md')
         logger.debug('Note content:', content)
         await addNote(content)
@@ -259,8 +257,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       } else {
         // 原有的消息或主题处理逻辑
         const result = isTopicMode
-          ? await processTopicContent(source?.data as Topic, selectedTypes)
-          : processMessageContent(source?.data as Message, selectedTypes)
+          ? await processTopicContent(source?.data, selectedTypes)
+          : processMessageContent(source?.data, selectedTypes)
 
         logger.debug('Processed content:', result)
         if (result.text.trim() && selectedTypes.some((type) => type !== CONTENT_TYPES.FILE)) {

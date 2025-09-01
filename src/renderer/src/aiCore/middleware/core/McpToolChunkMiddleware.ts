@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
 import type { MCPCallToolResponse, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
-import type { MCPToolCreatedChunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
 import type { SdkMessageParam, SdkRawOutput, SdkToolCall } from '@renderer/types/sdk'
 import {
@@ -116,7 +115,7 @@ function createToolHandlingTransform(
         // 处理MCP工具进展chunk
         logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.MCP_TOOL_CREATED) {
-          const createdChunk = chunk as MCPToolCreatedChunk
+          const createdChunk = chunk
 
           // 1. 处理Function Call方式的工具调用
           if (createdChunk.tool_calls && createdChunk.tool_calls.length > 0) {

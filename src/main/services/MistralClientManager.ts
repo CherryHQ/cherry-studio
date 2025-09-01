@@ -5,7 +5,6 @@ export class MistralClientManager {
   private static instance: MistralClientManager
   private client: Mistral | null = null
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private constructor() {}
 
   public static getInstance(): MistralClientManager {

@@ -209,7 +209,7 @@ const MentionModelsButton: FC<Props> = ({
         // 只有输入触发时才需要删除 @ 与搜索文本（未知搜索词，按光标就近删除）
         if (triggerInfoRef.current?.type === 'input') {
           setText((currentText) => {
-            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+            const textArea = document.querySelector('.inputbar textarea')
             const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
             return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
           })
@@ -261,9 +261,9 @@ const MentionModelsButton: FC<Props> = ({
             ) {
               // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
               setText((currentText) => {
-                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+                const textArea = document.querySelector('.inputbar textarea')
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
+                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position)
               })
             }
           }

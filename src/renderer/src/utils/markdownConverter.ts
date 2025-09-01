@@ -507,7 +507,7 @@ const taskListItemsPlugin: TurndownPlugin = (turndownService) => {
       return node.nodeName === 'LI' && node.getAttribute && node.getAttribute('data-type') === 'taskItem'
     },
     replacement: (_content: string, node: Element) => {
-      const checkbox = node.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+      const checkbox = node.querySelector('input[type="checkbox"]')
       const isChecked = checkbox?.checked || node.getAttribute('data-checked') === 'true'
       const textContent = node.textContent?.trim() || ''
 

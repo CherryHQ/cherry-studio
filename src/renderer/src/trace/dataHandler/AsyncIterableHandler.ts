@@ -90,7 +90,7 @@ export class AsyncIterableHandler {
     if (!span || !topicId) {
       return stream
     }
-    const handler = new AsyncIterableHandler(stream, span!, topicId, modelName)
+    const handler = new AsyncIterableHandler(stream, span, topicId, modelName)
     return handler.stream
   }
 }

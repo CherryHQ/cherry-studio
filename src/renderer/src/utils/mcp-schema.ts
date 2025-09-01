@@ -85,7 +85,7 @@ export function fixObjectPropertiesForO3(properties: Record<string, any>): Recor
   const fixedProperties = { ...properties }
   for (const [propKey, propValue] of Object.entries(fixedProperties || {})) {
     if (propValue && typeof propValue === 'object') {
-      const prop = propValue as any
+      const prop = propValue
       if (prop.type === 'object') {
         // For object types, ensure they have a properties field (even if empty) for o3 strict mode
         if (!prop.properties && prop.additionalProperties === false) {

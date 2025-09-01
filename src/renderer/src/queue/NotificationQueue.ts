@@ -8,7 +8,6 @@ export class NotificationQueue {
   private queue = new PQueue({ concurrency: 1 })
   private listeners: NotificationListener[] = []
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private constructor() {}
 
   public static getInstance(): NotificationQueue {

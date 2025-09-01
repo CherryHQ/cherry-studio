@@ -84,7 +84,7 @@ async function downloadBunBinary(platform, arch, version = DEFAULT_BUN_VERSION, 
         if (platform !== 'win32') {
           try {
             fs.chmodSync(outputPath, 0o755)
-          } catch (chmodError) {
+          } catch {
             console.error(`Warning: Failed to set executable permissions on ${filename}`)
             return 102
           }
@@ -143,7 +143,7 @@ function detectIsMusl() {
     // Simple check for Alpine Linux which uses MUSL
     const output = execSync('cat /etc/os-release').toString()
     return output.toLowerCase().includes('alpine')
-  } catch (error) {
+  } catch {
     return false
   }
 }

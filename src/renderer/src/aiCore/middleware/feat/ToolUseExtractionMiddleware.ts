@@ -78,7 +78,7 @@ function createToolUseExtractionTransform(
         // 处理文本内容，检测工具使用标签
         logger.silly('chunk', chunk)
         if (chunk.type === ChunkType.TEXT_DELTA) {
-          const textChunk = chunk as TextDeltaChunk
+          const textChunk = chunk
 
           // 处理 tool_use 标签
           const toolUseResults = toolUseExtractor.processText(textChunk.text)

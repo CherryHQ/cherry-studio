@@ -210,7 +210,7 @@ export class AnthropicAPIClient extends BaseApiClient<
           type: 'image',
           source: {
             data: base64Data.base64,
-            media_type: base64Data.mime.replace('jpg', 'jpeg') as any,
+            media_type: base64Data.mime.replace('jpg', 'jpeg'),
             type: 'base64'
           }
         })
