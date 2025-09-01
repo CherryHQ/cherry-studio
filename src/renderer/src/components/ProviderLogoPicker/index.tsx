@@ -10,21 +10,21 @@ interface Props {
   onProviderClick: (providerId: string) => void
 }
 
-const CACHED_PROVIDERS = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
-  id,
-  logo,
-  name: getProviderLabel(id)
-}))
-
 // 用于选择内置头像的提供商Logo选择器组件
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
 
   const filteredProviders = useMemo(() => {
-    if (!searchText) return CACHED_PROVIDERS
+    const providers = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
+      id,
+      logo,
+      name: getProviderLabel(id)
+    }))
+
+    if (!searchText) return providers
 
     const searchLower = searchText.toLowerCase()
-    return CACHED_PROVIDERS.filter((p) => p.name.toLowerCase().includes(searchLower))
+    return providers.filter((p) => p.name.toLowerCase().includes(searchLower))
   }, [searchText])
 
   const handleProviderClick = (event: React.MouseEvent, providerId: string) => {
