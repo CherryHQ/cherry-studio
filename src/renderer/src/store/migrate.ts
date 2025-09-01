@@ -2322,6 +2322,15 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  // after 1.5.8
+  '144': (state: RootState) => {
+    try {
+      state.llm.logos = {}
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 
