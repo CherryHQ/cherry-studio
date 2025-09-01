@@ -22,20 +22,12 @@ export default class EmbeddingsFactory {
       if (baseURL.includes('v1/')) {
         return new OllamaEmbeddings({
           model: model,
-          baseUrl: baseURL.replace('v1/', ''),
-          requestOptions: {
-            // @ts-ignore expected
-            'encoding-format': 'float'
-          }
+          baseUrl: baseURL.replace('v1/', '')
         })
       }
       return new OllamaEmbeddings({
         model: model,
-        baseUrl: baseURL,
-        requestOptions: {
-          // @ts-ignore expected
-          'encoding-format': 'float'
-        }
+        baseUrl: baseURL
       })
     }
     if (apiVersion !== undefined) {
