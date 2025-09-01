@@ -49,37 +49,49 @@ const platformToArch = {
 
 exports.default = async function (context) {
   const arch = context.arch
+  const archType = arch === Arch.arm64 ? 'arm64' : 'x64'
   const platform = context.packager.platform.name
-  let filters = context.packager.config.files[0].filter
 
-  const arm64Filters = Object.keys(allArm64).map((f) => '!node_modules/' + f)
-  const x64Filters = Object.keys(allX64).map((f) => '!node_modules/' + f)
+  const arm64Filters = Object.keys(allArm64).map((f) => '!node_modules/' + f + '/**')
+  const x64Filters = Object.keys(allX64).map((f) => '!node_modules/' + f + '/*')
 
-  const downloadPackages = (packages) => {
-    Object.keys(packages).forEach((name) => {
-      if (name.includes(`${platformToArch[platform]}` && name.includes(`-${arch}`))) {
-        // https://registry.npmjs.org/@img/sharp-win32-x64/-/sharp-win32-x64-0.34.3.tgz'
-        downloadNpmPackage(name, `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${packages[name]}.tgz`)
+  const downloadPackages = async (packages) => {
+    console.log('downloading packages ......')
+    const downloadPromises = []
+
+    for (const name of Object.keys(packages)) {
+      if (name.includes(`${platformToArch[platform]}`) && name.includes(`-${archType}`)) {
+        downloadPromises.push(
+          downloadNpmPackage(
+            name,
+            `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${packages[name]}.tgz`
+          )
+        )
       }
-    })
+    }
+
+    await Promise.all(downloadPromises)
   }
 
-  const changeFilters = (archs, addFilters, deleteFilters) => {
-    console.log('downloading all ' + arch + ' packages...')
-    downloadPackages(archs)
-    // remove all different architectures filters
-    filters = filters.filter((filter) => !deleteFilters.includes(filter))
-    // add the same architectures filters
-    filters.push(...addFilters)
+  const changeFilters = async (packages, filtersToExclude, filtersToInclude) => {
+    await downloadPackages(packages)
+    // remove filters for the target architecture (allow inclusion)
+
+    let filters = context.packager.config.files[0].filter
+    filters = filters.filter((filter) => !filtersToInclude.includes(filter))
+    // add filters for other architectures (exclude them)
+    filters.push(...filtersToExclude)
+
+    context.packager.config.files[0].filter = filters
   }
 
   if (arch === Arch.arm64) {
-    changeFilters(allArm64, arm64Filters, x64Filters)
+    await changeFilters(allArm64, x64Filters, arm64Filters)
     return
   }
 
   if (arch === Arch.x64) {
-    changeFilters(allX64, x64Filters, arm64Filters)
+    await changeFilters(allX64, arm64Filters, x64Filters)
     return
   }
 }
