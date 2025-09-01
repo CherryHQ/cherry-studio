@@ -18,10 +18,15 @@ export default class MultiModalEmbeddings {
   private sdk: JinaEmbeddings
   public provider: string
   constructor({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }) {
-    this.sdk = EmbeddingsFactory.create({
+    const sdk = EmbeddingsFactory.create({
       embedApiClient,
       dimensions
-    }) as JinaEmbeddings
+    })
+    if (sdk instanceof JinaEmbeddings) {
+      this.sdk = sdk
+    } else {
+      throw new Error('Only JinaEmbeddings is supported')
+    }
     this.provider = embedApiClient.provider
   }
 
