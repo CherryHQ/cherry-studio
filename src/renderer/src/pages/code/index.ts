@@ -23,7 +23,7 @@ export const CLI_TOOLS = [
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
-export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope']
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
 export const CLAUDE_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS]
 
 // Provider 过滤映射
@@ -61,6 +61,11 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     dashscope: {
       anthropic: {
         api_base_url: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+      }
+    },
+    modelscope: {
+      anthropic: {
+        api_base_url: 'https://api-inference.modelscope.cn'
       }
     }
   }
