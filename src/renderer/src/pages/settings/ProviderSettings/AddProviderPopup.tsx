@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { PoeLogo } from '@renderer/components/Icons'
 import { Center, VStack } from '@renderer/components/Layout'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
@@ -171,9 +172,29 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     }
   ] satisfies ItemType[]
 
-  // for logo
-  const backgroundColor = generateColorFromChar(name)
-  const color = name ? getForegroundColor(backgroundColor) : 'white'
+  const renderProviderLogo = () => {
+    const size = 40
+
+    if (logo === 'svg') {
+      // 目前只有poe是'svg'，以后可能需要重构
+      return (
+        <ProviderLogoWrapper>
+          <PoeLogo fontSize={size} />
+        </ProviderLogoWrapper>
+      )
+    }
+
+    if (logo) {
+      return <ProviderLogo src={logo} />
+    }
+
+    const backgroundColor = generateColorFromChar(name)
+    const color = name ? getForegroundColor(backgroundColor) : 'white'
+
+    return (
+      <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>{getInitials()}</ProviderInitialsLogo>
+    )
+  }
 
   return (
     <Modal
@@ -214,13 +235,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                 }
               }}
               placement="bottom">
-              {logo ? (
-                <ProviderLogo src={logo} />
-              ) : (
-                <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
-                  {getInitials()}
-                </ProviderInitialsLogo>
-              )}
+              {renderProviderLogo()}
             </Popover>
           </Dropdown>
         </VStack>
@@ -257,6 +272,22 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     </Modal>
   )
 }
+const ProviderLogoWrapper = styled.div`
+  cursor: pointer;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+  background-color: var(--color-background-soft);
+  padding: 5px;
+  border: 0.5px solid var(--color-border);
+  &:hover {
+    opacity: 0.8;
+  }
+`
 
 const ProviderLogo = styled.img`
   cursor: pointer;
