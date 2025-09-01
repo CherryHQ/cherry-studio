@@ -1,6 +1,6 @@
 import { db } from '@renderer/databases'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
-import { FileMetadata, KnowledgeItem } from '@renderer/types'
+import { FileMetadata, KnowledgeItem, KnowledgeNoteItem } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { AppDispatch } from '..'
@@ -49,7 +49,7 @@ export const addFilesThunk = (baseId: string, files: FileMetadata[]) => (dispatc
  */
 export const addNoteThunk = (baseId: string, content: string) => async (dispatch: AppDispatch) => {
   const noteId = uuidv4()
-  const note = createKnowledgeItem('note', content, { id: noteId })
+  const note = createKnowledgeItem('note', content, { id: noteId }) as KnowledgeNoteItem
 
   // 存储完整笔记到数据库，出错时交给调用者处理
   await db.knowledge_notes.add(note)

@@ -48,7 +48,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   )
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   useEffect(() => {
