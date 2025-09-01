@@ -22,7 +22,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -54,7 +54,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     aihubmix_image_edit,
     aihubmix_image_upscale
   } = usePaintings()
-  const { getProviderAvatar: getProviderLogo } = useProviderAvatar()
+  const { ProviderAvatar } = useProviderAvatar()
 
   const paintings = useMemo(() => {
     return {
@@ -848,12 +848,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
-              <ProviderLogo
-                shape="square"
-                src={getProviderLogo(aihubmixProvider.id)}
-                size={16}
-                style={{ marginLeft: 5 }}
-              />
+              <ProviderAvatar pid={aihubmixProvider.id} size={16} style={{ marginLeft: 5 }} />
             </SettingHelpLink>
           </ProviderTitleContainer>
 
@@ -861,7 +856,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <ProviderAvatar pid={provider.value ?? ''} size={16} />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -1028,10 +1023,6 @@ const SliderContainer = styled.div`
 
 const StyledInputNumber = styled(InputNumber)`
   width: 70px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 // 添加新的样式组件

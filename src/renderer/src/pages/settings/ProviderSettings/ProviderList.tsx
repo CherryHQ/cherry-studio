@@ -38,7 +38,7 @@ const ProviderList: FC = () => {
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
   const listRef = useRef<DraggableVirtualListRef>(null)
-  const { getProviderAvatar, setProviderLogos, providerLogos } = useProviderAvatar()
+  const { ProviderAvatar, setProviderLogos, providerLogos } = useProviderAvatar()
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
@@ -323,7 +323,7 @@ const ProviderList: FC = () => {
                 <DragHandle>
                   <GripVertical size={12} />
                 </DragHandle>
-                {getProviderAvatar(provider.id, 25)}
+                <ProviderAvatar pid={provider.id} size={25} />
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
                 {provider.enabled && (
                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>

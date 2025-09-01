@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
-import { PoeLogo } from '@renderer/components/Icons'
 import { Center, VStack } from '@renderer/components/Layout'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
-import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
+import { compressImage } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import React, { useEffect, useRef, useState } from 'react'
@@ -29,6 +29,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
   const uploadRef = useRef<HTMLDivElement>(null)
+  const { ProviderAvatar: ProviderAvatar } = useProviderAvatar()
 
   useEffect(() => {
     if (provider?.id) {
@@ -102,10 +103,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     }
   }
 
-  const getInitials = () => {
-    return name.charAt(0) || 'P'
-  }
-
   const items = [
     {
       key: 'upload',
@@ -172,30 +169,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     }
   ] satisfies ItemType[]
 
-  const getProviderAvatar = () => {
-    const size = 40
-
-    if (logo === 'svg') {
-      // 目前只有poe是'svg'，以后可能需要重构
-      return (
-        <ProviderLogoWrapper>
-          <PoeLogo fontSize={size} />
-        </ProviderLogoWrapper>
-      )
-    }
-
-    if (logo) {
-      return <ProviderLogo src={logo} />
-    }
-
-    const backgroundColor = generateColorFromChar(name)
-    const color = name ? getForegroundColor(backgroundColor) : 'white'
-
-    return (
-      <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>{getInitials()}</ProviderInitialsLogo>
-    )
-  }
-
   return (
     <Modal
       open={open}
@@ -235,7 +208,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                 }
               }}
               placement="bottom">
-              {getProviderAvatar()}
+              <ProviderAvatar pid={provider?.id} name={name} size={64} style={{ fontSize: 32 }} />
             </Popover>
           </Dropdown>
         </VStack>
@@ -272,55 +245,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     </Modal>
   )
 }
-const ProviderLogoWrapper = styled.div`
-  cursor: pointer;
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  padding: 5px;
-  border: 0.5px solid var(--color-border);
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const ProviderLogo = styled.img`
-  cursor: pointer;
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  object-fit: contain;
-  transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  padding: 5px;
-  border: 0.5px solid var(--color-border);
-  &:hover {
-    opacity: 0.8;
-  }
-`
-
-const ProviderInitialsLogo = styled.div`
-  cursor: pointer;
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  font-weight: 500;
-  transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-  &:hover {
-    opacity: 0.8;
-  }
-`
 
 const MenuItem = styled.div`
   width: 100%;

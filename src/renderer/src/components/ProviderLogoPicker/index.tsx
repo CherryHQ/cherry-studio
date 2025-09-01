@@ -14,7 +14,7 @@ interface Props {
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
 
-  const { getProviderAvatar } = useProviderAvatar()
+  const { ProviderAvatar: getProviderAvatar } = useProviderAvatar()
   const filteredProviders = useMemo(() => {
     const providers = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
       id,
@@ -52,7 +52,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       <LogoGrid>
         {filteredProviders.map(({ id, name }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
-            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{getProviderAvatar(id, 32)}</LogoItem>
+            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{getProviderAvatar({ pid: id, size: 32 })}</LogoItem>
           </Tooltip>
         ))}
       </LogoGrid>
