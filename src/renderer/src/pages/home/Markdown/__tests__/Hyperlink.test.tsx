@@ -18,15 +18,32 @@ const mocks = vi.hoisted(() => ({
   ),
   Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
     <img data-testid="favicon" data-hostname={hostname} alt={alt} />
-  )
+  ),
+  Typography: {
+    Title: ({ children }: { children: React.ReactNode }) => <div data-testid="title">{children}</div>,
+    Text: ({ children }: { children: React.ReactNode }) => <div data-testid="text">{children}</div>
+  },
+  Skeleton: () => <div data-testid="skeleton">Loading...</div>,
+  useMetaDataParser: vi.fn(() => ({
+    metadata: {},
+    isLoading: false,
+    isLoaded: true,
+    parseMetadata: vi.fn()
+  }))
 }))
 
 vi.mock('antd', () => ({
-  Popover: mocks.Popover
+  Popover: mocks.Popover,
+  Typography: mocks.Typography,
+  Skeleton: mocks.Skeleton
 }))
 
 vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
   default: mocks.Favicon
+}))
+
+vi.mock('@renderer/hooks/useMetaDataParser', () => ({
+  useMetaDataParser: mocks.useMetaDataParser
 }))
 
 describe('Hyperlink', () => {
@@ -69,7 +86,9 @@ describe('Hyperlink', () => {
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
     expect(screen.getByTestId('favicon')).toHaveAttribute('alt', 'https://domain.com/a b')
-    expect(screen.getByTestId('popover-content')).toHaveTextContent('https://domain.com/a b')
+    // The title should show hostname and text should show the full URL
+    expect(screen.getByTestId('title')).toHaveTextContent('domain.com')
+    expect(screen.getByTestId('text')).toHaveTextContent('https://domain.com/a b')
   })
 
   it('should not render favicon when URL parsing fails (invalid url)', () => {
@@ -81,7 +100,9 @@ describe('Hyperlink', () => {
 
     // decodeURIComponent succeeds => "not/url" is displayed
     expect(screen.queryByTestId('favicon')).toBeNull()
-    expect(screen.getByTestId('popover-content')).toHaveTextContent('not/url')
+    // Since there's no hostname and no og:title, title shows empty, but text shows the URL
+    expect(screen.getByTestId('title')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('text')).toHaveTextContent('not/url')
   })
 
   it('should not render favicon for non-http(s) scheme without hostname (mailto:)', () => {
@@ -93,6 +114,8 @@ describe('Hyperlink', () => {
 
     // Decoded to mailto:test@example.com, hostname is empty => no favicon
     expect(screen.queryByTestId('favicon')).toBeNull()
-    expect(screen.getByTestId('popover-content')).toHaveTextContent('mailto:test@example.com')
+    // Since there's no hostname and no og:title, title shows empty, but text shows the decoded URL
+    expect(screen.getByTestId('title')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('text')).toHaveTextContent('mailto:test@example.com')
   })
 })
