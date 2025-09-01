@@ -445,4 +445,23 @@ describe('markdownConverter', () => {
       expect(backToMarkdown).toContain('**Bold text**')
     })
   })
+
+  describe('Typing behavior issues', () => {
+    it('should not add unwanted line breaks during simple text typing', () => {
+      const html = '<p>Hello world</p>'
+      const markdown = htmlToMarkdown(html)
+      const backToHtml = markdownToHtml(markdown)
+
+      expect(markdown).toBe('Hello world')
+      expect(backToHtml).toBe('<p>Hello world</p>\n')
+    })
+
+    it('should preserve simple paragraph structure during round-trip conversion', () => {
+      const originalHtml = '<p>This is a simple paragraph being typed</p>'
+      const markdown = htmlToMarkdown(originalHtml)
+      const backToHtml = markdownToHtml(markdown)
+      expect(markdown).toBe('This is a simple paragraph being typed')
+      expect(backToHtml).toBe('<p>This is a simple paragraph being typed</p>\n')
+    })
+  })
 })
