@@ -1,9 +1,11 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
 import { isEmpty, uniqBy } from 'lodash'
+
+import { RootState } from '.'
 
 export interface AssistantsState {
   defaultAssistant: Assistant
@@ -31,6 +33,15 @@ const assistantsSlice = createSlice({
     },
     addAssistant: (state, action: PayloadAction<Assistant>) => {
       state.assistants.push(action.payload)
+    },
+    insertAssistant: (state, action: PayloadAction<{ index: number; assistant: Assistant }>) => {
+      const { index, assistant } = action.payload
+
+      if (index < 0 || index > state.assistants.length) {
+        throw new Error(`InsertAssistant: index ${index} is out of bounds [0, ${state.assistants.length}]`)
+      }
+
+      state.assistants.splice(index, 0, assistant)
     },
     removeAssistant: (state, action: PayloadAction<{ id: string }>) => {
       state.assistants = state.assistants.filter((c) => c.id !== action.payload.id)
@@ -168,6 +179,7 @@ export const {
   updateDefaultAssistant,
   updateAssistants,
   addAssistant,
+  insertAssistant,
   removeAssistant,
   updateAssistant,
   addTopic,
@@ -181,5 +193,16 @@ export const {
   updateAssistantSettings,
   updateTagCollapse
 } = assistantsSlice.actions
+
+export const selectAllTopics = createSelector([(state: RootState) => state.assistants.assistants], (assistants) =>
+  assistants.flatMap((assistant: Assistant) => assistant.topics)
+)
+
+export const selectTopicsMap = createSelector([selectAllTopics], (topics) => {
+  return topics.reduce((map, topic) => {
+    map.set(topic.id, topic)
+    return map
+  }, new Map())
+})
 
 export default assistantsSlice.reducer

@@ -1,12 +1,14 @@
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
+import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
@@ -16,7 +18,9 @@ import React, { FC, useEffect, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
+import ChatNavbar from './ChatNavbar'
 import Inputbar from './Inputbar/Inputbar'
+import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Reader from './Reader'
 import Tabs from './Tabs'
@@ -31,10 +35,12 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { activeTopic, assistant, setActiveTopic, setActiveAssistant } = props
-  const { topicPosition, messageStyle, showAssistants } = useSettings()
+  const { activeTopic, assistant, setActiveTopic, setActiveAssistant } = props        
+  const { assistant } = useAssistant(props.assistant.id)
+  const { topicPosition, messageStyle, showAssistants, messageNavigation } = useSettings()
   const { showTopics } = useShowTopics()
-  const { isMultiSelectMode } = useChatContext(activeTopic)
+  const { isMultiSelectMode } = useChatContext(props.activeTopic)
+  const { isTopNavbar } = useNavbarPosition()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -44,6 +50,9 @@ const Chat: FC<Props> = (props) => {
   const [wrapperWidth, setWrapperWidth] = useState<number>(0)
   const [isCollapse, setIsCollapse] = useState(false)
   const { assistant: currentAssistant } = useAssistant(assistant.id)
+
+  const maxWidth = useChatMaxWidth()
+  const { setTimeoutTimer } = useTimer() 
 
   useEffect(() => {
     const handleResize = () => {
@@ -88,7 +97,7 @@ const Chat: FC<Props> = (props) => {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
     } catch (error) {
-      logger.error('Error enabling content search:', error)
+      logger.error('Error enabling content search:', error as Error)
     }
   })
 
@@ -114,10 +123,14 @@ const Chat: FC<Props> = (props) => {
     setFilterIncludeUser(!filterIncludeUser)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        setTimeout(() => {
-          contentSearchRef.current?.search()
-          contentSearchRef.current?.focus()
-        }, 0)
+        setTimeoutTimer(
+          'userOutlinedItemClickHandler',
+          () => {
+            contentSearchRef.current?.search()
+            contentSearchRef.current?.focus()
+          },
+          0
+        )
       })
     })
   }
@@ -126,17 +139,23 @@ const Chat: FC<Props> = (props) => {
   const firstUpdateOrNoFirstUpdateHandler = debounce(() => {
     contentSearchRef.current?.silentSearch()
   }, 10)
+
   const messagesComponentUpdateHandler = () => {
     if (firstUpdateCompleted) {
       firstUpdateOrNoFirstUpdateHandler()
     }
   }
+
   const messagesComponentFirstUpdateHandler = () => {
-    setTimeout(() => (firstUpdateCompleted = true), 300)
+    setTimeoutTimer('messagesComponentFirstUpdateHandler', () => (firstUpdateCompleted = true), 300)
     firstUpdateOrNoFirstUpdateHandler()
   }
 
-  const pageWidth = useMemo(() => (wrapperWidth ? wrapperWidth * 0.5 - 56 : 0), [wrapperWidth])
+  const mainHeight = isTopNavbar
+    ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
+    : 'calc(100vh - var(--navbar-height))'
+
+    const pageWidth = useMemo(() => (wrapperWidth ? wrapperWidth * 0.5 - 56 : 0), [wrapperWidth])
 
   const sidePageWidth = useMemo(() => {
     if (isCollapse || !currentAssistant.attachedDocument) {
@@ -180,9 +199,19 @@ const Chat: FC<Props> = (props) => {
 
     return UnCollapsedIcon
   }, [isCollapse, currentAssistant.reader?.position])
-
+  
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+      {isTopNavbar && (
+        <ChatNavbar
+          activeAssistant={props.assistant}
+          activeTopic={props.activeTopic}
+          setActiveTopic={props.setActiveTopic}
+          setActiveAssistant={props.setActiveAssistant}
+          position="left"
+        />
+      )}
+      <HStack>
       <Wrapper ref={wrapperRef} data-position={currentAssistant.reader?.position}>
         {currentAssistant.attachedDocument && (
           <ReaderContainer
@@ -230,25 +259,44 @@ const Chat: FC<Props> = (props) => {
           </QuickPanelProvider>
         </Main>
       </Wrapper>
-      {topicPosition === 'right' && showTopics && (
-        <Tabs
-          activeAssistant={assistant}
-          activeTopic={activeTopic}
-          setActiveAssistant={setActiveAssistant}
-          setActiveTopic={setActiveTopic}
-          position="right"
-        />
-      )}
+        {topicPosition === 'right' && showTopics && (
+          <Tabs
+            activeAssistant={assistant}
+            activeTopic={props.activeTopic}
+            setActiveAssistant={props.setActiveAssistant}
+            setActiveTopic={props.setActiveTopic}
+            position="right"
+          />
+        )}
+      </HStack>
     </Container>
   )
+}
+
+export const useChatMaxWidth = () => {
+  const { showTopics, topicPosition } = useSettings()
+  const { isLeftNavbar } = useNavbarPosition()
+  const { showAssistants } = useShowAssistants()
+  const showRightTopics = showTopics && topicPosition === 'right'
+  const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
+  const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
+  const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
+  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth})`
 }
 
 const Container = styled.div`
   height: 100%;
   display: flex;
-  flex-direction: row;
   flex: 1;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: space-between; 
+  height: calc(100vh - var(--navbar-height));
+  [navbar-position='top'] & {
+    height: calc(100vh - var(--navbar-height) -6px);
+    background-color: var(--color-background);
+    border-top-left-radius: 10px;
+    border-bottom-left-radius: 10px;
+    overflow: hidden;
 `
 
 const collapseButtonBaseStyles = `
@@ -328,7 +376,9 @@ const ReaderContainer = styled.div`
 `
 
 const Main = styled(Flex)`
-  height: calc(100vh - var(--navbar-height));
+  [navbar-position='left'] & {
+    height: calc(100vh - var(--navbar-height));
+  }
   transform: translateZ(0);
   position: relative;
 `

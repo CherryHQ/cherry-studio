@@ -18,6 +18,15 @@ interface Props {
   filter: NodeFilter
   includeUser?: boolean
   onIncludeUserChange?: (value: boolean) => void
+  /**
+   * 是否显示“包含用户问题”切换按钮（默认为 true）。
+   * 在富文本编辑器场景通常不需要该按钮。
+   */
+  showUserToggle?: boolean
+  /**
+   * 搜索条定位方式
+   */
+  positionMode?: 'fixed' | 'absolute' | 'sticky'
 }
 
 enum SearchCompletedState {
@@ -125,7 +134,10 @@ const findRangesInTarget = (
 
 // eslint-disable-next-line @eslint-react/no-forward-ref
 export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
-  ({ searchTarget, filter, includeUser = false, onIncludeUserChange }, ref) => {
+  (
+    { searchTarget, filter, includeUser = false, onIncludeUserChange, showUserToggle = true, positionMode = 'fixed' },
+    ref
+  ) => {
     const target: HTMLElement | null = (() => {
       if (searchTarget instanceof HTMLElement) {
         return searchTarget
@@ -282,6 +294,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
             implementation.searchNext()
           }
         } else if (event.key === 'Escape') {
+          event.stopPropagation()
           implementation.disable()
         }
       },
@@ -334,9 +347,12 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
     }
 
     return (
-      <Container ref={containerRef} style={enableContentSearch ? {} : { display: 'none' }}>
+      <Container
+        ref={containerRef}
+        style={enableContentSearch ? {} : { display: 'none' }}
+        $overlayPosition={positionMode === 'absolute' ? 'absolute' : 'static'}>
         <NarrowLayout style={{ width: '100%' }}>
-          <SearchBarContainer>
+          <SearchBarContainer $position={positionMode}>
             <InputWrapper>
               <Input
                 ref={searchInputRef}
@@ -346,11 +362,13 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                 style={{ lineHeight: '20px' }}
               />
               <ToolBar>
-                <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
-                    <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                  </ToolbarButton>
-                </Tooltip>
+                {showUserToggle && (
+                  <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
+                    <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
+                      <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
+                    </ToolbarButton>
+                  </Tooltip>
+                )}
                 <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
                   <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
                     <CaseSensitive
@@ -399,17 +417,21 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
 
 ContentSearch.displayName = 'ContentSearch'
 
-const Container = styled.div`
+const Container = styled.div<{ $overlayPosition: 'static' | 'absolute' }>`
   display: flex;
   flex-direction: row;
-  z-index: 2;
+  position: ${({ $overlayPosition }) => $overlayPosition};
+  top: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
+  left: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
+  right: ${({ $overlayPosition }) => ($overlayPosition === 'absolute' ? '0' : 'auto')};
+  z-index: 999;
 `
 
-const SearchBarContainer = styled.div`
+const SearchBarContainer = styled.div<{ $position: 'fixed' | 'absolute' | 'sticky' }>`
   border: 1px solid var(--color-primary);
   border-radius: 10px;
   transition: all 0.2s ease;
-  position: fixed;
+  position: ${({ $position }) => $position};
   top: 15px;
   left: 20px;
   right: 20px;

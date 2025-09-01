@@ -1,9 +1,8 @@
 import store from '@renderer/store'
-import { Model, Provider } from '@renderer/types'
-import { getFancyProviderName } from '@renderer/utils'
+import { Model } from '@renderer/types'
 import { pick } from 'lodash'
 
-import { checkApi } from './ApiService'
+import { getProviderName } from './ProviderService'
 
 export const getModelUniqId = (m?: Model) => {
   return m?.id ? JSON.stringify(pick(m, ['id', 'provider'])) : ''
@@ -24,30 +23,9 @@ export function getModelName(model?: Model) {
   const modelName = model?.name || model?.id || ''
 
   if (provider) {
-    const providerName = getFancyProviderName(provider)
+    const providerName = getProviderName(model)
     return `${modelName} | ${providerName}`
   }
 
   return modelName
-}
-
-// Generic function to perform model checks with exception handling
-async function performModelCheck<T>(
-  provider: Provider,
-  model: Model,
-  checkFn: (provider: Provider, model: Model) => Promise<T>
-): Promise<{ latency: number }> {
-  const startTime = performance.now()
-  await checkFn(provider, model)
-  const latency = performance.now() - startTime
-
-  return { latency }
-}
-
-// Unified model check function
-// Automatically selects appropriate check method based on model type
-export async function checkModel(provider: Provider, model: Model): Promise<{ latency: number }> {
-  return performModelCheck(provider, model, async (provider, model) => {
-    await checkApi(provider, model)
-  })
 }

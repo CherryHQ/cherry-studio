@@ -1,5 +1,7 @@
 import { LoadingOutlined } from '@ant-design/icons'
-import { CircleX, Copy, Pause, RefreshCw } from 'lucide-react'
+import { RefreshIcon } from '@renderer/components/Icons'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { CircleX, Copy, Pause } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -26,6 +28,7 @@ const WindowFooter: FC<FooterProps> = ({
   const [isContainerHovered, setIsContainerHovered] = useState(false)
   const [isShowMe, setIsShowMe] = useState(true)
   const hideTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const { setTimeoutTimer } = useTimer()
 
   useEffect(() => {
     window.addEventListener('focus', handleWindowFocus)
@@ -82,9 +85,13 @@ const WindowFooter: FC<FooterProps> = ({
 
   const handleEsc = () => {
     setIsEscHovered(true)
-    setTimeout(() => {
-      setIsEscHovered(false)
-    }, 200)
+    setTimeoutTimer(
+      'handleEsc',
+      () => {
+        setIsEscHovered(false)
+      },
+      200
+    )
 
     if (loading && onPause) {
       onPause()
@@ -95,9 +102,13 @@ const WindowFooter: FC<FooterProps> = ({
 
   const handleRegenerate = () => {
     setIsRegenerateHovered(true)
-    setTimeout(() => {
-      setIsRegenerateHovered(false)
-    }, 200)
+    setTimeoutTimer(
+      'handleRegenerate_1',
+      () => {
+        setIsRegenerateHovered(false)
+      },
+      200
+    )
 
     if (loading && onPause) {
       onPause()
@@ -105,9 +116,13 @@ const WindowFooter: FC<FooterProps> = ({
 
     if (onRegenerate) {
       //wait for a little time
-      setTimeout(() => {
-        onRegenerate()
-      }, 200)
+      setTimeoutTimer(
+        'handleRegenerate_2',
+        () => {
+          onRegenerate()
+        },
+        200
+      )
     }
   }
 
@@ -119,9 +134,13 @@ const WindowFooter: FC<FooterProps> = ({
       .then(() => {
         window.message.success(t('message.copy.success'))
         setIsCopyHovered(true)
-        setTimeout(() => {
-          setIsCopyHovered(false)
-        }, 200)
+        setTimeoutTimer(
+          'handleCopy',
+          () => {
+            setIsCopyHovered(false)
+          },
+          200
+        )
       })
       .catch(() => {
         window.message.error(t('message.copy.failed'))
@@ -165,7 +184,7 @@ const WindowFooter: FC<FooterProps> = ({
         </OpButton>
         {onRegenerate && (
           <OpButton onClick={handleRegenerate} $isWindowFocus={isWindowFocus} data-hovered={isRegenerateHovered}>
-            <RefreshCw size={14} className="btn-icon" />
+            <RefreshIcon size={14} className="btn-icon" />
             {t('selection.action.window.r_regenerate')}
           </OpButton>
         )}

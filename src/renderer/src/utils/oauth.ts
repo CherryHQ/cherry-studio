@@ -50,9 +50,9 @@ export const oauthWithAihubmix = async (setKey) => {
           window.removeEventListener('message', messageHandler)
         }
       } catch (error) {
-        logger.error('[oauthWithAihubmix] error', error)
+        logger.error('[oauthWithAihubmix] error', error as Error)
         popup?.close()
-        window.message.error(i18n.t('oauth.error'))
+        window.message.error(i18n.t('settings.provider.oauth.error'))
       }
     }
   }
@@ -113,7 +113,7 @@ export const oauthWithPPIO = async (setKey) => {
 
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text()
-          logger.error('[PPIO OAuth] Token exchange failed:', tokenResponse.status, errorText)
+          logger.error(`[PPIO OAuth] Token exchange failed: ${tokenResponse.status} ${errorText}`)
           throw new Error(`Failed to exchange code for token: ${tokenResponse.status} ${errorText}`)
         }
 
@@ -127,7 +127,7 @@ export const oauthWithPPIO = async (setKey) => {
           reject(new Error('No access token received'))
         }
       } catch (error) {
-        logger.error('[PPIO OAuth] Error processing callback:', error)
+        logger.error('[PPIO OAuth] Error processing callback:', error as Error)
         reject(error)
       } finally {
         removeListener()
@@ -140,7 +140,7 @@ export const oauthWithTokenFlux = async () => {
   const callbackUrl = `${TOKENFLUX_HOST}/auth/callback?redirect_to=/dashboard/api-keys`
   const resp = await fetch(`${TOKENFLUX_HOST}/api/auth/auth-url?type=login&callback=${callbackUrl}`, {})
   if (!resp.ok) {
-    window.message.error(i18n.t('oauth.error'))
+    window.message.error(i18n.t('settings.provider.oauth.error'))
     return
   }
   const data = await resp.json()
@@ -150,6 +150,26 @@ export const oauthWithTokenFlux = async () => {
     'oauth',
     'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
   )
+}
+export const oauthWith302AI = async (setKey) => {
+  const authUrl = 'https://dash.302.ai/sso/login?app=cherry-ai.com&name=Cherry%20Studio'
+
+  const popup = window.open(
+    authUrl,
+    'oauth',
+    'width=720,height=720,toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes,alwaysOnTop=yes,alwaysRaised=yes'
+  )
+
+  const messageHandler = (event) => {
+    if (event.data && event.data.data.apikey !== undefined) {
+      setKey(event.data.data.apikey)
+      popup?.close()
+      window.removeEventListener('message', messageHandler)
+    }
+  }
+
+  window.removeEventListener('message', messageHandler)
+  window.addEventListener('message', messageHandler)
 }
 
 export const providerCharge = async (provider: string) => {
@@ -171,6 +191,11 @@ export const providerCharge = async (provider: string) => {
     },
     ppio: {
       url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing',
+      width: 900,
+      height: 700
+    },
+    '302ai': {
+      url: 'https://dash.302.ai/charge',
       width: 900,
       height: 700
     }
@@ -204,6 +229,11 @@ export const providerBills = async (provider: string) => {
     },
     ppio: {
       url: 'https://ppio.com/user/register?invited_by=JYT9GD&utm_source=github_cherry-studio&redirect=/billing/billing-details',
+      width: 900,
+      height: 700
+    },
+    '302ai': {
+      url: 'https://dash.302.ai/charge',
       width: 900,
       height: 700
     }

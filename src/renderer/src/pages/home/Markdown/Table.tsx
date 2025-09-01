@@ -1,14 +1,17 @@
+import { CopyIcon } from '@renderer/components/Icons'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import store from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { Tooltip } from 'antd'
-import { Check, Copy } from 'lucide-react'
-import React, { memo, useCallback, useState } from 'react'
+import { Check } from 'lucide-react'
+import React, { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import type { Node } from 'unist'
 
 interface Props {
   children: React.ReactNode
-  node?: any
+  node?: Omit<Node, 'type'>
   blockId?: string
 }
 
@@ -17,7 +20,7 @@ interface Props {
  */
 const Table: React.FC<Props> = ({ children, node, blockId }) => {
   const { t } = useTranslation()
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
 
   const handleCopyTable = useCallback(() => {
     const tableMarkdown = extractTableMarkdown(blockId ?? '', node?.position)
@@ -27,12 +30,11 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       .writeText(tableMarkdown)
       .then(() => {
         setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
       })
       .catch((error) => {
         window.message?.error({ content: `${t('message.copy.failed')}: ${error}`, key: 'copy-table-error' })
       })
-  }, [node, blockId, t])
+  }, [blockId, node?.position, setCopied, t])
 
   return (
     <TableWrapper className="table-wrapper">
@@ -40,11 +42,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
       <ToolbarWrapper className="table-toolbar">
         <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
           <ToolButton role="button" aria-label={t('common.copy')} onClick={handleCopyTable}>
-            {copied ? (
-              <Check size={14} style={{ color: 'var(--color-primary)' }} data-testid="check-icon" />
-            ) : (
-              <Copy size={14} data-testid="copy-icon" />
-            )}
+            {copied ? <Check size={14} color="var(--color-primary)" /> : <CopyIcon size={14} />}
           </ToolButton>
         </Tooltip>
       </ToolbarWrapper>

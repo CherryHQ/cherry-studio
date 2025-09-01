@@ -8,6 +8,7 @@ import {
   setEnableDeveloperMode,
   setLaunchOnBoot,
   setLaunchToTray,
+  setNavbarPosition,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
   setShowTokens,
@@ -22,7 +23,7 @@ import {
   setTrayOnClose,
   setWindowStyle
 } from '@renderer/store/settings'
-import { SidebarIcon, ThemeMode, TranslateLanguageVarious } from '@renderer/types'
+import { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
 import { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
@@ -79,7 +80,7 @@ export function useSettings() {
     setWindowStyle(windowStyle: 'transparent' | 'opaque') {
       dispatch(setWindowStyle(windowStyle))
     },
-    setTargetLanguage(targetLanguage: TranslateLanguageVarious) {
+    setTargetLanguage(targetLanguage: TranslateLanguageCode) {
       dispatch(setTargetLanguage(targetLanguage))
     },
     setTopicPosition(topicPosition: 'left' | 'right') {
@@ -138,4 +139,16 @@ export const useEnableDeveloperMode = () => {
 
 export const getEnableDeveloperMode = () => {
   return store.getState().settings.enableDeveloperMode
+}
+
+export const useNavbarPosition = () => {
+  const navbarPosition = useAppSelector((state) => state.settings.navbarPosition)
+  const dispatch = useAppDispatch()
+
+  return {
+    navbarPosition,
+    isLeftNavbar: navbarPosition === 'left',
+    isTopNavbar: navbarPosition === 'top',
+    setNavbarPosition: (position: 'left' | 'top') => dispatch(setNavbarPosition(position))
+  }
 }

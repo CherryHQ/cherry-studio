@@ -5,6 +5,7 @@ import TranslateButton from '@renderer/components/TranslateButton'
 import {
   isGenerateImageModel,
   isGenerateImageModels,
+  isMandatoryWebSearchModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
@@ -22,6 +23,8 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTopic } from '@renderer/hooks/useTopic'
+import { useTimer } from '@renderer/hooks/useTimer'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -37,10 +40,14 @@ import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
-import { classNames, delay, formatFileSize, getFileExtension } from '@renderer/utils'
+import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
-import { getFilesFromDropEvent, getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
+import {
+  getFilesFromDropEvent,
+  getSendMessageShortcutLabel,
+  getTextFromDropEvent,
+  isSendMessageKeyPressed
+} from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -55,8 +62,6 @@ import styled from 'styled-components'
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
 import InputbarTools, { InputbarToolsRef } from './InputbarTools'
-import KnowledgeBaseInput from './KnowledgeBaseInput'
-import MentionModelsInput from './MentionModelsInput'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
 
@@ -84,15 +89,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     showInputEstimatedTokens,
     autoTranslateWithSpace,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel,
     enableSpellCheck
   } = useSettings()
-  const [expended, setExpend] = useState(false)
+  const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
   const textareaRef = useRef<TextAreaRef>(null)
   const [files, setFiles] = useState<FileType[]>(_files)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const containerRef = useRef(null)
   const { searching } = useRuntime()
   const { pauseMessages } = useMessageOperations(topic)
@@ -108,12 +113,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const currentMessageId = useRef<string>('')
   const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const _topic = useTopic(assistant, topic.id)
+  const { setTimeoutTimer } = useTimer()
 
   const isVisionSupported = useMemo(
     () =>
@@ -187,6 +192,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   _text = text
   _files = files
 
+  const focusTextarea = useCallback(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const resizeTextArea = useCallback(
     (force: boolean = false) => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
@@ -248,29 +257,24 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         baseUserMessage.mentions = mentionedModels
       }
 
-      const assistantWithTopicPrompt = topic.prompt
-        ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-        : assistant
-
       baseUserMessage.usage = await estimateUserPromptUsage(baseUserMessage)
 
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      currentMessageId.current = message.id
-      dispatch(_sendMessage(message, blocks, assistantWithTopicPrompt, topic.id))
+      dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
       // Clear input
       setText('')
       setFiles([])
-      setTimeout(() => setText(''), 500)
-      setTimeout(() => resizeTextArea(true), 0)
-      setExpend(false)
+      setTimeoutTimer('sendMessage_1', () => setText(''), 500)
+      setTimeoutTimer('sendMessage_2', () => resizeTextArea(true), 0)
+      setExpand(false)
     } catch (error) {
-      logger.warn('Failed to send message:', error)
+      logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, text, _topic, topic])
+  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, setTimeoutTimer, text, _topic, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -281,13 +285,13 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setIsTranslating(true)
       const translatedText = await translateText(text, getLanguageByLangcode(targetLanguage))
       translatedText && setText(translatedText)
-      setTimeout(() => resizeTextArea(), 0)
+      setTimeoutTimer('translate', () => resizeTextArea(), 0)
     } catch (error) {
-      logger.warn('Translation failed:', error)
+      logger.warn('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, text, targetLanguage, resizeTextArea])
+  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
@@ -327,7 +331,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const openSelectFileMenu = useCallback(() => {
     quickPanel.open({
-      title: t('chat.input.upload'),
+      title: t('chat.input.upload.label'),
       list: [
         {
           label: t('chat.input.upload.upload_from_local'),
@@ -405,9 +409,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (expended) {
+    if (expanded) {
       if (event.key === 'Escape') {
-        return onToggleExpended()
+        event.stopPropagation()
+        return onToggleExpanded()
       }
     }
 
@@ -436,21 +441,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             setText(newText)
 
             // set cursor position in the next render cycle
-            setTimeout(() => {
-              textArea.selectionStart = textArea.selectionEnd = start + 1
-              onInput() // trigger resizeTextArea
-            }, 0)
+            setTimeoutTimer(
+              'handleKeyDown',
+              () => {
+                textArea.selectionStart = textArea.selectionEnd = start + 1
+                onInput() // trigger resizeTextArea
+              },
+              0
+            )
           }
         }
       }
     }
 
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && mentionedModels.length > 0) {
-      setMentionedModels((prev) => prev.slice(0, -1))
-      return event.preventDefault()
-    }
-
-    if (enableBackspaceDeleteModel && event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
@@ -469,20 +473,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     addTopic(topic)
     setActiveTopic(topic)
 
-    setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant, setActiveTopic, setModel])
+    setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
 
   const onQuote = useCallback(
     (text: string) => {
       const quotedText = formatQuotedText(text)
       setText((prevText) => {
         const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-        setTimeout(() => resizeTextArea(), 0)
+        setTimeoutTimer('onQuote', () => resizeTextArea(), 0)
         return newText
       })
-      textareaRef.current?.focus()
+      focusTextarea()
     },
-    [resizeTextArea]
+    [focusTextarea, setTimeoutTimer, resizeTextArea]
   )
 
   const onPause = async () => {
@@ -495,6 +499,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       await delay(1)
     }
     EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
+    focusTextarea()
   }
 
   const onNewContext = () => {
@@ -505,7 +510,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
   }
 
-  const onInput = () => !expended && resizeTextArea()
+  const onInput = () => !expanded && resizeTextArea()
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -516,26 +521,42 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const cursorPosition = textArea?.selectionStart ?? 0
       const lastSymbol = newText[cursorPosition - 1]
 
-      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '/') {
-        const quickPanelMenu =
-          inputbarToolsRef.current?.getQuickPanelMenu({
-            t,
-            files,
-            couldAddImageFile,
-            text: newText,
-            openSelectFileMenu,
-            translate
-          }) || []
+      // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
+      if (enableQuickPanelTriggers && lastSymbol === '/') {
+        if (quickPanel.isVisible && quickPanel.symbol !== '/') {
+          quickPanel.close('switch-symbol')
+        }
+        if (!quickPanel.isVisible || quickPanel.symbol !== '/') {
+          const quickPanelMenu =
+            inputbarToolsRef.current?.getQuickPanelMenu({
+              t,
+              files,
+              couldAddImageFile,
+              text: newText,
+              openSelectFileMenu,
+              translate
+            }) || []
 
-        quickPanel.open({
-          title: t('settings.quickPanel.title'),
-          list: quickPanelMenu,
-          symbol: '/'
-        })
+          quickPanel.open({
+            title: t('settings.quickPanel.title'),
+            list: quickPanelMenu,
+            symbol: '/'
+          })
+        }
       }
 
-      if (enableQuickPanelTriggers && !quickPanel.isVisible && lastSymbol === '@') {
-        inputbarToolsRef.current?.openMentionModelsPanel()
+      // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
+      if (enableQuickPanelTriggers && lastSymbol === '@') {
+        if (quickPanel.isVisible && quickPanel.symbol !== '@') {
+          quickPanel.close('switch-symbol')
+        }
+        if (!quickPanel.isVisible || quickPanel.symbol !== '@') {
+          inputbarToolsRef.current?.openMentionModelsPanel({
+            type: 'input',
+            position: cursorPosition - 1,
+            originalText: newText
+          })
+        }
       }
     },
     [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
@@ -582,36 +603,34 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       e.stopPropagation()
       setIsFileDragging(false)
 
-      const files = await getFilesFromDropEvent(e).catch((err) => {
+      const data = await getTextFromDropEvent(e)
+
+      setText(text + data)
+
+      const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
         logger.error('handleDrop:', err)
         return null
       })
 
-      if (files) {
-        let supportedFiles = 0
-
-        files.forEach((file) => {
-          if (supportedExts.includes(getFileExtension(file.path))) {
-            setFiles((prevFiles) => [...prevFiles, file])
-            supportedFiles++
-          }
-        })
-
-        // 如果有文件，但都不支持
-        if (files.length > 0 && supportedFiles === 0) {
+      if (droppedFiles) {
+        const supportedFiles = await filterSupportedFiles(droppedFiles, supportedExts)
+        supportedFiles.length > 0 && setFiles((prevFiles) => [...prevFiles, ...supportedFiles])
+        if (droppedFiles.length > 0 && supportedFiles.length !== droppedFiles.length) {
           window.message.info({
             key: 'file_not_supported',
-            content: t('chat.input.file_not_supported')
+            content: t('chat.input.file_not_supported_count', {
+              count: droppedFiles.length - supportedFiles.length
+            })
           })
         }
       }
     },
-    [supportedExts, t]
+    [supportedExts, t, text]
   )
 
   const onTranslated = (translatedText: string) => {
     setText(translatedText)
-    setTimeout(() => resizeTextArea(), 0)
+    setTimeoutTimer('onTranslated', () => resizeTextArea(), 0)
   }
 
   const handleDragStart = (e: React.MouseEvent) => {
@@ -637,7 +656,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       if (textArea) {
         textArea.style.height = `${newHeight}px`
-        setExpend(newHeight == maxHeightInPixels)
+        setExpand(newHeight == maxHeightInPixels)
         setTextareaHeight(newHeight)
       }
     },
@@ -676,7 +695,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useShortcut('new_topic', () => {
     addNewTopic()
     EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-    textareaRef.current?.focus()
+    focusTextarea()
   })
 
   useShortcut('clear_topic', clearTopic)
@@ -710,12 +729,21 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
-      textareaRef.current?.focus()
+      focusTextarea()
     }
-  }, [assistant, topic])
+  }, [
+    topic.id,
+    assistant.mcpServers,
+    assistant.knowledge_bases,
+    assistant.enableWebSearch,
+    assistant.webSearchProviderId,
+    mentionedModels,
+    focusTextarea
+  ])
 
   useEffect(() => {
-    setTimeout(() => resizeTextArea(), 0)
+    const timerId = requestAnimationFrame(() => resizeTextArea())
+    return () => cancelAnimationFrame(timerId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -736,12 +764,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const lastFocusedComponent = PasteService.getLastFocusedComponent()
 
       if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
-        textareaRef.current?.focus()
+        focusTextarea()
       }
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [])
+  }, [focusTextarea])
 
   useEffect(() => {
     // if assistant knowledge bases are undefined return []
@@ -753,19 +781,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(bases ?? [])
   }
 
-  const handleRemoveModel = (model: Model) => {
-    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
-  }
-
-  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
-    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-    updateAssistant({
-      ...assistant,
-      knowledge_bases: newKnowledgeBases
-    })
-    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
-  }
-
   const onEnableGenerateImage = () => {
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
@@ -774,7 +789,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isWebSearchModel(model) && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
     }
-    if (assistant.webSearchProviderId && !WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId)) {
+    if (
+      assistant.webSearchProviderId &&
+      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
+    ) {
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
@@ -801,10 +819,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [couldMentionNotVisionModel]
   )
 
-  const onToggleExpended = () => {
-    const currentlyExpanded = expended || !!textareaHeight
+  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
+
+  const onToggleExpanded = () => {
+    const currentlyExpanded = expanded || !!textareaHeight
     const shouldExpand = !currentlyExpanded
-    setExpend(shouldExpand)
+    setExpand(shouldExpand)
     const textArea = textareaRef.current?.resizableTextArea?.textArea
     if (!textArea) return
     if (shouldExpand) {
@@ -821,10 +841,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       })
     }
 
-    textareaRef.current?.focus()
+    focusTextarea()
   }
 
-  const isExpended = expended || !!textareaHeight
+  const isExpanded = expanded || !!textareaHeight
   const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
 
   if (isMultiSelectMode) {
@@ -918,11 +938,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               resizeTextArea={resizeTextArea}
               mentionModels={mentionedModels}
               onMentionModel={onMentionModel}
+              onClearMentionModels={onClearMentionModels}
               couldMentionNotVisionModel={couldMentionNotVisionModel}
               couldAddImageFile={couldAddImageFile}
               onEnableGenerateImage={onEnableGenerateImage}
-              isExpended={isExpended}
-              onToggleExpended={onToggleExpended}
+              isExpanded={isExpanded}
+              onToggleExpanded={onToggleExpanded}
               addNewTopic={addNewTopic}
               clearTopic={clearTopic}
               onNewContext={onNewContext}
@@ -940,8 +961,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2, marginTop: 1 }}>
-                    <CirclePause style={{ color: 'var(--color-error)', fontSize: 20 }} />
+                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
+                    <CirclePause size={20} color="var(--color-error)" />
                   </ToolbarButton>
                 </Tooltip>
               )}
@@ -985,7 +1006,10 @@ const Container = styled.div`
   flex-direction: column;
   position: relative;
   z-index: 2;
-  padding: 0 24px 18px 24px;
+  padding: 0 18px 18px 18px;
+  [navbar-position='top'] & {
+    padding: 0 18px 10px 18px;
+  }
 `
 
 const InputBarContainer = styled.div`

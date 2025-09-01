@@ -1,10 +1,8 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { fetchTranslate } from '@renderer/services/ApiService'
-import { getDefaultTranslateAssistant } from '@renderer/services/AssistantService'
-import { getLanguageByLangcode } from '@renderer/utils/translate'
+import useTranslate from '@renderer/hooks/useTranslate'
+import { translateText } from '@renderer/services/TranslateService'
 import { Modal, ModalProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { TextAreaProps } from 'antd/lib/input'
@@ -40,10 +38,10 @@ const PopupContainer: React.FC<Props> = ({
 }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
+  const { getLanguageByLangcode } = useTranslate()
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
-  const { translateModel } = useDefaultModel()
   const { targetLanguage, showTranslateConfirm } = useSettings()
   const isMounted = useRef(true)
 
@@ -76,7 +74,8 @@ const PopupContainer: React.FC<Props> = ({
   }
 
   useEffect(() => {
-    setTimeout(resizeTextArea, 0)
+    const timer = setTimeout(resizeTextArea, 0)
+    return () => clearTimeout(timer)
   }, [])
 
   const handleAfterOpenChange = (visible: boolean) => {
@@ -102,26 +101,17 @@ const PopupContainer: React.FC<Props> = ({
       if (!confirmed) return
     }
 
-    if (!translateModel) {
-      window.message.error({
-        content: t('translate.error.not_configured'),
-        key: 'translate-message'
-      })
-      return
-    }
-
     if (isMounted.current) {
       setIsTranslating(true)
     }
 
     try {
-      const assistant = getDefaultTranslateAssistant(getLanguageByLangcode(targetLanguage), textValue)
-      const translatedText = await fetchTranslate({ content: textValue, assistant })
+      const translatedText = await translateText(textValue, getLanguageByLangcode(targetLanguage))
       if (isMounted.current) {
         setTextValue(translatedText)
       }
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
       window.message.error({
         content: t('translate.error.failed'),
         key: 'translate-message'

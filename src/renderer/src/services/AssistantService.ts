@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import {
   DEFAULT_CONTEXTCOUNT,
   DEFAULT_MAX_TOKENS,
@@ -5,11 +6,37 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { isQwenMTModel } from '@renderer/config/models'
+import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
-import type { Agent, Assistant, AssistantSettings, Language, Model, Provider, Topic } from '@renderer/types'
+import type {
+  Agent,
+  Assistant,
+  AssistantSettings,
+  Model,
+  Provider,
+  Topic,
+  TranslateAssistant,
+  TranslateLanguage
+} from '@renderer/types'
 import { uuid } from '@renderer/utils'
+
+const logger = loggerService.withContext('AssistantService')
+
+export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
+  temperature: DEFAULT_TEMPERATURE,
+  enableTemperature: true,
+  contextCount: DEFAULT_CONTEXTCOUNT,
+  enableMaxTokens: false,
+  maxTokens: 0,
+  streamOutput: true,
+  topP: 1,
+  enableTopP: true,
+  toolUseMode: 'prompt',
+  customParameters: []
+}
 
 export function getDefaultAssistant(): Assistant {
   return {
@@ -21,36 +48,50 @@ export function getDefaultAssistant(): Assistant {
     messages: [],
     type: 'assistant',
     regularPhrases: [], // Added regularPhrases
-    settings: {
-      temperature: DEFAULT_TEMPERATURE,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      toolUseMode: 'prompt',
-      customParameters: []
-    },
-    reader: {
-      position: 'left'
-    }
+    settings: DEFAULT_ASSISTANT_SETTINGS
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: Language, text: string): Assistant {
-  const translateModel = getTranslateModel()
+export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
+  const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
-  assistant.model = translateModel
 
-  assistant.settings = {
+  if (!model) {
+    logger.error('No translate model')
+    throw new Error(i18n.t('translate.error.not_configured'))
+  }
+
+  if (targetLanguage.langCode === UNKNOWN.langCode) {
+    logger.error('Unknown target language', targetLanguage)
+    throw new Error('Unknown target language')
+  }
+
+  const settings = {
     temperature: 0.7
   }
 
-  assistant.prompt = store
-    .getState()
-    .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
-    .replaceAll('{{text}}', text)
-  return assistant
+  let prompt: string
+  let content: string
+  if (isQwenMTModel(model)) {
+    content = text
+    prompt = ''
+  } else {
+    content = 'follow system instruction'
+    prompt = store
+      .getState()
+      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
+      .replaceAll('{{text}}', text)
+  }
+
+  const translateAssistant = {
+    ...assistant,
+    model,
+    settings,
+    prompt,
+    targetLanguage,
+    content
+  } satisfies TranslateAssistant
+  return translateAssistant
 }
 
 export function getDefaultAssistantSettings() {
@@ -77,8 +118,8 @@ export function getDefaultModel() {
   return store.getState().llm.defaultModel
 }
 
-export function getTopNamingModel() {
-  return store.getState().llm.topicNamingModel
+export function getQuickModel() {
+  return store.getState().llm.quickModel
 }
 
 export function getTranslateModel() {
@@ -119,7 +160,9 @@ export const getAssistantSettings = (assistant: Assistant): AssistantSettings =>
   return {
     contextCount: contextCount === MAX_CONTEXT_COUNT ? UNLIMITED_CONTEXT_COUNT : contextCount,
     temperature: assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE,
+    enableTemperature: assistant?.settings?.enableTemperature ?? true,
     topP: assistant?.settings?.topP ?? 1,
+    enableTopP: assistant?.settings?.enableTopP ?? true,
     enableMaxTokens: assistant?.settings?.enableMaxTokens ?? false,
     maxTokens: getAssistantMaxTokens(),
     streamOutput: assistant?.settings?.streamOutput ?? true,
@@ -147,16 +190,7 @@ export async function createAssistantFromAgent(agent: Agent) {
     model: agent.defaultModel,
     type: 'assistant',
     regularPhrases: agent.regularPhrases || [], // Ensured regularPhrases
-    settings: agent.settings || {
-      temperature: DEFAULT_TEMPERATURE,
-      contextCount: DEFAULT_CONTEXTCOUNT,
-      enableMaxTokens: false,
-      maxTokens: 0,
-      streamOutput: true,
-      topP: 1,
-      toolUseMode: 'prompt',
-      customParameters: []
-    }
+    settings: agent.settings || DEFAULT_ASSISTANT_SETTINGS
   }
 
   store.dispatch(addAssistant(assistant))

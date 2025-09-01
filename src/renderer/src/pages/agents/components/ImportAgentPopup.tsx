@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent } from '@renderer/types'
@@ -19,6 +20,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { addAgent } = useAgents()
   const [importType, setImportType] = useState<'url' | 'file'>('url')
   const [loading, setLoading] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const onFinish = async (values: { url?: string }) => {
     setLoading(true)
@@ -45,6 +47,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           if (!Array.isArray(agents)) {
             agents = [agents]
           }
+        } else {
+          return
         }
       }
 
@@ -75,7 +79,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         key: 'agents-imported'
       })
 
-      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+      setTimeoutTimer('onFinish', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       setOpen(false)
       resolve(agents)
     } catch (error) {
@@ -98,6 +102,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       title={t('agents.import.title')}
       open={open}
       onCancel={onCancel}
+      maskClosable={false}
       footer={
         <Flex justify="end" gap={8}>
           <Button onClick={onCancel}>{t('common.cancel')}</Button>

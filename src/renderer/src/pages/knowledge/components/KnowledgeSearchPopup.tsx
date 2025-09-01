@@ -44,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       const searchResults = await searchKnowledgeBase(value, base)
       setResults(searchResults)
     } catch (error) {
-      logger.error(`Failed to search knowledge base ${base.name}:`, error)
+      logger.error(`Failed to search knowledge base ${base.name}:`, error as Error)
       setResults([])
     } finally {
       setLoading(false)
@@ -82,8 +82,8 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
       await navigator.clipboard.writeText(text)
       message.success(t('message.copied'))
     } catch (error) {
-      logger.error('Failed to copy text:', error)
-      window.message.error(t('message.copyError') || 'Failed to copy text')
+      logger.error('Failed to copy text:', error as Error)
+      window.message.error(t('message.error.copy') || 'Failed to copy text')
     }
   }
 
@@ -158,9 +158,13 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
                         <a href={`http://file/${item.file.name}`} target="_blank" rel="noreferrer">
                           {item.file.origin_name}
                         </a>
+                      ) : item.metadata.type !== 'LocalPathLoader' ? (
+                        <a href={item.metadata.source} target="_blank" rel="noreferrer">
+                          {item.metadata.source}
+                        </a>
                       ) : (
-                        // item.metadata.source
-                        <a href={`http://file/${item.metadata.source}`} target="_blank" rel="noreferrer">
+                        // 处理预处理后的文件source
+                        <a href={`file://${item.metadata.source}`} target="_blank" rel="noreferrer">
                           {item.metadata.source.split('/').pop() || item.metadata.source}
                         </a>
                       )}

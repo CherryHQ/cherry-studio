@@ -24,7 +24,7 @@ export default class LocalBaiduProvider extends LocalSearchProvider {
         }
       })
     } catch (error) {
-      logger.error('Failed to parse Baidu search HTML:', error)
+      logger.error('Failed to parse Baidu search HTML:', error as Error)
     }
     logger.info('Parsed Baidu search results:', results)
     return results

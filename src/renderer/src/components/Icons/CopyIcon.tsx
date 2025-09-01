@@ -1,7 +1,5 @@
-import { FC } from 'react'
+import { Copy } from 'lucide-react'
 
-const CopyIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>> = (props) => {
-  return <i {...props} className={`iconfont icon-copy ${props.className}`} />
-}
+const CopyIcon = (props: React.ComponentProps<typeof Copy>) => <Copy size="1rem" {...props} />
 
 export default CopyIcon

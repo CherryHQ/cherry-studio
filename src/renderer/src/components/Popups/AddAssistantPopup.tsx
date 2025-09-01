@@ -1,6 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { useSystemAgents } from '@renderer/pages/agents'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -33,12 +34,17 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const loadingRef = useRef(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { setTimeoutTimer } = useTimer()
 
   const agents = useMemo(() => {
     const allAgents = [...userAgents, ...systemAgents] as Agent[]
     const list = [defaultAssistant, ...allAgents.filter((agent) => !assistants.map((a) => a.id).includes(agent.id))]
     const filtered = searchText
-      ? list.filter((agent) => agent.name.toLowerCase().includes(searchText.trim().toLocaleLowerCase()))
+      ? list.filter(
+          (agent) =>
+            agent.name.toLowerCase().includes(searchText.trim().toLocaleLowerCase()) ||
+            agent.description?.toLowerCase().includes(searchText.trim().toLocaleLowerCase())
+        )
       : list
 
     if (searchText.trim()) {
@@ -76,11 +82,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         assistant = await createAssistantFromAgent(agent)
       }
 
-      setTimeout(() => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+      setTimeoutTimer('onCreateAssistant', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       resolve(assistant)
       setOpen(false)
     },
-    [resolve, addAssistant, setOpen]
+    [setTimeoutTimer, resolve, addAssistant]
   ) // 添加函数内使用的依赖项
   // 键盘导航处理
   useEffect(() => {
@@ -141,7 +147,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   useEffect(() => {
-    open && setTimeout(() => inputRef.current?.focus(), 0)
+    if (!open) return
+
+    const timer = setTimeout(() => inputRef.current?.focus(), 0)
+    return () => clearTimeout(timer)
   }, [open])
 
   return (

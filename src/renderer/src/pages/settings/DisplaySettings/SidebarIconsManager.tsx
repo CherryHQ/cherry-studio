@@ -7,15 +7,25 @@ import {
   DroppableProvided,
   DropResult
 } from '@hello-pangea/dnd'
+import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { setSidebarIcons } from '@renderer/store/settings'
+import { SidebarIcon } from '@renderer/types'
 import { message } from 'antd'
-import { FileSearch, Folder, Languages, LayoutGrid, MessageSquareQuote, Palette, Sparkle } from 'lucide-react'
+import {
+  Code,
+  FileSearch,
+  Folder,
+  Languages,
+  LayoutGrid,
+  MessageSquareQuote,
+  NotepadText,
+  Palette,
+  Sparkle
+} from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { SidebarIcon } from '../../../store/settings'
 
 interface SidebarIconsManagerProps {
   visibleIcons: SidebarIcon[]
@@ -115,7 +125,9 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       translate: <Languages size={16} />,
       minapp: <LayoutGrid size={16} />,
       knowledge: <FileSearch size={16} />,
-      files: <Folder size={15} />
+      files: <Folder size={16} />,
+      notes: <NotepadText size={16} />,
+      code_tools: <Code size={16} />
     }),
     []
   )
@@ -136,7 +148,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
                       <IconItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                         <IconContent>
                           {renderIcon(icon)}
-                          <span>{t(`${icon}.title`)}</span>
+                          <span>{getSidebarIconLabel(icon)}</span>
                         </IconContent>
                         {icon !== 'assistants' && (
                           <CloseButton onClick={() => onMoveIcon(icon, 'visible')}>
@@ -166,7 +178,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
                         <IconItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                           <IconContent>
                             {renderIcon(icon)}
-                            <span>{t(`${icon}.title`)}</span>
+                            <span>{getSidebarIconLabel(icon)}</span>
                           </IconContent>
                           <CloseButton onClick={() => onMoveIcon(icon, 'disabled')}>
                             <CloseOutlined />
@@ -205,15 +217,15 @@ const IconColumn = styled.div`
 `
 
 const IconList = styled.div`
-  height: 365px;
-  min-height: 365px;
+  height: 400px;
+  min-height: 400px;
   padding: 10px;
   background: var(--color-background-soft);
   border-radius: 8px;
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  overflow-y: hidden;
+  overflow-y: auto;
 `
 
 const IconItem = styled.div`

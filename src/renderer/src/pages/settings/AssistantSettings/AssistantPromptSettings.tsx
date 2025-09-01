@@ -1,16 +1,19 @@
 import 'emoji-picker-element'
 
-import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import { CloseCircleFilled } from '@ant-design/icons'
+import CodeEditor from '@renderer/components/CodeEditor'
+import CodeViewer from '@renderer/components/CodeViewer'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
-import { useEffect, useState } from 'react'
+import { Edit, HelpCircle, Save } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
@@ -26,9 +29,10 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
+  const [showPreview, setShowPreview] = useState(assistant.prompt.length > 0)
   const [tokenCount, setTokenCount] = useState(0)
   const { t } = useTranslation()
-  const [showMarkdown, setShowMarkdown] = useState(prompt.length > 0)
+  const editorRef = useRef<RichEditorRef>(null)
 
   useEffect(() => {
     const updateTokenCount = async () => {
@@ -38,9 +42,15 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
     updateTokenCount()
   }, [prompt])
 
+  const processedPrompt = usePromptProcessor({
+    prompt,
+    modelName: assistant.model?.name
+  })
+
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
+    window.message.success(t('common.saved'))
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {
@@ -106,42 +116,47 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <HStack mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
         <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-          <QuestionCircleOutlined size={14} color="var(--color-text-2)" />
+          <HelpCircle size={14} color="var(--color-text-2)" />
         </Popover>
       </HStack>
       <TextAreaContainer>
-        {showMarkdown ? (
-          <MarkdownContainer className="markdown" onClick={() => setShowMarkdown(false)}>
-            <ReactMarkdown>{prompt}</ReactMarkdown>
-            <div style={{ height: '30px' }} />
-          </MarkdownContainer>
-        ) : (
-          <TextArea
-            rows={10}
-            placeholder={t('common.assistant') + t('common.prompt')}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onBlur={() => {
-              onUpdate()
-            }}
-            autoFocus={true}
-            spellCheck={false}
-            style={{ minHeight: 'calc(80vh - 200px)', maxHeight: 'calc(80vh - 200px)', paddingBottom: '30px' }}
-          />
-        )}
+        <RichEditorContainer>
+          {showPreview ? (
+            <CodeViewer children={processedPrompt} language="markdown" expanded={true} height="100%" />
+          ) : (
+            <CodeEditor
+              value={prompt}
+              language="markdown"
+              onChange={setPrompt}
+              height="100%"
+              expanded={false}
+              style={{
+                height: '100%'
+              }}
+            />
+          )}
+        </RichEditorContainer>
       </TextAreaContainer>
       <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
-
-        {showMarkdown ? (
-          <Button type="primary" onClick={() => setShowMarkdown(false)}>
-            {t('common.edit')}
-          </Button>
-        ) : (
-          <Button type="primary" onClick={() => setShowMarkdown(true)}>
-            {t('common.save')}
-          </Button>
-        )}
+        <Button
+          type="primary"
+          icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
+          onClick={() => {
+            const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+            if (showPreview) {
+              setShowPreview(false)
+              requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+            } else {
+              onUpdate()
+              requestAnimationFrame(() => {
+                setShowPreview(true)
+                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+              })
+            }
+          }}>
+          {showPreview ? t('common.edit') : t('common.save')}
+        </Button>
       </HSpaceBetweenStack>
     </Container>
   )
@@ -176,12 +191,27 @@ const TokenCount = styled.div`
   user-select: none;
 `
 
-const MarkdownContainer = styled.div`
-  min-height: calc(80vh - 200px);
-  max-height: calc(80vh - 200px);
-  padding-right: 2px;
-  overflow: auto;
-  overflow-x: hidden;
+const RichEditorContainer = styled.div`
+  height: calc(80vh - 202px);
+  border: 0.5px solid var(--color-border);
+  border-radius: 5px;
+  overflow: hidden;
+
+  .prompt-rich-editor {
+    border: none;
+    height: 100%;
+
+    .rich-editor-wrapper {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .rich-editor-content {
+      flex: 1;
+      overflow: auto;
+    }
+  }
 `
 
 export default AssistantPromptSettings

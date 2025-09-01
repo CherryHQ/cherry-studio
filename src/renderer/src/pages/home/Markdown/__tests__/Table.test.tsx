@@ -28,6 +28,14 @@ vi.mock('@renderer/store/messageBlock', () => ({
   messageBlocksSelectors: mocks.messageBlocksSelectors
 }))
 
+vi.mock('@renderer/components/Icons', () => ({
+  CopyIcon: ({ size }: { size: number }) => <div data-testid="copy-icon" style={{ width: size, height: size }} />
+}))
+
+vi.mock('lucide-react', () => ({
+  Check: ({ size }: { size: number }) => <div data-testid="check-icon" style={{ width: size, height: size }} />
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
@@ -81,8 +89,8 @@ describe('Table', () => {
   })
 
   const createTablePosition = (startLine = 1, endLine = 3) => ({
-    start: { line: startLine },
-    end: { line: endLine }
+    start: { line: startLine, column: 1, offset: 0 },
+    end: { line: endLine, column: 1, offset: 2 }
   })
 
   const defaultTableContent = `| Header 1 | Header 2 |

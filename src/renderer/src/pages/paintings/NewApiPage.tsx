@@ -13,6 +13,13 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import {
+  getPaintingsBackgroundOptionsLabel,
+  getPaintingsImageSizeOptionsLabel,
+  getPaintingsModerationOptionsLabel,
+  getPaintingsQualityOptionsLabel,
+  getProviderLabel
+} from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
@@ -33,12 +40,21 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
-  const { addPainting, removePainting, updatePainting, newApiPaintings } = usePaintings()
+  const { addPainting, removePainting, updatePainting, openai_image_generate, openai_image_edit } = usePaintings()
+
+  const newApiPaintings = useMemo(() => {
+    return {
+      openai_image_generate,
+      openai_image_edit
+    }
+  }, [openai_image_generate, openai_image_edit])
+
   const filteredPaintings = useMemo(() => newApiPaintings[mode] || [], [newApiPaintings, mode])
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -53,9 +69,16 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
   const dispatch = useAppDispatch()
@@ -183,7 +206,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          logger.error('下载图像失败:', error)
+          logger.error('下载图像失败:', error as Error)
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -202,6 +225,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(newApiProvider, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -214,14 +239,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
     updatePaintingState({ prompt })
-
-    if (!newApiProvider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
 
     const AI = new AiProvider(newApiProvider)
 
@@ -272,6 +289,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const formData = new FormData()
         formData.append('prompt', prompt)
+        formData.append('model', painting.model)
         if (painting.background && painting.background !== 'auto') {
           formData.append('background', painting.background)
         }
@@ -396,7 +414,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -566,7 +584,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   <Select value={painting.size} onChange={handleSizeChange} style={{ width: '100%', marginBottom: 15 }}>
                     {selectedModelConfig.imageSizes.map((s) => (
                       <Select.Option value={s.value} key={s.value}>
-                        {t(`paintings.image_size_options.${s.value}`, { defaultValue: s.value })}
+                        {getPaintingsImageSizeOptionsLabel(s.value) ?? s.value}
                       </Select.Option>
                     ))}
                   </Select>
@@ -583,7 +601,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     style={{ width: '100%', marginBottom: 15 }}>
                     {selectedModelConfig.quality.map((q) => (
                       <Select.Option value={q.value} key={q.value}>
-                        {t(`paintings.quality_options.${q.value}`, { defaultValue: q.value })}
+                        {getPaintingsQualityOptionsLabel(q.value) ?? q.value}
                       </Select.Option>
                     ))}
                   </Select>
@@ -602,7 +620,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                       style={{ width: '100%', marginBottom: 15 }}>
                       {selectedModelConfig.moderation.map((m) => (
                         <Select.Option value={m.value} key={m.value}>
-                          {t(`paintings.moderation_options.${m.value}`, { defaultValue: m.value })}
+                          {getPaintingsModerationOptionsLabel(m.value) ?? m.value}
                         </Select.Option>
                       ))}
                     </Select>
@@ -621,7 +639,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                       style={{ width: '100%', marginBottom: 15 }}>
                       {selectedModelConfig.background.map((b) => (
                         <Select.Option value={b.value} key={b.value}>
-                          {t(`paintings.background_options.${b.value}`, { defaultValue: b.value })}
+                          {getPaintingsBackgroundOptionsLabel(b.value) ?? b.value}
                         </Select.Option>
                       ))}
                     </Select>

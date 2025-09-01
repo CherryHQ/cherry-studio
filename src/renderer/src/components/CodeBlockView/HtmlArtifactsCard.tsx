@@ -1,11 +1,11 @@
-import { CodeOutlined, LinkOutlined } from '@ant-design/icons'
+import { CodeOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
-import { extractTitle } from '@renderer/utils/formats'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Button } from 'antd'
-import { Code, Download, Globe, Sparkles } from 'lucide-react'
-import { FC, useMemo, useState } from 'react'
+import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
+import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ClipLoader } from 'react-spinners'
 import styled, { keyframes } from 'styled-components'
@@ -14,92 +14,10 @@ import HtmlArtifactsPopup from './HtmlArtifactsPopup'
 
 const logger = loggerService.withContext('HtmlArtifactsCard')
 
-const HTML_VOID_ELEMENTS = new Set([
-  'area',
-  'base',
-  'br',
-  'col',
-  'embed',
-  'hr',
-  'img',
-  'input',
-  'link',
-  'meta',
-  'param',
-  'source',
-  'track',
-  'wbr'
-])
-
-const HTML_COMPLETION_PATTERNS = [
-  /<\/html\s*>/i,
-  /<!DOCTYPE\s+html/i,
-  /<\/body\s*>/i,
-  /<\/div\s*>/i,
-  /<\/script\s*>/i,
-  /<\/style\s*>/i
-]
-
 interface Props {
   html: string
-}
-
-function hasUnmatchedTags(html: string): boolean {
-  const stack: string[] = []
-  const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g
-  let match
-
-  while ((match = tagRegex.exec(html)) !== null) {
-    const [fullTag, tagName] = match
-    const isClosing = fullTag.startsWith('</')
-    const isSelfClosing = fullTag.endsWith('/>') || HTML_VOID_ELEMENTS.has(tagName.toLowerCase())
-
-    if (isSelfClosing) continue
-
-    if (isClosing) {
-      if (stack.length === 0 || stack.pop() !== tagName.toLowerCase()) {
-        return true
-      }
-    } else {
-      stack.push(tagName.toLowerCase())
-    }
-  }
-
-  return stack.length > 0
-}
-
-function checkIsStreaming(html: string): boolean {
-  if (!html?.trim()) return false
-
-  const trimmed = html.trim()
-
-  // 快速检查：如果有明显的完成标志，直接返回false
-  for (const pattern of HTML_COMPLETION_PATTERNS) {
-    if (pattern.test(trimmed)) {
-      // 特殊情况：同时有DOCTYPE和</body>
-      if (trimmed.includes('<!DOCTYPE') && /<\/body\s*>/i.test(trimmed)) {
-        return false
-      }
-      // 如果只是以</html>结尾，也认为是完成的
-      if (/<\/html\s*>$/i.test(trimmed)) {
-        return false
-      }
-    }
-  }
-
-  // 检查未完成的标志
-  const hasIncompleteTag = /<[^>]*$/.test(trimmed)
-  const hasUnmatched = hasUnmatchedTags(trimmed)
-
-  if (hasIncompleteTag || hasUnmatched) return true
-
-  // 对于简单片段，如果长度较短且没有明显结束标志，可能还在生成
-  const hasStructureTags = /<(html|body|head)[^>]*>/i.test(trimmed)
-  if (!hasStructureTags && trimmed.length < 500) {
-    return !HTML_COMPLETION_PATTERNS.some((pattern) => pattern.test(trimmed))
-  }
-
-  return false
+  onSave?: (html: string) => void
+  isStreaming?: boolean
 }
 
 const getTerminalStyles = (theme: ThemeMode) => ({
@@ -108,15 +26,14 @@ const getTerminalStyles = (theme: ThemeMode) => ({
   promptColor: theme === 'dark' ? '#00ff00' : '#007700'
 })
 
-const HtmlArtifactsCard: FC<Props> = ({ html }) => {
+const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => {
   const { t } = useTranslation()
-  const title = extractTitle(html) || 'HTML Artifacts'
+  const title = extractHtmlTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
   const { theme } = useTheme()
 
   const htmlContent = html || ''
   const hasContent = htmlContent.trim().length > 0
-  const isStreaming = useMemo(() => checkIsStreaming(htmlContent), [htmlContent])
 
   const handleOpenExternal = async () => {
     const path = await window.api.file.createTempFile('artifacts-preview.html')
@@ -126,12 +43,12 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
     if (window.api.shell?.openExternal) {
       window.api.shell.openExternal(filePath)
     } else {
-      logger.error(t('artifacts.preview.openExternal.error.content'))
+      logger.error(t('chat.artifacts.preview.openExternal.error.content'))
     }
   }
 
   const handleDownload = async () => {
-    const fileName = `${title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-') || 'html-artifact'}.html`
+    const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
     await window.api.file.save(fileName, htmlContent)
     window.message.success({ content: t('message.download.success'), key: 'download' })
   }
@@ -155,7 +72,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
           {isStreaming && !hasContent ? (
             <GeneratingContainer>
               <ClipLoader size={20} color="var(--color-primary)" />
-              <GeneratingText>{t('html_artifacts.generating_content', 'Generating content...')}</GeneratingText>
+              <GeneratingText>{t('html_artifacts.generating', 'Generating content...')}</GeneratingText>
             </GeneratingContainer>
           ) : isStreaming && hasContent ? (
             <>
@@ -181,18 +98,24 @@ const HtmlArtifactsCard: FC<Props> = ({ html }) => {
               <Button icon={<CodeOutlined />} onClick={() => setIsPopupOpen(true)} type="text" disabled={!hasContent}>
                 {t('chat.artifacts.button.preview')}
               </Button>
-              <Button icon={<LinkOutlined />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
+              <Button icon={<LinkIcon size={14} />} onClick={handleOpenExternal} type="text" disabled={!hasContent}>
                 {t('chat.artifacts.button.openExternal')}
               </Button>
-              <Button icon={<Download size={16} />} onClick={handleDownload} type="text" disabled={!hasContent}>
-                {t('code_block.download')}
+              <Button icon={<DownloadIcon size={14} />} onClick={handleDownload} type="text" disabled={!hasContent}>
+                {t('code_block.download.label')}
               </Button>
             </ButtonContainer>
           )}
         </Content>
       </Container>
 
-      <HtmlArtifactsPopup open={isPopupOpen} title={title} html={htmlContent} onClose={() => setIsPopupOpen(false)} />
+      <HtmlArtifactsPopup
+        open={isPopupOpen}
+        title={title}
+        html={htmlContent}
+        onSave={onSave}
+        onClose={() => setIsPopupOpen(false)}
+      />
     </>
   )
 }
@@ -203,6 +126,7 @@ const Container = styled.div<{ $isStreaming: boolean }>`
   border-radius: 8px;
   overflow: hidden;
   margin: 10px 0;
+  margin-top: 0;
 `
 
 const GeneratingContainer = styled.div`
@@ -233,8 +157,9 @@ const IconWrapper = styled.div<{ $isStreaming: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
   background: ${(props) =>
     props.$isStreaming
       ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
@@ -253,12 +178,16 @@ const TitleSection = styled.div`
   gap: 6px;
 `
 
-const Title = styled.h3`
-  margin: 0 !important;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text);
+const Title = styled.span`
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--color-text-1);
   line-height: 1.4;
+  font-family: 'Ubuntu';
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 `
 
 const TypeBadge = styled.div`
@@ -284,7 +213,6 @@ const ButtonContainer = styled.div`
   margin: 10px 16px !important;
   display: flex;
   flex-direction: row;
-  gap: 8px;
 `
 
 const TerminalPreview = styled.div<{ $theme: ThemeMode }>`
@@ -292,7 +220,7 @@ const TerminalPreview = styled.div<{ $theme: ThemeMode }>`
   background: ${(props) => getTerminalStyles(props.$theme).background};
   border-radius: 8px;
   overflow: hidden;
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-family: var(--code-font-family);
 `
 
 const TerminalContent = styled.div<{ $theme: ThemeMode }>`

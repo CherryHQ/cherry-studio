@@ -1,10 +1,22 @@
 import { loggerService } from '@logger'
-import { getFilesDir, getFileType, getTempDir, readTextFileWithAutoEncoding } from '@main/utils/file'
-import { documentExts, imageExts, MB } from '@shared/config/constant'
-import { FileMetadata } from '@types'
+import {
+  checkName,
+  getFilesDir,
+  getFileType,
+  getName,
+  getNotesDir,
+  getTempDir,
+  readTextFileWithAutoEncoding,
+  scanDir
+} from '@main/utils/file'
+import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
+import { FileMetadata, NotesTreeNode } from '@types'
+import chardet from 'chardet'
+import chokidar, { FSWatcher } from 'chokidar'
 import * as crypto from 'crypto'
 import {
   dialog,
+  net,
   OpenDialogOptions,
   OpenDialogReturnValue,
   SaveDialogOptions,
@@ -14,18 +26,49 @@ import {
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
+import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
-import pdfjs from 'pdfjs-dist'
+import { PDFDocument } from 'pdf-lib'
 import { chdir } from 'process'
 import { v4 as uuidv4 } from 'uuid'
 import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
+interface FileWatcherConfig {
+  watchExtensions?: string[]
+  ignoredPatterns?: (string | RegExp)[]
+  debounceMs?: number
+  maxDepth?: number
+  usePolling?: boolean
+  retryOnError?: boolean
+  retryDelayMs?: number
+  stabilityThreshold?: number
+  eventChannel?: string
+}
+
+const DEFAULT_WATCHER_CONFIG: Required<FileWatcherConfig> = {
+  watchExtensions: ['.md', '.markdown', '.txt'],
+  ignoredPatterns: [/(^|[/\\])\../, '**/node_modules/**', '**/.git/**', '**/*.tmp', '**/*.temp', '**/.DS_Store'],
+  debounceMs: 1000,
+  maxDepth: 10,
+  usePolling: false,
+  retryOnError: true,
+  retryDelayMs: 5000,
+  stabilityThreshold: 500,
+  eventChannel: 'file-change'
+}
+
 class FileStorage {
   private storageDir = getFilesDir()
+  private notesDir = getNotesDir()
   private tempDir = getTempDir()
+  private watcher?: FSWatcher
+  private watcherSender?: Electron.WebContents
+  private currentWatchPath?: string
+  private debounceTimer?: NodeJS.Timeout
+  private watcherConfig: Required<FileWatcherConfig> = DEFAULT_WATCHER_CONFIG
 
   constructor() {
     this.initStorageDir()
@@ -36,11 +79,14 @@ class FileStorage {
       if (!fs.existsSync(this.storageDir)) {
         fs.mkdirSync(this.storageDir, { recursive: true })
       }
+      if (!fs.existsSync(this.notesDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
       if (!fs.existsSync(this.tempDir)) {
         fs.mkdirSync(this.tempDir, { recursive: true })
       }
     } catch (error) {
-      logger.error('Failed to initialize storage directories:', error)
+      logger.error('Failed to initialize storage directories:', error as Error)
       throw error
     }
   }
@@ -58,7 +104,7 @@ class FileStorage {
 
   findDuplicateFile = async (filePath: string): Promise<FileMetadata | null> => {
     const stats = fs.statSync(filePath)
-    logger.debug('stats', stats, filePath)
+    logger.debug(`stats: ${stats}, filePath: ${filePath}`)
     const fileSize = stats.size
 
     const files = await fs.promises.readdir(this.storageDir)
@@ -139,9 +185,9 @@ class FileStorage {
       if (fileSizeInMB > 1) {
         try {
           await fs.promises.copyFile(sourcePath, destPath)
-          logger.debug('Image compressed successfully:', sourcePath)
+          logger.debug(`Image compressed successfully: ${sourcePath}`)
         } catch (jimpError) {
-          logger.error('Image compression failed:', jimpError)
+          logger.error('Image compression failed:', jimpError as Error)
           await fs.promises.copyFile(sourcePath, destPath)
         }
       } else {
@@ -149,14 +195,15 @@ class FileStorage {
         await fs.promises.copyFile(sourcePath, destPath)
       }
     } catch (error) {
-      logger.error('Image handling failed:', error)
+      logger.error('Image handling failed:', error as Error)
       // 错误情况下直接复制原文件
       await fs.promises.copyFile(sourcePath, destPath)
     }
   }
 
   public uploadFile = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<FileMetadata> => {
-    const duplicateFile = await this.findDuplicateFile(file.path)
+    const filePath = file.path
+    const duplicateFile = await this.findDuplicateFile(filePath)
 
     if (duplicateFile) {
       return duplicateFile
@@ -167,13 +214,13 @@ class FileStorage {
     const ext = path.extname(origin_name).toLowerCase()
     const destPath = path.join(this.storageDir, uuid + ext)
 
-    logger.info('[FileStorage] Uploading file:', file.path)
+    logger.info(`[FileStorage] Uploading file: ${filePath}`)
 
     // 根据文件类型选择处理方式
     if (imageExts.includes(ext)) {
-      await this.compressImage(file.path, destPath)
+      await this.compressImage(filePath, destPath)
     } else {
-      await fs.promises.copyFile(file.path, destPath)
+      await fs.promises.copyFile(filePath, destPath)
     }
 
     const stats = await fs.promises.stat(destPath)
@@ -191,7 +238,7 @@ class FileStorage {
       count: 1
     }
 
-    logger.debug('File uploaded:', fileMetadata)
+    logger.debug(`File uploaded: ${fileMetadata}`)
 
     return fileMetadata
   }
@@ -205,7 +252,7 @@ class FileStorage {
     const ext = path.extname(filePath)
     const fileType = getFileType(ext)
 
-    const fileInfo: FileMetadata = {
+    return {
       id: uuidv4(),
       origin_name: path.basename(filePath),
       name: path.basename(filePath),
@@ -216,8 +263,6 @@ class FileStorage {
       type: fileType,
       count: 1
     }
-
-    return fileInfo
   }
 
   // @TraceProperty({ spanName: 'deleteFile', tag: 'FileStorage' })
@@ -233,6 +278,122 @@ class FileStorage {
       return
     }
     await fs.promises.rm(path.join(this.storageDir, id), { recursive: true })
+  }
+
+  public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return
+      }
+
+      await fs.promises.rm(filePath, { force: true })
+      logger.debug(`External file deleted successfully: ${filePath}`)
+    } catch (error) {
+      logger.error('Failed to delete external file:', error as Error)
+      throw error
+    }
+  }
+
+  public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(dirPath)) {
+        return
+      }
+
+      await fs.promises.rm(dirPath, { recursive: true, force: true })
+      logger.debug(`External directory deleted successfully: ${dirPath}`)
+    } catch (error) {
+      logger.error('Failed to delete external directory:', error as Error)
+      throw error
+    }
+  }
+
+  public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Source file does not exist: ${filePath}`)
+      }
+
+      // 确保目标目录存在
+      const destDir = path.dirname(newPath)
+      if (!fs.existsSync(destDir)) {
+        await fs.promises.mkdir(destDir, { recursive: true })
+      }
+
+      // 移动文件
+      await fs.promises.rename(filePath, newPath)
+      logger.debug(`File moved successfully: ${filePath} to ${newPath}`)
+    } catch (error) {
+      logger.error('Move file failed:', error as Error)
+      throw error
+    }
+  }
+
+  public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(dirPath)) {
+        throw new Error(`Source directory does not exist: ${dirPath}`)
+      }
+
+      // 确保目标父目录存在
+      const parentDir = path.dirname(newDirPath)
+      if (!fs.existsSync(parentDir)) {
+        await fs.promises.mkdir(parentDir, { recursive: true })
+      }
+
+      // 移动目录
+      await fs.promises.rename(dirPath, newDirPath)
+      logger.debug(`Directory moved successfully: ${dirPath} to ${newDirPath}`)
+    } catch (error) {
+      logger.error('Move directory failed:', error as Error)
+      throw error
+    }
+  }
+
+  public renameFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newName: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Source file does not exist: ${filePath}`)
+      }
+
+      const dirPath = path.dirname(filePath)
+      const newFilePath = path.join(dirPath, newName + '.md')
+
+      // 如果目标文件已存在，抛出错误
+      if (fs.existsSync(newFilePath)) {
+        throw new Error(`Target file already exists: ${newFilePath}`)
+      }
+
+      // 重命名文件
+      await fs.promises.rename(filePath, newFilePath)
+      logger.debug(`File renamed successfully: ${filePath} to ${newFilePath}`)
+    } catch (error) {
+      logger.error('Rename file failed:', error as Error)
+      throw error
+    }
+  }
+
+  public renameDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newName: string): Promise<void> => {
+    try {
+      if (!fs.existsSync(dirPath)) {
+        throw new Error(`Source directory does not exist: ${dirPath}`)
+      }
+
+      const parentDir = path.dirname(dirPath)
+      const newDirPath = path.join(parentDir, newName)
+
+      // 如果目标目录已存在，抛出错误
+      if (fs.existsSync(newDirPath)) {
+        throw new Error(`Target directory already exists: ${newDirPath}`)
+      }
+
+      // 重命名目录
+      await fs.promises.rename(dirPath, newDirPath)
+      logger.debug(`Directory renamed successfully: ${dirPath} to ${newDirPath}`)
+    } catch (error) {
+      logger.error('Rename directory failed:', error as Error)
+      throw error
+    }
   }
 
   public readFile = async (
@@ -261,7 +422,7 @@ class FileStorage {
         return data
       } catch (error) {
         chdir(originalCwd)
-        logger.error('Failed to read file:', error)
+        logger.error('Failed to read file:', error as Error)
         throw error
       }
     }
@@ -273,7 +434,52 @@ class FileStorage {
         return fs.readFileSync(filePath, 'utf-8')
       }
     } catch (error) {
-      logger.error('Failed to read file:', error)
+      logger.error('Failed to read file:', error as Error)
+      throw new Error(`Failed to read file: ${filePath}.`)
+    }
+  }
+
+  public readExternalFile = async (
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    detectEncoding: boolean = false
+  ): Promise<string> => {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File does not exist: ${filePath}`)
+    }
+
+    const fileExtension = path.extname(filePath)
+
+    if (documentExts.includes(fileExtension)) {
+      const originalCwd = process.cwd()
+      try {
+        chdir(this.tempDir)
+
+        if (fileExtension === '.doc') {
+          const extractor = new WordExtractor()
+          const extracted = await extractor.extract(filePath)
+          chdir(originalCwd)
+          return extracted.getBody()
+        }
+
+        const data = await officeParser.parseOfficeAsync(filePath)
+        chdir(originalCwd)
+        return data
+      } catch (error) {
+        chdir(originalCwd)
+        logger.error('Failed to read file:', error as Error)
+        throw error
+      }
+    }
+
+    try {
+      if (detectEncoding) {
+        return readTextFileWithAutoEncoding(filePath)
+      } else {
+        return fs.readFileSync(filePath, 'utf-8')
+      }
+    } catch (error) {
+      logger.error('Failed to read file:', error as Error)
       throw new Error(`Failed to read file: ${filePath}.`)
     }
   }
@@ -292,6 +498,32 @@ class FileStorage {
     data: Uint8Array | string
   ): Promise<void> => {
     await fs.promises.writeFile(filePath, data)
+  }
+
+  public fileNameGuard = async (
+    _: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    fileName: string,
+    isFile: boolean
+  ): Promise<{ safeName: string; exists: boolean }> => {
+    const safeName = checkName(fileName)
+    const finalName = getName(dirPath, safeName, isFile)
+    const fullPath = path.join(dirPath, finalName + (isFile ? '.md' : ''))
+    const exists = fs.existsSync(fullPath)
+
+    logger.debug(`File name guard: ${fileName} -> ${finalName}, exists: ${exists}`)
+    return { safeName: finalName, exists }
+  }
+
+  public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
+    try {
+      logger.debug(`Attempting to create directory: ${dirPath}`)
+      await fs.promises.mkdir(dirPath, { recursive: true })
+      return dirPath
+    } catch (error) {
+      logger.error('Failed to create directory:', error as Error)
+      throw new Error(`Failed to create directory: ${dirPath}. Error: ${(error as Error).message}`)
+    }
   }
 
   public base64Image = async (
@@ -336,7 +568,7 @@ class FileStorage {
 
       await fs.promises.writeFile(destPath, buffer)
 
-      const fileMetadata: FileMetadata = {
+      return {
         id: uuid,
         origin_name: uuid + ext,
         name: uuid + ext,
@@ -347,11 +579,81 @@ class FileStorage {
         type: getFileType(ext),
         count: 1
       }
-
-      return fileMetadata
     } catch (error) {
-      logger.error('Failed to save base64 image:', error)
+      logger.error('Failed to save base64 image:', error as Error)
       throw error
+    }
+  }
+
+  public savePastedImage = async (
+    _: Electron.IpcMainInvokeEvent,
+    imageData: Uint8Array | Buffer,
+    extension?: string
+  ): Promise<FileMetadata> => {
+    try {
+      const uuid = uuidv4()
+      const ext = extension || '.png'
+      const destPath = path.join(this.storageDir, uuid + ext)
+
+      logger.debug('Saving pasted image:', {
+        storageDir: this.storageDir,
+        destPath,
+        bufferSize: imageData.length
+      })
+
+      // 确保目录存在
+      if (!fs.existsSync(this.storageDir)) {
+        fs.mkdirSync(this.storageDir, { recursive: true })
+      }
+
+      // 确保 imageData 是 Buffer
+      const buffer = Buffer.isBuffer(imageData) ? imageData : Buffer.from(imageData)
+
+      // 如果图片大于1MB，进行压缩处理
+      if (buffer.length > MB) {
+        await this.compressImageBuffer(buffer, destPath, ext)
+      } else {
+        await fs.promises.writeFile(destPath, buffer)
+      }
+
+      const stats = await fs.promises.stat(destPath)
+
+      return {
+        id: uuid,
+        origin_name: `pasted_image_${uuid}${ext}`,
+        name: uuid + ext,
+        path: destPath,
+        created_at: new Date().toISOString(),
+        size: stats.size,
+        ext: ext.slice(1),
+        type: getFileType(ext),
+        count: 1
+      }
+    } catch (error) {
+      logger.error('Failed to save pasted image:', error as Error)
+      throw error
+    }
+  }
+
+  private async compressImageBuffer(imageBuffer: Buffer, destPath: string, ext: string): Promise<void> {
+    try {
+      // 创建临时文件
+      const tempPath = path.join(this.tempDir, `temp_${uuidv4()}${ext}`)
+      await fs.promises.writeFile(tempPath, imageBuffer)
+
+      // 使用现有的压缩方法
+      await this.compressImage(tempPath, destPath)
+
+      // 清理临时文件
+      try {
+        await fs.promises.unlink(tempPath)
+      } catch (error) {
+        logger.warn('Failed to cleanup temp file:', error as Error)
+      }
+    } catch (error) {
+      logger.error('Image buffer compression failed, saving original:', error as Error)
+      // 压缩失败时保存原始文件
+      await fs.promises.writeFile(destPath, imageBuffer)
     }
   }
 
@@ -367,10 +669,8 @@ class FileStorage {
     const filePath = path.join(this.storageDir, id)
     const buffer = await fs.promises.readFile(filePath)
 
-    const doc = await pdfjs.getDocument({ data: buffer }).promise
-    const pages = doc.numPages
-    await doc.destroy()
-    return pages
+    const pdfDoc = await PDFDocument.load(buffer)
+    return pdfDoc.getPageCount()
   }
 
   public binaryImage = async (_: Electron.IpcMainInvokeEvent, id: string): Promise<{ data: Buffer; mime: string }> => {
@@ -389,7 +689,7 @@ class FileStorage {
 
   public clear = async (): Promise<void> => {
     await fs.promises.rm(this.storageDir, { recursive: true })
-    await this.initStorageDir()
+    this.initStorageDir()
   }
 
   public clearTemp = async (): Promise<void> => {
@@ -426,7 +726,7 @@ class FileStorage {
 
       return null
     } catch (err) {
-      logger.error('[IPC - Error]', 'An error occurred opening the file:', err)
+      logger.error('[IPC - Error] An error occurred opening the file:', err as Error)
       return null
     }
   }
@@ -437,6 +737,7 @@ class FileStorage {
 
   /**
    * 通过相对路径打开文件，跨设备时使用
+   * @param _
    * @param file
    */
   public openFileWithRelativePath = async (_: Electron.IpcMainInvokeEvent, file: FileMetadata): Promise<void> => {
@@ -444,7 +745,80 @@ class FileStorage {
     if (fs.existsSync(filePath)) {
       shell.openPath(filePath).catch((err) => logger.error('[IPC - Error] Failed to open file:', err))
     } else {
-      logger.warn('[IPC - Warning] File does not exist:', filePath)
+      logger.warn(`[IPC - Warning] File does not exist: ${filePath}`)
+    }
+  }
+
+  public getDirectoryStructure = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<NotesTreeNode[]> => {
+    try {
+      return await scanDir(dirPath)
+    } catch (error) {
+      logger.error('Failed to get directory structure:', error as Error)
+      throw error
+    }
+  }
+
+  public validateNotesDirectory = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<boolean> => {
+    try {
+      if (!dirPath || typeof dirPath !== 'string') {
+        return false
+      }
+
+      // Normalize path
+      const normalizedPath = path.resolve(dirPath)
+
+      // Check if directory exists
+      if (!fs.existsSync(normalizedPath)) {
+        return false
+      }
+
+      // Check if it's actually a directory
+      const stats = fs.statSync(normalizedPath)
+      if (!stats.isDirectory()) {
+        return false
+      }
+
+      // Get app paths to prevent selection of restricted directories
+      const appDataPath = path.resolve(process.env.APPDATA || path.join(require('os').homedir(), '.config'))
+      const filesDir = path.resolve(getFilesDir())
+      const currentNotesDir = path.resolve(getNotesDir())
+
+      // Prevent selecting app data directories
+      if (
+        normalizedPath.startsWith(filesDir) ||
+        normalizedPath.startsWith(appDataPath) ||
+        normalizedPath === currentNotesDir
+      ) {
+        logger.warn(`Invalid directory selection: ${normalizedPath} (app data directory)`)
+        return false
+      }
+
+      // Prevent selecting system root directories
+      const isSystemRoot =
+        process.platform === 'win32'
+          ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
+          : normalizedPath === '/' ||
+            normalizedPath === '/usr' ||
+            normalizedPath === '/etc' ||
+            normalizedPath === '/System'
+
+      if (isSystemRoot) {
+        logger.warn(`Invalid directory selection: ${normalizedPath} (system root directory)`)
+        return false
+      }
+
+      // Check write permissions
+      try {
+        fs.accessSync(normalizedPath, fs.constants.W_OK)
+      } catch (error) {
+        logger.warn(`Directory not writable: ${normalizedPath}`)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      logger.error('Failed to validate notes directory:', error as Error)
+      return false
     }
   }
 
@@ -466,12 +840,12 @@ class FileStorage {
       }
 
       if (!result.canceled && result.filePath) {
-        await writeFileSync(result.filePath, content, { encoding: 'utf-8' })
+        writeFileSync(result.filePath, content, { encoding: 'utf-8' })
       }
 
       return result.filePath
     } catch (err: any) {
-      logger.error('[IPC - Error]', 'An error occurred saving the file:', err)
+      logger.error('[IPC - Error] An error occurred saving the file:', err as Error)
       return Promise.reject('An error occurred saving the file: ' + err?.message)
     }
   }
@@ -488,7 +862,7 @@ class FileStorage {
         fs.writeFileSync(filePath, base64Data, 'base64')
       }
     } catch (error) {
-      logger.error('[IPC - Error]', 'An error occurred saving the image:', error)
+      logger.error('[IPC - Error] An error occurred saving the image:', error as Error)
     }
   }
 
@@ -506,7 +880,7 @@ class FileStorage {
 
       return null
     } catch (err) {
-      logger.error('[IPC - Error]', 'An error occurred selecting the folder:', err)
+      logger.error('[IPC - Error] An error occurred selecting the folder:', err as Error)
       return null
     }
   }
@@ -517,7 +891,7 @@ class FileStorage {
     isUseContentType?: boolean
   ): Promise<FileMetadata> => {
     try {
-      const response = await fetch(url)
+      const response = await net.fetch(url)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
@@ -557,7 +931,7 @@ class FileStorage {
       const stats = await fs.promises.stat(destPath)
       const fileType = getFileType(ext)
 
-      const fileMetadata: FileMetadata = {
+      return {
         id: uuid,
         origin_name: filename,
         name: uuid + ext,
@@ -568,10 +942,8 @@ class FileStorage {
         type: fileType,
         count: 1
       }
-
-      return fileMetadata
     } catch (error) {
-      logger.error('Download file error:', error)
+      logger.error('Download file error:', error as Error)
       throw error
     }
   }
@@ -608,9 +980,9 @@ class FileStorage {
 
       // 复制文件
       await fs.promises.copyFile(sourcePath, destPath)
-      logger.debug('File copied successfully:', { from: sourcePath, to: destPath })
+      logger.debug(`File copied successfully: ${sourcePath} to ${destPath}`)
     } catch (error) {
-      logger.error('Copy file failed:', error)
+      logger.error('Copy file failed:', error as Error)
       throw error
     }
   }
@@ -618,21 +990,252 @@ class FileStorage {
   public writeFileWithId = async (_: Electron.IpcMainInvokeEvent, id: string, content: string): Promise<void> => {
     try {
       const filePath = path.join(this.storageDir, id)
-      logger.debug('Writing file:', filePath)
+      logger.debug(`Writing file: ${filePath}`)
 
       // 确保目录存在
       if (!fs.existsSync(this.storageDir)) {
-        logger.debug('Creating storage directory:', this.storageDir)
+        logger.debug(`Creating storage directory: ${this.storageDir}`)
         fs.mkdirSync(this.storageDir, { recursive: true })
       }
 
       await fs.promises.writeFile(filePath, content, 'utf8')
-      logger.debug('File written successfully:', filePath)
+      logger.debug(`File written successfully: ${filePath}`)
     } catch (error) {
-      logger.error('Failed to write file:', error)
+      logger.error('Failed to write file:', error as Error)
       throw error
+    }
+  }
+
+  public startFileWatcher = async (
+    event: Electron.IpcMainInvokeEvent,
+    dirPath: string,
+    config?: FileWatcherConfig
+  ): Promise<void> => {
+    try {
+      this.watcherConfig = { ...DEFAULT_WATCHER_CONFIG, ...config }
+
+      if (!dirPath?.trim()) {
+        throw new Error('Directory path is required')
+      }
+
+      const normalizedPath = path.resolve(dirPath.trim())
+
+      if (!fs.existsSync(normalizedPath)) {
+        throw new Error(`Directory does not exist: ${normalizedPath}`)
+      }
+
+      const stats = fs.statSync(normalizedPath)
+      if (!stats.isDirectory()) {
+        throw new Error(`Path is not a directory: ${normalizedPath}`)
+      }
+
+      if (this.currentWatchPath === normalizedPath && this.watcher) {
+        this.watcherSender = event.sender
+        logger.debug('Already watching directory, updated sender', { path: normalizedPath })
+        return
+      }
+
+      await this.stopFileWatcher()
+
+      logger.info('Starting file watcher', {
+        path: normalizedPath,
+        config: {
+          extensions: this.watcherConfig.watchExtensions,
+          debounceMs: this.watcherConfig.debounceMs,
+          maxDepth: this.watcherConfig.maxDepth
+        }
+      })
+
+      this.currentWatchPath = normalizedPath
+      this.watcherSender = event.sender
+
+      const watchOptions = {
+        ignored: this.watcherConfig.ignoredPatterns,
+        persistent: true,
+        ignoreInitial: true,
+        depth: this.watcherConfig.maxDepth,
+        usePolling: this.watcherConfig.usePolling,
+        awaitWriteFinish: {
+          stabilityThreshold: this.watcherConfig.stabilityThreshold,
+          pollInterval: 100
+        },
+        alwaysStat: false,
+        atomic: true
+      }
+
+      this.watcher = chokidar.watch(normalizedPath, watchOptions)
+
+      const handleChange = this.createChangeHandler()
+
+      this.watcher
+        .on('add', (filePath: string) => handleChange('add', filePath))
+        .on('unlink', (filePath: string) => handleChange('unlink', filePath))
+        .on('addDir', (dirPath: string) => handleChange('addDir', dirPath))
+        .on('unlinkDir', (dirPath: string) => handleChange('unlinkDir', dirPath))
+        .on('error', (error: unknown) => {
+          logger.error('File watcher error', { error: error as Error, path: normalizedPath })
+          if (this.watcherConfig.retryOnError) {
+            this.handleWatcherError(error as Error)
+          }
+        })
+        .on('ready', () => {
+          logger.debug('File watcher ready', { path: normalizedPath })
+        })
+
+      logger.info('File watcher started successfully')
+    } catch (error) {
+      logger.error('Failed to start file watcher', error as Error)
+      this.cleanup()
+      throw error
+    }
+  }
+
+  private createChangeHandler() {
+    return (eventType: string, filePath: string) => {
+      if (!this.shouldWatchFile(filePath, eventType)) {
+        return
+      }
+
+      logger.debug('File change detected', { eventType, filePath, path: this.currentWatchPath })
+
+      // 对于目录操作，立即触发同步，不使用防抖
+      if (eventType === 'addDir' || eventType === 'unlinkDir') {
+        logger.debug('Directory operation detected, triggering immediate sync', { eventType, filePath })
+        this.notifyChange(eventType, filePath)
+        return
+      }
+
+      // 对于文件操作，使用防抖机制
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer)
+      }
+
+      this.debounceTimer = setTimeout(() => {
+        this.notifyChange(eventType, filePath)
+        this.debounceTimer = undefined
+      }, this.watcherConfig.debounceMs)
+    }
+  }
+
+  private shouldWatchFile(filePath: string, eventType: string): boolean {
+    if (eventType.includes('Dir')) {
+      return true
+    }
+
+    const ext = path.extname(filePath).toLowerCase()
+    return this.watcherConfig.watchExtensions.includes(ext)
+  }
+
+  private notifyChange(eventType: string, filePath: string) {
+    try {
+      if (!this.watcherSender || this.watcherSender.isDestroyed()) {
+        logger.warn('Sender destroyed, stopping watcher')
+        this.stopFileWatcher()
+        return
+      }
+
+      logger.debug('Sending file change event', {
+        eventType,
+        filePath,
+        channel: this.watcherConfig.eventChannel,
+        senderExists: !!this.watcherSender,
+        senderDestroyed: this.watcherSender.isDestroyed()
+      })
+      this.watcherSender.send(this.watcherConfig.eventChannel, {
+        eventType,
+        filePath,
+        watchPath: this.currentWatchPath
+      })
+      logger.debug('File change event sent successfully')
+    } catch (error) {
+      logger.error('Failed to send notification', error as Error)
+    }
+  }
+
+  private handleWatcherError(error: Error) {
+    const retryableErrors = ['EMFILE', 'ENFILE', 'ENOSPC']
+    const isRetryable = retryableErrors.some((code) => error.message.includes(code))
+
+    if (isRetryable && this.currentWatchPath && this.watcherSender && !this.watcherSender.isDestroyed()) {
+      logger.warn('Attempting restart due to recoverable error', { error: error.message })
+
+      setTimeout(async () => {
+        try {
+          if (this.currentWatchPath && this.watcherSender && !this.watcherSender.isDestroyed()) {
+            const mockEvent = { sender: this.watcherSender } as Electron.IpcMainInvokeEvent
+            await this.startFileWatcher(mockEvent, this.currentWatchPath, this.watcherConfig)
+          }
+        } catch (retryError) {
+          logger.error('Restart failed', retryError as Error)
+        }
+      }, this.watcherConfig.retryDelayMs)
+    }
+  }
+
+  private cleanup() {
+    this.currentWatchPath = undefined
+    this.watcherSender = undefined
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer)
+      this.debounceTimer = undefined
+    }
+  }
+
+  public stopFileWatcher = async (): Promise<void> => {
+    try {
+      if (this.watcher) {
+        logger.info('Stopping file watcher', { path: this.currentWatchPath })
+        await this.watcher.close()
+        this.watcher = undefined
+        logger.debug('File watcher stopped')
+      }
+      this.cleanup()
+    } catch (error) {
+      logger.error('Failed to stop file watcher', error as Error)
+      this.watcher = undefined
+      this.cleanup()
+    }
+  }
+
+  public getWatcherStatus(): { isActive: boolean; watchPath?: string; hasValidSender: boolean } {
+    return {
+      isActive: !!this.watcher,
+      watchPath: this.currentWatchPath,
+      hasValidSender: !!this.watcherSender && !this.watcherSender.isDestroyed()
+    }
+  }
+
+  public getFilePathById(file: FileMetadata): string {
+    return path.join(this.storageDir, file.id + file.ext)
+  }
+
+  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
+    try {
+      const isBinary = await isBinaryFile(filePath)
+      if (isBinary) {
+        return false
+      }
+
+      const length = 8 * KB
+      const fileHandle = await fs.promises.open(filePath, 'r')
+      const buffer = Buffer.alloc(length)
+      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
+      await fileHandle.close()
+
+      const sampleBuffer = buffer.subarray(0, bytesRead)
+      const matches = chardet.analyse(sampleBuffer)
+
+      // 如果检测到的编码置信度较高，认为是文本文件
+      if (matches.length > 0 && matches[0].confidence > 0.8) {
+        return true
+      }
+
+      return false
+    } catch (error) {
+      logger.error('Failed to check if file is text:', error as Error)
+      return false
     }
   }
 }
 
-export default FileStorage
+export const fileStorage = new FileStorage()

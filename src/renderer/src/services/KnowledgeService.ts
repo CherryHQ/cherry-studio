@@ -13,13 +13,24 @@ import { isEmpty } from 'lodash'
 import { getProviderByModel } from './AssistantService'
 import FileManager from './FileManager'
 
-const logger = loggerService.withContext('KnowledgeService')
+const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
   const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(provider)
   const rerankAiProvider = new AiProvider(rerankProvider)
+
+  // get preprocess provider from store instead of base.preprocessProvider
+  const preprocessProvider = store
+    .getState()
+    .preprocess.providers.find((p) => p.id === base.preprocessProvider?.provider.id)
+  const updatedPreprocessProvider = preprocessProvider
+    ? {
+        type: 'preprocess' as const,
+        provider: preprocessProvider
+      }
+    : base.preprocessProvider
 
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
@@ -57,13 +68,13 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: rerankAiProvider.getApiKey() || 'secret',
       baseURL: rerankHost
     },
-    preprocessOrOcrProvider: base.preprocessOrOcrProvider,
+    preprocessProvider: updatedPreprocessProvider,
     documentCount: base.documentCount
   }
 }
 
 export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> => {
-  logger.debug('getFileFromUrl', url)
+  logger.debug(`getFileFromUrl: ${url}`)
   let fileName = ''
 
   if (url && url.includes('CherryStudio')) {
@@ -75,10 +86,10 @@ export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> 
       fileName = url.split('\\Data\\Files\\')[1]
     }
   }
-  logger.debug('fileName', fileName)
+  logger.debug(`fileName: ${fileName}`)
   if (fileName) {
     const actualFileName = fileName.split(/[/\\]/).pop() || fileName
-    logger.debug('actualFileName', actualFileName)
+    logger.debug(`actualFileName: ${actualFileName}`)
     const fileId = actualFileName.split('.')[0]
     const file = await FileManager.getFile(fileId)
     if (file) {
@@ -162,7 +173,7 @@ export const searchKnowledgeBase = async (
     const result = await Promise.all(
       limitedResults.map(async (item) => {
         const file = await getFileFromUrl(item.metadata.source)
-        logger.debug('Knowledge search item:', item, 'File:', file)
+        logger.debug(`Knowledge search item: ${JSON.stringify(item)} File: ${JSON.stringify(file)}`)
         return { ...item, file }
       })
     )
@@ -176,7 +187,7 @@ export const searchKnowledgeBase = async (
     }
     return result
   } catch (error) {
-    logger.error(`Error searching knowledge base ${base.name}:`, error)
+    logger.error(`Error searching knowledge base ${base.name}:`, error as Error)
     if (topicId) {
       endSpan({
         topicId,

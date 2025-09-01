@@ -1,4 +1,3 @@
-import { DeleteOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
@@ -11,13 +10,15 @@ import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
-import { Plus } from 'lucide-react'
-import VirtualList from 'rc-virtual-list'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeFiles')
+
+import { DeleteIcon } from '@renderer/components/Icons'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
+import { PlusIcon } from 'lucide-react'
 
 import {
   ClickableSpan,
@@ -61,8 +62,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
+
+  const estimateSize = useCallback(() => 75, [])
 
   if (!base) {
     return null
@@ -122,10 +125,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   }
 
   const showPreprocessIcon = (item: KnowledgeItem) => {
-    if (base.preprocessOrOcrProvider && item.isPreprocessed !== false) {
+    if (base.preprocessProvider && item.isPreprocessed !== false) {
       return true
     }
-    if (!base.preprocessOrOcrProvider && item.isPreprocessed === true) {
+    if (!base.preprocessProvider && item.isPreprocessed === true) {
       return true
     }
     return false
@@ -136,7 +139,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
       <ItemHeader>
         <Button
           type="primary"
-          icon={<Plus size={16} />}
+          icon={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddFile()
@@ -160,15 +163,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
-          <VirtualList
-            data={fileItems.reverse()}
-            height={windowHeight - 270}
-            itemHeight={75}
-            itemKey="id"
-            styles={{
-              verticalScrollBar: { width: 6 },
-              verticalScrollBarThumb: { background: 'var(--color-scrollbar-thumb)' }
-            }}>
+          <DynamicVirtualList
+            list={fileItems.reverse()}
+            estimateSize={estimateSize}
+            overscan={2}
+            scrollerStyle={{ height: windowHeight - 270 }}
+            autoHideScrollbar>
             {(item) => {
               const file = item.content as FileType
               return (
@@ -210,7 +210,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          <Button
+                            type="text"
+                            danger
+                            onClick={() => removeItem(item)}
+                            icon={<DeleteIcon size={14} className="lucide-custom" />}
+                          />
                         </FlexAlignCenter>
                       )
                     }}
@@ -218,7 +223,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                 </div>
               )
             }}
-          </VirtualList>
+          </DynamicVirtualList>
         )}
       </ItemFlexColumn>
     </ItemContainer>

@@ -2,6 +2,7 @@
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
+import { net } from 'electron'
 import * as z from 'zod/v4'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
@@ -91,7 +92,7 @@ class DifyKnowledgeServer {
           {
             name: 'search_knowledge',
             description: 'Search knowledge by id and query',
-            inputSchema: SearchKnowledgeArgsSchema
+            inputSchema: z.toJSONSchema(SearchKnowledgeArgsSchema)
           }
         ]
       }
@@ -134,7 +135,7 @@ class DifyKnowledgeServer {
   private async performListKnowledges(difyKey: string, apiHost: string): Promise<McpResponse> {
     try {
       const url = `${apiHost.replace(/\/$/, '')}/datasets`
-      const response = await fetch(url, {
+      const response = await net.fetch(url, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${difyKey}`
@@ -166,7 +167,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      logger.error('Error fetching knowledge list:', error)
+      logger.error('Error fetching knowledge list:', error as Error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       // 返回包含错误信息的 MCP 响应
       return {
@@ -186,7 +187,7 @@ class DifyKnowledgeServer {
     try {
       const url = `${apiHost.replace(/\/$/, '')}/datasets/${id}/retrieve`
 
-      const response = await fetch(url, {
+      const response = await net.fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${difyKey}`,
@@ -245,7 +246,7 @@ class DifyKnowledgeServer {
         content: [{ type: 'text', text: formattedText }]
       }
     } catch (error) {
-      logger.error('Error searching knowledge:', error)
+      logger.error('Error searching knowledge:', error as Error)
       const errorMessage = error instanceof Error ? error.message : String(error)
       return {
         content: [{ type: 'text', text: `Search Knowledge Error: ${errorMessage}` }],

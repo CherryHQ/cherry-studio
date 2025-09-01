@@ -1,16 +1,16 @@
-import { DeleteOutlined, SaveOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { DeleteIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs, TabsProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingTitle } from '..'
@@ -31,6 +31,7 @@ interface MCPFormValues {
   env?: string
   isActive: boolean
   headers?: string
+  longRunning?: boolean
   timeout?: number
 
   provider?: string
@@ -75,10 +76,9 @@ const parseKeyValueString = (str: string): Record<string, string> => {
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
-  const {
-    server: { id: serverId }
-  } = useLocation().state as { server: MCPServer }
-  const server = useMCPServer(serverId).server as MCPServer
+  const { serverId } = useParams<{ serverId: string }>()
+  const decodedServerId = serverId ? decodeURIComponent(serverId) : ''
+  const server = useMCPServer(decodedServerId).server as MCPServer
   const { deleteMCPServer, updateMCPServer } = useMCPServers()
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
   const [form] = Form.useForm<MCPFormValues>()
@@ -156,6 +156,7 @@ const McpSettings: React.FC = () => {
       command: server.command || '',
       registryUrl: server.registryUrl || '',
       isActive: server.isActive,
+      longRunning: server.longRunning,
       timeout: server.timeout,
       args: server.args ? server.args.join('\n') : '',
       env: server.env
@@ -272,6 +273,7 @@ const McpSettings: React.FC = () => {
         registryUrl: values.registryUrl,
         searchKey: server.searchKey,
         timeout: values.timeout || server.timeout,
+        longRunning: values.longRunning,
         // Preserve existing advanced properties if not set in the form
         provider: values.provider || server.provider,
         providerUrl: values.providerUrl || server.providerUrl,
@@ -490,7 +492,7 @@ const McpSettings: React.FC = () => {
     [server, updateMCPServer]
   )
 
-  const tabs = [
+  const tabs: TabsProps['items'] = [
     {
       key: 'settings',
       label: t('settings.mcp.tabs.general'),
@@ -632,6 +634,14 @@ const McpSettings: React.FC = () => {
             </>
           )}
           <Form.Item
+            name="longRunning"
+            label={t('settings.mcp.longRunning', 'Long Running')}
+            tooltip={t('settings.mcp.longRunningTooltip')}
+            layout="horizontal"
+            valuePropName="checked">
+            <Switch size="small" style={{ marginLeft: 10 }} />
+          </Form.Item>
+          <Form.Item
             name="timeout"
             label={t('settings.mcp.timeout', 'Timeout')}
             tooltip={t(
@@ -661,11 +671,11 @@ const McpSettings: React.FC = () => {
               </Form.Item>
 
               <Form.Item name="providerUrl" label={t('settings.mcp.providerUrl', 'Provider URL')}>
-                <Input placeholder={t('settings.mcp.providerUrlPlaceholder', 'https://provider-website.com')} />
+                <Input placeholder="https://provider-website.com" />
               </Form.Item>
 
               <Form.Item name="logoUrl" label={t('settings.mcp.logoUrl', 'Logo URL')}>
-                <Input placeholder={t('settings.mcp.logoUrlPlaceholder', 'https://example.com/logo.png')} />
+                <Input placeholder="https://example.com/logo.png" />
               </Form.Item>
 
               <Form.Item name="tags" label={t('settings.mcp.tags', 'Tags')}>
@@ -695,7 +705,7 @@ const McpSettings: React.FC = () => {
     tabs.push(
       {
         key: 'tools',
-        label: t('settings.mcp.tabs.tools'),
+        label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
         children: (
           <MCPToolsSection
             tools={tools}
@@ -707,12 +717,12 @@ const McpSettings: React.FC = () => {
       },
       {
         key: 'prompts',
-        label: t('settings.mcp.tabs.prompts'),
+        label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
         children: <MCPPromptsSection prompts={prompts} />
       },
       {
         key: 'resources',
-        label: t('settings.mcp.tabs.resources'),
+        label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
         children: <MCPResourcesSection resources={resources} />
       }
     )
@@ -727,7 +737,12 @@ const McpSettings: React.FC = () => {
               <ServerName className="text-nowrap">{server?.name}</ServerName>
               {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
             </Flex>
-            <Button danger icon={<DeleteOutlined />} type="text" onClick={() => onDeleteMcpServer(server)} />
+            <Button
+              danger
+              icon={<DeleteIcon size={14} className="lucide-custom" />}
+              type="text"
+              onClick={() => onDeleteMcpServer(server)}
+            />
           </Flex>
           <Flex align="center" gap={16}>
             <Switch
@@ -738,7 +753,7 @@ const McpSettings: React.FC = () => {
             />
             <Button
               type="primary"
-              icon={<SaveOutlined />}
+              icon={<SaveIcon size={14} />}
               onClick={onSave}
               loading={loading}
               shape="round"

@@ -1,0 +1,59 @@
+.command-list-popover {
+  // Base styles are handled inline for theme support
+
+  // Arrow styles based on placement
+  &[data-placement^='bottom'] {
+    transform-origin: top center;
+    animation: slideDownAndFadeIn 0.15s ease-out;
+  }
+
+  &[data-placement^='top'] {
+    transform-origin: bottom center;
+    animation: slideUpAndFadeIn 0.15s ease-out;
+  }
+
+  &[data-placement*='start'] {
+    transform-origin: left center;
+  }
+
+  &[data-placement*='end'] {
+    transform-origin: right center;
+  }
+}
+
+@keyframes slideDownAndFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideUpAndFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+// Ensure smooth scrolling in virtual list
+.command-list-popover .dynamic-virtual-list {
+  scroll-behavior: smooth;
+}
+
+// Better focus indicators
+.command-list-popover [data-index] {
+  position: relative;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary, #1677ff);
+    outline-offset: -2px;
+  }
+}

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
-import { makeSureDirExists } from '@main/utils'
+import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -19,24 +19,25 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory'
 // Import notification schemas from MCP SDK
 import {
   CancelledNotificationSchema,
+  type GetPromptResult,
   LoggingMessageNotificationSchema,
-  ProgressNotificationSchema,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import type {
-  GetMCPPromptResponse,
-  GetResourceResponse,
-  MCPCallToolResponse,
-  MCPPrompt,
-  MCPResource,
-  MCPServer,
-  MCPTool
+import {
+  BuiltinMCPServerNames,
+  type GetResourceResponse,
+  isBuiltinMCPServer,
+  type MCPCallToolResponse,
+  type MCPPrompt,
+  type MCPResource,
+  type MCPServer,
+  type MCPTool
 } from '@types'
-import { app } from 'electron'
+import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -46,6 +47,7 @@ import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import getLoginShellEnvironment from './mcp/shell-env'
+import { windowService } from './WindowService'
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -169,7 +171,7 @@ class McpService {
           StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         > => {
           // Create appropriate transport based on configuration
-          if (server.type === 'inMemory') {
+          if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
             logger.debug(`Using in-memory transport for server: ${server.name}`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
@@ -191,6 +193,7 @@ class McpService {
                 },
                 authProvider
               }
+              logger.debug(`StreamableHTTPClientTransport options:`, options)
               return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
@@ -206,11 +209,11 @@ class McpService {
                           headers['Authorization'] = `Bearer ${tokens.access_token}`
                         }
                       } catch (error) {
-                        logger.error('Failed to fetch tokens:', error)
+                        logger.error('Failed to fetch tokens:', error as Error)
                       }
                     }
 
-                    return fetch(url, { ...init, headers })
+                    return net.fetch(typeof url === 'string' ? url : url.toString(), { ...init, headers })
                   }
                 },
                 requestInit: {
@@ -285,7 +288,7 @@ class McpService {
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
             if (cmd.includes('bun')) {
-              this.removeProxyEnv(loginShellEnv)
+              removeEnvProxy(loginShellEnv)
             }
 
             const transportOptions: any = {
@@ -348,7 +351,7 @@ class McpService {
 
             logger.debug(`Successfully authenticated with server: ${server.name}`)
           } catch (oauthError) {
-            logger.error(`OAuth authentication failed for server ${server.name}:`, oauthError)
+            logger.error(`OAuth authentication failed for server ${server.name}:`, oauthError as Error)
             throw new Error(
               `OAuth authentication failed: ${oauthError instanceof Error ? oauthError.message : String(oauthError)}`
             )
@@ -437,11 +440,6 @@ class McpService {
         this.clearResourceCaches(serverKey)
       })
 
-      // Set up progress notification handler
-      client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
-        logger.debug(`Progress notification received for server: ${server.name}`, notification.params)
-      })
-
       // Set up cancelled notification handler
       client.setNotificationHandler(CancelledNotificationSchema, async (notification) => {
         logger.debug(`Operation cancelled for server: ${server.name}`, notification.params)
@@ -454,7 +452,7 @@ class McpService {
 
       logger.debug(`Set up notification handlers for server: ${server.name}`)
     } catch (error) {
-      logger.error(`Failed to set up notification handlers for server ${server.name}:`, error)
+      logger.error(`Failed to set up notification handlers for server ${server.name}:`, error as Error)
     }
   }
 
@@ -510,7 +508,7 @@ class McpService {
           logger.debug(`Cleaned up DXT server directory for: ${server.name}`)
         }
       } catch (error) {
-        logger.error(`Failed to cleanup DXT server: ${server.name}`, error)
+        logger.error(`Failed to cleanup DXT server: ${server.name}`, error as Error)
       }
     }
   }
@@ -552,7 +550,7 @@ class McpService {
       logger.debug(`Connectivity check successful for server: ${server.name}`)
       return true
     } catch (error) {
-      logger.error(`Connectivity check failed for server: ${server.name}`, error)
+      logger.error(`Connectivity check failed for server: ${server.name}`, error as Error)
       // Close the client if connectivity check fails to ensure a clean state for the next attempt
       const serverKey = this.getServerKey(server)
       await this.closeClient(serverKey)
@@ -563,6 +561,7 @@ class McpService {
   private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
     logger.debug(`Listing tools for server: ${server.name}`)
     const client = await this.initClient(server)
+    logger.debug(`Client for server: ${server.name}`, client)
     try {
       const { tools } = await client.listTools()
       const serverTools: MCPTool[] = []
@@ -614,26 +613,37 @@ class McpService {
 
     const callToolFunc = async ({ server, name, args }: CallToolArgs) => {
       try {
-        logger.debug('Calling:', server.name, name, args, 'callId:', toolCallId)
+        logger.debug(`Calling: ${server.name} ${name} ${JSON.stringify(args)} callId: ${toolCallId}`, server)
         if (typeof args === 'string') {
           try {
             args = JSON.parse(args)
           } catch (e) {
             logger.error('args parse error', args)
           }
+          if (args === '') {
+            args = {}
+          }
         }
         const client = await this.initClient(server)
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             logger.debug(`Progress: ${process.progress / (process.total || 1)}`)
-            window.api.mcp.setProgress(process.progress / (process.total || 1))
+            logger.debug(`Progress notification received for server: ${server.name}`, process)
+            const mainWindow = windowService.getMainWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('mcp-progress', process.progress / (process.total || 1))
+            }
           },
-          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute
+          timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
+          // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
+          resetTimeoutOnProgress: server.longRunning,
+          maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
           signal: this.activeToolCalls.get(toolCallId)?.signal
         })
         return result as MCPCallToolResponse
       } catch (error) {
-        logger.error(`Error calling tool ${name} on ${server.name}:`, error)
+        logger.error(`Error calling tool ${name} on ${server.name}:`, error as Error)
         throw error
       } finally {
         this.activeToolCalls.delete(toolCallId)
@@ -694,11 +704,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(
-    server: MCPServer,
-    name: string,
-    args?: Record<string, any>
-  ): Promise<GetMCPPromptResponse> {
+  private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.initClient(server)
     return await client.getPrompt({ name, arguments: args })
@@ -711,8 +717,8 @@ class McpService {
   public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
     { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
-  ): Promise<GetMCPPromptResponse> {
-    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetMCPPromptResponse>(
+  ): Promise<GetPromptResult> {
+    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
         const serverKey = this.getServerKey(server)
@@ -820,18 +826,10 @@ class McpService {
       logger.debug('Successfully fetched login shell environment variables:')
       return loginEnv
     } catch (error) {
-      logger.error('Failed to fetch login shell environment variables:', error)
+      logger.error('Failed to fetch login shell environment variables:', error as Error)
       return {}
     }
   })
-
-  private removeProxyEnv(env: Record<string, string>) {
-    delete env.HTTPS_PROXY
-    delete env.HTTP_PROXY
-    delete env.grpc_proxy
-    delete env.http_proxy
-    delete env.https_proxy
-  }
 
   // 实现 abortTool 方法
   public async abortTool(_: Electron.IpcMainInvokeEvent, callId: string) {

@@ -4,7 +4,7 @@ import { getTokenStyleObject, type HighlighterGeneric, SpecialLanguage, ThemedTo
 
 import { AsyncInitializer } from './asyncInitializer'
 
-export const DEFAULT_LANGUAGES = ['javascript', 'typescript', 'python', 'java', 'markdown', 'json']
+export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 'java', 'markdown', 'json']
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 
 const logger = loggerService.withContext('Shiki')
@@ -27,19 +27,19 @@ export async function getShiki() {
 /**
  * shiki highlighter 初始化器，避免并发问题
  */
-const highlighterInitializer = new AsyncInitializer(async () => {
+const highlighterInitializer = new AsyncInitializer(async (langs?: string[], themes?: string[]) => {
   const shiki = await getShiki()
   return shiki.createHighlighter({
-    langs: DEFAULT_LANGUAGES,
-    themes: DEFAULT_THEMES
+    langs: langs || DEFAULT_LANGUAGES,
+    themes: themes || DEFAULT_THEMES
   })
 })
 
 /**
  * 获取 shiki highlighter
  */
-export async function getHighlighter() {
-  return highlighterInitializer.get()
+export async function getHighlighter(langs?: string[], themes?: string[]) {
+  return highlighterInitializer.get(langs, themes)
 }
 
 /**
@@ -90,7 +90,7 @@ export async function loadThemeIfNeeded(highlighter: HighlighterGeneric<any, any
       await highlighter.loadTheme(themeData)
     } catch (error) {
       // 回退到 one-light
-      logger.debug(`Failed to load theme '${theme}', falling back to 'one-light':`, error)
+      logger.debug(`Failed to load theme '${theme}', falling back to 'one-light':`, error as Error)
       const oneLightTheme = await shiki.bundledThemes['one-light']()
       await highlighter.loadTheme(oneLightTheme)
       loadedTheme = 'one-light'
@@ -156,7 +156,7 @@ export async function getMarkdownIt(theme: string, markdown: string) {
   try {
     actualTheme = await loadThemeIfNeeded(highlighter, theme)
   } catch (error) {
-    logger.debug(`Failed to load theme '${theme}', using 'one-light' as fallback:`, error)
+    logger.debug(`Failed to load theme '${theme}', using 'one-light' as fallback:`, error as Error)
     actualTheme = 'one-light'
   }
 

@@ -127,7 +127,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
 
       onOk(searchEngine)
     } catch (error) {
-      logger.debug('Validation failed:', error)
+      logger.debug('Validation failed:', error as Error)
     }
   }
 
@@ -149,7 +149,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
       open={isModalOpen}
       onOk={handleOk}
       onCancel={handleCancel}
-      destroyOnClose
+      destroyOnHidden
       centered>
       <Form
         form={form}

@@ -41,6 +41,7 @@ stats.html
 # ENV
 .env
 .env.*
+!.env.example
 
 # Local
 local
@@ -49,8 +50,10 @@ local
 .cursor/*
 .claude/*
 .gemini/*
+.qwen/*
 .trae/*
 .claude-code-router/*
+CLAUDE.local.md
 
 # vitest
 coverage

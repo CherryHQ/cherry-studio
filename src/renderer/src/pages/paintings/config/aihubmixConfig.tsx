@@ -51,12 +51,12 @@ export type ConfigItem = {
   condition?: (painting: PaintingAction) => boolean
 }
 
-export type AihubmixMode = 'generate' | 'remix' | 'upscale'
+export type AihubmixMode = 'aihubmix_image_generate' | 'aihubmix_image_remix' | 'aihubmix_image_upscale'
 
 // 创建配置项函数
 export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   return {
-    generate: [
+    aihubmix_image_generate: [
       {
         type: 'select',
         key: 'model',
@@ -72,9 +72,8 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
             label: 'Gemini',
             title: 'Gemini',
             options: [
-              { label: 'imagen-4.0-preview', value: 'imagen-4.0-generate-preview-05-20' },
-              { label: 'imagen-4.0-ultra-exp', value: 'imagen-4.0-ultra-generate-exp-05-20' },
-              { label: 'imagen-3.0', value: 'imagen-3.0-generate-001' }
+              { label: 'imagen-4.0-preview', value: 'imagen-4.0-generate-preview-06-06' },
+              { label: 'imagen-4.0-ultra', value: 'imagen-4.0-ultra-generate-preview-06-06' }
             ]
           },
           {
@@ -89,6 +88,11 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
               { label: 'ideogram_V_1', value: 'V_1' },
               { label: 'ideogram_V_1_TURBO', value: 'V_1_TURBO' }
             ]
+          },
+          {
+            label: 'Flux',
+            title: 'Flux',
+            options: [{ label: 'FLUX.1-Kontext-pro', value: 'FLUX.1-Kontext-pro' }]
           }
         ]
       },
@@ -206,7 +210,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         max: 4,
         initialValue: 4,
         condition: (painting) =>
-          Boolean(painting.model?.startsWith('imagen-') && painting.model !== 'imagen-4.0-ultra-generate-exp-05-20')
+          Boolean(painting.model?.startsWith('imagen-') && painting.model !== 'imagen-4.0-ultra-generate-preview-06-06')
       },
       {
         type: 'select',
@@ -230,9 +234,39 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         options: PERSON_GENERATION_OPTIONS,
         initialValue: 'ALLOW_ALL',
         condition: (painting) => Boolean(painting.model?.startsWith('imagen-'))
+      },
+      // {
+      //   type: 'slider',
+      //   key: 'width',
+      //   title: 'paintings.generate.width',
+      //   min: 256,
+      //   max: 1440,
+      //   initialValue: 1024,
+      //   step: 32,
+      //   condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
+      // },
+      // {
+      //   type: 'slider',
+      //   key: 'height',
+      //   title: 'paintings.generate.height',
+      //   min: 256,
+      //   max: 1440,
+      //   initialValue: 768,
+      //   step: 32,
+      //   condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
+      // },
+      {
+        type: 'slider',
+        key: 'safetyTolerance',
+        title: 'paintings.generate.safety_tolerance',
+        tooltip: 'paintings.generate.safety_tolerance_tip',
+        min: 0,
+        max: 6,
+        initialValue: 6,
+        condition: (painting) => painting.model === 'FLUX.1-Kontext-pro'
       }
     ],
-    remix: [
+    aihubmix_image_remix: [
       {
         type: 'image',
         key: 'imageFile',
@@ -315,7 +349,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         tooltip: 'paintings.remix.magic_prompt_option_tip'
       }
     ],
-    upscale: [
+    aihubmix_image_upscale: [
       {
         type: 'image',
         key: 'imageFile',
@@ -385,5 +419,6 @@ export const DEFAULT_PAINTING: PaintingAction = {
   quality: 'auto',
   moderation: 'auto',
   n: 1,
-  numberOfImages: 4
+  numberOfImages: 4,
+  safetyTolerance: 6
 }

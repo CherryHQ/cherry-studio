@@ -3,17 +3,14 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import {
-  isOpenAIModel,
-  isSupportedFlexServiceTier,
-  isSupportedReasoningEffortOpenAIModel
-} from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
+import { isOpenAIModel } from '@renderer/config/models'
+import { UNKNOWN } from '@renderer/config/translate'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
@@ -25,12 +22,13 @@ import {
   setCodeCollapsible,
   setCodeEditor,
   setCodeExecution,
-  setCodePreview,
+  setCodeImageTools,
   setCodeShowLineNumbers,
+  setCodeViewer,
   setCodeWrappable,
-  setEnableBackspaceDeleteModel,
   setEnableQuickPanelTriggers,
   setFontSize,
+  setMathEnableSingleDollar,
   setMathEngine,
   setMessageFont,
   setMessageNavigation,
@@ -40,6 +38,7 @@ import {
   setPasteLongTextThreshold,
   setRenderInputMessageAsMarkdown,
   setShowInputEstimatedTokens,
+  setShowMessageOutline,
   setShowPrompt,
   setShowTranslateConfirm,
   setThoughtAutoCollapse
@@ -68,11 +67,14 @@ const SettingsTab: FC<Props> = (props) => {
   const { themeNames } = useCodeStyle()
 
   const [temperature, setTemperature] = useState(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
+  const [enableTemperature, setEnableTemperature] = useState(assistant?.settings?.enableTemperature ?? true)
   const [contextCount, setContextCount] = useState(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
   const [enableMaxTokens, setEnableMaxTokens] = useState(assistant?.settings?.enableMaxTokens ?? false)
   const [maxTokens, setMaxTokens] = useState(assistant?.settings?.maxTokens ?? 0)
   const [fontSizeValue, setFontSizeValue] = useState(fontSize)
-  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput ?? true)
+  const [streamOutput, setStreamOutput] = useState(assistant?.settings?.streamOutput)
+  const { translateLanguages } = useTranslate()
+
   const { t } = useTranslation()
 
   const dispatch = useAppDispatch()
@@ -91,17 +93,19 @@ const SettingsTab: FC<Props> = (props) => {
     codeCollapsible,
     codeWrappable,
     codeEditor,
-    codePreview,
+    codeViewer,
+    codeImageTools,
     codeExecution,
     mathEngine,
+    mathEnableSingleDollar,
     autoTranslateWithSpace,
     pasteLongTextThreshold,
     multiModelMessageStyle,
     thoughtAutoCollapse,
     messageNavigation,
     enableQuickPanelTriggers,
-    enableBackspaceDeleteModel,
-    showTranslateConfirm
+    showTranslateConfirm,
+    showMessageOutline
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -132,21 +136,21 @@ const SettingsTab: FC<Props> = (props) => {
         ? codeEditor.themeLight
         : codeEditor.themeDark
       : theme === ThemeMode.light
-        ? codePreview.themeLight
-        : codePreview.themeDark
+        ? codeViewer.themeLight
+        : codeViewer.themeDark
   }, [
     codeEditor.enabled,
     codeEditor.themeLight,
     codeEditor.themeDark,
     theme,
-    codePreview.themeLight,
-    codePreview.themeDark
+    codeViewer.themeLight,
+    codeViewer.themeDark
   ])
 
   const onCodeStyleChange = useCallback(
     (value: CodeStyleVarious) => {
       const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
-      const action = codeEditor.enabled ? setCodeEditor : setCodePreview
+      const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
       dispatch(action({ [field]: value }))
     },
     [dispatch, theme, codeEditor.enabled]
@@ -154,6 +158,7 @@ const SettingsTab: FC<Props> = (props) => {
 
   useEffect(() => {
     setTemperature(assistant?.settings?.temperature ?? DEFAULT_TEMPERATURE)
+    setEnableTemperature(assistant?.settings?.enableTemperature ?? true)
     setContextCount(assistant?.settings?.contextCount ?? DEFAULT_CONTEXTCOUNT)
     setEnableMaxTokens(assistant?.settings?.enableMaxTokens ?? false)
     setMaxTokens(assistant?.settings?.maxTokens ?? DEFAULT_MAX_TOKENS)
@@ -166,11 +171,6 @@ const SettingsTab: FC<Props> = (props) => {
   const model = assistant.model || getDefaultModel()
 
   const isOpenAI = isOpenAIModel(model)
-  const isOpenAIReasoning =
-    isSupportedReasoningEffortOpenAIModel(model) &&
-    !model.id.includes('o1-pro') &&
-    (provider.type === 'openai-response' || provider.id === 'aihubmix')
-  const isOpenAIFlexServiceTier = isSupportedFlexServiceTier(model)
 
   return (
     <Container className="settings-tab">
@@ -189,25 +189,38 @@ const SettingsTab: FC<Props> = (props) => {
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
-            <SettingRowTitleSmall>{t('chat.settings.temperature')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('chat.settings.temperature.label')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
+            <Switch
+              size="small"
+              style={{ marginLeft: 'auto' }}
+              checked={enableTemperature}
+              onChange={(enabled) => {
+                setEnableTemperature(enabled)
+                onUpdateAssistantSettings({ enableTemperature: enabled })
+              }}
+            />
           </Row>
-          <Row align="middle" gutter={10}>
-            <Col span={23}>
-              <Slider
-                min={0}
-                max={2}
-                onChange={setTemperature}
-                onChangeComplete={onTemperatureChange}
-                value={typeof temperature === 'number' ? temperature : 0}
-                step={0.1}
-              />
-            </Col>
-          </Row>
+          {enableTemperature ? (
+            <Row align="middle" gutter={10}>
+              <Col span={23}>
+                <Slider
+                  min={0}
+                  max={2}
+                  onChange={setTemperature}
+                  onChangeComplete={onTemperatureChange}
+                  value={typeof temperature === 'number' ? temperature : 0}
+                  step={0.1}
+                />
+              </Col>
+            </Row>
+          ) : (
+            <SettingDivider />
+          )}
           <Row align="middle">
-            <SettingRowTitleSmall>{t('chat.settings.context_count')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('chat.settings.context_count.label')}</SettingRowTitleSmall>
             <Tooltip title={t('chat.settings.context_count.tip')}>
               <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
             </Tooltip>
@@ -239,7 +252,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <Row align="middle">
-              <SettingRowTitleSmall>{t('chat.settings.max_tokens')}</SettingRowTitleSmall>
+              <SettingRowTitleSmall>{t('chat.settings.max_tokens.label')}</SettingRowTitleSmall>
               <Tooltip title={t('chat.settings.max_tokens.tip')}>
                 <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
@@ -285,8 +298,8 @@ const SettingsTab: FC<Props> = (props) => {
       </CollapsibleSettingGroup>
       {isOpenAI && (
         <OpenAISettingsGroup
-          isOpenAIReasoning={isOpenAIReasoning}
-          isSupportedFlexServiceTier={isOpenAIFlexServiceTier}
+          model={model}
+          providerId={provider.id}
           SettingGroup={SettingGroup}
           SettingRowTitleSmall={SettingRowTitleSmall}
         />
@@ -309,7 +322,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>
-              {t('chat.settings.thought_auto_collapse')}
+              {t('chat.settings.thought_auto_collapse.label')}
               <Tooltip title={t('chat.settings.thought_auto_collapse.tip')}>
                 <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
@@ -322,7 +335,16 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.style')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={showMessageOutline}
+              onChange={(checked) => dispatch(setShowMessageOutline(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
               onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
@@ -334,14 +356,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.multi_model_style')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
             <Selector
               value={multiModelMessageStyle}
-              onChange={(value) =>
-                dispatch(setMultiModelMessageStyle(value as 'fold' | 'vertical' | 'horizontal' | 'grid'))
-              }
+              onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
               options={[
-                { value: 'fold', label: t('message.message.multi_model_style.fold') },
+                { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
                 { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
                 { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
                 { value: 'grid', label: t('message.message.multi_model_style.grid') }
@@ -350,7 +370,7 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.navigation')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
               onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
@@ -358,19 +378,6 @@ const SettingsTab: FC<Props> = (props) => {
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
                 { value: 'anchor', label: t('settings.messages.navigation.anchor') }
-              ]}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.math_engine')}</SettingRowTitleSmall>
-            <Selector
-              value={mathEngine}
-              onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
-              options={[
-                { value: 'KaTeX', label: 'KaTeX' },
-                { value: 'MathJax', label: 'MathJax' },
-                { value: 'none', label: t('settings.messages.math_engine.none') }
               ]}
             />
           </SettingRow>
@@ -395,6 +402,37 @@ const SettingsTab: FC<Props> = (props) => {
               />
             </Col>
           </Row>
+          <SettingDivider />
+        </SettingGroup>
+      </CollapsibleSettingGroup>
+      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={true}>
+        <SettingGroup>
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
+            <Selector
+              value={mathEngine}
+              onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
+              options={[
+                { value: 'KaTeX', label: 'KaTeX' },
+                { value: 'MathJax', label: 'MathJax' },
+                { value: 'none', label: t('settings.math.engine.none') }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('settings.math.single_dollar.label')}{' '}
+              <Tooltip title={t('settings.math.single_dollar.tip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={mathEnableSingleDollar}
+              onChange={(checked) => dispatch(setMathEnableSingleDollar(checked))}
+            />
+          </SettingRow>
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
@@ -430,7 +468,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingDivider />
               <SettingRow style={{ paddingLeft: 8 }}>
                 <SettingRowTitleSmall>
-                  {t('chat.settings.code_execution.timeout_minutes')}
+                  {t('chat.settings.code_execution.timeout_minutes.label')}
                   <Tooltip title={t('chat.settings.code_execution.timeout_minutes.tip')}>
                     <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                   </Tooltip>
@@ -519,6 +557,15 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
             <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
           </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('chat.settings.code_image_tools')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeImageTools}
+              onChange={(checked) => dispatch(setCodeImageTools(checked))}
+            />
+          </SettingRow>
         </SettingGroup>
         <SettingDivider />
       </CollapsibleSettingGroup>
@@ -600,20 +647,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.enable_delete_model')}</SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={enableBackspaceDeleteModel}
-              onChange={(checked) => dispatch(setEnableBackspaceDeleteModel(checked))}
-            />
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitleSmall>{t('settings.input.target_language')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
             <Selector
               value={targetLanguage}
               onChange={(value) => setTargetLanguage(value)}
-              options={translateLanguageOptions.map((item) => {
+              placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
+              options={translateLanguages.map((item) => {
                 return { value: item.langCode, label: item.emoji + ' ' + item.label() }
               })}
             />

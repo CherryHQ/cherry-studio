@@ -14,6 +14,7 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -35,6 +36,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
+import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('AihubmixPage')
 
@@ -42,9 +44,27 @@ const logger = loggerService.withContext('AihubmixPage')
 const modeConfigs = createModeConfigs()
 
 const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [mode, setMode] = useState<keyof PaintingsState>('generate')
-  const { addPainting, removePainting, updatePainting, persistentData } = usePaintings()
-  const filteredPaintings = useMemo(() => persistentData[mode] || [], [persistentData, mode])
+  const [mode, setMode] = useState<keyof PaintingsState>('aihubmix_image_generate')
+  const {
+    addPainting,
+    removePainting,
+    updatePainting,
+    aihubmix_image_generate,
+    aihubmix_image_remix,
+    aihubmix_image_edit,
+    aihubmix_image_upscale
+  } = usePaintings()
+
+  const paintings = useMemo(() => {
+    return {
+      aihubmix_image_generate,
+      aihubmix_image_remix,
+      aihubmix_image_edit,
+      aihubmix_image_upscale
+    }
+  }, [aihubmix_image_generate, aihubmix_image_remix, aihubmix_image_edit, aihubmix_image_upscale])
+
+  const filteredPaintings = useMemo(() => paintings[mode] || [], [paintings, mode])
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
@@ -58,9 +78,16 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
-    return {
-      label: t(`provider.${provider?.id}`),
-      value: provider?.id
+    if (provider) {
+      return {
+        label: getProviderLabel(provider.id),
+        value: provider.id
+      }
+    } else {
+      return {
+        label: 'Unknown Provider',
+        value: undefined
+      }
     }
   })
   const dispatch = useAppDispatch()
@@ -80,7 +107,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const getNewPainting = useCallback(() => {
     return {
       ...DEFAULT_PAINTING,
-      model: mode === 'generate' ? 'gpt-image-1' : 'V_3',
+      model: mode === 'aihubmix_image_generate' ? 'gpt-image-1' : 'V_3',
       id: uuid()
     }
   }, [mode])
@@ -116,7 +143,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
           return await window.api.file.download(url)
         } catch (error) {
-          logger.error('下载图像失败:', error)
+          logger.error('下载图像失败:', error as Error)
           if (
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
@@ -135,6 +162,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(aihubmixProvider, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -147,14 +176,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
     updatePaintingState({ prompt })
-
-    if (!aihubmixProvider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
 
     if (!aihubmixProvider.apiKey) {
       window.modal.error({
@@ -180,14 +201,14 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     let url = aihubmixProvider.apiHost + `/ideogram/` + mode
 
     try {
-      if (mode === 'generate') {
+      if (mode === 'aihubmix_image_generate') {
         if (painting.model.startsWith('imagen-')) {
           const AI = new AiProvider(aihubmixProvider)
           const base64s = await AI.generateImage({
             prompt,
             model: painting.model,
             imageSize: painting.aspectRatio?.replace('ASPECT_', '').replace('_', ':') || '1:1',
-            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate-exp') ? 1 : painting.numberOfImages || 1,
+            batchSize: painting.model.startsWith('imagen-4.0-ultra-generate') ? 1 : painting.numberOfImages || 1,
             personGeneration: painting.personGeneration
           })
           if (base64s?.length > 0) {
@@ -306,6 +327,18 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             headers = {
               Authorization: `Bearer ${aihubmixProvider.apiKey}`
             }
+          } else if (painting.model === 'FLUX.1-Kontext-pro') {
+            requestData = {
+              prompt,
+              model: painting.model,
+              // width: painting.width,
+              // height: painting.height,
+              safety_tolerance: painting.safetyTolerance || 6
+            }
+            url = aihubmixProvider.apiHost + `/v1/images/generations`
+            headers = {
+              Authorization: `Bearer ${aihubmixProvider.apiKey}`
+            }
           } else {
             // Existing V1/V2 API
             requestData = {
@@ -324,7 +357,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           body = JSON.stringify(requestData)
           headers['Content-Type'] = 'application/json'
         }
-      } else if (mode === 'remix') {
+      } else if (mode === 'aihubmix_image_remix') {
         if (!painting.imageFile) {
           window.modal.error({
             content: t('paintings.image_file_required'),
@@ -419,7 +452,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           form.append('image_file', fileMap[painting.imageFile] as unknown as Blob)
           body = form
         }
-      } else if (mode === 'upscale') {
+      } else if (mode === 'aihubmix_image_upscale') {
         if (!painting.imageFile) {
           window.modal.error({
             content: t('paintings.image_file_required'),
@@ -450,7 +483,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       // 只针对非V3模型使用通用接口
-      if (!painting.model?.includes('V_3') || mode === 'upscale') {
+      if (!painting.model?.includes('V_3') || mode === 'aihubmix_image_upscale') {
         // 直接调用自定义接口
         const response = await fetch(url, { method: 'POST', headers, body })
 
@@ -462,6 +495,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         const data = await response.json()
         logger.silly(`通用API响应: ${data}`)
+        if (data.output) {
+          const base64s = data.output.b64_json.map((item) => item.bytesBase64)
+          const validFiles = await Promise.all(
+            base64s.map(async (base64) => {
+              return await window.api.file.saveBase64Image(base64)
+            })
+          )
+          await FileManager.addFiles(validFiles)
+          updatePaintingState({ files: validFiles, urls: validFiles.map((file) => file.name) })
+          return
+        }
         const urls = data.data.filter((item) => item.url).map((item) => item.url)
         const base64s = data.data.filter((item) => item.b64_json).map((item) => item.b64_json)
 
@@ -550,7 +594,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       const translatedText = await translateText(painting.prompt, LanguagesEnum.enUS)
       updatePaintingState({ prompt: translatedText })
     } catch (error) {
-      logger.error('Translation failed:', error)
+      logger.error('Translation failed:', error as Error)
     } finally {
       setIsTranslating(false)
     }
@@ -586,8 +630,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   // 处理模式切换
   const handleModeChange = (value: string) => {
     setMode(value as keyof PaintingsState)
-    if (persistentData[value as keyof PaintingsState] && persistentData[value as keyof PaintingsState].length > 0) {
-      setPainting(persistentData[value as keyof PaintingsState][0])
+    if (paintings[value as keyof PaintingsState] && paintings[value as keyof PaintingsState].length > 0) {
+      setPainting(paintings[value as keyof PaintingsState][0])
     } else {
       setPainting(DEFAULT_PAINTING)
     }
@@ -812,7 +856,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </ProviderTitleContainer>
 
-          <Select value={providerOptions[0].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
+          <Select value={providerOptions[1].value} onChange={handleProviderChange} style={{ marginBottom: 15 }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
@@ -851,7 +895,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               placeholder={
                 isTranslating
                   ? t('paintings.translating')
-                  : painting.model?.startsWith('imagen-')
+                  : painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')
                     ? t('paintings.prompt_placeholder_en')
                     : t('paintings.prompt_placeholder_edit')
               }

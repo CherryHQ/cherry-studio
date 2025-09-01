@@ -21,7 +21,7 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
-import { isEmpty } from 'lodash'
+import { cloneDeep, isEmpty } from 'lodash'
 import { last } from 'lodash'
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,7 +36,7 @@ import InputBar from './components/InputBar'
 
 const logger = loggerService.withContext('HomeWindow')
 
-const HomeWindow: FC = () => {
+const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const { language, readClipboardAtStartup, windowStyle } = useSettings()
   const { theme } = useTheme()
   const { t } = useTranslation()
@@ -109,7 +109,7 @@ const HomeWindow: FC = () => {
       }
     } catch (error) {
       // Silently handle clipboard read errors (common in some environments)
-      logger.warn('Failed to read clipboard:', error)
+      logger.warn('Failed to read clipboard:', error as Error)
     }
   }, [readClipboardAtStartup])
 
@@ -256,9 +256,19 @@ const HomeWindow: FC = () => {
         setIsFirstMessage(false)
         setUserInputText('')
 
+        const newAssistant = cloneDeep(currentAssistant)
+        if (!newAssistant.settings) {
+          newAssistant.settings = {}
+        }
+        newAssistant.settings.streamOutput = true
+        // 显式关闭这些功能
+        // newAssistant.webSearchProviderId = undefined
+        newAssistant.mcpServers = undefined
+        // newAssistant.knowledge_bases = undefined
+
         await fetchChatCompletion({
           messages: messagesForContext,
-          assistant: { ...currentAssistant, settings: { streamOutput: true } },
+          assistant: newAssistant,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:
@@ -397,7 +407,7 @@ const HomeWindow: FC = () => {
       } catch (err) {
         if (isAbortError(err)) return
         handleError(err instanceof Error ? err : new Error('An error occurred'))
-        logger.error('Error fetching result:', err)
+        logger.error('Error fetching result:', err as Error)
       } finally {
         setIsLoading(false)
         setIsOutputted(true)
@@ -487,7 +497,7 @@ const HomeWindow: FC = () => {
     case 'summary':
     case 'explanation':
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           {route === 'chat' && (
             <>
               <InputBar
@@ -523,7 +533,7 @@ const HomeWindow: FC = () => {
 
     case 'translate':
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           <TranslateWindow text={referenceText} />
           <Divider style={{ margin: '10px 0' }} />
           <Footer key="footer" {...baseFooterProps} />
@@ -533,7 +543,7 @@ const HomeWindow: FC = () => {
     // Home
     default:
       return (
-        <Container style={{ backgroundColor }}>
+        <Container style={{ backgroundColor }} $draggable={draggable}>
           <InputBar
             text={userInputText}
             assistant={currentAssistant}
@@ -566,13 +576,13 @@ const HomeWindow: FC = () => {
   }
 }
 
-const Container = styled.div`
+const Container = styled.div<{ $draggable: boolean }>`
   display: flex;
   flex: 1;
   height: 100%;
   width: 100%;
   flex-direction: column;
-  -webkit-app-region: drag;
+  -webkit-app-region: ${({ $draggable }) => ($draggable ? 'drag' : 'no-drag')};
   padding: 8px 10px;
 `
 

@@ -355,7 +355,7 @@ class ShikiStreamService {
       return result
     } catch (error) {
       // 处理失败时不更新缓存，保持之前的状态
-      logger.error('Failed to highlight streaming code:', error)
+      logger.error('Failed to highlight streaming code:', error as Error)
       throw error
     }
   }
@@ -387,7 +387,7 @@ class ShikiStreamService {
       try {
         await this.initWorker()
       } catch (error) {
-        logger.warn('Failed to initialize worker, falling back to main thread:', error)
+        logger.warn('Failed to initialize worker, falling back to main thread:', error as Error)
       }
     }
 
@@ -408,7 +408,7 @@ class ShikiStreamService {
         this.workerDegradationCache.set(callerId, true)
         logger.error(
           `Worker highlight failed for callerId ${callerId}, permanently falling back to main thread:`,
-          error
+          error as Error
         )
       }
     }
@@ -442,7 +442,7 @@ class ShikiStreamService {
         recall: result.recall
       }
     } catch (error) {
-      logger.error('Failed to highlight code chunk:', error)
+      logger.error('Failed to highlight code chunk:', error as Error)
 
       // 提供简单的 fallback
       const fallbackToken: ThemedToken = { content: chunk || '', color: '#000000', offset: 0 }
@@ -500,7 +500,7 @@ class ShikiStreamService {
         type: 'cleanup',
         callerId
       }).catch((error) => {
-        logger.error('Failed to cleanup worker tokenizer:', error)
+        logger.error('Failed to cleanup worker tokenizer:', error as Error)
       })
     }
 
@@ -525,7 +525,7 @@ class ShikiStreamService {
   dispose() {
     if (this.worker) {
       this.sendWorkerMessage({ type: 'dispose' }).catch((error) => {
-        logger.warn('Failed to dispose worker:', error)
+        logger.warn('Failed to dispose worker:', error as Error)
       })
       this.worker.terminate()
       this.worker = null

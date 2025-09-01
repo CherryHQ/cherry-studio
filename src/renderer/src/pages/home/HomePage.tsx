@@ -1,10 +1,14 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -17,6 +21,7 @@ let _activeAssistant: Assistant
 const HomePage: FC = () => {
   const { assistants } = useAssistants()
   const navigate = useNavigate()
+  const { isLeftNavbar } = useNavbarPosition()
 
   const location = useLocation()
   const state = location.state
@@ -24,6 +29,7 @@ const HomePage: FC = () => {
   const [activeAssistant, _setActiveAssistant] = useState(state?.assistant || _activeAssistant || assistants[0])
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
+  const dispatch = useDispatch()
 
   _activeAssistant = activeAssistant
 
@@ -42,9 +48,12 @@ const HomePage: FC = () => {
 
   const setActiveTopic = useCallback(
     (newTopic: Topic) => {
-      startTransition(() => _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic)))
+      startTransition(() => {
+        _setActiveTopic((prev) => (newTopic?.id === prev.id ? prev : newTopic))
+        dispatch(newMessagesActions.setTopicFulfilled({ topicId: newTopic.id, fulfilled: false }))
+      })
     },
-    [_setActiveTopic]
+    [_setActiveTopic, dispatch]
   )
 
   useEffect(() => {
@@ -72,7 +81,7 @@ const HomePage: FC = () => {
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? 520 : 1080, 600)
+    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
       window.api.window.resetMinimumSize()
@@ -81,29 +90,35 @@ const HomePage: FC = () => {
 
   return (
     <Container id="home-page">
-      <Navbar
-        activeAssistant={activeAssistant}
-        activeTopic={activeTopic}
-        setActiveTopic={setActiveTopic}
-        setActiveAssistant={setActiveAssistant}
-        position="left"
-      />
-      <ContentContainer id="content-container">
-        {showAssistants && (
-          <HomeTabs
-            activeAssistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
-            setActiveTopic={setActiveTopic}
-            position="left"
-          />
-        )}
-        <Chat
-          assistant={activeAssistant}
+      {isLeftNavbar && (
+        <Navbar
+          activeAssistant={activeAssistant}
           activeTopic={activeTopic}
           setActiveTopic={setActiveTopic}
           setActiveAssistant={setActiveAssistant}
+          position="left"
         />
+      )}
+      <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
+        {showAssistants && (
+          <ErrorBoundary>
+            <HomeTabs
+              activeAssistant={activeAssistant}
+              activeTopic={activeTopic}
+              setActiveAssistant={setActiveAssistant}
+              setActiveTopic={setActiveTopic}
+              position="left"
+            />
+          </ErrorBoundary>
+        )}
+        <ErrorBoundary>
+          <Chat
+            assistant={activeAssistant}
+            activeTopic={activeTopic}
+            setActiveTopic={setActiveTopic}
+            setActiveAssistant={setActiveAssistant}
+          />
+        </ErrorBoundary>
       </ContentContainer>
     </Container>
   )
@@ -113,7 +128,12 @@ const Container = styled.div`
   display: flex;
   flex: 1;
   flex-direction: column;
-  max-width: calc(100vw - var(--sidebar-width));
+  [navbar-position='left'] & {
+    max-width: calc(100vw - var(--sidebar-width));
+  }
+  [navbar-position='top'] & {
+    max-width: 100vw;
+  }
 `
 
 const ContentContainer = styled.div`

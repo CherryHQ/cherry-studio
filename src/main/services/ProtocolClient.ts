@@ -109,12 +109,12 @@ NoDisplay=true
       logger.debug(`update-desktop-database stdout: ${stdout}`)
       logger.debug('Desktop database updated successfully.')
     } catch (updateError) {
-      logger.error('Failed to update desktop database:', updateError)
+      logger.error('Failed to update desktop database:', updateError as Error)
       // Continue even if update fails, as the file is still created.
     }
   } catch (error) {
     // Log the error but don't prevent the app from starting
-    logger.error('Failed to setup AppImage deep link:', error)
+    logger.error('Failed to setup AppImage deep link:', error as Error)
   }
 }
 

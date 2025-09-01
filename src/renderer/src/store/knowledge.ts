@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import { FileMetadata, KnowledgeBase, KnowledgeItem, PreprocessProvider, ProcessingStatus } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:Knowledge')
 
@@ -174,6 +174,18 @@ const knowledgeSlice = createSlice({
       }
     },
 
+    syncPreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
+      const updatedProvider = action.payload
+      state.bases.forEach((base) => {
+        if (base.preprocessProvider && base.preprocessProvider.provider.id === updatedProvider.id) {
+          base.preprocessProvider.provider = {
+            ...base.preprocessProvider.provider,
+            ...updatedProvider
+          }
+        }
+      })
+    },
+
     updateBaseItemUniqueId(
       state,
       action: PayloadAction<{ baseId: string; itemId: string; uniqueId: string; uniqueIds: string[] }>
@@ -221,7 +233,8 @@ export const {
   clearCompletedProcessing,
   clearAllProcessing,
   updateBaseItemUniqueId,
-  updateBaseItemIsPreprocessed
+  updateBaseItemIsPreprocessed,
+  syncPreprocessProvider
 } = knowledgeSlice.actions
 
 export default knowledgeSlice.reducer

@@ -103,6 +103,10 @@
   }
 
   span {
+    white-space: pre-wrap;
+  }
+
+  .katex span {
     white-space: pre;
   }
 
@@ -148,6 +152,7 @@
     margin-top: 10px;
   }
 
+  .markdown-alert,
   blockquote {
     margin: 1.5em 0;
     padding: 1em 1.5em;
@@ -197,7 +202,7 @@
   img {
     max-width: 100%;
     height: auto;
-    margin: 10px 0;
+    margin: 1em 0;
   }
 
   a,
@@ -259,10 +264,6 @@
       text-decoration: underline;
     }
   }
-
-  > *:last-child {
-    margin-bottom: 0 !important;
-  }
 }
 
 .footnotes {
@@ -320,6 +321,10 @@ emoji-picker {
   --border-size: 0;
 }
 
+.block-wrapper + .block-wrapper {
+  margin-top: 1em;
+}
+
 .katex,
 mjx-container {
   display: inline-block;
@@ -365,5 +370,10 @@ mjx-container {
       word-wrap: break-word;
       white-space: pre-wrap;
     }
+  }
+
+  .cm-announced {
+    position: absolute;
+    display: none;
   }
 }

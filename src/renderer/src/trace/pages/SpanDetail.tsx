@@ -44,7 +44,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
         setIsJson(true)
         return
       } catch {
-        logger.error('failed to parse json data:', data)
+        logger.error(`failed to parse json data: ${data}`)
       }
     } else if (typeof data === 'object' || Array.isArray(data)) {
       setJsonData(data)
@@ -64,7 +64,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
     const updateCopyButtonTitles = () => {
       const copyButtons = document.querySelectorAll('.copy-to-clipboard-container > span')
       copyButtons.forEach((btn) => {
-        btn.setAttribute('title', t('code_block.copy'))
+        btn.setAttribute('title', t('code_block.copy.label'))
       })
     }
 

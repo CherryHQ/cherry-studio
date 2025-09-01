@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
@@ -32,11 +33,6 @@ export class WindowService {
   private wasMainWindowFocused: boolean = false
   private lastRendererProcessCrashTime: number = 0
 
-  private miniWindowSize: { width: number; height: number } = {
-    width: DEFAULT_MINIWINDOW_WIDTH,
-    height: DEFAULT_MINIWINDOW_HEIGHT
-  }
-
   public static getInstance(): WindowService {
     if (!WindowService.instance) {
       WindowService.instance = new WindowService()
@@ -52,8 +48,8 @@ export class WindowService {
     }
 
     const mainWindowState = windowStateKeeper({
-      defaultWidth: 960,
-      defaultHeight: 600,
+      defaultWidth: MIN_WINDOW_WIDTH,
+      defaultHeight: MIN_WINDOW_HEIGHT,
       fullScreen: false,
       maximize: false
     })
@@ -63,8 +59,8 @@ export class WindowService {
       y: mainWindowState.y,
       width: mainWindowState.width,
       height: mainWindowState.height,
-      minWidth: 960,
-      minHeight: 600,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
       show: false,
       autoHideMenuBar: true,
       transparent: false,
@@ -74,7 +70,7 @@ export class WindowService {
       titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 12 },
+      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -196,8 +192,11 @@ export class WindowService {
     // the zoom factor is reset to cached value when window is resized after routing to other page
     // see: https://github.com/electron/electron/issues/10572
     //
+    // and resize ipc
+    //
     mainWindow.on('will-resize', () => {
       mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
 
     // set the zoom factor again when the window is going to restore
@@ -212,30 +211,39 @@ export class WindowService {
     if (isLinux) {
       mainWindow.on('resize', () => {
         mainWindow.webContents.setZoomFactor(configManager.getZoomFactor())
+        mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
       })
     }
 
-    // 添加Escape键退出全屏的支持
-    mainWindow.webContents.on('before-input-event', (event, input) => {
-      // 当按下Escape键且窗口处于全屏状态时退出全屏
-      if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
-        if (mainWindow.isFullScreen()) {
-          // 获取 shortcuts 配置
-          const shortcuts = configManager.getShortcuts()
-          const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
-          if (exitFullscreenShortcut == undefined) {
-            mainWindow.setFullScreen(false)
-            return
-          }
-          if (exitFullscreenShortcut?.enabled) {
-            event.preventDefault()
-            mainWindow.setFullScreen(false)
-            return
-          }
-        }
-      }
-      return
+    mainWindow.on('unmaximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
     })
+
+    mainWindow.on('maximize', () => {
+      mainWindow.webContents.send(IpcChannel.Windows_Resize, mainWindow.getSize())
+    })
+
+    // 添加Escape键退出全屏的支持
+    // mainWindow.webContents.on('before-input-event', (event, input) => {
+    //   // 当按下Escape键且窗口处于全屏状态时退出全屏
+    //   if (input.key === 'Escape' && !input.alt && !input.control && !input.meta && !input.shift) {
+    //     if (mainWindow.isFullScreen()) {
+    //       // 获取 shortcuts 配置
+    //       const shortcuts = configManager.getShortcuts()
+    //       const exitFullscreenShortcut = shortcuts.find((s) => s.key === 'exit_fullscreen')
+    //       if (exitFullscreenShortcut == undefined) {
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //       if (exitFullscreenShortcut?.enabled) {
+    //         event.preventDefault()
+    //         mainWindow.setFullScreen(false)
+    //         return
+    //       }
+    //     }
+    //   }
+    //   return
+    // })
   }
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
@@ -257,7 +265,9 @@ export class WindowService {
         'https://cloud.siliconflow.cn/expensebill',
         'https://aihubmix.com/token',
         'https://aihubmix.com/topup',
-        'https://aihubmix.com/statistics'
+        'https://aihubmix.com/statistics',
+        'https://dash.302.ai/sso/login',
+        'https://dash.302.ai/charge'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {
@@ -319,6 +329,13 @@ export class WindowService {
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {
     mainWindow.on('close', (event) => {
+      // save data before when close window
+      try {
+        mainWindow.webContents.send(IpcChannel.App_SaveData)
+      } catch (error) {
+        logger.error('Failed to save data:', error as Error)
+      }
+
       // 如果已经触发退出，直接退出
       if (app.isQuitting) {
         return app.quit()
@@ -343,14 +360,19 @@ export class WindowService {
        * mac: 任何情况都会到这里，因此需要单独处理mac
        */
 
-      event.preventDefault()
+      if (!mainWindow.isFullScreen()) {
+        event.preventDefault()
+      }
 
       mainWindow.hide()
 
-      //for mac users, should hide dock icon if close to tray
-      if (isMac && isTrayOnClose) {
-        app.dock?.hide()
-      }
+      // TODO: don't hide dock icon when close to tray
+      // will cause the cmd+h behavior not working
+      // after the electron fix the bug, we can restore this code
+      // //for mac users, should hide dock icon if close to tray
+      // if (isMac && isTrayOnClose) {
+      //   app.dock?.hide()
+      // }
     })
 
     mainWindow.on('closed', () => {
@@ -436,9 +458,21 @@ export class WindowService {
   }
 
   public createMiniWindow(isPreload: boolean = false): BrowserWindow {
+    if (this.miniWindow && !this.miniWindow.isDestroyed()) {
+      return this.miniWindow
+    }
+
+    const miniWindowState = windowStateKeeper({
+      defaultWidth: DEFAULT_MINIWINDOW_WIDTH,
+      defaultHeight: DEFAULT_MINIWINDOW_HEIGHT,
+      file: 'miniWindow-state.json'
+    })
+
     this.miniWindow = new BrowserWindow({
-      width: this.miniWindowSize.width,
-      height: this.miniWindowSize.height,
+      x: miniWindowState.x,
+      y: miniWindowState.y,
+      width: miniWindowState.width,
+      height: miniWindowState.height,
       minWidth: 350,
       minHeight: 380,
       maxWidth: 1024,
@@ -464,6 +498,10 @@ export class WindowService {
         webviewTag: true
       }
     })
+
+    this.setupWebContentsHandlers(this.miniWindow)
+
+    miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop
     this.miniWindow?.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -495,13 +533,6 @@ export class WindowService {
       this.miniWindow?.webContents.send(IpcChannel.HideMiniWindow)
     })
 
-    this.miniWindow.on('resized', () => {
-      this.miniWindowSize = this.miniWindow?.getBounds() || {
-        width: DEFAULT_MINIWINDOW_WIDTH,
-        height: DEFAULT_MINIWINDOW_HEIGHT
-      }
-    })
-
     this.miniWindow.on('show', () => {
       this.miniWindow?.webContents.send(IpcChannel.ShowMiniWindow)
     })
@@ -527,9 +558,9 @@ export class WindowService {
 
       // [Windows] hacky fix
       // the window is minimized only when in Windows platform
-      // because it's a workround for Windows, see `hideMiniWindow()`
+      // because it's a workaround for Windows, see `hideMiniWindow()`
       if (this.miniWindow?.isMinimized()) {
-        // don't let the window being seen before we finish adusting the position across screens
+        // don't let the window being seen before we finish adjusting the position across screens
         this.miniWindow?.setOpacity(0)
         // DO NOT use `restore()` here, Electron has the bug with screens of different scale factor
         // We have to use `show()` here, then set the position and bounds
@@ -547,9 +578,10 @@ export class WindowService {
       if (cursorDisplay.id !== miniWindowDisplay.id) {
         const workArea = cursorDisplay.bounds
 
-        // use remembered size to avoid the bug of Electron with screens of different scale factor
-        const miniWindowWidth = this.miniWindowSize.width
-        const miniWindowHeight = this.miniWindowSize.height
+        // use current window size to avoid the bug of Electron with screens of different scale factor
+        const currentBounds = this.miniWindow.getBounds()
+        const miniWindowWidth = currentBounds.width
+        const miniWindowHeight = currentBounds.height
 
         // move to the center of the cursor's screen
         const miniWindowX = Math.round(workArea.x + (workArea.width - miniWindowWidth) / 2)
@@ -570,7 +602,11 @@ export class WindowService {
       return
     }
 
-    this.miniWindow = this.createMiniWindow()
+    if (!this.miniWindow || this.miniWindow.isDestroyed()) {
+      this.miniWindow = this.createMiniWindow()
+    }
+
+    this.miniWindow.show()
   }
 
   public hideMiniWindow() {

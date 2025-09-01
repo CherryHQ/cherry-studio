@@ -1,14 +1,37 @@
-import { CheckOutlined, CloseOutlined, ExpandOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { Button, Collapse, ConfigProvider, Dropdown, Flex, message as antdMessage, Modal, Tabs, Tooltip } from 'antd'
+import {
+  Button,
+  Collapse,
+  ConfigProvider,
+  Dropdown,
+  Flex,
+  message as antdMessage,
+  Modal,
+  Progress,
+  Tabs,
+  Tooltip
+} from 'antd'
 import { message } from 'antd'
-import { ChevronDown, ChevronRight, CirclePlay, CircleX, PauseCircle, ShieldCheck } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  CirclePlay,
+  CircleX,
+  Maximize,
+  PauseCircle,
+  ShieldCheck,
+  TriangleAlert,
+  X
+} from 'lucide-react'
 import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,6 +52,8 @@ const MessageTools: FC<Props> = ({ block }) => {
   const { messageFont, fontSize } = useSettings()
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
+  const [progress, setProgress] = useState<number>(0)
+  const { setTimeoutTimer } = useTimer()
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
@@ -44,7 +69,7 @@ const MessageTools: FC<Props> = ({ block }) => {
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
-        logger.debug('countdown', countdown)
+        logger.debug(`countdown: ${countdown}`)
         setCountdown((prev) => prev - 1)
       }, 1000)
     } else if (countdown === 0) {
@@ -57,6 +82,19 @@ const MessageTools: FC<Props> = ({ block }) => {
       }
     }
   }, [countdown, id, isPending])
+
+  useEffect(() => {
+    const removeListener = window.electron.ipcRenderer.on(
+      'mcp-progress',
+      (_event: Electron.IpcRendererEvent, value: number) => {
+        setProgress(value)
+      }
+    )
+    return () => {
+      setProgress(0)
+      removeListener()
+    }
+  }, [])
 
   const cancelCountdown = () => {
     if (timer.current) {
@@ -94,7 +132,7 @@ const MessageTools: FC<Props> = ({ block }) => {
     navigator.clipboard.writeText(content)
     antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
     setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
-    setTimeout(() => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
+    setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
   }
 
   const handleCollapseChange = (keys: string | string[]) => {
@@ -121,7 +159,7 @@ const MessageTools: FC<Props> = ({ block }) => {
           message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
         }
       } catch (error) {
-        logger.error('Failed to abort tool:', error)
+        logger.error('Failed to abort tool:', error as Error)
         message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
       }
     }
@@ -166,23 +204,23 @@ const MessageTools: FC<Props> = ({ block }) => {
     switch (status) {
       case 'pending':
         label = t('message.tools.pending', 'Awaiting Approval')
-        icon = <LoadingOutlined spin style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
+        icon = <LoadingIcon style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
         break
       case 'invoking':
         label = t('message.tools.invoking')
-        icon = <LoadingOutlined spin style={{ marginLeft: 6 }} />
+        icon = <LoadingIcon style={{ marginLeft: 6 }} />
         break
       case 'cancelled':
         label = t('message.tools.cancelled')
-        icon = <CloseOutlined style={{ marginLeft: 6 }} />
+        icon = <X size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
         break
       case 'done':
         if (hasError) {
           label = t('message.tools.error')
-          icon = <WarningOutlined style={{ marginLeft: 6 }} />
+          icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
         } else {
           label = t('message.tools.completed')
-          icon = <CheckOutlined style={{ marginLeft: 6 }} />
+          icon = <Check size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
         }
         break
       default:
@@ -221,9 +259,11 @@ const MessageTools: FC<Props> = ({ block }) => {
             </ToolName>
           </TitleContent>
           <ActionButtonsContainer>
-            <StatusIndicator status={status} hasError={hasError}>
-              {renderStatusIndicator(status, hasError)}
-            </StatusIndicator>
+            {progress > 0 ? (
+              <Progress type="circle" size={14} percent={Number((progress * 100)?.toFixed(0))} />
+            ) : (
+              renderStatusIndicator(status, hasError)
+            )}
             <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
               <ActionButton
                 className="message-action-button"
@@ -235,7 +275,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                   })
                 }}
                 aria-label={t('common.expand')}>
-                <ExpandOutlined />
+                <Maximize size={14} />
               </ActionButton>
             </Tooltip>
             {!isPending && !isInvoking && (
@@ -247,8 +287,8 @@ const MessageTools: FC<Props> = ({ block }) => {
                     copyContent(JSON.stringify(result, null, 2), id)
                   }}
                   aria-label={t('common.copy')}>
-                  {!copiedMap[id] && <i className="iconfont icon-copy"></i>}
-                  {copiedMap[id] && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
+                  {!copiedMap[id] && <CopyIcon size={14} />}
+                  {copiedMap[id] && <Check size={14} color="var(--status-color-success)" />}
                 </ActionButton>
               </Tooltip>
             )}
@@ -280,22 +320,37 @@ const MessageTools: FC<Props> = ({ block }) => {
     if (!content) return null
 
     try {
+      logger.debug(`renderPreview: ${content}`)
       const parsedResult = JSON.parse(content)
       switch (parsedResult.content[0]?.type) {
         case 'text':
-          return (
-            <CollapsedContent
-              isExpanded={true}
-              resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
-            />
-          )
+          try {
+            return (
+              <CollapsedContent
+                isExpanded={true}
+                resultString={JSON.stringify(JSON.parse(parsedResult.content[0].text), null, 2)}
+              />
+            )
+          } catch (e) {
+            return (
+              <CollapsedContent
+                isExpanded={true}
+                resultString={JSON.stringify(parsedResult.content[0].text, null, 2)}
+              />
+            )
+          }
 
         default:
           return <CollapsedContent isExpanded={true} resultString={JSON.stringify(parsedResult, null, 2)} />
       }
     } catch (e) {
-      logger.error('failed to render the preview of mcp results:', e)
-      return <CollapsedContent isExpanded={true} resultString={JSON.stringify(e, null, 2)} />
+      logger.error('failed to render the preview of mcp results:', e as Error)
+      return (
+        <CollapsedContent
+          isExpanded={true}
+          resultString={e instanceof Error ? e.message : JSON.stringify(e, null, 2)}
+        />
+      )
     }
   }
 
@@ -352,7 +407,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                         e.stopPropagation()
                         handleAbortTool()
                       }}>
-                      <PauseCircle className="lucide-custom" size={14} />
+                      <PauseCircle size={14} className="lucide-custom" />
                       {t('chat.input.pause')}
                     </Button>
                   ) : (
@@ -367,7 +422,7 @@ const MessageTools: FC<Props> = ({ block }) => {
                         items: [
                           {
                             key: 'autoApprove',
-                            label: t('settings.mcp.tools.autoApprove'),
+                            label: t('settings.mcp.tools.autoApprove.label'),
                             onClick: () => {
                               handleAutoApprove()
                             }
@@ -452,12 +507,18 @@ const CollapsedContent: FC<{ isExpanded: boolean; resultString: string }> = ({ i
   const [styledResult, setStyledResult] = useState<string>('')
 
   useEffect(() => {
+    if (!isExpanded) {
+      return
+    }
+
     const highlight = async () => {
-      const result = await highlightCode(isExpanded ? resultString : '', 'json')
+      const result = await highlightCode(resultString, 'json')
       setStyledResult(result)
     }
 
-    setTimeout(highlight, 0)
+    const timer = setTimeout(highlight, 0)
+
+    return () => clearTimeout(timer)
   }, [isExpanded, resultString, highlightCode])
 
   if (!isExpanded) {
@@ -524,10 +585,10 @@ const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
 `
 
 const CollapseContainer = styled(Collapse)`
-  --status-color-warning: var(--color-warning, #faad14);
+  --status-color-warning: var(--color-status-warning, #faad14);
   --status-color-invoking: var(--color-primary);
-  --status-color-error: var(--color-error, #ff4d4f);
-  --status-color-success: var(--color-success, green);
+  --status-color-error: var(--color-status-error, #ff4d4f);
+  --status-color-success: var(--color-primary, green);
   border-radius: 7px;
   border: none;
   background-color: var(--color-background);
@@ -546,6 +607,11 @@ const CollapseContainer = styled(Collapse)`
 const ToolContainer = styled.div`
   margin-top: 10px;
   margin-bottom: 10px;
+
+  &:first-child {
+    margin-top: 0;
+    padding-top: 0;
+  }
 `
 
 const MarkdownContainer = styled.div`

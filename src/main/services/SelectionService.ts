@@ -27,7 +27,7 @@ try {
     SelectionHook = require('selection-hook')
   }
 } catch (error) {
-  logger.error('Failed to load selection-hook:', error)
+  logger.error('Failed to load selection-hook:', error as Error)
 }
 
 // Type definitions
@@ -243,7 +243,7 @@ export class SelectionService {
     }
 
     if (!this.selectionHook.setGlobalFilterMode(modeMap[combinedMode], combinedList)) {
-      this.logError(new Error('Failed to set selection-hook global filter mode'))
+      this.logError('Failed to set selection-hook global filter mode')
     }
   }
 
@@ -274,17 +274,17 @@ export class SelectionService {
    */
   public start(): boolean {
     if (!isSupportedOS) {
-      this.logError(new Error('SelectionService start(): not supported on this OS'))
+      this.logError('SelectionService start(): not supported on this OS')
       return false
     }
 
     if (!this.selectionHook) {
-      this.logError(new Error('SelectionService start(): instance is null'))
+      this.logError('SelectionService start(): instance is null')
       return false
     }
 
     if (this.started) {
-      this.logError(new Error('SelectionService start(): already started'))
+      this.logError('SelectionService start(): already started')
       return false
     }
 
@@ -292,9 +292,7 @@ export class SelectionService {
     if (isMac) {
       if (!systemPreferences.isTrustedAccessibilityClient(false)) {
         this.logError(
-          new Error(
-            'SelectionSerice not started: process is not trusted on macOS, please turn on the Accessibility permission'
-          )
+          'SelectionSerice not started: process is not trusted on macOS, please turn on the Accessibility permission'
         )
         return false
       }
@@ -325,7 +323,7 @@ export class SelectionService {
         return true
       }
 
-      this.logError(new Error('Failed to start text selection hook.'))
+      this.logError('Failed to start text selection hook.')
       return false
     } catch (error) {
       this.logError('Failed to set up text selection hook:', error as Error)
@@ -418,7 +416,6 @@ export class SelectionService {
       hasShadow: false,
       thickFrame: false,
       roundedCorners: true,
-      backgroundMaterial: 'none',
 
       // Platform specific settings
       //   [macOS] DO NOT set focusable to false, it will make other windows bring to front together
@@ -709,6 +706,10 @@ export class SelectionService {
     //use original point to get the display
     const display = screen.getDisplayNearestPoint(refPoint)
 
+    //check if the toolbar exceeds the top or bottom of the screen
+    const exceedsTop = posPoint.y < display.workArea.y
+    const exceedsBottom = posPoint.y > display.workArea.y + display.workArea.height - toolbarHeight
+
     // Ensure toolbar stays within screen boundaries
     posPoint.x = Math.round(
       Math.max(display.workArea.x, Math.min(posPoint.x, display.workArea.x + display.workArea.width - toolbarWidth))
@@ -716,6 +717,14 @@ export class SelectionService {
     posPoint.y = Math.round(
       Math.max(display.workArea.y, Math.min(posPoint.y, display.workArea.y + display.workArea.height - toolbarHeight))
     )
+
+    //adjust the toolbar position if it exceeds the top or bottom of the screen
+    if (exceedsTop) {
+      posPoint.y = posPoint.y + 32
+    }
+    if (exceedsBottom) {
+      posPoint.y = posPoint.y - 32
+    }
 
     return posPoint
   }
@@ -1510,8 +1519,8 @@ export class SelectionService {
     }
   }
 
-  private logError(...args: [...string[], Error]): void {
-    logger.error('[SelectionService] Error: ', ...args)
+  private logError(message: string, error?: Error): void {
+    logger.error(message, error)
   }
 }
 

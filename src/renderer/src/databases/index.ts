@@ -1,12 +1,15 @@
-import { FileMetadata, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
+import { CustomTranslateLanguage, FileMetadata, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
 // Import necessary types for blocks and new message structure
 import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMessage'
+import { NotesTreeNode } from '@renderer/types/note'
 import { Dexie, type EntityTable } from 'dexie'
 
 import { upgradeToV5, upgradeToV7, upgradeToV8 } from './upgrades'
 
 // Database declaration (move this to its own module also)
-export const db = new Dexie('CherryStudio') as Dexie & {
+export const db = new Dexie('CherryStudio', {
+  chromeTransactionDurability: 'strict'
+}) as Dexie & {
   files: EntityTable<FileMetadata, 'id'>
   topics: EntityTable<{ id: string; messages: NewMessage[] }, 'id'> // Correct type for topics
   settings: EntityTable<{ id: string; value: any }, 'id'>
@@ -14,6 +17,8 @@ export const db = new Dexie('CherryStudio') as Dexie & {
   translate_history: EntityTable<TranslateHistory, 'id'>
   quick_phrases: EntityTable<QuickPhrase, 'id'>
   message_blocks: EntityTable<MessageBlock, 'id'> // Correct type for message_blocks
+  translate_languages: EntityTable<CustomTranslateLanguage, 'id'>
+  notes_tree: EntityTable<{ id: string; tree: NotesTreeNode[] }, 'id'>
 }
 
 db.version(1).stores({
@@ -63,7 +68,7 @@ db.version(6).stores({
 // --- NEW VERSION 7 ---
 db.version(7)
   .stores({
-    // Re-declare all tables for the new version
+    // Redeclare all tables for the new version
     files: 'id, name, origin_name, path, size, ext, type, created_at, count',
     topics: '&id', // Correct index for topics
     settings: '&id, value',
@@ -73,9 +78,10 @@ db.version(7)
     message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
   })
   .upgrade((tx) => upgradeToV7(tx))
+
 db.version(8)
   .stores({
-    // Re-declare all tables for the new version
+    // Redeclare all tables for the new version
     files: 'id, name, origin_name, path, size, ext, type, created_at, count',
     topics: '&id', // Correct index for topics
     settings: '&id, value',
@@ -85,5 +91,29 @@ db.version(8)
     message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
   })
   .upgrade((tx) => upgradeToV8(tx))
+
+db.version(9).stores({
+  // Redeclare all tables for the new version
+  files: 'id, name, origin_name, path, size, ext, type, created_at, count',
+  topics: '&id', // Correct index for topics
+  settings: '&id, value',
+  knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
+  translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
+  translate_languages: '&id, langCode',
+  quick_phrases: 'id',
+  message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
+})
+
+db.version(10).stores({
+  files: 'id, name, origin_name, path, size, ext, type, created_at, count',
+  topics: '&id',
+  settings: '&id, value',
+  knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
+  translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
+  translate_languages: '&id, langCode',
+  quick_phrases: 'id',
+  message_blocks: 'id, messageId, file.id',
+  notes_tree: '&id'
+})
 
 export default db

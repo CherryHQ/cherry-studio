@@ -92,7 +92,7 @@ export class MemoryService {
       this.isInitialized = true
       logger.debug('Memory database initialized successfully')
     } catch (error) {
-      logger.error('Failed to initialize memory database:', error)
+      logger.error('Failed to initialize memory database:', error as Error)
       throw new Error(
         `Memory database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       )
@@ -120,7 +120,7 @@ export class MemoryService {
       await this.db.execute(MemoryQueries.createIndexes.vector)
     } catch (error) {
       // Vector index might not be supported in all versions
-      logger.warn('Failed to create vector index, falling back to non-indexed search:', error)
+      logger.warn('Failed to create vector index, falling back to non-indexed search:', error as Error)
     }
   }
 
@@ -175,7 +175,7 @@ export class MemoryService {
                   `Generated embedding for restored memory with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
                 )
               } catch (error) {
-                logger.error('Failed to generate embedding for restored memory:', error)
+                logger.error('Failed to generate embedding for restored memory:', error as Error)
               }
             }
 
@@ -237,7 +237,7 @@ export class MemoryService {
               }
             }
           } catch (error) {
-            logger.error('Failed to generate embedding:', error)
+            logger.error('Failed to generate embedding:', error as Error)
           }
         }
 
@@ -279,7 +279,7 @@ export class MemoryService {
         count: addedMemories.length
       }
     } catch (error) {
-      logger.error('Failed to add memories:', error)
+      logger.error('Failed to add memories:', error as Error)
       return {
         memories: [],
         count: 0,
@@ -304,7 +304,7 @@ export class MemoryService {
           const queryEmbedding = await this.generateEmbedding(query)
           return await this.hybridSearch(query, queryEmbedding, { limit, userId, agentId, filters })
         } catch (error) {
-          logger.error('Vector search failed, falling back to text search:', error)
+          logger.error('Vector search failed, falling back to text search:', error as Error)
         }
       }
 
@@ -359,7 +359,7 @@ export class MemoryService {
         count: memories.length
       }
     } catch (error) {
-      logger.error('Search failed:', error)
+      logger.error('Search failed:', error as Error)
       return {
         memories: [],
         count: 0,
@@ -424,7 +424,7 @@ export class MemoryService {
         count: totalCount
       }
     } catch (error) {
-      logger.error('List failed:', error)
+      logger.error('List failed:', error as Error)
       return {
         memories: [],
         count: 0,
@@ -464,7 +464,7 @@ export class MemoryService {
 
       logger.debug(`Memory deleted: ${id}`)
     } catch (error) {
-      logger.error('Delete failed:', error)
+      logger.error('Delete failed:', error as Error)
       throw new Error(`Failed to delete memory: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -503,7 +503,7 @@ export class MemoryService {
             `Updated embedding with dimension: ${embedding.length} (target: ${this.config?.embedderDimensions || MemoryService.UNIFIED_DIMENSION})`
           )
         } catch (error) {
-          logger.error('Failed to generate embedding for update:', error)
+          logger.error('Failed to generate embedding for update:', error as Error)
         }
       }
 
@@ -528,7 +528,7 @@ export class MemoryService {
 
       logger.debug(`Memory updated: ${id}`)
     } catch (error) {
-      logger.error('Update failed:', error)
+      logger.error('Update failed:', error as Error)
       throw new Error(`Failed to update memory: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -557,7 +557,7 @@ export class MemoryService {
         isDeleted: row.is_deleted === 1
       }))
     } catch (error) {
-      logger.error('Get history failed:', error)
+      logger.error('Get history failed:', error as Error)
       throw new Error(`Failed to get memory history: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -595,7 +595,7 @@ export class MemoryService {
 
       logger.debug(`Reset all memories for user ${userId} (${totalCount} memories deleted)`)
     } catch (error) {
-      logger.error('Reset user memories failed:', error)
+      logger.error('Reset user memories failed:', error as Error)
       throw new Error(`Failed to reset user memories: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -637,7 +637,7 @@ export class MemoryService {
 
       logger.debug(`Deleted user ${userId} and ${totalCount} memories`)
     } catch (error) {
-      logger.error('Delete user failed:', error)
+      logger.error('Delete user failed:', error as Error)
       throw new Error(`Failed to delete user: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -661,7 +661,7 @@ export class MemoryService {
         lastMemoryDate: row.last_memory_date as string
       }))
     } catch (error) {
-      logger.error('Get users list failed:', error)
+      logger.error('Get users list failed:', error as Error)
       throw new Error(`Failed to get users list: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -732,7 +732,7 @@ export class MemoryService {
       // Normalize to unified dimension
       return this.normalizeEmbedding(embedding)
     } catch (error) {
-      logger.error('Embedding generation failed:', error)
+      logger.error('Embedding generation failed:', error as Error)
       throw new Error(`Failed to generate embedding: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
@@ -802,7 +802,7 @@ export class MemoryService {
         count: memories.length
       }
     } catch (error) {
-      logger.error('Hybrid search failed:', error)
+      logger.error('Hybrid search failed:', error as Error)
       throw new Error(`Hybrid search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }

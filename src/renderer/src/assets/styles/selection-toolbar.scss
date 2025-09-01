@@ -6,10 +6,8 @@ html {
 
 :root {
   // Basic Colors
-  --color-primary: #00b96b;
   --color-error: #f44336;
 
-  --selection-toolbar-color-primary: var(--color-primary);
   --selection-toolbar-color-error: var(--color-error);
 
   // Toolbar
@@ -54,8 +52,6 @@ html {
 
   --selection-toolbar-button-text-color: rgba(255, 255, 245, 0.9);
   --selection-toolbar-button-icon-color: var(--selection-toolbar-button-text-color);
-  --selection-toolbar-button-text-color-hover: var(--selection-toolbar-color-primary);
-  --selection-toolbar-button-icon-color-hover: var(--selection-toolbar-color-primary);
   --selection-toolbar-button-bgcolor: transparent; // default: transparent
   --selection-toolbar-button-bgcolor-hover: #333333;
 }
@@ -72,7 +68,5 @@ html {
 
   --selection-toolbar-button-text-color: rgba(0, 0, 0, 1);
   --selection-toolbar-button-icon-color: var(--selection-toolbar-button-text-color);
-  --selection-toolbar-button-text-color-hover: var(--selection-toolbar-color-primary);
-  --selection-toolbar-button-icon-color-hover: var(--selection-toolbar-color-primary);
   --selection-toolbar-button-bgcolor-hover: rgba(0, 0, 0, 0.04);
 }

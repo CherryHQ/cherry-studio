@@ -1,9 +1,11 @@
 import { loggerService } from '@logger'
 import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
 import {
   isEmbeddingModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
+  isQwenMTModel,
   isReasoningModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
@@ -11,6 +13,7 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import {
+  LANG_DETECT_PROMPT,
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
@@ -35,10 +38,20 @@ import {
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
-import { removeSpecialCharactersForTopicName } from '@renderer/utils'
+import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  buildSystemPromptWithThinkTool,
+  buildSystemPromptWithTools,
+  containsSupportedVariables,
+  replacePromptVariables
+} from '@renderer/utils/prompt'
+import { getTranslateOptions } from '@renderer/utils/translate'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -48,13 +61,12 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getQuickModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
 import {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
@@ -73,7 +85,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   // 使用外部搜索工具
@@ -82,9 +94,19 @@ async function fetchExternalTool(
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   const shouldSearchMemory = globalMemoryEnabled && assistant.enableMemory
 
-  // 在工具链开始时发送进度通知
-  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
-  if (willUseTools) {
+  // 获取 MCP 工具
+  let mcpTools: MCPTool[] = []
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const assistantMcpServers = assistant.mcpServers || []
+  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+  const showListTools = enabledMCPs && enabledMCPs.length > 0
+
+  // 是否使用工具
+  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || showListTools
+
+  // 在工具链开始时发送进度通知（不包括记忆搜索）
+  if (hasAnyTool) {
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
   }
 
@@ -108,7 +130,7 @@ async function fetchExternalTool(
     }
 
     const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
+    summaryAssistant.model = getQuickModel() || assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
     const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
@@ -202,7 +224,7 @@ async function fetchExternalTool(
       }
     } catch (error) {
       if (isAbortError(error)) throw error
-      logger.error('Web search failed:', error)
+      logger.error('Web search failed:', error as Error)
       return
     }
   }
@@ -221,7 +243,7 @@ async function fetchExternalTool(
         const currentUserId = selectCurrentUserId(store.getState())
         // Search for relevant memories
         const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        logger.info('Searching for relevant memories with content:', content)
+        logger.info(`Searching for relevant memories with content: ${content}`)
         const memoryProcessor = new MemoryProcessor()
         const relevantMemories = await memoryProcessor.searchRelevantMemories(
           content,
@@ -240,7 +262,7 @@ async function fetchExternalTool(
         return []
       }
     } catch (error) {
-      logger.error('Error processing memory search:', error)
+      logger.error('Error processing memory search:', error as Error)
       // Continue with conversation even if memory processing fails
       return []
     }
@@ -289,7 +311,7 @@ async function fetchExternalTool(
         modelName
       )
     } catch (error) {
-      logger.error('Knowledge base search failed:', error)
+      logger.error('Knowledge base search failed:', error as Error)
       return
     }
   }
@@ -309,16 +331,18 @@ async function fetchExternalTool(
     let memorySearchReferences: MemoryItem[] | undefined
 
     const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
-    // 并行执行搜索
-    if (shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory) {
-      ;[webSearchResponseFromSearch, knowledgeReferencesFromSearch, memorySearchReferences] = await Promise.all([
-        searchTheWeb(extractResults, parentSpanId),
-        searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name),
-        searchMemory()
-      ])
+    if (shouldWebSearch) {
+      webSearchResponseFromSearch = await searchTheWeb(extractResults, parentSpanId)
     }
 
-    // 存储搜索结果
+    if (shouldKnowledgeSearch) {
+      knowledgeReferencesFromSearch = await searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
+    }
+
+    if (shouldSearchMemory) {
+      memorySearchReferences = await searchMemory()
+    }
+
     if (lastUserMessage) {
       if (webSearchResponseFromSearch) {
         window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
@@ -331,9 +355,40 @@ async function fetchExternalTool(
       }
     }
 
+    if (showListTools) {
+      try {
+        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
+        const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
+          try {
+            const tools = await window.api.mcp.listTools(mcpServer, spanContext)
+            return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+          } catch (error) {
+            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
+            return []
+          }
+        })
+        const results = await Promise.allSettled(toolPromises)
+        mcpTools = results
+          .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+          .map((result) => result.value)
+          .flat()
+
+        // 根据toolUseMode决定如何构建系统提示词
+        const basePrompt = assistant.prompt
+        if (assistant.settings?.toolUseMode === 'prompt' || mcpTools.length > SYSTEM_PROMPT_THRESHOLD) {
+          // 提示词模式：需要完整的工具定义，思考工具返回会打乱提示词的返回（先去掉）
+          assistant.prompt = buildSystemPromptWithTools(basePrompt, mcpTools)
+        } else {
+          // 原生函数调用模式：仅需要注入思考指令
+          assistant.prompt = buildSystemPromptWithThinkTool(basePrompt)
+        }
+      } catch (toolError) {
+        logger.error('Error fetching MCP tools:', toolError as Error)
+      }
+    }
+
     // 发送工具执行完成通知
-    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
-    if (wasAnyToolEnabled) {
+    if (hasAnyTool) {
       onChunkReceived({
         type: ChunkType.EXTERNEL_TOOL_COMPLETE,
         external_tool: {
@@ -344,40 +399,10 @@ async function fetchExternalTool(
       })
     }
 
-    // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = [] // Initialize as empty array
-    const allMcpServers = store.getState().mcp.servers || []
-    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-    const assistantMcpServers = assistant.mcpServers || []
-
-    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-
-    if (enabledMCPs && enabledMCPs.length > 0) {
-      try {
-        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
-        const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
-          try {
-            const tools = await window.api.mcp.listTools(mcpServer, spanContext)
-            return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-          } catch (error) {
-            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error)
-            return []
-          }
-        })
-        const results = await Promise.allSettled(toolPromises)
-        mcpTools = results
-          .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
-          .map((result) => result.value)
-          .flat()
-      } catch (toolError) {
-        logger.error('Error fetching MCP tools:', toolError)
-      }
-    }
-
     return { mcpTools }
   } catch (error) {
     if (isAbortError(error)) throw error
-    logger.error('Tool execution failed:', error)
+    logger.error('Tool execution failed:', error as Error)
 
     // 发送错误状态
     const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
@@ -408,11 +433,15 @@ export async function fetchChatCompletion({
 }) {
   logger.debug('fetchChatCompletion', messages, assistant)
 
+  if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
+    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
+  }
+
   const provider = getAssistantProvider(assistant)
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
+  const filteredMessages1 = filterAfterContextClearMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -428,10 +457,14 @@ export async function fetchChatCompletion({
 
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
-  const filteredMessages = filterUsefulMessages(messages)
+  const filteredMessages2 = filterUsefulMessages(filteredMessages1)
+
+  const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
+
+  const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
 
   const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
   )
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
@@ -440,8 +473,10 @@ export async function fetchChatCompletion({
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  // NOTE：assistant.enableWebSearch 的语义是是否启用模型内置搜索功能
   const enableWebSearch =
-    (assistant.enableWebSearch && isWebSearchModel(model)) ||
+    assistant.enableWebSearch ||
+    (assistant.webSearchProviderId && isWebSearchModel(model)) ||
     isOpenRouterBuiltInWebSearchModel(model) ||
     model.id.includes('sonar') ||
     false
@@ -453,7 +488,6 @@ export async function fetchChatCompletion({
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-
   const completionsParams: CompletionsParams = {
     callType: 'chat',
     messages: _messages,
@@ -473,13 +507,13 @@ export async function fetchChatCompletion({
     streamOutput: assistant.settings?.streamOutput || false
   }
 
-  return await AI.completionsForTrace(completionsParams, requestOptions)
-
   // Post-conversation memory processing
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   if (globalMemoryEnabled && assistant.enableMemory) {
-    await processConversationMemory(messages, assistant)
+    processConversationMemory(messages, assistant)
   }
+
+  return await AI.completionsForTrace(completionsParams, requestOptions)
 }
 
 /**
@@ -567,24 +601,41 @@ async function processConversationMemory(messages: Message[], assistant: Assista
         }
       })
       .catch((error) => {
-        logger.error('Background memory processing failed:', error)
+        logger.error('Background memory processing failed:', error as Error)
       })
   } catch (error) {
-    logger.error('Error in post-conversation memory processing:', error)
+    logger.error('Error in post-conversation memory processing:', error as Error)
   }
 }
 
-interface FetchTranslateProps {
-  content: string
-  assistant: Assistant
+interface FetchLanguageDetectionProps {
+  text: string
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
-export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
+/**
+ * 检测文本语言
+ * @param params - 参数对象
+ * @param {string} params.text - 需要检测语言的文本内容
+ * @param {function} [params.onResponse] - 流式响应回调函数,用于实时获取检测结果
+ * @returns {Promise<string>} 返回检测到的语言代码,如果检测失败会抛出错误
+ * @throws {Error}
+ */
+export async function fetchLanguageDetection({ text, onResponse }: FetchLanguageDetectionProps) {
+  const translateLanguageOptions = await getTranslateOptions()
+  const listLang = translateLanguageOptions.map((item) => item.langCode)
+  const listLangText = JSON.stringify(listLang)
 
+  const model = getQuickModel() || getDefaultModel()
   if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
+    throw new Error(i18n.t('error.model.not_exists'))
+  }
+
+  if (isQwenMTModel(model)) {
+    logger.info('QwenMT cannot be used for language detection.')
+    if (isQwenMTModel(model)) {
+      throw new Error(i18n.t('translate.error.detect.qwen_mt'))
+    }
   }
 
   const provider = getProviderByModel(model)
@@ -592,6 +643,14 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
   if (!hasApiKey(provider)) {
     throw new Error(i18n.t('error.no_api_key'))
   }
+
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.model = model
+  assistant.settings = {
+    temperature: 0.7
+  }
+  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
   const isSupportedStreamOutput = () => {
     if (!onResponse) {
@@ -601,32 +660,29 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
   }
 
   const stream = isSupportedStreamOutput()
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   const params: CompletionsParams = {
-    callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
+    callType: 'translate-lang-detect',
+    messages: 'follow system prompt',
+    assistant,
     streamOutput: stream,
-    enableReasoning,
+    enableReasoning: false,
+    shouldThrow: true,
     onResponse
   }
 
   const AI = new AiProvider(provider)
 
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
-  }
+  return (await AI.completions(params)).getText()
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
+  const model = getQuickModel() || assistant.model || getDefaultModel()
+
+  if (prompt && containsSupportedVariables(prompt)) {
+    prompt = await replacePromptVariables(prompt, model.name)
+  }
 
   // 总结上下文总是取最后5条消息
   const contextMessages = takeRight(messages, 5)
@@ -645,7 +701,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
       role: message.role,
-      mainText: getMainTextContent(message)
+      mainText: purifyMarkdownImages(getMainTextContent(message))
     }
 
     // 让LLM知道消息中包含的文件，但只提供文件名
@@ -692,7 +748,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -753,9 +809,9 @@ export async function fetchGenerate({
   }
 }
 
-function hasApiKey(provider: Provider) {
+export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
+  if (['ollama', 'lmstudio', 'vertexai', 'cherryin'].includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 
@@ -796,8 +852,8 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.key'), key, style })
-      throw new Error(i18n.t('message.error.enter.api.key'))
+      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 
@@ -812,8 +868,10 @@ export function checkApiProvider(provider: Provider): void {
   }
 }
 
-export async function checkApi(provider: Provider, model: Model): Promise<void> {
+export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
+
+  const taskId = uuid()
 
   const ai = new AiProvider(provider)
 
@@ -821,24 +879,47 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
   assistant.model = model
   try {
     if (isEmbeddingModel(model)) {
-      await ai.getEmbeddingDimensions(model)
+      // race 超时 15s
+      logger.silly("it's a embedding model")
+      const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
+      let streamError: Error | undefined = undefined
+
+      // 15s超时
+      const timer = setTimeout(() => {
+        abortCompletion(taskId)
+        streamError = new Error('Timeout')
+      }, timeout)
+
       const params: CompletionsParams = {
         callType: 'check',
         messages: 'hi',
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        shouldThrow: true
+        onChunk: (chunk: Chunk) => {
+          if (chunk.type === ChunkType.ERROR && !isAbortError(chunk.error)) {
+            streamError = new Error(JSON.stringify(chunk.error))
+          }
+          abortCompletion(taskId)
+        },
+        shouldThrow: true,
+        abortKey: taskId
       }
 
       // Try streaming check first
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
+      try {
+        await ai.completions(params)
+      } finally {
+        clearTimeout(timer)
+      }
+      if (streamError) {
+        throw streamError
       }
     }
   } catch (error: any) {
+    // FIXME: 这种判断方法无法严格保证错误是流式引起的
     if (error.message.includes('stream')) {
       const params: CompletionsParams = {
         callType: 'check',
@@ -847,12 +928,17 @@ export async function checkApi(provider: Provider, model: Model): Promise<void> 
         streamOutput: false,
         shouldThrow: true
       }
-      const result = await ai.completions(params)
-      if (!result.getText()) {
-        throw new Error('No response received')
-      }
+      // 超时判断
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
+      await Promise.race([ai.completions(params), timeoutPromise])
     } else {
       throw error
     }
   }
+}
+
+export async function checkModel(provider: Provider, model: Model, timeout = 15000): Promise<{ latency: number }> {
+  const startTime = performance.now()
+  await checkApi(provider, model, timeout)
+  return { latency: performance.now() - startTime }
 }

@@ -100,7 +100,7 @@ export async function restore() {
         channel: 'system'
       })
     } catch (error) {
-      logger.error('restore: Error restoring backup file:', error)
+      logger.error('restore: Error restoring backup file:', error as Error)
       window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
     }
   }
@@ -171,7 +171,7 @@ export async function backupToWebdav({
     deviceType = (await window.api.system.getDeviceType()) || 'unknown'
     hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
-    logger.error('Failed to get device type or hostname:', error)
+    logger.error('Failed to get device type or hostname:', error as Error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
@@ -248,7 +248,7 @@ export async function backupToWebdav({
             }
           }
         } catch (error) {
-          logger.error('Failed to clean up old backup files:', error)
+          logger.error('Failed to clean up old backup files:', error as Error)
         }
       }
     } else {
@@ -310,7 +310,7 @@ export async function restoreFromWebdav(fileName?: string) {
   try {
     await handleData(JSON.parse(data))
   } catch (error) {
-    logger.error('[Backup] Error downloading file from WebDAV:', error)
+    logger.error('[Backup] Error downloading file from WebDAV:', error as Error)
     window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
   }
 }
@@ -341,7 +341,7 @@ export async function backupToS3({
     deviceType = (await window.api.system.getDeviceType()) || 'unknown'
     hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
-    logger.error('Failed to get device type or hostname:', error)
+    logger.error('Failed to get device type or hostname:', error as Error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
@@ -401,7 +401,7 @@ export async function backupToS3({
             }
           }
         } catch (error) {
-          logger.error('Failed to clean up old backup files:', error)
+          logger.error('Failed to clean up old backup files:', error as Error)
         }
       }
     } else {
@@ -902,7 +902,11 @@ export async function backupToLocal({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
@@ -917,14 +921,19 @@ export async function backupToLocal({
 
   store.dispatch(setLocalBackupSyncState({ syncing: true, lastSyncError: null }))
 
-  const { localBackupDir, localBackupMaxBackups, localBackupSkipBackupFile } = store.getState().settings
+  const {
+    localBackupDir: localBackupDirSetting,
+    localBackupMaxBackups,
+    localBackupSkipBackupFile
+  } = store.getState().settings
+  const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
     deviceType = (await window.api.system.getDeviceType()) || 'unknown'
     hostname = (await window.api.system.getHostname()) || 'unknown'
   } catch (error) {
-    logger.error('Failed to get device type or hostname:', error)
+    logger.error('Failed to get device type or hostname:', error as Error)
   }
   const timestamp = dayjs().format('YYYYMMDDHHmmss')
   const backupFileName = customFileName || `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
@@ -981,7 +990,7 @@ export async function backupToLocal({
             }
           }
         } catch (error) {
-          logger.error('[LocalBackup] Failed to clean up old backups:', error)
+          logger.error('[LocalBackup] Failed to clean up old backups:', error as Error)
         }
       }
     } else {
@@ -1039,16 +1048,16 @@ export async function backupToLocal({
 }
 
 export async function restoreFromLocal(fileName: string) {
-  const { localBackupDir } = store.getState().settings
-
   try {
+    const { localBackupDir: localBackupDirSetting } = store.getState().settings
+    const localBackupDir = await window.api.resolvePath(localBackupDirSetting)
     const restoreData = await window.api.backup.restoreFromLocalBackup(fileName, localBackupDir)
     const data = JSON.parse(restoreData)
     await handleData(data)
 
     return true
   } catch (error) {
-    logger.error('[LocalBackup] Restore failed:', error)
+    logger.error('[LocalBackup] Restore failed:', error as Error)
     window.message.error({ content: i18n.t('error.backup.file_format'), key: 'restore' })
     throw error
   }

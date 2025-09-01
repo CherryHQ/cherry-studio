@@ -214,7 +214,7 @@ class SpanCacheService implements TraceCache {
       try {
         await fs.rm(filePath, { recursive: true })
       } catch (error) {
-        logger.error('Error cleaning local data:', error)
+        logger.error('Error cleaning local data:', error as Error)
       }
     }
   }
@@ -359,7 +359,7 @@ class SpanCacheService implements TraceCache {
             try {
               yield JSON.parse(trimmed) as SpanEntity
             } catch (e) {
-              logger.error(`JSON解析失败: ${trimmed}`, e)
+              logger.error(`JSON解析失败: ${trimmed}`, e as Error)
             }
           }
         }
@@ -369,7 +369,7 @@ class SpanCacheService implements TraceCache {
         .filter((span) => span.topicId === topicId && span.traceId === traceId && span.modelName)
         .filter((span) => !modelName || span.modelName === modelName)
     } catch (err) {
-      logger.error('Error parsing JSON:', err)
+      logger.error('Error parsing JSON:', err as Error)
       throw err
     }
   }
@@ -387,7 +387,7 @@ class SpanCacheService implements TraceCache {
       await fs.access(filePath)
       return true
     } catch (err) {
-      logger.error('delete trace file error:', err)
+      logger.error('delete trace file error:', err as Error)
       return false
     }
   }

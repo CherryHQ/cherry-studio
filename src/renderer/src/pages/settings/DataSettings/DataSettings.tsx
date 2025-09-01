@@ -2,9 +2,7 @@ import {
   CloudServerOutlined,
   CloudSyncOutlined,
   FileSearchOutlined,
-  FolderOpenOutlined,
   LoadingOutlined,
-  SaveOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
@@ -15,6 +13,7 @@ import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
 import store, { useAppDispatch } from '@renderer/store'
 import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
@@ -22,7 +21,7 @@ import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
 import { Button, Progress, Switch, Typography } from 'antd'
-import { FileText, FolderCog, FolderInput, Sparkle } from 'lucide-react'
+import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -56,6 +55,7 @@ const DataSettings: FC = () => {
   const { size, removeAllFiles } = useKnowledgeFiles()
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
+  const { setTimeoutTimer } = useTimer()
 
   const _skipBackupFile = store.getState().settings.skipBackupFile
   const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
@@ -87,49 +87,49 @@ const DataSettings: FC = () => {
 
   const menuItems = [
     { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
-    { key: 'data', title: 'settings.data.data.title', icon: <FolderCog size={16} /> },
+    { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
-    { key: 'local_backup', title: 'settings.data.local.title', icon: <FolderCog size={16} /> },
-    { key: 'webdav', title: 'settings.data.webdav.title', icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
-    { key: 'nutstore', title: 'settings.data.nutstore.title', icon: <NutstoreIcon /> },
-    { key: 's3', title: 'settings.data.s3.title', icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
+    { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
+    { key: 'webdav', title: t('settings.data.webdav.title'), icon: <CloudSyncOutlined style={{ fontSize: 16 }} /> },
+    { key: 'nutstore', title: t('settings.data.nutstore.title'), icon: <NutstoreIcon /> },
+    { key: 's3', title: t('settings.data.s3.title.label'), icon: <CloudServerOutlined style={{ fontSize: 16 }} /> },
     { key: 'divider_2', isDivider: true, text: t('settings.data.divider.export_settings') },
     {
       key: 'export_menu',
-      title: 'settings.data.export_menu.title',
+      title: t('settings.data.export_menu.title'),
       icon: <FolderInput size={16} />
     },
     {
       key: 'markdown_export',
-      title: 'settings.data.markdown_export.title',
+      title: t('settings.data.markdown_export.title'),
       icon: <FileText size={16} />
     },
 
     { key: 'divider_3', isDivider: true, text: t('settings.data.divider.third_party') },
-    { key: 'notion', title: 'settings.data.notion.title', icon: <i className="iconfont icon-notion" /> },
+    { key: 'notion', title: t('settings.data.notion.title'), icon: <i className="iconfont icon-notion" /> },
     {
       key: 'yuque',
-      title: 'settings.data.yuque.title',
+      title: t('settings.data.yuque.title'),
       icon: <YuqueOutlined style={{ fontSize: 16 }} />
     },
     {
       key: 'joplin',
-      title: 'settings.data.joplin.title',
+      title: t('settings.data.joplin.title'),
       icon: <JoplinIcon />
     },
     {
       key: 'obsidian',
-      title: 'settings.data.obsidian.title',
+      title: t('settings.data.obsidian.title'),
       icon: <i className="iconfont icon-obsidian" />
     },
     {
       key: 'siyuan',
-      title: 'settings.data.siyuan.title',
+      title: t('settings.data.siyuan.title'),
       icon: <SiyuanIcon />
     },
     {
       key: 'agentssubscribe_url',
-      title: 'agents.settings.title',
+      title: t('agents.settings.title'),
       icon: <Sparkle size={16} className="icon" />
     }
   ]
@@ -210,13 +210,15 @@ const DataSettings: FC = () => {
     }
 
     // check new app data path is not in old app data path
-    if (newAppDataPath.startsWith(appInfo.appDataPath)) {
+    const isInOldPath = await window.api.isPathInside(newAppDataPath, appInfo.appDataPath)
+    if (isInOldPath) {
       window.message.error(t('settings.data.app_data.select_error_same_path'))
       return
     }
 
     // check new app data path is not in app install path
-    if (newAppDataPath.startsWith(appInfo.installPath)) {
+    const isInInstallPath = await window.api.isPathInside(newAppDataPath, appInfo.installPath)
+    if (isInInstallPath) {
       window.message.error(t('settings.data.app_data.select_error_in_app_path'))
       return
     }
@@ -247,11 +249,15 @@ const DataSettings: FC = () => {
           content: t('settings.data.app_data.restart_notice'),
           duration: 2
         })
-        setTimeout(() => {
-          window.api.relaunchApp({
-            args: ['--new-data-path=' + newPath]
-          })
-        }, 500)
+        setTimeoutTimer(
+          'doubleConfirmModalBeforeCopyData',
+          () => {
+            window.api.relaunchApp({
+              args: ['--new-data-path=' + newPath]
+            })
+          },
+          500
+        )
       }
     })
   }
@@ -333,11 +339,15 @@ const DataSettings: FC = () => {
               content: t('settings.data.app_data.restart_notice'),
               duration: 3
             })
-            setTimeout(() => {
-              window.api.relaunchApp({
-                args: ['--new-data-path=' + newPath]
-              })
-            }, 500)
+            setTimeoutTimer(
+              'showMigrationConfirmModal_1',
+              () => {
+                window.api.relaunchApp({
+                  args: ['--new-data-path=' + newPath]
+                })
+              },
+              500
+            )
             return
           }
           // 如果不复制数据，直接设置新的应用数据路径
@@ -348,11 +358,15 @@ const DataSettings: FC = () => {
           setAppInfo(await window.api.getAppInfo())
 
           // 通知用户并重启应用
-          setTimeout(() => {
-            window.message.success(t('settings.data.app_data.select_success'))
-            window.api.setStopQuitApp(false, '')
-            window.api.relaunchApp()
-          }, 500)
+          setTimeoutTimer(
+            'showMigrationConfirmModal_2',
+            () => {
+              window.message.success(t('settings.data.app_data.select_success'))
+              window.api.setStopQuitApp(false, '')
+              window.api.relaunchApp()
+            },
+            500
+          )
         } catch (error) {
           window.api.setStopQuitApp(false, '')
           window.message.error({
@@ -456,7 +470,7 @@ const DataSettings: FC = () => {
         await window.api.flushAppData()
 
         // wait 2 seconds to flush app data
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((resolve) => setTimeoutTimer('startMigration_1', resolve, 2000))
 
         // 开始复制过程
         const copyResult = await window.api.copy(
@@ -476,15 +490,19 @@ const DataSettings: FC = () => {
         if (!copyResult.success) {
           // 延迟关闭加载模态框
           await new Promise<void>((resolve) => {
-            setTimeout(() => {
-              loadingModal.destroy()
-              window.message.error({
-                content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
-                key: messageKey,
-                duration: 5
-              })
-              resolve()
-            }, 500)
+            setTimeoutTimer(
+              'startMigration_2',
+              () => {
+                loadingModal.destroy()
+                window.message.error({
+                  content: t('settings.data.app_data.copy_failed') + ': ' + copyResult.error,
+                  key: messageKey,
+                  duration: 5
+                })
+                resolve()
+              },
+              500
+            )
           })
 
           throw new Error(copyResult.error || 'Unknown error during copy')
@@ -494,7 +512,7 @@ const DataSettings: FC = () => {
         await window.api.setAppDataPath(newPath)
 
         // 短暂延迟以显示100%完成
-        await new Promise((resolve) => setTimeout(resolve, 500))
+        await new Promise((resolve) => setTimeoutTimer('startMigration_3', resolve, 500))
 
         // 关闭加载模态框
         loadingModal.destroy()
@@ -529,13 +547,17 @@ const DataSettings: FC = () => {
         setAppInfo(await window.api.getAppInfo())
 
         // 通知用户并重启应用
-        setTimeout(() => {
-          window.message.success(t('settings.data.app_data.select_success'))
-          window.api.setStopQuitApp(false, '')
-          window.api.relaunchApp({
-            args: ['--user-data-dir=' + newDataPath]
-          })
-        }, 1000)
+        setTimeoutTimer(
+          'handleDataMigration',
+          () => {
+            window.message.success(t('settings.data.app_data.select_success'))
+            window.api.setStopQuitApp(false, '')
+            window.api.relaunchApp({
+              args: ['--user-data-dir=' + newDataPath]
+            })
+          },
+          1000
+        )
       } catch (error) {
         window.api.setStopQuitApp(false, '')
         window.message.error({
@@ -552,7 +574,7 @@ const DataSettings: FC = () => {
     }
 
     handleDataMigration()
-  }, [t])
+  }, [setTimeoutTimer, t])
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
@@ -568,7 +590,7 @@ const DataSettings: FC = () => {
           ) : (
             <ListItem
               key={item.key}
-              title={t(item.title || '')}
+              title={item.title}
               active={menu === item.key}
               onClick={() => setMenu(item.key)}
               titleStyle={{ fontWeight: 500 }}
@@ -577,7 +599,7 @@ const DataSettings: FC = () => {
           )
         )}
       </MenuList>
-      <SettingContainer theme={theme} style={{ display: 'flex', flex: 1 }}>
+      <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && (
           <>
             <SettingGroup theme={theme}>
@@ -586,10 +608,10 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
-                  <Button onClick={BackupPopup.show} icon={<SaveOutlined />}>
+                  <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
                     {t('settings.general.backup.button')}
                   </Button>
-                  <Button onClick={RestorePopup.show} icon={<FolderOpenOutlined />}>
+                  <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
                     {t('settings.general.restore.button')}
                   </Button>
                 </HStack>
@@ -607,9 +629,13 @@ const DataSettings: FC = () => {
               <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_data')}</SettingRowTitle>
+                <SettingRowTitle>{t('settings.data.app_data.label')}</SettingRowTitle>
                 <PathRow>
-                  <PathText style={{ color: 'var(--color-text-3)' }}>{appInfo?.appDataPath}</PathText>
+                  <PathText
+                    style={{ color: 'var(--color-text-3)' }}
+                    onClick={() => handleOpenPath(appInfo?.appDataPath)}>
+                    {appInfo?.appDataPath}
+                  </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
                   <HStack gap="5px" style={{ marginLeft: '8px' }}>
                     <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
@@ -618,7 +644,7 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_logs')}</SettingRowTitle>
+                <SettingRowTitle>{t('settings.data.app_logs.label')}</SettingRowTitle>
                 <PathRow>
                   <PathText style={{ color: 'var(--color-text-3)' }} onClick={() => handleOpenPath(appInfo?.logsPath)}>
                     {appInfo?.logsPath}
@@ -633,7 +659,7 @@ const DataSettings: FC = () => {
               </SettingRow>
               <SettingDivider />
               <SettingRow>
-                <SettingRowTitle>{t('settings.data.app_knowledge')}</SettingRowTitle>
+                <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
                 <HStack alignItems="center" gap="5px">
                   <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </HStack>

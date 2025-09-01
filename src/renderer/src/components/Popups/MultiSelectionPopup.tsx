@@ -1,7 +1,8 @@
+import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { Topic } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
-import { Copy, Save, Trash, X } from 'lucide-react'
+import { Save, X } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -49,7 +50,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               shape="circle"
               color="default"
               variant="text"
-              icon={<Copy size={16} />}
+              icon={<CopyIcon size={16} />}
               disabled={isActionDisabled}
               onClick={() => handleAction('copy')}
             />
@@ -60,7 +61,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               color="danger"
               variant="text"
               danger
-              icon={<Trash size={16} />}
+              icon={<DeleteIcon size={16} className="lucide-custom" />}
               onClick={() => handleAction('delete')}
             />
           </Tooltip>
