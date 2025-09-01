@@ -40,7 +40,6 @@ export class PPIOAPIClient extends OpenAIAPIClient {
       ])
 
       // Extract models from all responses
-      // @ts-ignore - PPIO response structure may not be typed
       const allModels = [
         ...((chatModelsResponse as any)?.data || []),
         ...((embeddingModelsResponse as any)?.data || []),

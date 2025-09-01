@@ -186,7 +186,7 @@ export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> 
     const t: ToolUnion = {
       name: tool.id,
       description: tool.description,
-      // @ts-ignore ignore type as it it unknown
+      // @ts-expect-error ignore type as it it unknown
       input_schema: tool.inputSchema
     }
     return t

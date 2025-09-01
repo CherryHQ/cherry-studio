@@ -93,7 +93,7 @@ describe('DraggableVirtualList', () => {
     it('should render nothing when the list is empty', () => {
       render(
         <DraggableVirtualList list={[]} onUpdate={() => {}}>
-          {/* @ts-ignore test*/}
+          {/* @ts-expect-error test*/}
           {(item) => <div data-testid="test-item">{item.name}</div>}
         </DraggableVirtualList>
       )

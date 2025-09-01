@@ -1028,7 +1028,7 @@ const mockOpenaiApiClient = {
         return
       }
       // OpenAI annotations
-      // @ts-ignore - annotations may not be in standard type definitions
+      // @ts-expect-error - annotations may not be in standard type definitions
       const annotations = contentSource.annotations || chunk.annotations
       if (annotations && annotations.length > 0 && annotations[0].type === 'url_citation') {
         hasBeenCollectedWebSearch = true
@@ -1039,55 +1039,55 @@ const mockOpenaiApiClient = {
       }
 
       // Grok citations
-      // @ts-ignore - citations may not be in standard type definitions
+      // @ts-expect-error - citations may not be in standard type definitions
       if (context.provider?.id === 'grok' && chunk.citations) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - citations may not be in standard type definitions
+          // @ts-expect-error - citations may not be in standard type definitions
           results: chunk.citations,
           source: WebSearchSource.GROK
         }
       }
 
       // Perplexity citations
-      // @ts-ignore - citations may not be in standard type definitions
+      // @ts-expect-error - citations may not be in standard type definitions
       if (context.provider?.id === 'perplexity' && chunk.search_results && chunk.search_results.length > 0) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - citations may not be in standard type definitions
+          // @ts-expect-error - citations may not be in standard type definitions
           results: chunk.search_results,
           source: WebSearchSource.PERPLEXITY
         }
       }
 
       // OpenRouter citations
-      // @ts-ignore - citations may not be in standard type definitions
+      // @ts-expect-error - citations may not be in standard type definitions
       if (context.provider?.id === 'openrouter' && chunk.citations && chunk.citations.length > 0) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - citations may not be in standard type definitions
+          // @ts-expect-error - citations may not be in standard type definitions
           results: chunk.citations,
           source: WebSearchSource.OPENROUTER
         }
       }
 
       // Zhipu web search
-      // @ts-ignore - web_search may not be in standard type definitions
+      // @ts-expect-error - web_search may not be in standard type definitions
       if (context.provider?.id === 'zhipu' && chunk.web_search) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - web_search may not be in standard type definitions
+          // @ts-expect-error - web_search may not be in standard type definitions
           results: chunk.web_search,
           source: WebSearchSource.ZHIPU
         }
       }
 
       // Hunyuan web search
-      // @ts-ignore - search_info may not be in standard type definitions
+      // @ts-expect-error - search_info may not be in standard type definitions
       if (context.provider?.id === 'hunyuan' && chunk.search_info?.search_results) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - search_info may not be in standard type definitions
+          // @ts-expect-error - search_info may not be in standard type definitions
           results: chunk.search_info.search_results,
           source: WebSearchSource.HUNYUAN
         }
@@ -1171,7 +1171,7 @@ const mockOpenaiApiClient = {
             if (!contentSource?.content) {
               accumulatingText = false
             }
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            // @ts-expect-error - reasoning_content is not in standard OpenAI types but some providers use it
             if (!contentSource?.reasoning_content && !contentSource?.reasoning) {
               isThinking = false
             }
@@ -1192,7 +1192,7 @@ const mockOpenaiApiClient = {
             }
 
             // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            // @ts-expect-error - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
               if (!isThinking) {
@@ -2248,7 +2248,7 @@ describe('ApiService', () => {
 
   it('should handle openai need extract content chunk correctly', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
-    // @ts-ignore mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
+    // @ts-expect-error mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
     mockCreate.mockReturnValue(mockOpenaiNeedExtractContentApiClient as unknown as OpenAIAPIClient)
     const AI = new AiProvider(mockProvider)
     const result = await AI.completions({
@@ -2719,7 +2719,7 @@ describe('ApiService', () => {
     mockOpenaiApiClient_.createCompletions = vi.fn().mockImplementation(() => mockChunksGenerator())
 
     const mockCreate = vi.mocked(ApiClientFactory.create)
-    // @ts-ignore mockOpenaiApiClient_ is a OpenAIAPIClient
+    // @ts-expect-error mockOpenaiApiClient_ is a OpenAIAPIClient
     mockCreate.mockReturnValue(mockOpenaiApiClient_ as unknown as OpenAIAPIClient)
     const AI = new AiProvider(mockProvider)
 

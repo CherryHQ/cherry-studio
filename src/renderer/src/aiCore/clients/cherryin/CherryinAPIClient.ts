@@ -29,7 +29,7 @@ export class CherryinAPIClient extends OpenAIAPIClient {
       ...signature
     }
 
-    // @ts-ignore - SDK参数可能有额外的字段
+    // @ts-expect-error - SDK参数可能有额外的字段
     return await sdk.chat.completions.create(payload, options)
   }
 

@@ -150,7 +150,7 @@ describe('utils/aws-bedrock-utils', () => {
     })
 
     it('should return null for invalid fallback format', () => {
-      // @ts-ignore - testing invalid fallback format
+      // @ts-expect-error - testing invalid fallback format
       const result = convertBase64ImageToAwsBedrockFormat(validBase64, undefined, 'bmp')
 
       expect(result).toBe(null)

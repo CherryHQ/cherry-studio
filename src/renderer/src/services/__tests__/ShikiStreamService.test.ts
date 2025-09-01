@@ -40,7 +40,7 @@ describe('ShikiStreamService', () => {
 
     it('should fallback to main thread if worker initialization fails', async () => {
       const originalWorker = globalThis.Worker
-      // @ts-ignore: 强制删除 Worker 构造函数
+      // @ts-expect-error: 强制删除 Worker 构造函数
       globalThis.Worker = undefined
 
       const code = 'const y = 2;'
@@ -50,7 +50,7 @@ describe('ShikiStreamService', () => {
       expect(result.lines.length).toBeGreaterThan(0)
       expect(result.recall).toBe(0)
 
-      // @ts-ignore: 恢复 Worker 构造函数
+      // @ts-expect-error: 恢复 Worker 构造函数
       globalThis.Worker = originalWorker
     })
 
@@ -60,13 +60,13 @@ describe('ShikiStreamService', () => {
         return Promise.reject(new Error('init failed'))
       })
 
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       const maxRetryCount = shikiStreamService.MAX_WORKER_INIT_RETRY
 
       // 连续多次调用
       for (let i = 1; i < maxRetryCount + 2; i++) {
         shikiStreamService.highlightCodeChunk('const a = ' + i, language, theme, callerId).catch(() => {})
-        // @ts-ignore: access private
+        // @ts-expect-error: access private
         expect(shikiStreamService.workerInitRetryCount).toBe(Math.min(i, maxRetryCount))
       }
       spy.mockRestore()
@@ -78,11 +78,11 @@ describe('ShikiStreamService', () => {
 
     beforeEach(() => {
       originalWorker = globalThis.Worker
-      // @ts-ignore: 强制删除 Worker 构造函数
+      // @ts-expect-error: 强制删除 Worker 构造函数
       globalThis.Worker = undefined
     })
     afterEach(() => {
-      // @ts-ignore: 恢复 Worker 构造函数
+      // @ts-expect-error: 恢复 Worker 构造函数
       globalThis.Worker = originalWorker
     })
 
@@ -93,12 +93,12 @@ describe('ShikiStreamService', () => {
 
       // 先高亮一次，创建 tokenizer
       await shikiStreamService.highlightCodeChunk(code1, language, theme, callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       const tokenizer1 = shikiStreamService.tokenizerCache.get(cacheKey)
 
       // 再高亮一次，应该复用 tokenizer
       await shikiStreamService.highlightCodeChunk(code2, language, theme, callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       const tokenizer2 = shikiStreamService.tokenizerCache.get(cacheKey)
 
       expect(tokenizer1).toBe(tokenizer2)
@@ -116,15 +116,15 @@ describe('ShikiStreamService', () => {
       const otherCacheKey = `${_callerId}-${_language}-${_theme}`
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(otherCacheKey)).toBe(false)
 
       await shikiStreamService.highlightCodeChunk(code, _language, _theme, _callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(otherCacheKey)).toBe(true)
     })
 
@@ -133,11 +133,11 @@ describe('ShikiStreamService', () => {
       const cacheKey = `${callerId}-${language}-${theme}`
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
 
       shikiStreamService.cleanupTokenizers(callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
     })
 
@@ -152,15 +152,15 @@ describe('ShikiStreamService', () => {
       await shikiStreamService.highlightCodeChunk(code1, language, theme, callerId)
       await shikiStreamService.highlightCodeChunk(code2, language, theme, otherCallerId)
 
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey1)).toBe(true)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey2)).toBe(true)
 
       shikiStreamService.cleanupTokenizers(callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey1)).toBe(false)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey2)).toBe(true)
     })
 
@@ -173,7 +173,7 @@ describe('ShikiStreamService', () => {
       // 检查缓存
       for (const id of callerIds) {
         const cacheKey = `${id}-${language}-${theme}`
-        // @ts-ignore: access private
+        // @ts-expect-error: access private
         expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
       }
 
@@ -182,7 +182,7 @@ describe('ShikiStreamService', () => {
       // 检查缓存都被清理
       for (const id of callerIds) {
         const cacheKey = `${id}-${language}-${theme}`
-        // @ts-ignore: access private
+        // @ts-expect-error: access private
         expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
       }
     })
@@ -192,7 +192,7 @@ describe('ShikiStreamService', () => {
       const cacheKey = `${callerId}-${language}-${theme}`
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
       // 并发清理同一个 callerId
       await Promise.all([
@@ -200,7 +200,7 @@ describe('ShikiStreamService', () => {
         Promise.resolve(shikiStreamService.cleanupTokenizers(callerId)),
         Promise.resolve(shikiStreamService.cleanupTokenizers(callerId))
       ])
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
     })
 
@@ -209,7 +209,7 @@ describe('ShikiStreamService', () => {
 
       await shikiStreamService.highlightCodeChunk(code, language, theme, callerId)
       const cacheKey = `${callerId}-${language}-${theme}`
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
 
       // 并发高亮和清理
@@ -220,11 +220,11 @@ describe('ShikiStreamService', () => {
       ])
 
       // 高亮后缓存应该存在
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(true)
       // 最后清理
       shikiStreamService.cleanupTokenizers(callerId)
-      // @ts-ignore: access private
+      // @ts-expect-error: access private
       expect(shikiStreamService.tokenizerCache.has(cacheKey)).toBe(false)
     })
   })

@@ -115,7 +115,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     return await sdk.messages.create(payload, options)
   }
 
-  // @ts-ignore sdk未提供
+  // @ts-expect-error sdk未提供
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   override async generateImage(generateImageParams: GenerateImageParams): Promise<string[]> {
     return []
@@ -127,7 +127,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     return response.data
   }
 
-  // @ts-ignore sdk未提供
+  // @ts-expect-error sdk未提供
   override async getEmbeddingDimensions(): Promise<number> {
     throw new Error("Anthropic SDK doesn't support getEmbeddingDimensions method.")
   }

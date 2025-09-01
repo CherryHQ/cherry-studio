@@ -567,7 +567,7 @@ const migrateConfig = {
 
       state.agents.agents.forEach((agent) => {
         agent.type = 'agent'
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         delete agent.group
       })
 
@@ -576,7 +576,7 @@ const migrateConfig = {
         assistants: {
           ...state.assistants,
           assistants: [...state.assistants.assistants].map((assistant) => {
-            // @ts-ignore eslint-disable-next-line
+            // @ts-expect-error eslint-disable-next-line
             delete assistant.group
             return {
               ...assistant,
@@ -645,7 +645,7 @@ const migrateConfig = {
   },
   '39': (state: RootState) => {
     try {
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.codeStyle = 'auto'
       return state
     } catch (error) {
@@ -934,7 +934,7 @@ const migrateConfig = {
   },
   '65': (state: RootState) => {
     try {
-      // @ts-ignore expect error
+      // @ts-expect-error expect error
       state.settings.targetLanguage = 'english'
       return state
     } catch (error) {
@@ -1118,7 +1118,7 @@ const migrateConfig = {
       addWebSearchProvider(state, 'exa')
       if (state.websearch) {
         state.websearch.providers.forEach((p) => {
-          // @ts-ignore eslint-disable-next-line
+          // @ts-expect-error eslint-disable-next-line
           delete p.enabled
         })
       }
@@ -1205,9 +1205,9 @@ const migrateConfig = {
   },
   '85': (state: RootState) => {
     try {
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.autoCheckUpdate = !state.settings.manualUpdateCheck
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.manualUpdateCheck
       state.settings.gridPopoverTrigger = 'click'
       return state
@@ -1269,13 +1269,13 @@ const migrateConfig = {
   },
   '91': (state: RootState) => {
     try {
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.codeCacheable = false
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.codeCacheMaxSize = 1000
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.codeCacheTTL = 15
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.codeCacheThreshold = 2
       addProvider(state, 'qiniu')
       return state
@@ -1334,9 +1334,9 @@ const migrateConfig = {
   },
   '96': (state: RootState) => {
     try {
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.assistantIconType = state.settings?.showAssistantIcon ? 'model' : 'emoji'
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.showAssistantIcon
       return state
     } catch (error) {
@@ -1362,7 +1362,7 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.type === 'openai' && provider.id !== 'openai') {
-          // @ts-ignore eslint-disable-next-line
+          // @ts-expect-error eslint-disable-next-line
           provider.type = 'openai-compatible'
         }
       })
@@ -1406,7 +1406,7 @@ const migrateConfig = {
   '100': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         if (['openai-compatible', 'openai'].includes(provider.type)) {
           provider.type = 'openai'
         }
@@ -1427,11 +1427,11 @@ const migrateConfig = {
     try {
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings) {
-          // @ts-ignore eslint-disable-next-line
+          // @ts-expect-error eslint-disable-next-line
           if (assistant.settings.enableToolUse) {
-            // @ts-ignore eslint-disable-next-line
+            // @ts-expect-error eslint-disable-next-line
             assistant.settings.toolUseMode = assistant.settings.enableToolUse ? 'function' : 'prompt'
-            // @ts-ignore eslint-disable-next-line
+            // @ts-expect-error eslint-disable-next-line
             delete assistant.settings.enableToolUse
           }
         }
@@ -1472,29 +1472,29 @@ const migrateConfig = {
         autocompletion: true,
         keymap: false
       }
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       state.settings.codePreview = {
         themeLight: 'auto',
         themeDark: 'auto'
       }
 
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       if (state.settings.codeStyle) {
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         state.settings.codePreview.themeLight = state.settings.codeStyle
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         state.settings.codePreview.themeDark = state.settings.codeStyle
       }
 
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.codeStyle
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.codeCacheable
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.codeCacheMaxSize
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.codeCacheTTL
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       delete state.settings.codeCacheThreshold
       return state
     } catch (error) {
@@ -1704,19 +1704,19 @@ const migrateConfig = {
     try {
       if (state.websearch) {
         // migrate contentLimit to cutoffLimit
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         if (state.websearch.contentLimit) {
           state.websearch.compressionConfig = {
             method: 'cutoff',
             cutoffUnit: 'char',
-            // @ts-ignore eslint-disable-next-line
+            // @ts-expect-error eslint-disable-next-line
             cutoffLimit: state.websearch.contentLimit
           }
         } else {
           state.websearch.compressionConfig = { method: 'none', cutoffUnit: 'char' }
         }
 
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         delete state.websearch.contentLimit
       }
       if (state.settings) {
@@ -1989,15 +1989,15 @@ const migrateConfig = {
   '126': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         if (base.preprocessOrOcrProvider) {
-          // @ts-ignore eslint-disable-next-line
+          // @ts-expect-error eslint-disable-next-line
           base.preprocessProvider = base.preprocessOrOcrProvider
-          // @ts-ignore eslint-disable-next-line
+          // @ts-expect-error eslint-disable-next-line
           delete base.preprocessOrOcrProvider
-          // @ts-ignore eslint-disable-next-line
+          // @ts-expect-error eslint-disable-next-line
           if (base.preprocessProvider.type === 'ocr') {
-            // @ts-ignore eslint-disable-next-line
+            // @ts-expect-error eslint-disable-next-line
             delete base.preprocessProvider
           }
         }
@@ -2058,9 +2058,9 @@ const migrateConfig = {
         openai.serviceTier = serviceTier
       }
 
-      // @ts-ignore eslint-disable-next-line
+      // @ts-expect-error eslint-disable-next-line
       if (state.settings.codePreview) {
-        // @ts-ignore eslint-disable-next-line
+        // @ts-expect-error eslint-disable-next-line
         state.settings.codeViewer = state.settings.codePreview
       } else {
         state.settings.codeViewer = {
@@ -2263,20 +2263,20 @@ const migrateConfig = {
   '140': (state: RootState) => {
     try {
       state.paintings = {
-        // @ts-ignore paintings
+        // @ts-expect-error paintings
         siliconflow_paintings: state?.paintings?.paintings || [],
-        // @ts-ignore DMXAPIPaintings
+        // @ts-expect-error DMXAPIPaintings
         dmxapi_paintings: state?.paintings?.DMXAPIPaintings || [],
-        // @ts-ignore tokenFluxPaintings
+        // @ts-expect-error tokenFluxPaintings
         tokenflux_paintings: state?.paintings?.tokenFluxPaintings || [],
         zhipu_paintings: [],
-        // @ts-ignore generate
+        // @ts-expect-error generate
         aihubmix_image_generate: state?.paintings?.generate || [],
-        // @ts-ignore remix
+        // @ts-expect-error remix
         aihubmix_image_remix: state?.paintings?.remix || [],
-        // @ts-ignore edit
+        // @ts-expect-error edit
         aihubmix_image_edit: state?.paintings?.edit || [],
-        // @ts-ignore upscale
+        // @ts-expect-error upscale
         aihubmix_image_upscale: state?.paintings?.upscale || [],
         openai_image_generate: state?.paintings?.openai_image_generate || [],
         openai_image_edit: state?.paintings?.openai_image_edit || []

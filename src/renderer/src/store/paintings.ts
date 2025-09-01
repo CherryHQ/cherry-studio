@@ -43,7 +43,6 @@ const paintingsSlice = createSlice({
       action: PayloadAction<{ namespace?: keyof PaintingsState; painting: PaintingAction }>
     ) => {
       const { namespace = 'paintings', painting } = action.payload
-      // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
       state[namespace] = state[namespace].filter((c) => c.id !== painting.id)
     },
     updatePainting: (
@@ -64,7 +63,6 @@ const paintingsSlice = createSlice({
       action: PayloadAction<{ namespace?: keyof PaintingsState; paintings: PaintingAction[] }>
     ) => {
       const { namespace = 'paintings', paintings } = action.payload
-      // @ts-ignore - TypeScript 无法正确推断数组元素类型与过滤条件的兼容性
       state[namespace] = paintings
     }
   }

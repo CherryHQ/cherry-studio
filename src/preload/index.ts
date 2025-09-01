@@ -452,9 +452,9 @@ if (process.contextIsolated) {
     console.error('[Preload]Failed to expose APIs:', error as Error)
   }
 } else {
-  // @ts-ignore (define in dts)
+  // @ts-expect-error (define in dts)
   window.electron = electronAPI
-  // @ts-ignore (define in dts)
+  // @ts-expect-error (define in dts)
   window.api = api
 }
 

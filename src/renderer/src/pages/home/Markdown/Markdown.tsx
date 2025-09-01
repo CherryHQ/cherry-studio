@@ -16,7 +16,7 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
-// @ts-ignore rehype-mathjax is not typed
+// @ts-expect-error rehype-mathjax is not typed
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'

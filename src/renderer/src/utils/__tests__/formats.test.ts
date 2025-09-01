@@ -209,7 +209,7 @@ describe('formats', () => {
     })
 
     it('should handle undefined', () => {
-      // @ts-ignore for testing
+      // @ts-expect-error for testing
       expect(extractHtmlTitle(undefined)).toBe('')
     })
   })

@@ -291,7 +291,7 @@ class ShikiStreamService {
       theme: loadedTheme
     })
 
-    // @ts-ignore hack
+    // @ts-expect-error hack
     return hast.children[0].properties as ShikiPreProperties
   }
 

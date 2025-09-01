@@ -448,7 +448,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }
   }
 
-  // @ts-ignore sdk未提供
+  // @ts-expect-error sdk未提供
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   override async generateImage(_generateImageParams: GenerateImageParams): Promise<string[]> {
     return []

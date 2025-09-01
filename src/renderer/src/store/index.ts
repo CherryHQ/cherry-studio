@@ -89,7 +89,7 @@ storeSyncService.setOptions({
 })
 
 const store = configureStore({
-  // @ts-ignore store type is unknown
+  // @ts-expect-error store type is unknown
   reducer: persistedReducer as typeof rootReducer,
   middleware: (getDefaultMiddleware) => {
     return getDefaultMiddleware({

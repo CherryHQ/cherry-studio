@@ -300,7 +300,7 @@ export class GeminiAPIClient extends BaseApiClient<
     }
   }
 
-  // @ts-ignore unused
+  // @ts-expect-error unuse
   private async getImageFileContents(message: Message): Promise<Content> {
     const role = message.role === 'user' ? 'user' : 'model'
     const content = getMainTextContent(message)
