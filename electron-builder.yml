@@ -114,7 +114,7 @@ publish:
   url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
-afterPack: scripts/after-pack.js
+beforePack: scripts/before-pack.js
 afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
