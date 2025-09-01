@@ -211,7 +211,7 @@ export class GeminiAPIClient extends BaseApiClient<
         inlineData: {
           data,
           mimeType
-        } as Part['inlineData']
+        }
       }
     }
 
