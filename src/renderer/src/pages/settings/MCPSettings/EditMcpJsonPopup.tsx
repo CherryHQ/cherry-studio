@@ -127,8 +127,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="animation-move-down"
       centered>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Text type="danger">
-          {jsonError ? <pre style={{ width: '100%' }}>{jsonError}</pre> : ''}
+        <Typography.Text style={{ width: '100%' }} type="danger">
+          {jsonError ? <pre>{jsonError}</pre> : ''}
         </Typography.Text>
       </div>
       {isLoading ? (
