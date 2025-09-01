@@ -13,6 +13,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
+import { AnimatePresence, motion } from 'motion/react'
 import React, { FC, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
@@ -152,15 +153,24 @@ const Chat: FC<Props> = (props) => {
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
         </Main>
-        {topicPosition === 'right' && showTopics && (
-          <Tabs
-            activeAssistant={assistant}
-            activeTopic={props.activeTopic}
-            setActiveAssistant={props.setActiveAssistant}
-            setActiveTopic={props.setActiveTopic}
-            position="right"
-          />
-        )}
+        <AnimatePresence initial={false}>
+          {topicPosition === 'right' && showTopics && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <Tabs
+                activeAssistant={assistant}
+                activeTopic={props.activeTopic}
+                setActiveAssistant={props.setActiveAssistant}
+                setActiveTopic={props.setActiveTopic}
+                position="right"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </HStack>
     </Container>
   )
