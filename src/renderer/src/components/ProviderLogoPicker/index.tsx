@@ -1,4 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons'
+import { PoeLogo } from '@renderer/components/Icons'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { Input, Tooltip } from 'antd'
@@ -31,6 +32,20 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
     onProviderClick(providerId)
   }
 
+  const renderLogo = (id: string, logo: string, name: string) => {
+    const size = 32
+    // 检查是否为svg格式
+    if (logo === 'svg') {
+      switch (id) {
+        case 'poe':
+          return <PoeLogo fontSize={size} />
+        default:
+          return <img src={logo} alt={name} draggable={false} />
+      }
+    }
+    return <img src={logo} alt={name} draggable={false} />
+  }
+
   return (
     <Container>
       <SearchContainer>
@@ -50,9 +65,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       <LogoGrid>
         {filteredProviders.map(({ id, logo, name }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
-            <LogoItem onClick={(e) => handleProviderClick(e, id)}>
-              <img src={logo} alt={name} draggable={false} />
-            </LogoItem>
+            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{renderLogo(id, logo, name)}</LogoItem>
           </Tooltip>
         ))}
       </LogoGrid>
