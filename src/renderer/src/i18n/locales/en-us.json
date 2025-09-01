@@ -820,6 +820,10 @@
         "devtools": "Open debug panel",
         "message": "It seems that something went wrong...",
         "reload": "Reload"
+      },
+      "details": "Details",
+      "mcp": {
+        "invalid": "Invalid MCP server"
       }
     },
     "chat": {

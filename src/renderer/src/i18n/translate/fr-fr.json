@@ -820,6 +820,10 @@
         "devtools": "Ouvrir le panneau de débogage",
         "message": "Il semble que quelques problèmes soient survenus...",
         "reload": "Recharger"
+      },
+      "details": "Détails",
+      "mcp": {
+        "invalid": "Serveur MCP invalide"
       }
     },
     "chat": {

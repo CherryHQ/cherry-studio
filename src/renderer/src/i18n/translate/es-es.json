@@ -820,6 +820,10 @@
         "devtools": "Abrir el panel de depuración",
         "message": "Parece que ha surgido un problema...",
         "reload": "Recargar"
+      },
+      "details": "Detalles",
+      "mcp": {
+        "invalid": "Servidor MCP no válido"
       }
     },
     "chat": {

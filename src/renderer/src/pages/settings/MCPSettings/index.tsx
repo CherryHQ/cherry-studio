@@ -1,4 +1,5 @@
 import { ArrowLeftOutlined } from '@ant-design/icons'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button } from 'antd'
 import { FC } from 'react'
@@ -30,26 +31,28 @@ const MCPSettings: FC = () => {
         </BackButtonContainer>
       )}
       <MainContainer>
-        <Routes>
-          <Route path="/" element={<McpServersList />} />
-          <Route path="settings/:serverId" element={<McpSettings />} />
-          <Route
-            path="npx-search"
-            element={
-              <SettingContainer theme={theme}>
-                <NpxSearch />
-              </SettingContainer>
-            }
-          />
-          <Route
-            path="mcp-install"
-            element={
-              <SettingContainer theme={theme}>
-                <InstallNpxUv />
-              </SettingContainer>
-            }
-          />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<McpServersList />} />
+            <Route path="settings/:serverId" element={<McpSettings />} />
+            <Route
+              path="npx-search"
+              element={
+                <SettingContainer theme={theme}>
+                  <NpxSearch />
+                </SettingContainer>
+              }
+            />
+            <Route
+              path="mcp-install"
+              element={
+                <SettingContainer theme={theme}>
+                  <InstallNpxUv />
+                </SettingContainer>
+              }
+            />
+          </Routes>
+        </ErrorBoundary>
       </MainContainer>
     </SettingContainer>
   )

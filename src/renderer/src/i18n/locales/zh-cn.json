@@ -820,6 +820,10 @@
         "devtools": "打开调试面板",
         "message": "似乎出现了一些问题...",
         "reload": "重新加载"
+      },
+      "details": "详细信息",
+      "mcp": {
+        "invalid": "无效的MCP服务器"
       }
     },
     "chat": {
