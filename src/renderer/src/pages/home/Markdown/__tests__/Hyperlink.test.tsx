@@ -39,11 +39,32 @@ vi.mock('antd', () => ({
 }))
 
 vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
+  __esModule: true,
   default: mocks.Favicon
 }))
 
 vi.mock('@renderer/hooks/useMetaDataParser', () => ({
   useMetaDataParser: mocks.useMetaDataParser
+}))
+
+// Mock the OGCard component
+vi.mock('@renderer/components/OGCard', () => ({
+  OGCard: ({ link }: { link: string; show: boolean }) => {
+    let hostname = ''
+    try {
+      hostname = new URL(link).hostname
+    } catch (e) {
+      // Ignore invalid URLs
+    }
+
+    return (
+      <div data-testid="og-card">
+        {hostname && <mocks.Favicon hostname={hostname} alt={link} />}
+        <mocks.Typography.Title>{hostname}</mocks.Typography.Title>
+        <mocks.Typography.Text>{link}</mocks.Typography.Text>
+      </div>
+    )
+  }
 }))
 
 describe('Hyperlink', () => {
