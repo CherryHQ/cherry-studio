@@ -54,6 +54,7 @@ local
 .trae/*
 .claude-code-router/*
 CLAUDE.local.md
+tall
 
 # vitest
 coverage
