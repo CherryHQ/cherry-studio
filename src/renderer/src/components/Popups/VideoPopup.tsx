@@ -1,8 +1,8 @@
 import { UploadOutlined } from '@ant-design/icons'
 import FileManager from '@renderer/services/FileManager'
 import { loggerService } from '@renderer/services/LoggerService'
-import { FileMetadata, FileTypes } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { FileMetadata } from '@renderer/types'
+import { mime2type, uuid } from '@renderer/utils'
 import { Modal, Space, Upload } from 'antd'
 // 导入 antd 的 UploadFile 类型
 import type { UploadFile } from 'antd/es/upload/interface'
@@ -55,7 +55,13 @@ const SingleFileUploader: React.FC<SingleFileUploaderProps> = ({
         accept={accept}
         maxCount={1}
         fileList={fileList}
-        customRequest={({ file }) => onUpload(file as File)}
+        customRequest={({ file }) => {
+          if (file instanceof File) {
+            onUpload(file)
+          } else {
+            logger.error('Upload failed: Invalid file format')
+          }
+        }}
         onRemove={onRemove}>
         <p className="ant-upload-drag-icon">
           <UploadOutlined />
@@ -100,7 +106,7 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
         ext: `.${file.name.split('.').pop()?.toLowerCase()}`,
         count: 1,
         origin_name: file.name,
-        type: file.type as FileTypes,
+        type: mime2type(file.type),
         created_at: new Date().toISOString()
       }
 
