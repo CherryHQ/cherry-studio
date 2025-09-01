@@ -471,6 +471,14 @@
     align-items: center;
     font-size: 1.2rem;
   }
+
+  /* Bottom spacer to create viewport padding */
+  &::after {
+    content: '';
+    display: block;
+    height: 50px;
+    pointer-events: none;
+  }
 }
 
 // Code block wrapper and header styles
