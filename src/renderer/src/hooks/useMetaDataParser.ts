@@ -13,13 +13,12 @@ export function useMetaDataParser<T extends string>(
 
   const [metadata, setMetadata] = useState<Record<T, string>>({} as Record<T, string>)
   const [isLoading, setIsLoading] = useState(true)
-  const [isLoaded, setIsLoaded] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const parseMetadata = useCallback(async () => {
-    if (!link || isLoaded) return
+    if (!link || !isLoading) return
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -58,10 +57,9 @@ export function useMetaDataParser<T extends string>(
       }
       setError(err instanceof Error ? err : new Error('Failed to fetch HTML'))
     } finally {
-      setIsLoaded(true)
       setIsLoading(false)
     }
-  }, [link, properties, timeout])
+  }, [isLoading, link, properties, timeout])
 
   useEffect(() => {
     return () => {
@@ -74,7 +72,6 @@ export function useMetaDataParser<T extends string>(
   return {
     metadata,
     isLoading,
-    isLoaded,
     error,
     parseMetadata
   }
