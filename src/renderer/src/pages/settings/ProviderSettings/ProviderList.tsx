@@ -281,25 +281,19 @@ const ProviderList: FC = () => {
   }
 
   const getProviderAvatar = (provider: Provider, size: number = 25) => {
-    // 特殊处理一下svg格式
-    if (isSystemProvider(provider)) {
-      switch (provider.id) {
-        case 'poe':
-          return <PoeLogo fontSize={size} />
-      }
-    }
-
+    // 特殊处理一下svg格式，目前只有poe是'svg'，所以直接返回，未来如果有多个svg，需要额外信息来区分
     const logoSrc = getProviderLogo(provider.id)
+    if (logoSrc === 'svg') {
+      return <PoeLogo fontSize={size} />
+    }
     if (logoSrc) {
       return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={size} />
     }
 
     const customLogo = providerLogos[provider.id]
     if (customLogo === 'svg') {
-      // 目前只有poe是'svg'，所以直接返回，未来如果有多个svg，需要额外信息来区分
       return <PoeLogo fontSize={size} />
     }
-
     if (customLogo) {
       return <ProviderLogo draggable="false" shape="square" src={customLogo} size={size} />
     }

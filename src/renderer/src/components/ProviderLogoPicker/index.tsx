@@ -10,21 +10,21 @@ interface Props {
   onProviderClick: (providerId: string) => void
 }
 
+const CACHED_PROVIDERS = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
+  id,
+  logo,
+  name: getProviderLabel(id)
+}))
+
 // 用于选择内置头像的提供商Logo选择器组件
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
 
   const filteredProviders = useMemo(() => {
-    const providers = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
-      id,
-      logo,
-      name: getProviderLabel(id)
-    }))
-
-    if (!searchText) return providers
+    if (!searchText) return CACHED_PROVIDERS
 
     const searchLower = searchText.toLowerCase()
-    return providers.filter((p) => p.name.toLowerCase().includes(searchLower))
+    return CACHED_PROVIDERS.filter((p) => p.name.toLowerCase().includes(searchLower))
   }, [searchText])
 
   const handleProviderClick = (event: React.MouseEvent, providerId: string) => {
@@ -32,7 +32,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
     onProviderClick(providerId)
   }
 
-  const renderLogo = (id: string, logo: string, name: string) => {
+  const getProviderAvatar = (id: string, logo: string, name: string) => {
     const size = 32
     // 检查是否为svg格式
     if (logo === 'svg') {
@@ -43,7 +43,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
           return <img src={logo} alt={name} draggable={false} />
       }
     }
-    return <img src={logo} alt={name} draggable={false} />
+    return <img src={logo} alt={name} draggable={false} loading="lazy" />
   }
 
   return (
@@ -65,7 +65,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       <LogoGrid>
         {filteredProviders.map(({ id, logo, name }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
-            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{renderLogo(id, logo, name)}</LogoItem>
+            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{getProviderAvatar(id, logo, name)}</LogoItem>
           </Tooltip>
         ))}
       </LogoGrid>

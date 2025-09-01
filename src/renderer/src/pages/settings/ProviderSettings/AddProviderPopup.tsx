@@ -172,7 +172,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     }
   ] satisfies ItemType[]
 
-  const renderProviderLogo = () => {
+  const getProviderAvatar = () => {
     const size = 40
 
     if (logo === 'svg') {
@@ -235,7 +235,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                 }
               }}
               placement="bottom">
-              {renderProviderLogo()}
+              {getProviderAvatar()}
             </Popover>
           </Dropdown>
         </VStack>
