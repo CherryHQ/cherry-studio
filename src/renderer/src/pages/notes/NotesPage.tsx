@@ -147,6 +147,7 @@ const NotesPage: FC = () => {
 
   // 处理树同步时的状态管理
   useEffect(() => {
+    if (notesTree.length === 0) return
     // 如果有activeFilePath但找不到对应节点，清空选择
     // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
     const shouldClearPath =
