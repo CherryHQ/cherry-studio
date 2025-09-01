@@ -1,88 +1,159 @@
 import electronConfigPrettier from '@electron-toolkit/eslint-config-prettier'
-import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
 import tsParser from '@typescript-eslint/parser'
-import { defineConfig } from 'eslint/config'
 import importPlugin from 'eslint-plugin-import'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
+import * as espree from 'espree'
+import tseslint from 'typescript-eslint'
+import globals from 'globals'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
-const importConfig = {
-  plugins: {
-    import: importPlugin
-  },
-  languageOptions: {
-    parser: tsParser,
-    parserOptions: {
-      project: ['./tsconfig.json', './tsconfig.web.json', './tsconfig.node.json'],
-      tsconfigRootDir: __dirname,
-      ecmaVersion: 2022,
-      sourceType: 'module',
-      ecmaFeatures: {
-        jsx: true
-      }
-    }
-  },
-  settings: {
-    'import/parsers': {
-      '@typescript-eslint/parser': ['.ts', '.tsx']
-    },
-    'import/resolver': {
-      typescript: {
-        project: './tsconfig.json'
-      }
-    }
-  },
+const i18nPlugin = {
   rules: {
-    'import/no-cycle': 'error',
-    'import/no-duplicates': 'error'
-  },
-  ignores: ['scripts/**/*.js']
+    'no-template-in-t': {
+      meta: {
+        type: 'problem',
+        docs: {
+          description: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料',
+          recommended: true
+        },
+        messages: {
+          noTemplateInT: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料'
+        }
+      },
+      create(context) {
+        return {
+          CallExpression(node) {
+            const { callee, arguments: args } = node
+            const isTFunction =
+              (callee.type === 'Identifier' && callee.name === 't') ||
+              (callee.type === 'MemberExpression' &&
+                callee.property.type === 'Identifier' &&
+                callee.property.name === 't')
+
+            if (isTFunction && args[0]?.type === 'TemplateLiteral') {
+              context.report({
+                node: args[0],
+                messageId: 'noTemplateInT'
+              })
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
-export default defineConfig([
+export default tseslint.config([
   eslint.configs.recommended,
-  tseslint.configs.recommended,
   electronConfigPrettier,
   eslintReact.configs['recommended-typescript'],
   reactHooks.configs['recommended-latest'],
-  importConfig,
+  // js eslint. I really don't know why so many types
   {
+    files: ['scripts/*.js', 'eslint.config.mjs', 'resources/scripts/*.js'],
+    languageOptions: {
+      parser: espree,
+      ecmaVersion: 2022,
+      sourceType: 'script',
+      globals: globals.node
+    }
+  },
+  {
+    files: ['eslint.config.mjs'],
+    languageOptions: {
+      parser: espree,
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: globals.node
+    }
+  },
+  {
+    files: ['resources/js/*.js'],
+    languageOptions: {
+      parser: espree,
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: globals.browser
+    }
+  },
+  // ts eslint
+  {
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['**/*.{js,mjs}', 'vitest.config.ts', 'playwright.config.ts', 'electron.vite.config.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true
+        }
+      }
+    },
     plugins: {
+      i18n: i18nPlugin,
       'simple-import-sort': simpleImportSort,
-      'unused-imports': unusedImports
+      'unused-imports': unusedImports,
+      import: importPlugin
     },
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-non-null-asserted-optional-chain': 'off',
-      'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error',
-      'unused-imports/no-unused-imports': 'error',
-      '@eslint-react/no-prop-types': 'error',
-      'prettier/prettier': ['error'],
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/consistent-type-imports': [
         'error',
         {
           prefer: 'type-imports' // 要求写成 import type { ... }
         }
-      ]
+      ],
+      '@typescript-eslint/await-thenable': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
+      '@typescript-eslint/no-unused-expressions': 'off',
+      '@typescript-eslint/no-empty-object-type': 'off',
+      'import/no-cycle': 'error',
+      'import/no-duplicates': 'error',
+      'simple-import-sort/imports': 'error',
+      'simple-import-sort/exports': 'error',
+      'unused-imports/no-unused-imports': 'error',
+      '@eslint-react/no-prop-types': 'error',
+      'prettier/prettier': ['error'],
+      'i18n/no-template-in-t': 'warn'
+    },
+    settings: {
+      'import/parsers': {
+        '@typescript-eslint/parser': ['.ts', '.tsx']
+      },
+      'import/resolver': {
+        typescript: {
+          project: './tsconfig.json'
+        }
+      }
+    },
+    extends: [tseslint.configs.recommended]
+  },
+  // simple lint for config ts file
+  {
+    files: ['vitest.config.ts', 'playwright.config.ts', 'electron.vite.config.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        projectService: false,
+        ecmaVersion: 2022,
+        sourceType: 'module'
+      },
+      globals: globals.node
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules
   {
     rules: {
-      '@typescript-eslint/no-require-imports': 'off',
-      '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
-      '@typescript-eslint/no-unused-expressions': 'off',
-      '@typescript-eslint/no-empty-object-type': 'off',
       '@eslint-react/hooks-extra/no-direct-set-state-in-use-effect': 'off',
       '@eslint-react/web-api/no-leaked-event-listener': 'off',
       '@eslint-react/web-api/no-leaked-timeout': 'off',
@@ -97,8 +168,8 @@ export default defineConfig([
       '@eslint-react/no-children-to-array': 'off'
     }
   },
+  // LoggerService Custom Rules - only apply to src directory
   {
-    // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*'],
     rules: {
@@ -110,53 +181,6 @@ export default defineConfig([
             '❗CherryStudio uses unified LoggerService: 📖 docs/technical/how-to-use-logger-en.md\n❗CherryStudio 使用统一的日志服务：📖 docs/technical/how-to-use-logger-zh.md\n\n'
         }
       ]
-    }
-  },
-  {
-    files: ['**/*.{ts,tsx,js,jsx}'],
-    languageOptions: {
-      ecmaVersion: 2022,
-      sourceType: 'module'
-    },
-    plugins: {
-      i18n: {
-        rules: {
-          'no-template-in-t': {
-            meta: {
-              type: 'problem',
-              docs: {
-                description: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料',
-                recommended: true
-              },
-              messages: {
-                noTemplateInT: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料'
-              }
-            },
-            create(context) {
-              return {
-                CallExpression(node) {
-                  const { callee, arguments: args } = node
-                  const isTFunction =
-                    (callee.type === 'Identifier' && callee.name === 't') ||
-                    (callee.type === 'MemberExpression' &&
-                      callee.property.type === 'Identifier' &&
-                      callee.property.name === 't')
-
-                  if (isTFunction && args[0]?.type === 'TemplateLiteral') {
-                    context.report({
-                      node: args[0],
-                      messageId: 'noTemplateInT'
-                    })
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    rules: {
-      'i18n/no-template-in-t': 'warn'
     }
   },
   {
@@ -173,17 +197,5 @@ export default defineConfig([
       'src/main/integration/nutstore/sso/lib/**',
       'src/main/integration/cherryin/index.js'
     ]
-  },
-  {
-    files: ['**/*.config.mjs', 'eslint.config.mjs', 'playwright.config.ts', 'vitest.config.ts', 'resources/**'],
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        project: null,
-        ecmaVersion: 2022,
-        sourceType: 'module'
-      }
-    },
-    rules: {}
   }
 ])
