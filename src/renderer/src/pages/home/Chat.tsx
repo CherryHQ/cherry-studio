@@ -43,7 +43,6 @@ const Chat: FC<Props> = (props) => {
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
-  const maxWidth = useChatMaxWidth()
   const { setTimeoutTimer } = useTimer()
 
   useHotkeys('esc', () => {
@@ -131,7 +130,7 @@ const Chat: FC<Props> = (props) => {
           vertical
           flex={1}
           justify="space-between"
-          style={{ maxWidth, height: mainHeight }}>
+          style={{ maxWidth: '100%', height: mainHeight }}>
           <Messages
             key={props.activeTopic.id}
             assistant={assistant}
