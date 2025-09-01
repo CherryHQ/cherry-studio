@@ -4,10 +4,10 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -50,6 +50,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
   const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
+  const { getProviderAvatar: getProviderLogo } = useProviderAvatar()
   const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }

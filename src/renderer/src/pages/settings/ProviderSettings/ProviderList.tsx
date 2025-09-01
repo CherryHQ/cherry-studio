@@ -5,22 +5,14 @@ import {
   type DraggableVirtualListRef,
   useDraggableReorder
 } from '@renderer/components/DraggableList'
-import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
-import { getProviderLogo } from '@renderer/config/providers'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
-import {
-  generateColorFromChar,
-  getFancyProviderName,
-  getFirstCharacter,
-  getForegroundColor,
-  matchKeywordsInModel,
-  matchKeywordsInProvider,
-  uuid
-} from '@renderer/utils'
-import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
+import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
+import { Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -45,33 +37,12 @@ const ProviderList: FC = () => {
   const { t } = useTranslation()
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
-  const [providerLogos, setProviderLogos] = useState<Record<string, string>>({})
   const listRef = useRef<DraggableVirtualListRef>(null)
+  const { getProviderAvatar, setProviderLogos, providerLogos } = useProviderAvatar()
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
   }, [])
-
-  useEffect(() => {
-    const loadAllLogos = async () => {
-      const logos: Record<string, string> = {}
-      for (const provider of providers) {
-        if (provider.id) {
-          try {
-            const logoData = await ImageStorage.get(`provider-${provider.id}`)
-            if (logoData) {
-              logos[provider.id] = logoData
-            }
-          } catch (error) {
-            logger.error(`Failed to load logo for provider ${provider.id}`, error as Error)
-          }
-        }
-      }
-      setProviderLogos(logos)
-    }
-
-    loadAllLogos()
-  }, [providers])
 
   useEffect(() => {
     if (searchParams.get('id')) {
@@ -280,35 +251,6 @@ const ProviderList: FC = () => {
     }
   }
 
-  const getProviderAvatar = (provider: Provider, size: number = 25) => {
-    // 特殊处理一下svg格式，目前只有poe是'svg'，所以直接返回，未来如果有多个svg，需要额外信息来区分
-    const logoSrc = getProviderLogo(provider.id)
-    if (logoSrc === 'svg') {
-      return <PoeLogo fontSize={size} />
-    }
-    if (logoSrc) {
-      return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={size} />
-    }
-
-    const customLogo = providerLogos[provider.id]
-    if (customLogo === 'svg') {
-      return <PoeLogo fontSize={size} />
-    }
-    if (customLogo) {
-      return <ProviderLogo draggable="false" shape="square" src={customLogo} size={size} />
-    }
-
-    // generate color for custom provider
-    const backgroundColor = generateColorFromChar(provider.name)
-    const color = provider.name ? getForegroundColor(backgroundColor) : 'white'
-
-    return (
-      <ProviderLogo size={size} shape="square" style={{ backgroundColor, color, minWidth: size }}>
-        {getFirstCharacter(provider.name)}
-      </ProviderLogo>
-    )
-  }
-
   const filteredProviders = providers.filter((provider) => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
@@ -381,7 +323,7 @@ const ProviderList: FC = () => {
                 <DragHandle>
                   <GripVertical size={12} />
                 </DragHandle>
-                {getProviderAvatar(provider)}
+                {getProviderAvatar(provider.id, 25)}
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
                 {provider.enabled && (
                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
@@ -463,10 +405,6 @@ const DragHandle = styled.div`
   &:active {
     cursor: grabbing;
   }
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 const ProviderItemName = styled.div`

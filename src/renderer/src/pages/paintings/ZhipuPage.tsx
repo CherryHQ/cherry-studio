@@ -4,9 +4,9 @@ import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navb
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
@@ -39,6 +39,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<any>(zhipu_paintings?.[0] || DEFAULT_PAINTING)
   const { t } = useTranslation()
   const providers = useAllProviders()
+  const { getProviderAvatar: getProviderLogo } = useProviderAvatar()
 
   // 确保painting使用智谱的cogview系列模型
   useEffect(() => {

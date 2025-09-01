@@ -7,11 +7,11 @@ import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -54,6 +54,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     aihubmix_image_edit,
     aihubmix_image_upscale
   } = usePaintings()
+  const { getProviderAvatar: getProviderLogo } = useProviderAvatar()
 
   const paintings = useMemo(() => {
     return {

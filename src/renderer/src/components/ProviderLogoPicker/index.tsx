@@ -1,6 +1,6 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { PoeLogo } from '@renderer/components/Icons'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
+import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { Input, Tooltip } from 'antd'
 import { FC, useMemo, useState } from 'react'
@@ -14,6 +14,7 @@ interface Props {
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const [searchText, setSearchText] = useState('')
 
+  const { getProviderAvatar } = useProviderAvatar()
   const filteredProviders = useMemo(() => {
     const providers = Object.entries(PROVIDER_LOGO_MAP).map(([id, logo]) => ({
       id,
@@ -30,20 +31,6 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   const handleProviderClick = (event: React.MouseEvent, providerId: string) => {
     event.stopPropagation()
     onProviderClick(providerId)
-  }
-
-  const getProviderAvatar = (id: string, logo: string, name: string) => {
-    const size = 32
-    // 检查是否为svg格式
-    if (logo === 'svg') {
-      switch (id) {
-        case 'poe':
-          return <PoeLogo fontSize={size} />
-        default:
-          return <img src={logo} alt={name} draggable={false} />
-      }
-    }
-    return <img src={logo} alt={name} draggable={false} loading="lazy" />
   }
 
   return (
@@ -63,9 +50,9 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         />
       </SearchContainer>
       <LogoGrid>
-        {filteredProviders.map(({ id, logo, name }) => (
+        {filteredProviders.map(({ id, name }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
-            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{getProviderAvatar(id, logo, name)}</LogoItem>
+            <LogoItem onClick={(e) => handleProviderClick(e, id)}>{getProviderAvatar(id, 32)}</LogoItem>
           </Tooltip>
         ))}
       </LogoGrid>

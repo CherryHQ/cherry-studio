@@ -48,6 +48,10 @@ export function useProvider(id: string) {
   const provider = useAppSelector((state) => state.llm.providers.find((p) => p.id === id)) || getDefaultProvider()
   const dispatch = useAppDispatch()
 
+  function getProviderLogo(providerId: string) {
+    return PROVIDER_LOGO_MAP[providerId as keyof typeof PROVIDER_LOGO_MAP]
+  }
+
   return {
     provider,
     models: provider?.models ?? [],

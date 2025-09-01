@@ -664,10 +664,6 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   poe: 'svg' // use svg icon component
 } as const
 
-export function getProviderLogo(providerId: string) {
-  return PROVIDER_LOGO_MAP[providerId as keyof typeof PROVIDER_LOGO_MAP]
-}
-
 // export const SUPPORTED_REANK_PROVIDERS = ['silicon', 'jina', 'voyageai', 'dashscope', 'aihubmix']
 export const NOT_SUPPORTED_RERANK_PROVIDERS = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
 export const ONLY_SUPPORTED_DIMENSION_PROVIDERS = ['ollama', 'infini'] as const satisfies SystemProviderId[]
