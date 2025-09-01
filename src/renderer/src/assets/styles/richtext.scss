@@ -148,6 +148,12 @@
       left: 0;
       right: 0;
     }
+
+    /* Ensure drag handles and plus buttons remain interactive */
+    .drag-handle,
+    .plus-button {
+      pointer-events: auto;
+    }
   }
 
   /* Show placeholder only when focused or when it's the only empty node */
