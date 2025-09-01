@@ -25,6 +25,14 @@ async function downloadNpm(platform) {
       '@img/sharp-libvips-darwin-x64',
       'https://registry.npmjs.org/@img/sharp-libvips-darwin-x64/-/sharp-libvips-darwin-x64-1.2.0.tgz'
     )
+    downloadNpmPackage(
+      '@napi-rs/system-ocr-darwin-arm64',
+      'https://registry.npmjs.org/@napi-rs/system-ocr-darwin-arm64/-/system-ocr-darwin-arm64-1.0.2.tgz'
+    )
+    downloadNpmPackage(
+      '@napi-rs/system-ocr-darwin-x64',
+      'https://registry.npmjs.org/@napi-rs/system-ocr-darwin-x64/-/system-ocr-darwin-x64-1.0.2.tgz'
+    )
   }
 
   if (!platform || platform === 'linux') {
@@ -80,6 +88,15 @@ async function downloadNpm(platform) {
     downloadNpmPackage(
       '@img/sharp-win32-x64',
       'https://registry.npmjs.org/@img/sharp-win32-x64/-/sharp-win32-x64-0.34.3.tgz'
+    )
+
+    downloadNpmPackage(
+      '@napi-rs/system-ocr-win32-arm64-msvc',
+      'https://registry.npmjs.org/@napi-rs/system-ocr-win32-arm64-msvc/-/system-ocr-win32-arm64-msvc-1.0.2.tgz'
+    )
+    downloadNpmPackage(
+      '@napi-rs/system-ocr-win32-x64-msvc',
+      'https://registry.npmjs.org/@napi-rs/system-ocr-win32-x64-msvc/-/system-ocr-win32-x64-msvc-1.0.2.tgz'
     )
   }
 }
