@@ -81,6 +81,7 @@ const api = {
   logToMain: (source: LogSourceWithContext, level: LogLevel, message: string, data: any[]) =>
     ipcRenderer.invoke(IpcChannel.App_LogToMain, source, level, message, data),
   setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.App_SetFullScreen, value),
+  isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_IsFullScreen),
   mac: {
     isProcessTrusted: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacIsProcessTrusted),
     requestProcessTrust: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.App_MacRequestProcessTrust)

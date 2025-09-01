@@ -820,6 +820,10 @@
         "devtools": "デバッグパネルを開く",
         "message": "何か問題が発生したようです...",
         "reload": "再読み込み"
+      },
+      "details": "詳細情報",
+      "mcp": {
+        "invalid": "無効なMCPサーバー"
       }
     },
     "chat": {
@@ -1615,9 +1619,12 @@
     "new_folder": "新しいフォルダーを作成する",
     "new_note": "新規ノート作成",
     "no_content_to_copy": "コピーするコンテンツはありません",
+    "no_file_selected": "アップロードするファイルを選択してください",
     "only_markdown": "Markdown ファイルのみをアップロードできます",
+    "only_one_file_allowed": "アップロードできるファイルは1つだけです",
     "open_folder": "外部フォルダーを開きます",
     "rename": "名前の変更",
+    "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "save": "メモに保存する",
     "settings": {
       "data": {

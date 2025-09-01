@@ -20,7 +20,13 @@ export interface CodeEditorProps {
   value: string
   /** Placeholder when the editor content is empty. */
   placeholder?: string | HTMLElement
-  /** Code language, supports aliases. */
+  /**
+   * Code language string.
+   * - Case-insensitive.
+   * - Supports common names: javascript, json, python, etc.
+   * - Supports aliases: c#/csharp, objective-c++/obj-c++/objc++, etc.
+   * - Supports file extensions: .cpp/cpp, .js/js, .py/py, etc.
+   */
   language: string
   /** Fired when ref.save() is called or the save shortcut is triggered. */
   onSave?: (newContent: string) => void

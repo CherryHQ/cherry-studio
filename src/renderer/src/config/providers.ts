@@ -1255,7 +1255,8 @@ const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
   'deepseek',
   'baichuan',
   'minimax',
-  'xirang'
+  'xirang',
+  'poe'
 ] as const satisfies SystemProviderId[]
 
 /**

@@ -2313,6 +2313,14 @@ const migrateConfig = {
       logger.error('migrate 142 error', error as Error)
       return state
     }
+  },
+  '143': (state: RootState) => {
+    try {
+      addMiniApp(state, 'longcat')
+      return state
+    } catch (error) {
+      return state
+    }
   }
 }
 

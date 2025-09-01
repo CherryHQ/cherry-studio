@@ -96,7 +96,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   // 使用外部搜索工具
@@ -486,6 +486,7 @@ export async function fetchChatCompletion({
 
   // NOTE：assistant.enableWebSearch 的语义是是否启用模型内置搜索功能
   const enableWebSearch =
+    assistant.enableWebSearch ||
     (assistant.webSearchProviderId && isWebSearchModel(model)) ||
     isOpenRouterBuiltInWebSearchModel(model) ||
     model.id.includes('sonar') ||

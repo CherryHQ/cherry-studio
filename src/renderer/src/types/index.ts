@@ -128,8 +128,6 @@ export type S3Config = {
   maxBackups: number
 }
 
-export type { Message } from './newMessage'
-
 // ========================================================================
 
 /**
@@ -189,6 +187,28 @@ export type AtLeast<T extends string, U> = {
   [K in T]: U
 } & {
   [key: string]: U
+}
+
+/**
+ * 从对象中移除指定的属性键，返回新对象
+ * @template T - 源对象类型
+ * @template K - 要移除的属性键类型，必须是T的键
+ * @param obj - 源对象
+ * @param keys - 要移除的属性键列表
+ * @returns 移除指定属性后的新对象
+ * @example
+ * ```ts
+ * const obj = { a: 1, b: 2, c: 3 };
+ * const result = strip(obj, ['a', 'b']);
+ * // result = { c: 3 }
+ * ```
+ */
+export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
+  const result = { ...obj }
+  for (const key of keys) {
+    delete (result as any)[key] // 类型上 Omit 已保证安全
+  }
+  return result
 }
 
 export type HexColor = string
