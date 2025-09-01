@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.5.8",
+  "version": "1.5.9",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -73,6 +73,7 @@
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@napi-rs/system-ocr": "^1.0.2",
+    "@strongtz/win32-arm64-msvc": "^0.4.7",
     "graceful-fs": "^4.2.11",
     "jsdom": "26.1.0",
     "node-stream-zip": "^1.15.0",
