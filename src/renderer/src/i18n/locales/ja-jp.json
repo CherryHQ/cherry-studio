@@ -677,6 +677,7 @@
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
     "select_folder": "フォルダを選択",
+    "supported_providers": "サポートされているプロバイダー",
     "title": "コードツール",
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ"

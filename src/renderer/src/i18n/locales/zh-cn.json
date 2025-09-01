@@ -677,6 +677,7 @@
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
     "select_folder": "选择文件夹",
+    "supported_providers": "支持的服务商",
     "title": "代码工具",
     "update_options": "更新选项",
     "working_directory": "工作目录"

@@ -677,6 +677,7 @@
     "model_placeholder": "選擇要使用的模型",
     "model_required": "請選擇模型",
     "select_folder": "選擇資料夾",
+    "supported_providers": "支援的供應商",
     "title": "程式碼工具",
     "update_options": "更新選項",
     "working_directory": "工作目錄"

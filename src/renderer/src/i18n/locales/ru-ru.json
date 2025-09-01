@@ -677,6 +677,7 @@
     "model_placeholder": "Выберите модель для использования",
     "model_required": "Пожалуйста, выберите модель",
     "select_folder": "Выберите папку",
+    "supported_providers": "Поддерживаемые поставщики",
     "title": "Инструменты кода",
     "update_options": "Параметры обновления",
     "working_directory": "Рабочая директория"

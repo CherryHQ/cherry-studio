@@ -677,6 +677,7 @@
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
     "select_folder": "Select Folder",
+    "supported_providers": "Supported Providers",
     "title": "Code Tools",
     "update_options": "Update Options",
     "working_directory": "Working Directory"
