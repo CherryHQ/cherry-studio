@@ -288,7 +288,7 @@
         "placeholder": "Buscar"
       }
     },
-    "deeply_thought": "Profundamente pensado (tomó {{secounds}} segundos)",
+    "deeply_thought": "Profundamente pensado (tomó {{seconds}} segundos)",
     "default": {
       "description": "Hola, soy el asistente predeterminado. Puedes comenzar a conversar conmigo de inmediato.",
       "name": "Asistente predeterminado",
