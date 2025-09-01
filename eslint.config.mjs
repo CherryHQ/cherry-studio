@@ -117,6 +117,7 @@ export default tseslint.config([
       '@typescript-eslint/no-unused-vars': ['error', { caughtErrors: 'none' }],
       '@typescript-eslint/no-unused-expressions': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
+      '@typescript-eslint/ban-ts-comment': 'warn',
       'import/no-cycle': 'error',
       'import/no-duplicates': 'error',
       'simple-import-sort/imports': 'error',
