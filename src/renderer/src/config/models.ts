@@ -3045,10 +3045,8 @@ export function isGenerateImageModel(model: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id, '/')
-  if (GENERATE_IMAGE_MODELS.includes(modelId)) {
-    return true
-  }
-  return false
+
+  return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
 }
 
 export function isSupportedDisableGenerationModel(model: Model): boolean {
