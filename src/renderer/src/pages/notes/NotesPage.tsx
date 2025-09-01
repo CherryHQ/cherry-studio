@@ -147,17 +147,16 @@ const NotesPage: FC = () => {
 
   // 处理树同步时的状态管理
   useEffect(() => {
-    if (notesTree.length === 0) return
-
     // 如果有activeFilePath但找不到对应节点，清空选择
     // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
-    if (
-      activeFilePath &&
-      !activeNode &&
-      !isSyncingTreeRef.current &&
-      !isRenamingRef.current &&
-      !isCreatingNoteRef.current
-    ) {
+    const shouldClearPath =
+      activeFilePath && !activeNode && !isSyncingTreeRef.current && !isRenamingRef.current && !isCreatingNoteRef.current
+
+    if (shouldClearPath) {
+      logger.warn('Clearing activeFilePath - node not found in tree', {
+        activeFilePath,
+        reason: 'Node not found in current tree'
+      })
       dispatch(setActiveFilePath(undefined))
     }
   }, [notesTree, activeFilePath, activeNode, dispatch])
@@ -425,6 +424,7 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           dispatch(setActiveFilePath(node.externalPath))
+          invalidateFileContent(node.externalPath)
           // 清除文件夹选择状态
           setSelectedFolderId(null)
         } catch (error) {
@@ -435,7 +435,7 @@ const NotesPage: FC = () => {
         await handleToggleExpanded(node.id)
       }
     },
-    [dispatch, handleToggleExpanded]
+    [dispatch, handleToggleExpanded, invalidateFileContent]
   )
 
   // 删除节点
