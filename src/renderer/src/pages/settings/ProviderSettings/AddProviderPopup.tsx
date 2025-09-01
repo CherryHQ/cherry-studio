@@ -1,4 +1,3 @@
-import { loggerService } from '@logger'
 import { Center, VStack } from '@renderer/components/Layout'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
@@ -13,7 +12,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const logger = loggerService.withContext('AddProviderPopup')
+// const logger = loggerService.withContext('AddProviderPopup')
 
 interface Props {
   provider?: Provider
@@ -24,28 +23,20 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [open, setOpen] = useState(true)
   const [name, setName] = useState(provider?.name || '')
   const [type, setType] = useState<ProviderType>(provider?.type || 'openai')
-  const [logo, setLogo] = useState<string | null>(null)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
   const uploadRef = useRef<HTMLDivElement>(null)
-  const { ProviderAvatar: ProviderAvatar } = useProviderAvatar()
+  const [logo, setLogo] = useState<string>()
+
+  const { ProviderAvatar, logos, saveLogo } = useProviderAvatar()
 
   useEffect(() => {
-    if (provider?.id) {
-      const loadLogo = async () => {
-        try {
-          const logoData = await ImageStorage.get(`provider-${provider.id}`)
-          if (logoData) {
-            setLogo(logoData)
-          }
-        } catch (error) {
-          logger.error('Failed to load logo', error as Error)
-        }
-      }
-      loadLogo()
+    if (provider) {
+      const logo = logos[provider.id]
+      setLogo(logo)
     }
-  }, [provider])
+  }, [provider, logos, setLogo])
 
   const onOk = async () => {
     setOpen(false)
@@ -76,12 +67,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       const logoUrl = PROVIDER_LOGO_MAP[providerId]
 
       if (provider?.id) {
-        await ImageStorage.set(`provider-${provider.id}`, logoUrl)
-        const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-        setLogo(savedLogo)
-      } else {
-        setLogo(logoUrl)
+        saveLogo(logoUrl, provider.id)
       }
+      setLogo(logoUrl)
 
       setLogoPickerOpen(false)
     } catch (error: any) {
@@ -91,10 +79,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
   const handleReset = async () => {
     try {
-      setLogo(null)
-
       if (provider?.id) {
-        await ImageStorage.set(`provider-${provider.id}`, '')
+        saveLogo('', provider.id)
+        ImageStorage.set(`provider-${provider.id}`, '')
       }
 
       setDropdownOpen(false)
@@ -131,7 +118,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                   await ImageStorage.set(`provider-${provider.id}`, logoData)
                 }
                 const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                setLogo(savedLogo)
+                saveLogo(savedLogo, provider.id)
               } else {
                 // 临时保存在内存中，等创建 provider 后会在调用方保存
                 const tempUrl = await new Promise<string>((resolve) => {
@@ -208,7 +195,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                 }
               }}
               placement="bottom">
-              <ProviderAvatar pid={provider?.id} name={name} size={64} style={{ fontSize: 32 }} />
+              <ProviderLogo>
+                <ProviderAvatar pid={provider?.id} name={name} src={logo} size={60} style={{ fontSize: 32 }} />
+              </ProviderLogo>
             </Popover>
           </Dropdown>
         </VStack>
@@ -276,3 +265,15 @@ export default class AddProviderPopup {
     })
   }
 }
+
+const ProviderLogo = styled.div`
+  cursor: pointer;
+  object-fit: contain;
+  border-radius: 12px;
+  transition: opacity 0.3s ease;
+  background-color: var(--color-background-soft);
+  border: 0.5px solid var(--color-border);
+  &:hover {
+    opacity: 0.8;
+  }
+`

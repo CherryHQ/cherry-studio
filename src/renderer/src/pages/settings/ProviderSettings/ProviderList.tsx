@@ -9,7 +9,6 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useProviderAvatar } from '@renderer/hooks/useProviderLogo'
 import { useTimer } from '@renderer/hooks/useTimer'
-import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import { Button, Dropdown, Input, MenuProps, Tag } from 'antd'
@@ -38,7 +37,7 @@ const ProviderList: FC = () => {
   const [searchText, setSearchText] = useState<string>('')
   const [dragging, setDragging] = useState(false)
   const listRef = useRef<DraggableVirtualListRef>(null)
-  const { ProviderAvatar, setProviderLogos, providerLogos } = useProviderAvatar()
+  const { ProviderAvatar, saveLogo, deleteLogo } = useProviderAvatar()
 
   const setSelectedProvider = useCallback((provider: Provider) => {
     startTransition(() => _setSelectedProvider(provider))
@@ -133,17 +132,10 @@ const ProviderList: FC = () => {
       models: [],
       enabled: true,
       isSystem: false
-    } as Provider
-
-    let updatedLogos = { ...providerLogos }
+    } satisfies Provider
     if (logo) {
       try {
-        await ImageStorage.set(`provider-${provider.id}`, logo)
-        updatedLogos = {
-          ...updatedLogos,
-          [provider.id]: logo
-        }
-        setProviderLogos(updatedLogos)
+        saveLogo(logo, provider.id)
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
         window.message.error('保存Provider Logo失败')
@@ -154,102 +146,91 @@ const ProviderList: FC = () => {
     setSelectedProvider(provider)
   }
 
-  const getDropdownMenus = (provider: Provider): MenuProps['items'] => {
-    const noteMenu = {
-      label: t('settings.provider.notes.title'),
-      key: 'notes',
-      icon: <UserPen size={14} />,
-      onClick: () => ModelNotesPopup.show({ provider })
-    }
+  const getDropdownMenus = useCallback(
+    (provider: Provider): MenuProps['items'] => {
+      const noteMenu = {
+        label: t('settings.provider.notes.title'),
+        key: 'notes',
+        icon: <UserPen size={14} />,
+        onClick: () => ModelNotesPopup.show({ provider })
+      }
 
-    const editMenu = {
-      label: t('common.edit'),
-      key: 'edit',
-      icon: <EditIcon size={14} />,
-      async onClick() {
-        const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
+      const editMenu = {
+        label: t('common.edit'),
+        key: 'edit',
+        icon: <EditIcon size={14} />,
+        async onClick() {
+          const { name, type, logoFile, logo } = await AddProviderPopup.show(provider)
 
-        if (name) {
-          updateProvider({ ...provider, name, type })
-          if (provider.id) {
-            if (logo) {
-              try {
-                await ImageStorage.set(`provider-${provider.id}`, logo)
-                setProviderLogos((prev) => ({
-                  ...prev,
-                  [provider.id]: logo
-                }))
-              } catch (error) {
-                logger.error('Failed to save logo', error as Error)
-                window.message.error('更新Provider Logo失败')
-              }
-            } else if (logo === undefined && logoFile === undefined) {
-              try {
-                await ImageStorage.set(`provider-${provider.id}`, '')
-                setProviderLogos((prev) => {
-                  const newLogos = { ...prev }
-                  delete newLogos[provider.id]
-                  return newLogos
-                })
-              } catch (error) {
-                logger.error('Failed to reset logo', error as Error)
+          if (name) {
+            updateProvider({ ...provider, name, type })
+            if (provider.id) {
+              if (logo) {
+                try {
+                  saveLogo(logo, provider.id)
+                } catch (error) {
+                  logger.error('Failed to save logo', error as Error)
+                  window.message.error('更新Provider Logo失败')
+                }
+              } else if (logo === undefined && logoFile === undefined) {
+                try {
+                  deleteLogo(provider.id)
+                } catch (error) {
+                  logger.error('Failed to reset logo', error as Error)
+                }
               }
             }
           }
         }
       }
-    }
 
-    const deleteMenu = {
-      label: t('common.delete'),
-      key: 'delete',
-      icon: <DeleteIcon size={14} className="lucide-custom" />,
-      danger: true,
-      async onClick() {
-        window.modal.confirm({
-          title: t('settings.provider.delete.title'),
-          content: t('settings.provider.delete.content'),
-          okButtonProps: { danger: true },
-          okText: t('common.delete'),
-          centered: true,
-          onOk: async () => {
-            // 删除provider前先清理其logo
-            if (provider.id) {
-              try {
-                await ImageStorage.remove(`provider-${provider.id}`)
-                setProviderLogos((prev) => {
-                  const newLogos = { ...prev }
-                  delete newLogos[provider.id]
-                  return newLogos
-                })
-              } catch (error) {
-                logger.error('Failed to delete logo', error as Error)
+      const deleteMenu = {
+        label: t('common.delete'),
+        key: 'delete',
+        icon: <DeleteIcon size={14} className="lucide-custom" />,
+        danger: true,
+        async onClick() {
+          window.modal.confirm({
+            title: t('settings.provider.delete.title'),
+            content: t('settings.provider.delete.content'),
+            okButtonProps: { danger: true },
+            okText: t('common.delete'),
+            centered: true,
+            onOk: async () => {
+              // 删除provider前先清理其logo
+              if (provider.id) {
+                try {
+                  deleteLogo(provider.id)
+                } catch (error) {
+                  logger.error('Failed to delete logo', error as Error)
+                }
               }
+
+              setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
+              removeProvider(provider)
             }
-
-            setSelectedProvider(providers.filter((p) => isSystemProvider(p))[0])
-            removeProvider(provider)
-          }
-        })
+          })
+        }
       }
-    }
 
-    const menus = [editMenu, noteMenu, deleteMenu]
+      const menus = [editMenu, noteMenu, deleteMenu]
 
-    if (providers.filter((p) => p.id === provider.id).length > 1) {
-      return menus
-    }
+      if (providers.filter((p) => p.id === provider.id).length > 1) {
+        return menus
+      }
 
-    if (isSystemProvider(provider)) {
-      return [noteMenu]
-    } else if (provider.isSystem) {
-      // 这里是处理数据中存在新版本删掉的系统提供商的情况
-      // 未来期望能重构一下，不要依赖isSystem字段
-      return [noteMenu, deleteMenu]
-    } else {
-      return menus
-    }
-  }
+      if (isSystemProvider(provider)) {
+        return [noteMenu]
+      } else if (provider.isSystem) {
+        // 这里是处理数据中存在新版本删掉的系统提供商的情况
+        // 未来期望能重构一下，不要依赖isSystem字段
+        return [noteMenu, deleteMenu]
+      } else {
+        return menus
+      }
+    },
+    [providers, deleteLogo, removeProvider, saveLogo, setSelectedProvider, t, updateProvider]
+  )
 
   const filteredProviders = providers.filter((provider) => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
@@ -275,6 +256,31 @@ const ProviderList: FC = () => {
       handleReorder(result)
     },
     [handleReorder]
+  )
+
+  const providerRender = useCallback(
+    (provider: Provider) => {
+      return (
+        <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
+          <ProviderListItem
+            key={provider.id}
+            className={provider.id === selectedProvider?.id ? 'active' : ''}
+            onClick={() => setSelectedProvider(provider)}>
+            <DragHandle>
+              <GripVertical size={12} />
+            </DragHandle>
+            <ProviderAvatar pid={provider.id} name={provider.name} size={25} />
+            <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
+            {provider.enabled && (
+              <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
+                ON
+              </Tag>
+            )}
+          </ProviderListItem>
+        </Dropdown>
+      )
+    },
+    [ProviderAvatar, getDropdownMenus, selectedProvider?.id, setSelectedProvider]
   )
 
   return (
@@ -314,25 +320,7 @@ const ProviderList: FC = () => {
             paddingRight: 5
           }}
           itemContainerStyle={{ paddingBottom: 5 }}>
-          {(provider) => (
-            <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
-              <ProviderListItem
-                key={provider.id}
-                className={provider.id === selectedProvider?.id ? 'active' : ''}
-                onClick={() => setSelectedProvider(provider)}>
-                <DragHandle>
-                  <GripVertical size={12} />
-                </DragHandle>
-                <ProviderAvatar pid={provider.id} size={25} />
-                <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
-                {provider.enabled && (
-                  <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
-                    ON
-                  </Tag>
-                )}
-              </ProviderListItem>
-            </Dropdown>
-          )}
+          {providerRender}
         </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
