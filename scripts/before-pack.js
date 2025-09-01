@@ -59,10 +59,7 @@ exports.default = async function (context) {
     Object.keys(packages).forEach((name) => {
       if (name.includes(`${platformToArch[platform]}` && name.includes(`-${arch}`))) {
         // https://registry.npmjs.org/@img/sharp-win32-x64/-/sharp-win32-x64-0.34.3.tgz'
-        https: downloadNpmPackage(
-          name,
-          `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${packages[name]}.tgz`
-        )
+        downloadNpmPackage(name, `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${packages[name]}.tgz`)
       }
     })
   }
