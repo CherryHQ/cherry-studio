@@ -295,16 +295,47 @@ export async function captureScrollableIframe(
   }
 
   const animationStyle = disableAnimations()
+  let injectedFontStyle: HTMLStyleElement | null = null
+
+  const ensureFontStyle = (css: string): HTMLStyleElement => {
+    const EXISTING = doc.head.querySelector('style[data-cs-inline-fonts="true"]') as HTMLStyleElement | null
+    if (EXISTING) {
+      if (css && css.trim()) {
+        EXISTING.textContent = `${EXISTING.textContent || ''}\n${css}`
+      }
+      return EXISTING
+    }
+    const style = doc.createElement('style')
+    style.setAttribute('data-cs-inline-fonts', 'true')
+    style.textContent = css
+    doc.head.appendChild(style)
+    return style
+  }
 
   try {
     // 等待渲染稳定
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    await new Promise((r) => win.requestAnimationFrame(() => win.requestAnimationFrame(() => r(null))))
 
     // 强制加载懒加载图片
     doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
 
     // 获取字体CSS
     const fontEmbedCSS = await inlineFonts()
+
+    // 将字体 CSS 注入到 iframe 文档中，确保注册到 FontFaceSet
+    if (fontEmbedCSS && fontEmbedCSS.trim().length > 0) {
+      injectedFontStyle = ensureFontStyle(fontEmbedCSS)
+      // 访问一次以避免被标记为未使用
+      if (injectedFontStyle.parentNode == null) {
+        doc.head.appendChild(injectedFontStyle)
+      }
+    }
+
+    // 等待字体就绪，避免序列化时回退到系统字体
+    await Promise.race([
+      (doc as any).fonts?.ready ?? Promise.resolve(),
+      new Promise((resolve) => setTimeout(resolve, 1000))
+    ])
 
     // 计算尺寸
     const { documentElement: de, body: b } = doc
