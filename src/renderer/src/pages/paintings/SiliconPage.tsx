@@ -19,12 +19,12 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { safeGetProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
-import type { FileMetadata, Painting } from '@renderer/types'
+import type { FileMetadata, Model, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -41,7 +41,7 @@ import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import { checkProviderEnabled } from './utils'
 
-export const TEXT_TO_IMAGES_MODELS = [
+export const TEXT_TO_IMAGES_MODELS: Model[] = [
   {
     id: 'Kwai-Kolors/Kolors',
     provider: 'silicon',
@@ -183,7 +183,18 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     updatePaintingState({ prompt })
 
     const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
-    const provider = getProviderByModel(model)
+    if (!model) {
+      logger.error('Model not found')
+      window.message.error(t('error.model.not_exists'))
+      return
+    }
+    const result = safeGetProviderByModel(model)
+    if (!result.success) {
+      logger.error('Provider not found for model:', model)
+      window.message.error(t('error.provider.not_exist'))
+      return
+    }
+    const provider = result.value
 
     if (!provider.apiKey) {
       window.modal.error({
