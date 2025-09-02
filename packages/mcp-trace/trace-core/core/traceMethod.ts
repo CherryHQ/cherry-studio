@@ -11,7 +11,7 @@ export interface SpanDecoratorOptions {
 }
 
 export function TraceMethod(traced: SpanDecoratorOptions) {
-  return function (target: any, propertyKey?: any, descriptor?: PropertyDescriptor | undefined) {
+  return function (target: any, propertyKey?: any, descriptor?: PropertyDescriptor) {
     // 兼容静态方法装饰器只传2个参数的情况
     if (!descriptor) {
       descriptor = Object.getOwnPropertyDescriptor(target, propertyKey)

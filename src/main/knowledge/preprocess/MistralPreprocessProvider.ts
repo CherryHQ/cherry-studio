@@ -92,7 +92,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
         throw new Error('preprocess processing failed: OCR response is empty')
       }
     } catch (error) {
-      throw new Error('preprocess processing failed: ' + error)
+      throw new Error(`preprocess processing failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
