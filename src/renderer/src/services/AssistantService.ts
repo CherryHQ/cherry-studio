@@ -17,6 +17,7 @@ import type {
   AssistantSettings,
   Model,
   Provider,
+  Result,
   Topic,
   TranslateAssistant,
   TranslateLanguage
@@ -132,10 +133,15 @@ export function getAssistantProvider(assistant: Assistant): Provider {
   return provider || getDefaultProvider()
 }
 
-export function getProviderByModel(model?: Model): Provider {
+export function getProviderByModel(model: Model): Result<Provider> {
   const providers = store.getState().llm.providers
-  const providerId = model ? model.provider : getDefaultProvider().id
-  return providers.find((p) => p.id === providerId) as Provider
+  const providerId = model.provider
+  const provider = providers.find((p) => p.id === providerId)
+  if (provider) {
+    return { success: true, value: provider }
+  } else {
+    return { success: false, error: new Error('Provider not found for the specified model') }
+  }
 }
 
 export function getProviderByModelId(modelId?: string) {

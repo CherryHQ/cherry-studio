@@ -1281,3 +1281,6 @@ export type HexColor = string
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
+
+// just refer zod
+export type Result<T, E = Error> = { success: true; value: T } | { success: false; error: E }
