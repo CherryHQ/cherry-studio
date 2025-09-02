@@ -2333,6 +2333,19 @@ const migrateConfig = {
       logger.error('migrate 144 error', error as Error)
       return state
     }
+  },
+  '145': (state: RootState) => {
+    try {
+      if (state.settings) {
+        if (state.settings.showMessageOutline === undefined || state.settings.showMessageOutline === null) {
+          state.settings.showMessageOutline = false
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 145 error', error as Error)
+      return state
+    }
   }
 }
 

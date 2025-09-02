@@ -214,7 +214,7 @@ export interface SettingsState {
   navbarPosition: 'left' | 'top'
   // API Server
   apiServer: ApiServerConfig
-  showMessageOutline?: boolean
+  showMessageOutline: boolean
   // Notes Related
   showWorkspace: boolean
 }
@@ -409,7 +409,7 @@ export const initialState: SettingsState = {
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
   },
-  showMessageOutline: undefined,
+  showMessageOutline: false,
   // Notes Related
   showWorkspace: true
 }
