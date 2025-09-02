@@ -188,12 +188,24 @@ export async function captureScrollableIframe(
   const win = doc?.defaultView
   if (!doc || !win) return Promise.resolve(undefined)
 
+  // 创建一个 style 元素用于禁用动画
+  const style = doc.createElement('style')
+  style.textContent = `
+    /* 强制禁用所有动画、过渡和变换，确保元素处于静态的可视状态 */
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+      transform: none !important;
+    }
+  `
+  // 将样式注入到 iframe 的 head 中
+  doc.head.appendChild(style)
+
   // 等待两帧渲染稳定
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
 
   // 触发懒加载资源尽快加载
   doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
-  await new Promise((r) => setTimeout(r, 200))
 
   const de = doc.documentElement
   const b = doc.body
@@ -235,6 +247,9 @@ export async function captureScrollableIframe(
   } catch (error) {
     logger.error('Error capturing iframe full snapshot:', error as Error)
     return Promise.resolve(undefined)
+  } finally {
+    // 移除注入的 style 元素，恢复页面正常动画
+    doc.head.removeChild(style)
   }
 }
 
