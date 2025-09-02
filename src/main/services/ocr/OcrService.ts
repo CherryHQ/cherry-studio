@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { isLinux } from '@main/constant'
 import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
+import { systemOcrService } from './builtin/SystemOcrService'
 import { tesseractService } from './builtin/TesseractService'
 
 const logger = loggerService.withContext('OcrService')
@@ -34,7 +35,4 @@ export const ocrService = new OcrService()
 // Register built-in providers
 ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
 
-if (!isLinux) {
-  const { systemOcrService } = require('./builtin/SystemOcrService')
-  ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
-}
+!isLinux && ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))

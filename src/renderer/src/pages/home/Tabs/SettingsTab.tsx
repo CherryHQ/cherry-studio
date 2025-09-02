@@ -26,6 +26,8 @@ import {
   setCodeShowLineNumbers,
   setCodeViewer,
   setCodeWrappable,
+  setConfirmDeleteMessage,
+  setConfirmRegenerateMessage,
   setEnableQuickPanelTriggers,
   setFontSize,
   setMathEnableSingleDollar,
@@ -105,7 +107,9 @@ const SettingsTab: FC<Props> = (props) => {
     messageNavigation,
     enableQuickPanelTriggers,
     showTranslateConfirm,
-    showMessageOutline
+    showMessageOutline,
+    confirmDeleteMessage,
+    confirmRegenerateMessage
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -643,6 +647,24 @@ const SettingsTab: FC<Props> = (props) => {
               size="small"
               checked={enableQuickPanelTriggers}
               onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.confirm_delete_message')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={confirmDeleteMessage}
+              onChange={(checked) => dispatch(setConfirmDeleteMessage(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.confirm_regenerate_message')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={confirmRegenerateMessage}
+              onChange={(checked) => dispatch(setConfirmRegenerateMessage(checked))}
             />
           </SettingRow>
           <SettingDivider />

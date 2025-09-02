@@ -210,7 +210,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   )
 
   const sendMessage = useCallback(async () => {
-    if (inputEmpty || loading) {
+    if (inputEmpty) {
       return
     }
     if (checkRateLimit(assistant)) {
@@ -258,7 +258,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, loading, mentionedModels, resizeTextArea, setTimeoutTimer, text, topic])
+  }, [assistant, dispatch, files, inputEmpty, mentionedModels, resizeTextArea, setTimeoutTimer, text, topic])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -927,6 +927,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 onClick={onNewContext}
               />
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
+              <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
@@ -934,7 +935,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                   </ToolbarButton>
                 </Tooltip>
               )}
-              {!loading && <SendMessageButton sendMessage={sendMessage} disabled={loading || inputEmpty} />}
             </ToolbarMenu>
           </Toolbar>
         </InputBarContainer>

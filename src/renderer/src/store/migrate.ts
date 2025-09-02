@@ -2324,10 +2324,22 @@ const migrateConfig = {
   },
   '144': (state: RootState) => {
     try {
-      addProvider(state, 'aionly')
+      if (state.settings) {
+        state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
+        state.settings.confirmRegenerateMessage = settingsInitialState.confirmRegenerateMessage
+      }
       return state
     } catch (error) {
       logger.error('migrate 144 error', error as Error)
+      return state
+    }
+  },
+  '145': (state: RootState) => {
+    try {
+      addProvider(state, 'aionly')
+      return state
+    } catch (error) {
+      logger.error('migrate 145 error', error as Error)
       return state
     }
   }
