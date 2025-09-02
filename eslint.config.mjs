@@ -118,6 +118,16 @@ export default tseslint.config([
       '@typescript-eslint/no-unused-expressions': 'off',
       '@typescript-eslint/no-empty-object-type': 'off',
       '@typescript-eslint/ban-ts-comment': 'warn',
+      '@typescript-eslint/no-unsafe-assignment': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-unsafe-argument': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-unsafe-member-access': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/restrict-template-expressions': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-unsafe-call': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-unsafe-return': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-redundant-type-constituents': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/require-await': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-floating-promises': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-misused-promises': 'off', // temporally. it's recommended by tseslint but too many errors
       'import/no-cycle': 'error',
       'import/no-duplicates': 'error',
       'simple-import-sort/imports': 'error',
@@ -137,7 +147,7 @@ export default tseslint.config([
         }
       }
     },
-    extends: [tseslint.configs.recommended]
+    extends: [tseslint.configs.recommendedTypeChecked]
   },
   // simple lint for config ts file
   {
