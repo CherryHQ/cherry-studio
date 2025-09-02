@@ -7,7 +7,7 @@ import { useCodeTools } from '@renderer/hooks/useCodeTools'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { safeGetProviderByModel } from '@renderer/services/AssistantService'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -157,11 +157,7 @@ const CodeToolsPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<Record<string, string> | null> => {
     if (!selectedModel) return null
 
-    const result = safeGetProviderByModel(selectedModel)
-    if (!result.success) {
-      throw result.error
-    }
-    const modelProvider = result.value
+    const modelProvider = getProviderByModel(selectedModel)
     const aiProvider = new AiProvider(modelProvider)
     const baseUrl = await aiProvider.getBaseURL()
     const apiKey = await aiProvider.getApiKey()
