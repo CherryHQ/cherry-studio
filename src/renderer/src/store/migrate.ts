@@ -2321,6 +2321,15 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '144': (state: RootState) => {
+    try {
+      addProvider(state, 'aionly')
+      return state
+    } catch (error) {
+      logger.error('migrate 144 error', error as Error)
+      return state
+    }
   }
 }
 

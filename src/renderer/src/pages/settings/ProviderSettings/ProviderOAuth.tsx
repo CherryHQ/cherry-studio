@@ -1,5 +1,6 @@
 import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.png'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
@@ -25,7 +26,8 @@ const PROVIDER_LOGO_MAP = {
   silicon: SiliconFlowProviderLogo,
   aihubmix: AiHubMixProviderLogo,
   ppio: PPIOProviderLogo,
-  tokenflux: TokenFluxProviderLogo
+  tokenflux: TokenFluxProviderLogo,
+  aionly: AiOnlyProviderLogo
 }
 
 const ProviderOAuth: FC<Props> = ({ providerId }) => {

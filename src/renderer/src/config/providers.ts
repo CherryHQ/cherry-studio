@@ -3,6 +3,7 @@ import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
 import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.png'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import AwsProviderLogo from '@renderer/assets/images/providers/aws-bedrock.webp'
@@ -600,6 +601,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
     enabled: false
+  },
+  aionly: {
+    id: 'aionly',
+    name: 'AIOnly',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.aiionly.com',
+    models: SYSTEM_MODELS.aionly,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -661,7 +672,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'svg' // use svg icon component
+  poe: 'svg', // use svg icon component
+  aionly: AiOnlyProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1254,6 +1266,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://poe.com/api_key',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
+    }
+  },
+  aionly: {
+    api: {
+      url: 'https://api.aiionly.com'
+    },
+    websites: {
+      official: 'https://www.aiionly.com',
+      apiKey: 'https://www.aiionly.com/keyApi',
+      docs: 'https://www.aiionly.com/document',
+      models: 'https://www.aiionly.com'
     }
   }
 }
