@@ -563,22 +563,25 @@ async function processConversationMemory(messages: Message[], assistant: Assista
 
     const currentUserId = selectCurrentUserId(store.getState())
 
+    const llmProvider = getProviderByModel(llmModel)
+    const embedProvider = getProviderByModel(embedderModel)
+
     // Create updated memory config with resolved models
     const updatedMemoryConfig = {
       ...memoryConfig,
       llmApiClient: {
         model: llmModel.id,
         provider: llmModel.provider,
-        apiKey: getProviderByModel(llmModel).apiKey,
-        baseURL: new AiProvider(getProviderByModel(llmModel)).getBaseURL(),
-        apiVersion: getProviderByModel(llmModel).apiVersion
+        apiKey: llmProvider.apiKey,
+        baseURL: new AiProvider(llmProvider).getBaseURL(),
+        apiVersion: llmProvider.apiVersion
       },
       embedderApiClient: {
         model: embedderModel.id,
         provider: embedderModel.provider,
-        apiKey: getProviderByModel(embedderModel).apiKey,
-        baseURL: new AiProvider(getProviderByModel(embedderModel)).getBaseURL(),
-        apiVersion: getProviderByModel(embedderModel).apiVersion
+        apiKey: embedProvider.apiKey,
+        baseURL: new AiProvider(embedProvider).getBaseURL(),
+        apiVersion: embedProvider.apiVersion
       }
     }
 
