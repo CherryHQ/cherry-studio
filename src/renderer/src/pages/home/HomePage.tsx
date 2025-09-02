@@ -7,6 +7,7 @@ import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import type { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
@@ -101,17 +102,26 @@ const HomePage: FC = () => {
         />
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
-        {showAssistants && (
-          <ErrorBoundary>
-            <HomeTabs
-              activeAssistant={activeAssistant}
-              activeTopic={activeTopic}
-              setActiveAssistant={setActiveAssistant}
-              setActiveTopic={setActiveTopic}
-              position="left"
-            />
-          </ErrorBoundary>
-        )}
+        <AnimatePresence initial={false}>
+          {showAssistants && (
+            <ErrorBoundary>
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'var(--assistants-width)', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                style={{ overflow: 'hidden' }}>
+                <HomeTabs
+                  activeAssistant={activeAssistant}
+                  activeTopic={activeTopic}
+                  setActiveAssistant={setActiveAssistant}
+                  setActiveTopic={setActiveTopic}
+                  position="left"
+                />
+              </motion.div>
+            </ErrorBoundary>
+          )}
+        </AnimatePresence>
         <ErrorBoundary>
           <Chat
             assistant={activeAssistant}

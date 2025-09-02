@@ -104,8 +104,8 @@ vi.mock('@renderer/config/prompts', () => ({
 }))
 
 vi.mock('@renderer/config/systemModels', () => ({
-  GENERATE_IMAGE_MODELS: [],
-  SUPPORTED_DISABLE_GENERATION_MODELS: []
+  OPENAI_IMAGE_GENERATION_MODELS: [],
+  GENERATE_IMAGE_MODELS: []
 }))
 
 vi.mock('@renderer/config/tools', () => ({
@@ -234,8 +234,7 @@ vi.mock('@renderer/store/llm.ts', () => {
         secretAccessKey: '',
         region: ''
       }
-    },
-    logos: {}
+    }
   } satisfies LlmState
 
   const mockReducer = (state = mockInitialState) => {

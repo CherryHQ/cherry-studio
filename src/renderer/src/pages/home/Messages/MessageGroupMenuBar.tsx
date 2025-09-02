@@ -3,13 +3,17 @@ import {
   ColumnWidthOutlined,
   DeleteOutlined,
   FolderOutlined,
-  NumberOutlined
+  NumberOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import type { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
+import { AssistantMessageStatus } from '@renderer/types/newMessage'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Button, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { memo } from 'react'
@@ -37,7 +41,8 @@ const MessageGroupMenuBar: FC<Props> = ({
   topic
 }) => {
   const { t } = useTranslation()
-  const { deleteGroupMessages } = useMessageOperations(topic)
+  const { deleteGroupMessages, regenerateAssistantMessage } = useMessageOperations(topic)
+  const { assistant } = useAssistant(messages[0]?.assistantId)
 
   const handleDeleteGroup = async () => {
     const askId = messages[0]?.askId
@@ -53,6 +58,39 @@ const MessageGroupMenuBar: FC<Props> = ({
       okText: t('common.delete'),
       onOk: () => deleteGroupMessages(askId)
     })
+  }
+
+  const isFailedMessage = (m: Message) => {
+    if (m.role !== 'assistant') return false
+    const isError = (m.status || '').toLowerCase() === 'error'
+    const content = getMainTextContent(m)
+    const noContent = !content || content.trim().length === 0
+    const noBlocks = !m.blocks || m.blocks.length === 0
+    return isError || noContent || noBlocks
+  }
+
+  const isTransmittingMessage = (m: Message) => {
+    if (m.role !== 'assistant') return false
+    const status = m.status as AssistantMessageStatus
+    return (
+      status === AssistantMessageStatus.PROCESSING ||
+      status === AssistantMessageStatus.PENDING ||
+      status === AssistantMessageStatus.SEARCHING
+    )
+  }
+
+  const hasFailedMessages = messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+
+  const handleRetryAll = async () => {
+    const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+
+    for (const msg of candidates) {
+      try {
+        await regenerateAssistantMessage(msg, assistant)
+      } catch (e) {
+        // swallow per-item errors to continue others
+      }
+    }
   }
 
   const multiModelMessageStyleTextByLayout = {
@@ -96,6 +134,17 @@ const MessageGroupMenuBar: FC<Props> = ({
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </HStack>
+      {hasFailedMessages && (
+        <Tooltip title={t('message.group.retry_failed')} mouseEnterDelay={0.6}>
+          <Button
+            type="text"
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={handleRetryAll}
+            style={{ marginRight: 4 }}
+          />
+        </Tooltip>
+      )}
       <Button
         type="text"
         size="small"

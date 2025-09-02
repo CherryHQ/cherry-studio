@@ -5,7 +5,6 @@ import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useChatMaxWidth } from '@renderer/hooks/useChat'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -15,6 +14,7 @@ import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
+import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import React, { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -46,7 +46,6 @@ const Chat: FC<Props> = (props) => {
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
-  const maxWidth = useChatMaxWidth()
   const { setTimeoutTimer } = useTimer()
 
   useHotkeys('esc', () => {
@@ -134,7 +133,7 @@ const Chat: FC<Props> = (props) => {
           vertical
           flex={1}
           justify="space-between"
-          style={{ maxWidth, height: mainHeight }}>
+          style={{ maxWidth: '100%', height: mainHeight }}>
           <Messages
             key={props.activeTopic.id}
             assistant={assistant}
@@ -156,15 +155,24 @@ const Chat: FC<Props> = (props) => {
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
         </Main>
-        {topicPosition === 'right' && showTopics && (
-          <Tabs
-            activeAssistant={assistant}
-            activeTopic={props.activeTopic}
-            setActiveAssistant={props.setActiveAssistant}
-            setActiveTopic={props.setActiveTopic}
-            position="right"
-          />
-        )}
+        <AnimatePresence initial={false}>
+          {topicPosition === 'right' && showTopics && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <Tabs
+                activeAssistant={assistant}
+                activeTopic={props.activeTopic}
+                setActiveAssistant={props.setActiveAssistant}
+                setActiveTopic={props.setActiveTopic}
+                position="right"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </HStack>
     </Container>
   )

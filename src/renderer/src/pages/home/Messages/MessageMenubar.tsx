@@ -1,4 +1,4 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+// import { InfoCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -7,9 +7,9 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
+import { useEnableDeveloperMode, useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -86,7 +86,7 @@ const MessageMenubar: FC<Props> = (props) => {
   const { toggleMultiSelectMode } = useChatContext(props.topic)
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [isTranslating, setIsTranslating] = useState(false)
-  const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
+  // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
   const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
@@ -101,8 +101,9 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const { isBubbleStyle } = useMessageStyle()
   const { enableDeveloperMode } = useEnableDeveloperMode()
+  const { confirmDeleteMessage, confirmRegenerateMessage } = useSettings()
 
-  const loading = useTopicLoading(topic)
+  // const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
 
@@ -147,18 +148,15 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 
   const onNewBranch = useCallback(async () => {
-    if (loading) return
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
     window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
-  }, [index, t, loading])
+  }, [index, t])
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
-      if (!loading) {
-        await resendMessage(messageUpdate ?? message, assistant)
-      }
+      await resendMessage(messageUpdate ?? message, assistant)
     },
-    [assistant, loading, message, resendMessage]
+    [assistant, message, resendMessage]
   )
 
   const { startEditing } = useMessageEditing()
@@ -394,7 +392,6 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
-    if (loading) return
     // No need to reset or edit the message anymore
     // const selectedModel = isGrouped ? model : assistantModel
     // const _message = resetAssistantMessage(message, selectedModel)
@@ -440,12 +437,11 @@ const MessageMenubar: FC<Props> = (props) => {
   const onMentionModel = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (loading) return
       const selectedModel = await SelectModelPopup.show({ model, filter: mentionModelFilter })
       if (!selectedModel) return
       appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
     },
-    [appendAssistantResponse, assistant, loading, mentionModelFilter, message, model]
+    [appendAssistantResponse, assistant, mentionModelFilter, message, model]
   )
 
   const onUseful = useCallback(
@@ -471,16 +467,32 @@ const MessageMenubar: FC<Props> = (props) => {
       {showMessageTokens && <MessageTokens message={message} />}
       <MenusBar
         className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
-        {message.role === 'user' && (
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-            <ActionButton
-              className="message-action-button"
-              onClick={() => handleResendUserMessage()}
-              $softHoverBg={isBubbleStyle}>
-              <RefreshIcon size={15} />
-            </ActionButton>
-          </Tooltip>
-        )}
+        {message.role === 'user' &&
+          (confirmRegenerateMessage ? (
+            <Popconfirm
+              title={t('message.regenerate.confirm')}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => handleResendUserMessage()}
+              onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+              <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+                <ActionButton
+                  className="message-action-button"
+                  onClick={(e) => e.stopPropagation()}
+                  $softHoverBg={isBubbleStyle}>
+                  <RefreshIcon size={15} />
+                </ActionButton>
+              </Tooltip>
+            </Popconfirm>
+          ) : (
+            <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+              <ActionButton
+                className="message-action-button"
+                onClick={() => handleResendUserMessage()}
+                $softHoverBg={isBubbleStyle}>
+                <RefreshIcon size={15} />
+              </ActionButton>
+            </Tooltip>
+          ))}
         {message.role === 'user' && (
           <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
@@ -494,24 +506,29 @@ const MessageMenubar: FC<Props> = (props) => {
             {copied && <Check size={15} color="var(--color-primary)" />}
           </ActionButton>
         </Tooltip>
-        {isAssistantMessage && (
-          <Popconfirm
-            title={t('message.regenerate.confirm')}
-            okButtonProps={{ danger: true }}
-            icon={<InfoCircleOutlined style={{ color: 'red' }} />}
-            onConfirm={onRegenerate}
-            onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
-            <Tooltip
-              title={t('common.regenerate')}
-              mouseEnterDelay={0.8}
-              open={showRegenerateTooltip}
-              onOpenChange={setShowRegenerateTooltip}>
-              <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
+        {isAssistantMessage &&
+          (confirmRegenerateMessage ? (
+            <Popconfirm
+              title={t('message.regenerate.confirm')}
+              okButtonProps={{ danger: true }}
+              onConfirm={onRegenerate}
+              onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+              <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+                <ActionButton
+                  className="message-action-button"
+                  onClick={(e) => e.stopPropagation()}
+                  $softHoverBg={softHoverBg}>
+                  <RefreshIcon size={15} />
+                </ActionButton>
+              </Tooltip>
+            </Popconfirm>
+          ) : (
+            <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+              <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
                 <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
-          </Popconfirm>
-        )}
+          ))}
         {isAssistantMessage && (
           <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
@@ -605,15 +622,32 @@ const MessageMenubar: FC<Props> = (props) => {
             </ActionButton>
           </Tooltip>
         )}
-        <Popconfirm
-          title={t('message.message.delete.content')}
-          okButtonProps={{ danger: true }}
-          icon={<InfoCircleOutlined style={{ color: 'red' }} />}
-          onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
+        {confirmDeleteMessage ? (
+          <Popconfirm
+            title={t('message.message.delete.content')}
+            okButtonProps={{ danger: true }}
+            onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}
+            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+            <ActionButton
+              className="message-action-button"
+              onClick={(e) => e.stopPropagation()}
+              $softHoverBg={softHoverBg}>
+              <Tooltip
+                title={t('common.delete')}
+                mouseEnterDelay={1}
+                open={showDeleteTooltip}
+                onOpenChange={setShowDeleteTooltip}>
+                <DeleteIcon size={15} />
+              </Tooltip>
+            </ActionButton>
+          </Popconfirm>
+        ) : (
           <ActionButton
             className="message-action-button"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              deleteMessage(message.id, message.traceId, message.model?.name)
+            }}
             $softHoverBg={softHoverBg}>
             <Tooltip
               title={t('common.delete')}
@@ -623,7 +657,7 @@ const MessageMenubar: FC<Props> = (props) => {
               <DeleteIcon size={15} />
             </Tooltip>
           </ActionButton>
-        </Popconfirm>
+        )}
         {enableDeveloperMode && message.traceId && (
           <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>

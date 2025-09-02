@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 /**
  * 定时器管理 Hook，用于管理 setTimeout 和 setInterval 定时器，支持通过 key 来标识不同的定时器
@@ -65,12 +65,12 @@ export const useTimer = () => {
    * cleanup();
    * ```
    */
-  const setTimeoutTimer = useCallback((key: string, ...args: Parameters<typeof setTimeout>) => {
+  const setTimeoutTimer = (key: string, ...args: Parameters<typeof setTimeout>) => {
     clearTimeout(timeoutMapRef.current.get(key))
     const timer = setTimeout(...args)
     timeoutMapRef.current.set(key, timer)
     return () => clearTimeoutTimer(key)
-  }, [])
+  }
 
   /**
    * 设置一个 setInterval 定时器
@@ -89,12 +89,12 @@ export const useTimer = () => {
    * cleanup();
    * ```
    */
-  const setIntervalTimer = useCallback((key: string, ...args: Parameters<typeof setInterval>) => {
+  const setIntervalTimer = (key: string, ...args: Parameters<typeof setInterval>) => {
     clearInterval(intervalMapRef.current.get(key))
     const timer = setInterval(...args)
     intervalMapRef.current.set(key, timer)
     return () => clearIntervalTimer(key)
-  }, [])
+  }
 
   /**
    * 清除指定 key 的 setTimeout 定时器

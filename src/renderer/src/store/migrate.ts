@@ -1603,7 +1603,6 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.tokenflux_paintings) {
         state.paintings.tokenflux_paintings = []
       }
-      state.settings.showTokens = true
       state.settings.testPlan = false
       return state
     } catch (error) {
@@ -2322,12 +2321,15 @@ const migrateConfig = {
       return state
     }
   },
-  // after 1.5.8
   '144': (state: RootState) => {
     try {
-      state.llm.logos = {}
+      if (state.settings) {
+        state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
+        state.settings.confirmRegenerateMessage = settingsInitialState.confirmRegenerateMessage
+      }
       return state
     } catch (error) {
+      logger.error('migrate 144 error', error as Error)
       return state
     }
   }

@@ -10,7 +10,6 @@ import {
   setNavbarPosition,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
-  setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
   setTestChannel as _setTestChannel,
@@ -98,9 +97,6 @@ export function useSettings() {
     },
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
-    },
-    setShowTokens(showTokens: boolean) {
-      dispatch(setShowTokens(showTokens))
     },
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))

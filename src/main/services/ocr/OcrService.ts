@@ -1,6 +1,7 @@
 import type { OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@cherry-types'
 import { BuiltinOcrProviderIds } from '@cherry-types'
 import { loggerService } from '@logger'
+import { isLinux } from '@main/constant'
 
 import { systemOcrService } from './builtin/SystemOcrService'
 import { tesseractService } from './builtin/TesseractService'
@@ -34,4 +35,5 @@ export const ocrService = new OcrService()
 
 // Register built-in providers
 ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
-ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
+
+!isLinux && ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
