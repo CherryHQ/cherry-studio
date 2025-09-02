@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
-import { safeGetProviderByModel } from '@renderer/services/AssistantService'
+import { getDefaultProvider, safeGetProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
@@ -307,7 +307,8 @@ const InputbarTools = ({
       return result.value
     } else {
       window.message.error(t('error.provider.not_exist'))
-      throw result.error
+      // this fallback may throw error, but generally safe
+      return getDefaultProvider()
     }
   }, [model, t])
 
