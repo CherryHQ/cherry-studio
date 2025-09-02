@@ -78,11 +78,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
       return
     }
     const selectedFiles = await onSelectFile({ multipleSelections: true })
-    if (selectedFiles.length > 0) {
-      const uploadedFiles = await FileManager.uploadFiles(selectedFiles)
-      logger.debug('uploadedFiles', uploadedFiles)
-      addFiles(uploadedFiles)
-    }
+    processFiles(selectedFiles)
   }
 
   const handleDrop = async (files: File[]) => {
@@ -117,8 +113,14 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           }
         })
         .filter(({ ext }) => fileTypes.includes(ext))
-      const uploadedFiles = await FileManager.uploadFiles(_files)
-      logger.debug('uploadedFiles', uploadedFiles)
+      processFiles(_files)
+    }
+  }
+
+  const processFiles = async (files: FileMetadata[]) => {
+    logger.debug('processFiles', files)
+    if (files.length > 0) {
+      const uploadedFiles = await FileManager.uploadFiles(files)
       addFiles(uploadedFiles)
     }
   }
