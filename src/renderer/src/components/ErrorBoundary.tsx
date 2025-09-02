@@ -88,10 +88,10 @@ const ErrorBoundaryCustomized = ({ children, fallbackComponent, type = 'alert' }
   if (fallbackComponent) {
     return <ErrorBoundary FallbackComponent={fallbackComponent}>{children}</ErrorBoundary>
   } else if (type === 'icon') {
-    return <ErrorBoundary FallbackComponent={AlertFallback}>{children}</ErrorBoundary>
+    return <ErrorBoundary FallbackComponent={IconFallback}>{children}</ErrorBoundary>
   } else {
     // alert type and all of other invalid cases
-    return <ErrorBoundary FallbackComponent={IconFallback}>{children}</ErrorBoundary>
+    return <ErrorBoundary FallbackComponent={AlertFallback}>{children}</ErrorBoundary>
   }
 }
 
