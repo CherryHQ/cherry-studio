@@ -1,3 +1,4 @@
+import { COLOR_ERROR } from '@renderer/config/constant'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Alert, Button, Popover, Space } from 'antd'
 import { CircleXIcon } from 'lucide-react'
@@ -40,7 +41,7 @@ const AlertFallback: ComponentType<FallbackProps> = (props: FallbackProps): Reac
 const IconFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   return (
     <Popover content={<AlertFallback {...props} />}>
-      <CircleXIcon />
+      <CircleXIcon color={COLOR_ERROR} />
     </Popover>
   )
 }
