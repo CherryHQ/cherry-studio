@@ -182,74 +182,169 @@ export async function captureScrollableIframe(
   iframeRef: React.RefObject<HTMLIFrameElement | null>
 ): Promise<HTMLCanvasElement | undefined> {
   const iframe = iframeRef.current
-  if (!iframe) return Promise.resolve(undefined)
+  if (!iframe?.contentDocument?.defaultView) return undefined
 
   const doc = iframe.contentDocument
-  const win = doc?.defaultView
-  if (!doc || !win) return Promise.resolve(undefined)
+  const win = iframe.contentWindow!
 
-  // 创建一个 style 元素用于禁用动画
-  const style = doc.createElement('style')
-  style.textContent = `
-    /* 强制禁用所有动画、过渡和变换，确保元素处于静态的可视状态 */
-    *, *::before, *::after {
-      animation: none !important;
-      transition: none !important;
-      transform: none !important;
+  // 禁用动画以确保捕获静态状态
+  const disableAnimations = () => {
+    const style = doc.createElement('style')
+    style.textContent = `*, *::before, *::after { 
+      animation: none !important; 
+      transition: none !important; 
+      // transform: none !important; 
+    }`
+    doc.head.appendChild(style)
+    return style
+  }
+
+  // 内联字体以避免跨域问题
+  const inlineFonts = async () => {
+    const fontFaceRegex = /@font-face[\s\S]*?\}/g
+    const fontUrlRegex = /url\((['"]?)([^)"']+)\1\)/g
+    const fontExtRegex = /\.(woff2?|ttf|otf)(\?|#|$)/i
+
+    const fetchAsDataUrl = async (url: string): Promise<string> => {
+      try {
+        const res = await fetch(url, { mode: 'cors', credentials: 'omit' })
+        if (!res.ok) return url
+        const blob = await res.blob()
+        return new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.onerror = () => resolve(url)
+          reader.readAsDataURL(blob)
+        })
+      } catch {
+        return url
+      }
     }
-  `
-  // 将样式注入到 iframe 的 head 中
-  doc.head.appendChild(style)
 
-  // 等待两帧渲染稳定
-  await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+    const processCss = async (cssText: string, baseUrl: string): Promise<string[]> => {
+      const fontBlocks: string[] = []
+      let match: RegExpExecArray | null
 
-  // 触发懒加载资源尽快加载
-  doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
+      while ((match = fontFaceRegex.exec(cssText)) !== null) {
+        let block = match[0]
+        const fontUrls: Array<[string, string]> = []
 
-  const de = doc.documentElement
-  const b = doc.body
+        let urlMatch: RegExpExecArray | null
+        fontUrlRegex.lastIndex = 0
+        while ((urlMatch = fontUrlRegex.exec(block)) !== null) {
+          const url = urlMatch[2]
+          if (!url.startsWith('data:') && fontExtRegex.test(url)) {
+            try {
+              const absoluteUrl = new URL(url, baseUrl).href
+              fontUrls.push([urlMatch[0], absoluteUrl])
+            } catch {
+              // ignore
+            }
+          }
+        }
 
-  // 计算完整尺寸
-  const totalWidth = Math.max(b.scrollWidth, de.scrollWidth, b.clientWidth, de.clientWidth)
-  const totalHeight = Math.max(b.scrollHeight, de.scrollHeight, b.clientHeight, de.clientHeight)
+        // 并行处理所有字体URL
+        const dataUrls = await Promise.all(
+          fontUrls.map(async ([original, url]) => {
+            const dataUrl = await fetchAsDataUrl(url)
+            return [original, `url(${dataUrl})`] as const
+          })
+        )
 
-  logger.verbose('The iframe to be captured has size:', { totalWidth, totalHeight })
+        dataUrls.forEach(([original, replacement]) => {
+          block = block.replace(original, replacement)
+        })
 
-  // 按比例缩放以不超过上限
-  const MAX = 32767
-  const maxSide = Math.max(totalWidth, totalHeight)
-  const scale = maxSide > MAX ? MAX / maxSide : 1
-  const pixelRatio = (win.devicePixelRatio || 1) * scale
+        fontBlocks.push(block)
+      }
 
-  const bg = win.getComputedStyle(b).backgroundColor || '#ffffff'
-  const fg = win.getComputedStyle(b).color || '#000000'
+      return fontBlocks
+    }
+
+    const allFontBlocks: string[] = []
+
+    // 处理外部样式表
+    const externalSheets = doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+    await Promise.all(
+      Array.from(externalSheets).map(async (link) => {
+        if (!link.href) return
+        try {
+          const res = await fetch(link.href, { mode: 'cors', credentials: 'omit' })
+          if (res.ok) {
+            const cssText = await res.text()
+            const blocks = await processCss(cssText, link.href)
+            allFontBlocks.push(...blocks)
+          }
+        } catch {
+          // ignore
+        }
+      })
+    )
+
+    // 处理内联样式
+    const inlineStyles = doc.querySelectorAll('style')
+    await Promise.all(
+      Array.from(inlineStyles).map(async (style) => {
+        const cssText = style.textContent || ''
+        const blocks = await processCss(cssText, doc.baseURI)
+        allFontBlocks.push(...blocks)
+      })
+    )
+
+    return allFontBlocks.join('\n')
+  }
+
+  const animationStyle = disableAnimations()
 
   try {
-    const canvas = await htmlToImage.toCanvas(de, {
-      backgroundColor: bg,
+    // 等待渲染稳定
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+    // 强制加载懒加载图片
+    doc.querySelectorAll('img[loading="lazy"]').forEach((img) => img.setAttribute('loading', 'eager'))
+
+    // 获取字体CSS
+    const fontEmbedCSS = await inlineFonts()
+
+    // 计算尺寸
+    const { documentElement: de, body: b } = doc
+    const totalWidth = Math.max(b.scrollWidth, de.scrollWidth, b.clientWidth, de.clientWidth)
+    const totalHeight = Math.max(b.scrollHeight, de.scrollHeight, b.clientHeight, de.clientHeight)
+
+    logger.verbose('Capturing iframe:', { totalWidth, totalHeight })
+
+    // 限制最大尺寸，按比例缩放
+    const MAX_SIZE = 32767
+    const scale = Math.min(1, MAX_SIZE / Math.max(totalWidth, totalHeight))
+    const pixelRatio = (win.devicePixelRatio || 1) * scale
+
+    const styles = win.getComputedStyle(b)
+    const backgroundColor = styles.backgroundColor || '#ffffff'
+    const color = styles.color || '#000000'
+
+    return await htmlToImage.toCanvas(de, {
+      fontEmbedCSS,
+      backgroundColor,
       cacheBust: true,
       pixelRatio,
       skipAutoScale: true,
       width: Math.floor(totalWidth),
       height: Math.floor(totalHeight),
       style: {
-        backgroundColor: bg,
-        color: fg,
+        backgroundColor,
+        color,
         width: `${totalWidth}px`,
         height: `${totalHeight}px`,
         overflow: 'visible',
         display: 'block'
       }
     })
-
-    return canvas
   } catch (error) {
-    logger.error('Error capturing iframe full snapshot:', error as Error)
-    return Promise.resolve(undefined)
+    logger.error('Error capturing iframe:', error as Error)
+    return undefined
   } finally {
-    // 移除注入的 style 元素，恢复页面正常动画
-    doc.head.removeChild(style)
+    // 恢复动画
+    animationStyle.remove()
   }
 }
 
