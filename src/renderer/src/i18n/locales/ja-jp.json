@@ -3848,6 +3848,9 @@
         "common": {
           "langs": "サポートされている言語"
         },
+        "error": {
+          "not_system": "システムOCRはWindowsとMacOSのみをサポートしています"
+        },
         "image": {
           "error": {
             "provider_not_found": "該提供者は存在しません"

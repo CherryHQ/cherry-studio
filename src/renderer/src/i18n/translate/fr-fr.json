@@ -3844,6 +3844,9 @@
         "common": {
           "langs": "Langues prises en charge"
         },
+        "error": {
+          "not_system": "L'OCR système prend uniquement en charge Windows et MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "Ce fournisseur n'existe pas"

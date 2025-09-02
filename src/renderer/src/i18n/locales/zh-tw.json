@@ -3848,6 +3848,9 @@
         "common": {
           "langs": "支援的語言"
         },
+        "error": {
+          "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "該提供商不存在"

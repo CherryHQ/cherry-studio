@@ -3844,6 +3844,9 @@
         "common": {
           "langs": "Idiomas suportados"
         },
+        "error": {
+          "not_system": "O OCR do sistema suporta apenas Windows e MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "O provedor não existe"

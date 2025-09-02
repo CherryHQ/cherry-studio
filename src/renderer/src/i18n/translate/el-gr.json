@@ -3844,6 +3844,9 @@
         "common": {
           "langs": "Υποστηριζόμενες γλώσσες"
         },
+        "error": {
+          "not_system": "Το σύστημα OCR υποστηρίζει μόνο Windows και MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "Ο πάροχος δεν υπάρχει"

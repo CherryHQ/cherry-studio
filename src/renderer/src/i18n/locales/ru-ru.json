@@ -3848,6 +3848,9 @@
         "common": {
           "langs": "Поддерживаемые языки"
         },
+        "error": {
+          "not_system": "Системный OCR поддерживается только в Windows и MacOS"
+        },
         "image": {
           "error": {
             "provider_not_found": "Поставщик не существует"
