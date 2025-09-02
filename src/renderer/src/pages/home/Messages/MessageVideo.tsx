@@ -87,11 +87,13 @@ const MessageVideo: FC<Props> = ({ block }) => {
 
       default:
         if (block.filePath) {
-          logger.warn(`未知的视频类型: ${block.metadata?.type}, 但因存在 filePath 将尝试渲染为本地视频。`)
+          logger.warn(
+            `Unknown video type: ${block.metadata?.type}, but with filePath will try to render as local video.`
+          )
           return renderLocalVideo()
         }
 
-        logger.warn(`不支持的视频类型: ${block.metadata?.type} 或缺少必要数据。`)
+        logger.warn(`Unsupported video type: ${block.metadata?.type} or missing necessary data.`)
         return <div>{t('message.video.error.unsupported_type')}</div>
     }
   }

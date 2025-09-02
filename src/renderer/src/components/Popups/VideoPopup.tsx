@@ -4,9 +4,9 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { FileMetadata } from '@renderer/types'
 import { mime2type, uuid } from '@renderer/utils'
 import { Modal, Space, Upload } from 'antd'
-// 导入 antd 的 UploadFile 类型
 import type { UploadFile } from 'antd/es/upload/interface'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
 
@@ -47,6 +47,7 @@ const SingleFileUploader: React.FC<SingleFileUploaderProps> = ({
   onUpload,
   onRemove
 }) => {
+  const { t } = useTranslation()
   return (
     <div>
       <div style={{ marginBottom: '8px', fontWeight: 'bold' }}>{title}</div>
@@ -66,7 +67,7 @@ const SingleFileUploader: React.FC<SingleFileUploaderProps> = ({
         <p className="ant-upload-drag-icon">
           <UploadOutlined />
         </p>
-        <p className="ant-upload-text">点击或拖拽文件到此区域</p>
+        <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
         <p className="ant-upload-hint">{hint}</p>
       </Dragger>
     </div>
@@ -82,6 +83,8 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const [videoFileList, setVideoFileList] = useState<UploadFile[]>([])
   const [srtFileList, setSrtFileList] = useState<UploadFile[]>([])
+
+  const { t } = useTranslation()
 
   const handleFileUpload = async (
     file: File,
@@ -113,7 +116,6 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
       const uploadedFile = await FileManager.uploadFile(newFileMetadata)
       setFile(uploadedFile)
 
-      // 更新UI，显示上传完成
       setFileList([{ ...tempFile, status: 'done', url: uploadedFile.path }])
     } catch (error) {
       logger.error(`Failed to upload ${uploadType} file: ${error}`)
@@ -168,8 +170,8 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <SingleFileUploader
           uploadType="video"
           accept="video/*"
-          title="视频文件:"
-          hint="支持 MP4, AVI, MOV 等视频格式"
+          title={t('knowledge.videos_file')}
+          hint={t('knowledge.file_hint', { file_types: 'MP4' })}
           fileList={videoFileList}
           onUpload={(file) => handleFileUpload(file, 'video', setVideoFile, setVideoFileList)}
           onRemove={() => handleFileRemove(setVideoFile, setVideoFileList)}
@@ -178,8 +180,8 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <SingleFileUploader
           uploadType="srt"
           accept=".srt"
-          title="字幕文件:"
-          hint="支持 .srt 格式的字幕文件"
+          title={t('knowledge.subtitle_file')}
+          hint={t('knowledge.file_hint', { file_types: 'SRT' })}
           fileList={srtFileList}
           onUpload={(file) => handleFileUpload(file, 'srt', setSrtFile, setSrtFileList)}
           onRemove={() => handleFileRemove(setSrtFile, setSrtFileList)}
@@ -191,7 +193,6 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
 const TopViewKey = 'VideoPopup'
 
-// --- 导出部分保持不变 ---
 export default class VideoPopup {
   static topviewId = 0
   static hide() {

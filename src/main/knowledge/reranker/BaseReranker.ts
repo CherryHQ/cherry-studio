@@ -1,3 +1,4 @@
+import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 
 import { MultiModalDocument, RerankStrategy } from './strategies/RerankStrategy'
@@ -20,7 +21,7 @@ export default abstract class BaseReranker {
   }
   protected getRerankRequestBody(query: string, searchResults: KnowledgeSearchResult[]) {
     const documents = this.buildDocuments(searchResults)
-    const topN = this.base.documentCount ?? 6
+    const topN = this.base.documentCount ?? DEFAULT_DOCUMENT_COUNT
     const model = this.base.rerankApiClient?.model
     return this.strategy.buildRequestBody(query, documents, topN, model)
   }
@@ -52,7 +53,9 @@ export default abstract class BaseReranker {
     searchResults: KnowledgeSearchResult[],
     rerankResults: Array<{ index: number; relevance_score: number }>
   ) {
-    const resultMap = new Map(rerankResults.map((result) => [result.index, result.relevance_score || 0]))
+    const resultMap = new Map(
+      rerankResults.map((result) => [result.index, result.relevance_score || DEFAULT_RELEVANT_SCORE])
+    )
 
     const returenResults = searchResults
       .map((doc: KnowledgeSearchResult, index: number) => {

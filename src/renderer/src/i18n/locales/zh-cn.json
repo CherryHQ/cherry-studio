@@ -1066,6 +1066,7 @@
     "status_preprocess_completed": "预处理完成",
     "status_preprocess_failed": "预处理失败",
     "status_processing": "处理中",
+    "subtitle_file": "字幕文件",
     "threshold": "匹配度阈值",
     "threshold_placeholder": "未设置",
     "threshold_too_large_or_small": "阈值不能大于 1 或小于 0",
@@ -1078,7 +1079,8 @@
     "url_added": "网址已添加",
     "url_placeholder": "请输入网址, 多个网址用回车分隔",
     "urls": "网址",
-    "videos": "视频"
+    "videos": "视频",
+    "videos_file": "视频文件"
   },
   "languages": {
     "arabic": "阿拉伯文",
