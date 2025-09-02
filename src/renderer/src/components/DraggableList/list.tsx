@@ -52,7 +52,9 @@ function DraggableList<T>({
     (item: T) => {
       if (typeof itemKey === 'function') return itemKey(item)
       if (itemKey) return item[itemKey] as Key
-      return (item as any).id as Key
+      if (typeof item === 'string') return item as Key
+      if (item && typeof item === 'object' && 'id' in item) return item.id as Key
+      return undefined
     },
     [itemKey]
   )
@@ -64,7 +66,7 @@ function DraggableList<T>({
           <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
             <div {...listProps} className="draggable-list-container">
               {list.map((item, index) => {
-                const draggableId = String(getId(item))
+                const draggableId = String(getId(item) ?? index)
                 return (
                   <Draggable key={`draggable_${draggableId}`} draggableId={draggableId} index={index}>
                     {(provided) => (
