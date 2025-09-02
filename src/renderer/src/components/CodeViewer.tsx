@@ -1,4 +1,3 @@
-import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCodeHighlight } from '@renderer/hooks/useCodeHighlight'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -11,13 +10,49 @@ import { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
 interface CodeViewerProps {
+  /** Code string value. */
+  value: string
+  /**
+   * Code language string.
+   * - Case-insensitive.
+   * - Supports common names: javascript, json, python, etc.
+   * - Supports shiki aliases: c#/csharp, objective-c++/obj-c++/objc++, etc.
+   */
   language: string
-  children: string
-  expanded?: boolean
-  wrapped?: boolean
+  /** Fired when the editor height changes. */
   onHeightChange?: (scrollHeight: number) => void
-  className?: string
+  /**
+   * Height of the scroll container.
+   * Only works when expanded is false.
+   */
   height?: string | number
+  /**
+   * Maximum height of the scroll container.
+   * Only works when expanded is false.
+   */
+  maxHeight?: string | number
+  /** Viewer options. */
+  options?: {
+    /**
+     * Whether to show line numbers.
+     */
+    lineNumbers?: boolean
+  }
+  /** Font size that overrides the app setting. */
+  fontSize?: number
+  /** CSS class name appended to the default `code-viewer` class. */
+  className?: string
+  /**
+   * Whether the editor is expanded.
+   * If true, the height and maxHeight props are ignored.
+   * @default true
+   */
+  expanded?: boolean
+  /**
+   * Whether the code lines are wrapped.
+   * @default true
+   */
+  wrapped?: boolean
 }
 
 /**
@@ -26,19 +61,33 @@ interface CodeViewerProps {
  * - 使用虚拟滚动和按需高亮，改善页面内有大量长代码块时的响应
  * - 并发安全
  */
-const CodeViewer = ({ children, language, expanded, wrapped, onHeightChange, className, height }: CodeViewerProps) => {
-  const { codeShowLineNumbers, fontSize } = useSettings()
+const CodeViewer = ({
+  value,
+  language,
+  height,
+  maxHeight,
+  onHeightChange,
+  options,
+  fontSize: customFontSize,
+  className,
+  expanded = true,
+  wrapped = true
+}: CodeViewerProps) => {
+  const { codeShowLineNumbers: _lineNumbers, fontSize: _fontSize } = useSettings()
   const { getShikiPreProperties, isShikiThemeDark } = useCodeStyle()
   const shikiThemeRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
 
-  const rawLines = useMemo(() => (typeof children === 'string' ? children.trimEnd().split('\n') : []), [children])
+  const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
+  const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
+
+  const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
 
   // 计算行号数字位数
   const gutterDigits = useMemo(
-    () => (codeShowLineNumbers ? Math.max(rawLines.length.toString().length, 1) : 0),
-    [codeShowLineNumbers, rawLines.length]
+    () => (lineNumbers ? Math.max(rawLines.length.toString().length, 1) : 0),
+    [lineNumbers, rawLines.length]
   )
 
   // 设置 pre 标签属性
@@ -68,7 +117,7 @@ const CodeViewer = ({ children, language, expanded, wrapped, onHeightChange, cla
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
   // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
-  const estimateSize = useCallback(() => Math.round((fontSize - 1) * 1.6), [fontSize])
+  const estimateSize = useCallback(() => Math.round(fontSize * 1.6), [fontSize])
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -105,20 +154,19 @@ const CodeViewer = ({ children, language, expanded, wrapped, onHeightChange, cla
   }, [rawLines.length, onHeightChange])
 
   return (
-    <div ref={shikiThemeRef} style={height ? { height } : undefined}>
+    <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <ScrollContainer
         ref={scrollerRef}
         className="shiki-scroller"
         $wrap={wrapped}
-        $expanded={expanded}
+        $expand={expanded}
         $lineHeight={estimateSize()}
-        $height={height}
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            fontSize: `${fontSize - 1}px`,
-            maxHeight: expanded ? undefined : height ? undefined : MAX_COLLAPSED_CODE_HEIGHT,
-            height: height,
+            fontSize,
+            height: expanded ? undefined : height,
+            maxHeight: expanded ? undefined : maxHeight,
             overflowY: expanded ? 'hidden' : 'auto'
           } as React.CSSProperties
         }>
@@ -142,7 +190,7 @@ const CodeViewer = ({ children, language, expanded, wrapped, onHeightChange, cla
                 <VirtualizedRow
                   rawLine={rawLines[virtualItem.index]}
                   tokenLine={tokenLines[virtualItem.index]}
-                  showLineNumbers={codeShowLineNumbers}
+                  showLineNumbers={lineNumbers}
                   index={virtualItem.index}
                 />
               </div>
@@ -226,9 +274,8 @@ VirtualizedRow.displayName = 'VirtualizedRow'
 
 const ScrollContainer = styled.div<{
   $wrap?: boolean
-  $expanded?: boolean
+  $expand?: boolean
   $lineHeight?: number
-  $height?: string | number
 }>`
   display: block;
   overflow-x: auto;
@@ -244,7 +291,7 @@ const ScrollContainer = styled.div<{
     line-height: ${(props) => props.$lineHeight}px;
     /* contain 优化 wrap 时滚动性能，will-change 优化 unwrap 时滚动性能 */
     contain: ${(props) => (props.$wrap ? 'content' : 'none')};
-    will-change: ${(props) => (!props.$wrap && !props.$expanded ? 'transform' : 'auto')};
+    will-change: ${(props) => (!props.$wrap && !props.$expand ? 'transform' : 'auto')};
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
