@@ -5,7 +5,7 @@ import VideoPopup from '@renderer/components/Popups/VideoPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { FileTypes, isKnowledgeVideoItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
@@ -109,7 +109,10 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               verticalScrollBarThumb: { background: 'var(--color-scrollbar-thumb)' }
             }}>
             {(item) => {
-              const files = item.content as FileMetadata[]
+              if (!isKnowledgeVideoItem(item)) {
+                return null
+              }
+              const files = item.content
               const videoFile = files.find((f) => f.type === FileTypes.VIDEO)
 
               if (!videoFile) {

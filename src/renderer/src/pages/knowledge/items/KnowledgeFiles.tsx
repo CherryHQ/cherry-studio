@@ -5,7 +5,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileMetadata, FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { FileMetadata, FileTypes, isKnowledgeFileItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
@@ -171,7 +171,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             scrollerStyle={{ height: windowHeight - 270 }}
             autoHideScrollbar>
             {(item) => {
-              const file = item.content as FileType
+              if (!isKnowledgeFileItem(item)) {
+                return null
+              }
+              const file = item.content
               return (
                 <div style={{ height: '75px', paddingTop: '12px' }}>
                   <FileItem

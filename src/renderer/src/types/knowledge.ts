@@ -39,6 +39,15 @@ export const isKnowledgeVideoItem = (item: KnowledgeItem): item is KnowledgeVide
   return item.type === 'video'
 }
 
+export type KnowledgeImageItem = KnowledgeItem & {
+  type: 'image'
+  content: FileMetadata
+}
+
+export const isKnowledgeImageItem = (item: KnowledgeItem): item is KnowledgeImageItem => {
+  return item.type === 'image'
+}
+
 export type KnowledgeNoteItem = KnowledgeItem & {
   type: 'note'
   content: string
