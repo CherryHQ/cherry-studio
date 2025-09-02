@@ -111,8 +111,18 @@ export function getDefaultTopic(assistantId: string): Topic {
   }
 }
 
-export function getDefaultProvider() {
-  return getProviderByModel(getDefaultModel())
+/**
+ * 获取默认的 AI 服务提供商
+ * @returns 默认的服务提供商
+ * @throws {Error} 当无法找到默认模型对应的提供商时抛出错误
+ */
+export function getDefaultProvider(): Provider {
+  const result = getProviderByModel(getDefaultModel())
+  if (result.success) {
+    return result.value
+  } else {
+    throw result.error
+  }
 }
 
 export function getDefaultModel() {
@@ -140,13 +150,14 @@ export function getProviderByModel(model: Model): Result<Provider> {
   if (provider) {
     return { success: true, value: provider }
   } else {
-    return { success: false, error: new Error('Provider not found for the specified model') }
+    return { success: false, error: new Error(`Provider not found for the specified model ${model.id} ${model.name}`) }
   }
 }
 
 export function getProviderByModelId(modelId?: string) {
   const providers = store.getState().llm.providers
   const _modelId = modelId || getDefaultModel().id
+  // FIXME: as Provider is not safe
   return providers.find((p) => p.models.find((m) => m.id === _modelId)) as Provider
 }
 
