@@ -388,7 +388,6 @@ const Container = styled.div`
   position: relative;
   border-radius: var(--list-item-border-radius);
   border: 0.5px solid transparent;
-  width: calc(var(--assistants-width) - 20px);
   &:hover {
     background-color: var(--color-list-item-hover);
   }
