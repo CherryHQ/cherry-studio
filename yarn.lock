@@ -4784,7 +4784,7 @@ __metadata:
 
 "@napi-rs/system-ocr@patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch":
   version: 1.0.2
-  resolution: "@napi-rs/system-ocr@patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch::version=1.0.2&hash=1454af"
+  resolution: "@napi-rs/system-ocr@patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch::version=1.0.2&hash=a237c4"
   dependencies:
     "@napi-rs/system-ocr-darwin-arm64": "npm:1.0.2"
     "@napi-rs/system-ocr-darwin-x64": "npm:1.0.2"
@@ -4799,7 +4799,7 @@ __metadata:
       optional: true
     "@napi-rs/system-ocr-win32-x64-msvc":
       optional: true
-  checksum: 10c0/9ee9476893284a4f1ba11357697209232ef87823308a80cff60c7d2cb833c3125ba56bdc424ea591ef636aa1a64cc896ea592e4f48ac5dd1ad449b0eef360c36
+  checksum: 10c0/c6bebfba31e95f39480c9d93e55cc371e5ae296380829cdf791082895ef93083578c717291fce111464272a99d1b15d22ef005e579fcce9a7f0d7d553b66e079
   languageName: node
   linkType: hard
 

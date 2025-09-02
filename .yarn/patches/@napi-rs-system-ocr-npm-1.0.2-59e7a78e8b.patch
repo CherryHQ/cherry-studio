@@ -1,13 +1,207 @@
 diff --git a/index.js b/index.js
-index dc071739e79876dff88e1be06a9168e294222d13..d30e895754cf0cd0ef79ae14cae02adf42eeac8a 100644
+index dc071739e79876dff88e1be06a9168e294222d13..95252d03c1d9c4145d64d876e60801340d68ff4d 100644
 --- a/index.js
 +++ b/index.js
-@@ -381,7 +381,7 @@ if (!nativeBinding || process.env.NAPI_RS_FORCE_WASI) {
- }
- 
- if (!nativeBinding) {
--  if (loadErrors.length > 0) {
-+  if (process.platform !== 'linux' && loadErrors.length > 0) {
-     throw new Error(
-       `Cannot find native binding. ` +
-         `npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). ` +
+@@ -71,6 +71,8 @@ function requireNative() {
+       loadErrors.push(err)
+     }
+   } else if (process.platform === 'android') {
++    return
++  } else if (process.platform === 'win32') {
+     if (process.arch === 'arm64') {
+       try {
+         return require('./system-ocr.android-arm64.node')
+@@ -170,190 +172,11 @@ function requireNative() {
+       loadErrors.push(new Error(`Unsupported architecture on macOS: ${process.arch}`))
+     }
+   } else if (process.platform === 'freebsd') {
+-    if (process.arch === 'x64') {
+-      try {
+-        return require('./system-ocr.freebsd-x64.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-freebsd-x64')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else if (process.arch === 'arm64') {
+-      try {
+-        return require('./system-ocr.freebsd-arm64.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-freebsd-arm64')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else {
+-      loadErrors.push(new Error(`Unsupported architecture on FreeBSD: ${process.arch}`))
+-    }
++    return
+   } else if (process.platform === 'linux') {
+-    if (process.arch === 'x64') {
+-      if (isMusl()) {
+-        try {
+-          return require('./system-ocr.linux-x64-musl.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-x64-musl')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      } else {
+-        try {
+-          return require('./system-ocr.linux-x64-gnu.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-x64-gnu')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      }
+-    } else if (process.arch === 'arm64') {
+-      if (isMusl()) {
+-        try {
+-          return require('./system-ocr.linux-arm64-musl.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-arm64-musl')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      } else {
+-        try {
+-          return require('./system-ocr.linux-arm64-gnu.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-arm64-gnu')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      }
+-    } else if (process.arch === 'arm') {
+-      if (isMusl()) {
+-        try {
+-          return require('./system-ocr.linux-arm-musleabihf.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-arm-musleabihf')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      } else {
+-        try {
+-          return require('./system-ocr.linux-arm-gnueabihf.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-arm-gnueabihf')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      }
+-    } else if (process.arch === 'riscv64') {
+-      if (isMusl()) {
+-        try {
+-          return require('./system-ocr.linux-riscv64-musl.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-riscv64-musl')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      } else {
+-        try {
+-          return require('./system-ocr.linux-riscv64-gnu.node')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-        try {
+-          return require('@napi-rs/system-ocr-linux-riscv64-gnu')
+-        } catch (e) {
+-          loadErrors.push(e)
+-        }
+-      }
+-    } else if (process.arch === 'ppc64') {
+-      try {
+-        return require('./system-ocr.linux-ppc64-gnu.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-linux-ppc64-gnu')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else if (process.arch === 's390x') {
+-      try {
+-        return require('./system-ocr.linux-s390x-gnu.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-linux-s390x-gnu')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else {
+-      loadErrors.push(new Error(`Unsupported architecture on Linux: ${process.arch}`))
+-    }
++    return
+   } else if (process.platform === 'openharmony') {
+-    if (process.arch === 'arm64') {
+-      try {
+-        return require('./system-ocr.linux-arm64-ohos.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-linux-arm64-ohos')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else if (process.arch === 'x64') {
+-      try {
+-        return require('./system-ocr.linux-x64-ohos.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-linux-x64-ohos')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else if (process.arch === 'arm') {
+-      try {
+-        return require('./system-ocr.linux-arm-ohos.node')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-      try {
+-        return require('@napi-rs/system-ocr-linux-arm-ohos')
+-      } catch (e) {
+-        loadErrors.push(e)
+-      }
+-    } else {
+-      loadErrors.push(new Error(`Unsupported architecture on OpenHarmony: ${process.arch}`))
+-    }
++    return
+   } else {
+     loadErrors.push(new Error(`Unsupported OS: ${process.platform}, architecture: ${process.arch}`))
+   }
