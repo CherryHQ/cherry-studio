@@ -929,7 +929,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         clearTimeout(timer)
       }
       if (streamError) {
-        throw streamError
+        throw streamError as Error
       }
     }
   } catch (error: any) {
