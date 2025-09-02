@@ -677,6 +677,7 @@
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
     "model_required": "Επιλέξτε μοντέλο",
     "select_folder": "Επιλογή φακέλου",
+    "supported_providers": "[to be translated]:支持的服务商",
     "title": "Εργαλεία κώδικα",
     "update_options": "Ενημέρωση επιλογών",
     "working_directory": "κατάλογος εργασίας"
@@ -1319,7 +1320,8 @@
       "delete": {
         "content": "Η διαγραφή της ομάδας θα διαγράψει τις ερωτήσεις των χρηστών και όλες τις απαντήσεις του αστρόναυτη",
         "title": "Διαγραφή ομάδας"
-      }
+      },
+      "retry_failed": "[to be translated]:重试出错的消息"
     },
     "ignore": {
       "knowledge": {
@@ -1619,9 +1621,12 @@
     "new_folder": "Νέος φάκελος",
     "new_note": "Δημιουργία νέας σημείωσης",
     "no_content_to_copy": "Δεν υπάρχει περιεχόμενο προς αντιγραφή",
+    "no_file_selected": "[to be translated]:请选择要上传的文件",
     "only_markdown": "Υποστηρίζεται μόνο η μορφή Markdown",
+    "only_one_file_allowed": "[to be translated]:只能上传一个文件",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "rename": "μετονομασία",
+    "rename_changed": "[to be translated]:由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "αποθήκευση στις σημειώσεις",
     "settings": {
       "data": {
@@ -1913,6 +1918,7 @@
   "provider": {
     "302ai": "302.AI",
     "aihubmix": "AiHubMix",
+    "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",
@@ -3343,6 +3349,8 @@
         "label": "Καταγραφή στοιχείων στο grid"
       },
       "input": {
+        "confirm_delete_message": "[to be translated]:删除消息前确认",
+        "confirm_regenerate_message": "[to be translated]:重新生成消息前确认",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
         "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
         "paste_long_text_threshold": "Όριο μεγάλου κειμένου",

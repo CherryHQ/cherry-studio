@@ -677,6 +677,7 @@
     "model_placeholder": "Sélectionnez le modèle à utiliser",
     "model_required": "Veuillez sélectionner le modèle",
     "select_folder": "Sélectionner le dossier",
+    "supported_providers": "[to be translated]:支持的服务商",
     "title": "Outils de code",
     "update_options": "Options de mise à jour",
     "working_directory": "répertoire de travail"
@@ -1319,7 +1320,8 @@
       "delete": {
         "content": "La suppression du groupe de messages supprimera les questions des utilisateurs et toutes les réponses des assistants",
         "title": "Supprimer le groupe de messages"
-      }
+      },
+      "retry_failed": "[to be translated]:重试出错的消息"
     },
     "ignore": {
       "knowledge": {
@@ -1619,9 +1621,12 @@
     "new_folder": "Nouveau dossier",
     "new_note": "Nouvelle note",
     "no_content_to_copy": "Aucun contenu à copier",
+    "no_file_selected": "[to be translated]:请选择要上传的文件",
     "only_markdown": "uniquement le format Markdown est pris en charge",
+    "only_one_file_allowed": "[to be translated]:只能上传一个文件",
     "open_folder": "ouvrir le dossier externe",
     "rename": "renommer",
+    "rename_changed": "[to be translated]:由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "sauvegarder dans les notes",
     "settings": {
       "data": {
@@ -1913,6 +1918,7 @@
   "provider": {
     "302ai": "302.AI",
     "aihubmix": "AiHubMix",
+    "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",
@@ -3343,6 +3349,8 @@
         "label": "Déclencheur de popover de la grille"
       },
       "input": {
+        "confirm_delete_message": "[to be translated]:删除消息前确认",
+        "confirm_regenerate_message": "[to be translated]:重新生成消息前确认",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
         "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
         "paste_long_text_threshold": "Seuil de longueur de texte",
