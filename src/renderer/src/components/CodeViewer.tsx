@@ -35,7 +35,6 @@ interface CodeViewerProps {
   options?: {
     /**
      * Whether to show line numbers.
-     * @default true
      */
     lineNumbers?: boolean
   }
@@ -68,7 +67,7 @@ const CodeViewer = ({
   height,
   maxHeight,
   onHeightChange,
-  options = { lineNumbers: true },
+  options,
   fontSize: customFontSize,
   className,
   expanded = true,
@@ -81,7 +80,7 @@ const CodeViewer = ({
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
 
   const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
-  const lineNumbers = useMemo(() => options.lineNumbers ?? _lineNumbers, [options.lineNumbers, _lineNumbers])
+  const lineNumbers = useMemo(() => options?.lineNumbers ?? _lineNumbers, [options?.lineNumbers, _lineNumbers])
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
 
