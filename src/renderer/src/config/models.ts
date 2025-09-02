@@ -2373,11 +2373,12 @@ export function isGenerateImageModel(model: Model): boolean {
     return false
   }
 
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
+  const result = getProviderByModel(model)
+  if (!result.success) {
+    // 也许应该 throw，这里维持原来的逻辑
     return false
   }
+  const provider = result.value
 
   if (isEmbeddingModel(model)) {
     return false
@@ -2886,11 +2887,14 @@ export function isWebSearchModel(model: Model): boolean {
     return isUserSelectedModelType(model, 'web_search')!
   }
 
-  const provider = getProviderByModel(model)
+  const result = getProviderByModel(model)
 
-  if (!provider) {
+  if (!result.success) {
+    // 也许应该throw，这里维持原来的逻辑
     return false
   }
+
+  const provider = result.value
 
   const isEmbedding = isEmbeddingModel(model)
 
@@ -2970,11 +2974,12 @@ export function isMandatoryWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const provider = getProviderByModel(model)
-
-  if (!provider) {
+  const result = getProviderByModel(model)
+  if (!result.success) {
+    // 也许应该throw，这里维持原来的逻辑
     return false
   }
+  const provider = result.value
 
   const modelId = getLowerBaseModelName(model.id)
 
@@ -2990,7 +2995,12 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const provider = getProviderByModel(model)
+  const result = getProviderByModel(model)
+  if (!result.success) {
+    // 也许应该throw，这里维持原来的逻辑
+    return false
+  }
+  const provider = result.value
 
   if (provider.id !== 'openrouter') {
     return false
