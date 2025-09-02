@@ -7,7 +7,6 @@ import {
   isOpenRouterBuiltInWebSearchModel,
   isQwenMTModel,
   isReasoningModel,
-  isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
@@ -85,7 +84,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   // 使用外部搜索工具
@@ -463,9 +462,14 @@ export async function fetchChatCompletion({
 
   const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
 
-  const _messages = filterUserRoleStartMessages(
+  let _messages = filterUserRoleStartMessages(
     filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
   )
+
+  // Fallback: ensure at least the last user message is present to avoid empty payloads
+  if ((!_messages || _messages.length === 0) && lastUserMessage) {
+    _messages = [lastUserMessage]
+  }
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
   const enableReasoning =
@@ -475,6 +479,7 @@ export async function fetchChatCompletion({
 
   // NOTE：assistant.enableWebSearch 的语义是是否启用模型内置搜索功能
   const enableWebSearch =
+    assistant.enableWebSearch ||
     (assistant.webSearchProviderId && isWebSearchModel(model)) ||
     isOpenRouterBuiltInWebSearchModel(model) ||
     model.id.includes('sonar') ||
@@ -482,8 +487,7 @@ export async function fetchChatCompletion({
 
   const enableUrlContext = assistant.enableUrlContext || false
 
-  const enableGenerateImage =
-    isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
+  const enableGenerateImage = isGenerateImageModel(model) && assistant.enableGenerateImage
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })

@@ -2,11 +2,14 @@ import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
+import { useAppSelector } from '@renderer/store'
+import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { Dropdown, Input, MenuProps } from 'antd'
+import { Dropdown, Input, InputRef, MenuProps } from 'antd'
 import {
   ChevronDown,
   ChevronRight,
@@ -19,7 +22,7 @@ import {
   Star,
   StarOff
 } from 'lucide-react'
-import { FC, useCallback, useMemo, useRef, useState } from 'react'
+import { FC, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -57,8 +60,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
   const { activeNode } = useActiveNode(notesTree)
+  const sortType = useAppSelector(selectSortType)
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
-  const [editingName, setEditingName] = useState('')
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<'before' | 'inside' | 'after'>('inside')
@@ -66,8 +69,56 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   const [isShowSearch, setIsShowSearch] = useState(false)
   const [searchKeyword, setSearchKeyword] = useState('')
   const [isDragOverSidebar, setIsDragOverSidebar] = useState(false)
-  const [sortType, setSortType] = useState<NotesSortType>('sort_a2z')
   const dragNodeRef = useRef<HTMLDivElement | null>(null)
+  const scrollbarRef = useRef<any>(null)
+
+  const inPlaceEdit = useInPlaceEdit({
+    onSave: (newName: string) => {
+      if (editingNodeId && newName) {
+        onRenameNode(editingNodeId, newName)
+        logger.debug(`Renamed node ${editingNodeId} to "${newName}"`)
+      }
+      setEditingNodeId(null)
+    },
+    onCancel: () => {
+      setEditingNodeId(null)
+    }
+  })
+
+  // 滚动到活动节点
+  useEffect(() => {
+    if (activeNode?.id && !isShowStarred && !isShowSearch && scrollbarRef.current) {
+      // 延迟一下确保DOM已更新
+      setTimeout(() => {
+        const scrollContainer = scrollbarRef.current as HTMLElement
+        if (scrollContainer) {
+          const activeElement = scrollContainer.querySelector(`[data-node-id="${activeNode.id}"]`) as HTMLElement
+          if (activeElement) {
+            // 获取元素相对于滚动容器的位置
+            const containerHeight = scrollContainer.clientHeight
+            const elementOffsetTop = activeElement.offsetTop
+            const elementHeight = activeElement.offsetHeight
+            const currentScrollTop = scrollContainer.scrollTop
+
+            // 检查元素是否在可视区域内
+            const elementTop = elementOffsetTop
+            const elementBottom = elementOffsetTop + elementHeight
+            const viewTop = currentScrollTop
+            const viewBottom = currentScrollTop + containerHeight
+
+            // 如果元素不在可视区域内，滚动到中心位置
+            if (elementTop < viewTop || elementBottom > viewBottom) {
+              const targetScrollTop = elementOffsetTop - (containerHeight - elementHeight) / 2
+              scrollContainer.scrollTo({
+                top: Math.max(0, targetScrollTop),
+                behavior: 'smooth'
+              })
+            }
+          }
+        }
+      }, 200)
+    }
+  }, [activeNode?.id, isShowStarred, isShowSearch])
 
   const handleCreateFolder = useCallback(() => {
     onCreateFolder(t('notes.untitled_folder'))
@@ -79,30 +130,18 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const handleSelectSortType = useCallback(
     (selectedSortType: NotesSortType) => {
-      setSortType(selectedSortType)
       onSortNodes(selectedSortType)
     },
     [onSortNodes]
   )
 
-  const handleStartEdit = useCallback((node: NotesTreeNode) => {
-    setEditingNodeId(node.id)
-    setEditingName(node.name)
-  }, [])
-
-  const handleFinishEdit = useCallback(() => {
-    if (editingNodeId && editingName.trim()) {
-      onRenameNode(editingNodeId, editingName.trim())
-    }
-    setEditingNodeId(null)
-    setEditingName('')
-    logger.debug(`Renamed node ${editingNodeId} to "${editingName.trim()}"`)
-  }, [editingNodeId, editingName, onRenameNode])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingNodeId(null)
-    setEditingName('')
-  }, [])
+  const handleStartEdit = useCallback(
+    (node: NotesTreeNode) => {
+      setEditingNodeId(node.id)
+      inPlaceEdit.startEdit(node.name)
+    },
+    [inPlaceEdit]
+  )
 
   const handleDeleteNode = useCallback(
     (node: NotesTreeNode) => {
@@ -306,8 +345,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   const renderTreeNode = useCallback(
     (node: NotesTreeNode, depth: number = 0) => {
-      const isActive = node.id === activeNode?.id || (node.type === 'folder' && node.id === selectedFolderId)
-      const isEditing = editingNodeId === node.id
+      const isActive = selectedFolderId
+        ? node.type === 'folder' && node.id === selectedFolderId
+        : node.id === activeNode?.id
+      const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
       const hasChildren = node.children && node.children.length > 0
       const isDragging = draggedNodeId === node.id
       const isDragOver = dragOverNodeId === node.id
@@ -328,6 +369,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 isDragInside={isDragInside}
                 isDragAfter={isDragAfter}
                 draggable={!isEditing}
+                data-node-id={node.id}
                 onDragStart={(e) => handleDragStart(e, node)}
                 onDragOver={(e) => handleDragOver(e, node)}
                 onDragLeave={handleDragLeave}
@@ -361,15 +403,13 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
                   {isEditing ? (
                     <EditInput
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      onPressEnter={handleFinishEdit}
-                      onBlur={handleFinishEdit}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          handleCancelEdit()
-                        }
-                      }}
+                      ref={inPlaceEdit.inputRef as Ref<InputRef>}
+                      value={inPlaceEdit.editValue}
+                      onChange={inPlaceEdit.handleInputChange}
+                      onPressEnter={inPlaceEdit.saveEdit}
+                      onBlur={inPlaceEdit.saveEdit}
+                      onKeyDown={inPlaceEdit.handleKeyDown}
+                      onClick={(e) => e.stopPropagation()}
                       autoFocus
                       size="small"
                     />
@@ -388,24 +428,27 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       )
     },
     [
-      activeNode,
       selectedFolderId,
+      activeNode?.id,
       editingNodeId,
-      editingName,
+      inPlaceEdit.isEditing,
+      inPlaceEdit.inputRef,
+      inPlaceEdit.editValue,
+      inPlaceEdit.handleInputChange,
+      inPlaceEdit.saveEdit,
+      inPlaceEdit.handleKeyDown,
       draggedNodeId,
       dragOverNodeId,
       dragPosition,
-      onSelectNode,
-      onToggleExpanded,
-      handleFinishEdit,
-      handleCancelEdit,
+      getMenuItems,
+      handleDragLeave,
+      handleDragEnd,
+      t,
       handleDragStart,
       handleDragOver,
-      handleDragLeave,
       handleDrop,
-      handleDragEnd,
-      getMenuItems,
-      t
+      onSelectNode,
+      onToggleExpanded
     ]
   )
 
@@ -451,7 +494,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       />
 
       <NotesTreeContainer>
-        <StyledScrollbar>
+        <StyledScrollbar ref={scrollbarRef}>
           <TreeContent>
             {filteredTree.map((node) => renderTreeNode(node))}
             {!isShowStarred && !isShowSearch && (
@@ -479,7 +522,8 @@ const SidebarContainer = styled.div`
   width: 250px;
   height: 100vh;
   background-color: var(--color-background);
-  border-right: 1px solid var(--color-border);
+  border-right: 0.5px solid var(--color-border);
+  border-top-left-radius: 10px;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -524,7 +568,7 @@ const TreeNodeContainer = styled.div<{
     if (props.active) return 'var(--color-background-soft)'
     return 'transparent'
   }};
-  border: 1px solid
+  border: 0.5px solid
     ${(props) => {
       if (props.isDragInside) return 'var(--color-primary)'
       if (props.active) return 'var(--color-border)'
@@ -625,7 +669,7 @@ const EditInput = styled(Input)`
   .ant-input {
     font-size: 13px;
     padding: 2px 6px;
-    border: 1px solid var(--color-primary);
+    border: 0.5px solid var(--color-primary);
   }
 `
 

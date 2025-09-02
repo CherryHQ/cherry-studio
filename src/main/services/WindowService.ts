@@ -499,6 +499,8 @@ export class WindowService {
       }
     })
 
+    this.setupWebContentsHandlers(this.miniWindow)
+
     miniWindowState.manage(this.miniWindow)
 
     //miniWindow should show in current desktop

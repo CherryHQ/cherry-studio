@@ -86,6 +86,12 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // Initialize Python service with main window
   pythonService.setMainWindow(mainWindow)
 
+  const checkMainWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      throw new Error('Main window does not exist or has been destroyed')
+    }
+  }
+
   ipcMain.handle(IpcChannel.App_Info, () => ({
     version: app.getVersion(),
     isPackaged: app.isPackaged,
@@ -204,6 +210,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_SetFullScreen, (_, value: boolean): void => {
     mainWindow.setFullScreen(value)
+  })
+
+  ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
+    return mainWindow.isFullScreen()
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
@@ -558,19 +568,23 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // window
   ipcMain.handle(IpcChannel.Windows_SetMinimumSize, (_, width: number, height: number) => {
-    mainWindow?.setMinimumSize(width, height)
+    checkMainWindow()
+    mainWindow.setMinimumSize(width, height)
   })
 
   ipcMain.handle(IpcChannel.Windows_ResetMinimumSize, () => {
-    mainWindow?.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
-    const [width, height] = mainWindow?.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    checkMainWindow()
+
+    mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
     if (width < MIN_WINDOW_WIDTH) {
-      mainWindow?.setSize(MIN_WINDOW_WIDTH, height)
+      mainWindow.setSize(MIN_WINDOW_WIDTH, height)
     }
   })
 
   ipcMain.handle(IpcChannel.Windows_GetSize, () => {
-    const [width, height] = mainWindow?.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
+    checkMainWindow()
+    const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
     return [width, height]
   })
 

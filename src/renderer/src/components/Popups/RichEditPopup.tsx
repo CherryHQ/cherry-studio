@@ -97,6 +97,7 @@ const PopupContainer: React.FC<Props> = ({
       afterClose={onClose}
       afterOpenChange={handleAfterOpenChange}
       maskClosable={false}
+      keyboard={false}
       centered>
       <EditorContainer>
         <RichEditor
@@ -106,8 +107,8 @@ const PopupContainer: React.FC<Props> = ({
           onContentChange={handleContentChange}
           onMarkdownChange={handleMarkdownChange}
           onCommandsReady={handleCommandsReady}
-          minHeight={300}
-          maxHeight={500}
+          minHeight={window.innerHeight * 0.7}
+          isFullWidth={true}
           className="rich-edit-popup-editor"
         />
       </EditorContainer>

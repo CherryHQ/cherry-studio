@@ -677,6 +677,7 @@
     "model_placeholder": "使用するモデルを選択してください",
     "model_required": "モデルを選択してください",
     "select_folder": "フォルダを選択",
+    "supported_providers": "サポートされているプロバイダー",
     "title": "コードツール",
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ"
@@ -820,6 +821,10 @@
         "devtools": "デバッグパネルを開く",
         "message": "何か問題が発生したようです...",
         "reload": "再読み込み"
+      },
+      "details": "詳細情報",
+      "mcp": {
+        "invalid": "無効なMCPサーバー"
       }
     },
     "chat": {
@@ -1315,7 +1320,8 @@
       "delete": {
         "content": "分組メッセージを削除するとユーザーの質問と助け手の回答がすべて削除されます",
         "title": "分組メッセージを削除"
-      }
+      },
+      "retry_failed": "エラーになったメッセージを再試行"
     },
     "ignore": {
       "knowledge": {
@@ -1615,9 +1621,12 @@
     "new_folder": "新しいフォルダーを作成する",
     "new_note": "新規ノート作成",
     "no_content_to_copy": "コピーするコンテンツはありません",
+    "no_file_selected": "アップロードするファイルを選択してください",
     "only_markdown": "Markdown ファイルのみをアップロードできます",
+    "only_one_file_allowed": "アップロードできるファイルは1つだけです",
     "open_folder": "外部フォルダーを開きます",
     "rename": "名前の変更",
+    "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "save": "メモに保存する",
     "settings": {
       "data": {
@@ -3339,6 +3348,8 @@
         "label": "グリッド詳細トリガー"
       },
       "input": {
+        "confirm_delete_message": "メッセージ削除前に確認",
+        "confirm_regenerate_message": "メッセージ再生成前に確認",
         "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
         "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
         "paste_long_text_threshold": "長いテキストの長さ",

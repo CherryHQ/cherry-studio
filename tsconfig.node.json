@@ -12,6 +12,8 @@
     "src/renderer/src/services/traceApi.ts"  ],
   "compilerOptions": {
     "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": [
       "electron-vite/node",
       "vitest/globals"

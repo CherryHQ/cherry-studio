@@ -288,7 +288,7 @@
         "placeholder": "Pesquisar"
       }
     },
-    "deeply_thought": "Profundamente pensado (demorou {{secounds}} segundos)",
+    "deeply_thought": "Profundamente pensado (demorou {{seconds}} segundos)",
     "default": {
       "description": "Olá, eu sou o assistente padrão. Você pode começar a conversar comigo agora.",
       "name": "Assistente Padrão",
@@ -820,6 +820,10 @@
         "devtools": "Abrir o painel de depuração",
         "message": "Parece que ocorreu um problema...",
         "reload": "Recarregar"
+      },
+      "details": "Detalhes",
+      "mcp": {
+        "invalid": "Servidor MCP inválido"
       }
     },
     "chat": {

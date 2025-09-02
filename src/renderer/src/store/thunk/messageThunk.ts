@@ -338,6 +338,15 @@ const fetchAndProcessAssistantResponseImpl = async (
       messagesForContext = contextSlice.filter((m) => m && !m.status?.includes('ing'))
     }
 
+    // Ensure at least the triggering user message is present to avoid empty payloads
+    if ((!messagesForContext || messagesForContext.length === 0) && userMessageId) {
+      const stateAfter = getState()
+      const maybeUserMessage = stateAfter.messages.entities[userMessageId]
+      if (maybeUserMessage) {
+        messagesForContext = [maybeUserMessage]
+      }
+    }
+
     callbacks = createCallbacks({
       blockManager,
       dispatch,

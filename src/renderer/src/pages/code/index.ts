@@ -16,14 +16,14 @@ export interface ToolEnvironmentConfig {
 
 // CLI 工具选项
 export const CLI_TOOLS = [
-  { value: codeTools.qwenCode, label: 'Qwen Code' },
   { value: codeTools.claudeCode, label: 'Claude Code' },
+  { value: codeTools.qwenCode, label: 'Qwen Code' },
   { value: codeTools.geminiCli, label: 'Gemini CLI' },
   { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
-export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu']
+export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
 export const CLAUDE_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS]
 
 // Provider 过滤映射
@@ -56,6 +56,16 @@ export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
     zhipu: {
       anthropic: {
         api_base_url: 'https://open.bigmodel.cn/api/anthropic'
+      }
+    },
+    dashscope: {
+      anthropic: {
+        api_base_url: 'https://dashscope.aliyuncs.com/api/v2/apps/claude-code-proxy'
+      }
+    },
+    modelscope: {
+      anthropic: {
+        api_base_url: 'https://api-inference.modelscope.cn'
       }
     }
   }
@@ -130,6 +140,10 @@ export const generateToolEnvironment = ({
   }
 
   return env
+}
+
+export const getClaudeSupportedProviders = (providers: Provider[]) => {
+  return providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id))
 }
 
 export { default } from './CodeToolsPage'

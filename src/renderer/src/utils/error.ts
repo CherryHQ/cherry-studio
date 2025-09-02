@@ -1,7 +1,8 @@
-import { loggerService } from '@logger'
+// import { loggerService } from '@logger'
 import { t } from 'i18next'
+import z from 'zod'
 
-const logger = loggerService.withContext('Utils:error')
+// const logger = loggerService.withContext('Utils:error')
 
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
@@ -31,8 +32,6 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 }
 
 export function formatErrorMessage(error: any): string {
-  logger.error('Original error:', error)
-
   try {
     const detailedError = getErrorDetails(error)
     delete detailedError?.headers
@@ -101,4 +100,16 @@ export const formatMcpError = (error: any) => {
     return t('settings.mcp.errors.32000')
   }
   return error.message
+}
+
+/**
+ * 格式化 Zod 验证错误信息为可读的字符串
+ * @param error - Zod 验证错误对象
+ * @param title - 可选的错误标题，会作为前缀添加到错误信息中
+ * @returns 格式化后的错误信息字符串。
+ */
+export const formatZodError = (error: z.ZodError, title?: string) => {
+  const readableErrors = error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+  const errorMessage = readableErrors.join('\n')
+  return title ? `${title}: \n${errorMessage}` : errorMessage
 }

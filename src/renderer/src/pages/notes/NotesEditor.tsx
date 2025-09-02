@@ -145,6 +145,7 @@ const RichEditorContainer = styled.div`
 
   .notes-rich-editor {
     border: none;
+    border-radius: 0;
     flex: 1;
     background: transparent;
 
@@ -173,7 +174,7 @@ const RichEditorContainer = styled.div`
 
 const BottomPanel = styled.div`
   padding: 8px 16px;
-  border-top: 1px solid var(--color-border);
+  border-top: 0.5px solid var(--color-border);
   background: var(--color-background-soft);
   flex-shrink: 0;
   height: 48px;

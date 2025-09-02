@@ -138,9 +138,10 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
 
 const SidebarHeader = styled.div<{ isStarView?: boolean; isSearchView?: boolean }>`
   padding: 8px 12px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 0.5px solid var(--color-border);
   display: flex;
   justify-content: ${(props) => (props.isStarView || props.isSearchView ? 'flex-start' : 'center')};
+  height: var(--navbar-height);
 `
 
 const HeaderActions = styled.div`
