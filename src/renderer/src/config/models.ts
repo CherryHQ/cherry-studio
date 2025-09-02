@@ -151,7 +151,7 @@ import ZhipuModelLogoDark from '@renderer/assets/images/models/zhipu_dark.png'
 import YoudaoLogo from '@renderer/assets/images/providers/netease-youdao.svg'
 import NomicLogo from '@renderer/assets/images/providers/nomic.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { safeGetProviderByModel } from '@renderer/services/AssistantService'
 import {
   isSystemProviderId,
   Model,
@@ -2373,7 +2373,7 @@ export function isGenerateImageModel(model: Model): boolean {
     return false
   }
 
-  const result = getProviderByModel(model)
+  const result = safeGetProviderByModel(model)
   if (!result.success) {
     // 也许应该 throw，这里维持原来的逻辑
     return false
@@ -2887,7 +2887,7 @@ export function isWebSearchModel(model: Model): boolean {
     return isUserSelectedModelType(model, 'web_search')!
   }
 
-  const result = getProviderByModel(model)
+  const result = safeGetProviderByModel(model)
 
   if (!result.success) {
     // 也许应该throw，这里维持原来的逻辑
@@ -2974,7 +2974,7 @@ export function isMandatoryWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const result = getProviderByModel(model)
+  const result = safeGetProviderByModel(model)
   if (!result.success) {
     // 也许应该throw，这里维持原来的逻辑
     return false
@@ -2995,7 +2995,7 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
     return false
   }
 
-  const result = getProviderByModel(model)
+  const result = safeGetProviderByModel(model)
   if (!result.success) {
     // 也许应该throw，这里维持原来的逻辑
     return false

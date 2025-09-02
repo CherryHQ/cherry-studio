@@ -7,7 +7,7 @@ import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { safeGetProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
@@ -103,7 +103,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       window.message.error(t('error.model.not_exists'))
       return
     }
-    const result = getProviderByModel(model)
+    const result = safeGetProviderByModel(model)
     if (!result.success) {
       logger.error(`Failed to get provider for model ${model.id}`)
       window.message.error(t('error.provider.not_exist'))

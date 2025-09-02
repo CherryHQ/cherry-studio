@@ -3,7 +3,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { safeGetProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
@@ -302,7 +302,7 @@ const InputbarTools = ({
   }))
 
   const provider = useMemo(() => {
-    const result = getProviderByModel(model)
+    const result = safeGetProviderByModel(model)
     if (result.success) {
       return result.value
     } else {

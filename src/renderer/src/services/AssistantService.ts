@@ -117,7 +117,7 @@ export function getDefaultTopic(assistantId: string): Topic {
  * @throws {Error} 当无法找到默认模型对应的提供商时抛出错误
  */
 export function getDefaultProvider(): Provider {
-  const result = getProviderByModel(getDefaultModel())
+  const result = safeGetProviderByModel(getDefaultModel())
   if (result.success) {
     return result.value
   } else {
@@ -143,7 +143,7 @@ export function getAssistantProvider(assistant: Assistant): Provider {
   return provider || getDefaultProvider()
 }
 
-export function getProviderByModel(model: Model): Result<Provider> {
+export function safeGetProviderByModel(model: Model): Result<Provider> {
   const providers = store.getState().llm.providers
   const providerId = model.provider
   const provider = providers.find((p) => p.id === providerId)
@@ -151,6 +151,15 @@ export function getProviderByModel(model: Model): Result<Provider> {
     return { success: true, value: provider }
   } else {
     return { success: false, error: new Error(`Provider not found for the specified model ${model.id} ${model.name}`) }
+  }
+}
+
+export function getProviderByModel(model: Model): Provider {
+  const result = safeGetProviderByModel(model)
+  if (result.success) {
+    return result.value
+  } else {
+    throw result.error
   }
 }
 

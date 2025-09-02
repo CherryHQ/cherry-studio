@@ -5,7 +5,7 @@ import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@rendere
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getProviderByModel } from '@renderer/services/AssistantService'
+import { safeGetProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
@@ -150,7 +150,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
       // only for gemini
       if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
-        const result = getProviderByModel(model)
+        const result = safeGetProviderByModel(model)
         if (!result.success) {
           throw result.error
         }
