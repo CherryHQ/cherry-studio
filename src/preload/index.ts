@@ -23,7 +23,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { OcrResult } from '@napi-rs/system-ocr'
 import type { SpanContext } from '@opentelemetry/api'
-import type { UpgradeChannel } from '@shared/config/constant'
+import type { codeTools, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -423,7 +423,7 @@ const api = {
   },
   codeTools: {
     run: (
-      cliTool: string,
+      cliTool: codeTools,
       model: string,
       directory: string,
       env: Record<string, string>,
