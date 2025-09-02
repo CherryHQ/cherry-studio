@@ -47,12 +47,14 @@ const OcrImageSettings = ({ setProvider }: Props) => {
     }))
   }, [getOcrProviderName, imageProviders, platformSupport])
 
+  const isSystem = imageProvider.id === BuiltinOcrProviderIds.system
+
   return (
     <>
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {!platformSupport && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
+          {!platformSupport && isSystem && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
           <Select
             value={imageProvider.id}
             style={{ width: '200px' }}

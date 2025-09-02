@@ -12,6 +12,8 @@
   ],
   "compilerOptions": {
     "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo",
     "jsx": "react-jsx",
     "baseUrl": ".",
     "moduleResolution": "bundler",
