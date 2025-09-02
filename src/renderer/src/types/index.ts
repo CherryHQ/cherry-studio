@@ -34,6 +34,8 @@ export type Assistant = {
   enableUrlContext?: boolean
   enableGenerateImage?: boolean
   mcpServers?: MCPServer[]
+  attachedDocument?: FileMetadata & { disabled?: boolean }
+  reader?: ReaderSettings
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
@@ -189,6 +191,11 @@ export type Metrics = {
   time_thinking_millsec?: number
 }
 
+export type AttachedPage = {
+  index: number
+  content: string
+}
+
 export type Topic = {
   id: string
   assistantId: string
@@ -199,6 +206,8 @@ export type Topic = {
   pinned?: boolean
   prompt?: string
   isNameManuallyEdited?: boolean
+  attachedText?: string
+  attachedPages?: AttachedPage[]
 }
 
 export type User = {
@@ -1280,4 +1289,8 @@ export type HexColor = string
  */
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
+}
+
+export interface ReaderSettings {
+  position: 'left' | 'right'
 }

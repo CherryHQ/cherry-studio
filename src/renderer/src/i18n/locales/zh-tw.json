@@ -181,6 +181,14 @@
       "model": "模型設定",
       "more": "助手設定",
       "prompt": "提示詞設定",
+      "reader": {
+        "confirm": "確認選擇該文件嗎？",
+        "pickFromFiles": "從檔案中選擇",
+        "reference": "選擇參考資料",
+        "reupload": "重新上傳",
+        "title": "閱讀器設定",
+        "upload": "點擊上傳"
+      },
       "reasoning_effort": {
         "default": "預設",
         "high": "盡力思考",
@@ -1972,6 +1980,22 @@
     "yi": "零一萬物",
     "zhinao": "360 智腦",
     "zhipu": "智譜開放平台"
+  },
+  "reader": {
+    "attaching": "正在關聯",
+    "close": "關閉閱讀器",
+    "enableDragMode": "啟用拖曳模式",
+    "enableTextSelection": "啟用文字選擇",
+    "move": "拖動",
+    "outlineEmpty": "無可讀目錄",
+    "pageIndex": "第{{index}}頁",
+    "reference": "參考資料",
+    "selectReference": "選擇參考資料",
+    "showOutline": "目錄",
+    "showSelect": "頁面選擇",
+    "switchPosition": "切換位置",
+    "zoomIn": "放大",
+    "zoomOut": "縮小"
   },
   "restore": {
     "confirm": {

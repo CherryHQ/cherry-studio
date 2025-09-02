@@ -264,6 +264,7 @@
     "react-infinite-scroll-component": "^6.1.0",
     "react-json-view": "^1.21.3",
     "react-markdown": "^10.1.0",
+    "react-pdf": "^9.2.1",
     "react-redux": "^9.1.2",
     "react-router": "6",
     "react-router-dom": "6",
@@ -299,6 +300,7 @@
     "unified": "^11.0.5",
     "uuid": "^10.0.0",
     "vite": "npm:rolldown-vite@latest",
+    "vite-plugin-static-copy": "^2.3.1",
     "vitest": "^3.2.4",
     "webdav": "^5.8.0",
     "winston": "^3.17.0",
@@ -310,6 +312,7 @@
     "zod": "^3.25.74"
   },
   "resolutions": {
+    "pdfjs-dist@npm:4.8.69": "4.10.38",
     "@codemirror/language": "6.11.3",
     "@codemirror/lint": "6.8.5",
     "@codemirror/view": "6.38.1",

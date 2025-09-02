@@ -181,6 +181,14 @@
       "model": "Model Settings",
       "more": "Assistant Settings",
       "prompt": "Prompt Settings",
+      "reader": {
+        "confirm": "Are you sure you want to select this document?",
+        "pickFromFiles": "Select from Files",
+        "reference": "Select Reference Materials",
+        "reupload": "Re-upload",
+        "title": "Reader Settings",
+        "upload": "Click to Upload"
+      },
       "reasoning_effort": {
         "default": "Default",
         "high": "High",
@@ -1972,6 +1980,22 @@
     "yi": "Yi",
     "zhinao": "360AI",
     "zhipu": "BigModel"
+  },
+  "reader": {
+    "attaching": "Associating...",
+    "close": "Close Reader",
+    "enableDragMode": "Enable Drag Mode",
+    "enableTextSelection": "Enable Text Selection",
+    "move": "Drag",
+    "outlineEmpty": "No readable table of contents",
+    "pageIndex": "Page {{index}}",
+    "reference": "Reference Materials",
+    "selectReference": "Select Reference Materials",
+    "showOutline": "Table of Contents",
+    "showSelect": "Page Selection",
+    "switchPosition": "Switch Position",
+    "zoomIn": "Zoom In",
+    "zoomOut": "Zoom Out"
   },
   "restore": {
     "confirm": {

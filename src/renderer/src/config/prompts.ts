@@ -463,3 +463,8 @@ Example: [nytimes.com](https://nytimes.com/some-page).
 If have multiple citations, please directly list them like this:
 [www.nytimes.com](https://nytimes.com/some-page)[www.bbc.com](https://bbc.com/some-page)
 `
+
+export const REFERENCE_DOCUMENT_PROMPT = `
+  以下是参考资料内容：
+  {document_content}
+`

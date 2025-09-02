@@ -122,9 +122,7 @@ const assistantsSlice = createSlice({
           ? {
               ...assistant,
               topics: assistant.topics.map((topic) => {
-                const _topic = topic.id === newTopic.id ? newTopic : topic
-                _topic.messages = []
-                return _topic
+                return topic.id === newTopic.id ? { ...newTopic, messages: [] } : topic
               })
             }
           : assistant

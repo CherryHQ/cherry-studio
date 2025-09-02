@@ -181,6 +181,14 @@
       "model": "モデル設定",
       "more": "アシスタント設定",
       "prompt": "プロンプト設定",
+      "reader": {
+        "confirm": "このドキュメントを選択してもよろしいですか？",
+        "pickFromFiles": "ファイルから選択",
+        "reference": "参照資料を選択",
+        "reupload": "再アップロード",
+        "title": "リーダー設定",
+        "upload": "クリックしてアップロード"
+      },
       "reasoning_effort": {
         "default": "デフォルト",
         "high": "最大限の思考",
@@ -1972,6 +1980,22 @@
     "yi": "零一万物",
     "zhinao": "360智脳",
     "zhipu": "BigModel"
+  },
+  "reader": {
+    "attaching": "関連付け中",
+    "close": "リーダーを閉じる",
+    "enableDragMode": "ドラッグモードを有効にする",
+    "enableTextSelection": "テキスト選択を有効にする",
+    "move": "ドラッグ",
+    "outlineEmpty": "読み込み可能な目次がありません",
+    "pageIndex": "第{{index}}ページ",
+    "reference": "参照資料",
+    "selectReference": "参照資料を選択",
+    "showOutline": "目次",
+    "showSelect": "ページ選択",
+    "switchPosition": "位置を切り替える",
+    "zoomIn": "拡大",
+    "zoomOut": "縮小"
   },
   "restore": {
     "confirm": {
