@@ -854,6 +854,9 @@
     },
     "no_api_key": "API key is not configured",
     "pause_placeholder": "Paused",
+    "provider": {
+      "not_exist": "Provider does not exist"
+    },
     "provider_disabled": "Model provider is not enabled",
     "render": {
       "description": "Failed to render message content. Please check if the message content format is correct",

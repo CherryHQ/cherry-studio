@@ -854,6 +854,9 @@
     },
     "no_api_key": "API 金鑰未設定",
     "pause_placeholder": "回應已暫停",
+    "provider": {
+      "not_exist": "提供商不存在"
+    },
     "provider_disabled": "模型供應商未啟用",
     "render": {
       "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
