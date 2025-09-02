@@ -783,7 +783,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
-    if (isDedicatedImageGenerationModel(model) && !assistant.enableGenerateImage) {
+    const shouldAutoEnableImageGen =
+      isDedicatedImageGenerationModel(model) || (model && model.id.toLowerCase().includes('gemini-2.5-flash-image'))
+    if (shouldAutoEnableImageGen && !assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: true })
     }
   }, [assistant, model, updateAssistant])

@@ -739,6 +739,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'gemini',
       name: 'Gemini 2.0 Flash',
       group: 'Gemini 2.0'
+    },
+    {
+      id: 'gemini-2.5-flash-image-preview',
+      provider: 'gemini',
+      name: 'Gemini 2.5 Flash Image',
+      group: 'Gemini 2.5'
     }
   ],
   anthropic: [
@@ -1564,6 +1570,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     }
   ],
   openrouter: [
+    {
+      id: 'google/gemini-2.5-flash-image-preview',
+      provider: 'openrouter',
+      name: 'Google: Gemini 2.5 Flash Image',
+      group: 'google'
+    },
     {
       id: 'google/gemini-2.5-flash-preview',
       provider: 'openrouter',
