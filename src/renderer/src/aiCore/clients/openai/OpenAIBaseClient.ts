@@ -8,9 +8,9 @@ import {
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
-import { SettingsState } from '@renderer/store/settings'
-import { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
-import {
+import type { SettingsState } from '@renderer/store/settings'
+import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
+import type {
   OpenAIResponseSdkMessageParam,
   OpenAIResponseSdkParams,
   OpenAIResponseSdkRawChunk,
@@ -105,7 +105,7 @@ export abstract class OpenAIBaseClient<
         const newSdk = sdk.withOptions({ baseURL: baseUrl })
         const response = await newSdk.models.list()
 
-        // @ts-ignore key is not typed
+        // @ts-expect-error key is not typed
         return response?.body
           .map((model) => ({
             id: model.id,
@@ -117,7 +117,7 @@ export abstract class OpenAIBaseClient<
       }
       const response = await sdk.models.list()
       if (this.provider.id === 'together') {
-        // @ts-ignore key is not typed
+        // @ts-expect-error key is not typed
         return response?.body.map((model) => ({
           id: model.id,
           description: model.display_name,

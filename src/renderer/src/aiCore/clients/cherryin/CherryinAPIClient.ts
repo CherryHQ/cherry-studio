@@ -1,6 +1,6 @@
-import { Provider } from '@renderer/types'
-import { OpenAISdkParams, OpenAISdkRawOutput } from '@renderer/types/sdk'
-import OpenAI from 'openai'
+import type { Provider } from '@renderer/types'
+import type { OpenAISdkParams, OpenAISdkRawOutput } from '@renderer/types/sdk'
+import type OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
@@ -29,7 +29,7 @@ export class CherryinAPIClient extends OpenAIAPIClient {
       ...signature
     }
 
-    // @ts-ignore - SDK参数可能有额外的字段
+    // @ts-expect-error - SDK参数可能有额外的字段
     return await sdk.chat.completions.create(payload, options)
   }
 

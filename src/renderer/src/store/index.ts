@@ -19,8 +19,7 @@ import messageBlocksReducer from './messageBlock'
 import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
-import { setNotesPath } from './note'
-import note from './note'
+import note, { setNotesPath } from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
 import paintings from './paintings'
@@ -90,7 +89,7 @@ storeSyncService.setOptions({
 })
 
 const store = configureStore({
-  // @ts-ignore store type is unknown
+  // @ts-expect-error store type is unknown
   reducer: persistedReducer as typeof rootReducer,
   middleware: (getDefaultMiddleware) => {
     return getDefaultMiddleware({

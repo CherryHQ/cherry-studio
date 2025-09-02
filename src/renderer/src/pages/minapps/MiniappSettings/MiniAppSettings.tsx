@@ -10,7 +10,8 @@ import {
   setShowOpenedMinappsInSidebar
 } from '@renderer/store/settings'
 import { Button, message, Slider, Switch, Tooltip } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

@@ -1,13 +1,10 @@
+import type { Active, DropAnimation, Over, UniqueIdentifier } from '@dnd-kit/core'
 import {
-  Active,
   defaultDropAnimationSideEffects,
   DndContext,
   DragOverlay,
-  DropAnimation,
   KeyboardSensor,
-  Over,
   TouchSensor,
-  UniqueIdentifier,
   useSensor,
   useSensors
 } from '@dnd-kit/core'

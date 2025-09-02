@@ -140,13 +140,13 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       // Sync servers
       const result = await selectedProvider.syncServers(token, existingServers)
 
-      if (result.success && (result.addedServers?.length > 0 || (result as any).updatedServers?.length > 0)) {
+      if (result.success && (result.addedServers?.length > 0 || result.updatedServers?.length > 0)) {
         // Add new servers to the store
         for (const server of result.addedServers) {
           addMCPServer(server)
         }
         // Update existing servers with latest info
-        const updatedServers = (result as any).updatedServers
+        const updatedServers = result.updatedServers
         if (updatedServers?.length > 0) {
           for (const server of updatedServers) {
             updateMCPServer(server)

@@ -1,4 +1,4 @@
-import { EndpointType, Model, Provider } from '@renderer/types'
+import type { EndpointType, Model, Provider } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
 
 export interface LaunchValidationResult {
@@ -145,5 +145,3 @@ export const generateToolEnvironment = ({
 export const getClaudeSupportedProviders = (providers: Provider[]) => {
   return providers.filter((p) => p.type === 'anthropic' || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id))
 }
-
-export { default } from './CodeToolsPage'

@@ -1,8 +1,8 @@
-import { TokenUsage } from '@mcp-trace/trace-core'
-import { Span } from '@opentelemetry/api'
+import type { TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
-import { OpenAI } from 'openai'
-import { Stream } from 'openai/streaming'
+import type { OpenAI } from 'openai'
+import type { Stream } from 'openai/streaming'
 
 export class StreamHandler {
   private topicId: string
@@ -34,7 +34,7 @@ export class StreamHandler {
       for await (const chunk of this.stream) {
         let context: string | undefined
         if ('object' in chunk && chunk.object === 'chat.completion.chunk') {
-          const completionChunk = chunk as OpenAI.Chat.Completions.ChatCompletionChunk
+          const completionChunk = chunk
           if (completionChunk.usage) {
             this.usage.completion_tokens += completionChunk.usage.completion_tokens || 0
             this.usage.prompt_tokens += completionChunk.usage.prompt_tokens || 0

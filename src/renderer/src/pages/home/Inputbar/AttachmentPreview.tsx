@@ -14,11 +14,12 @@ import {
 } from '@ant-design/icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { Flex, Image, Tooltip } from 'antd'
 import { isEmpty } from 'lodash'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import styled from 'styled-components'
 
 interface Props {

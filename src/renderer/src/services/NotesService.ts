@@ -10,7 +10,7 @@ import {
   removeNodeFromTree,
   renameNodeFromTree
 } from '@renderer/services/NotesTreeService'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -222,12 +222,12 @@ export async function moveNode(
       if (targetParent) {
         targetPath = targetParent.externalPath
       } else {
-        targetPath = getFileDirectory(targetNode.externalPath!)
+        targetPath = getFileDirectory(targetNode.externalPath)
       }
     }
 
     // 构建新的文件路径
-    const sourceName = sourceNode.externalPath!.split('/').pop()!
+    const sourceName = sourceNode.externalPath.split('/').pop()!
     const sourceNameWithoutExt = sourceName.replace(sourceNode.type === 'file' ? MARKDOWN_EXT : '', '')
 
     const { safeName } = await window.api.file.checkFileName(

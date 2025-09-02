@@ -2,6 +2,15 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
+import { BuiltinMCPServerNames, isBuiltinMCPServer } from '@cherry-types'
+import {
+  type GetResourceResponse,
+  type MCPCallToolResponse,
+  type MCPPrompt,
+  type MCPResource,
+  type MCPServer,
+  type MCPTool
+} from '@cherry-types'
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
@@ -27,16 +36,6 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import {
-  BuiltinMCPServerNames,
-  type GetResourceResponse,
-  isBuiltinMCPServer,
-  type MCPCallToolResponse,
-  type MCPPrompt,
-  type MCPResource,
-  type MCPServer,
-  type MCPTool
-} from '@types'
 import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
@@ -194,7 +193,7 @@ class McpService {
                 authProvider
               }
               logger.debug(`StreamableHTTPClientTransport options:`, options)
-              return new StreamableHTTPClientTransport(new URL(server.baseUrl!), options)
+              return new StreamableHTTPClientTransport(new URL(server.baseUrl), options)
             } else if (server.type === 'sse') {
               const options: SSEClientTransportOptions = {
                 eventSourceInit: {
@@ -221,7 +220,7 @@ class McpService {
                 },
                 authProvider
               }
-              return new SSEClientTransport(new URL(server.baseUrl!), options)
+              return new SSEClientTransport(new URL(server.baseUrl), options)
             } else {
               throw new Error('Invalid server type')
             }

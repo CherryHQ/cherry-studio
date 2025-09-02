@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
-import { Model, Provider } from '@renderer/types'
-import OpenAI from 'openai'
+import type { Model, Provider } from '@renderer/types'
+import type OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
@@ -40,7 +40,6 @@ export class PPIOAPIClient extends OpenAIAPIClient {
       ])
 
       // Extract models from all responses
-      // @ts-ignore - PPIO response structure may not be typed
       const allModels = [
         ...((chatModelsResponse as any)?.data || []),
         ...((embeddingModelsResponse as any)?.data || []),

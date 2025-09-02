@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import type { MemoryConfig } from '@renderer/types'
 import { factExtractionPrompt, updateMemorySystemPrompt } from '@renderer/utils/memory-prompts'
-import type { MemoryConfig } from '@types'
 
 /**
  * Memory store state interface

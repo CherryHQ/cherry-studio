@@ -6,8 +6,8 @@ import {
   PutObjectCommand,
   S3Client
 } from '@aws-sdk/client-s3'
+import type { S3Config } from '@cherry-types'
 import { loggerService } from '@logger'
-import type { S3Config } from '@types'
 import * as net from 'net'
 import { Readable } from 'stream'
 

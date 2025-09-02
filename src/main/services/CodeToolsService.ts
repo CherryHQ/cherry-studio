@@ -41,7 +41,7 @@ class CodeToolsService {
     return bunPath
   }
 
-  public async getPackageName(cliTool: string) {
+  public async getPackageName(cliTool: codeTools) {
     switch (cliTool) {
       case codeTools.claudeCode:
         return '@anthropic-ai/claude-code'
@@ -56,7 +56,7 @@ class CodeToolsService {
     }
   }
 
-  public async getCliExecutableName(cliTool: string) {
+  public async getCliExecutableName(cliTool: codeTools) {
     switch (cliTool) {
       case codeTools.claudeCode:
         return 'claude'
@@ -71,7 +71,7 @@ class CodeToolsService {
     }
   }
 
-  private async isPackageInstalled(cliTool: string): Promise<boolean> {
+  private async isPackageInstalled(cliTool: codeTools): Promise<boolean> {
     const executableName = await this.getCliExecutableName(cliTool)
     const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
     const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
@@ -87,7 +87,7 @@ class CodeToolsService {
   /**
    * Get version information for a CLI tool
    */
-  public async getVersionInfo(cliTool: string): Promise<VersionInfo> {
+  public async getVersionInfo(cliTool: codeTools): Promise<VersionInfo> {
     logger.info(`Starting version check for ${cliTool}`)
     const packageName = await this.getPackageName(cliTool)
     const isInstalled = await this.isPackageInstalled(cliTool)
@@ -190,7 +190,7 @@ class CodeToolsService {
   /**
    * Update a CLI tool to the latest version
    */
-  public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
+  public async updatePackage(cliTool: codeTools): Promise<{ success: boolean; message: string }> {
     logger.info(`Starting update process for ${cliTool}`)
     try {
       const packageName = await this.getPackageName(cliTool)
@@ -233,7 +233,7 @@ class CodeToolsService {
 
   async run(
     _: Electron.IpcMainInvokeEvent,
-    cliTool: string,
+    cliTool: codeTools,
     _model: string,
     directory: string,
     env: Record<string, string>,

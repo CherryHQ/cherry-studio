@@ -1,6 +1,6 @@
-import { Provider } from '@types'
+import type { Provider } from '@cherry-types'
 
-import { BaseFileService } from './BaseFileService'
+import type { BaseFileService } from './BaseFileService'
 import { GeminiService } from './GeminiService'
 import { MistralService } from './MistralService'
 
@@ -8,7 +8,6 @@ export class FileServiceManager {
   private static instance: FileServiceManager
   private services: Map<string, BaseFileService> = new Map()
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private constructor() {}
 
   static getInstance(): FileServiceManager {

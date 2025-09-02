@@ -1,9 +1,8 @@
 import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
-import { AnthropicSdkRawChunk, AnthropicSdkRawOutput } from '@renderer/types/sdk'
+import type { AnthropicSdkRawChunk, AnthropicSdkRawOutput } from '@renderer/types/sdk'
 
-import { AnthropicStreamListener } from '../../clients/types'
-import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { AnthropicStreamListener } from '../../clients/types'
+import type { CompletionsContext, CompletionsMiddleware, CompletionsParams, CompletionsResult } from '../types'
 
 export const MIDDLEWARE_NAME = 'RawStreamListenerMiddleware'
 
@@ -28,7 +27,7 @@ export const RawStreamListenerMiddleware: CompletionsMiddleware =
           // }
         }
 
-        const specificApiClient = ctx.apiClientInstance as AnthropicAPIClient
+        const specificApiClient = ctx.apiClientInstance
 
         const monitoredOutput = specificApiClient.attachRawStreamListener(
           result.rawOutput as AnthropicSdkRawOutput,

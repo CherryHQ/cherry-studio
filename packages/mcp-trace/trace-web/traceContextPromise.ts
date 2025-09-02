@@ -1,4 +1,5 @@
-import { Context, context } from '@opentelemetry/api'
+import type { Context } from '@opentelemetry/api'
+import { context } from '@opentelemetry/api'
 
 const originalPromise = globalThis.Promise
 
@@ -48,7 +49,7 @@ class TraceContextPromise<T> extends Promise<T> {
       }
     })
     if (Array.isArray(values) && values.length > 0 && values[0] instanceof TraceContextPromise) {
-      capturedContext = (values[0] as TraceContextPromise<any>)._context
+      capturedContext = values[0]._context
     }
     return originalPromise.all(newValues) as Promise<T[]>
   }

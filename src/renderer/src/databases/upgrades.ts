@@ -9,7 +9,7 @@ import type {
   MessageBlock
 } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
-import { Transaction } from 'dexie'
+import type { Transaction } from 'dexie'
 import { isEmpty } from 'lodash'
 
 import {

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
+import type { ContentSearchRef } from '@renderer/components/ContentSearch'
+import { ContentSearch } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -7,14 +8,15 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
+import { useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useState } from 'react'
+import type { FC } from 'react'
+import React, { useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import styled from 'styled-components'
 
@@ -174,17 +176,6 @@ const Chat: FC<Props> = (props) => {
       </HStack>
     </Container>
   )
-}
-
-export const useChatMaxWidth = () => {
-  const { showTopics, topicPosition } = useSettings()
-  const { isLeftNavbar } = useNavbarPosition()
-  const { showAssistants } = useShowAssistants()
-  const showRightTopics = showTopics && topicPosition === 'right'
-  const minusAssistantsWidth = showAssistants ? '- var(--assistants-width)' : ''
-  const minusRightTopicsWidth = showRightTopics ? '- var(--assistants-width)' : ''
-  const sidebarWidth = isLeftNavbar ? '- var(--sidebar-width)' : ''
-  return `calc(100vw ${sidebarWidth} ${minusAssistantsWidth} ${minusRightTopicsWidth})`
 }
 
 const Container = styled.div`

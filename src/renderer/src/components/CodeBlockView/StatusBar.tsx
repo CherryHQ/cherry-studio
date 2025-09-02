@@ -1,5 +1,6 @@
 import { Flex } from 'antd'
-import { FC, memo, ReactNode } from 'react'
+import type { FC, ReactNode } from 'react'
+import { memo } from 'react'
 import styled from 'styled-components'
 
 interface Props {

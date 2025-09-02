@@ -1,8 +1,9 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
-import {
+import type {
   ApiServerConfig,
   AssistantsSortType,
   CodeStyleVarious,
@@ -10,17 +11,17 @@ import {
   MathEngine,
   OpenAIServiceTier,
   OpenAISummaryText,
+  OpenAIVerbosity,
   PaintingProvider,
   S3Config,
   SidebarIcon,
-  ThemeMode,
   TranslateLanguageCode
 } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/config/constant'
-import { OpenAIVerbosity } from '@types'
 
-import { RemoteSyncState } from './backup'
+import type { RemoteSyncState } from './backup'
 
 export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 

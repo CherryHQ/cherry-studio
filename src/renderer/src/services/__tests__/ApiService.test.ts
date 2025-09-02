@@ -1,33 +1,34 @@
-import { ToolUseBlock } from '@anthropic-ai/sdk/resources'
-import {
+import type { ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import type {
   TextBlock,
   TextDelta,
   Usage,
   WebSearchResultBlock,
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
+import type { FunctionCall } from '@google/genai'
 import { FinishReason, MediaModality } from '@google/genai'
-import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
-import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
-import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
+import type { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
+import type { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
-import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
-import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
-import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import type { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
+import type { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
+import type { GenericChunk } from '@renderer/aiCore/middleware/types'
 import { isVisionModel } from '@renderer/config/models'
-import { LlmState } from '@renderer/store/llm'
-import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
-import {
+import type { LlmState } from '@renderer/store/llm'
+import type { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
+import type {
   Chunk,
-  ChunkType,
   LLMResponseCompleteChunk,
   LLMWebSearchCompleteChunk,
   TextDeltaChunk,
   TextStartChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
-import {
+import { ChunkType } from '@renderer/types/chunk'
+import type {
   AnthropicSdkRawChunk,
   GeminiSdkMessageParam,
   GeminiSdkRawChunk,
@@ -38,8 +39,8 @@ import {
 import { mcpToolCallResponseToGeminiMessage } from '@renderer/utils/mcp-tools'
 import * as McpToolsModule from '@renderer/utils/mcp-tools'
 import { cloneDeep } from 'lodash'
-import OpenAI from 'openai'
-import { ChatCompletionChunk } from 'openai/resources'
+import type OpenAI from 'openai'
+import type { ChatCompletionChunk } from 'openai/resources'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Mock the ApiClientFactory
 vi.mock('@renderer/aiCore/clients/ApiClientFactory', () => ({
@@ -1027,7 +1028,7 @@ const mockOpenaiApiClient = {
         return
       }
       // OpenAI annotations
-      // @ts-ignore - annotations may not be in standard type definitions
+      // @ts-expect-error - annotations may not be in standard type definitions
       const annotations = contentSource.annotations || chunk.annotations
       if (annotations && annotations.length > 0 && annotations[0].type === 'url_citation') {
         hasBeenCollectedWebSearch = true
@@ -1038,55 +1039,55 @@ const mockOpenaiApiClient = {
       }
 
       // Grok citations
-      // @ts-ignore - citations may not be in standard type definitions
+      // @ts-expect-error - citations may not be in standard type definitions
       if (context.provider?.id === 'grok' && chunk.citations) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - citations may not be in standard type definitions
+          // @ts-expect-error - citations may not be in standard type definitions
           results: chunk.citations,
           source: WebSearchSource.GROK
         }
       }
 
       // Perplexity citations
-      // @ts-ignore - citations may not be in standard type definitions
+      // @ts-expect-error - citations may not be in standard type definitions
       if (context.provider?.id === 'perplexity' && chunk.search_results && chunk.search_results.length > 0) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - citations may not be in standard type definitions
+          // @ts-expect-error - citations may not be in standard type definitions
           results: chunk.search_results,
           source: WebSearchSource.PERPLEXITY
         }
       }
 
       // OpenRouter citations
-      // @ts-ignore - citations may not be in standard type definitions
+      // @ts-expect-error - citations may not be in standard type definitions
       if (context.provider?.id === 'openrouter' && chunk.citations && chunk.citations.length > 0) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - citations may not be in standard type definitions
+          // @ts-expect-error - citations may not be in standard type definitions
           results: chunk.citations,
           source: WebSearchSource.OPENROUTER
         }
       }
 
       // Zhipu web search
-      // @ts-ignore - web_search may not be in standard type definitions
+      // @ts-expect-error - web_search may not be in standard type definitions
       if (context.provider?.id === 'zhipu' && chunk.web_search) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - web_search may not be in standard type definitions
+          // @ts-expect-error - web_search may not be in standard type definitions
           results: chunk.web_search,
           source: WebSearchSource.ZHIPU
         }
       }
 
       // Hunyuan web search
-      // @ts-ignore - search_info may not be in standard type definitions
+      // @ts-expect-error - search_info may not be in standard type definitions
       if (context.provider?.id === 'hunyuan' && chunk.search_info?.search_results) {
         hasBeenCollectedWebSearch = true
         return {
-          // @ts-ignore - search_info may not be in standard type definitions
+          // @ts-expect-error - search_info may not be in standard type definitions
           results: chunk.search_info.search_results,
           source: WebSearchSource.HUNYUAN
         }
@@ -1170,7 +1171,7 @@ const mockOpenaiApiClient = {
             if (!contentSource?.content) {
               accumulatingText = false
             }
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            // @ts-expect-error - reasoning_content is not in standard OpenAI types but some providers use it
             if (!contentSource?.reasoning_content && !contentSource?.reasoning) {
               isThinking = false
             }
@@ -1191,7 +1192,7 @@ const mockOpenaiApiClient = {
             }
 
             // 处理推理内容 (e.g. from OpenRouter DeepSeek-R1)
-            // @ts-ignore - reasoning_content is not in standard OpenAI types but some providers use it
+            // @ts-expect-error - reasoning_content is not in standard OpenAI types but some providers use it
             const reasoningText = contentSource.reasoning_content || contentSource.reasoning
             if (reasoningText) {
               if (!isThinking) {
@@ -1806,7 +1807,7 @@ describe('ApiService', () => {
     expect(firstChunk.type).toBe(ChunkType.TEXT_START)
 
     // 验证TEXT_DELTA chunks的内容
-    const textDeltaChunks = chunks.filter((chunk) => chunk.type === ChunkType.TEXT_DELTA) as TextDeltaChunk[]
+    const textDeltaChunks = chunks.filter((chunk) => chunk.type === ChunkType.TEXT_DELTA)
     expect(textDeltaChunks.length).toBeGreaterThan(0)
 
     // 验证文本内容
@@ -2158,7 +2159,7 @@ describe('ApiService', () => {
   it('should handle openai thinking chunk correctly', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
     mockCreate.mockReturnValue(mockOpenaiApiClient as unknown as BaseApiClient)
-    const AI = new AiProvider(mockProvider as Provider)
+    const AI = new AiProvider(mockProvider)
     const result = await AI.completions({
       callType: 'test',
       messages: [],
@@ -2247,9 +2248,9 @@ describe('ApiService', () => {
 
   it('should handle openai need extract content chunk correctly', async () => {
     const mockCreate = vi.mocked(ApiClientFactory.create)
-    // @ts-ignore mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
+    // @ts-expect-error mockOpenaiNeedExtractContentApiClient is a OpenAIAPIClient
     mockCreate.mockReturnValue(mockOpenaiNeedExtractContentApiClient as unknown as OpenAIAPIClient)
-    const AI = new AiProvider(mockProvider as Provider)
+    const AI = new AiProvider(mockProvider)
     const result = await AI.completions({
       callType: 'test',
       messages: [],
@@ -2718,9 +2719,9 @@ describe('ApiService', () => {
     mockOpenaiApiClient_.createCompletions = vi.fn().mockImplementation(() => mockChunksGenerator())
 
     const mockCreate = vi.mocked(ApiClientFactory.create)
-    // @ts-ignore mockOpenaiApiClient_ is a OpenAIAPIClient
+    // @ts-expect-error mockOpenaiApiClient_ is a OpenAIAPIClient
     mockCreate.mockReturnValue(mockOpenaiApiClient_ as unknown as OpenAIAPIClient)
-    const AI = new AiProvider(mockProvider as Provider)
+    const AI = new AiProvider(mockProvider)
 
     const result = await AI.completions({
       callType: 'test',

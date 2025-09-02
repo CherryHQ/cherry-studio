@@ -3,12 +3,11 @@ import * as fsPromises from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
-import { FileTypes } from '@types'
+import { FileTypes } from '@cherry-types'
 import chardet from 'chardet'
 import iconv from 'iconv-lite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { readTextFileWithAutoEncoding } from '../file'
 import {
   getAllFiles,
   getAppConfigDir,
@@ -17,6 +16,7 @@ import {
   getFileType,
   getTempDir,
   isPathInside,
+  readTextFileWithAutoEncoding,
   untildify
 } from '../file'
 
@@ -145,7 +145,7 @@ describe('file', () => {
   describe('getAllFiles', () => {
     it('should return all valid files recursively', () => {
       // Mock file system
-      // @ts-ignore - override type for testing
+      // @ts-expect-error - override type for testing
       vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath) => {
         if (dirPath === '/test') {
           return ['file1.txt', 'file2.pdf', 'subdir']
@@ -174,7 +174,7 @@ describe('file', () => {
     })
 
     it('should skip hidden files', () => {
-      // @ts-ignore - override type for testing
+      // @ts-expect-error - override type for testing
       vi.spyOn(fs, 'readdirSync').mockReturnValue(['.hidden', 'visible.txt'])
       vi.mocked(fs.statSync).mockReturnValue({
         isDirectory: () => false,
@@ -188,7 +188,7 @@ describe('file', () => {
     })
 
     it('should skip unsupported file types', () => {
-      // @ts-ignore - override type for testing
+      // @ts-expect-error - override type for testing
       vi.spyOn(fs, 'readdirSync').mockReturnValue(['image.jpg', 'video.mp4', 'audio.mp3', 'document.pdf'])
       vi.mocked(fs.statSync).mockReturnValue({
         isDirectory: () => false,
@@ -204,7 +204,6 @@ describe('file', () => {
     })
 
     it('should return empty array for empty directory', () => {
-      // @ts-ignore - override type for testing
       vi.spyOn(fs, 'readdirSync').mockReturnValue([])
 
       const result = getAllFiles('/empty')
@@ -213,7 +212,6 @@ describe('file', () => {
     })
 
     it('should handle file system errors', () => {
-      // @ts-ignore - override type for testing
       vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
         throw new Error('Directory not found')
       })

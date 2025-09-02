@@ -7,7 +7,8 @@ import { getModelLogo } from '@renderer/config/models'
 import { usePinnedModels } from '@renderer/hooks/usePinnedModels'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { Model, ModelType, objectEntries, Provider } from '@renderer/types'
+import type { Model, ModelType, Provider } from '@renderer/types'
+import { objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
@@ -29,7 +30,7 @@ import styled from 'styled-components'
 import { useModelTagFilter } from './filters'
 import SelectModelSearchBar from './searchbar'
 import TagFilterSection from './TagFilterSection'
-import { FlatListItem, FlatListModel } from './types'
+import type { FlatListItem, FlatListModel } from './types'
 
 const PAGE_SIZE = 12
 const ITEM_HEIGHT = 36

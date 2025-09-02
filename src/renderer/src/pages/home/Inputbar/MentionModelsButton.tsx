@@ -1,17 +1,18 @@
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { FileType, Model } from '@renderer/types'
+import type { FileType, Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
 import { Avatar, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, CircleX, Plus } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -208,8 +209,10 @@ const MentionModelsButton: FC<Props> = ({
         // 只有输入触发时才需要删除 @ 与搜索文本（未知搜索词，按光标就近删除）
         if (triggerInfoRef.current?.type === 'input') {
           setText((currentText) => {
-            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
-            const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+            const textArea = document.querySelector('.inputbar textarea')
+            const caret = textArea
+              ? ((textArea as HTMLTextAreaElement).selectionStart ?? currentText.length)
+              : currentText.length
             return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
           })
         }
@@ -260,9 +263,11 @@ const MentionModelsButton: FC<Props> = ({
             ) {
               // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
               setText((currentText) => {
-                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
-                const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
+                const textArea = document.querySelector('.inputbar textarea')
+                const caret = textArea
+                  ? ((textArea as HTMLTextAreaElement).selectionStart ?? currentText.length)
+                  : currentText.length
+                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position)
               })
             }
           }

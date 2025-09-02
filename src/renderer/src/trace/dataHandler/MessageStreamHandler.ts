@@ -1,6 +1,6 @@
-import { Message, MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
-import { TokenUsage } from '@mcp-trace/trace-core'
-import { Span } from '@opentelemetry/api'
+import type { Message, MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
+import type { TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
 import { endSpan } from '@renderer/services/SpanManagerService'
 
 export class MessageStreamHandler {
@@ -62,7 +62,7 @@ export class MessageStreamHandler {
     if (!span || !topicId) {
       return stream
     }
-    const handler = new MessageStreamHandler(stream, span!, topicId, modelName)
+    const handler = new MessageStreamHandler(stream, span, topicId, modelName)
     return handler.stream
   }
 }

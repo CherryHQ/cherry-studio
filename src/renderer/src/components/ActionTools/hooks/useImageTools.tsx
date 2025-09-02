@@ -3,7 +3,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { download as downloadFile } from '@renderer/utils/download'
 import { svgToPngBlob, svgToSvgBlob } from '@renderer/utils/image'
-import { RefObject, useCallback, useEffect, useRef } from 'react'
+import type { RefObject } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('usePreviewToolHandlers')
@@ -33,11 +34,11 @@ export const useImageTools = (
     // 优先尝试从 Shadow DOM 中查找
     const shadowRoot = containerRef.current.shadowRoot
     if (shadowRoot) {
-      return shadowRoot.querySelector(imgSelector) as SVGElement | null
+      return shadowRoot.querySelector(imgSelector)
     }
 
     // 降级到常规 DOM 查找
-    return containerRef.current.querySelector(imgSelector) as SVGElement | null
+    return containerRef.current.querySelector(imgSelector)
   }, [containerRef, imgSelector])
 
   // 获取原始图像元素（移除所有变换）
@@ -56,7 +57,7 @@ export const useImageTools = (
     const imgElement = getImgElement()
     if (!imgElement) return transformRef.current
 
-    const transform = imgElement.style.transform
+    const transform = (imgElement as HTMLElement).style.transform
     if (!transform || transform === 'none') return transformRef.current
 
     // 使用CSS矩阵解析
@@ -93,7 +94,7 @@ export const useImageTools = (
       transformRef.current.y = newY
 
       const imgElement = getImgElement()
-      applyTransform(imgElement, newX, newY, transformRef.current.scale)
+      applyTransform(imgElement as SVGElement, newX, newY, transformRef.current.scale)
     },
     [getCurrentPosition, getImgElement, applyTransform]
   )
@@ -115,7 +116,7 @@ export const useImageTools = (
 
       const imgElement = getImgElement()
       // 实时应用变换，但不更新 ref，避免累积误差
-      applyTransform(imgElement, newX, newY, transformRef.current.scale)
+      applyTransform(imgElement as SVGElement, newX, newY, transformRef.current.scale)
       e.preventDefault()
     }
 
@@ -173,7 +174,7 @@ export const useImageTools = (
       transformRef.current.scale = newScale
 
       const imgElement = getImgElement()
-      applyTransform(imgElement, transformRef.current.x, transformRef.current.y, newScale)
+      applyTransform(imgElement as SVGElement, transformRef.current.x, transformRef.current.y, newScale)
     },
     [getImgElement, applyTransform]
   )

@@ -42,5 +42,7 @@
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true
-  }
+  },
+  // 确保项目和vscode lsp使用相同版本
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

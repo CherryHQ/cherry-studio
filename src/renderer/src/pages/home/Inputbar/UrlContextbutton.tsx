@@ -1,10 +1,11 @@
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
-import { FC, memo, useCallback } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface UrlContextButtonRef {

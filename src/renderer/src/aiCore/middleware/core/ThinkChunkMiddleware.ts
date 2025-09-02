@@ -1,8 +1,14 @@
 import { loggerService } from '@logger'
-import { ChunkType, ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
+import type { ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type {
+  CompletionsContext,
+  CompletionsMiddleware,
+  CompletionsParams,
+  CompletionsResult,
+  GenericChunk
+} from '../types'
 
 export const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
 
@@ -45,7 +51,7 @@ export const ThinkChunkMiddleware: CompletionsMiddleware =
           new TransformStream<GenericChunk, GenericChunk>({
             transform(chunk: GenericChunk, controller) {
               if (chunk.type === ChunkType.THINKING_DELTA) {
-                const thinkingChunk = chunk as ThinkingDeltaChunk
+                const thinkingChunk = chunk
 
                 // 第一次接收到思考内容时记录开始时间
                 if (!hasThinkingContent) {

@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
-import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
+import type { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { withSpanResult } from '@renderer/services/SpanManagerService'
-import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
+import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
@@ -25,7 +25,7 @@ import { MIDDLEWARE_NAME as ImageGenerationMiddlewareName } from './middleware/f
 import { MIDDLEWARE_NAME as ThinkingTagExtractionMiddlewareName } from './middleware/feat/ThinkingTagExtractionMiddleware'
 import { MIDDLEWARE_NAME as ToolUseExtractionMiddlewareName } from './middleware/feat/ToolUseExtractionMiddleware'
 import { MiddlewareRegistry } from './middleware/register'
-import type { CompletionsParams, CompletionsResult } from './middleware/schemas'
+import type { CompletionsParams, CompletionsResult } from './middleware/types'
 
 const logger = loggerService.withContext('AiProvider')
 

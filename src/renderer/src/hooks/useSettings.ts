@@ -1,7 +1,6 @@
 import store, { useAppDispatch, useAppSelector } from '@renderer/store'
+import type { AssistantIconType, SendMessageShortcut, SettingsState } from '@renderer/store/settings'
 import {
-  AssistantIconType,
-  SendMessageShortcut,
   setAssistantIconType,
   setAutoCheckUpdate as _setAutoCheckUpdate,
   setDisableHardwareAcceleration,
@@ -16,14 +15,13 @@ import {
   setTestChannel as _setTestChannel,
   setTestPlan as _setTestPlan,
   setTheme,
-  SettingsState,
   setTopicPosition,
   setTray as _setTray,
   setTrayOnClose,
   setWindowStyle
 } from '@renderer/store/settings'
-import { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
-import { UpgradeChannel } from '@shared/config/constant'
+import type { SidebarIcon, ThemeMode, TranslateLanguageCode } from '@renderer/types'
+import type { UpgradeChannel } from '@shared/config/constant'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)

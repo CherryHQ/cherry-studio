@@ -1,8 +1,13 @@
 import { loggerService } from '@logger'
 import { ChunkType } from '@renderer/types/chunk'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type {
+  CompletionsContext,
+  CompletionsMiddleware,
+  CompletionsParams,
+  CompletionsResult,
+  GenericChunk
+} from '../types'
 
 export const MIDDLEWARE_NAME = 'TextChunkMiddleware'
 

@@ -8,7 +8,7 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
-import { ModelTag } from '@renderer/types'
+import type { ModelTag } from '@renderer/types'
 import { Flex } from 'antd'
 import React, { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

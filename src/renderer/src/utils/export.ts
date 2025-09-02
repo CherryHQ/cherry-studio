@@ -8,7 +8,7 @@ import store from '@renderer/store'
 import { setExportState } from '@renderer/store/runtime'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode } from '@renderer/types/note'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
@@ -125,7 +125,7 @@ const sanitizeReasoningContent = (content: string): string => {
  * @returns 话题消息列表
  */
 async function fetchTopicMessages(topicId: string): Promise<Message[]> {
-  const { TopicManager } = await import('@renderer/hooks/useTopic')
+  const { TopicManager } = await import('@renderer/store/thunk/topicManager')
   return await TopicManager.getTopicMessages(topicId)
 }
 

@@ -3,7 +3,7 @@ import { Flex } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { HealthResult } from './types'
+import type { HealthResult } from './types'
 
 interface UseHealthStatusProps {
   results: HealthResult[]

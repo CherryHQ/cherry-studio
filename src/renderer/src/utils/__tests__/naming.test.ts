@@ -1,4 +1,4 @@
-import { Provider, SystemProvider } from '@renderer/types'
+import type { Provider, SystemProvider } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
 import {

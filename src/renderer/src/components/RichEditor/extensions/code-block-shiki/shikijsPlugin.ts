@@ -5,7 +5,8 @@ let cachedHighlighter: HighlighterGeneric<any, any> | null = null
 import { getHighlighter, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import { findChildren } from '@tiptap/core'
 import type { Node as ProsemirrorNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey, PluginView } from '@tiptap/pm/state'
+import type { PluginView } from '@tiptap/pm/state'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 const logger = loggerService.withContext('RichEditor:CodeBlockShiki')
@@ -120,18 +121,16 @@ export function ShikiPlugin({
             // (for example, a transaction that affects the entire document).
             // Such transactions can happen during collab syncing via y-prosemirror, for example.
             transaction.steps.some((step) => {
-              // @ts-ignore: ProseMirror step types are complex to type properly
               return (
-                // @ts-ignore: ProseMirror step types are complex to type properly
+                // @ts-expect-error: ProseMirror step types are complex to type properly
                 step.from !== undefined &&
-                // @ts-ignore: ProseMirror step types are complex to type properly
+                // @ts-expect-error: ProseMirror step types are complex to type properly
                 step.to !== undefined &&
                 oldNodes.some((node) => {
-                  // @ts-ignore: ProseMirror step types are complex to type properly
                   return (
-                    // @ts-ignore: ProseMirror step types are complex to type properly
+                    // @ts-expect-error: ProseMirror step types are complex to type properly
                     node.pos >= step.from &&
-                    // @ts-ignore: ProseMirror step types are complex to type properly
+                    // @ts-expect-error: ProseMirror step types are complex to type properly
                     node.pos + node.node.nodeSize <= step.to
                   )
                 })

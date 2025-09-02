@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import type { FileMetadata, PreprocessProvider } from '@cherry-types'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
 import { net } from 'electron'
 
@@ -273,11 +273,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
   private async putFileToUrl(filePath: string, uploadUrl: string): Promise<void> {
     try {
-      const fileBuffer = await fs.promises.readFile(filePath)
-
       const response = await net.fetch(uploadUrl, {
         method: 'PUT',
-        body: fileBuffer,
+        body: new Uint8Array(await fs.promises.readFile(filePath)),
         headers: {
           'Content-Type': 'application/pdf'
         }

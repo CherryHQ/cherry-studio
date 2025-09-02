@@ -1,12 +1,4 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { SpanContext } from '@opentelemetry/api'
-import { UpgradeChannel } from '@shared/config/constant'
-import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
-import type { FileChangeEvent } from '@shared/config/types'
-import { IpcChannel } from '@shared/IpcChannel'
-import {
+import type {
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
@@ -19,19 +11,27 @@ import {
   MemoryListOptions,
   MemorySearchOptions,
   OcrProvider,
-  OcrResult,
   Provider,
   S3Config,
   Shortcut,
   SupportedOcrFile,
   ThemeMode,
   WebDavConfig
-} from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { Notification } from 'src/renderer/src/types/notification'
-import { CreateDirectoryOptions } from 'webdav'
-
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
+} from '@cherry-types'
+import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
+import { electronAPI } from '@electron-toolkit/preload'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { OcrResult } from '@napi-rs/system-ocr'
+import type { SpanContext } from '@opentelemetry/api'
+import type { codeTools, UpgradeChannel } from '@shared/config/constant'
+import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
+import type { FileChangeEvent } from '@shared/config/types'
+import { IpcChannel } from '@shared/IpcChannel'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { Notification } from 'src/renderer/src/types/notification'
+import type { ActionItem } from 'src/renderer/src/types/selectionTypes'
+import type { CreateDirectoryOptions } from 'webdav'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {
@@ -423,7 +423,7 @@ const api = {
   },
   codeTools: {
     run: (
-      cliTool: string,
+      cliTool: codeTools,
       model: string,
       directory: string,
       env: Record<string, string>,
@@ -452,9 +452,7 @@ if (process.contextIsolated) {
     console.error('[Preload]Failed to expose APIs:', error as Error)
   }
 } else {
-  // @ts-ignore (define in dts)
   window.electron = electronAPI
-  // @ts-ignore (define in dts)
   window.api = api
 }
 

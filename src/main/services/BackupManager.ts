@@ -1,14 +1,13 @@
+import type { S3Config, WebDavConfig } from '@cherry-types'
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
-import { WebDavConfig } from '@types'
-import { S3Config } from '@types'
 import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
 import * as fs from 'fs-extra'
 import StreamZip from 'node-stream-zip'
 import * as path from 'path'
-import { CreateDirectoryOptions, FileStat } from 'webdav'
+import type { CreateDirectoryOptions, FileStat } from 'webdav'
 
 import { getDataPath } from '../utils'
 import S3Storage from './S3Storage'
@@ -715,7 +714,7 @@ class BackupManager {
       }
       await new Promise<void>((resolve, reject) => {
         const writeStream = fs.createWriteStream(backupedFilePath)
-        writeStream.write(retrievedFile as Buffer)
+        writeStream.write(retrievedFile)
         writeStream.end()
         writeStream.on('finish', () => resolve())
         writeStream.on('error', (error) => reject(error))

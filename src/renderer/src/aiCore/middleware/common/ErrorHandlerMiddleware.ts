@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
 import { isZhipuModel } from '@renderer/config/models'
 import store from '@renderer/store'
-import { Chunk } from '@renderer/types/chunk'
+import type { Chunk } from '@renderer/types/chunk'
 
-import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext } from '../types'
+import type { CompletionsContext, CompletionsParams, CompletionsResult } from '../types'
 import { createErrorChunk } from '../utils'
 
 const logger = loggerService.withContext('ErrorHandlerMiddleware')

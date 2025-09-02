@@ -9,7 +9,7 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import {
@@ -17,8 +17,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getTopicQueue } from '@renderer/utils/queue'
-import { waitForTopicQueue } from '@renderer/utils/queue'
+import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -1079,7 +1078,7 @@ export const cloneMessagesToNewTopicThunk =
               newBlockIds.push(newBlockId)
 
               if (newBlock.type === MessageBlockType.FILE || newBlock.type === MessageBlockType.IMAGE) {
-                const fileInfo = (newBlock as FileMessageBlock | ImageMessageBlock).file
+                const fileInfo = newBlock.file
                 if (fileInfo) {
                   filesToUpdateCount.push(fileInfo)
                 }

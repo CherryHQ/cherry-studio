@@ -1,6 +1,6 @@
-import { TokenUsage } from '@mcp-trace/trace-core'
-import { Span } from '@opentelemetry/api'
-import { CompletionsResult } from '@renderer/aiCore/middleware/schemas'
+import type { TokenUsage } from '@mcp-trace/trace-core'
+import type { Span } from '@opentelemetry/api'
+import type { CompletionsResult } from '@renderer/aiCore/middleware/types'
 import { endSpan } from '@renderer/services/SpanManagerService'
 
 export class CompletionsResultHandler {
@@ -67,7 +67,7 @@ export class CompletionsResultHandler {
 
   static handleResult(data?: any, span?: Span, topicId?: string, modelName?: string) {
     if (span && topicId) {
-      const handler = new CompletionsResultHandler(data, span!, topicId, modelName)
+      const handler = new CompletionsResultHandler(data, span, topicId, modelName)
       handler.finish()
     }
     return data

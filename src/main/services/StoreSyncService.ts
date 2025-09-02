@@ -1,5 +1,5 @@
+import type { StoreSyncAction } from '@cherry-types'
 import { IpcChannel } from '@shared/IpcChannel'
-import type { StoreSyncAction } from '@types'
 import { BrowserWindow, ipcMain } from 'electron'
 
 /**

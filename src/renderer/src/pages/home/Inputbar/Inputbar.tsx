@@ -36,8 +36,16 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
-import type { MessageInputBaseParams } from '@renderer/types/newMessage'
+import type {
+  Assistant,
+  FileType,
+  KnowledgeBase,
+  KnowledgeItem,
+  MessageInputBaseParams,
+  Model,
+  Topic
+} from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import {
@@ -48,19 +56,23 @@ import {
 } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Tooltip } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import { Tooltip } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
 import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
-import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties, FC } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
-import InputbarTools, { InputbarToolsRef } from './InputbarTools'
+import type { InputbarToolsRef } from './InputbarTools'
+import InputbarTools from './InputbarTools'
 import SendMessageButton from './SendMessageButton'
+import { ToolbarButton } from './shared'
 import TokenCount from './TokenCount'
 
 const logger = loggerService.withContext('Inputbar')
@@ -1045,47 +1057,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-export const ToolbarButton = styled(Button)`
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  color: var(--color-icon);
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  &.anticon,
-  &.iconfont {
-    transition: all 0.3s ease;
-    color: var(--color-icon);
-  }
-  .icon-a-addchat {
-    font-size: 18px;
-    margin-bottom: -2px;
-  }
-  &:hover {
-    background-color: var(--color-background-soft);
-    .anticon,
-    .iconfont {
-      color: var(--color-text-1);
-    }
-  }
-  &.active {
-    background-color: var(--color-primary) !important;
-    .anticon,
-    .iconfont,
-    .chevron-icon {
-      color: var(--color-white-soft);
-    }
-    &:hover {
-      background-color: var(--color-primary);
-    }
-  }
 `
 
 export default Inputbar

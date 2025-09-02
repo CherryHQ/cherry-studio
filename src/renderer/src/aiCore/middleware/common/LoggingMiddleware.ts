@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import { BaseContext, MethodMiddleware, MiddlewareAPI } from '../types'
+import type { BaseContext, MethodMiddleware, MiddlewareAPI } from '../types'
 
 const logger = loggerService.withContext('LoggingMiddleware')
 

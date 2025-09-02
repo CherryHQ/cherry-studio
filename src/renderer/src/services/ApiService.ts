@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
+import type { CompletionsParams } from '@renderer/aiCore/middleware/types'
 import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
 import {
   isEmbeddingModel,
@@ -23,25 +23,35 @@ import i18n from '@renderer/i18n'
 import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import {
+import type {
   Assistant,
+  AssistantMessage,
   ExternalToolResult,
   KnowledgeReference,
   MCPTool,
+  MemoryConfig,
   MemoryItem,
   Model,
   Provider,
-  WebSearchResponse,
-  WebSearchSource
+  WebSearchResponse
 } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import { SdkModel } from '@renderer/types/sdk'
+import type { Message } from '@renderer/types/newMessage'
+import type { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
-import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
+import { extractInfoFromXML } from '@renderer/utils/extract'
 import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import {
+  FactRetrievalSchema,
+  getFactRetrievalMessages,
+  getUpdateMemoryMessages,
+  MemoryUpdateSchema,
+  updateMemorySystemPrompt
+} from '@renderer/utils/memory-prompts'
 import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {
@@ -51,6 +61,7 @@ import {
   replacePromptVariables
 } from '@renderer/utils/prompt'
 import { getTranslateOptions } from '@renderer/utils/translate'
+import jaison from 'jaison/lib/index.js'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -63,7 +74,7 @@ import {
   getQuickModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
-import { MemoryProcessor } from './MemoryProcessor'
+import MemoryService from './MemoryService'
 import {
   filterAfterContextClearMessages,
   filterEmptyMessages,
@@ -918,7 +929,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         clearTimeout(timer)
       }
       if (streamError) {
-        throw streamError
+        throw streamError as Error
       }
     }
   } catch (error: any) {
@@ -944,4 +955,267 @@ export async function checkModel(provider: Provider, model: Model, timeout = 150
   const startTime = performance.now()
   await checkApi(provider, model, timeout)
   return { latency: performance.now() - startTime }
+}
+
+// =============
+// Original MemoryProcessor.ts
+//
+//  因为之前只被ApiService使用，且二者彼此耦合，有无法解决的循环依赖问题，现在将其移动到ApiService中作为不对外导出的类。
+// =============
+
+interface MemoryProcessorConfig {
+  memoryConfig: MemoryConfig
+  assistantId?: string
+  userId?: string
+  lastMessageId?: string
+}
+
+class MemoryProcessor {
+  private logger = loggerService.withContext('MemoryProcessor')
+  private memoryService: MemoryService
+
+  constructor() {
+    this.memoryService = MemoryService.getInstance()
+  }
+
+  /**
+   * Extract facts from conversation messages
+   * @param messages - Array of conversation messages
+   * @param config - Memory processor configuration
+   * @returns Array of extracted facts
+   */
+  async extractFacts(messages: AssistantMessage[], config: MemoryProcessorConfig): Promise<string[]> {
+    try {
+      const { memoryConfig } = config
+
+      if (!memoryConfig.llmApiClient) {
+        throw new Error('No LLM model configured for memory processing')
+      }
+
+      // Convert messages to string format for processing
+      const parsedMessages = messages.map((msg) => `${msg.role}: ${msg.content}`).join('\n')
+
+      // Get fact extraction prompt
+      const [systemPrompt, userPrompt] = getFactRetrievalMessages(parsedMessages)
+
+      const responseContent = await fetchGenerate({
+        prompt: systemPrompt,
+        content: userPrompt,
+        model: getModel(memoryConfig.llmApiClient.model, memoryConfig.llmApiClient.provider)
+      })
+      if (!responseContent || responseContent.trim() === '') {
+        return []
+      }
+
+      // Parse response using Zod schema
+      try {
+        this.logger.debug(`Response content for extraction: ${responseContent}`)
+        const jsonParsed = jaison(responseContent)
+        // Handle both expected format and potential variations
+        let dataToValidate = jsonParsed
+
+        // If the response has a 'facts' key at the top level, use it directly
+        if (!jsonParsed.facts && Array.isArray(jsonParsed)) {
+          // If it's just an array, wrap it in the expected format
+          dataToValidate = { facts: jsonParsed }
+        }
+
+        const parsed = FactRetrievalSchema.parse(dataToValidate)
+        return parsed.facts
+      } catch (error) {
+        this.logger.error(
+          `Failed to parse fact extraction response: responseContent: ${responseContent}`,
+          error as Error
+        )
+        return []
+      }
+    } catch (error) {
+      this.logger.error('Error extracting facts:', error as Error)
+      return []
+    }
+  }
+
+  /**
+   * Update memories with new facts
+   * @param facts - Array of new facts to process
+   * @param config - Memory processor configuration
+   * @returns Array of memory operations performed
+   */
+  async updateMemories(
+    facts: string[],
+    config: MemoryProcessorConfig
+  ): Promise<Array<{ action: string; [key: string]: any }>> {
+    if (facts.length === 0) {
+      return []
+    }
+
+    const { memoryConfig, assistantId, userId, lastMessageId } = config
+
+    if (!memoryConfig.llmApiClient) {
+      throw new Error('No LLM model configured for memory processing')
+    }
+
+    const existingMemoriesResult = window.keyv.get(`memory-search-${lastMessageId}`) as MemoryItem[] | []
+
+    const existingMemories = existingMemoriesResult.map((memory) => ({
+      id: memory.id,
+      text: memory.memory
+    }))
+
+    let parsed: Array<{ event: string; id: string; text: string; old_memory?: string }> = []
+    const operations: Array<{ action: string; [key: string]: any }> = []
+    if (existingMemories.length === 0) {
+      facts.forEach((fact) => {
+        parsed.push({ event: 'ADD', text: fact, id: '', old_memory: '' })
+      })
+    } else {
+      // Generate update memory prompt
+      const updateMemoryUserPrompt = getUpdateMemoryMessages(existingMemories, facts)
+
+      const responseContent = await fetchGenerate({
+        prompt: updateMemorySystemPrompt,
+        content: updateMemoryUserPrompt,
+        model: getModel(memoryConfig.llmApiClient.model, memoryConfig.llmApiClient.provider)
+      })
+      if (!responseContent || responseContent.trim() === '') {
+        return []
+      }
+
+      try {
+        this.logger.debug(`Response content for memory update: ${responseContent}`)
+        const jsonParsed = jaison(responseContent)
+        // Handle both direct array and wrapped object format
+        const dataToValidate = Array.isArray(jsonParsed) ? jsonParsed : jsonParsed.memory
+        parsed = MemoryUpdateSchema.parse(dataToValidate)
+      } catch (error) {
+        this.logger.error(`Failed to parse memory update response: responseContent: ${responseContent}`, error as Error)
+        return []
+      }
+    }
+
+    for (const memoryOp of parsed) {
+      switch (memoryOp.event) {
+        case 'ADD':
+          try {
+            const result = await this.memoryService.add(memoryOp.text, {
+              userId,
+              agentId: assistantId
+            })
+            operations.push({ action: 'ADD', memory: memoryOp.text, result })
+          } catch (error) {
+            this.logger.error('Failed to add memory:', error as Error)
+          }
+          break
+
+        case 'UPDATE':
+          try {
+            // Find the memory to update
+            const existingMemory = existingMemoriesResult.find((m) => m.id === memoryOp.id)
+            if (existingMemory) {
+              await this.memoryService.update(memoryOp.id, memoryOp.text, {
+                userId,
+                assistantId,
+                oldMemory: memoryOp.old_memory
+              })
+              operations.push({
+                action: 'UPDATE',
+                id: memoryOp.id,
+                oldMemory: memoryOp.old_memory,
+                newMemory: memoryOp.text
+              })
+            }
+          } catch (error) {
+            this.logger.error('Failed to update memory:', error as Error)
+          }
+          break
+
+        case 'DELETE':
+          try {
+            await this.memoryService.delete(memoryOp.id)
+            operations.push({ action: 'DELETE', id: memoryOp.id, memory: memoryOp.text })
+          } catch (error) {
+            this.logger.error('Failed to delete memory:', error as Error)
+          }
+          break
+
+        case 'NONE':
+          // No action needed
+          break
+      }
+    }
+
+    return operations
+  }
+
+  /**
+   * Process conversation and update memories
+   * @param messages - Array of conversation messages
+   * @param config - Memory processor configuration
+   * @returns Processing results
+   */
+  async processConversation(messages: AssistantMessage[], config: MemoryProcessorConfig) {
+    try {
+      // Extract facts from conversation
+      const facts = await this.extractFacts(messages, config)
+
+      if (facts.length === 0) {
+        return { facts: [], operations: [] }
+      }
+
+      // Update memories with extracted facts
+      const operations = await this.updateMemories(facts, config)
+
+      return { facts, operations }
+    } catch (error) {
+      this.logger.error('Error processing conversation:', error as Error)
+      return { facts: [], operations: [] }
+    }
+  }
+
+  /**
+   * Search memories for relevant context
+   * @param query - Search query
+   * @param config - Memory processor configuration
+   * @param limit - Maximum number of results
+   * @returns Array of relevant memories
+   */
+  async searchRelevantMemories(query: string, config: MemoryProcessorConfig, limit: number = 5): Promise<MemoryItem[]> {
+    try {
+      const { assistantId, userId } = config
+
+      const result = await this.memoryService.search(query, {
+        userId,
+        agentId: assistantId,
+        limit
+      })
+
+      this.logger.debug(
+        `Searching memories with query: ${query} for user: ${userId} and assistant: ${assistantId} result: ${result}`
+      )
+      return result.results
+    } catch (error) {
+      this.logger.error('Error searching memories:', error as Error)
+      return []
+    }
+  }
+
+  /**
+   * Get memory processing configuration from store
+   * @param assistantId - Optional assistant ID
+   * @param userId - Optional user ID
+   * @returns Memory processor configuration
+   */
+  static getProcessorConfig(
+    memoryConfig: MemoryConfig,
+    assistantId?: string,
+    userId?: string,
+    lastMessageId?: string
+  ): MemoryProcessorConfig {
+    return {
+      memoryConfig,
+      assistantId,
+      userId,
+      lastMessageId
+    }
+  }
 }

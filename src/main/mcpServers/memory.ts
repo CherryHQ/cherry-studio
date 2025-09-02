@@ -679,9 +679,7 @@ class MemoryServer {
               throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for ${name}: 'query' string is required.`)
             }
             return {
-              content: [
-                { type: 'text', text: JSON.stringify(await manager.searchNodes(args.query as string), null, 2) }
-              ]
+              content: [{ type: 'text', text: JSON.stringify(await manager.searchNodes(args.query), null, 2) }]
             }
           case 'open_nodes':
             if (!args.names || !Array.isArray(args.names)) {

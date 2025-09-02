@@ -12,9 +12,10 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
 import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { TextSelectionData } from 'selection-hook'
+import type { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('SelectionToolbar')

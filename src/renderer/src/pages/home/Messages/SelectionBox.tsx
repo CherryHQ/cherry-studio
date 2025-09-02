@@ -82,8 +82,8 @@ const SelectionBox: React.FC<SelectionBoxProps> = ({
 
       messageElements.forEach((el, id) => {
         // 检查消息是否已被选中（不管是拖动选中还是手动选中）
-        const checkbox = el.querySelector('input[type="checkbox"]') as HTMLInputElement | null
-        const isAlreadySelected = checkbox?.checked || false
+        const checkbox = el.querySelector('input[type="checkbox"]')
+        const isAlreadySelected = (checkbox as HTMLInputElement)?.checked || false
 
         // 清除上下文这类消息也会被选中，所以需要跳过
         if (!checkbox) return

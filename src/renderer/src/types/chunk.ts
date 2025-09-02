@@ -1,6 +1,8 @@
-import { ExternalToolResult, KnowledgeReference, MCPToolResponse, ToolUseResponse, WebSearchResponse } from '.'
-import { Response, ResponseError } from './newMessage'
-import { SdkToolCall } from './sdk'
+import type { KnowledgeReference } from './knowledge'
+import type { ExternalToolResult, MCPToolResponse, ToolUseResponse } from './mcp'
+import type { Response, ResponseError } from './newMessage'
+import type { SdkToolCall } from './sdk'
+import type { WebSearchResponse } from './websearch'
 
 // Define Enum for Chunk Types
 // 目前用到的，并没有列出完整的生命周期

@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { AwsBedrockAPIClient } from './aws/AwsBedrockAPIClient'
-import { BaseApiClient } from './BaseApiClient'
+import type { BaseApiClient } from './BaseApiClient'
 import { CherryinAPIClient } from './cherryin/CherryinAPIClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'

@@ -1,4 +1,4 @@
-import { MCPPrompt } from '@renderer/types'
+import type { MCPPrompt } from '@renderer/types'
 import { Collapse, Descriptions, Empty, Flex, Tooltip, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'

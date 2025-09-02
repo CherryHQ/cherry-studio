@@ -415,7 +415,7 @@ const RichEditor = ({
           searchTarget={scrollContainerRef as React.RefObject<HTMLElement>}
           filter={{
             acceptNode(node) {
-              const inEditor = (node as Node).parentElement?.closest('.ProseMirror')
+              const inEditor = node.parentElement?.closest('.ProseMirror')
               return inEditor ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
             }
           }}

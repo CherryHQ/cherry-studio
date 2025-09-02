@@ -1,13 +1,16 @@
+import type { ImageFileMetadata, OcrResult, OcrTesseractConfig, SupportedOcrFile } from '@cherry-types'
+import { isImageFileMetadata } from '@cherry-types'
 import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
-import { ImageFileMetadata, isImageFileMetadata, OcrResult, OcrTesseractConfig, SupportedOcrFile } from '@types'
 import { app } from 'electron'
 import fs from 'fs'
 import { isEqual } from 'lodash'
 import path from 'path'
-import Tesseract, { createWorker, LanguageCode } from 'tesseract.js'
+import type { LanguageCode } from 'tesseract.js'
+import type Tesseract from 'tesseract.js'
+import { createWorker } from 'tesseract.js'
 
 import { OcrBaseService } from './OcrBaseService'
 

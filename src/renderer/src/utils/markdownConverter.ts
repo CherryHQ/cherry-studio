@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { TurndownPlugin } from '@truto/turndown-plugin-gfm'
+import type { TurndownPlugin } from '@truto/turndown-plugin-gfm'
 import he from 'he'
 import htmlTags, { type HtmlTags } from 'html-tags'
 import * as htmlparser2 from 'htmlparser2'
@@ -571,7 +571,7 @@ const taskListItemsPlugin: TurndownPlugin = (turndownService) => {
       return node.nodeName === 'LI' && node.getAttribute && node.getAttribute('data-type') === 'taskItem'
     },
     replacement: (_content: string, node: Element) => {
-      const checkbox = node.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+      const checkbox = node.querySelector('input[type="checkbox"]') as HTMLInputElement
       const isChecked = checkbox?.checked || node.getAttribute('data-checked') === 'true'
       const textContent = node.textContent?.trim() || ''
 

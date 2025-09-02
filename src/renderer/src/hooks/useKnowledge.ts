@@ -1,7 +1,8 @@
 import { db } from '@renderer/databases'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { RootState, useAppDispatch } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   addBase,
   clearAllProcessing,
@@ -16,7 +17,7 @@ import {
   updateNotes
 } from '@renderer/store/knowledge'
 import { addFilesThunk, addItemThunk, addNoteThunk } from '@renderer/store/thunk/knowledgeThunk'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import type { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
@@ -212,7 +213,7 @@ export const useKnowledge = (baseId: string) => {
       switch (item.type) {
         case 'file':
           if (typeof item.content === 'object' && item.content !== null && 'path' in item.content) {
-            files.push(item.content as FileMetadata)
+            files.push(item.content)
           }
           break
         case 'note':

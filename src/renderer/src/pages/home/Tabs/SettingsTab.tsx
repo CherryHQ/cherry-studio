@@ -16,8 +16,8 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
+import type { SendMessageShortcut } from '@renderer/store/settings'
 import {
-  SendMessageShortcut,
   setAutoTranslateWithSpace,
   setCodeCollapsible,
   setCodeEditor,
@@ -45,12 +45,14 @@ import {
   setShowTranslateConfirm,
   setThoughtAutoCollapse
 } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
+import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
+import { ThemeMode } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { Button, Col, InputNumber, Row, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, Settings2 } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -351,7 +353,7 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
-              onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
+              onChange={(value) => dispatch(setMessageStyle(value))}
               options={[
                 { value: 'plain', label: t('message.message.style.plain') },
                 { value: 'bubble', label: t('message.message.style.bubble') }
@@ -377,7 +379,7 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
-              onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+              onChange={(value) => dispatch(setMessageNavigation(value))}
               options={[
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
@@ -446,7 +448,7 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
             <Selector
               value={codeStyle}
-              onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
+              onChange={(value) => onCodeStyleChange(value)}
               options={themeNames.map((theme) => ({
                 value: theme,
                 label: theme

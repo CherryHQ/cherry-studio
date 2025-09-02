@@ -1,6 +1,6 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addAgent, removeAgent, updateAgent, updateAgents, updateAgentSettings } from '@renderer/store/agents'
-import { Agent, AssistantSettings } from '@renderer/types'
+import type { Agent, AssistantSettings } from '@renderer/types'
 
 export function useAgents() {
   const agents = useAppSelector((state) => state.agents.agents)

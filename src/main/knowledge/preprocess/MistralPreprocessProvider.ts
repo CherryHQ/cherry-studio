@@ -1,14 +1,15 @@
 import fs from 'node:fs'
 
+import type { FileMetadata, PreprocessProvider, Provider } from '@cherry-types'
+import { FileTypes } from '@cherry-types'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { MistralClientManager } from '@main/services/MistralClientManager'
 import { MistralService } from '@main/services/remotefile/MistralService'
-import { Mistral } from '@mistralai/mistralai'
-import { DocumentURLChunk } from '@mistralai/mistralai/models/components/documenturlchunk'
-import { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
-import { OCRResponse } from '@mistralai/mistralai/models/components/ocrresponse'
-import { FileMetadata, FileTypes, PreprocessProvider, Provider } from '@types'
+import type { Mistral } from '@mistralai/mistralai'
+import type { DocumentURLChunk } from '@mistralai/mistralai/models/components/documenturlchunk'
+import type { ImageURLChunk } from '@mistralai/mistralai/models/components/imageurlchunk'
+import type { OCRResponse } from '@mistralai/mistralai/models/components/ocrresponse'
 import path from 'path'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
@@ -91,7 +92,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
         throw new Error('preprocess processing failed: OCR response is empty')
       }
     } catch (error) {
-      throw new Error('preprocess processing failed: ' + error)
+      throw new Error(`preprocess processing failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
