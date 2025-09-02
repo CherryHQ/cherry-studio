@@ -313,6 +313,26 @@ describe('markdownConverter', () => {
       expect(backToMarkdown).toBe(originalMarkdown)
     })
 
+    it('should maintain task list structure through html → markdown → html conversion', () => {
+      const originalHtml =
+        '<ul data-type="taskList" class="task-list"><li data-type="taskItem" class="task-list-item" data-checked="false"><label><input type="checkbox" disabled></label><div><p></p></div></li></ul>'
+      const markdown = htmlToMarkdown(originalHtml)
+      const html = markdownToHtml(markdown)
+
+      expect(html).toBe(
+        '<ul data-type="taskList" class="task-list">\n<li data-type="taskItem" class="task-list-item" data-checked="false"><label><input type="checkbox" disabled></label><div><p></p></div></li>\n</ul>\n'
+      )
+    })
+
+    it('should maintain task list structure through html → markdown → html conversion2', () => {
+      const originalHtml =
+        '<ul data-type="taskList" class="task-list">\n<li data-type="taskItem" class="task-list-item" data-checked="false">\n<label><input type="checkbox" disabled></label><div><p>123</p></div>\n</li>\n<li data-type="taskItem" class="task-list-item" data-checked="false">\n<label><input type="checkbox" disabled></label><div><p></p></div>\n</li>\n</ul>\n'
+      const markdown = htmlToMarkdown(originalHtml)
+      const html = markdownToHtml(markdown)
+
+      expect(html).toBe(originalHtml)
+    })
+
     it('should handle complex task lists with multiple items', () => {
       const originalMarkdown =
         '- [ ] First unchecked task\n\n- [x] First checked task\n\n- [ ] Second unchecked task\n\n- [x] Second checked task'
