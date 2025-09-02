@@ -48,8 +48,6 @@ export interface CodeEditorProps {
   maxHeight?: string
   /** Minimum editor height. */
   minHeight?: string
-  /** Font size that overrides the app setting. */
-  fontSize?: string
   /** Editor options that extend BasicSetupOptions. */
   options?: {
     /**
@@ -70,6 +68,8 @@ export interface CodeEditorProps {
   } & BasicSetupOptions
   /** Additional extensions for CodeMirror. */
   extensions?: Extension[]
+  /** Font size that overrides the app setting. */
+  fontSize?: number
   /** Style overrides for the editor, passed directly to CodeMirror's style property. */
   style?: React.CSSProperties
   /** CSS class name appended to the default `code-editor` class. */
@@ -108,9 +108,9 @@ const CodeEditor = ({
   height,
   maxHeight,
   minHeight,
-  fontSize,
   options,
   extensions,
+  fontSize,
   style,
   className,
   editable = true,
@@ -129,7 +129,7 @@ const CodeEditor = ({
     }
   }, [codeEditor, _lineNumbers, options])
 
-  const customFontSize = useMemo(() => fontSize ?? `${_fontSize - 1}px`, [fontSize, _fontSize])
+  const customFontSize = useMemo(() => fontSize ?? _fontSize - 1, [fontSize, _fontSize])
 
   const { activeCmTheme } = useCodeStyle()
   const initialContent = useRef(options?.stream ? (value ?? '').trimEnd() : (value ?? ''))

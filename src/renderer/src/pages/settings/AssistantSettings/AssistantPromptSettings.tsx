@@ -122,7 +122,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <TextAreaContainer>
         <RichEditorContainer>
           {showPreview ? (
-            <CodeViewer children={processedPrompt} language="markdown" expanded={true} height="100%" />
+            <CodeViewer value={processedPrompt} language="markdown" expanded={false} height="100%" />
           ) : (
             <CodeEditor
               value={prompt}
