@@ -121,7 +121,12 @@ const HomeTabs: FC<Props> = ({
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <div style={{ position: 'relative', height: '100%', width: width !== undefined ? `${width}px` : '' }}>
+    <div
+      style={{
+        position: 'relative',
+        height: '100%',
+        width: width !== undefined ? `${width}px` : 'var(--assistants-width)'
+      }}>
       <Container
         ref={containerRef}
         style={{ ...border, ...style }}
@@ -277,7 +282,7 @@ const ResizeHandler = styled.div`
   background: var(--color-border);
   opacity: 0.1;
   transition: all 0.3s ease-in-out;
-  cursor: ew-resize;
+  cursor: col-resize;
 
   &:hover {
     opacity: 1;

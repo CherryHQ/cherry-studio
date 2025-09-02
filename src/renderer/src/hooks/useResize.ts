@@ -73,7 +73,7 @@ function getCursor(
     let e = true
     if (props.x !== undefined && x <= (props.x.min ?? -Infinity)) w = false
     if (props.x !== undefined && x >= (props.x.max ?? Infinity)) e = false
-    if (w && e) return 'ew-resize'
+    if (w && e) return 'col-resize'
     else if (w) return 'w-resize'
     else if (e) return 'e-resize'
     else return 'not-allowed'
@@ -83,7 +83,7 @@ function getCursor(
     let s = true
     if (props.y !== undefined && y <= (props.y.min ?? -Infinity)) n = false
     if (props.y !== undefined && y >= (props.y.max ?? Infinity)) s = false
-    if (n && s) return 'ns-resize'
+    if (n && s) return 'row-resize'
     else if (n) return 'n-resize'
     else if (s) return 's-resize'
     else return 'not-allowed'
