@@ -210,7 +210,9 @@ const MentionModelsButton: FC<Props> = ({
         if (triggerInfoRef.current?.type === 'input') {
           setText((currentText) => {
             const textArea = document.querySelector('.inputbar textarea')
-            const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+            const caret = textArea
+              ? ((textArea as HTMLTextAreaElement).selectionStart ?? currentText.length)
+              : currentText.length
             return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
           })
         }
@@ -262,7 +264,9 @@ const MentionModelsButton: FC<Props> = ({
               // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
               setText((currentText) => {
                 const textArea = document.querySelector('.inputbar textarea')
-                const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+                const caret = textArea
+                  ? ((textArea as HTMLTextAreaElement).selectionStart ?? currentText.length)
+                  : currentText.length
                 return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position)
               })
             }

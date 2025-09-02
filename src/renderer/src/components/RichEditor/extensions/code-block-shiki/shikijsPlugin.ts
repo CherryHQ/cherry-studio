@@ -121,14 +121,12 @@ export function ShikiPlugin({
             // (for example, a transaction that affects the entire document).
             // Such transactions can happen during collab syncing via y-prosemirror, for example.
             transaction.steps.some((step) => {
-              // @ts-expect-error: ProseMirror step types are complex to type properly
               return (
                 // @ts-expect-error: ProseMirror step types are complex to type properly
                 step.from !== undefined &&
                 // @ts-expect-error: ProseMirror step types are complex to type properly
                 step.to !== undefined &&
                 oldNodes.some((node) => {
-                  // @ts-expect-error: ProseMirror step types are complex to type properly
                   return (
                     // @ts-expect-error: ProseMirror step types are complex to type properly
                     node.pos >= step.from &&

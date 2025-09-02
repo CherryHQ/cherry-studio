@@ -127,7 +127,6 @@ export class AnthropicAPIClient extends BaseApiClient<
     return response.data
   }
 
-  // @ts-expect-error sdk未提供
   override async getEmbeddingDimensions(): Promise<number> {
     throw new Error("Anthropic SDK doesn't support getEmbeddingDimensions method.")
   }

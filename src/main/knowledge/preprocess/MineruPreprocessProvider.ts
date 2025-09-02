@@ -273,11 +273,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
   private async putFileToUrl(filePath: string, uploadUrl: string): Promise<void> {
     try {
-      const fileBuffer = await fs.promises.readFile(filePath)
-
       const response = await net.fetch(uploadUrl, {
         method: 'PUT',
-        body: fileBuffer,
+        body: new Uint8Array(await fs.promises.readFile(filePath)),
         headers: {
           'Content-Type': 'application/pdf'
         }

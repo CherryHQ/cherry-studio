@@ -189,7 +189,7 @@ const CodeEditor = ({
       maxHeight={expanded ? undefined : maxHeight}
       minHeight={minHeight}
       editable={editable}
-      // @ts-expect-error 强制使用，见 react-codemirror 的 Example.tsx
+      // 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={customExtensions}
       onCreateEditor={(view: EditorView) => {

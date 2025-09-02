@@ -50,7 +50,6 @@ describe('ShikiStreamService', () => {
       expect(result.lines.length).toBeGreaterThan(0)
       expect(result.recall).toBe(0)
 
-      // @ts-expect-error: 恢复 Worker 构造函数
       globalThis.Worker = originalWorker
     })
 
@@ -82,7 +81,6 @@ describe('ShikiStreamService', () => {
       globalThis.Worker = undefined
     })
     afterEach(() => {
-      // @ts-expect-error: 恢复 Worker 构造函数
       globalThis.Worker = originalWorker
     })
 

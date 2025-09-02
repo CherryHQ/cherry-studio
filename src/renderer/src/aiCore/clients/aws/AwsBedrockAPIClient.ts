@@ -448,10 +448,9 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }
   }
 
-  // @ts-expect-error sdk未提供
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   override async generateImage(_generateImageParams: GenerateImageParams): Promise<string[]> {
-    return []
+    throw new Error('AWS Bedrock API Client does not support image generation yet')
   }
 
   override async getEmbeddingDimensions(model?: Model): Promise<number> {

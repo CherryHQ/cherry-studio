@@ -567,7 +567,6 @@ const migrateConfig = {
 
       state.agents.agents.forEach((agent) => {
         agent.type = 'agent'
-        // @ts-expect-error eslint-disable-next-line
         delete agent.group
       })
 
@@ -934,7 +933,6 @@ const migrateConfig = {
   },
   '65': (state: RootState) => {
     try {
-      // @ts-expect-error expect error
       state.settings.targetLanguage = 'english'
       return state
     } catch (error) {
@@ -1406,7 +1404,6 @@ const migrateConfig = {
   '100': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
-        // @ts-expect-error eslint-disable-next-line
         if (['openai-compatible', 'openai'].includes(provider.type)) {
           provider.type = 'openai'
         }
@@ -1472,7 +1469,6 @@ const migrateConfig = {
         autocompletion: true,
         keymap: false
       }
-      // @ts-expect-error eslint-disable-next-line
       state.settings.codePreview = {
         themeLight: 'auto',
         themeDark: 'auto'
@@ -1996,7 +1992,6 @@ const migrateConfig = {
           delete base.preprocessOrOcrProvider
           // @ts-expect-error eslint-disable-next-line
           if (base.preprocessProvider.type === 'ocr') {
-            // @ts-expect-error eslint-disable-next-line
             delete base.preprocessProvider
           }
         }
@@ -2057,9 +2052,7 @@ const migrateConfig = {
         openai.serviceTier = serviceTier
       }
 
-      // @ts-expect-error eslint-disable-next-line
       if (state.settings.codePreview) {
-        // @ts-expect-error eslint-disable-next-line
         state.settings.codeViewer = state.settings.codePreview
       } else {
         state.settings.codeViewer = {

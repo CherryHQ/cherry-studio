@@ -57,7 +57,7 @@ export const useImageTools = (
     const imgElement = getImgElement()
     if (!imgElement) return transformRef.current
 
-    const transform = imgElement.style.transform
+    const transform = (imgElement as HTMLElement).style.transform
     if (!transform || transform === 'none') return transformRef.current
 
     // 使用CSS矩阵解析
@@ -94,7 +94,7 @@ export const useImageTools = (
       transformRef.current.y = newY
 
       const imgElement = getImgElement()
-      applyTransform(imgElement, newX, newY, transformRef.current.scale)
+      applyTransform(imgElement as SVGElement, newX, newY, transformRef.current.scale)
     },
     [getCurrentPosition, getImgElement, applyTransform]
   )
@@ -116,7 +116,7 @@ export const useImageTools = (
 
       const imgElement = getImgElement()
       // 实时应用变换，但不更新 ref，避免累积误差
-      applyTransform(imgElement, newX, newY, transformRef.current.scale)
+      applyTransform(imgElement as SVGElement, newX, newY, transformRef.current.scale)
       e.preventDefault()
     }
 
@@ -174,7 +174,7 @@ export const useImageTools = (
       transformRef.current.scale = newScale
 
       const imgElement = getImgElement()
-      applyTransform(imgElement, transformRef.current.x, transformRef.current.y, newScale)
+      applyTransform(imgElement as SVGElement, transformRef.current.x, transformRef.current.y, newScale)
     },
     [getImgElement, applyTransform]
   )

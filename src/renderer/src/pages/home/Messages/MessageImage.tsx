@@ -34,7 +34,7 @@ const MessageImage: FC<Props> = ({ block }) => {
       document.body.removeChild(link)
       window.message.success(t('message.download.success'))
     } catch (error) {
-      logger.error('下载图片失败:', error as Error)
+      logger.error('Failed to download image:', error as Error)
       window.message.error(t('message.download.failed'))
     }
   }
@@ -62,10 +62,13 @@ const MessageImage: FC<Props> = ({ block }) => {
               byteArrays.push(byteArray)
             }
 
-            const blob = new Blob(byteArrays, { type: mimeType })
+            const blob = new Blob(
+              byteArrays.map((buffer) => Buffer.from(buffer)),
+              { type: mimeType }
+            )
             await navigator.clipboard.write([new ClipboardItem({ [mimeType]: blob })])
           } else {
-            throw new Error('无效的 base64 图片格式')
+            throw new Error('Invalid base64 image format')
           }
           break
         }
@@ -86,7 +89,7 @@ const MessageImage: FC<Props> = ({ block }) => {
 
       window.message.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('复制图片失败:', error as Error)
+      logger.error('Failed to copy image:', error as Error)
       window.message.error(t('message.copy.failed'))
     }
   }

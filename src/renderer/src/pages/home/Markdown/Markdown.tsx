@@ -7,7 +7,12 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
+import {
+  type MainTextMessageBlock,
+  MessageBlockStatus,
+  type ThinkingMessageBlock,
+  type TranslationMessageBlock
+} from '@renderer/types/newMessage'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
@@ -16,7 +21,6 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
-// @ts-expect-error rehype-mathjax is not typed
 import rehypeMathjax from 'rehype-mathjax'
 import rehypeRaw from 'rehype-raw'
 import remarkCjkFriendly from 'remark-cjk-friendly'
@@ -48,7 +52,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
   const { mathEngine, mathEnableSingleDollar } = useSettings()
 
-  const isTrulyDone = 'status' in block && block.status === 'success'
+  const isTrulyDone = 'status' in block && block.status === MessageBlockStatus.SUCCESS
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
   const [isStreamDone, setIsStreamDone] = useState(isTrulyDone)
 
@@ -86,7 +90,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
     prevBlockIdRef.current = block.id
 
     // 更新 stream 状态
-    const isStreaming = block.status === 'streaming'
+    const isStreaming = block.status === MessageBlockStatus.STREAMING
     setIsStreamDone(!isStreaming)
   }, [block.content, block.id, block.status, addChunk, reset])
 
@@ -104,7 +108,7 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   }, [mathEngine, mathEnableSingleDollar])
 
   const messageContent = useMemo(() => {
-    if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
+    if ('status' in block && block.status === MessageBlockStatus.PAUSED && isEmpty(block.content)) {
       return t('message.chat.completion.paused')
     }
     return removeSvgEmptyLines(processLatexBrackets(displayedContent))

@@ -95,7 +95,7 @@ export type ToolCallResponse = BaseToolResponse & {
   // gemini tool call id might be undefined
   toolCallId?: string
 }
-export interface MCPServer {
+export type MCPServer = {
   id: string // internal id
   name: string // mcp name, generally as unique key
   type?: McpServerType | 'inMemory'
