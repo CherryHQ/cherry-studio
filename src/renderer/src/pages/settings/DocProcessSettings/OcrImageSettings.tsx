@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { ErrorTag } from '@renderer/components/Tags/ErrorTag'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, ImageOcrProvider, isImageOcrProvider, OcrProvider } from '@renderer/types'
@@ -52,7 +51,6 @@ const OcrImageSettings = ({ setProvider }: Props) => {
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.ocr.image_provider')}</SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {!platformSupport && <ErrorTag message={t('settings.tool.ocr.error.not_system')} />}
           <Select
             value={imageProvider.id}
             style={{ width: '200px' }}
