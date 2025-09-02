@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
@@ -149,7 +150,11 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
       // only for gemini
       if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
-        const provider = getProviderByModel(model)
+        const result = getProviderByModel(model)
+        if (!result.success) {
+          throw result.error
+        }
+        const provider = result.value
         if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
           window.message.warning(t('chat.mcp.warning.url_context'))
           update.enableUrlContext = false
@@ -485,14 +490,18 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }))
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <Hammer
-          size={18}
-          color={assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
-        />
-      </ToolbarButton>
-    </Tooltip>
+    <ErrorBoundary type="icon">
+      <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
+        <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+          <Hammer
+            size={18}
+            color={
+              assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'
+            }
+          />
+        </ToolbarButton>
+      </Tooltip>
+    </ErrorBoundary>
   )
 }
 
