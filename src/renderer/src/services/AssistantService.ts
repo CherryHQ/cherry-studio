@@ -143,6 +143,14 @@ export function getAssistantProvider(assistant: Assistant): Provider {
   return provider || getDefaultProvider()
 }
 
+/**
+ * 根据模型安全地获取对应的服务提供商
+ * @param model - AI 模型
+ * @returns Result<Provider> 包含成功状态和提供商信息的结果对象
+ * @description
+ * - 如果找到对应的提供商，返回 { success: true, value: provider }
+ * - 如果未找到对应的提供商，返回 { success: false, error: Error }
+ */
 export function safeGetProviderByModel(model: Model): Result<Provider> {
   const providers = store.getState().llm.providers
   const providerId = model.provider
@@ -154,6 +162,12 @@ export function safeGetProviderByModel(model: Model): Result<Provider> {
   }
 }
 
+/**
+ * 根据模型获取对应的服务提供商
+ * @param model - AI 模型
+ * @returns 对应的服务提供商
+ * @throws {Error} 当找不到对应的服务提供商时抛出错误
+ */
 export function getProviderByModel(model: Model): Provider {
   const result = safeGetProviderByModel(model)
   if (result.success) {
