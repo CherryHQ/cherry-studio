@@ -1,0 +1,13 @@
+diff --git a/index.js b/index.js
+index dc071739e79876dff88e1be06a9168e294222d13..d30e895754cf0cd0ef79ae14cae02adf42eeac8a 100644
+--- a/index.js
++++ b/index.js
+@@ -381,7 +381,7 @@ if (!nativeBinding || process.env.NAPI_RS_FORCE_WASI) {
+ }
+ 
+ if (!nativeBinding) {
+-  if (loadErrors.length > 0) {
++  if (process.platform !== 'linux' && loadErrors.length > 0) {
+     throw new Error(
+       `Cannot find native binding. ` +
+         `npm has a bug related to optional dependencies (https://github.com/npm/cli/issues/4828). ` +
