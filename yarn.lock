@@ -4761,7 +4761,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@napi-rs/system-ocr@npm:^1.0.2":
+"@napi-rs/system-ocr@npm:1.0.2":
   version: 1.0.2
   resolution: "@napi-rs/system-ocr@npm:1.0.2"
   dependencies:
@@ -4779,6 +4779,27 @@ __metadata:
     "@napi-rs/system-ocr-win32-x64-msvc":
       optional: true
   checksum: 10c0/170f89051d2b9da52648ef933ab5e73bbafcb7ffb98948d877d3c9718e308ebf258b7b947b0d4f2bfe65fd8d2adf5acf47e5f7efd59ac0535ca99562e41b833a
+  languageName: node
+  linkType: hard
+
+"@napi-rs/system-ocr@patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch":
+  version: 1.0.2
+  resolution: "@napi-rs/system-ocr@patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch::version=1.0.2&hash=407396"
+  dependencies:
+    "@napi-rs/system-ocr-darwin-arm64": "npm:1.0.2"
+    "@napi-rs/system-ocr-darwin-x64": "npm:1.0.2"
+    "@napi-rs/system-ocr-win32-arm64-msvc": "npm:1.0.2"
+    "@napi-rs/system-ocr-win32-x64-msvc": "npm:1.0.2"
+  dependenciesMeta:
+    "@napi-rs/system-ocr-darwin-arm64":
+      optional: true
+    "@napi-rs/system-ocr-darwin-x64":
+      optional: true
+    "@napi-rs/system-ocr-win32-arm64-msvc":
+      optional: true
+    "@napi-rs/system-ocr-win32-x64-msvc":
+      optional: true
+  checksum: 10c0/c1e336b3d506dd771c72b1bddc94e4a9ddeae5292222a7485d66dd0c11eed5d2a37cc7ea338f229e7d4abad276966658bdb4a2b322c9d6a0349dad6e65fcea51
   languageName: node
   linkType: hard
 
@@ -9406,7 +9427,7 @@ __metadata:
     "@mistralai/mistralai": "npm:^1.7.5"
     "@modelcontextprotocol/sdk": "npm:^1.17.0"
     "@mozilla/readability": "npm:^0.6.0"
-    "@napi-rs/system-ocr": "npm:^1.0.2"
+    "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch"
     "@notionhq/client": "npm:^2.2.15"
     "@opentelemetry/api": "npm:^1.9.0"
     "@opentelemetry/core": "npm:2.0.0"
