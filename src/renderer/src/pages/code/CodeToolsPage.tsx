@@ -157,7 +157,11 @@ const CodeToolsPage: FC = () => {
   const prepareLaunchEnvironment = async (): Promise<Record<string, string> | null> => {
     if (!selectedModel) return null
 
-    const modelProvider = getProviderByModel(selectedModel)
+    const result = getProviderByModel(selectedModel)
+    if (!result.success) {
+      throw result.error
+    }
+    const modelProvider = result.value
     const aiProvider = new AiProvider(modelProvider)
     const baseUrl = await aiProvider.getBaseURL()
     const apiKey = await aiProvider.getApiKey()
