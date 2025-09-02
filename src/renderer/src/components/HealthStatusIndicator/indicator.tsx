@@ -1,4 +1,5 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import { COLOR_ERROR } from '@renderer/config/constant'
 import { Flex, Tooltip, Typography } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
@@ -67,7 +68,7 @@ const IndicatorWrapper = styled.div<{ $type: string }>`
       case 'success':
         return 'var(--color-status-success)'
       case 'error':
-        return 'var(--color-status-error)'
+        return COLOR_ERROR
       case 'partial':
         return 'var(--color-status-warning)'
       case 'checking':

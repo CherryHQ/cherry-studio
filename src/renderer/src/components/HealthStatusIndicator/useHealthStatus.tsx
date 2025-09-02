@@ -1,3 +1,4 @@
+import { COLOR_ERROR } from '@renderer/config/constant'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import { Flex } from 'antd'
 import React from 'react'
@@ -72,8 +73,7 @@ export const useHealthStatus = ({ results, showLatency = false }: UseHealthStatu
       }}>
       {results.map((result, idx) => {
         const statusText = getStatusText(result.status)
-        const statusColor =
-          result.status === HealthStatus.SUCCESS ? 'var(--color-status-success)' : 'var(--color-status-error)'
+        const statusColor = result.status === HealthStatus.SUCCESS ? 'var(--color-status-success)' : COLOR_ERROR
 
         return (
           <li key={idx} style={{ marginBottom: idx === results.length - 1 ? 0 : '10px' }}>

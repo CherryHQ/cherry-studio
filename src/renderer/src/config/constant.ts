@@ -41,3 +41,5 @@ export const MAX_CONTEXT_COUNT = 100
 export const UNLIMITED_CONTEXT_COUNT = 100000
 
 export const MAX_COLLAPSED_CODE_HEIGHT = 350
+
+export const COLOR_ERROR = 'var(--color-status-error)'

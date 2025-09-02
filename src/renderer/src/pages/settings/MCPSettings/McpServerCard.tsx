@@ -2,6 +2,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { COLOR_ERROR } from '@renderer/config/constant'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -53,7 +54,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
               fontFamily: 'monospace',
               userSelect: 'text',
               marginRight: 20,
-              color: 'var(--color-status-error)'
+              color: COLOR_ERROR
             }}>
             {errorDetails}
           </div>
@@ -71,7 +72,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12 }}
           description={
-            <Typography.Paragraph style={{ color: 'var(--color-status-error)' }} ellipsis={{ rows: 3 }}>
+            <Typography.Paragraph style={{ color: COLOR_ERROR }} ellipsis={{ rows: 3 }}>
               {errorDetails}
             </Typography.Paragraph>
           }
