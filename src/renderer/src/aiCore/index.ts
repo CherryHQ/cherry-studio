@@ -160,7 +160,12 @@ export default class AiProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     try {
       // Use the SDK instance to test embedding capabilities
-      if (this.apiClient instanceof OpenAIResponseAPIClient && getProviderByModel(model).type === 'azure-openai') {
+      const result = getProviderByModel(model)
+      if (!result.success) {
+        throw result.error
+      }
+      const provider = result.value
+      if (this.apiClient instanceof OpenAIResponseAPIClient && provider.type === 'azure-openai') {
         this.apiClient = this.apiClient.getClient(model) as BaseApiClient
       }
       const dimensions = await this.apiClient.getEmbeddingDimensions(model)
