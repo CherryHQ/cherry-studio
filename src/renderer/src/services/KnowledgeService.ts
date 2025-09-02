@@ -6,7 +6,7 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
+import { ApiClient, FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -17,9 +17,20 @@ const logger = loggerService.withContext('RendererKnowledgeService')
 
 export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams => {
   const provider = getProviderByModel(base.model)
-  const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(provider)
-  const rerankAiProvider = new AiProvider(rerankProvider)
+  let rerankApiClient: ApiClient | undefined = undefined
+  if (base.rerankModel) {
+    const rerankProvider = getProviderByModel(base.rerankModel)
+    const rerankAiProvider = new AiProvider(rerankProvider)
+    const rerankHost = rerankAiProvider.getBaseURL()
+
+    rerankApiClient = {
+      model: base.rerankModel?.id || '',
+      provider: rerankProvider.name.toLowerCase(),
+      apiKey: rerankAiProvider.getApiKey() || 'secret',
+      baseURL: rerankHost
+    }
+  }
 
   // get preprocess provider from store instead of base.preprocessProvider
   const preprocessProvider = store
@@ -33,7 +44,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     : base.preprocessProvider
 
   let host = aiProvider.getBaseURL()
-  const rerankHost = rerankAiProvider.getBaseURL()
+
   if (provider.type === 'gemini') {
     host = host + '/v1beta/openai/'
   }
@@ -62,12 +73,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
     },
     chunkSize,
     chunkOverlap: base.chunkOverlap,
-    rerankApiClient: {
-      model: base.rerankModel?.id || '',
-      provider: rerankProvider.name.toLowerCase(),
-      apiKey: rerankAiProvider.getApiKey() || 'secret',
-      baseURL: rerankHost
-    },
+    rerankApiClient,
     preprocessProvider: updatedPreprocessProvider,
     documentCount: base.documentCount
   }
