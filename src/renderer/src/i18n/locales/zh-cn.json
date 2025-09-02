@@ -854,6 +854,9 @@
     },
     "no_api_key": "API 密钥未配置",
     "pause_placeholder": "已中断",
+    "provider": {
+      "not_exist": "提供商不存在"
+    },
     "provider_disabled": "模型提供商未启用",
     "render": {
       "description": "消息内容渲染失败，请检查消息内容格式是否正确",
