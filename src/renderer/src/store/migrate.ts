@@ -2321,6 +2321,18 @@ const migrateConfig = {
     } catch (error) {
       return state
     }
+  },
+  '144': (state: RootState) => {
+    try {
+      if (state.settings) {
+        state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
+        state.settings.confirmRegenerateMessage = settingsInitialState.confirmRegenerateMessage
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 144 error', error as Error)
+      return state
+    }
   }
 }
 

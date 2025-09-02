@@ -1320,7 +1320,8 @@
       "delete": {
         "content": "删除分组消息会删除用户提问和所有助手的回答",
         "title": "删除分组消息"
-      }
+      },
+      "retry_failed": "重试出错的消息"
     },
     "ignore": {
       "knowledge": {
@@ -3347,6 +3348,8 @@
         "label": "网格详情触发"
       },
       "input": {
+        "confirm_delete_message": "删除消息前确认",
+        "confirm_regenerate_message": "重新生成消息前确认",
         "enable_quick_triggers": "启用 / 和 @ 触发快捷菜单",
         "paste_long_text_as_file": "长文本粘贴为文件",
         "paste_long_text_threshold": "长文本长度",

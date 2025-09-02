@@ -1320,7 +1320,8 @@
       "delete": {
         "content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
         "title": "刪除分組訊息"
-      }
+      },
+      "retry_failed": "重試出錯的訊息"
     },
     "ignore": {
       "knowledge": {
@@ -3347,6 +3348,8 @@
         "label": "網格詳細資訊觸發"
       },
       "input": {
+        "confirm_delete_message": "刪除訊息前確認",
+        "confirm_regenerate_message": "重新生成訊息前確認",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
         "paste_long_text_as_file": "將長文字貼上為檔案",
         "paste_long_text_threshold": "長文字長度",
