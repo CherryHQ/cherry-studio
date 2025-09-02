@@ -21,7 +21,19 @@ import { getUrlSource } from '@main/utils/knowledge'
 import { MB } from '@shared/config/constant'
 import { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
+import {
+  FileMetadata,
+  isKnowledgeDirectoryItem,
+  isKnowledgeFileItem,
+  isKnowledgeImageItem,
+  isKnowledgeNoteItem,
+  isKnowledgeSitemapItem,
+  isKnowledgeUrlItem,
+  isKnowledgeVideoItem,
+  KnowledgeBaseParams,
+  KnowledgeNoteItem,
+  KnowledgeSearchResult
+} from '@types'
 import { uuidv4 } from 'zod/v4'
 
 import { windowService } from '../WindowService'
@@ -61,8 +73,9 @@ export class LangChainFramework implements IKnowledgeFramework {
     // 在base.id目录下创建一个新的数据库 包含docstore.json 和 faiss.index
     const dbPath = path.join(this.storageDir, base.id)
     // Create empty FAISS vector store
-    const embeddings = this.getEmbeddings(base) as TextEmbeddings
-    const vectorStore = new FaissStore(embeddings, {})
+    const embeddings = this.getEmbeddings(base)
+    // FaissStore expects TextEmbeddings, MultiModalEmbeddings extends TextEmbeddings
+    const vectorStore = new FaissStore(embeddings as TextEmbeddings, {})
 
     const mockDocument: Document = {
       pageContent: 'Create Database Document',
@@ -91,6 +104,7 @@ export class LangChainFramework implements IKnowledgeFramework {
 
   private async getVectorStore(base: KnowledgeBaseParams): Promise<FaissStore> {
     const embeddings = this.getEmbeddings(base)
+    // FaissStore.load expects TextEmbeddings, MultiModalEmbeddings extends TextEmbeddings
     const vectorStore = await FaissStore.load(path.join(this.storageDir, base.id), embeddings as TextEmbeddings)
 
     return vectorStore
@@ -183,7 +197,20 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, userId } = options
-    const file = item.content as FileMetadata
+
+    if (!isKnowledgeFileItem(item)) {
+      logger.error(`Invalid item type for fileTask: expected 'file', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'file', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const file = item.content
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
@@ -239,7 +266,20 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item } = options
-    const directory = item.content as string
+
+    if (!isKnowledgeDirectoryItem(item)) {
+      logger.error(`Invalid item type for directoryTask: expected 'directory', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'directory', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const directory = item.content
     const files = getAllFiles(directory)
     const totalFiles = files.length
     let processedFiles = 0
@@ -299,7 +339,20 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item } = options
-    const url = item.content as string
+
+    if (!isKnowledgeUrlItem(item)) {
+      logger.error(`Invalid item type for urlTask: expected 'url', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'url', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const url = item.content
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
@@ -340,7 +393,20 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item } = options
-    const url = item.content as string
+
+    if (!isKnowledgeSitemapItem(item)) {
+      logger.error(`Invalid item type for sitemapTask: expected 'sitemap', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'sitemap', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const url = item.content
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
@@ -381,8 +447,21 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item } = options
-    const content = item.content as string
-    const sourceUrl = (item as any).sourceUrl
+
+    if (!isKnowledgeNoteItem(item)) {
+      logger.error(`Invalid item type for noteTask: expected 'note', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'note', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const content = item.content
+    const sourceUrl = (item as KnowledgeNoteItem & { sourceUrl?: string }).sourceUrl || ''
 
     logger.info(`noteTask ${content}, ${sourceUrl}`)
 
@@ -427,7 +506,20 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item } = options
-    const files = item.content as FileMetadata[]
+
+    if (!isKnowledgeVideoItem(item)) {
+      logger.error(`Invalid item type for videoTask: expected 'video', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'video', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const files = item.content
 
     const loaderTask: LoaderTask = {
       loaderTasks: [
@@ -467,7 +559,20 @@ export class LangChainFramework implements IKnowledgeFramework {
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item } = options
-    const file = item.content as FileMetadata
+
+    if (!isKnowledgeImageItem(item)) {
+      logger.error(`Invalid item type for imageTask: expected 'image', got '${item.type}'`)
+      return {
+        loaderTasks: [],
+        loaderDoneReturn: {
+          ...LangChainFramework.ERROR_LOADER_RETURN,
+          message: `Invalid item type: expected 'image', got '${item.type}'`,
+          messageSource: 'validation'
+        }
+      }
+    }
+
+    const file = item.content
     const embeddings = this.getEmbeddings(base)
 
     const loaderTask: LoaderTask = {
@@ -476,7 +581,16 @@ export class LangChainFramework implements IKnowledgeFramework {
           state: LoaderTaskItemState.PENDING,
           task: async () => {
             const vectorStore = await getVectorStore()
-            return addImageLoader(embeddings as MultiModalEmbeddings, vectorStore, file)
+            // Type guard for MultiModalEmbeddings
+            if (!(embeddings instanceof MultiModalEmbeddings)) {
+              const errorResult: LoaderReturn = {
+                ...LangChainFramework.ERROR_LOADER_RETURN,
+                message: 'Image loader requires MultiModal embeddings (e.g., jina model)',
+                messageSource: 'validation'
+              }
+              return errorResult
+            }
+            return addImageLoader(embeddings, vectorStore, file)
               .then((result) => {
                 loaderTask.loaderDoneReturn = result
                 return result
