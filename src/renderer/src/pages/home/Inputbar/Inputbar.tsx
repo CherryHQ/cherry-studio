@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
-  isDedicatedImageGenerationModel,
+  isAutoEnableImageGenerationModel,
   isGenerateImageModel,
   isGenerateImageModels,
   isMandatoryWebSearchModel,
@@ -783,9 +783,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
-    const shouldAutoEnableImageGen =
-      isDedicatedImageGenerationModel(model) || (model && model.id.toLowerCase().includes('gemini-2.5-flash-image'))
-    if (shouldAutoEnableImageGen && !assistant.enableGenerateImage) {
+    if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: true })
     }
   }, [assistant, model, updateAssistant])

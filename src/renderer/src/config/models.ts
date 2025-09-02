@@ -2332,6 +2332,9 @@ export const DEDICATED_IMAGE_MODELS = [
   'gpt-image-1'
 ]
 
+// Models that should auto-enable image generation button when selected
+export const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image-preview', ...DEDICATED_IMAGE_MODELS]
+
 export const OPENAI_IMAGE_GENERATION_MODELS = [
   'o3',
   'gpt-4o',
@@ -2352,8 +2355,17 @@ export const GENERATE_IMAGE_MODELS = [
 ]
 
 export const isDedicatedImageGenerationModel = (model: Model): boolean => {
+  if (!model) return false
+
   const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS.filter((m) => modelId.includes(m)).length > 0
+  return DEDICATED_IMAGE_MODELS.some((m) => modelId.includes(m))
+}
+
+export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
+  if (!model) return false
+
+  const modelId = getLowerBaseModelName(model.id)
+  return AUTO_ENABLE_IMAGE_MODELS.some((m) => modelId.includes(m))
 }
 
 export function isGenerateImageModel(model: Model): boolean {
