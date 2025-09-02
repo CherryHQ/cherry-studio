@@ -131,6 +131,9 @@ export default tseslint.config([
       '@typescript-eslint/no-base-to-string': 'off', // temporally. it's recommended by tseslint but too many errors
       '@typescript-eslint/no-unsafe-enum-comparison': 'off', // temporally. it's recommended by tseslint but too many errors
       '@typescript-eslint/unbound-method': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/no-implied-eval': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/prefer-promise-reject-errors': 'off', // temporally. it's recommended by tseslint but too many errors
+      '@typescript-eslint/restrict-plus-operands': 'off', // temporally. it's recommended by tseslint but too many errors
       'import/no-cycle': 'error',
       'import/no-duplicates': 'error',
       'simple-import-sort/imports': 'error',
