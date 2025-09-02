@@ -208,7 +208,7 @@ const VirtualRow = memo(
     const draggableId = String(virtualItem.key)
     return (
       <Draggable
-        key={`draggable_${draggableId}_${virtualItem.index}`}
+        key={`draggable_${draggableId}`}
         draggableId={draggableId}
         isDragDisabled={disabled}
         index={virtualItem.index}>

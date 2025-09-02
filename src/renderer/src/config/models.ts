@@ -739,6 +739,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'gemini',
       name: 'Gemini 2.0 Flash',
       group: 'Gemini 2.0'
+    },
+    {
+      id: 'gemini-2.5-flash-image-preview',
+      provider: 'gemini',
+      name: 'Gemini 2.5 Flash Image',
+      group: 'Gemini 2.5'
     }
   ],
   anthropic: [
@@ -1565,6 +1571,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   openrouter: [
     {
+      id: 'google/gemini-2.5-flash-image-preview',
+      provider: 'openrouter',
+      name: 'Google: Gemini 2.5 Flash Image',
+      group: 'google'
+    },
+    {
       id: 'google/gemini-2.5-flash-preview',
       provider: 'openrouter',
       name: 'Google: Gemini 2.5 Flash Preview',
@@ -2320,6 +2332,9 @@ export const DEDICATED_IMAGE_MODELS = [
   'gpt-image-1'
 ]
 
+// Models that should auto-enable image generation button when selected
+export const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image-preview', ...DEDICATED_IMAGE_MODELS]
+
 export const OPENAI_IMAGE_GENERATION_MODELS = [
   'o3',
   'gpt-4o',
@@ -2340,8 +2355,17 @@ export const GENERATE_IMAGE_MODELS = [
 ]
 
 export const isDedicatedImageGenerationModel = (model: Model): boolean => {
+  if (!model) return false
+
   const modelId = getLowerBaseModelName(model.id)
-  return DEDICATED_IMAGE_MODELS.filter((m) => modelId.includes(m)).length > 0
+  return DEDICATED_IMAGE_MODELS.some((m) => modelId.includes(m))
+}
+
+export const isAutoEnableImageGenerationModel = (model: Model): boolean => {
+  if (!model) return false
+
+  const modelId = getLowerBaseModelName(model.id)
+  return AUTO_ENABLE_IMAGE_MODELS.some((m) => modelId.includes(m))
 }
 
 export function isGenerateImageModel(model: Model): boolean {

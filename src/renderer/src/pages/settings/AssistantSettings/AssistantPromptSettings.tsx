@@ -2,7 +2,6 @@ import 'emoji-picker-element'
 
 import { CloseCircleFilled } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
-import CodeViewer from '@renderer/components/CodeViewer'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
@@ -14,6 +13,7 @@ import { Button, Input, Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
 import { SettingDivider } from '..'
@@ -122,7 +122,9 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <TextAreaContainer>
         <RichEditorContainer>
           {showPreview ? (
-            <CodeViewer children={processedPrompt} language="markdown" expanded={true} height="100%" />
+            <MarkdownContainer>
+              <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
+            </MarkdownContainer>
           ) : (
             <CodeEditor
               value={prompt}
@@ -212,6 +214,12 @@ const RichEditorContainer = styled.div`
       overflow: auto;
     }
   }
+`
+
+const MarkdownContainer = styled.div.attrs({ className: 'markdown' })`
+  height: 100%;
+  padding: 0.5em;
+  overflow: auto;
 `
 
 export default AssistantPromptSettings
