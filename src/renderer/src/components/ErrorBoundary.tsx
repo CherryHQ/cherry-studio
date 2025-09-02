@@ -1,11 +1,12 @@
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button, Space } from 'antd'
+import { Alert, Button, Popover, Space } from 'antd'
+import { CircleXIcon } from 'lucide-react'
 import { ComponentType, ReactNode } from 'react'
 import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
+const AlertFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
   const { t } = useTranslation()
   const { error } = props
   const debug = async () => {
@@ -36,14 +37,61 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
   )
 }
 
-const ErrorBoundaryCustomized = ({
-  children,
-  fallbackComponent
-}: {
+const IconFallback: ComponentType<FallbackProps> = (props: FallbackProps): ReactNode => {
+  return (
+    <Popover content={<AlertFallback {...props} />}>
+      <CircleXIcon />
+    </Popover>
+  )
+}
+
+type BaseProps = {
   children: ReactNode
   fallbackComponent?: ComponentType<FallbackProps>
-}) => {
-  return <ErrorBoundary FallbackComponent={fallbackComponent ?? DefaultFallback}>{children}</ErrorBoundary>
+}
+
+type AlertProps = BaseProps & {
+  fallbackComponent?: never
+  type?: 'alert'
+}
+
+type IconProps = BaseProps & {
+  fallbackComponent?: never
+  type: 'icon'
+}
+
+type SpecificProps = BaseProps & {
+  fallbackComponent: ComponentType<FallbackProps>
+  type?: never
+}
+
+/**
+ * ErrorBoundaryProps 类型定义了错误边界组件的属性
+ *
+ * @type {AlertProps} 使用 Alert 样式的错误提示
+ * - children: ReactNode - 子组件
+ * - fallbackComponent?: ComponentType<FallbackProps> - 可选的自定义错误回调组件
+ * - type?: 'alert' - 指定使用 Alert 样式
+ *
+ * @type {IconProps} 使用图标样式的错误提示
+ * - children: ReactNode - 子组件
+ * - type: 'icon' - 指定使用图标样式
+ *
+ * @type {SpecificProps} 使用自定义错误回调组件
+ * - children: ReactNode - 子组件
+ * - fallbackComponent: ComponentType<FallbackProps> - 自定义错误回调组件
+ */
+export type ErrorBoundaryProps = AlertProps | IconProps | SpecificProps
+
+const ErrorBoundaryCustomized = ({ children, fallbackComponent, type = 'alert' }: ErrorBoundaryProps) => {
+  if (fallbackComponent) {
+    return <ErrorBoundary FallbackComponent={fallbackComponent}>{children}</ErrorBoundary>
+  } else if (type === 'icon') {
+    return <ErrorBoundary FallbackComponent={AlertFallback}>{children}</ErrorBoundary>
+  } else {
+    // alert type and all of other invalid cases
+    return <ErrorBoundary FallbackComponent={IconFallback}>{children}</ErrorBoundary>
+  }
 }
 
 const ErrorContainer = styled.div`
