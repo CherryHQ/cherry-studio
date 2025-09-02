@@ -154,7 +154,7 @@ const CodeViewer = ({
   }, [rawLines.length, onHeightChange])
 
   return (
-    <div ref={shikiThemeRef} style={height ? { height } : undefined}>
+    <div ref={shikiThemeRef} style={expanded ? undefined : { height }}>
       <ScrollContainer
         ref={scrollerRef}
         className="shiki-scroller"
