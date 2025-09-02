@@ -98,12 +98,18 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       enableWebSearch: !assistant.enableWebSearch
     }
     const model = assistant.model
-    const provider = getProviderByModel(model)
     if (!model) {
       logger.error('Model does not exist.')
       window.message.error(t('error.model.not_exists'))
       return
     }
+    const result = getProviderByModel(model)
+    if (!result.success) {
+      logger.error(`Failed to get provider for model ${model.id}`)
+      window.message.error(t('error.provider.not_exist'))
+      return
+    }
+    const provider = result.value
     if (
       isGeminiWebSearchProvider(provider) &&
       isGeminiModel(model) &&
