@@ -290,6 +290,13 @@ const TabsWrapper = styled.div<{ $tabCount: number }>`
   overflow-y: hidden;
   min-width: 0;
   margin-right: 10px;
+  -webkit-app-region: drag;
+
+  > * {
+    position: relative;
+    z-index: 1;
+    -webkit-app-region: no-drag;
+  }
 
   &::-webkit-scrollbar {
     height: 0;
