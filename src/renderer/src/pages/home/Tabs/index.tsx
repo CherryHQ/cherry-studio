@@ -157,6 +157,10 @@ const Container = styled.div`
   min-width: var(--assistants-width);
   height: calc(100vh - var(--navbar-height));
 
+  &.right {
+    height: calc(100vh - var(--navbar-height));
+  }
+
   [navbar-position='left'] & {
     background-color: var(--color-background);
   }
