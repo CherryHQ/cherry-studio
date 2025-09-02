@@ -110,7 +110,7 @@ const CodeEditor = ({
   minHeight,
   options,
   extensions,
-  fontSize,
+  fontSize: customFontSize,
   style,
   className,
   editable = true,
@@ -121,7 +121,7 @@ const CodeEditor = ({
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
 
   // 合并 codeEditor 和 options 的 basicSetup，options 优先
-  const customBasicSetup = useMemo(() => {
+  const basicSetup = useMemo(() => {
     return {
       lineNumbers: _lineNumbers,
       ...(codeEditor as BasicSetupOptions),
@@ -129,7 +129,7 @@ const CodeEditor = ({
     }
   }, [codeEditor, _lineNumbers, options])
 
-  const customFontSize = useMemo(() => fontSize ?? _fontSize - 1, [fontSize, _fontSize])
+  const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
 
   const { activeCmTheme } = useCodeStyle()
   const initialContent = useRef(options?.stream ? (value ?? '').trimEnd() : (value ?? ''))
@@ -214,10 +214,10 @@ const CodeEditor = ({
         foldKeymap: enableKeymap,
         completionKeymap: enableKeymap,
         lintKeymap: enableKeymap,
-        ...customBasicSetup // override basicSetup
+        ...basicSetup // override basicSetup
       }}
       style={{
-        fontSize: customFontSize,
+        fontSize,
         marginTop: 0,
         borderRadius: 'inherit',
         ...style

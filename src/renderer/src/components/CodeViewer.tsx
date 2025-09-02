@@ -69,7 +69,7 @@ const CodeViewer = ({
   maxHeight,
   onHeightChange,
   options = { lineNumbers: true },
-  fontSize,
+  fontSize: customFontSize,
   className,
   expanded = true,
   wrapped = true
@@ -80,7 +80,7 @@ const CodeViewer = ({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const callerId = useRef(`${Date.now()}-${uuid()}`).current
 
-  const customFontSize = useMemo(() => fontSize ?? _fontSize - 1, [fontSize, _fontSize])
+  const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
   const lineNumbers = useMemo(() => options.lineNumbers ?? _lineNumbers, [options.lineNumbers, _lineNumbers])
 
   const rawLines = useMemo(() => (typeof value === 'string' ? value.trimEnd().split('\n') : []), [value])
@@ -118,7 +118,7 @@ const CodeViewer = ({
   const getScrollElement = useCallback(() => scrollerRef.current, [])
   const getItemKey = useCallback((index: number) => `${callerId}-${index}`, [callerId])
   // `line-height: 1.6` 为全局样式，但是为了避免测量误差在这里取整
-  const estimateSize = useCallback(() => Math.round(customFontSize * 1.6), [customFontSize])
+  const estimateSize = useCallback(() => Math.round(fontSize * 1.6), [fontSize])
 
   // 创建 virtualizer 实例
   const virtualizer = useVirtualizer({
@@ -165,7 +165,7 @@ const CodeViewer = ({
         style={
           {
             '--gutter-width': `${gutterDigits}ch`,
-            fontSize: customFontSize,
+            fontSize,
             height: expanded ? undefined : height,
             maxHeight: expanded ? undefined : maxHeight,
             overflowY: expanded ? 'hidden' : 'auto'
