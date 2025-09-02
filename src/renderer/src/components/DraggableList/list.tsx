@@ -9,7 +9,7 @@ import {
   ResponderProvided
 } from '@hello-pangea/dnd'
 import { droppableReorder } from '@renderer/utils'
-import { FC, HTMLAttributes } from 'react'
+import { HTMLAttributes, Key, useCallback } from 'react'
 
 interface Props<T> {
   list: T[]
@@ -17,23 +17,25 @@ interface Props<T> {
   listStyle?: React.CSSProperties
   listProps?: HTMLAttributes<HTMLDivElement>
   children: (item: T, index: number) => React.ReactNode
+  itemKey?: keyof T | ((item: T) => Key)
   onUpdate: (list: T[]) => void
   onDragStart?: OnDragStartResponder
   onDragEnd?: OnDragEndResponder
   droppableProps?: Partial<DroppableProps>
 }
 
-const DraggableList: FC<Props<any>> = ({
+function DraggableList<T>({
   children,
   list,
   style,
   listStyle,
   listProps,
+  itemKey,
   droppableProps,
   onDragStart,
   onUpdate,
   onDragEnd
-}) => {
+}: Props<T>) {
   const _onDragEnd = (result: DropResult, provided: ResponderProvided) => {
     onDragEnd?.(result, provided)
     if (result.destination) {
@@ -46,6 +48,17 @@ const DraggableList: FC<Props<any>> = ({
     }
   }
 
+  const getId = useCallback(
+    (item: T) => {
+      if (typeof itemKey === 'function') return itemKey(item)
+      if (itemKey) return item[itemKey] as Key
+      if (typeof item === 'string') return item as Key
+      if (item && typeof item === 'object' && 'id' in item) return item.id as Key
+      return undefined
+    },
+    [itemKey]
+  )
+
   return (
     <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
       <Droppable droppableId="droppable" {...droppableProps}>
@@ -53,9 +66,9 @@ const DraggableList: FC<Props<any>> = ({
           <div {...provided.droppableProps} ref={provided.innerRef} style={style}>
             <div {...listProps} className="draggable-list-container">
               {list.map((item, index) => {
-                const id = item.id || item
+                const draggableId = String(getId(item) ?? index)
                 return (
-                  <Draggable key={`draggable_${id}_${index}`} draggableId={id} index={index}>
+                  <Draggable key={`draggable_${draggableId}`} draggableId={draggableId} index={index}>
                     {(provided) => (
                       <div
                         ref={provided.innerRef}

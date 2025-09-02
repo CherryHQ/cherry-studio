@@ -55,7 +55,7 @@ const McpServersList: FC = () => {
     originalList: mcpServers,
     filteredList: filteredMcpServers,
     onUpdate: updateMcpServers,
-    idKey: 'id'
+    itemKey: 'id'
   })
 
   const scrollRef = useRef<HTMLDivElement>(null)

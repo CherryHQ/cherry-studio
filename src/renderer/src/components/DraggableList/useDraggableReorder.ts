@@ -9,7 +9,7 @@ interface UseDraggableReorderParams<T> {
   /** 用于更新原始列表状态的函数 */
   onUpdate: (newList: T[]) => void
   /** 用于从列表项中获取唯一ID的属性名或函数 */
-  idKey: keyof T | ((item: T) => Key)
+  itemKey: keyof T | ((item: T) => Key)
 }
 
 /**
@@ -19,8 +19,16 @@ interface UseDraggableReorderParams<T> {
  * @param params - { originalList, filteredList, onUpdate, idKey }
  * @returns 返回可以直接传递给 DraggableVirtualList 的 props: { onDragEnd, itemKey }
  */
-export function useDraggableReorder<T>({ originalList, filteredList, onUpdate, idKey }: UseDraggableReorderParams<T>) {
-  const getId = useCallback((item: T) => (typeof idKey === 'function' ? idKey(item) : (item[idKey] as Key)), [idKey])
+export function useDraggableReorder<T>({
+  originalList,
+  filteredList,
+  onUpdate,
+  itemKey
+}: UseDraggableReorderParams<T>) {
+  const getId = useCallback(
+    (item: T) => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as Key)),
+    [itemKey]
+  )
 
   // 创建从 item ID 到其在 *原始列表* 中索引的映射
   const itemIndexMap = useMemo(() => {
