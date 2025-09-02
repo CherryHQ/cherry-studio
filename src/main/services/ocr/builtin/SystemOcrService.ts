@@ -1,5 +1,6 @@
 import { isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
+import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import {
   ImageFileMetadata,
   isImageFileMetadata as isImageFileMetadata,
@@ -9,7 +10,6 @@ import {
 } from '@types'
 
 import { OcrBaseService } from './OcrBaseService'
-import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 
 // const logger = loggerService.withContext('SystemOcrService')
 export class SystemOcrService extends OcrBaseService {
