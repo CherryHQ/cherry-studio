@@ -12,6 +12,7 @@ export function getProviderName(model?: Model) {
   return getFancyProviderName(provider)
 }
 
+// FIXME: 现在有两个 getProviderByModel 了
 export function getProviderByModel(model?: Model) {
   const id = model?.provider
   const provider = store.getState().llm.providers.find((p) => p.id === id)

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
 import { BaseApiClient } from '@renderer/aiCore/clients/BaseApiClient'
 import { isDedicatedImageGenerationModel, isFunctionCallingModel } from '@renderer/config/models'
-import { safeGetProviderByModel } from '@renderer/services/AssistantService'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { GenerateImageParams, Model, Provider } from '@renderer/types'
@@ -160,11 +160,7 @@ export default class AiProvider {
   public async getEmbeddingDimensions(model: Model): Promise<number> {
     try {
       // Use the SDK instance to test embedding capabilities
-      const result = safeGetProviderByModel(model)
-      if (!result.success) {
-        throw result.error
-      }
-      const provider = result.value
+      const provider = getProviderByModel(model)
       if (this.apiClient instanceof OpenAIResponseAPIClient && provider.type === 'azure-openai') {
         this.apiClient = this.apiClient.getClient(model) as BaseApiClient
       }
