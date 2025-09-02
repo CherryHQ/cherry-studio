@@ -4,10 +4,13 @@ import { useResize } from '@renderer/hooks/useResize'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { RootState } from '@renderer/store'
+import { setResizeValue } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
-import { FC, useEffect, useRef, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDispatch, useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import Assistants from './AssistantsTab'
@@ -43,7 +46,15 @@ const HomeTabs: FC<Props> = ({
   const { defaultAssistant } = useDefaultAssistant()
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
-  const [width, setWidth] = useState<number | undefined>(undefined)
+  const dispatch = useDispatch()
+  const resizeKey = useMemo(() => {
+    if (topicPosition === 'left' || (topicPosition === 'right' && tab === 'assistants')) {
+      return 'chat-left-width'
+    } else {
+      return 'chat-right-width'
+    }
+  }, [tab, topicPosition])
+  const savedWidth = useSelector((s: RootState) => s.runtime.chat.resizeValue[resizeKey])
   const { handleResize } = useResize()
   const containerRef = useRef<HTMLDivElement>(null)
   const resizeHandlerRef = useRef<HTMLDivElement>(null)
@@ -73,6 +84,15 @@ const HomeTabs: FC<Props> = ({
     setActiveAssistant(assistant)
   }
 
+  const setTabWidth = useCallback(
+    (value: number) => {
+      if (value !== savedWidth) {
+        dispatch(setResizeValue({ key: resizeKey, value }))
+      }
+    },
+    [dispatch, resizeKey, savedWidth]
+  )
+
   useEffect(() => {
     if (resizeHandlerRef.current !== null && containerRef.current !== null) {
       handleResize(resizeHandlerRef.current, {
@@ -83,12 +103,17 @@ const HomeTabs: FC<Props> = ({
           min: 200,
           max: 400
         },
-        onResizing({ width }) {
-          setWidth(width)
+        onResizing({ width: w }) {
+          // 使用 css 减少不必要的渲染
+          document.body.style.setProperty(`--${resizeKey}`, `${w}px`)
+        },
+        onResizeEnd({ width: w }) {
+          setTabWidth(w)
+          document.body.style.setProperty(`--${resizeKey}`, '')
         }
       })
     }
-  }, [resizeHandlerRef, containerRef, handleResize, topicPosition, tab])
+  }, [resizeHandlerRef, containerRef, handleResize, topicPosition, tab, setTabWidth, resizeKey])
 
   useEffect(() => {
     const unsubscribes = [
@@ -125,7 +150,7 @@ const HomeTabs: FC<Props> = ({
       style={{
         position: 'relative',
         height: '100%',
-        width: width !== undefined ? `${width}px` : 'var(--assistants-width)'
+        width: `var(--${resizeKey}, ${savedWidth ? savedWidth + 'px' : 'var(--assistants-width)'})`
       }}>
       <Container
         ref={containerRef}

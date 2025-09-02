@@ -7,6 +7,7 @@ export interface ChatState {
   isMultiSelectMode: boolean
   selectedMessageIds: string[]
   activeTopic: Topic | null
+  resizeValue: Record<string, number>
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
@@ -78,6 +79,7 @@ const initialState: RuntimeState = {
     isMultiSelectMode: false,
     selectedMessageIds: [],
     activeTopic: null,
+    resizeValue: {},
     renamingTopics: [],
     newlyRenamedTopics: []
   },
@@ -142,6 +144,9 @@ const runtimeSlice = createSlice({
     setActiveTopic: (state, action: PayloadAction<Topic>) => {
       state.chat.activeTopic = action.payload
     },
+    setResizeValue: (state, action: PayloadAction<{ key: string; value: number }>) => {
+      state.chat.resizeValue[action.payload.key] = action.payload.value
+    },
     setRenamingTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.renamingTopics = action.payload
     },
@@ -180,6 +185,7 @@ export const {
   toggleMultiSelectMode,
   setSelectedMessageIds,
   setActiveTopic,
+  setResizeValue,
   setRenamingTopics,
   setNewlyRenamedTopics,
   // WebSearch related actions

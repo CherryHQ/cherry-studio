@@ -1,5 +1,10 @@
 import { clamp } from 'lodash'
 
+interface Rect {
+  width: number
+  height: number
+}
+
 /**
  * @param initial - 初始宽度、高度
  * @param deltaSign - 差值方向。例如：向右移动宽度增加，deltaSign = 1；向左移动宽度增加，deltaSign = -1
@@ -19,16 +24,18 @@ interface ResizeProps {
  * @param x, y - 在 x 或 y 方向上的参数
  */
 interface Props {
-  onResizing: ({ width, height }: { width: number; height: number }) => void
+  onResizing: (value: Rect) => void
   direction: 'horizontal' | 'vertical'
   x?: ResizeProps
   y?: ResizeProps
   onResizeStart?: () => void
-  onResizeEnd?: () => void
+  onResizeEnd?: (value: Rect) => void
 }
 
 export function useResize() {
   const handleResize = (ref: HTMLElement, props: Props) => {
+    let lastWidth = 0
+    let lastHeight = 0
     ref.addEventListener('mousedown', (e: MouseEvent) => {
       const initialX = e.x
       const initialY = e.y
@@ -43,13 +50,15 @@ export function useResize() {
         if (props.y !== undefined) {
           height = clamp(height, props.y.min ?? 0, props.y.max ?? Number.MAX_SAFE_INTEGER)
         }
+        lastWidth = width
+        lastHeight = height
         props.onResizing({ width, height })
       }
       const handleMouseUp = () => {
-        props.onResizeEnd?.()
         document.body.style.cursor = ''
         document.removeEventListener('mouseup', handleMouseUp)
         document.removeEventListener('mousemove', handleMouseMove)
+        props.onResizeEnd?.({ width: lastWidth, height: lastHeight })
       }
 
       props.onResizeStart?.()

@@ -9,7 +9,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
+import { RootState, useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
@@ -17,6 +17,7 @@ import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FC } from 'react'
+import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -38,6 +39,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+  const resizeValue = useSelector((s: RootState) => s.runtime.chat.resizeValue['chat-left-width'])
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -77,7 +79,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
+            <NavbarLeft
+              style={{
+                justifyContent: 'space-between',
+                borderRight: 'none',
+                padding: 0,
+                width: `var(--chat-left-width, ${resizeValue !== undefined ? resizeValue + 'px' : 'var(--assistants-width)'})`
+              }}>
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
                 <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
                   <PanelLeftClose size={18} />
