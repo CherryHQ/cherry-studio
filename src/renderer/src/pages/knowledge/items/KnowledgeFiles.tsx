@@ -149,16 +149,23 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
       </ItemHeader>
 
       <ItemFlexColumn>
-        <Dragger
-          showUploadList={false}
-          customRequest={({ file }) => handleDrop([file as File])}
-          multiple={true}
-          accept={fileTypes.join(',')}>
-          <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
-          <p className="ant-upload-hint">
-            {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
-          </p>
-        </Dragger>
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            handleAddFile()
+          }}>
+          <Dragger
+            showUploadList={false}
+            customRequest={({ file }) => handleDrop([file as File])}
+            multiple={true}
+            accept={fileTypes.join(',')}
+            openFileDialogOnClick={false}>
+            <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
+            <p className="ant-upload-hint">
+              {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
+            </p>
+          </Dragger>
+        </div>
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
