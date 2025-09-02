@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { useFiles } from '@renderer/hooks/useFiles'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
@@ -48,6 +49,7 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
   const { t } = useTranslation()
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
+  const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
   const { base, fileItems, addFiles, refreshItem, removeItem, getProcessingStatus } = useKnowledge(
     selectedBase.id || ''
@@ -71,19 +73,16 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     return null
   }
 
-  const handleAddFile = () => {
-    if (disabled) {
+  const handleAddFile = async () => {
+    if (disabled || selecting) {
       return
     }
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.multiple = true
-    input.accept = fileTypes.join(',')
-    input.onchange = (e) => {
-      const files = (e.target as HTMLInputElement).files
-      files && handleDrop(Array.from(files))
+    const selectedFiles = await onSelectFile({ multipleSelections: true })
+    if (selectedFiles.length > 0) {
+      const uploadedFiles = await FileManager.uploadFiles(selectedFiles)
+      logger.debug('uploadedFiles', uploadedFiles)
+      addFiles(uploadedFiles)
     }
-    input.click()
   }
 
   const handleDrop = async (files: File[]) => {
