@@ -60,6 +60,9 @@ coverage
 .vitest-cache
 vitest.config.*.timestamp-*
 
+# TypeScript incremental build
+.tsbuildinfo
+
 # playwright
 playwright-report
 test-results
