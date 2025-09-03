@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -7,7 +8,7 @@ import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
-import { addTab, removeTab, setActiveTab } from '@renderer/store/tabs'
+import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
@@ -28,7 +29,7 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -142,31 +143,44 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
+  const filteredTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
+
+  const { onSortEnd } = useDndReorder<Tab>({
+    originalList: tabs,
+    filteredList: filteredTabs,
+    onUpdate: (newTabs) => dispatch(setTabs(newTabs)),
+    itemKey: 'id'
+  })
+
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
-        {tabs
-          .filter((tab) => !specialTabs.includes(tab.id))
-          .map((tab) => {
-            return (
-              <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
-                <TabHeader>
-                  {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                  <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
-                </TabHeader>
-                {tab.id !== 'home' && (
-                  <CloseButton
-                    className="close-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeTab(tab.id)
-                    }}>
-                    <X size={12} />
-                  </CloseButton>
-                )}
-              </Tab>
-            )
-          })}
+        <Sortable
+          items={filteredTabs}
+          itemKey="id"
+          layout="list"
+          horizontal
+          onSortEnd={onSortEnd}
+          renderItem={(tab) => (
+            <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
+              <TabHeader>
+                {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
+                <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
+              </TabHeader>
+              {tab.id !== 'home' && (
+                <CloseButton
+                  className="close-button"
+                  data-no-dnd
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeTab(tab.id)
+                  }}>
+                  <X size={12} />
+                </CloseButton>
+              )}
+            </Tab>
+          )}
+        />
         <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
           <PlusOutlined />
         </AddTabButton>
