@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
+import { SerializedError } from '@renderer/types/error'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
@@ -197,7 +198,7 @@ export function createFileBlock(
  */
 export function createErrorBlock(
   messageId: string,
-  errorData: Record<string, any>,
+  errorData: SerializedError,
   overrides: Partial<Omit<ErrorMessageBlock, 'id' | 'messageId' | 'type' | 'error'>> = {}
 ): ErrorMessageBlock {
   const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.ERROR, {
