@@ -248,6 +248,12 @@ const TabsArea = styled.div`
   min-width: 0;
   overflow: hidden;
   gap: 6px;
+
+  -webkit-app-region: drag;
+
+  > * {
+    -webkit-app-region: no-drag;
+  }
 `
 
 const TabsScroll = styled(Scrollbar)`
