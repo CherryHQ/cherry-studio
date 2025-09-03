@@ -82,11 +82,6 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
-  const [dragState, setDragState] = useState<{
-    isDragging: boolean
-    dragIndex: number
-    dragOverIndex: number
-  }>({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
