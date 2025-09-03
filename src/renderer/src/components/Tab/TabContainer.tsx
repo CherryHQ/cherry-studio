@@ -299,6 +299,7 @@ const RightButtonsContainer = styled.div`
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  padding-right: ${isMac ? '12px' : '0'};
 `
 
 const ThemeButton = styled.div`
