@@ -1595,7 +1595,13 @@
   "navbar": {
     "expand": "Expandir caixa de diálogo",
     "hide_sidebar": "Ocultar barra lateral",
-    "show_sidebar": "Mostrar barra lateral"
+    "show_sidebar": "Mostrar barra lateral",
+    "window": {
+      "minimize": "Minimizar",
+      "maximize": "Maximizar",
+      "restore": "Restaurar",
+      "close": "Fechar"
+    }
   },
   "navigate": {
     "provider_settings": "Ir para as configurações do provedor"
