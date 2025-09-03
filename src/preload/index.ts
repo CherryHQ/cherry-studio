@@ -437,6 +437,20 @@ const api = {
   cherryin: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
+  },
+  windowControls: {
+    minimize: () => ipcRenderer.invoke(IpcChannel.Windows_Minimize),
+    maximize: () => ipcRenderer.invoke(IpcChannel.Windows_Maximize),
+    unmaximize: () => ipcRenderer.invoke(IpcChannel.Windows_Unmaximize),
+    close: () => ipcRenderer.invoke(IpcChannel.Windows_Close),
+    isMaximized: () => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
+    onMaximizedChange: (callback: (isMaximized: boolean) => void) => {
+      const channel = IpcChannel.Windows_MaximizedChanged
+      ipcRenderer.on(channel, (_, isMaximized) => callback(isMaximized))
+      return () => {
+        ipcRenderer.removeAllListeners(channel)
+      }
+    }
   }
 }
 
