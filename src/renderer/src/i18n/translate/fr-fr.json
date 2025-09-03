@@ -677,6 +677,7 @@
     "model_placeholder": "Sélectionnez le modèle à utiliser",
     "model_required": "Veuillez sélectionner le modèle",
     "select_folder": "Sélectionner le dossier",
+    "supported_providers": "fournisseurs pris en charge",
     "title": "Outils de code",
     "update_options": "Options de mise à jour",
     "working_directory": "répertoire de travail"
@@ -1319,7 +1320,8 @@
       "delete": {
         "content": "La suppression du groupe de messages supprimera les questions des utilisateurs et toutes les réponses des assistants",
         "title": "Supprimer le groupe de messages"
-      }
+      },
+      "retry_failed": "message d'erreur de nouvelle tentative"
     },
     "ignore": {
       "knowledge": {
@@ -1550,6 +1552,7 @@
       "selected": "Étiquette sélectionnée"
     },
     "function_calling": "Appel de fonction",
+    "invalid_model": "Modèle invalide",
     "no_matches": "Aucun modèle disponible",
     "parameter_name": "Nom du paramètre",
     "parameter_type": {
@@ -1619,9 +1622,13 @@
     "new_folder": "Nouveau dossier",
     "new_note": "Nouvelle note",
     "no_content_to_copy": "Aucun contenu à copier",
+    "no_file_selected": "Veuillez sélectionner le fichier à télécharger",
     "only_markdown": "uniquement le format Markdown est pris en charge",
+    "only_one_file_allowed": "On ne peut télécharger qu'un seul fichier",
     "open_folder": "ouvrir le dossier externe",
+    "open_outside": "Ouvrir depuis l'extérieur",
     "rename": "renommer",
+    "rename_changed": "En raison de la politique de sécurité, le nom du fichier a été changé de {{original}} à {{final}}",
     "save": "sauvegarder dans les notes",
     "settings": {
       "data": {
@@ -3343,6 +3350,8 @@
         "label": "Déclencheur de popover de la grille"
       },
       "input": {
+        "confirm_delete_message": "Confirmer avant de supprimer le message",
+        "confirm_regenerate_message": "Confirmer avant de régénérer le message",
         "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
         "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
         "paste_long_text_threshold": "Seuil de longueur de texte",

@@ -1,6 +1,6 @@
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
