@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
-import { useNotesSettings, useShowWorkspace } from '@renderer/hooks/useNotesSettings'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import {
   createFolder,
   createNote,
