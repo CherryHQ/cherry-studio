@@ -26,7 +26,7 @@ describe('markdownConverter', () => {
 
     it('should convert task list HTML back to Markdown with label', () => {
       const html =
-        '<ul data-type="taskList" class="task-list"><li data-type="taskItem" class="task-list-item" data-checked="false"><label><input type="checkbox"> abcd</label></li><li data-type="taskItem" class="task-list-item" data-checked="true"><label><input type="checkbox" checked> efgh</lable></li></ul>'
+        '<ul data-type="taskList" class="task-list"><li data-type="taskItem" class="task-list-item" data-checked="false"><label><input type="checkbox"> abcd</label></li><li data-type="taskItem" class="task-list-item" data-checked="true"><label><input type="checkbox" checked> efgh</label></li></ul>'
       const result = htmlToMarkdown(html)
       expect(result).toBe('- [ ] abcd\n\n- [x] efgh')
     })
@@ -361,7 +361,7 @@ describe('markdownConverter', () => {
   })
 
   describe('markdown image', () => {
-    it('should convert markdown iamge to HTML img tag', () => {
+    it('should convert markdown image to HTML img tag', () => {
       const markdown = '![foo](train.jpg)'
       const result = markdownToHtml(markdown)
       expect(result).toBe('<p><img src="train.jpg" alt="foo" /></p>\n')
