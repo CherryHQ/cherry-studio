@@ -187,6 +187,26 @@ export const McpServerConfigSchema = z
       message: 'Server type is inMemory but this is not a builtin MCP server, which is not allowed'
     }
   )
+  .transform((schema) => {
+    // 显式传入的type会覆盖掉从url推断的逻辑
+    if (!schema.type) {
+      const url = schema.baseUrl ?? schema.url ?? null
+      if (url !== null) {
+        if (url.endsWith('/mcp')) {
+          return {
+            ...schema,
+            type: 'streamableHttp'
+          } as const
+        } else if (url.endsWith('/sse')) {
+          return {
+            ...schema,
+            type: 'sse'
+          } as const
+        }
+      }
+    }
+    return schema
+  })
 /**
  * 将服务器别名（字符串ID）映射到其配置的对象。
  * 例如: { "my-tools": { command: "...", args: [...] }, "github": { ... } }
