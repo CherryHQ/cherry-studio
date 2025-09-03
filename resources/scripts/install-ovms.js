@@ -173,12 +173,3 @@ installOvms()
     console.error('OVMS installation failed:', error)
     process.exit(2)
   })
-
-// // test getCpuInfo
-// (async () => {
-//   const cpuInfo = getCpuInfo()
-//   console.log('CPU Info:', cpuInfo)
-// })()
-//   .catch((error) => {
-//     console.error('Failed to get CPU info:', error)
-//   })
