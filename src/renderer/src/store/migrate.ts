@@ -1604,7 +1604,6 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.tokenflux_paintings) {
         state.paintings.tokenflux_paintings = []
       }
-      state.settings.showTokens = true
       state.settings.testPlan = false
       return state
     } catch (error) {
@@ -2326,6 +2325,31 @@ const migrateConfig = {
   },
   '144': (state: RootState) => {
     try {
+      if (state.settings) {
+        state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
+        state.settings.confirmRegenerateMessage = settingsInitialState.confirmRegenerateMessage
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 144 error', error as Error)
+      return state
+    }
+  },
+  '145': (state: RootState) => {
+    try {
+      if (state.settings) {
+        if (state.settings.showMessageOutline === undefined || state.settings.showMessageOutline === null) {
+          state.settings.showMessageOutline = false
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 145 error', error as Error)
+      return state
+    }
+  },
+  '146': (state: RootState) => {
+    try {
       state.knowledge.bases.forEach((base) => {
         if (!base.framework) {
           base.framework = 'embedjs'
@@ -2333,7 +2357,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 144 error', error as Error)
+      logger.error('migrate 146 error', error as Error)
       return state
     }
   }

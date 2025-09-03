@@ -321,7 +321,7 @@ const ProviderList: FC = () => {
     originalList: providers,
     filteredList: filteredProviders,
     onUpdate: updateProviders,
-    idKey: 'id'
+    itemKey: 'id'
   })
 
   const handleDragStart = useCallback(() => {

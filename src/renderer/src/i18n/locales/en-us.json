@@ -677,6 +677,7 @@
     "model_placeholder": "Select the model to use",
     "model_required": "Please select a model",
     "select_folder": "Select Folder",
+    "supported_providers": "Supported Providers",
     "title": "Code Tools",
     "update_options": "Update Options",
     "working_directory": "Working Directory"
@@ -1349,7 +1350,8 @@
       "delete": {
         "content": "Deleting a group message will delete the user's question and all assistant's answers",
         "title": "Delete Group Message"
-      }
+      },
+      "retry_failed": "Retry failed messages"
     },
     "ignore": {
       "knowledge": {
@@ -3383,6 +3385,8 @@
         "label": "Grid detail trigger"
       },
       "input": {
+        "confirm_delete_message": "Confirm before deleting messages",
+        "confirm_regenerate_message": "Confirm before regenerating messages",
         "enable_quick_triggers": "Enable / and @ triggers",
         "paste_long_text_as_file": "Paste long text as file",
         "paste_long_text_threshold": "Paste long text length",

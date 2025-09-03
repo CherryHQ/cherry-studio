@@ -62,6 +62,7 @@ files:
 asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'
+  - 'node_modules/@img/sharp-libvips-*/**'
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -114,6 +115,7 @@ publish:
   url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
+beforePack: scripts/before-pack.js
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
