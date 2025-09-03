@@ -220,7 +220,7 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
     const requestBodyValues = safeToString(error.requestBodyValues)
     text += `${t('error.requestBodyValues')}: ${requestBodyValues}\n`
     if (error.responseHeaders) {
-      text += `${t('error.responseHeaders')}: ${error.responseHeaders}\n`
+      text += `${t('error.responseHeaders')}: ${JSON.stringify(error.responseHeaders, null, 2)}\n`
     }
     if (error.responseBody) {
       text += `${t('error.responseBody')}: ${error.responseBody}\n`
