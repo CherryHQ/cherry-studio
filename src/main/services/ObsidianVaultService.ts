@@ -32,7 +32,8 @@ class ObsidianVaultService {
       )
     } else {
       // Linux
-      this.obsidianConfigPath = path.join(app.getPath('home'), '.config', 'obsidian', 'obsidian.json')
+      this.obsidianConfigPath = this.resolveLinuxObsidianConfigPath()
+      logger.debug(`Resolved Obsidian config path (linux): ${this.obsidianConfigPath}`)
     }
   }
 
@@ -163,6 +164,57 @@ class ObsidianVaultService {
       logger.error('Failed to get Vault file structure:', error as Error)
       return []
     }
+  }
+
+  /**
+   * 在 Linux 下解析 Obsidian 配置文件路径，兼容多种安装方式。
+   * 优先返回第一个存在的路径；若均不存在，则返回 XDG 默认路径。
+   */
+  private resolveLinuxObsidianConfigPath(): string {
+    const home = app.getPath('home')
+    const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(home, '.config')
+
+    // 常见目录名与文件名大小写差异做兼容
+    const configDirs = ['obsidian', 'Obsidian']
+    const fileNames = ['obsidian.json', 'Obsidian.json']
+
+    const candidates: string[] = []
+
+    // 1) AppImage/DEB（XDG 标准路径）
+    for (const dir of configDirs) {
+      for (const file of fileNames) {
+        candidates.push(path.join(xdgConfigHome, dir, file))
+      }
+    }
+
+    // 2) Snap 安装：
+    // - 常见：~/snap/obsidian/current/.config/obsidian/obsidian.json
+    // - 兼容：~/snap/obsidian/common/.config/obsidian/obsidian.json
+    for (const dir of configDirs) {
+      for (const file of fileNames) {
+        candidates.push(path.join(home, 'snap', 'obsidian', 'current', '.config', dir, file))
+        candidates.push(path.join(home, 'snap', 'obsidian', 'common', '.config', dir, file))
+      }
+    }
+
+    // 3) Flatpak 安装：~/.var/app/md.obsidian.Obsidian/config/obsidian/obsidian.json
+    for (const dir of configDirs) {
+      for (const file of fileNames) {
+        candidates.push(path.join(home, '.var', 'app', 'md.obsidian.Obsidian', 'config', dir, file))
+      }
+    }
+
+    const existing = candidates.find((p) => {
+      try {
+        return fs.existsSync(p)
+      } catch {
+        return false
+      }
+    })
+
+    if (existing) return existing
+
+    return path.join(xdgConfigHome, 'obsidian', 'obsidian.json')
   }
 }
 
