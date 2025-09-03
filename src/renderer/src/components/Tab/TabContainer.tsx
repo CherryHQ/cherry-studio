@@ -210,7 +210,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   align-items: center;
   gap: 5px;
   padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
-  padding-right: ${({ $isFullscreen }) => $isFullscreen ? '12px' : '0'};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   position: relative;
   -webkit-app-region: drag;

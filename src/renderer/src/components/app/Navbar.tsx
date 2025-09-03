@@ -5,6 +5,7 @@ import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
+
 import WindowControls from '../WindowControls'
 
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>

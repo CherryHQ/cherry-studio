@@ -2,7 +2,7 @@ import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import WindowControls from '@renderer/components/WindowControls'
-import { isMac, isWin, isLinux } from '@renderer/config/constant'
+import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -93,7 +93,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </motion.div>
         )}
       </AnimatePresence>
-      <NavbarRight style={{ justifyContent: 'space-between', flex: 1, position: 'relative' }} className="home-navbar-right">
+      <NavbarRight
+        style={{ justifyContent: 'space-between', flex: 1, position: 'relative' }}
+        className="home-navbar-right">
         <HStack alignItems="center">
           {!showAssistants && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
@@ -154,7 +156,16 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </HStack>
         {/* Search, Expand and WindowControls positioned at the right edge */}
         {(isWin || isLinux) && (
-          <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
             <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
               <NavbarIcon onClick={() => SearchPopup.show()}>
                 <Search size={18} />

@@ -19,19 +19,21 @@ export const ControlButton = styled.button<{ $isClose?: boolean }>`
   color: var(--color-text);
   cursor: pointer;
   outline: none;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   padding: 0;
   position: relative;
   border-radius: 0;
 
   &:hover {
-    background: ${props => props.$isClose ? '#e81123' : 'var(--color-list-item)'};
-    color: ${props => props.$isClose ? '#ffffff' : 'var(--color-text)'};
+    background: ${(props) => (props.$isClose ? '#e81123' : 'var(--color-list-item)')};
+    color: ${(props) => (props.$isClose ? '#ffffff' : 'var(--color-text)')};
   }
 
   &:active {
-    background: ${props => props.$isClose ? '#c50e1f' : 'var(--color-list-item-active)'};
-    color: ${props => props.$isClose ? '#ffffff' : 'var(--color-text)'};
+    background: ${(props) => (props.$isClose ? '#c50e1f' : 'var(--color-list-item-active)')};
+    color: ${(props) => (props.$isClose ? '#ffffff' : 'var(--color-text)')};
   }
 
   svg {
