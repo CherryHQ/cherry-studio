@@ -1149,6 +1149,19 @@ export function objectEntriesStrict<T extends Record<string | number | symbol, u
 }
 
 /**
+ * 获取对象所有值的类型安全版本
+ * @template T - 对象类型
+ * @param obj - 要获取值的对象
+ * @returns 对象值组成的数组
+ * @example
+ * const obj = { a: 1, b: 2 } as const;
+ * const values = objectValues(obj); // (1 | 2)[]
+ */
+export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof T][] {
+  return Object.values(obj) as T[keyof T][]
+}
+
+/**
  * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
  * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
  * @template T - 必需包含的键的字面量字符串联合类型
