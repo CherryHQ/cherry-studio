@@ -89,7 +89,10 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   }
 
   const getAlertMessage = () => {
-    const status = block.error && 'status' in block.error ? block.error?.status : undefined
+    const status =
+      block.error && ('status' in block.error || 'statusCode' in block.error)
+        ? block.error?.status || block.error?.statusCode
+        : undefined
     if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
       return block.error.message
     }
@@ -97,7 +100,10 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   }
 
   const getAlertDescription = () => {
-    const status = block.error && 'status' in block.error ? block.error?.status : undefined
+    const status =
+      block.error && ('status' in block.error || 'statusCode' in block.error)
+        ? block.error?.status || block.error?.statusCode
+        : undefined
     if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
       return getHttpMessageLabel(status.toString())
     }
