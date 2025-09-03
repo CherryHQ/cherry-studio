@@ -92,9 +92,7 @@ export const useKnowledge = (baseId: string) => {
   // add video support
   const addVideo = (files: FileMetadata[]) => {
     dispatch(addVedioThunk(baseId, 'video', files))
-    // 这个函数看起来可能会有多次调用并发执行，故采用唯一id的定时器，依赖组件卸载时统一清理的行为
-    const id = uuid()
-    setTimeoutTimer(id, () => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 更新笔记内容
