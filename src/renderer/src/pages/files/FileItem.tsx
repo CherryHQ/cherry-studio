@@ -13,6 +13,7 @@ import {
   LinkOutlined,
   VideoCameraFilled
 } from '@ant-design/icons'
+import { videoExts } from '@shared/config/constant'
 import { Flex } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
@@ -73,7 +74,7 @@ const getFileIcon = (type?: string) => {
     return <FolderOpenFilled />
   }
 
-  if (['.mp4'].includes(ext)) {
+  if (videoExts.includes(ext)) {
     return <VideoCameraFilled />
   }
 

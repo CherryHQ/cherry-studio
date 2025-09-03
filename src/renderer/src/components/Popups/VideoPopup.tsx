@@ -164,14 +164,14 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
       centered
       width={600}
       okButtonProps={{ disabled: isOkButtonDisabled }}
-      okText="确定"
-      cancelText="取消">
+      okText={t('common.confirm')}
+      cancelText={t('common.cancel')}>
       <Space direction="vertical" style={{ width: '100%', gap: '16px' }}>
         <SingleFileUploader
           uploadType="video"
           accept="video/*"
           title={t('knowledge.videos_file')}
-          hint={t('knowledge.file_hint', { file_types: 'MP4' })}
+          hint={t('knowledge.file_hint', { file_types: 'MP4, AVI, MKV, MOV' })}
           fileList={videoFileList}
           onUpload={(file) => handleFileUpload(file, 'video', setVideoFile, setVideoFileList)}
           onRemove={() => handleFileRemove(setVideoFile, setVideoFileList)}

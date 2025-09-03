@@ -2,7 +2,6 @@ import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import React from 'react'
 import styled from 'styled-components'
 
-import ImageItem from './ImageItem'
 import TextItem from './TextItem'
 import VideoItem from './VideoItem'
 
@@ -18,9 +17,7 @@ interface Props {
 }
 const SearchItemRenderer: React.FC<Props> = ({ item, searchKeyword }) => {
   const renderItem = () => {
-    if (item.metadata.type === 'image') {
-      return <ImageItem item={item} />
-    } else if (item.metadata.type === 'video') {
+    if (item.metadata.type === 'video') {
       return <VideoItem item={item} searchKeyword={searchKeyword} />
     } else {
       return <TextItem item={item} searchKeyword={searchKeyword} />
