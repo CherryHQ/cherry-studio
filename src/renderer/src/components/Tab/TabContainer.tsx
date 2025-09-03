@@ -143,11 +143,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
-  const filteredTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
+  const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
 
   const { onSortEnd } = useDndReorder<Tab>({
     originalList: tabs,
-    filteredList: filteredTabs,
+    filteredList: visibleTabs,
     onUpdate: (newTabs) => dispatch(setTabs(newTabs)),
     itemKey: 'id'
   })
@@ -158,12 +158,13 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         <TabsArea>
           <TabsScroll>
             <Sortable
-              items={filteredTabs}
+              items={visibleTabs}
               itemKey="id"
               layout="list"
               horizontal
               gap={'6px'}
               onSortEnd={onSortEnd}
+              className="tabs-sortable"
               renderItem={(tab) => (
                 <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
                   <TabHeader>
@@ -246,8 +247,8 @@ const TabsArea = styled.div`
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
   gap: 6px;
+  padding-right: 2rem;
 
   -webkit-app-region: drag;
 
@@ -269,11 +270,11 @@ const Tab = styled.div<{ active?: boolean }>`
   padding: 4px 10px;
   padding-right: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
+  transition: background 0.2s;
   border-radius: var(--list-item-border-radius);
   user-select: none;
   height: 30px;
   min-width: 90px;
-  transition: background 0.2s;
 
   .close-button {
     opacity: 0;
@@ -309,10 +310,8 @@ const TabTitle = styled.span`
   display: flex;
   align-items: center;
   margin-right: 4px;
-  text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  min-width: 0;
 `
 
 const CloseButton = styled.span`
