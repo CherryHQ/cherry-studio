@@ -36,7 +36,10 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
 
   const i18nKey = block.error && 'i18nKey' in block.error ? `error.${block.error?.i18nKey}` : ''
   const errorKey = `error.${block.error?.message}`
-  const errorStatus = block.error && 'status' in block.error ? block.error?.status : undefined
+  const errorStatus =
+    block.error && ('status' in block.error || 'statusCode' in block.error)
+      ? block.error?.status || block.error?.statusCode
+      : undefined
 
   if (i18n.exists(i18nKey)) {
     const providerId = block.error && 'providerId' in block.error ? block.error?.providerId : undefined
