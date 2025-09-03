@@ -1,14 +1,13 @@
-import { SerializedError } from '@reduxjs/toolkit'
+import { Serializable } from './serialize'
 
-// 定义模块增强以扩展 @reduxjs/toolkit 的 SerializedError
-declare module '@reduxjs/toolkit' {
-  interface SerializedError {
-    [key: string]: unknown
-  }
+export interface SerializedError {
+  name: string | null
+  message: string | null
+  stack: string | null
+  [key: string]: Serializable
 }
-
 export interface SerializedAiSdkError extends SerializedError {
-  readonly cause?: unknown
+  readonly cause: string | null
 }
 
 export const isSerializedAiSdkError = (error: SerializedError): error is SerializedAiSdkError => {
@@ -17,12 +16,12 @@ export const isSerializedAiSdkError = (error: SerializedError): error is Seriali
 
 export interface SerializedAiSdkAPICallError extends SerializedAiSdkError {
   readonly url: string
-  readonly requestBodyValues: unknown
-  readonly statusCode?: number
-  readonly responseHeaders?: Record<string, string>
-  readonly responseBody?: string
+  readonly requestBodyValues: Serializable
+  readonly statusCode: number | null
+  readonly responseHeaders: Record<string, string> | null
+  readonly responseBody: string | null
   readonly isRetryable: boolean
-  readonly data?: unknown
+  readonly data: Serializable | null
 }
 
 export const isSerializedAiSdkAPICallError = (error: SerializedError): error is SerializedAiSdkAPICallError => {

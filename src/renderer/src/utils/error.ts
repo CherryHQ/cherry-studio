@@ -1,9 +1,11 @@
 import { loggerService } from '@logger'
-import { SerializedError } from '@reduxjs/toolkit'
 import { AiSdkErrorUnion } from '@renderer/types/aiCoreTypes'
+import { SerializedAiSdkAPICallError, SerializedError } from '@renderer/types/error'
 import { AISDKError, APICallError } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
+
+import { safeSerialize } from './serialize'
 
 const logger = loggerService.withContext('Utils:error')
 
@@ -93,8 +95,8 @@ export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
     message: error.message,
-    stack: error.stack,
-    cause: error.cause ? String(error.cause) : undefined
+    stack: error.stack ?? null,
+    cause: error.cause ? String(error.cause) : null
   }
   if (APICallError.isInstance(error)) {
     let content = error.message === '' ? error.responseBody || 'Unknown error' : error.message
@@ -106,11 +108,14 @@ export const serializeError = (error: AISDKError): SerializedError => {
     }
     return {
       ...baseError,
-      status: error.statusCode,
       url: error.url,
-      message: content,
-      requestBody: error.requestBodyValues
-    }
+      requestBodyValues: safeSerialize(error.requestBodyValues),
+      statusCode: error.statusCode ?? null,
+      responseBody: content,
+      isRetryable: error.isRetryable,
+      data: safeSerialize(error.data),
+      responseHeaders: error.responseHeaders ?? null
+    } satisfies SerializedAiSdkAPICallError
   }
   return baseError
 }

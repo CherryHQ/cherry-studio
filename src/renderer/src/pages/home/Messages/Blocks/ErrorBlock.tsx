@@ -1,4 +1,3 @@
-import { SerializedError } from '@reduxjs/toolkit'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
@@ -9,7 +8,8 @@ import {
   isSerializedAiSdkAPICallError,
   isSerializedAiSdkError,
   SerializedAiSdkAPICallError,
-  SerializedAiSdkError
+  SerializedAiSdkError,
+  SerializedError
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
@@ -34,12 +34,12 @@ const ErrorBlock: React.FC<Props> = ({ block, message }) => {
 const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
   const { t, i18n } = useTranslation()
 
-  const i18nKey = `error.${block.error?.i18nKey}`
+  const i18nKey = block.error && 'i18nKey' in block.error ? `error.${block.error?.i18nKey}` : ''
   const errorKey = `error.${block.error?.message}`
-  const errorStatus = block.error?.status
+  const errorStatus = block.error && 'status' in block.error ? block.error?.status : undefined
 
   if (i18n.exists(i18nKey)) {
-    const providerId = block.error?.providerId
+    const providerId = block.error && 'providerId' in block.error ? block.error?.providerId : undefined
     if (providerId && typeof providerId === 'string') {
       return (
         <Trans
@@ -89,7 +89,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   }
 
   const getAlertMessage = () => {
-    const status = block.error?.status
+    const status = block.error && 'status' in block.error ? block.error?.status : undefined
     if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
       return block.error.message
     }
@@ -97,7 +97,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   }
 
   const getAlertDescription = () => {
-    const status = block.error?.status
+    const status = block.error && 'status' in block.error ? block.error?.status : undefined
     if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
       return getHttpMessageLabel(status.toString())
     }
