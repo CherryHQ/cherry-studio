@@ -49,7 +49,7 @@ const tabsSlice = createSlice({
       if (tab) {
         Object.assign(tab, action.payload.updates)
       }
-    }
+    },
     setActiveTab: (state, action: PayloadAction<string>) => {
       state.activeTabId = action.payload
     }
