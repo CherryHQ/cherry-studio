@@ -677,6 +677,7 @@
     "model_placeholder": "Selecione o modelo a ser utilizado",
     "model_required": "Selecione o modelo",
     "select_folder": "Selecionar pasta",
+    "supported_providers": "Provedores de serviço suportados",
     "title": "Ferramenta de código",
     "update_options": "Opções de atualização",
     "working_directory": "diretório de trabalho"
@@ -1319,7 +1320,8 @@
       "delete": {
         "content": "Excluir mensagens de grupo removerá as perguntas dos usuários e todas as respostas do assistente",
         "title": "Excluir mensagens de grupo"
-      }
+      },
+      "retry_failed": "Repetir mensagem com erro"
     },
     "ignore": {
       "knowledge": {
@@ -1620,9 +1622,13 @@
     "new_folder": "Nova pasta",
     "new_note": "Nova nota",
     "no_content_to_copy": "Não há conteúdo para copiar",
+    "no_file_selected": "Selecione o arquivo a ser enviado",
     "only_markdown": "Apenas o formato Markdown é suportado",
+    "only_one_file_allowed": "só é possível enviar um arquivo",
     "open_folder": "Abrir pasta externa",
+    "open_outside": "Abrir externamente",
     "rename": "renomear",
+    "rename_changed": "Devido às políticas de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "save": "salvar em notas",
     "settings": {
       "data": {
@@ -3344,6 +3350,8 @@
         "label": "Disparador de detalhes da grade"
       },
       "input": {
+        "confirm_delete_message": "confirmar antes de excluir a mensagem",
+        "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
         "paste_long_text_as_file": "Colar texto longo como arquivo",
         "paste_long_text_threshold": "Limite de texto longo",

@@ -538,7 +538,10 @@
         "tip": "可執行的程式碼塊工具欄中會顯示運行按鈕，注意不要執行危險程式碼！",
         "title": "程式碼執行"
       },
-      "code_image_tools": "啟用預覽工具",
+      "code_image_tools": {
+        "label": "啟用預覽工具",
+        "tip": "為 mermaid 等程式碼區塊渲染後的圖像啟用預覽工具"
+      },
       "code_wrappable": "程式碼區塊可自動換行",
       "context_count": {
         "label": "上下文",
@@ -1626,6 +1629,7 @@
     "only_markdown": "僅支援 Markdown 格式",
     "only_one_file_allowed": "只能上傳一個文件",
     "open_folder": "打開外部文件夾",
+    "open_outside": "從外部打開",
     "rename": "重命名",
     "rename_changed": "由於安全策略，文件名已從 {{original}} 更改為 {{final}}",
     "save": "儲存到筆記",

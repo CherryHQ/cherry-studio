@@ -677,6 +677,7 @@
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
     "select_folder": "Seleccionar carpeta",
+    "supported_providers": "Proveedores de servicios compatibles",
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
     "working_directory": "directorio de trabajo"
@@ -1319,7 +1320,8 @@
       "delete": {
         "content": "Eliminar el mensaje del grupo eliminará la pregunta del usuario y todas las respuestas del asistente",
         "title": "Eliminar mensaje del grupo"
-      }
+      },
+      "retry_failed": "Reintentar el mensaje con error"
     },
     "ignore": {
       "knowledge": {
@@ -1620,9 +1622,13 @@
     "new_folder": "Nueva carpeta",
     "new_note": "Crear nota nueva",
     "no_content_to_copy": "No hay contenido para copiar",
+    "no_file_selected": "Por favor, seleccione el archivo a subir",
     "only_markdown": "Solo se admite el formato Markdown",
+    "only_one_file_allowed": "solo se puede subir un archivo",
     "open_folder": "abrir carpeta externa",
+    "open_outside": "Abrir desde el exterior",
     "rename": "renombrar",
+    "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
     "save": "Guardar en notas",
     "settings": {
       "data": {
@@ -3344,6 +3350,8 @@
         "label": "Desencadenante de detalles de cuadrícula"
       },
       "input": {
+        "confirm_delete_message": "Confirmar antes de eliminar mensaje",
+        "confirm_regenerate_message": "confirmar antes de regenerar el mensaje",
         "enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
         "paste_long_text_as_file": "Pegar texto largo como archivo",
         "paste_long_text_threshold": "Límite de longitud de texto largo",
