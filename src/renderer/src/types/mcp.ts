@@ -20,11 +20,12 @@ export const McpServerTypeSchema = z
     z.literal('stdio'),
     z.literal('sse'),
     z.literal('streamableHttp'),
+    z.literal('http'),
     z.literal('streamable_http'),
     z.literal('inMemory')
   ])
   .transform((type) => {
-    if (type === 'streamable_http') {
+    if (type === 'streamable_http' || type === 'http') {
       return 'streamableHttp'
     } else {
       return type
