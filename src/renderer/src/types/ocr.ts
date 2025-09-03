@@ -103,7 +103,7 @@ export const isBuiltinOcrProvider = (p: OcrProvider): p is BuiltinOcrProvider =>
   return isBuiltinOcrProviderId(p.id)
 }
 
-// Not sure compatiable api endpoint exists. May not support custom ocr provider
+// Not sure compatible api endpoint exists. May not support custom ocr provider
 export type CustomOcrProvider = OcrProvider & {
   id: Exclude<string, BuiltinOcrProviderId>
 }
