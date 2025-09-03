@@ -19,7 +19,6 @@ interface CodeViewerProps {
    * - Supports shiki aliases: c#/csharp, objective-c++/obj-c++/objc++, etc.
    */
   language: string
-  children: React.ReactNode
   onHeightChange?: (scrollHeight: number) => void
   /**
    * Height of the scroll container.

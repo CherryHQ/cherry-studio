@@ -21,11 +21,12 @@ export function safeSerialize(
 
     /**
      * 是否美化输出
+     * @default true
      */
     pretty?: boolean
   } = {}
 ): string | null {
-  const { onError = 'serialize', pretty = false } = options
+  const { onError = 'serialize', pretty = true } = options
   const space = pretty ? 2 : undefined
 
   // 1. 如果本身就是合法的 Serializable 值，直接序列化

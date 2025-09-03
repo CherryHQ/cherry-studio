@@ -258,7 +258,7 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
       {error.name && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.name')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <ErrorDetailValue>{error.name}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.message && (
@@ -282,14 +282,14 @@ const BuiltinError = ({ error }: { error: SerializedError }) => {
 // 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
 const AiSdkError = ({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
-  const cause = safeToString(error.cause)
+  const cause = error.cause
   return (
     <>
       <BuiltinError error={error} />
       {cause && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.cause')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <ErrorDetailValue>{error.cause}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
     </>
@@ -317,38 +317,39 @@ const AiApiCallError = ({ error }: { error: SerializedAiSdkAPICallError }) => {
       {requestBodyValues && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.requestBodyValues')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <CodeViewer value={safeToString(error.requestBodyValues)} className="source-view" language="json" expanded />
         </ErrorDetailItem>
       )}
 
       {error.statusCode && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <ErrorDetailValue>{error.statusCode}</ErrorDetailValue>
         </ErrorDetailItem>
       )}
       {error.responseHeaders && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+          <CodeViewer
+            value={JSON.stringify(error.responseHeaders, null, 2)}
+            className="source-view"
+            language="json"
+            expanded
+          />
         </ErrorDetailItem>
       )}
 
       {error.responseBody && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.responseBody')}:</ErrorDetailLabel>
-          <CodeViewer className="source-view" language="json" expanded>
-            {JSON.stringify(error.responseBody, null, 2)}
-          </CodeViewer>
+          <CodeViewer value={error.responseBody} className="source-view" language="json" expanded />
         </ErrorDetailItem>
       )}
 
       {data && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.data')}:</ErrorDetailLabel>
-          <StackTrace>
-            <pre>{error.stack}</pre>
-          </StackTrace>
+          <CodeViewer value={safeToString(error.data)} className="source-view" language="json" expanded />
         </ErrorDetailItem>
       )}
     </ErrorDetailList>
