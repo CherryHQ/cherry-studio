@@ -563,7 +563,12 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('chat.settings.code_image_tools')}</SettingRowTitleSmall>
+            <SettingRowTitleSmall>
+              {t('chat.settings.code_image_tools.label')}
+              <Tooltip title={t('chat.settings.code_image_tools.tip')}>
+                <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
+              </Tooltip>
+            </SettingRowTitleSmall>
             <Switch
               size="small"
               checked={codeImageTools}
