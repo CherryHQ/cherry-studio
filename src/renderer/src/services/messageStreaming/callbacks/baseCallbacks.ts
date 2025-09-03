@@ -100,7 +100,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
             id: uuid(),
             type: 'error',
             title: i18n.t('notification.assistant'),
-            message: serializableError.message,
+            message: serializableError.message ?? '',
             silent: false,
             timestamp: Date.now(),
             source: 'assistant'

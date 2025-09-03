@@ -1,12 +1,19 @@
+import { SerializedError } from '@reduxjs/toolkit'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import {
+  isSerializedAiSdkAPICallError,
+  isSerializedAiSdkError,
+  SerializedAiSdkAPICallError,
+  SerializedAiSdkError
+} from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import { AISDKError, APICallError } from 'ai'
+import { AISDKError } from 'ai'
 import { Alert as AntdAlert, Button, Modal } from 'antd'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -33,7 +40,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
 
   if (i18n.exists(i18nKey)) {
     const providerId = block.error?.providerId
-    if (providerId) {
+    if (providerId && typeof providerId === 'string') {
       return (
         <Trans
           i18nKey={i18nKey}
@@ -56,10 +63,10 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
     return t(errorKey)
   }
 
-  if (HTTP_ERROR_CODES.includes(errorStatus)) {
+  if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <h5>
-        {getHttpMessageLabel(errorStatus)} {block.error?.message}
+        {getHttpMessageLabel(errorStatus.toString())} {block.error?.message}
       </h5>
     )
   }
@@ -82,15 +89,17 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   }
 
   const getAlertMessage = () => {
-    if (block.error && HTTP_ERROR_CODES.includes(block.error?.status)) {
+    const status = block.error?.status
+    if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
       return block.error.message
     }
     return null
   }
 
   const getAlertDescription = () => {
-    if (block.error && HTTP_ERROR_CODES.includes(block.error?.status)) {
-      return getHttpMessageLabel(block.error.status)
+    const status = block.error?.status
+    if (block.error && typeof status === 'number' && HTTP_ERROR_CODES.includes(status)) {
+      return getHttpMessageLabel(status.toString())
     }
     return <ErrorMessage block={block} />
   }
@@ -125,7 +134,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
 interface ErrorDetailModalProps {
   open: boolean
   onClose: () => void
-  error?: Record<string, any>
+  error?: SerializedError
 }
 
 const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, error }) => {
@@ -146,28 +155,17 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     navigator.clipboard.writeText(errorText)
   }
 
-  const renderErrorDetails = (error?: Record<string, any>) => {
+  const renderErrorDetails = (error?: SerializedError) => {
     if (!error) return <div>{t('error.unknown')}</div>
-    if (APICallError.isInstance(error)) {
+    if (isSerializedAiSdkAPICallError(error)) {
       return <AiApiCallError error={error} />
     }
-    if (AISDKError.isInstance(error)) {
+    if (isSerializedAiSdkError(error)) {
       return <AiSdkError error={error} />
     }
-    if (error instanceof Error) {
-      return (
-        <ErrorDetailList>
-          <BuiltinError error={error} />
-        </ErrorDetailList>
-      )
-    }
-
-    // default
     return (
       <ErrorDetailList>
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.unknown')}:</ErrorDetailLabel>
-        </ErrorDetailItem>
+        <BuiltinError error={error} />
       </ErrorDetailList>
     )
   }
@@ -253,7 +251,7 @@ const Alert = styled(AntdAlert)`
 `
 
 // 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
-const BuiltinError = ({ error }: { error: Error }) => {
+const BuiltinError = ({ error }: { error: SerializedError }) => {
   const { t } = useTranslation()
   return (
     <>
@@ -282,7 +280,7 @@ const BuiltinError = ({ error }: { error: Error }) => {
 }
 
 // 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
-const AiSdkError = ({ error }: { error: AISDKError }) => {
+const AiSdkError = ({ error }: { error: SerializedAiSdkError }) => {
   const { t } = useTranslation()
   const cause = safeToString(error.cause)
   return (
@@ -298,7 +296,7 @@ const AiSdkError = ({ error }: { error: AISDKError }) => {
   )
 }
 
-const AiApiCallError = ({ error }: { error: APICallError }) => {
+const AiApiCallError = ({ error }: { error: SerializedAiSdkAPICallError }) => {
   const { t } = useTranslation()
 
   // 这些字段是 unknown 类型，暂且不清楚都可能是什么类型，总之先覆盖下大部分场景

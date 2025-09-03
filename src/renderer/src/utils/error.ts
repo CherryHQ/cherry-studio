@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { SerializedError } from '@reduxjs/toolkit'
 import { AiSdkErrorUnion } from '@renderer/types/aiCoreTypes'
 import { AISDKError, APICallError } from 'ai'
 import { t } from 'i18next'
@@ -88,7 +89,7 @@ export const formatMcpError = (error: any) => {
   return error.message
 }
 
-export const serializeError = (error: AISDKError) => {
+export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
     message: error.message,
