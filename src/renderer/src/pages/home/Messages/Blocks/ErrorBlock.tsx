@@ -5,6 +5,8 @@ import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
+import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
+import { AISDKError, APICallError } from 'ai'
 import { Alert as AntdAlert, Button, Modal } from 'antd'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -131,53 +133,41 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
 
   const copyErrorDetails = () => {
     if (!error) return
-
-    const errorText = `
-${t('error.message')}: ${error.message || 'N/A'}
-${t('error.requestUrl')}: ${error.url || 'N/A'}
-${t('error.requestBody')}: ${error.requestBody ? JSON.stringify(error.requestBody, null, 2) : 'N/A'}
-${t('error.stack')}: ${error.stack || 'N/A'}
-    `.trim()
+    let errorText: string
+    if (AISDKError.isInstance(error)) {
+      errorText = formatAiSdkError(error)
+    } else if (error instanceof Error) {
+      errorText = formatError(error)
+    } else {
+      // fallback
+      errorText = safeToString(error)
+    }
 
     navigator.clipboard.writeText(errorText)
   }
 
-  const renderErrorDetails = (error: any) => {
+  const renderErrorDetails = (error?: Record<string, any>) => {
     if (!error) return <div>{t('error.unknown')}</div>
+    if (APICallError.isInstance(error)) {
+      return <AiApiCallError error={error} />
+    }
+    if (AISDKError.isInstance(error)) {
+      return <AiSdkError error={error} />
+    }
+    if (error instanceof Error) {
+      return (
+        <ErrorDetailList>
+          <BuiltinError error={error} />
+        </ErrorDetailList>
+      )
+    }
 
+    // default
     return (
       <ErrorDetailList>
-        {error.message && (
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
-            <ErrorDetailValue>{error.message}</ErrorDetailValue>
-          </ErrorDetailItem>
-        )}
-
-        {error.url && (
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
-            <ErrorDetailValue>{error.url}</ErrorDetailValue>
-          </ErrorDetailItem>
-        )}
-
-        {error.requestBody && (
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.requestBody')}:</ErrorDetailLabel>
-            <CodeViewer className="source-view" language="json" expanded>
-              {JSON.stringify(error.requestBody, null, 2)}
-            </CodeViewer>
-          </ErrorDetailItem>
-        )}
-
-        {error.stack && (
-          <ErrorDetailItem>
-            <ErrorDetailLabel>{t('error.stack')}:</ErrorDetailLabel>
-            <StackTrace>
-              <pre>{error.stack}</pre>
-            </StackTrace>
-          </ErrorDetailItem>
-        )}
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.unknown')}:</ErrorDetailLabel>
+        </ErrorDetailItem>
       </ErrorDetailList>
     )
   }
@@ -261,5 +251,110 @@ const Alert = styled(AntdAlert)`
     margin: 5px;
   }
 `
+
+// 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
+const BuiltinError = ({ error }: { error: Error }) => {
+  const { t } = useTranslation()
+  return (
+    <>
+      {error.name && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.name')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {error.message && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.message')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {error.stack && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.stack')}:</ErrorDetailLabel>
+          <StackTrace>
+            <pre>{error.stack}</pre>
+          </StackTrace>
+        </ErrorDetailItem>
+      )}
+    </>
+  )
+}
+
+// 作为 base，渲染公共字段，应当在 ErrorDetailList 中渲染
+const AiSdkError = ({ error }: { error: AISDKError }) => {
+  const { t } = useTranslation()
+  const cause = safeToString(error.cause)
+  return (
+    <>
+      <BuiltinError error={error} />
+      {cause && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.cause')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+    </>
+  )
+}
+
+const AiApiCallError = ({ error }: { error: APICallError }) => {
+  const { t } = useTranslation()
+
+  // 这些字段是 unknown 类型，暂且不清楚都可能是什么类型，总之先覆盖下大部分场景
+  const requestBodyValues = safeToString(error.requestBodyValues)
+  const data = safeToString(error.data)
+
+  return (
+    <ErrorDetailList>
+      <AiSdkError error={error} />
+
+      {error.url && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.requestUrl')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.url}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {requestBodyValues && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.requestBodyValues')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {error.statusCode && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.statusCode')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+      {error.responseHeaders && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.responseHeaders')}:</ErrorDetailLabel>
+          <ErrorDetailValue>{error.message}</ErrorDetailValue>
+        </ErrorDetailItem>
+      )}
+
+      {error.responseBody && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.responseBody')}:</ErrorDetailLabel>
+          <CodeViewer className="source-view" language="json" expanded>
+            {JSON.stringify(error.responseBody, null, 2)}
+          </CodeViewer>
+        </ErrorDetailItem>
+      )}
+
+      {data && (
+        <ErrorDetailItem>
+          <ErrorDetailLabel>{t('error.data')}:</ErrorDetailLabel>
+          <StackTrace>
+            <pre>{error.stack}</pre>
+          </StackTrace>
+        </ErrorDetailItem>
+      )}
+    </ErrorDetailList>
+  )
+}
 
 export default React.memo(ErrorBlock)

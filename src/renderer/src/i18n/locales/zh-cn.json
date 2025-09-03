@@ -831,6 +831,7 @@
         "invalid": "无效的MCP服务器"
       }
     },
+    "cause": "错误原因",
     "chat": {
       "chunk": {
         "non_json": "返回了无效的数据格式"
@@ -840,6 +841,7 @@
       "quota_exceeded": "您今日免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
     },
+    "data": "数据",
     "detail": "错误详情",
     "details": "详细信息",
     "http": {
@@ -859,6 +861,7 @@
       "exists": "模型已存在",
       "not_exists": "模型不存在"
     },
+    "name": "错误名称",
     "no_api_key": "API 密钥未配置",
     "pause_placeholder": "已中断",
     "provider_disabled": "模型提供商未启用",
@@ -867,9 +870,13 @@
       "title": "渲染错误"
     },
     "requestBody": "请求内容",
+    "requestBodyValues": "请求体",
     "requestUrl": "请求路径",
+    "responseBody": "响应内容",
+    "responseHeaders": "响应首部",
     "stack": "堆栈信息",
     "status": "状态码",
+    "statusCode": "状态码",
     "unknown": "未知错误",
     "user_message_not_found": "无法找到原始用户消息"
   },
