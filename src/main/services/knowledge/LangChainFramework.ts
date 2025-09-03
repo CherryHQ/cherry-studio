@@ -28,7 +28,6 @@ import {
   isKnowledgeUrlItem,
   isKnowledgeVideoItem,
   KnowledgeBaseParams,
-  KnowledgeNoteItem,
   KnowledgeSearchResult
 } from '@types'
 import { uuidv4 } from 'zod/v4'
@@ -445,7 +444,7 @@ export class LangChainFramework implements IKnowledgeFramework {
     }
 
     const content = item.content
-    const sourceUrl = (item as KnowledgeNoteItem & { sourceUrl?: string }).sourceUrl || ''
+    const sourceUrl = item.sourceUrl ?? ''
 
     logger.info(`noteTask ${content}, ${sourceUrl}`)
 

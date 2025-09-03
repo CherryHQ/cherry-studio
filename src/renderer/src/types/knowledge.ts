@@ -42,6 +42,7 @@ export const isKnowledgeVideoItem = (item: KnowledgeItem): item is KnowledgeVide
 export type KnowledgeNoteItem = KnowledgeItem & {
   type: 'note'
   content: string
+  sourceUrl?: string
 }
 
 export const isKnowledgeNoteItem = (item: KnowledgeItem): item is KnowledgeNoteItem => {
