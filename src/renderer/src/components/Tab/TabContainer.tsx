@@ -1,5 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { TopNavbarOpenedMinappTabs } from '@renderer/components/app/PinnedMinapps'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -33,8 +35,6 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
-
-import { TopNavbarOpenedMinappTabs } from '../app/PinnedMinapps'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -155,36 +155,40 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
-        <Sortable
-          items={filteredTabs}
-          itemKey="id"
-          layout="list"
-          horizontal
-          gap={'6px'}
-          onSortEnd={onSortEnd}
-          renderItem={(tab) => (
-            <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
-              <TabHeader>
-                {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
-              </TabHeader>
-              {tab.id !== 'home' && (
-                <CloseButton
-                  className="close-button"
-                  data-no-dnd
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    closeTab(tab.id)
-                  }}>
-                  <X size={12} />
-                </CloseButton>
+        <TabsArea>
+          <TabsScroll>
+            <Sortable
+              items={filteredTabs}
+              itemKey="id"
+              layout="list"
+              horizontal
+              gap={'6px'}
+              onSortEnd={onSortEnd}
+              renderItem={(tab) => (
+                <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
+                  <TabHeader>
+                    {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
+                    <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
+                  </TabHeader>
+                  {tab.id !== 'home' && (
+                    <CloseButton
+                      className="close-button"
+                      data-no-dnd
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        closeTab(tab.id)
+                      }}>
+                      <X size={12} />
+                    </CloseButton>
+                  )}
+                </Tab>
               )}
-            </Tab>
-          )}
-        />
-        <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
-          <PlusOutlined />
-        </AddTabButton>
+            />
+          </TabsScroll>
+          <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
+            <PlusOutlined />
+          </AddTabButton>
+        </TabsArea>
         <RightButtonsContainer>
           <TopNavbarOpenedMinappTabs />
           <Tooltip
@@ -215,6 +219,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
 `
 
 const TabsBar = styled.div<{ $isFullscreen: boolean }>`
@@ -236,6 +241,20 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   }
 `
 
+const TabsArea = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+`
+
+const TabsScroll = styled(Scrollbar)`
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
 const Tab = styled.div<{ active?: boolean }>`
   display: flex;
   align-items: center;
@@ -248,13 +267,10 @@ const Tab = styled.div<{ active?: boolean }>`
   height: 30px;
   min-width: 90px;
   transition: background 0.2s;
-  white-space: nowrap;
-  overflow: hidden;
 
   .close-button {
     opacity: 0;
     transition: opacity 0.2s;
-    flex-shrink: 0;
   }
 
   &:hover {
@@ -322,6 +338,7 @@ const RightButtonsContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   flex-shrink: 0;
 `
 
@@ -363,6 +380,7 @@ const TabContent = styled.div`
   margin: 6px;
   margin-top: 0;
   border-radius: 8px;
+  overflow: hidden;
 `
 
 export default TabsContainer
