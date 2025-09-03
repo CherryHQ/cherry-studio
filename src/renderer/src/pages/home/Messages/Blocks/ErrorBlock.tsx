@@ -337,9 +337,12 @@ const AiApiCallError = ({ error }: { error: SerializedAiSdkAPICallError }) => {
       {error.responseBody && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.responseBody')}:</ErrorDetailLabel>
-          <CodeViewer className="source-view" language="json" expanded>
-            {JSON.stringify(error.responseBody, null, 2)}
-          </CodeViewer>
+          <CodeViewer
+            className="source-view"
+            language="json"
+            expanded
+            value={JSON.stringify(error.responseBody, null, 2)}
+          />
         </ErrorDetailItem>
       )}
 
