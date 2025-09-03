@@ -1,7 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { TopNavbarOpenedMinappTabs } from '@renderer/components/app/PinnedMinapps'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -143,11 +142,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
-  const filteredTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
+  const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
 
   const { onSortEnd } = useDndReorder<Tab>({
     originalList: tabs,
-    filteredList: filteredTabs,
+    filteredList: visibleTabs,
     onUpdate: (newTabs) => dispatch(setTabs(newTabs)),
     itemKey: 'id'
   })
@@ -156,14 +155,15 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
         <TabsArea>
-          <TabsScroll>
+          <SortableWrapper>
             <Sortable
-              items={filteredTabs}
+              items={visibleTabs}
               itemKey="id"
               layout="list"
               horizontal
               gap={'6px'}
               onSortEnd={onSortEnd}
+              className="tabs-sortable"
               renderItem={(tab) => (
                 <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
                   <TabHeader>
@@ -184,7 +184,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
                 </Tab>
               )}
             />
-          </TabsScroll>
+          </SortableWrapper>
           <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
             <PlusOutlined />
           </AddTabButton>
@@ -246,8 +246,9 @@ const TabsArea = styled.div`
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
   gap: 6px;
+  padding-right: 2rem;
+  overflow: hidden;
 
   -webkit-app-region: drag;
 
@@ -256,24 +257,26 @@ const TabsArea = styled.div`
   }
 `
 
-const TabsScroll = styled(Scrollbar)`
-  &::-webkit-scrollbar {
-    display: none;
+const SortableWrapper = styled.div`
+  overflow: hidden;
+
+  .tabs-sortable > * {
+    flex: 1 1 auto;
+    min-width: 0;
   }
 `
 
-const Tab = styled.div<{ active?: boolean }>`
+const Tab = styled.div<{ active?: boolean; $tabCount?: number }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 4px 10px;
   padding-right: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
+  transition: background 0.2s;
   border-radius: var(--list-item-border-radius);
   user-select: none;
   height: 30px;
-  min-width: 90px;
-  transition: background 0.2s;
 
   .close-button {
     opacity: 0;
@@ -309,10 +312,8 @@ const TabTitle = styled.span`
   display: flex;
   align-items: center;
   margin-right: 4px;
-  text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  min-width: 0;
 `
 
 const CloseButton = styled.span`
