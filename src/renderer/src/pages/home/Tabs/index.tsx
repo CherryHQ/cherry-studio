@@ -1,16 +1,16 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useResize } from '@renderer/hooks/useResize'
+import { useResizeValue } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState } from '@renderer/store'
 import { setResizeValue } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch, useSelector } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import styled from 'styled-components'
 
 import Assistants from './AssistantsTab'
@@ -54,7 +54,7 @@ const HomeTabs: FC<Props> = ({
       return 'chat-right-width'
     }
   }, [tab, topicPosition])
-  const savedWidth = useSelector((s: RootState) => s.runtime.chat.resizeValue[resizeKey])
+  const savedWidth = useResizeValue(resizeKey)
   const { handleResize } = useResize()
   const containerRef = useRef<HTMLDivElement>(null)
   const resizeHandlerRef = useRef<HTMLDivElement>(null)

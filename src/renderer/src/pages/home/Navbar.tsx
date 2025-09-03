@@ -4,12 +4,12 @@ import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
+import { modelGenerating, useResizeValue } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { RootState, useAppDispatch } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
@@ -17,7 +17,6 @@ import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FC } from 'react'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -39,7 +38,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
-  const resizeValue = useSelector((s: RootState) => s.runtime.chat.resizeValue['chat-left-width'])
+  const resizeValue = useResizeValue('chat-left-width')
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
