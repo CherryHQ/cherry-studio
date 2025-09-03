@@ -6,6 +6,9 @@ export interface SerializedError {
   stack: string | null
   [key: string]: Serializable
 }
+export const isSerializedError = (error: Record<string, unknown>): error is SerializedAiSdkError => {
+  return 'name' in error && 'message' in error && 'stack' in error
+}
 export interface SerializedAiSdkError extends SerializedError {
   readonly cause: string | null
 }

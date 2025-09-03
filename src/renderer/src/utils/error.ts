@@ -1,6 +1,10 @@
 import { loggerService } from '@logger'
-import { AiSdkErrorUnion } from '@renderer/types/aiCoreTypes'
-import { SerializedAiSdkAPICallError, SerializedError } from '@renderer/types/error'
+import {
+  isSerializedAiSdkAPICallError,
+  SerializedAiSdkAPICallError,
+  SerializedAiSdkError,
+  SerializedError
+} from '@renderer/types/error'
 import { AISDKError, APICallError } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -199,16 +203,16 @@ function getCircularReplacer() {
   }
 }
 
-export function formatError(error: Error): string {
+export function formatError(error: SerializedError): string {
   return `${t('error.name')}: ${error.name}\n${t('error.message')}: ${error.message}\n${t('error.stack')}: ${error.stack}`
 }
 
-export function formatAiSdkError(error: AiSdkErrorUnion): string {
+export function formatAiSdkError(error: SerializedAiSdkError): string {
   let text = formatError(error) + '\n'
   if (error.cause) {
     text += `${t('error.cause')}: ${error.cause}\n`
   }
-  if (APICallError.isInstance(error)) {
+  if (isSerializedAiSdkAPICallError(error)) {
     if (error.statusCode) {
       text += `${t('error.statusCode')}: ${error.statusCode}\n`
     }

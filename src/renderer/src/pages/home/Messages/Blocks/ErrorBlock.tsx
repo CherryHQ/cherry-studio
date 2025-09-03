@@ -7,13 +7,13 @@ import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import {
   isSerializedAiSdkAPICallError,
   isSerializedAiSdkError,
+  isSerializedError,
   SerializedAiSdkAPICallError,
   SerializedAiSdkError,
   SerializedError
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import { AISDKError } from 'ai'
 import { Alert as AntdAlert, Button, Modal } from 'antd'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -143,9 +143,9 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
   const copyErrorDetails = () => {
     if (!error) return
     let errorText: string
-    if (AISDKError.isInstance(error)) {
+    if (isSerializedAiSdkError(error)) {
       errorText = formatAiSdkError(error)
-    } else if (error instanceof Error) {
+    } else if (isSerializedError(error)) {
       errorText = formatError(error)
     } else {
       // fallback
