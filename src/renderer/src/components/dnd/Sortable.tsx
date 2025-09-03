@@ -56,6 +56,8 @@ interface SortableProps<T> {
   listStyle?: React.CSSProperties
   /** Ghost item style */
   ghostItemStyle?: React.CSSProperties
+  /** Item gap */
+  gap?: number | string
 }
 
 function Sortable<T>({
@@ -70,7 +72,8 @@ function Sortable<T>({
   useDragOverlay = true,
   showGhost = false,
   className,
-  listStyle
+  listStyle,
+  gap
 }: SortableProps<T>) {
   const sensors = useSensors(
     useSensor(PortalSafePointerSensor, {
@@ -150,7 +153,12 @@ function Sortable<T>({
       onDragCancel={handleDragCancel}
       modifiers={modifiers}>
       <SortableContext items={itemIds} strategy={strategy}>
-        <ListWrapper className={className} data-layout={layout} style={listStyle}>
+        <ListWrapper
+          className={className}
+          data-layout={layout}
+          data-horizontal={!!horizontal}
+          $gap={gap}
+          style={listStyle}>
           {items.map((item, index) => (
             <SortableItem
               key={itemIds[index]}
@@ -176,16 +184,22 @@ function Sortable<T>({
   )
 }
 
-const ListWrapper = styled.div`
+const ListWrapper = styled.div<{ $gap?: number | string }>`
   &[data-layout='grid'] {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     width: 100%;
-    gap: 12px;
+    gap: ${({ $gap }) => ($gap ? $gap : '12px')};
 
     @media (max-width: 768px) {
       grid-template-columns: 1fr;
     }
+  }
+
+  &[data-layout='list'][data-horizontal='true'] {
+    display: flex;
+    gap: ${({ $gap }) => ($gap ? $gap : '6px')};
+    align-items: center;
   }
 `
 
