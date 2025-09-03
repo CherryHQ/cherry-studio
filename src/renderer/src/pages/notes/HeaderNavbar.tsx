@@ -3,7 +3,7 @@ import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/ap
 import { HStack } from '@renderer/components/Layout'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useShowWorkspace } from '@renderer/hooks/useStore'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNodeInTree } from '@renderer/services/NotesTreeService'
 import { Breadcrumb, BreadcrumbProps, Dropdown, Tooltip } from 'antd'
 import { t } from 'i18next'

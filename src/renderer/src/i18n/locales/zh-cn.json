@@ -1626,6 +1626,7 @@
     "only_markdown": "仅支持 Markdown 格式",
     "only_one_file_allowed": "只能上传一个文件",
     "open_folder": "打开外部文件夹",
+    "open_outside": "从外部打开",
     "rename": "重命名",
     "rename_changed": "由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "保存到笔记",

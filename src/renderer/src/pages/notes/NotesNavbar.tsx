@@ -2,7 +2,7 @@ import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar
 import { HStack } from '@renderer/components/Layout'
 import { isMac } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import { useShowWorkspace } from '@renderer/hooks/useStore'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { Tooltip } from 'antd'
 import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import { useCallback } from 'react'

@@ -1626,6 +1626,7 @@
     "only_markdown": "Markdown ファイルのみをアップロードできます",
     "only_one_file_allowed": "アップロードできるファイルは1つだけです",
     "open_folder": "外部フォルダーを開きます",
+    "open_outside": "外部から開く",
     "rename": "名前の変更",
     "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
     "save": "メモに保存する",

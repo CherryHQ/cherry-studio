@@ -2346,6 +2346,26 @@ const migrateConfig = {
       logger.error('migrate 145 error', error as Error)
       return state
     }
+  },
+  '146': (state: RootState) => {
+    try {
+      // Migrate showWorkspace from settings to note store
+      if (state.settings && state.note) {
+        const showWorkspaceValue = (state.settings as any)?.showWorkspace
+        if (showWorkspaceValue !== undefined) {
+          state.note.settings.showWorkspace = showWorkspaceValue
+          // Remove from settings
+          delete (state.settings as any).showWorkspace
+        } else if (state.note.settings.showWorkspace === undefined) {
+          // Set default value if not exists
+          state.note.settings.showWorkspace = true
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 146 error', error as Error)
+      return state
+    }
   }
 }
 

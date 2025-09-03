@@ -37,6 +37,7 @@ import {
   FolderOpen,
   HelpCircle,
   MenuIcon,
+  NotebookPen,
   PackagePlus,
   PinIcon,
   PinOffIcon,
@@ -277,6 +278,14 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         }
       },
       {
+        label: t('notes.save'),
+        key: 'notes',
+        icon: <NotebookPen size={14} />,
+        onClick: async () => {
+          exportTopicToNotes(topic, notesPath)
+        }
+      },
+      {
         label: t('chat.topics.clear.title'),
         key: 'clear-messages',
         icon: <BrushCleaning size={14} />,
@@ -344,13 +353,6 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               } catch {
                 window.message.error(t('chat.save.topic.knowledge.error.save_failed'))
               }
-            }
-          },
-          {
-            label: t('notes.save'),
-            key: 'notes',
-            onClick: async () => {
-              exportTopicToNotes(topic, notesPath)
             }
           }
         ]

@@ -1626,6 +1626,7 @@
     "only_markdown": "Only Markdown files are supported",
     "only_one_file_allowed": "Only one file can be uploaded",
     "open_folder": "Open an external folder",
+    "open_outside": "Open from external",
     "rename": "Rename",
     "rename_changed": "Due to security policies, the filename has been changed from {{original}} to {{final}}",
     "save": "Save to Notes",

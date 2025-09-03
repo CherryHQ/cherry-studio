@@ -42,7 +42,19 @@ import {
 } from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Check, FilePenLine, Languages, ListChecks, Menu, Save, Split, ThumbsUp, Upload } from 'lucide-react'
+import {
+  AtSign,
+  Check,
+  FilePenLine,
+  Languages,
+  ListChecks,
+  Menu,
+  NotebookPen,
+  Save,
+  Split,
+  ThumbsUp,
+  Upload
+} from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -255,15 +267,6 @@ const MessageMenubar: FC<Props> = (props) => {
             onClick: () => {
               SaveToKnowledgePopup.showForMessage(message)
             }
-          },
-          {
-            label: t('notes.save'),
-            key: 'clipboard',
-            onClick: async () => {
-              const title = await getMessageTitle(message)
-              const markdown = messageToMarkdown(message)
-              exportMessageToNotes(title, markdown, notesPath)
-            }
           }
         ]
       },
@@ -382,7 +385,6 @@ const MessageMenubar: FC<Props> = (props) => {
       toggleMultiSelectMode,
       message,
       mainTextContent,
-      notesPath,
       messageContainerRef,
       topic.name
     ]
@@ -617,6 +619,21 @@ const MessageMenubar: FC<Props> = (props) => {
               ) : (
                 <ThumbsUp size={15} />
               )}
+            </ActionButton>
+          </Tooltip>
+        )}
+        {isAssistantMessage && (
+          <Tooltip title={t('notes.save')} mouseEnterDelay={0.8}>
+            <ActionButton
+              className="message-action-button"
+              onClick={async (e) => {
+                e.stopPropagation()
+                const title = await getMessageTitle(message)
+                const markdown = messageToMarkdown(message)
+                exportMessageToNotes(title, markdown, notesPath)
+              }}
+              $softHoverBg={softHoverBg}>
+              <NotebookPen size={15} />
             </ActionButton>
           </Tooltip>
         )}
