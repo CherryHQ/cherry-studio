@@ -1,7 +1,7 @@
 import { SearchOutlined } from '@ant-design/icons'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { getProviderAvatar } from '@renderer/pages/settings/ProviderSettings/AddProviderPopup'
 import { Input, Tooltip } from 'antd'
 import { FC, useMemo, useState } from 'react'
 import styled from 'styled-components'
@@ -52,7 +52,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         {filteredProviders.map(({ id, name, logo }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
-              {getProviderAvatar({ providerId: id, providerName: name, logoSrc: logo })}
+              <ProviderAvatarPrimitive providerId={id} size={52} providerName={name} logoSrc={logo} />
             </LogoItem>
           </Tooltip>
         ))}

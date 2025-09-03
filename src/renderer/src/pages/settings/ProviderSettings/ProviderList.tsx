@@ -5,22 +5,14 @@ import {
   type DraggableVirtualListRef,
   useDraggableReorder
 } from '@renderer/components/DraggableList'
-import { DeleteIcon, EditIcon, PoeLogo } from '@renderer/components/Icons'
-import { getProviderLogo } from '@renderer/config/providers'
+import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { ProviderAvatar } from '@renderer/components/ProviderAvatar'
 import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { isSystemProvider, Provider, ProviderType } from '@renderer/types'
-import {
-  generateColorFromChar,
-  getFancyProviderName,
-  getFirstCharacter,
-  getForegroundColor,
-  matchKeywordsInModel,
-  matchKeywordsInProvider,
-  uuid
-} from '@renderer/utils'
-import { Avatar, Button, Dropdown, Input, MenuProps, Tag } from 'antd'
+import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
+import { Button, Dropdown, Input, MenuProps, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import { FC, startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -280,48 +272,6 @@ const ProviderList: FC = () => {
     }
   }
 
-  const getProviderAvatar = (provider: Provider, size: number = 25) => {
-    // 特殊处理一下svg格式
-    if (isSystemProvider(provider)) {
-      switch (provider.id) {
-        case 'poe':
-          return (
-            <ProviderSvgLogo size={size}>
-              <PoeLogo />
-            </ProviderSvgLogo>
-          )
-      }
-    }
-
-    const logoSrc = getProviderLogo(provider.id)
-    if (logoSrc) {
-      return <ProviderLogo draggable="false" shape="circle" src={logoSrc} size={size} />
-    }
-
-    const customLogo = providerLogos[provider.id]
-    if (customLogo) {
-      // Poe 这类使用 svg 格式的 provider，需要特殊处理一下
-      if (customLogo === 'poe') {
-        return (
-          <ProviderSvgLogo size={size}>
-            <PoeLogo />
-          </ProviderSvgLogo>
-        )
-      }
-      return <ProviderLogo draggable="false" shape="circle" src={customLogo} size={size} />
-    }
-
-    // generate color for custom provider
-    const backgroundColor = generateColorFromChar(provider.name)
-    const color = provider.name ? getForegroundColor(backgroundColor) : 'white'
-
-    return (
-      <ProviderLogo size={size} shape="circle" style={{ backgroundColor, color, minWidth: size }}>
-        {getFirstCharacter(provider.name)}
-      </ProviderLogo>
-    )
-  }
-
   const filteredProviders = providers.filter((provider) => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
@@ -394,7 +344,14 @@ const ProviderList: FC = () => {
                 <DragHandle>
                   <GripVertical size={12} />
                 </DragHandle>
-                {getProviderAvatar(provider)}
+                <ProviderAvatar
+                  style={{
+                    width: 24,
+                    height: 24
+                  }}
+                  provider={provider}
+                  customLogos={providerLogos}
+                />
                 <ProviderItemName className="text-nowrap">{getFancyProviderName(provider)}</ProviderItemName>
                 {provider.enabled && (
                   <Tag color="green" style={{ marginLeft: 'auto', marginRight: 0, borderRadius: 16 }}>
@@ -476,20 +433,6 @@ const DragHandle = styled.div`
   &:active {
     cursor: grabbing;
   }
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
-`
-
-const ProviderSvgLogo = styled.div<{ size: number }>`
-  width: ${({ size }) => size}px;
-  height: ${({ size }) => size}px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0.5px solid var(--color-border);
-  border-radius: 100%;
 `
 
 const ProviderItemName = styled.div`

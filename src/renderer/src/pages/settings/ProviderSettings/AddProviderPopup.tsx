@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { PoeLogo } from '@renderer/components/Icons'
 import { Center, VStack } from '@renderer/components/Layout'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
@@ -18,21 +18,6 @@ const logger = loggerService.withContext('AddProviderPopup')
 interface Props {
   provider?: Provider
   resolve: (result: { name: string; type: ProviderType; logo?: string; logoFile?: File }) => void
-}
-
-interface ProviderAvatarProps {
-  providerId: string
-  providerName: string
-  logoSrc: string
-}
-
-export const getProviderAvatar = ({ providerId, providerName, logoSrc }: ProviderAvatarProps, size: number = 32) => {
-  switch (providerId) {
-    case 'poe':
-      return <PoeLogo fontSize={size} />
-  }
-
-  return <img src={logoSrc} alt={providerName} draggable={false} />
 }
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
@@ -232,11 +217,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               placement="bottom">
               {logo ? (
                 <ProviderLogo>
-                  {getProviderAvatar({
-                    providerId: logo,
-                    providerName: name,
-                    logoSrc: logo
-                  })}
+                  <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />
                 </ProviderLogo>
               ) : (
                 <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
@@ -291,16 +272,8 @@ const ProviderLogo = styled.div`
   justify-content: center;
 
   transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
   &:hover {
     opacity: 0.8;
-  }
-
-  > img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
   }
 `
 
