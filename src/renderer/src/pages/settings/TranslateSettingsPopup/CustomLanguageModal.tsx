@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import InfoTooltip from '@renderer/components/InfoTooltip'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'

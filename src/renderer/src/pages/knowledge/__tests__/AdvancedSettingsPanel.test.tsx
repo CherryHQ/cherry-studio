@@ -25,8 +25,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock('@renderer/components/InfoTooltip', () => ({
-  default: ({ title }: { title: string }) => <div>{mocks.i18n.t(title)}</div>
+vi.mock('@renderer/components/TooltipIcons', () => ({
+  InfoTooltip: ({ title }: { title: string }) => <div>{mocks.i18n.t(title)}</div>
 }))
 
 vi.mock('react-i18next', () => ({

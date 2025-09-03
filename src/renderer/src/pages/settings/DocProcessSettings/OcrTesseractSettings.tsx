@@ -1,6 +1,6 @@
 // import { loggerService } from '@logger'
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import CustomTag from '@renderer/components/Tags/CustomTag'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'

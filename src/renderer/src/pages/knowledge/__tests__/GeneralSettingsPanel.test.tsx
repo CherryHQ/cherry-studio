@@ -31,8 +31,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // Mock InfoTooltip component
-vi.mock('@renderer/components/InfoTooltip', () => ({
-  default: ({ title, placement }: { title: string; placement: string }) => (
+vi.mock('@renderer/components/TooltipIcons', () => ({
+  InfoTooltip: ({ title, placement }: { title: string; placement: string }) => (
     <span data-testid="info-tooltip" title={title} data-placement={placement}>
       ℹ️
     </span>

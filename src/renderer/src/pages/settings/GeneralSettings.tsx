@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'

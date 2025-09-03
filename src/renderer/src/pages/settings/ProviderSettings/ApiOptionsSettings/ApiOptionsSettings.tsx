@@ -1,5 +1,5 @@
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import { HStack } from '@renderer/components/Layout'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
 import { Flex, Switch } from 'antd'
