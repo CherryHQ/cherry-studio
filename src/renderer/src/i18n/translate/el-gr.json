@@ -1550,6 +1550,7 @@
       "selected": "Επιλεγμένη ετικέτα"
     },
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
+    "invalid_model": "Μη έγκυρο μοντέλο",
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
     "parameter_type": {

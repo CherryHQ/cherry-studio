@@ -1550,6 +1550,7 @@
       "selected": "Etiqueta selecionada"
     },
     "function_calling": "Chamada de função",
+    "invalid_model": "Modelo inválido",
     "no_matches": "Nenhum modelo disponível",
     "parameter_name": "Nome do parâmetro",
     "parameter_type": {

@@ -1552,6 +1552,7 @@
       "selected": "Selected tags"
     },
     "function_calling": "Function Calling",
+    "invalid_model": "Invalid Model",
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
     "parameter_type": {

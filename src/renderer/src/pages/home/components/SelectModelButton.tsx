@@ -4,8 +4,9 @@ import { isLocalAi } from '@renderer/config/env'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
+import { useAppSelector } from '@renderer/store'
 import { Assistant, Model } from '@renderer/types'
-import { Button } from 'antd'
+import { Button, Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
 import { FC, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +20,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { model, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
   const timerRef = useRef<NodeJS.Timeout>(undefined)
+  const provider = useAppSelector((state) => state.llm.providers.find((p) => p.id === model?.provider))
 
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
@@ -60,6 +62,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
         </ModelName>
       </ButtonContent>
       <ChevronsUpDown size={14} color="var(--color-icon)" />
+      {!provider && <Tag color="error">{t('models.invalid_model')}</Tag>}
     </DropdownButton>
   )
 }

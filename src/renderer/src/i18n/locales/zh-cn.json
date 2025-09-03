@@ -1552,6 +1552,7 @@
       "selected": "已选标签"
     },
     "function_calling": "函数调用",
+    "invalid_model": "无效模型",
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
     "parameter_type": {

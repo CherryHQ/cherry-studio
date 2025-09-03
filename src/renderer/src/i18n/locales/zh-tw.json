@@ -1552,6 +1552,7 @@
       "selected": "已選標籤"
     },
     "function_calling": "函數調用",
+    "invalid_model": "無效模型",
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {

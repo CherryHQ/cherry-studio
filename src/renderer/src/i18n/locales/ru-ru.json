@@ -1552,6 +1552,7 @@
       "selected": "Выбранные теги"
     },
     "function_calling": "Вызов функции",
+    "invalid_model": "Недействительная модель",
     "no_matches": "Нет доступных моделей",
     "parameter_name": "Имя параметра",
     "parameter_type": {
