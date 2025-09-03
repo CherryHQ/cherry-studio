@@ -1599,10 +1599,10 @@
     "hide_sidebar": "サイドバーを非表示",
     "show_sidebar": "サイドバーを表示",
     "window": {
-      "minimize": "最小化",
+      "close": "閉じる",
       "maximize": "最大化",
-      "restore": "元に戻す",
-      "close": "閉じる"
+      "minimize": "最小化",
+      "restore": "元に戻す"
     }
   },
   "navigate": {

@@ -1599,10 +1599,10 @@
     "hide_sidebar": "Hide Sidebar",
     "show_sidebar": "Show Sidebar",
     "window": {
-      "minimize": "Minimize",
+      "close": "Close",
       "maximize": "Maximize",
-      "restore": "Restore",
-      "close": "Close"
+      "minimize": "Minimize",
+      "restore": "Restore"
     }
   },
   "navigate": {
