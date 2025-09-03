@@ -13,8 +13,9 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import {
+  ChevronRight,
   FileSearch,
   Folder,
   Hammer,
@@ -31,7 +32,7 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -82,6 +83,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScroll, setCanScroll] = useState(false)
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -143,6 +146,31 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
+  const handleScrollRight = () => {
+    scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement) return
+
+    const checkScrollability = () => {
+      setCanScroll(scrollElement.scrollWidth > scrollElement.clientWidth)
+    }
+
+    checkScrollability()
+
+    const resizeObserver = new ResizeObserver(checkScrollability)
+    resizeObserver.observe(scrollElement)
+
+    window.addEventListener('resize', checkScrollability)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', checkScrollability)
+    }
+  }, [tabs])
+
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
 
   const { onSortEnd } = useDndReorder<Tab>({
@@ -156,7 +184,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
         <TabsArea>
-          <TabsScroll>
+          <TabsScroll ref={scrollRef}>
             <Sortable
               items={visibleTabs}
               itemKey="id"
@@ -186,6 +214,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
               )}
             />
           </TabsScroll>
+          {canScroll && (
+            <ScrollButton onClick={handleScrollRight} className="scroll-right-button" shape="circle" size="small">
+              <ChevronRight size={16} />
+            </ScrollButton>
+          )}
           <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
             <PlusOutlined />
           </AddTabButton>
@@ -249,11 +282,18 @@ const TabsArea = styled.div`
   min-width: 0;
   gap: 6px;
   padding-right: 2rem;
+  position: relative;
 
   -webkit-app-region: drag;
 
   > * {
     -webkit-app-region: no-drag;
+  }
+
+  &:hover {
+    .scroll-right-button {
+      opacity: 1;
+    }
   }
 `
 
@@ -338,6 +378,22 @@ const AddTabButton = styled.div`
   &:hover {
     background: var(--color-list-item);
   }
+`
+
+const ScrollButton = styled(Button)`
+  position: absolute;
+  right: 4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+
+  border: none;
+  box-shadow:
+    0 6px 16px 0 rgba(0, 0, 0, 0.08),
+    0 3px 6px -4px rgba(0, 0, 0, 0.12),
+    0 9px 28px 8px rgba(0, 0, 0, 0.05);
 `
 
 const RightButtonsContainer = styled.div`
