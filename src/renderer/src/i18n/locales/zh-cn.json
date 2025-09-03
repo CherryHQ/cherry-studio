@@ -248,6 +248,7 @@
   },
   "button": {
     "add": "添加",
+    "download": "下载",
     "added": "已添加",
     "case_sensitive": "区分大小写",
     "collapse": "收起",
@@ -1818,6 +1819,43 @@
       }
     }
   },
+  "ovms": {
+    "title": "Intel OVMS",
+    "download": {
+      "button": "下载",
+      "title": "下载 Intel OpenVINO 模型",
+      "error": "选择失败",
+      "model_id": "模型 ID:",
+      "model_id.required": "请输入模型 ID",
+      "model_id.placeholder": "必填，例如 OpenVINO/Qwen3-8B-int4-ov",
+      "model_id.model_id_pattern": "模型 ID 必须以 OpenVINO/ 开头",
+      "model_name": "模型名称:",
+      "model_name.required": "请输入模型名称",
+      "model_name.placeholder": "必填，例如 Qwen3-8B-int4-ov",
+      "model_source": "模型来源:",
+      "model_task": "模型任务:"
+    },
+    "failed": {
+        "install": "安装 ovms 失败:",
+        "run": "运行 ovms 失败:",
+        "stop": "停止 ovms 失败:"
+    },
+    "status": {
+        "running": "OVMS 正在运行",
+        "not_running": "OVMS 未运行",
+        "not_installed": "OVMS 未安装",
+        "unknown": "OVMS 状态未知"
+    },
+    "action": {
+        "install": "安装",
+        "installing": "正在安装",
+        "reinstall": "重装",
+        "starting": "启动中",
+        "stop": "停止 OVMS",
+        "stopping": "停止中",
+        "run": "运行 OVMS"
+    }
+  },
   "ollama": {
     "keep_alive_time": {
       "description": "对话后模型在内存中保持的时间（默认：5 分钟）",
@@ -2054,6 +2092,7 @@
     "nvidia": "英伟达",
     "o3": "O3",
     "ocoolai": "ocoolAI",
+    "ovms": "Intel OVMS",
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",

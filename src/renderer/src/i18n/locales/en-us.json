@@ -248,6 +248,7 @@
   },
   "button": {
     "add": "Add",
+    "download": "Download",
     "added": "Added",
     "case_sensitive": "Case Sensitive",
     "collapse": "Collapse",
@@ -1818,6 +1819,43 @@
       }
     }
   },
+  "ovms": {
+    "title": "Intel OVMS",
+    "download": {
+      "button": "Download",
+      "title": "Download Intel OpenVINO Model",
+      "error": "Download Error",
+      "model_id": "Model ID:",
+      "model_id.required": "Please enter the model ID",
+      "model_id.placeholder": "Required e.g. OpenVINO/Qwen3-8B-int4-ov",
+      "model_id.model_id_pattern": "Model ID must start with OpenVINO/",
+      "model_name": "Model Name:",
+      "model_name.required": "Please enter the model name",
+      "model_name.placeholder": "Required e.g. Qwen3-8B-int4-ov",
+      "model_source": "Model Source:",
+      "model_task": "Model Task:"      
+    },
+    "failed": {
+        "install": "install ovms failed:",
+        "run": "run ovms failed:",
+        "stop": "stop ovms failed:"
+    },
+    "status": {
+        "running": "OVMS is running",
+        "not_running": "OVMS is not running",
+        "not_installed": "OVMS is not installed",
+        "unknown": "OVMS status unknown"
+    },
+    "action": {
+        "install": "Install",
+        "installing": "Installing",
+        "reinstall": "Re-Install",
+        "starting": "Starting",
+        "stop": "Stop OVMS",
+        "stopping": "Stopping",
+        "run": "Run OVMS"
+    }
+  },
   "ollama": {
     "keep_alive_time": {
       "description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -2054,6 +2092,7 @@
     "nvidia": "Nvidia",
     "o3": "O3",
     "ocoolai": "ocoolAI",
+    "ovms": "Intel OVMS",
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
