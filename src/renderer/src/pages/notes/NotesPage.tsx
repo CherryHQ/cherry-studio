@@ -52,7 +52,6 @@ const NotesPage: FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const watcherRef = useRef<(() => void) | null>(null)
   const isSyncingTreeRef = useRef(false)
-  const isEditorInitialized = useRef(false)
   const lastContentRef = useRef<string>('')
   const lastFilePathRef = useRef<string | undefined>(undefined)
   const isInitialSortApplied = useRef(false)
@@ -86,7 +85,7 @@ const NotesPage: FC = () => {
   const saveCurrentNote = useCallback(
     async (content: string, filePath?: string) => {
       const targetPath = filePath || activeFilePath
-      if (!targetPath || content === currentContent) return
+      if (!targetPath || content.trim() === currentContent.trim()) return
 
       try {
         await window.api.file.write(targetPath, content)
@@ -284,26 +283,35 @@ const NotesPage: FC = () => {
   ])
 
   useEffect(() => {
-    if (currentContent && editorRef.current) {
-      editorRef.current.setMarkdown(currentContent)
-      // 标记编辑器已初始化
-      isEditorInitialized.current = true
+    const editor = editorRef.current
+    if (!editor || !currentContent) return
+    // 获取编辑器当前内容
+    const editorMarkdown = editor.getMarkdown()
+
+    // 只有当编辑器内容与期望内容不一致时才更新
+    // 这样既能处理初始化，也能处理后续的内容同步，还能避免光标跳动
+    if (editorMarkdown !== currentContent) {
+      editor.setMarkdown(currentContent)
     }
   }, [currentContent, activeFilePath])
 
-  // 切换文件时重置编辑器初始化状态并兜底保存
+  // 切换文件时的清理工作
   useEffect(() => {
-    if (lastContentRef.current && lastContentRef.current !== currentContent && lastFilePathRef.current) {
-      saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
-        logger.error('Emergency save before file switch failed:', error as Error)
-      })
-    }
+    return () => {
+      // 保存之前文件的内容
+      if (lastContentRef.current && lastFilePathRef.current) {
+        saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
+          logger.error('Emergency save before file switch failed:', error as Error)
+        })
+      }
 
-    // 重置状态
-    isEditorInitialized.current = false
-    lastContentRef.current = ''
-    lastFilePathRef.current = undefined
-  }, [activeFilePath, currentContent, saveCurrentNote])
+      // 取消防抖保存并清理状态
+      debouncedSave.cancel()
+      lastContentRef.current = ''
+      lastFilePathRef.current = undefined
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilePath])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
   const getTargetFolderPath = useCallback(() => {
