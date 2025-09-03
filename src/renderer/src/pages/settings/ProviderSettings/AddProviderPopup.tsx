@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { PoeLogo } from '@renderer/components/Icons'
 import { Center, VStack } from '@renderer/components/Layout'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
@@ -17,6 +18,21 @@ const logger = loggerService.withContext('AddProviderPopup')
 interface Props {
   provider?: Provider
   resolve: (result: { name: string; type: ProviderType; logo?: string; logoFile?: File }) => void
+}
+
+interface ProviderAvatarProps {
+  providerId: string
+  providerName: string
+  logoSrc: string
+}
+
+export const getProviderAvatar = ({ providerId, providerName, logoSrc }: ProviderAvatarProps, size: number = 32) => {
+  switch (providerId) {
+    case 'poe':
+      return <PoeLogo fontSize={size} />
+  }
+
+  return <img src={logoSrc} alt={providerName} draggable={false} />
 }
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
@@ -215,7 +231,13 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               }}
               placement="bottom">
               {logo ? (
-                <ProviderLogo src={logo} />
+                <ProviderLogo>
+                  {getProviderAvatar({
+                    providerId: logo,
+                    providerName: name,
+                    logoSrc: logo
+                  })}
+                </ProviderLogo>
               ) : (
                 <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
                   {getInitials()}
@@ -258,12 +280,17 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   )
 }
 
-const ProviderLogo = styled.img`
+const ProviderLogo = styled.div`
   cursor: pointer;
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 100%;
   object-fit: contain;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   transition: opacity 0.3s ease;
   background-color: var(--color-background-soft);
   padding: 5px;
@@ -271,13 +298,19 @@ const ProviderLogo = styled.img`
   &:hover {
     opacity: 0.8;
   }
+
+  > img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
 `
 
 const ProviderInitialsLogo = styled.div`
   cursor: pointer;
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;

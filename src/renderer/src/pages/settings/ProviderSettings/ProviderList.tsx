@@ -285,7 +285,11 @@ const ProviderList: FC = () => {
     if (isSystemProvider(provider)) {
       switch (provider.id) {
         case 'poe':
-          return <PoeLogo fontSize={size} />
+          return (
+            <ProviderSvgLogo size={size}>
+              <PoeLogo />
+            </ProviderSvgLogo>
+          )
       }
     }
 
@@ -296,7 +300,15 @@ const ProviderList: FC = () => {
 
     const customLogo = providerLogos[provider.id]
     if (customLogo) {
-      return <ProviderLogo draggable="false" shape="square" src={customLogo} size={size} />
+      // Poe 这类使用 svg 格式的 provider，需要特殊处理一下
+      if (customLogo === 'poe') {
+        return (
+          <ProviderSvgLogo size={size}>
+            <PoeLogo />
+          </ProviderSvgLogo>
+        )
+      }
+      return <ProviderLogo draggable="false" shape="circle" src={customLogo} size={size} />
     }
 
     // generate color for custom provider
@@ -304,7 +316,7 @@ const ProviderList: FC = () => {
     const color = provider.name ? getForegroundColor(backgroundColor) : 'white'
 
     return (
-      <ProviderLogo size={size} shape="square" style={{ backgroundColor, color, minWidth: size }}>
+      <ProviderLogo size={size} shape="circle" style={{ backgroundColor, color, minWidth: size }}>
         {getFirstCharacter(provider.name)}
       </ProviderLogo>
     )
@@ -468,6 +480,16 @@ const DragHandle = styled.div`
 
 const ProviderLogo = styled(Avatar)`
   border: 0.5px solid var(--color-border);
+`
+
+const ProviderSvgLogo = styled.div<{ size: number }>`
+  width: ${({ size }) => size}px;
+  height: ${({ size }) => size}px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid var(--color-border);
+  border-radius: 100%;
 `
 
 const ProviderItemName = styled.div`
