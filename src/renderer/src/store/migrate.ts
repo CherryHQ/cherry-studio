@@ -2351,7 +2351,7 @@ const migrateConfig = {
     try {
       // Migrate showWorkspace from settings to note store
       if (state.settings && state.note) {
-        const showWorkspaceValue = (state.settings as any).showWorkspace
+        const showWorkspaceValue = (state.settings as any)?.showWorkspace
         if (showWorkspaceValue !== undefined) {
           state.note.settings.showWorkspace = showWorkspaceValue
           // Remove from settings

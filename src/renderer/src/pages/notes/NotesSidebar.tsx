@@ -303,6 +303,14 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           onClick: () => {
             handleStartEdit(node)
           }
+        },
+        {
+          label: t('notes.open_outside'),
+          key: 'open_outside',
+          icon: <FolderOpen size={14} />,
+          onClick: () => {
+            window.api.openPath(node.externalPath)
+          }
         }
       ]
       if (node.type !== 'folder') {
