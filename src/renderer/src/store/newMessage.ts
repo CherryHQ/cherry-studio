@@ -24,7 +24,7 @@ const initialState: MessagesState = messagesAdapter.getInitialState({
   currentTopicId: null,
   loadingByTopic: {},
   fulfilledByTopic: {},
-  displayCount: 20
+  displayCount: 10
 })
 
 // Payload for receiving messages (used by loadTopicMessagesThunk)

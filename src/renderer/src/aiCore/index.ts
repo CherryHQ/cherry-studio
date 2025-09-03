@@ -9,9 +9,9 @@ import type { GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { RequestOptions, SdkModel } from '@renderer/types/sdk'
 import { isEnabledToolUse } from '@renderer/utils/mcp-tools'
 
-import { AihubmixAPIClient } from './clients/AihubmixAPIClient'
+import { AihubmixAPIClient } from './clients/aihubmix/AihubmixAPIClient'
 import { VertexAPIClient } from './clients/gemini/VertexAPIClient'
-import { NewAPIClient } from './clients/NewAPIClient'
+import { NewAPIClient } from './clients/newapi/NewAPIClient'
 import { OpenAIResponseAPIClient } from './clients/openai/OpenAIResponseAPIClient'
 import { CompletionsMiddlewareBuilder } from './middleware/builder'
 import { MIDDLEWARE_NAME as AbortHandlerMiddlewareName } from './middleware/common/AbortHandlerMiddleware'
@@ -91,7 +91,9 @@ export default class AiProvider {
       }
 
       const isAnthropicOrOpenAIResponseCompatible =
-        clientTypes.includes('AnthropicAPIClient') || clientTypes.includes('OpenAIResponseAPIClient')
+        clientTypes.includes('AnthropicAPIClient') ||
+        clientTypes.includes('OpenAIResponseAPIClient') ||
+        clientTypes.includes('AnthropicVertexAPIClient')
       if (!isAnthropicOrOpenAIResponseCompatible) {
         logger.silly('RawStreamListenerMiddleware is removed')
         builder.remove(RawStreamListenerMiddlewareName)
@@ -110,7 +112,7 @@ export default class AiProvider {
         builder.remove(ToolUseExtractionMiddlewareName)
         logger.silly('ToolUseExtractionMiddleware is removed')
       }
-      if (params.callType !== 'chat') {
+      if (params.callType !== 'chat' && params.callType !== 'check' && params.callType !== 'translate') {
         logger.silly('AbortHandlerMiddleware is removed')
         builder.remove(AbortHandlerMiddlewareName)
       }
@@ -123,7 +125,10 @@ export default class AiProvider {
     }
 
     const middlewares = builder.build()
-    logger.silly('middlewares', middlewares)
+    logger.silly(
+      'middlewares',
+      middlewares.map((m) => m.name)
+    )
 
     // 3. Create the wrapped SDK method with middlewares
     const wrappedCompletionMethod = applyCompletionsMiddlewares(client, client.createCompletions, middlewares)

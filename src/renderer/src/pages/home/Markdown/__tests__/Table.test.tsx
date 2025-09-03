@@ -89,8 +89,8 @@ describe('Table', () => {
   })
 
   const createTablePosition = (startLine = 1, endLine = 3) => ({
-    start: { line: startLine },
-    end: { line: endLine }
+    start: { line: startLine, column: 1, offset: 0 },
+    end: { line: endLine, column: 1, offset: 2 }
   })
 
   const defaultTableContent = `| Header 1 | Header 2 |

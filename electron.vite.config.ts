@@ -4,6 +4,8 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 
+import pkg from './package.json' assert { type: 'json' }
+
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
 }
@@ -26,7 +28,7 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        external: ['@libsql/client', 'bufferutil', 'utf-8-validate'],
+        external: ['bufferutil', 'utf-8-validate', 'electron', ...Object.keys(pkg.dependencies)],
         output: {
           manualChunks: undefined, // 彻底禁用代码分割 - 返回 null 强制单文件打包
           inlineDynamicImports: true // 内联所有动态导入，这是关键配置
@@ -81,7 +83,8 @@ export default defineConfig({
         '@shared': resolve('packages/shared'),
         '@logger': resolve('src/renderer/src/services/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web')
+        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
+        '@cherrystudio/extension-table-plus': resolve('packages/extension-table-plus/src')
       }
     },
     optimizeDeps: {

@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
+import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
@@ -17,7 +18,8 @@ import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/Model
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName, isFreeModel } from '@renderer/utils'
+import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
+import { isFreeModel } from '@renderer/utils/model'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
@@ -27,7 +29,6 @@ import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTr
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { HStack } from '../../../../components/Layout'
 import ManageModelsList from './ManageModelsList'
 import { isModelInProvider, isValidNewApiModel } from './utils'
 
@@ -247,7 +248,6 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               ? t('settings.models.manage.remove_listed')
               : t('settings.models.manage.add_listed.label')
           }
-          destroyTooltipOnHide
           mouseLeaveDelay={0}>
           <Button
             type="default"
@@ -260,7 +260,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             disabled={loadingModels || list.length === 0}
           />
         </Tooltip>
-        <Tooltip title={t('settings.models.manage.refetch_list')} destroyTooltipOnHide mouseLeaveDelay={0}>
+        <Tooltip title={t('settings.models.manage.refetch_list')} mouseLeaveDelay={0}>
           <Button
             type="default"
             icon={<RefreshCcw size={16} />}
@@ -337,7 +337,14 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               description={t('settings.models.empty')}
-              style={{ visibility: loadingModels ? 'hidden' : 'visible' }}
+              style={{
+                visibility: loadingModels ? 'hidden' : 'visible',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+                margin: '0'
+              }}
             />
           ) : (
             <ManageModelsList
@@ -373,7 +380,7 @@ const TopToolsWrapper = styled.div`
 `
 
 const ListContainer = styled.div`
-  height: calc(100vh - 300px);
+  height: calc(90vh - 300px);
 `
 
 const ModelHeaderTitle = styled.div`

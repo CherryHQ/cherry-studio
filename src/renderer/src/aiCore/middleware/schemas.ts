@@ -22,8 +22,10 @@ export interface CompletionsParams {
    * 'search': 搜索摘要
    * 'generate': 生成
    * 'check': API检查
+   * 'test': 测试调用
+   * 'translate-lang-detect': 翻译语言检测
    */
-  callType?: 'chat' | 'translate' | 'summary' | 'search' | 'generate' | 'check' | 'test'
+  callType?: 'chat' | 'translate' | 'summary' | 'search' | 'generate' | 'check' | 'test' | 'translate-lang-detect'
 
   // 基础对话数据
   messages: Message[] | string // 联合类型方便判断是否为空
@@ -56,6 +58,9 @@ export interface CompletionsParams {
   // 上下文控制
   contextCount?: number
   topicId?: string // 主题ID，用于关联上下文
+
+  // abort 控制
+  abortKey?: string
 
   _internal?: ProcessingState
 }

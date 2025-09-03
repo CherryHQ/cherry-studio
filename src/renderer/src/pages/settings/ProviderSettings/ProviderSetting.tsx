@@ -3,21 +3,25 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { useAppDispatch } from '@renderer/store'
+import { updateWebSearchProvider } from '@renderer/store/websearch'
+import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -30,7 +34,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiOptionsSettings from './ApiOptionsSettings'
+import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -53,12 +57,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { setTimeoutTimer } = useTimer()
+  const dispatch = useAppDispatch()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
-
   const isDmxapi = provider.id === 'dmxapi'
+  const hideApiInput = ['vertexai', 'aws-bedrock', 'cherryin'].includes(provider.id)
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configedApiHost = providerConfig?.api?.url
@@ -71,10 +77,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     checking: false
   })
 
+  const updateWebSearchProviderKey = ({ apiKey }: { apiKey: string }) => {
+    provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
     debounce((value) => {
       updateProvider({ apiKey: formatApiKeys(value) })
+      updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
     }, 150),
     []
   )
@@ -128,7 +139,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const openApiKeyList = async () => {
     await ApiKeyListPopup.show({
       providerId: provider.id,
-      providerKind: 'llm',
       title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
     })
   }
@@ -171,9 +181,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
-      setTimeout(() => {
-        setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
-      }, 3000)
+      setTimeoutTimer(
+        'onCheckApi',
+        () => {
+          setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
+        },
+        3000
+      )
     } catch (error: any) {
       window.message.error({
         key: 'api-check',
@@ -230,12 +244,22 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={5}>
+        <Flex align="center" gap={8}>
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
+          )}
+          {!isSystemProvider(provider) && (
+            <Tooltip title={t('settings.provider.api.options.label')}>
+              <Button
+                type="text"
+                icon={<Bolt size={14} />}
+                size="small"
+                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+              />
+            </Tooltip>
           )}
         </Flex>
         <Switch
@@ -266,6 +290,96 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             ]}
           />
           {provider.authType === 'oauth' && <AnthropicSettings />}
+        </>
+      )}
+      {!hideApiInput && (
+        <>
+          <SettingSubtitle
+            style={{
+              marginTop: 5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+            {t('settings.provider.api_key.label')}
+            {provider.id !== 'copilot' && (
+              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+                <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
+              </Tooltip>
+            )}
+          </SettingSubtitle>
+          <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+            <Input.Password
+              value={localApiKey}
+              placeholder={t('settings.provider.api_key.label')}
+              onChange={(e) => setLocalApiKey(e.target.value)}
+              spellCheck={false}
+              autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
+              disabled={provider.id === 'copilot'}
+              suffix={renderStatusIndicator()}
+            />
+            <Button
+              type={isApiKeyConnectable ? 'primary' : 'default'}
+              ghost={isApiKeyConnectable}
+              onClick={onCheckApi}
+              disabled={!apiHost || apiKeyConnectivity.checking}>
+              {apiKeyConnectivity.checking ? (
+                <LoadingIcon />
+              ) : apiKeyConnectivity.status === 'success' ? (
+                <Check size={16} className="lucide-custom" />
+              ) : (
+                t('settings.provider.check')
+              )}
+            </Button>
+          </Space.Compact>
+          {apiKeyWebsite && (
+            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+              <HStack>
+                {!isDmxapi && (
+                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                    {t('settings.provider.get_api_key')}
+                  </SettingHelpLink>
+                )}
+              </HStack>
+              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+            </SettingHelpTextRow>
+          )}
+          {!isDmxapi && (
+            <>
+              <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                {t('settings.provider.api_host')}
+                <Button
+                  type="text"
+                  onClick={() => CustomHeaderPopup.show({ provider })}
+                  icon={<Settings2 size={16} />}
+                />
+              </SettingSubtitle>
+              <Space.Compact style={{ width: '100%', marginTop: 5 }}>
+                <Input
+                  value={apiHost}
+                  placeholder={t('settings.provider.api_host')}
+                  onChange={(e) => setApiHost(e.target.value)}
+                  onBlur={onUpdateApiHost}
+                />
+                {!isEmpty(configedApiHost) && apiHost !== configedApiHost && (
+                  <Button danger onClick={onReset}>
+                    {t('settings.provider.api.url.reset')}
+                  </Button>
+                )}
+              </Space.Compact>
+              {isOpenAIProvider(provider) && (
+                <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+                  <SettingHelpText
+                    style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                    {hostPreview()}
+                  </SettingHelpText>
+                  <SettingHelpText style={{ minWidth: 'fit-content' }}>
+                    {t('settings.provider.api.url.tip')}
+                  </SettingHelpText>
+                </SettingHelpTextRow>
+              )}
+            </>
+          )}
         </>
       )}
       {provider.id !== 'vertexai' &&
@@ -384,7 +498,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
-      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

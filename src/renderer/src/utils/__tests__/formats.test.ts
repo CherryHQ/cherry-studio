@@ -7,7 +7,8 @@ import {
   addImageFileToContents,
   encodeHTML,
   escapeDollarNumber,
-  extractTitle,
+  extractHtmlTitle,
+  getFileNameFromHtmlTitle,
   removeSvgEmptyLines,
   withGenerateImage
 } from '../formats'
@@ -179,39 +180,65 @@ describe('formats', () => {
     })
   })
 
-  describe('extractTitle', () => {
+  describe('extractHtmlTitle', () => {
     it('should extract title from HTML string', () => {
       const html = '<html><head><title>Page Title</title></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBe('Page Title')
+      expect(extractHtmlTitle(html)).toBe('Page Title')
     })
 
     it('should extract title with case insensitivity', () => {
       const html = '<html><head><TITLE>Page Title</TITLE></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBe('Page Title')
+      expect(extractHtmlTitle(html)).toBe('Page Title')
     })
 
     it('should handle HTML without title tag', () => {
       const html = '<html><head></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBeNull()
+      expect(extractHtmlTitle(html)).toBe('')
     })
 
     it('should handle empty title tag', () => {
       const html = '<html><head><title></title></head><body>Content</body></html>'
-      expect(extractTitle(html)).toBe('')
+      expect(extractHtmlTitle(html)).toBe('')
     })
 
     it('should handle malformed HTML', () => {
       const html = '<title>Partial HTML'
-      expect(extractTitle(html)).toBe('Partial HTML')
+      expect(extractHtmlTitle(html)).toBe('Partial HTML')
     })
 
     it('should handle empty string', () => {
-      expect(extractTitle('')).toBeNull()
+      expect(extractHtmlTitle('')).toBe('')
     })
 
     it('should handle undefined', () => {
       // @ts-ignore for testing
-      expect(extractTitle(undefined)).toBeNull()
+      expect(extractHtmlTitle(undefined)).toBe('')
+    })
+  })
+
+  describe('getFileNameFromHtmlTitle', () => {
+    it('should preserve Chinese characters', () => {
+      expect(getFileNameFromHtmlTitle('中文标题')).toBe('中文标题')
+      expect(getFileNameFromHtmlTitle('中文标题 测试')).toBe('中文标题-测试')
+    })
+
+    it('should preserve alphanumeric characters', () => {
+      expect(getFileNameFromHtmlTitle('Hello123')).toBe('Hello123')
+      expect(getFileNameFromHtmlTitle('Hello World 123')).toBe('Hello-World-123')
+    })
+
+    it('should remove special characters and replace spaces with hyphens', () => {
+      expect(getFileNameFromHtmlTitle('File@Name#Test')).toBe('FileNameTest')
+      expect(getFileNameFromHtmlTitle('File Name Test')).toBe('File-Name-Test')
+    })
+
+    it('should handle mixed languages', () => {
+      expect(getFileNameFromHtmlTitle('中文English123')).toBe('中文English123')
+      expect(getFileNameFromHtmlTitle('中文 English 123')).toBe('中文-English-123')
+    })
+
+    it('should handle empty string', () => {
+      expect(getFileNameFromHtmlTitle('')).toBe('')
     })
   })
 

@@ -116,10 +116,10 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'left' && topicPosition === 'right' && (
+      {position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
-          <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
-            {t('assistants.abbr')}
+          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
+            {t('common.topics')}
           </TabItem>
           <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
             {t('settings.title')}
@@ -155,9 +155,12 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
+  height: calc(100vh - var(--navbar-height));
+
   &.right {
     height: calc(100vh - var(--navbar-height));
   }
+
   [navbar-position='left'] & {
     background-color: var(--color-background);
   }

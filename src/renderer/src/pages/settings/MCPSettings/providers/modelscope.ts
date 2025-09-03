@@ -116,7 +116,7 @@ export const syncModelScopeServers = async (
           env: {},
           isActive: true,
           provider: 'ModelScope',
-          providerUrl: `${MODELSCOPE_HOST}/mcp/servers/@${server.id}`,
+          providerUrl: `${MODELSCOPE_HOST}/mcp/servers/${server.id}`,
           logoUrl: server.logo_url || '',
           tags: server.tags || []
         }

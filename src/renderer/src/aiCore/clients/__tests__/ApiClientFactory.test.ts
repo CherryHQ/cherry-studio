@@ -2,12 +2,13 @@ import { Provider } from '@renderer/types'
 import { isOpenAIProvider } from '@renderer/utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { AihubmixAPIClient } from '../AihubmixAPIClient'
+import { AihubmixAPIClient } from '../aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from '../anthropic/AnthropicAPIClient'
 import { ApiClientFactory } from '../ApiClientFactory'
+import { AwsBedrockAPIClient } from '../aws/AwsBedrockAPIClient'
 import { GeminiAPIClient } from '../gemini/GeminiAPIClient'
 import { VertexAPIClient } from '../gemini/VertexAPIClient'
-import { NewAPIClient } from '../NewAPIClient'
+import { NewAPIClient } from '../newapi/NewAPIClient'
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from '../openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from '../ppio/PPIOAPIClient'
@@ -25,7 +26,7 @@ const createTestProvider = (id: string, type: string): Provider => ({
 })
 
 // Mock 所有客户端模块
-vi.mock('../AihubmixAPIClient', () => ({
+vi.mock('../aihubmix/AihubmixAPIClient', () => ({
   AihubmixAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
 vi.mock('../anthropic/AnthropicAPIClient', () => ({
@@ -40,7 +41,7 @@ vi.mock('../gemini/GeminiAPIClient', () => ({
 vi.mock('../gemini/VertexAPIClient', () => ({
   VertexAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
-vi.mock('../NewAPIClient', () => ({
+vi.mock('../newapi/NewAPIClient', () => ({
   NewAPIClient: vi.fn().mockImplementation(() => ({}))
 }))
 vi.mock('../openai/OpenAIApiClient', () => ({
@@ -53,6 +54,19 @@ vi.mock('../openai/OpenAIResponseAPIClient', () => ({
 }))
 vi.mock('../ppio/PPIOAPIClient', () => ({
   PPIOAPIClient: vi.fn().mockImplementation(() => ({}))
+}))
+vi.mock('../aws/AwsBedrockAPIClient', () => ({
+  AwsBedrockAPIClient: vi.fn().mockImplementation(() => ({}))
+}))
+
+// Mock the models config to prevent circular dependency issues
+vi.mock('@renderer/config/models', () => ({
+  findTokenLimit: vi.fn(),
+  isReasoningModel: vi.fn(),
+  SYSTEM_MODELS: {
+    silicon: [],
+    defaultModel: []
+  }
 }))
 
 describe('ApiClientFactory', () => {
@@ -141,6 +155,15 @@ describe('ApiClientFactory', () => {
       const client = ApiClientFactory.create(provider)
 
       expect(AnthropicAPIClient).toHaveBeenCalledWith(provider)
+      expect(client).toBeDefined()
+    })
+
+    it('should create AwsBedrockAPIClient for aws-bedrock type', () => {
+      const provider = createTestProvider('aws-bedrock', 'aws-bedrock')
+
+      const client = ApiClientFactory.create(provider)
+
+      expect(AwsBedrockAPIClient).toHaveBeenCalledWith(provider)
       expect(client).toBeDefined()
     })
 

@@ -100,3 +100,20 @@ export enum FileTypes {
   DOCUMENT = 'document',
   OTHER = 'other'
 }
+
+export type ImageFileMetadata = FileMetadata & {
+  type: FileTypes.IMAGE
+}
+
+export type PdfFileMetadata = FileMetadata & {
+  ext: '.pdf'
+}
+
+/**
+ * 类型守卫函数，用于检查一个 FileMetadata 是否为图片文件元数据
+ * @param file - 要检查的文件元数据
+ * @returns 如果文件是图片类型则返回 true
+ */
+export const isImageFileMetadata = (file: FileMetadata): file is ImageFileMetadata => {
+  return file.type === FileTypes.IMAGE
+}

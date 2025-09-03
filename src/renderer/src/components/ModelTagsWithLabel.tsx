@@ -1,4 +1,3 @@
-import { EyeOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -9,12 +8,19 @@ import {
 } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
-import { isFreeModel } from '@renderer/utils'
+import { isFreeModel } from '@renderer/utils/model'
 import { FC, memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import CustomTag from './CustomTag'
+import {
+  EmbeddingTag,
+  FreeTag,
+  ReasoningTag,
+  RerankerTag,
+  ToolsCallingTag,
+  VisionTag,
+  WebSearchTag
+} from './Tags/Model'
 
 interface ModelTagsProps {
   model: Model
@@ -37,7 +43,6 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showTooltip = true,
   style
 }) => {
-  const { t } = useTranslation()
   const [shouldShowLabel, setShouldShowLabel] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const resizeObserver = useRef<ResizeObserver | null>(null)
@@ -70,45 +75,17 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
 
   return (
     <Container ref={containerRef} style={style}>
-      {isVisionModel(model) && (
-        <CustomTag
-          size={size}
-          color="#00b96b"
-          icon={<EyeOutlined style={{ fontSize: size }} />}
-          tooltip={showTooltip ? t('models.type.vision') : undefined}>
-          {shouldShowLabel ? t('models.type.vision') : ''}
-        </CustomTag>
-      )}
-      {isWebSearchModel(model) && (
-        <CustomTag
-          size={size}
-          color="#1677ff"
-          icon={<GlobalOutlined style={{ fontSize: size }} />}
-          tooltip={showTooltip ? t('models.type.websearch') : undefined}>
-          {shouldShowLabel ? t('models.type.websearch') : ''}
-        </CustomTag>
-      )}
+      {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
+      {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (
-        <CustomTag
-          size={size}
-          color="#6372bd"
-          icon={<i className="iconfont icon-thinking" />}
-          tooltip={showTooltip ? t('models.type.reasoning') : undefined}>
-          {shouldShowLabel ? t('models.type.reasoning') : ''}
-        </CustomTag>
+        <ReasoningTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
       {showToolsCalling && isFunctionCallingModel(model) && (
-        <CustomTag
-          size={size}
-          color="#f18737"
-          icon={<ToolOutlined style={{ fontSize: size }} />}
-          tooltip={showTooltip ? t('models.type.function_calling') : undefined}>
-          {shouldShowLabel ? t('models.type.function_calling') : ''}
-        </CustomTag>
+        <ToolsCallingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
-      {isEmbeddingModel(model) && <CustomTag size={size} color="#FFA500" icon={t('models.type.embedding')} />}
-      {showFree && isFreeModel(model) && <CustomTag size={size} color="#7cb305" icon={t('models.type.free')} />}
-      {isRerankModel(model) && <CustomTag size={size} color="#6495ED" icon={t('models.type.rerank')} />}
+      {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
+      {showFree && isFreeModel(model) && <FreeTag size={size} />}
+      {isRerankModel(model) && <RerankerTag size={size} />}
     </Container>
   )
 }

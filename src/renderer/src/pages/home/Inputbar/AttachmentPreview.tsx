@@ -12,7 +12,7 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
-import CustomTag from '@renderer/components/CustomTag'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
@@ -83,7 +83,7 @@ export const getFileIcon = (type?: string) => {
 export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
   const [visible, setVisible] = useState<boolean>(false)
   const isImage = (ext: string) => {
-    return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext)
+    return ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'].includes(ext.toLocaleLowerCase())
   }
 
   const fullName = FileManager.formatFileName(file)

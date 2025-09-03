@@ -5,13 +5,14 @@ import {
   isEmbeddingModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
+  isQwenMTModel,
   isReasoningModel,
-  isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
 import {
+  LANG_DETECT_PROMPT,
   SEARCH_SUMMARY_PROMPT,
   SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
   SEARCH_SUMMARY_PROMPT_WEB_ONLY
@@ -30,7 +31,6 @@ import {
   MemoryItem,
   Model,
   Provider,
-  TranslateAssistant,
   WebSearchResponse,
   WebSearchSource
 } from '@renderer/types'
@@ -38,14 +38,11 @@ import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
-import {
-  abortCompletion,
-  addAbortController,
-  createAbortPromise,
-  removeAbortController
-} from '@renderer/utils/abortController'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { filterAdjacentUserMessaegs, filterLastAssistantMessage } from '@renderer/utils/messageUtils/filters'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import {
   buildSystemPromptWithThinkTool,
@@ -53,6 +50,7 @@ import {
   containsSupportedVariables,
   replacePromptVariables
 } from '@renderer/utils/prompt'
+import { getTranslateOptions } from '@renderer/utils/translate'
 import { findLast, isEmpty, takeRight } from 'lodash'
 
 import AiProvider from '../aiCore'
@@ -62,13 +60,12 @@ import {
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getQuickModel
 } from './AssistantService'
 import { processKnowledgeSearch } from './KnowledgeService'
 import { MemoryProcessor } from './MemoryProcessor'
 import {
-  filterContextMessages,
+  filterAfterContextClearMessages,
   filterEmptyMessages,
   filterUsefulMessages,
   filterUserRoleStartMessages
@@ -87,7 +84,7 @@ async function fetchExternalTool(
   // 可能会有重复？
   const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
   const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
+  const knowledgeRecognition = assistant.knowledgeRecognition || 'off'
   const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
 
   // 使用外部搜索工具
@@ -96,9 +93,19 @@ async function fetchExternalTool(
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
   const shouldSearchMemory = globalMemoryEnabled && assistant.enableMemory
 
-  // 在工具链开始时发送进度通知
-  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
-  if (willUseTools) {
+  // 获取 MCP 工具
+  let mcpTools: MCPTool[] = []
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const assistantMcpServers = assistant.mcpServers || []
+  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
+  const showListTools = enabledMCPs && enabledMCPs.length > 0
+
+  // 是否使用工具
+  const hasAnyTool = shouldWebSearch || shouldKnowledgeSearch || showListTools
+
+  // 在工具链开始时发送进度通知（不包括记忆搜索）
+  if (hasAnyTool) {
     onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
   }
 
@@ -122,7 +129,7 @@ async function fetchExternalTool(
     }
 
     const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
+    summaryAssistant.model = getQuickModel() || assistant.model || getDefaultModel()
     summaryAssistant.prompt = prompt
 
     const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
@@ -347,28 +354,7 @@ async function fetchExternalTool(
       }
     }
 
-    // 发送工具执行完成通知
-    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
-    if (wasAnyToolEnabled) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: webSearchResponseFromSearch,
-          knowledge: knowledgeReferencesFromSearch,
-          memories: memorySearchReferences
-        }
-      })
-    }
-
-    // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = []
-    const allMcpServers = store.getState().mcp.servers || []
-    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-    const assistantMcpServers = assistant.mcpServers || []
-
-    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-
-    if (enabledMCPs && enabledMCPs.length > 0) {
+    if (showListTools) {
       try {
         const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
         const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
@@ -385,9 +371,6 @@ async function fetchExternalTool(
           .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
           .map((result) => result.value)
           .flat()
-        // 添加内置工具
-        // const { BUILT_IN_TOOLS } = await import('../tools')
-        // mcpTools.push(...BUILT_IN_TOOLS)
 
         // 根据toolUseMode决定如何构建系统提示词
         const basePrompt = assistant.prompt
@@ -401,6 +384,18 @@ async function fetchExternalTool(
       } catch (toolError) {
         logger.error('Error fetching MCP tools:', toolError as Error)
       }
+    }
+
+    // 发送工具执行完成通知
+    if (hasAnyTool) {
+      onChunkReceived({
+        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
+        external_tool: {
+          webSearch: webSearchResponseFromSearch,
+          knowledge: knowledgeReferencesFromSearch,
+          memories: memorySearchReferences
+        }
+      })
     }
 
     return { mcpTools }
@@ -445,7 +440,7 @@ export async function fetchChatCompletion({
   const AI = new AiProvider(provider)
 
   // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
+  const filteredMessages1 = filterAfterContextClearMessages(messages)
 
   const lastUserMessage = findLast(messages, (m) => m.role === 'user')
   const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
@@ -461,11 +456,20 @@ export async function fetchChatCompletion({
 
   const { maxTokens, contextCount } = getAssistantSettings(assistant)
 
-  const filteredMessages = filterUsefulMessages(messages)
+  const filteredMessages2 = filterUsefulMessages(filteredMessages1)
 
-  const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
+  const filteredMessages3 = filterLastAssistantMessage(filteredMessages2)
+
+  const filteredMessages4 = filterAdjacentUserMessaegs(filteredMessages3)
+
+  let _messages = filterUserRoleStartMessages(
+    filterEmptyMessages(filterAfterContextClearMessages(takeRight(filteredMessages4, contextCount + 2))) // 取原来几个provider的最大值
   )
+
+  // Fallback: ensure at least the last user message is present to avoid empty payloads
+  if ((!_messages || _messages.length === 0) && lastUserMessage) {
+    _messages = [lastUserMessage]
+  }
 
   // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
   const enableReasoning =
@@ -473,20 +477,20 @@ export async function fetchChatCompletion({
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  // NOTE：assistant.enableWebSearch 的语义是是否启用模型内置搜索功能
   const enableWebSearch =
-    (assistant.enableWebSearch && isWebSearchModel(model)) ||
+    assistant.enableWebSearch ||
+    (assistant.webSearchProviderId && isWebSearchModel(model)) ||
     isOpenRouterBuiltInWebSearchModel(model) ||
     model.id.includes('sonar') ||
     false
 
   const enableUrlContext = assistant.enableUrlContext || false
 
-  const enableGenerateImage =
-    isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
+  const enableGenerateImage = isGenerateImageModel(model) && assistant.enableGenerateImage
 
   // --- Call AI Completions ---
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-
   const completionsParams: CompletionsParams = {
     callType: 'chat',
     messages: _messages,
@@ -607,17 +611,34 @@ async function processConversationMemory(messages: Message[], assistant: Assista
   }
 }
 
-interface FetchTranslateProps {
-  content: string
-  assistant: TranslateAssistant
+interface FetchLanguageDetectionProps {
+  text: string
   onResponse?: (text: string, isComplete: boolean) => void
 }
 
-export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
+/**
+ * 检测文本语言
+ * @param params - 参数对象
+ * @param {string} params.text - 需要检测语言的文本内容
+ * @param {function} [params.onResponse] - 流式响应回调函数,用于实时获取检测结果
+ * @returns {Promise<string>} 返回检测到的语言代码,如果检测失败会抛出错误
+ * @throws {Error}
+ */
+export async function fetchLanguageDetection({ text, onResponse }: FetchLanguageDetectionProps) {
+  const translateLanguageOptions = await getTranslateOptions()
+  const listLang = translateLanguageOptions.map((item) => item.langCode)
+  const listLangText = JSON.stringify(listLang)
 
+  const model = getQuickModel() || getDefaultModel()
   if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
+    throw new Error(i18n.t('error.model.not_exists'))
+  }
+
+  if (isQwenMTModel(model)) {
+    logger.info('QwenMT cannot be used for language detection.')
+    if (isQwenMTModel(model)) {
+      throw new Error(i18n.t('translate.error.detect.qwen_mt'))
+    }
   }
 
   const provider = getProviderByModel(model)
@@ -625,6 +646,14 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
   if (!hasApiKey(provider)) {
     throw new Error(i18n.t('error.no_api_key'))
   }
+
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.model = model
+  assistant.settings = {
+    temperature: 0.7
+  }
+  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
 
   const isSupportedStreamOutput = () => {
     if (!onResponse) {
@@ -634,32 +663,25 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
   }
 
   const stream = isSupportedStreamOutput()
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   const params: CompletionsParams = {
-    callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
+    callType: 'translate-lang-detect',
+    messages: 'follow system prompt',
+    assistant,
     streamOutput: stream,
-    enableReasoning,
+    enableReasoning: false,
+    shouldThrow: true,
     onResponse
   }
 
   const AI = new AiProvider(provider)
 
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
-  }
+  return (await AI.completions(params)).getText()
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -682,7 +704,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
       role: message.role,
-      mainText: getMainTextContent(message)
+      mainText: purifyMarkdownImages(getMainTextContent(message))
     }
 
     // 让LLM知道消息中包含的文件，但只提供文件名
@@ -729,7 +751,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 }
 
 export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
@@ -790,9 +812,9 @@ export async function fetchGenerate({
   }
 }
 
-function hasApiKey(provider: Provider) {
+export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
+  if (['ollama', 'lmstudio', 'vertexai', 'cherryin'].includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 
@@ -852,10 +874,7 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const controller = new AbortController()
-  const abortFn = () => controller.abort()
   const taskId = uuid()
-  addAbortController(taskId, abortFn)
 
   const ai = new AiProvider(provider)
 
@@ -868,7 +887,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
       await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
-      // 通过该状态判断abort原因
       let streamError: Error | undefined = undefined
 
       // 15s超时
@@ -883,30 +901,24 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         assistant,
         streamOutput: true,
         enableReasoning: false,
-        onChunk: () => {
-          // 接收到任意chunk都直接abort
+        onChunk: (chunk: Chunk) => {
+          if (chunk.type === ChunkType.ERROR && !isAbortError(chunk.error)) {
+            streamError = new Error(JSON.stringify(chunk.error))
+          }
           abortCompletion(taskId)
         },
-        onError: (e) => {
-          // 捕获stream error
-          streamError = e
-          abortCompletion(taskId)
-        }
+        shouldThrow: true,
+        abortKey: taskId
       }
 
       // Try streaming check first
       try {
-        await createAbortPromise(controller.signal, ai.completions(params))
-      } catch (e: any) {
-        if (isAbortError(e)) {
-          if (streamError) {
-            throw streamError
-          }
-        } else {
-          throw e
-        }
+        await ai.completions(params)
       } finally {
         clearTimeout(timer)
+      }
+      if (streamError) {
+        throw streamError
       }
     }
   } catch (error: any) {
@@ -925,8 +937,6 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
     } else {
       throw error
     }
-  } finally {
-    removeAbortController(taskId, abortFn)
   }
 }
 

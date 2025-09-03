@@ -1,8 +1,8 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import CustomTag from '@renderer/components/CustomTag'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import CustomTag from '@renderer/components/Tags/CustomTag'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
@@ -12,7 +12,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Empty, Flex, Spin, Tooltip } from 'antd'
+import { Button, Flex, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -47,9 +47,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, models, removeModel } = useProvider(providerId)
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
+  const editable = provider.id !== 'cherryin'
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
@@ -106,21 +107,27 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 {modelCount}
               </CustomTag>
             )}
-            <CollapsibleSearchBar onSearch={setSearchText} />
+            <CollapsibleSearchBar
+              onSearch={setSearchText}
+              placeholder={t('models.search.placeholder')}
+              tooltip={t('models.search.tooltip')}
+            />
           </HStack>
-          <HStack>
-            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-              <Button
-                type="text"
-                onClick={runHealthCheck}
-                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-              />
-            </Tooltip>
-          </HStack>
+          {editable && (
+            <HStack>
+              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  onClick={runHealthCheck}
+                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+                />
+              </Tooltip>
+            </HStack>
+          )}
         </HStack>
       </SettingSubtitle>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-        {displayedModelGroups && !isEmpty(displayedModelGroups) ? (
+        {displayedModelGroups && !isEmpty(displayedModelGroups) && (
           <Flex gap={12} vertical>
             {Object.keys(displayedModelGroups).map((group, i) => (
               <ModelListGroup
@@ -132,15 +139,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 onEditModel={(model) => EditModelPopup.show({ provider, model })}
                 onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+                disabled={!editable}
               />
             ))}
           </Flex>
-        ) : (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={t('settings.models.empty')}
-            style={{ visibility: isLoading ? 'hidden' : 'visible' }}
-          />
         )}
       </Spin>
       <Flex justify="space-between" align="center">
@@ -165,14 +167,16 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           <div style={{ height: 5 }} />
         )}
       </Flex>
-      <Flex gap={10} style={{ marginTop: 12 }}>
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
-          {t('button.manage')}
-        </Button>
-        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-          {t('button.add')}
-        </Button>
-      </Flex>
+      {editable && (
+        <Flex gap={10} style={{ marginTop: 12 }}>
+          <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+            {t('button.manage')}
+          </Button>
+          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+            {t('button.add')}
+          </Button>
+        </Flex>
+      )}
     </>
   )
 }

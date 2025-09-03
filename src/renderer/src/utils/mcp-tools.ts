@@ -8,6 +8,7 @@ import store from '@renderer/store'
 import { addMCPServer } from '@renderer/store/mcp'
 import {
   Assistant,
+  BuiltinMCPServerNames,
   MCPCallToolResponse,
   MCPServer,
   MCPTool,
@@ -28,12 +29,11 @@ import {
   ChatCompletionTool
 } from 'openai/resources'
 
+import { isToolUseModeFunction } from './assistant'
 import { convertBase64ImageToAwsBedrockFormat } from './aws-bedrock-utils'
 import { filterProperties, processSchemaForO3 } from './mcp-schema'
 
 const logger = loggerService.withContext('Utils:MCPTools')
-
-const MCP_AUTO_INSTALL_SERVER_NAME = '@cherry/mcp-auto-install'
 
 export function mcpToolsToOpenAIResponseTools(mcpTools: MCPTool[]): OpenAI.Responses.Tool[] {
   return mcpTools.map((tool) => {
@@ -78,8 +78,10 @@ export function openAIToolsToMcpTool(
   try {
     if ('name' in toolCall) {
       toolName = toolCall.name
-    } else {
+    } else if (toolCall.type === 'function' && 'function' in toolCall) {
       toolName = toolCall.function.name
+    } else {
+      throw new Error('Unknown tool call type')
     }
   } catch (error) {
     logger.error(`Error parsing tool call: ${toolCall}`, error as Error)
@@ -144,7 +146,7 @@ export async function callMCPTool(
       },
       topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
     )
-    if (toolResponse.tool.serverName === MCP_AUTO_INSTALL_SERVER_NAME) {
+    if (toolResponse.tool.serverName === BuiltinMCPServerNames.mcpAutoInstall) {
       if (resp.data) {
         const mcpServer: MCPServer = {
           id: `f${nanoid()}`,
@@ -183,7 +185,7 @@ export function mcpToolsToAnthropicTools(mcpTools: MCPTool[]): Array<ToolUnion> 
     const t: ToolUnion = {
       name: tool.id,
       description: tool.description,
-      // @ts-ignore ignore type as it it unknow
+      // @ts-ignore ignore type as it it unknown
       input_schema: tool.inputSchema
     }
     return t
@@ -386,14 +388,14 @@ export function mcpToolCallResponseToOpenAICompatibleMessage(
   mcpToolResponse: MCPToolResponse,
   resp: MCPCallToolResponse,
   isVisionModel: boolean = false,
-  isCompatibleMode: boolean = false
+  noSupportArrayContent: boolean = false
 ): ChatCompletionMessageParam {
   const message = {
     role: 'user'
   } as ChatCompletionMessageParam
   if (resp.isError) {
     message.content = JSON.stringify(resp.content)
-  } else if (isCompatibleMode) {
+  } else if (noSupportArrayContent) {
     let content: string = `Here is the result of mcp tool use \`${mcpToolResponse.tool.name}\`:\n`
 
     if (isVisionModel) {
@@ -821,9 +823,7 @@ export function mcpToolCallResponseToAwsBedrockMessage(
 
 export function isEnabledToolUse(assistant: Assistant) {
   if (assistant.model) {
-    if (isFunctionCallingModel(assistant.model)) {
-      return assistant.settings?.toolUseMode === 'function'
-    }
+    return isFunctionCallingModel(assistant.model) && isToolUseModeFunction(assistant)
   }
 
   return false

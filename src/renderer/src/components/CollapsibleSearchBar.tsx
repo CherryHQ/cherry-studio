@@ -1,21 +1,30 @@
+import i18n from '@renderer/i18n'
 import { Input, InputRef, Tooltip } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 
 interface CollapsibleSearchBarProps {
   onSearch: (text: string) => void
+  placeholder?: string
+  tooltip?: string
   icon?: React.ReactNode
   maxWidth?: string | number
+  style?: React.CSSProperties
 }
 
 /**
  * A collapsible search bar for list headers
  * Renders as an icon initially, expands to full search input when clicked
  */
-const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch, icon, maxWidth }) => {
-  const { t } = useTranslation()
+const CollapsibleSearchBar = ({
+  onSearch,
+  placeholder = i18n.t('common.search'),
+  tooltip = i18n.t('common.search'),
+  icon = <Search size={14} color="var(--color-icon)" />,
+  maxWidth = '100%',
+  style
+}: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<InputRef>(null)
@@ -46,22 +55,23 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch, i
         initial="collapsed"
         animate={searchVisible ? 'expanded' : 'collapsed'}
         variants={{
-          expanded: { maxWidth: maxWidth || '100%', opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
+          expanded: { maxWidth: maxWidth, opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
           collapsed: { maxWidth: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
         }}
         style={{ overflow: 'hidden', flex: 1 }}>
         <Input
           ref={inputRef}
           type="text"
-          placeholder={t('models.search')}
+          placeholder={placeholder}
           size="small"
-          suffix={icon || <Search size={14} color="var(--color-icon)" />}
+          suffix={icon}
           value={searchText}
           autoFocus
           allowClear
           onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
+              e.stopPropagation()
               handleTextChange('')
               if (!searchText) setSearchVisible(false)
             }
@@ -70,7 +80,7 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch, i
             if (!searchText) setSearchVisible(false)
           }}
           onClear={handleClear}
-          style={{ width: '100%' }}
+          style={{ width: '100%', ...style }}
         />
       </motion.div>
       <motion.div
@@ -82,8 +92,8 @@ const CollapsibleSearchBar: React.FC<CollapsibleSearchBarProps> = ({ onSearch, i
         }}
         style={{ cursor: 'pointer', display: 'flex' }}
         onClick={() => setSearchVisible(true)}>
-        <Tooltip title={t('models.search')} mouseLeaveDelay={0}>
-          {icon || <Search size={14} color="var(--color-icon)" />}
+        <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          {icon}
         </Tooltip>
       </motion.div>
     </div>

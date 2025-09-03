@@ -15,6 +15,7 @@ import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { FC } from 'react'
 import styled from 'styled-components'
 
@@ -68,20 +69,29 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <Navbar className="home-navbar">
-      {showAssistants && (
-        <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
-              <PanelLeftClose size={18} />
-            </NavbarIcon>
-          </Tooltip>
-          <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
-              <MessageSquareDiff size={18} />
-            </NavbarIcon>
-          </Tooltip>
-        </NavbarLeft>
-      )}
+      <AnimatePresence initial={false}>
+        {showAssistants && (
+          <motion.div
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: 'auto', opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
+            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
+              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+                <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
+                  <PanelLeftClose size={18} />
+                </NavbarIcon>
+              </Tooltip>
+              <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
+                <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
+                  <MessageSquareDiff size={18} />
+                </NavbarIcon>
+              </Tooltip>
+            </NavbarLeft>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <NavbarRight style={{ justifyContent: 'space-between', flex: 1 }} className="home-navbar-right">
         <HStack alignItems="center">
           {!showAssistants && (
@@ -93,11 +103,20 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               </NavbarIcon>
             </Tooltip>
           )}
-          {!showAssistants && (
-            <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
-              <Menu size={18} />
-            </NavbarIcon>
-          )}
+          <AnimatePresence initial={false}>
+            {!showAssistants && (
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'auto', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                style={{ overflow: 'hidden' }}>
+                <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
+                  <Menu size={18} />
+                </NavbarIcon>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <SelectModelButton assistant={assistant} />
         </HStack>
         <HStack alignItems="center" gap={8}>

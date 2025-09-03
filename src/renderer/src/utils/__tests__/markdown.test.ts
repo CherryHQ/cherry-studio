@@ -6,11 +6,10 @@ import { describe, expect, it } from 'vitest'
 import {
   convertMathFormula,
   findCitationInChildren,
-  getCodeBlockId,
-  getExtensionByLanguage,
   isHtmlCode,
   markdownToPlainText,
   processLatexBrackets,
+  purifyMarkdownImages,
   removeTrailingDoubleSpaces,
   updateCodeBlock
 } from '../markdown'
@@ -143,96 +142,6 @@ describe('markdown', () => {
       const input = ''
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('')
-    })
-  })
-
-  describe('getExtensionByLanguage', () => {
-    // 批量测试语言名称到扩展名的映射
-    const testLanguageExtensions = (testCases: Record<string, string>) => {
-      for (const [language, expectedExtension] of Object.entries(testCases)) {
-        const result = getExtensionByLanguage(language)
-        expect(result).toBe(expectedExtension)
-      }
-    }
-
-    it('should return extension for exact language name match', () => {
-      testLanguageExtensions({
-        '4D': '.4dm',
-        'C#': '.cs',
-        JavaScript: '.js',
-        TypeScript: '.ts',
-        'Objective-C++': '.mm',
-        Python: '.py',
-        SVG: '.svg',
-        'Visual Basic .NET': '.vb'
-      })
-    })
-
-    it('should return extension for case-insensitive language name match', () => {
-      testLanguageExtensions({
-        '4d': '.4dm',
-        'c#': '.cs',
-        javascript: '.js',
-        typescript: '.ts',
-        'objective-c++': '.mm',
-        python: '.py',
-        svg: '.svg',
-        'visual basic .net': '.vb'
-      })
-    })
-
-    it('should return extension for language aliases', () => {
-      testLanguageExtensions({
-        js: '.js',
-        node: '.js',
-        'obj-c++': '.mm',
-        'objc++': '.mm',
-        'objectivec++': '.mm',
-        py: '.py',
-        'visual basic': '.vb'
-      })
-    })
-
-    it('should return fallback extension for unknown languages', () => {
-      testLanguageExtensions({
-        'unknown-language': '.unknown-language',
-        custom: '.custom'
-      })
-    })
-
-    it('should handle empty string input', () => {
-      testLanguageExtensions({
-        '': '.'
-      })
-    })
-  })
-
-  describe('getCodeBlockId', () => {
-    it('should generate ID from position information', () => {
-      // 从位置信息生成ID
-      const start = { line: 10, column: 5, offset: 123 }
-      const result = getCodeBlockId(start)
-      expect(result).toBe('10:5:123')
-    })
-
-    it('should handle zero position values', () => {
-      // 处理零值位置
-      const start = { line: 1, column: 0, offset: 0 }
-      const result = getCodeBlockId(start)
-      expect(result).toBe('1:0:0')
-    })
-
-    it('should return null for null or undefined input', () => {
-      // 处理null或undefined输入
-      expect(getCodeBlockId(null)).toBeNull()
-      expect(getCodeBlockId(undefined)).toBeNull()
-    })
-
-    it('should handle missing properties in position object', () => {
-      // 处理缺少属性的位置对象
-      const invalidStart = { line: 5 }
-      const result = getCodeBlockId(invalidStart)
-      expect(result).toBe('5:undefined:undefined')
     })
   })
 
@@ -706,11 +615,12 @@ $$
       expect(isHtmlCode('<!doctype html>')).toBe(true)
     })
 
-    it('should detect HTML with html/head/body tags', () => {
+    it('should detect HTML with valid tags', () => {
       expect(isHtmlCode('<html>')).toBe(true)
       expect(isHtmlCode('</html>')).toBe(true)
       expect(isHtmlCode('<head>')).toBe(true)
       expect(isHtmlCode('<body>')).toBe(true)
+      expect(isHtmlCode('<div>')).toBe(true)
     })
 
     it('should detect complete HTML structure', () => {
@@ -723,7 +633,72 @@ $$
       expect(isHtmlCode('')).toBe(false)
       expect(isHtmlCode('Hello world')).toBe(false)
       expect(isHtmlCode('a < b')).toBe(false)
-      expect(isHtmlCode('<div>')).toBe(false)
+    })
+  })
+
+  describe('purifyMarkdownImages', () => {
+    it('should replace base64 image with placeholder', () => {
+      const input = '![cat](data:image/png;base64,iVBORw0KGgo)'
+      const expected = '![cat](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle multiple base64 images', () => {
+      const input = `
+      ![dog](data:image/jpeg;base64,ABC123)
+      Some text
+      ![avatar](data:image/png;base64,XYZ789)
+    `
+      const expected = `
+      ![dog](image_url)
+      Some text
+      ![avatar](image_url)
+    `
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should ignore normal image links', () => {
+      const input = '![cat](https://example.com/cat.png)'
+      expect(purifyMarkdownImages(input)).toBe(input)
+    })
+
+    it('should handle whitespace in base64 url', () => {
+      const input = '![logo](  data:image/svg+xml;base64,CONTENT  )'
+      const expected = '![logo](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should preserve alt text', () => {
+      const input = '![User Avatar](data:image/png;base64,xxx)'
+      const expected = '![User Avatar](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should handle uppercase data URL', () => {
+      const input = '![test](DATA:IMAGE/PNG;BASE64,ABC)'
+      const expected = '![test](image_url)'
+      expect(purifyMarkdownImages(input)).toBe(expected)
+    })
+
+    it('should not modify text that is not image', () => {
+      const input = 'This is a data:image/png;base64,iVBORw line of text'
+      expect(purifyMarkdownImages(input)).toBe(input)
+    })
+
+    it('should handle mixed content', () => {
+      const input = `
+      Regular: ![cat](https://example.com/cat.png)
+      Base64: ![dog](data:image/jpeg;base64,BASE64DATA)
+      Another: ![bird](https://example.com/bird.gif)
+      Inline: ![icon](  data:image/x-icon;base64,ICONDATA  )
+    `
+      const expected = `
+      Regular: ![cat](https://example.com/cat.png)
+      Base64: ![dog](image_url)
+      Another: ![bird](https://example.com/bird.gif)
+      Inline: ![icon](image_url)
+    `
+      expect(purifyMarkdownImages(input)).toBe(expected)
     })
   })
 })

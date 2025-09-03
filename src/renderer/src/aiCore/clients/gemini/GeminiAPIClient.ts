@@ -52,6 +52,7 @@ import {
   GeminiSdkRawOutput,
   GeminiSdkToolCall
 } from '@renderer/types/sdk'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import {
   geminiFunctionCallToMcpTool,
   isEnabledToolUse,
@@ -428,8 +429,7 @@ export class GeminiAPIClient extends BaseApiClient<
   private getGenerateImageParameter(): Partial<GenerateContentConfig> {
     return {
       systemInstruction: undefined,
-      responseModalities: [Modality.TEXT, Modality.IMAGE],
-      responseMimeType: 'text/plain'
+      responseModalities: [Modality.TEXT, Modality.IMAGE]
     }
   }
 
@@ -476,16 +476,20 @@ export class GeminiAPIClient extends BaseApiClient<
           }
         }
 
-        if (enableWebSearch) {
-          tools.push({
-            googleSearch: {}
-          })
-        }
+        if (tools.length === 0 || !isToolUseModeFunction(assistant)) {
+          if (enableWebSearch) {
+            tools.push({
+              googleSearch: {}
+            })
+          }
 
-        if (enableUrlContext) {
-          tools.push({
-            urlContext: {}
-          })
+          if (enableUrlContext) {
+            tools.push({
+              urlContext: {}
+            })
+          }
+        } else if (enableWebSearch || enableUrlContext) {
+          logger.warn('Native tools cannot be used with function calling for now.')
         }
 
         if (isGemmaModel(model) && assistant.prompt) {
@@ -532,6 +536,7 @@ export class GeminiAPIClient extends BaseApiClient<
           ...(enableGenerateImage ? this.getGenerateImageParameter() : {}),
           ...this.getBudgetToken(assistant, model),
           // 只在对话场景下应用自定义参数，避免影响翻译、总结等其他业务逻辑
+          // 注意：用户自定义参数总是应该覆盖其他参数
           ...(coreRequest.callType === 'chat' ? this.getCustomParameters(assistant) : {})
         }
 

@@ -21,6 +21,27 @@ class BackupManager {
   private tempDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup', 'temp')
   private backupDir = path.join(app.getPath('temp'), 'cherry-studio', 'backup')
 
+  // 缓存实例，避免重复创建
+  private s3Storage: S3Storage | null = null
+  private webdavInstance: WebDav | null = null
+
+  // 缓存核心连接配置，用于检测连接配置是否变更
+  private cachedS3ConnectionConfig: {
+    endpoint: string
+    region: string
+    bucket: string
+    accessKeyId: string
+    secretAccessKey: string
+    root?: string
+  } | null = null
+
+  private cachedWebdavConnectionConfig: {
+    webdavHost: string
+    webdavUser?: string
+    webdavPass?: string
+    webdavPath?: string
+  } | null = null
+
   constructor() {
     this.checkConnection = this.checkConnection.bind(this)
     this.backup = this.backup.bind(this)
@@ -85,6 +106,88 @@ class BackupManager {
         logger.warn(`权限设置警告：${targetPath}`, error as Error)
       }
     }
+  }
+
+  /**
+   * 比较两个配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
+   */
+  private isS3ConfigEqual(cachedConfig: typeof this.cachedS3ConnectionConfig, config: S3Config): boolean {
+    if (!cachedConfig) return false
+
+    return (
+      cachedConfig.endpoint === config.endpoint &&
+      cachedConfig.region === config.region &&
+      cachedConfig.bucket === config.bucket &&
+      cachedConfig.accessKeyId === config.accessKeyId &&
+      cachedConfig.secretAccessKey === config.secretAccessKey &&
+      cachedConfig.root === config.root
+    )
+  }
+
+  /**
+   * 深度比较两个 WebDAV 配置对象是否相等，只比较影响客户端连接的核心字段，忽略 fileName 等易变字段
+   */
+  private isWebDavConfigEqual(cachedConfig: typeof this.cachedWebdavConnectionConfig, config: WebDavConfig): boolean {
+    if (!cachedConfig) return false
+
+    return (
+      cachedConfig.webdavHost === config.webdavHost &&
+      cachedConfig.webdavUser === config.webdavUser &&
+      cachedConfig.webdavPass === config.webdavPass &&
+      cachedConfig.webdavPath === config.webdavPath
+    )
+  }
+
+  /**
+   * 获取 S3Storage 实例，如果连接配置未变且实例已存在则复用，否则创建新实例
+   * 注意：只有连接相关的配置变更才会重新创建实例，其他配置变更不影响实例复用
+   */
+  private getS3Storage(config: S3Config): S3Storage {
+    // 检查核心连接配置是否变更
+    const configChanged = !this.isS3ConfigEqual(this.cachedS3ConnectionConfig, config)
+
+    if (configChanged || !this.s3Storage) {
+      this.s3Storage = new S3Storage(config)
+      // 只缓存连接相关的配置字段
+      this.cachedS3ConnectionConfig = {
+        endpoint: config.endpoint,
+        region: config.region,
+        bucket: config.bucket,
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+        root: config.root
+      }
+      logger.debug('[BackupManager] Created new S3Storage instance')
+    } else {
+      logger.debug('[BackupManager] Reusing existing S3Storage instance')
+    }
+
+    return this.s3Storage
+  }
+
+  /**
+   * 获取 WebDav 实例，如果连接配置未变且实例已存在则复用，否则创建新实例
+   * 注意：只有连接相关的配置变更才会重新创建实例，其他配置变更不影响实例复用
+   */
+  private getWebDavInstance(config: WebDavConfig): WebDav {
+    // 检查核心连接配置是否变更
+    const configChanged = !this.isWebDavConfigEqual(this.cachedWebdavConnectionConfig, config)
+
+    if (configChanged || !this.webdavInstance) {
+      this.webdavInstance = new WebDav(config)
+      // 只缓存连接相关的配置字段
+      this.cachedWebdavConnectionConfig = {
+        webdavHost: config.webdavHost,
+        webdavUser: config.webdavUser,
+        webdavPass: config.webdavPass,
+        webdavPath: config.webdavPath
+      }
+      logger.debug('[BackupManager] Created new WebDav instance')
+    } else {
+      logger.debug('[BackupManager] Reusing existing WebDav instance')
+    }
+
+    return this.webdavInstance
   }
 
   async backup(
@@ -322,7 +425,7 @@ class BackupManager {
   async backupToWebdav(_: Electron.IpcMainInvokeEvent, data: string, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
     const backupedFilePath = await this.backup(_, filename, data, undefined, webdavConfig.skipBackupFile)
-    const webdavClient = new WebDav(webdavConfig)
+    const webdavClient = this.getWebDavInstance(webdavConfig)
     try {
       let result
       if (webdavConfig.disableStream) {
@@ -349,7 +452,7 @@ class BackupManager {
 
   async restoreFromWebdav(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
     const filename = webdavConfig.fileName || 'cherry-studio.backup.zip'
-    const webdavClient = new WebDav(webdavConfig)
+    const webdavClient = this.getWebDavInstance(webdavConfig)
     try {
       const retrievedFile = await webdavClient.getFileContents(filename)
       const backupedFilePath = path.join(this.backupDir, filename)
@@ -377,7 +480,7 @@ class BackupManager {
 
   listWebdavFiles = async (_: Electron.IpcMainInvokeEvent, config: WebDavConfig) => {
     try {
-      const client = new WebDav(config)
+      const client = this.getWebDavInstance(config)
       const response = await client.getDirectoryContents()
       const files = Array.isArray(response) ? response : response.data
 
@@ -467,7 +570,7 @@ class BackupManager {
   }
 
   async checkConnection(_: Electron.IpcMainInvokeEvent, webdavConfig: WebDavConfig) {
-    const webdavClient = new WebDav(webdavConfig)
+    const webdavClient = this.getWebDavInstance(webdavConfig)
     return await webdavClient.checkConnection()
   }
 
@@ -477,13 +580,13 @@ class BackupManager {
     path: string,
     options?: CreateDirectoryOptions
   ) {
-    const webdavClient = new WebDav(webdavConfig)
+    const webdavClient = this.getWebDavInstance(webdavConfig)
     return await webdavClient.createDirectory(path, options)
   }
 
   async deleteWebdavFile(_: Electron.IpcMainInvokeEvent, fileName: string, webdavConfig: WebDavConfig) {
     try {
-      const webdavClient = new WebDav(webdavConfig)
+      const webdavClient = this.getWebDavInstance(webdavConfig)
       return await webdavClient.deleteFile(fileName)
     } catch (error: any) {
       logger.error('Failed to delete WebDAV file:', error)
@@ -525,7 +628,7 @@ class BackupManager {
     logger.debug(`Starting S3 backup to ${filename}`)
 
     const backupedFilePath = await this.backup(_, filename, data, undefined, s3Config.skipBackupFile)
-    const s3Client = new S3Storage(s3Config)
+    const s3Client = this.getS3Storage(s3Config)
     try {
       const fileBuffer = await fs.promises.readFile(backupedFilePath)
       const result = await s3Client.putFileContents(filename, fileBuffer)
@@ -603,7 +706,7 @@ class BackupManager {
 
     logger.debug(`Starting restore from S3: ${filename}`)
 
-    const s3Client = new S3Storage(s3Config)
+    const s3Client = this.getS3Storage(s3Config)
     try {
       const retrievedFile = await s3Client.getFileContents(filename)
       const backupedFilePath = path.join(this.backupDir, filename)
@@ -628,7 +731,7 @@ class BackupManager {
 
   listS3Files = async (_: Electron.IpcMainInvokeEvent, s3Config: S3Config) => {
     try {
-      const s3Client = new S3Storage(s3Config)
+      const s3Client = this.getS3Storage(s3Config)
 
       const objects = await s3Client.listFiles()
       const files = objects
@@ -652,7 +755,7 @@ class BackupManager {
 
   async deleteS3File(_: Electron.IpcMainInvokeEvent, fileName: string, s3Config: S3Config) {
     try {
-      const s3Client = new S3Storage(s3Config)
+      const s3Client = this.getS3Storage(s3Config)
       return await s3Client.deleteFile(fileName)
     } catch (error: any) {
       logger.error('Failed to delete S3 file:', error)
@@ -661,7 +764,7 @@ class BackupManager {
   }
 
   async checkS3Connection(_: Electron.IpcMainInvokeEvent, s3Config: S3Config) {
-    const s3Client = new S3Storage(s3Config)
+    const s3Client = this.getS3Storage(s3Config)
     return await s3Client.checkConnection()
   }
 }

@@ -10,8 +10,7 @@ const logger = loggerService.withContext('FileManager')
 
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
-    const files = await window.api.file.select(options)
-    return files
+    return await window.api.file.select(options)
   }
 
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
@@ -132,6 +131,8 @@ class FileManager {
   }
 
   static getSafePath(file: FileMetadata) {
+    // use the path from the file metadata instead
+    // this function is used to get path for files which are not in the filestorage
     return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
   }
 

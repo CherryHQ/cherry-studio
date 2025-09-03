@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
-import { makeSureDirExists } from '@main/utils'
+import { makeSureDirExists, removeEnvProxy } from '@main/utils'
 import { buildFunctionCallToolName } from '@main/utils/mcp'
 import { getBinaryName, getBinaryPath } from '@main/utils/process'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
@@ -21,15 +21,23 @@ import {
   CancelledNotificationSchema,
   type GetPromptResult,
   LoggingMessageNotificationSchema,
-  ProgressNotificationSchema,
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
-import type { GetResourceResponse, MCPCallToolResponse, MCPPrompt, MCPResource, MCPServer, MCPTool } from '@types'
-import { app } from 'electron'
+import {
+  BuiltinMCPServerNames,
+  type GetResourceResponse,
+  isBuiltinMCPServer,
+  type MCPCallToolResponse,
+  type MCPPrompt,
+  type MCPResource,
+  type MCPServer,
+  type MCPTool
+} from '@types'
+import { app, net } from 'electron'
 import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
@@ -163,7 +171,7 @@ class McpService {
           StdioClientTransport | SSEClientTransport | InMemoryTransport | StreamableHTTPClientTransport
         > => {
           // Create appropriate transport based on configuration
-          if (server.type === 'inMemory') {
+          if (isBuiltinMCPServer(server) && server.name !== BuiltinMCPServerNames.mcpAutoInstall) {
             logger.debug(`Using in-memory transport for server: ${server.name}`)
             const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
             // start the in-memory server with the given name and environment variables
@@ -205,7 +213,7 @@ class McpService {
                       }
                     }
 
-                    return fetch(url, { ...init, headers })
+                    return net.fetch(typeof url === 'string' ? url : url.toString(), { ...init, headers })
                   }
                 },
                 requestInit: {
@@ -280,7 +288,7 @@ class McpService {
 
             // Bun not support proxy https://github.com/oven-sh/bun/issues/16812
             if (cmd.includes('bun')) {
-              this.removeProxyEnv(loginShellEnv)
+              removeEnvProxy(loginShellEnv)
             }
 
             const transportOptions: any = {
@@ -430,15 +438,6 @@ class McpService {
         logger.debug(`Resource updated for server: ${server.name}`)
         // Clear resource-specific caches
         this.clearResourceCaches(serverKey)
-      })
-
-      // Set up progress notification handler
-      client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
-        logger.debug(`Progress notification received for server: ${server.name}`, notification.params)
-        const mainWindow = windowService.getMainWindow()
-        if (mainWindow) {
-          mainWindow.webContents.send('mcp-progress', notification.params.progress / (notification.params.total || 1))
-        }
       })
 
       // Set up cancelled notification handler
@@ -629,6 +628,11 @@ class McpService {
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             logger.debug(`Progress: ${process.progress / (process.total || 1)}`)
+            logger.debug(`Progress notification received for server: ${server.name}`, process)
+            const mainWindow = windowService.getMainWindow()
+            if (mainWindow) {
+              mainWindow.webContents.send('mcp-progress', process.progress / (process.total || 1))
+            }
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
           // 需要服务端支持: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
@@ -826,14 +830,6 @@ class McpService {
       return {}
     }
   })
-
-  private removeProxyEnv(env: Record<string, string>) {
-    delete env.HTTPS_PROXY
-    delete env.HTTP_PROXY
-    delete env.grpc_proxy
-    delete env.http_proxy
-    delete env.https_proxy
-  }
 
   // 实现 abortTool 方法
   public async abortTool(_: Electron.IpcMainInvokeEvent, callId: string) {

@@ -25,7 +25,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -79,12 +79,13 @@ jobs:
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
         run: |
-          yarn build:npm linux
+          sudo apt-get install -y rpm
           yarn build:linux
 
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYIN_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYIN_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ vars.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ vars.RENDERER_VITE_PPIO_APP_SECRET }}
@@ -93,7 +94,6 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           sudo -H pip install setuptools
-          yarn build:npm mac
           yarn build:mac
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
@@ -103,6 +103,7 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYIN_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYIN_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ vars.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ vars.RENDERER_VITE_PPIO_APP_SECRET }}
@@ -110,11 +111,11 @@ jobs:
       - name: Build Windows
         if: matrix.os == 'windows-latest'
         run: |
-          yarn build:npm windows
           yarn build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
+          MAIN_VITE_CHERRYIN_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYIN_CLIENT_SECRET }}
           MAIN_VITE_MINERU_API_KEY: ${{ vars.MAIN_VITE_MINERU_API_KEY }}
           RENDERER_VITE_AIHUBMIX_SECRET: ${{ vars.RENDERER_VITE_AIHUBMIX_SECRET }}
           RENDERER_VITE_PPIO_APP_SECRET: ${{ vars.RENDERER_VITE_PPIO_APP_SECRET }}
@@ -126,5 +127,5 @@ jobs:
           allowUpdates: true
           makeLatest: false
           tag: ${{ steps.get-tag.outputs.tag }}
-          artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/*.blockmap'
+          artifacts: 'dist/*.exe,dist/*.zip,dist/*.dmg,dist/*.AppImage,dist/*.snap,dist/*.deb,dist/*.rpm,dist/*.tar.gz,dist/latest*.yml,dist/rc*.yml,dist/beta*.yml,dist/*.blockmap'
           token: ${{ secrets.GITHUB_TOKEN }}

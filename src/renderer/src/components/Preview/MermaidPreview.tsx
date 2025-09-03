@@ -1,38 +1,63 @@
 import { nanoid } from '@reduxjs/toolkit'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
+import { ShadowTransparentContainer } from './styles'
 import { BasicPreviewHandles, BasicPreviewProps } from './types'
+import { renderSvgInShadowHost } from './utils'
 
-/** 预览 Mermaid 图表
- * 使用 usePreviewRenderer hook 重构，同时保留必要的可见性检测逻辑
- * FIXME: 等将来 mermaid-js 修复可见性问题后可以进一步简化
+/**
+ * 预览 Mermaid 图表
+ * - 使用 useDebouncedRender 改善体验
+ * - 使用 shadow dom 渲染 SVG
  */
 const MermaidPreview = ({
   children,
   enableToolbar = false,
   ref
 }: BasicPreviewProps & { ref?: React.RefObject<BasicPreviewHandles | null> }) => {
-  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError } = useMermaid()
+  const { mermaid, isLoading: isLoadingMermaid, error: mermaidError, forceRenderKey } = useMermaid()
   const diagramId = useRef<string>(`mermaid-${nanoid(6)}`).current
   const [isVisible, setIsVisible] = useState(true)
 
-  // 定义渲染函数
+  /**
+   * 定义渲染函数，在临时容器中测量，在 shadow dom 中渲染。
+   * 如果这个方案有问题，可以回退到 innerHTML。
+   */
   const renderMermaid = useCallback(
     async (content: string, container: HTMLDivElement) => {
       // 验证语法，提前抛出异常
       await mermaid.parse(content)
 
-      const { svg } = await mermaid.render(diagramId, content, container)
+      // 获取容器宽度
+      const { width } = container.getBoundingClientRect()
+      if (width === 0) return
 
-      // 避免不可见时产生 undefined 和 NaN
-      const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
-      container.innerHTML = fixedSvg
+      // 创建临时的 div 用于 mermaid 测量
+      const measureEl = document.createElement('div')
+      measureEl.style.position = 'absolute'
+      measureEl.style.left = '-9999px'
+      measureEl.style.top = '-9999px'
+      measureEl.style.width = `${width}px`
+      document.body.appendChild(measureEl)
+
+      try {
+        const { svg } = await mermaid.render(diagramId, content, measureEl)
+
+        // 避免不可见时产生 undefined 和 NaN
+        const fixedSvg = svg.replace(/translate\(undefined,\s*NaN\)/g, 'translate(0, 0)')
+
+        // 有问题可以回退到 innerHTML
+        renderSvgInShadowHost(fixedSvg, container)
+        // container.innerHTML = fixedSvg
+      } finally {
+        document.body.removeChild(measureEl)
+      }
     },
-    [diagramId, mermaid]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [diagramId, mermaid, forceRenderKey]
   )
 
   // 可见性检测函数
@@ -63,7 +88,7 @@ const MermaidPreview = ({
       const element = containerRef.current
       if (!element) return
 
-      const currentlyVisible = element.offsetParent !== null
+      const currentlyVisible = element.offsetParent !== null && element.offsetWidth > 0 && element.offsetHeight > 0
       setIsVisible(currentlyVisible)
     }
 
@@ -105,16 +130,9 @@ const MermaidPreview = ({
       ref={ref}
       imageRef={containerRef}
       source="mermaid">
-      <StyledMermaid ref={containerRef} className="mermaid special-preview" />
+      <ShadowTransparentContainer ref={containerRef} className="mermaid special-preview" />
     </ImagePreviewLayout>
   )
 }
-
-const StyledMermaid = styled.div`
-  overflow: auto;
-  position: relative;
-  width: 100%;
-  height: 100%;
-`
 
 export default memo(MermaidPreview)

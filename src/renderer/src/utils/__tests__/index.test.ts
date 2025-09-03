@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { runAsyncFunction } from '../index'
-import { hasPath, isFreeModel, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
+import { hasPath, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
 
 describe('Unclassified Utils', () => {
   describe('runAsyncFunction', () => {
@@ -21,22 +21,6 @@ describe('Unclassified Utils', () => {
           throw new Error('Test error')
         })
       ).rejects.toThrow('Test error')
-    })
-  })
-
-  describe('isFreeModel', () => {
-    const base = { provider: '', group: '' }
-    it('should return true if id or name contains "free" (case-insensitive)', () => {
-      expect(isFreeModel({ id: 'free-model', name: 'test', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'model', name: 'FreePlan', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'model', name: 'notfree', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'model', name: 'test', ...base })).toBe(false)
-    })
-
-    it('should handle empty id or name', () => {
-      expect(isFreeModel({ id: '', name: 'free', ...base })).toBe(true)
-      expect(isFreeModel({ id: 'free', name: '', ...base })).toBe(true)
-      expect(isFreeModel({ id: '', name: '', ...base })).toBe(false)
     })
   })
 
