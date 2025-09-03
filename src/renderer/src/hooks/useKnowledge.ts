@@ -27,19 +27,20 @@ import {
   MigrationModeEnum,
   ProcessingStatus
 } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { runAsyncFunction, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
+import { useTimer } from './useTimer'
 
 export const useKnowledge = (baseId: string) => {
   const dispatch = useAppDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
-  const checkTimerRef = useRef<NodeJS.Timeout>(undefined)
+  const { setTimeoutTimer } = useTimer()
 
   // 重命名知识库
   const renameKnowledgeBase = (name: string) => {
@@ -51,16 +52,11 @@ export const useKnowledge = (baseId: string) => {
     dispatch(updateBase(base))
   }
 
-  useEffect(() => {
-    return () => {
-      clearTimeout(checkTimerRef.current)
-    }
-  }, [])
-
   // 检查知识库
   const checkAllBases = () => {
-    clearTimeout(checkTimerRef.current)
-    checkTimerRef.current = setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    // 这个也许也会多任务？
+    const id = uuid()
+    setTimeoutTimer(id, () => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 批量添加文件
@@ -96,7 +92,9 @@ export const useKnowledge = (baseId: string) => {
   // add video support
   const addVideo = (files: FileMetadata[]) => {
     dispatch(addVedioThunk(baseId, 'video', files))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    // 这个函数看起来可能会有多次调用并发执行，故采用唯一id的定时器，依赖组件卸载时统一清理的行为
+    const id = uuid()
+    setTimeoutTimer(id, () => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 更新笔记内容
