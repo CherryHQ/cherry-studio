@@ -285,15 +285,13 @@ const ProviderLogo = styled.div`
   width: 60px;
   height: 60px;
   border-radius: 100%;
-  object-fit: contain;
-
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
 
   transition: opacity 0.3s ease;
   background-color: var(--color-background-soft);
-  padding: 5px;
   border: 0.5px solid var(--color-border);
   &:hover {
     opacity: 0.8;
