@@ -55,7 +55,7 @@ const McpServersList: FC = () => {
     originalList: mcpServers,
     filteredList: filteredMcpServers,
     onUpdate: updateMcpServers,
-    idKey: 'id'
+    itemKey: 'id'
   })
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -251,6 +251,7 @@ const McpServersList: FC = () => {
         itemKey="id"
         onSortEnd={onSortEnd}
         layout="grid"
+        gap={'12px'}
         useDragOverlay
         showGhost
         renderItem={(server) => (

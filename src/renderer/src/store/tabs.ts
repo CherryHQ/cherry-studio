@@ -24,6 +24,9 @@ const tabsSlice = createSlice({
   name: 'tabs',
   initialState,
   reducers: {
+    setTabs: (state, action: PayloadAction<Tab[]>) => {
+      state.tabs = action.payload
+    },
     addTab: (state, action: PayloadAction<Tab>) => {
       const existingTab = state.tabs.find((tab) => tab.path === action.payload.path)
       if (!existingTab) {
@@ -46,25 +49,12 @@ const tabsSlice = createSlice({
       if (tab) {
         Object.assign(tab, action.payload.updates)
       }
-    },
+    }
     setActiveTab: (state, action: PayloadAction<string>) => {
       state.activeTabId = action.payload
-    },
-    reorderTabs: (state, action: PayloadAction<{ fromIndex: number; toIndex: number }>) => {
-      const { fromIndex, toIndex } = action.payload
-      if (
-        fromIndex !== toIndex &&
-        fromIndex >= 0 &&
-        toIndex >= 0 &&
-        fromIndex < state.tabs.length &&
-        toIndex < state.tabs.length
-      ) {
-        const [movedTab] = state.tabs.splice(fromIndex, 1)
-        state.tabs.splice(toIndex, 0, movedTab)
-      }
     }
   }
 })
 
-export const { addTab, removeTab, setActiveTab, updateTab, reorderTabs } = tabsSlice.actions
+export const { setTabs, addTab, removeTab, setActiveTab, updateTab } = tabsSlice.actions
 export default tabsSlice.reducer

@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -7,7 +8,7 @@ import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
-import { addTab, removeTab, reorderTabs, setActiveTab } from '@renderer/store/tabs'
+import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
@@ -28,7 +29,7 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -81,11 +82,6 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
-  const [dragState, setDragState] = useState<{
-    isDragging: boolean
-    dragIndex: number
-    dragOverIndex: number
-  }>({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -147,88 +143,48 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (tabs[index].id === 'home') {
-      e.preventDefault()
-      return
-    }
-    setDragState({ isDragging: true, dragIndex: index, dragOverIndex: -1 })
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', index.toString())
-  }
+  const filteredTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    if (tabs[index].id === 'home') return
-    e.preventDefault()
-    setDragState((prev) => ({ ...prev, dragOverIndex: index }))
-  }
-
-  const handleDragLeave = () => {
-    setDragState((prev) => ({ ...prev, dragOverIndex: -1 }))
-  }
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault()
-    const dragIndex = dragState.dragIndex
-
-    if (dragIndex !== -1 && dragIndex !== dropIndex && tabs[dragIndex].id !== 'home' && tabs[dropIndex].id !== 'home') {
-      dispatch(reorderTabs({ fromIndex: dragIndex, toIndex: dropIndex }))
-    }
-
-    setDragState({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
-  }
-
-  const handleDragEnd = () => {
-    setDragState({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
-  }
-
-  const visibleTabs = tabs.filter((tab) => !specialTabs.includes(tab.id))
+  const { onSortEnd } = useDndReorder<Tab>({
+    originalList: tabs,
+    filteredList: filteredTabs,
+    onUpdate: (newTabs) => dispatch(setTabs(newTabs)),
+    itemKey: 'id'
+  })
 
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
-        <TabsWrapper $tabCount={visibleTabs.length}>
-          {visibleTabs.map((tab, index) => {
-            const isDragOver = dragState.dragOverIndex === index
-            const isDragging = dragState.isDragging && dragState.dragIndex === index
-            const canDrag = tab.id !== 'home'
-
-            return (
-              <Tab
-                key={tab.id}
-                active={tab.id === activeTabId}
-                onClick={() => handleTabClick(tab)}
-                draggable={canDrag}
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
-                $isDragOver={isDragOver}
-                $isDragging={isDragging}
-                $canDrag={canDrag}
-                $tabCount={visibleTabs.length}>
-                <TabHeader>
-                  {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                  <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
-                </TabHeader>
-                {tab.id !== 'home' && (
-                  <CloseButton
-                    className="close-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeTab(tab.id)
-                    }}>
-                    <X size={12} />
-                  </CloseButton>
-                )}
-              </Tab>
-            )
-          })}
-          <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
-            <PlusOutlined />
-          </AddTabButton>
-        </TabsWrapper>
+        <Sortable
+          items={filteredTabs}
+          itemKey="id"
+          layout="list"
+          horizontal
+          gap={'6px'}
+          onSortEnd={onSortEnd}
+          renderItem={(tab) => (
+            <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
+              <TabHeader>
+                {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
+                <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
+              </TabHeader>
+              {tab.id !== 'home' && (
+                <CloseButton
+                  className="close-button"
+                  data-no-dnd
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeTab(tab.id)
+                  }}>
+                  <X size={12} />
+                </CloseButton>
+              )}
+            </Tab>
+          )}
+        />
+        <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
+          <PlusOutlined />
+        </AddTabButton>
         <RightButtonsContainer>
           <TopNavbarOpenedMinappTabs />
           <Tooltip
@@ -277,29 +233,6 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
     position: relative;
     z-index: 1;
     -webkit-app-region: no-drag;
-  }
-`
-
-const TabsWrapper = styled.div<{ $tabCount: number }>`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 5px;
-  flex: 1;
-  overflow-x: auto;
-  overflow-y: hidden;
-  min-width: 0;
-  margin-right: 10px;
-  -webkit-app-region: drag;
-
-  > * {
-    position: relative;
-    z-index: 1;
-    -webkit-app-region: no-drag;
-  }
-
-  &::-webkit-scrollbar {
-    height: 0;
   }
 `
 
