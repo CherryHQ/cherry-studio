@@ -831,6 +831,7 @@
         "invalid": "Invalid MCP server"
       }
     },
+    "cause": "Error cause",
     "chat": {
       "chunk": {
         "non_json": "Returned an invalid data format"
@@ -840,6 +841,7 @@
       "quota_exceeded": "Your daily {{quota}} free quota has been exhausted. Please go to the <provider>{{provider}}</provider> to obtain an API key and configure the API key to continue using.",
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
+    "data": "data",
     "detail": "Error Details",
     "details": "Details",
     "http": {
@@ -859,6 +861,7 @@
       "exists": "Model already exists",
       "not_exists": "Model does not exist"
     },
+    "name": "Error name",
     "no_api_key": "API key is not configured",
     "pause_placeholder": "Paused",
     "provider_disabled": "Model provider is not enabled",
@@ -867,9 +870,13 @@
       "title": "Render Error"
     },
     "requestBody": "Request Body",
+    "requestBodyValues": "Request Body Values",
     "requestUrl": "Request URL",
+    "responseBody": "Response Body",
+    "responseHeaders": "Response Header",
     "stack": "Stack Trace",
     "status": "Status Code",
+    "statusCode": "Status code",
     "unknown": "Unknown error",
     "user_message_not_found": "Cannot find original user message to resend"
   },

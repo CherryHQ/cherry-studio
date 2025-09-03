@@ -831,6 +831,7 @@
         "invalid": "無効なMCPサーバー"
       }
     },
+    "cause": "エラーの原因",
     "chat": {
       "chunk": {
         "non_json": "無効なデータ形式が返されました"
@@ -840,6 +841,7 @@
       "quota_exceeded": "本日の{{quota}}無料クォータが使い果たされました。<provider>{{provider}}</provider>でAPIキーを取得し、APIキーを設定して使用を続けてください。",
       "response": "エラーが発生しました。APIキーが設定されていない場合は、設定 > プロバイダーでキーを設定してください"
     },
+    "data": "データ",
     "detail": "エラーの詳細",
     "details": "詳細",
     "http": {
@@ -859,6 +861,7 @@
       "exists": "モデルが既に存在します",
       "not_exists": "モデルが存在しません"
     },
+    "name": "エラー名",
     "no_api_key": "APIキーが設定されていません",
     "pause_placeholder": "応答を一時停止しました",
     "provider_disabled": "モデルプロバイダーが有効になっていません",
@@ -867,9 +870,13 @@
       "title": "レンダリングエラー"
     },
     "requestBody": "要求されたコンテンツ",
+    "requestBodyValues": "リクエストボディ",
     "requestUrl": "リクエストパス",
+    "responseBody": "レスポンス内容",
+    "responseHeaders": "レスポンスヘッダー",
     "stack": "スタック情報",
     "status": "ステータスコード",
+    "statusCode": "ステータスコード",
     "unknown": "不明なエラー",
     "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした"
   },
