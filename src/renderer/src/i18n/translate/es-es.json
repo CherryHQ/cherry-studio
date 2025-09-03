@@ -538,7 +538,10 @@
         "tip": "En la barra de herramientas de bloques de código ejecutables se mostrará un botón de ejecución. ¡Tenga cuidado en no ejecutar código peligroso!",
         "title": "Ejecución de Código"
       },
-      "code_image_tools": "Activar herramientas de vista previa",
+      "code_image_tools": {
+        "label": "Habilitar herramienta de vista previa",
+        "tip": "Habilitar herramientas de vista previa para imágenes renderizadas de bloques de código como mermaid"
+      },
       "code_wrappable": "Bloques de código reemplazables",
       "context_count": {
         "label": "Número de contextos",
@@ -4146,7 +4149,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Se puede pegar o arrastrar texto, archivos e imágenes (compatible con OCR)"
+      "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",

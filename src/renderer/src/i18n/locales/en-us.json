@@ -4149,7 +4149,7 @@
       "aborted": "Translation aborted"
     },
     "input": {
-      "placeholder": "Text, files, or images (OCR supported) can be pasted or dragged in"
+      "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
     },
     "language": {
       "not_pair": "Source language is different from the set language",
