@@ -14,6 +14,7 @@ import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
+import { OVMSClient } from './ovms/OVMSClient'
 
 const logger = loggerService.withContext('ApiClientFactory')
 
@@ -60,6 +61,12 @@ export class ApiClientFactory {
 
     if (provider.id === 'zhipu') {
       instance = new ZhipuAPIClient(provider) as BaseApiClient
+      return instance
+    }
+
+    if (provider.id === 'ovms') {
+      logger.debug(`Creating OVMSClient for provider: ${provider.id}`)
+      instance = new OVMSClient(provider) as BaseApiClient
       return instance
     }
 

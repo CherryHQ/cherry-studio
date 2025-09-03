@@ -285,6 +285,22 @@ const api = {
     clearAuthCache: (projectId: string, clientEmail?: string) =>
       ipcRenderer.invoke(IpcChannel.VertexAI_ClearAuthCache, projectId, clientEmail)
   },
+  ovms: {
+    addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
+      ipcRenderer.invoke(IpcChannel.Ovms_AddModel, modelName, modelId, modelSource, task),
+    stopAddModel: () =>
+      ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
+    getModels: () =>
+      ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
+    isRunning: () =>
+      ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
+    getStatus: () =>
+      ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
+    runOvms: () =>
+      ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
+    stopOvms: () =>
+      ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
+  },
   config: {
     set: (key: string, value: any, isNotify: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Config_Set, key, value, isNotify),
@@ -350,6 +366,7 @@ const api = {
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
   installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
+  installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {

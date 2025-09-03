@@ -54,6 +54,7 @@ import VoyageAIProviderLogo from '@renderer/assets/images/providers/voyageai.png
 import XirangProviderLogo from '@renderer/assets/images/providers/xirang.png'
 import ZeroOneProviderLogo from '@renderer/assets/images/providers/zero-one.png'
 import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png'
+import IntelOvmsLogo from '@renderer/assets/images/providers/intel.png'
 import {
   AtLeast,
   isSystemProvider,
@@ -106,6 +107,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://aihubmix.com',
     models: SYSTEM_MODELS.aihubmix,
+    isSystem: true,
+    enabled: false
+  },  
+  ovms: {
+    id: 'ovms',
+    name: 'OpenVINO Model Server',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'http://localhost:8000/v3/',
+    models: SYSTEM_MODELS.ovms,
     isSystem: true,
     enabled: false
   },
@@ -649,6 +660,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   yi: ZeroOneProviderLogo,
   groq: GroqProviderLogo,
   zhipu: ZhipuProviderLogo,
+  ovms: IntelOvmsLogo,
   ollama: OllamaProviderLogo,
   lmstudio: LMStudioProviderLogo,
   moonshot: MoonshotProviderLogo,
@@ -1032,6 +1044,16 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://console.groq.com/keys',
       docs: 'https://console.groq.com/docs/quickstart',
       models: 'https://console.groq.com/docs/models'
+    }
+  },
+  ovms: {
+    api: {
+      url: 'http://localhost:8000/v3/'
+    },
+    websites: {
+      official: 'https://www.intel.com/content/www/us/en/developer/tools/openvino-toolkit/overview.html',
+      docs: 'https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html',
+      models: 'https://www.modelscope.cn/organization/OpenVINO'
     }
   },
   ollama: {
