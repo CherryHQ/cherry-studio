@@ -3,7 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import {
   createFolder,
   createNote,
@@ -20,6 +20,7 @@ import { selectActiveFilePath, selectSortType, setActiveFilePath, setSortType } 
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion } from 'framer-motion'
 import { debounce } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +35,7 @@ const logger = loggerService.withContext('NotesPage')
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
   const { t } = useTranslation()
-  const { showWorkspace } = useSettings()
+  const { showWorkspace } = useShowWorkspace()
   const dispatch = useAppDispatch()
   const activeFilePath = useAppSelector(selectActiveFilePath)
   const sortType = useAppSelector(selectSortType)
@@ -113,8 +114,7 @@ const NotesPage: FC = () => {
       lastContentRef.current = newMarkdown
       lastFilePathRef.current = activeFilePath
       // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
-      const currentFilePath = activeFilePath
-      debouncedSave(newMarkdown, currentFilePath)
+      debouncedSave(newMarkdown, activeFilePath)
     },
     [debouncedSave, activeFilePath]
   )
@@ -593,22 +593,31 @@ const NotesPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('notes.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        {showWorkspace && (
-          <NotesSidebar
-            notesTree={notesTree}
-            selectedFolderId={selectedFolderId}
-            onSelectNode={handleSelectNode}
-            onCreateFolder={handleCreateFolder}
-            onCreateNote={handleCreateNote}
-            onDeleteNode={handleDeleteNode}
-            onRenameNode={handleRenameNode}
-            onToggleExpanded={handleToggleExpanded}
-            onToggleStar={handleToggleStar}
-            onMoveNode={handleMoveNode}
-            onSortNodes={handleSortNodes}
-            onUploadFiles={handleUploadFiles}
-          />
-        )}
+        <AnimatePresence initial={false}>
+          {showWorkspace && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 250, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <NotesSidebar
+                notesTree={notesTree}
+                selectedFolderId={selectedFolderId}
+                onSelectNode={handleSelectNode}
+                onCreateFolder={handleCreateFolder}
+                onCreateNote={handleCreateNote}
+                onDeleteNode={handleDeleteNode}
+                onRenameNode={handleRenameNode}
+                onToggleExpanded={handleToggleExpanded}
+                onToggleStar={handleToggleStar}
+                onMoveNode={handleMoveNode}
+                onSortNodes={handleSortNodes}
+                onUploadFiles={handleUploadFiles}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
         <EditorWrapper>
           <HeaderNavbar notesTree={notesTree} getCurrentNoteContent={getCurrentNoteContent} />
           <NotesEditor
