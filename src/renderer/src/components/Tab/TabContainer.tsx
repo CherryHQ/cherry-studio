@@ -160,6 +160,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           itemKey="id"
           layout="list"
           horizontal
+          gap={'6px'}
           onSortEnd={onSortEnd}
           renderItem={(tab) => (
             <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
