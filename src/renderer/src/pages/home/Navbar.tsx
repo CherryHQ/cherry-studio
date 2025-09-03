@@ -14,7 +14,7 @@ import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
-import { Menu, MessageSquareDiff, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { FC } from 'react'
 import styled from 'styled-components'
@@ -81,11 +81,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
                 <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
                   <PanelLeftClose size={18} />
-                </NavbarIcon>
-              </Tooltip>
-              <Tooltip title={t('settings.shortcuts.new_topic')} mouseEnterDelay={0.8}>
-                <NavbarIcon onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)} style={{ marginRight: 5 }}>
-                  <MessageSquareDiff size={18} />
                 </NavbarIcon>
               </Tooltip>
             </NavbarLeft>

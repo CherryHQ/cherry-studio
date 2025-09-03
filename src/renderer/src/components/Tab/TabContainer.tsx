@@ -82,6 +82,11 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean
+    dragIndex: number
+    dragOverIndex: number
+  }>({ isDragging: false, dragIndex: -1, dragOverIndex: -1 })
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -236,7 +241,13 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   }
 `
 
-const Tab = styled.div<{ active?: boolean }>`
+const Tab = styled.div<{
+  active?: boolean
+  $isDragOver?: boolean
+  $isDragging?: boolean
+  $canDrag?: boolean
+  $tabCount?: number
+}>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -244,14 +255,44 @@ const Tab = styled.div<{ active?: boolean }>`
   padding-right: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
   border-radius: var(--list-item-border-radius);
-  cursor: pointer;
+  cursor: ${(props) => (props.$canDrag ? 'grab' : 'pointer')};
   user-select: none;
   height: 30px;
-  min-width: 90px;
-  transition: background 0.2s;
+  width: ${(props) => {
+    if (!props.$tabCount) return 'auto'
+    if (props.$tabCount <= 5) return 'auto'
+    // 30px for AddTabButton, gaps between tabs: (tabCount - 1) * 5px
+    return `calc((100% - 30px - ${(props.$tabCount - 1) * 5}px) / ${props.$tabCount})`
+  }};
+  min-width: ${(props) => {
+    if (!props.$tabCount || props.$tabCount <= 8) return 'auto'
+    return '50px'
+  }};
+  max-width: ${(props) => {
+    if (!props.$tabCount) return '200px'
+    if (props.$tabCount <= 5) return '160px'
+    if (props.$tabCount <= 8) return '120px'
+    if (props.$tabCount <= 12) return '80px'
+    return '60px'
+  }};
+  flex: ${(props) => {
+    if (!props.$tabCount || props.$tabCount <= 5) return '0 0 auto'
+    return '1 1 0'
+  }};
+  transition: all 0.2s;
+  opacity: ${(props) => (props.$isDragging ? 0.5 : 1)};
+  transform: ${(props) => (props.$isDragOver ? 'scale(1.02)' : 'scale(1)')};
+  border: ${(props) => (props.$isDragOver ? '2px dashed var(--color-primary)' : '2px solid transparent')};
+  white-space: nowrap;
+  overflow: hidden;
+
+  &:active {
+    cursor: ${(props) => (props.$canDrag ? 'grabbing' : 'pointer')};
+  }
   .close-button {
     opacity: 0;
     transition: opacity 0.2s;
+    flex-shrink: 0;
   }
 
   &:hover {
@@ -260,18 +301,25 @@ const Tab = styled.div<{ active?: boolean }>`
       opacity: 1;
     }
   }
+
+  &:not([draggable='true']) {
+    cursor: pointer;
+  }
 `
 
 const TabHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
 `
 
 const TabIcon = styled.span`
   display: flex;
   align-items: center;
   color: var(--color-text-2);
+  flex-shrink: 0;
 `
 
 const TabTitle = styled.span`
@@ -280,6 +328,10 @@ const TabTitle = styled.span`
   display: flex;
   align-items: center;
   margin-right: 4px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: 0;
 `
 
 const CloseButton = styled.span`
@@ -299,6 +351,7 @@ const AddTabButton = styled.div`
   cursor: pointer;
   color: var(--color-text-2);
   border-radius: var(--list-item-border-radius);
+  flex-shrink: 0;
   &.active {
     background: var(--color-list-item);
   }
@@ -311,7 +364,7 @@ const RightButtonsContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
+  flex-shrink: 0;
 `
 
 const ThemeButton = styled.div`
@@ -352,7 +405,6 @@ const TabContent = styled.div`
   margin: 6px;
   margin-top: 0;
   border-radius: 8px;
-  overflow: hidden;
 `
 
 export default TabsContainer
