@@ -156,7 +156,7 @@ function Sortable<T>({
         <ListWrapper
           className={className}
           data-layout={layout}
-          data-horizontal={!!horizontal}
+          data-direction={horizontal ? 'horizontal' : 'vertical'}
           $gap={gap}
           style={listStyle}>
           {items.map((item, index) => (
@@ -185,21 +185,29 @@ function Sortable<T>({
 }
 
 const ListWrapper = styled.div<{ $gap?: number | string }>`
+  gap: ${({ $gap }) => $gap};
+
   &[data-layout='grid'] {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     width: 100%;
-    gap: ${({ $gap }) => ($gap ? $gap : '12px')};
 
     @media (max-width: 768px) {
       grid-template-columns: 1fr;
     }
   }
 
-  &[data-layout='list'][data-horizontal='true'] {
+  &[data-layout='list'] {
     display: flex;
-    gap: ${({ $gap }) => ($gap ? $gap : '6px')};
     align-items: center;
+
+    [data-direction='horizontal'] {
+      flex-direction: row;
+    }
+
+    [data-direction='vertical'] {
+      flex-direction: column;
+    }
   }
 `
 
