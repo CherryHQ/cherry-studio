@@ -236,13 +236,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   }
 `
 
-const Tab = styled.div<{
-  active?: boolean
-  $isDragOver?: boolean
-  $isDragging?: boolean
-  $canDrag?: boolean
-  $tabCount?: number
-}>`
+const Tab = styled.div<{ active?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -250,40 +244,13 @@ const Tab = styled.div<{
   padding-right: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
   border-radius: var(--list-item-border-radius);
-  cursor: ${(props) => (props.$canDrag ? 'grab' : 'pointer')};
   user-select: none;
   height: 30px;
-  width: ${(props) => {
-    if (!props.$tabCount) return 'auto'
-    if (props.$tabCount <= 5) return 'auto'
-    // 30px for AddTabButton, gaps between tabs: (tabCount - 1) * 5px
-    return `calc((100% - 30px - ${(props.$tabCount - 1) * 5}px) / ${props.$tabCount})`
-  }};
-  min-width: ${(props) => {
-    if (!props.$tabCount || props.$tabCount <= 8) return 'auto'
-    return '50px'
-  }};
-  max-width: ${(props) => {
-    if (!props.$tabCount) return '200px'
-    if (props.$tabCount <= 5) return '160px'
-    if (props.$tabCount <= 8) return '120px'
-    if (props.$tabCount <= 12) return '80px'
-    return '60px'
-  }};
-  flex: ${(props) => {
-    if (!props.$tabCount || props.$tabCount <= 5) return '0 0 auto'
-    return '1 1 0'
-  }};
-  transition: all 0.2s;
-  opacity: ${(props) => (props.$isDragging ? 0.5 : 1)};
-  transform: ${(props) => (props.$isDragOver ? 'scale(1.02)' : 'scale(1)')};
-  border: ${(props) => (props.$isDragOver ? '2px dashed var(--color-primary)' : '2px solid transparent')};
+  min-width: 90px;
+  transition: background 0.2s;
   white-space: nowrap;
   overflow: hidden;
 
-  &:active {
-    cursor: ${(props) => (props.$canDrag ? 'grabbing' : 'pointer')};
-  }
   .close-button {
     opacity: 0;
     transition: opacity 0.2s;
@@ -295,10 +262,6 @@ const Tab = styled.div<{
     .close-button {
       opacity: 1;
     }
-  }
-
-  &:not([draggable='true']) {
-    cursor: pointer;
   }
 `
 
