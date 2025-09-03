@@ -1066,6 +1066,7 @@
     "status_preprocess_completed": "前処理完了",
     "status_preprocess_failed": "前処理に失敗しました",
     "status_processing": "処理中",
+    "subtitle_file": "字幕ファイル",
     "threshold": "マッチング度閾値",
     "threshold_placeholder": "未設置",
     "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
@@ -1078,7 +1079,8 @@
     "url_added": "URLが追加されました",
     "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
     "urls": "URL",
-    "videos": "動画"
+    "videos": "動画",
+    "videos_file": "動画ファイル"
   },
   "languages": {
     "arabic": "アラビア語",

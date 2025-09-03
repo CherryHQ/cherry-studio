@@ -1066,6 +1066,7 @@
     "status_preprocess_completed": "Предварительная обработка завершена",
     "status_preprocess_failed": "Предварительная обработка не удалась",
     "status_processing": "Обработка",
+    "subtitle_file": "Файл субтитров",
     "threshold": "Порог соответствия",
     "threshold_placeholder": "Не установлено",
     "threshold_too_large_or_small": "Порог не может быть больше 1 или меньше 0",
@@ -1078,7 +1079,8 @@
     "url_added": "URL добавлен",
     "url_placeholder": "Введите URL, несколько URL через Enter",
     "urls": "URL-адреса",
-    "videos": "видео"
+    "videos": "видео",
+    "videos_file": "видеофайл"
   },
   "languages": {
     "arabic": "Арабский",

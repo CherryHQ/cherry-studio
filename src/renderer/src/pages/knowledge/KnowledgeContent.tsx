@@ -7,7 +7,7 @@ import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
-import { Book, Folder, Globe, Image, Link, Notebook, Search, Settings, Video } from 'lucide-react'
+import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -18,7 +18,6 @@ import MigrationInfoTag from './components/MigrationInfoTag'
 import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
-import KnowledgeImages from './items/KnowledgeImages'
 import KnowledgeNotes from './items/KnowledgeNotes'
 import KnowledgeSitemaps from './items/KnowledgeSitemaps'
 import KnowledgeUrls from './items/KnowledgeUrls'
@@ -31,7 +30,7 @@ interface KnowledgeContentProps {
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
-  const { base, urlItems, fileItems, imageItems, directoryItems, noteItems, sitemapItems, videoItems } = useKnowledge(
+  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems, videoItems } = useKnowledge(
     selectedBase.id || ''
   )
   const [activeKey, setActiveKey] = useState('files')
@@ -109,15 +108,6 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       items: sitemapItems,
       content: <KnowledgeSitemaps selectedBase={selectedBase} />,
       show: true
-    },
-    {
-      key: 'images',
-      title: t('knowledge.images'),
-      icon: activeKey === 'images' ? <Image size={16} color="var(--color-primary)" /> : <Image size={16} />,
-      items: imageItems,
-      content: <KnowledgeImages selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
-      // 目前仅支持jina-clip-v2, jina-embeddings-v4多模态嵌入模型
-      show: base?.framework === 'langchain' && ['jina-clip-v2', 'jina-embeddings-v4'].includes(base?.model?.id)
     },
     {
       key: 'videos',

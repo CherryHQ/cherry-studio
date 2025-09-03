@@ -1066,6 +1066,7 @@
     "status_preprocess_completed": "Preprocessing Completed",
     "status_preprocess_failed": "Preprocessing Failed",
     "status_processing": "Processing",
+    "subtitle_file": "subtitle file",
     "threshold": "Matching threshold",
     "threshold_placeholder": "Not set",
     "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
@@ -1078,7 +1079,8 @@
     "url_added": "URL added",
     "url_placeholder": "Enter URL, multiple URLs separated by Enter",
     "urls": "URLs",
-    "videos": "video"
+    "videos": "video",
+    "videos_file": "video file"
   },
   "languages": {
     "arabic": "Arabic",

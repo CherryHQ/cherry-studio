@@ -1066,6 +1066,7 @@
     "status_preprocess_completed": "預處理完成",
     "status_preprocess_failed": "預處理失敗",
     "status_processing": "處理中",
+    "subtitle_file": "字幕檔案",
     "threshold": "匹配度閾值",
     "threshold_placeholder": "未設定",
     "threshold_too_large_or_small": "閾值不能大於 1 或小於 0",
@@ -1078,7 +1079,8 @@
     "url_added": "網址已新增",
     "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
     "urls": "網址",
-    "videos": "影片"
+    "videos": "影片",
+    "videos_file": "影片檔案"
   },
   "languages": {
     "arabic": "阿拉伯文",

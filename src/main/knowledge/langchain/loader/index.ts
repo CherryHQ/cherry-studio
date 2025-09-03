@@ -7,7 +7,6 @@ import { SitemapLoader } from '@langchain/community/document_loaders/web/sitemap
 import { FaissStore } from '@langchain/community/vectorstores/faiss'
 import { Document } from '@langchain/core/documents'
 import { loggerService } from '@logger'
-import { base64Image } from '@main/utils/file'
 import { UrlSource } from '@main/utils/knowledge'
 import { LoaderReturn } from '@shared/config/types'
 import { FileMetadata, FileTypes, KnowledgeBaseParams } from '@types'
@@ -15,7 +14,6 @@ import { randomUUID } from 'crypto'
 import { JSONLoader } from 'langchain/document_loaders/fs/json'
 import { TextLoader } from 'langchain/document_loaders/fs/text'
 
-import MultiModalEmbeddings from '../embeddings/MultiModalEmbeddings'
 import { SplitterFactory } from '../splitter'
 import { MarkdownLoader } from './MarkdownLoader'
 import { NoteLoader } from './NoteLoader'
@@ -233,38 +231,6 @@ export async function addVideoLoader(
     return await processDocuments(base, vectorStore, docsWithVideoMeta, 'video', 'srt')
   } catch (error) {
     logger.error(`Error loading or processing file ${srtFile.path} with loader video: ${error}`)
-    return emptyResult
-  }
-}
-
-export async function addImageLoader(
-  embeddings: MultiModalEmbeddings,
-  vectorStore: FaissStore,
-  file: FileMetadata
-): Promise<LoaderReturn> {
-  const emptyResult: LoaderReturn = {
-    entriesAdded: 0,
-    uniqueId: '',
-    uniqueIds: [],
-    loaderType: 'image'
-  }
-
-  try {
-    const { mime, base64 } = await base64Image(file)
-    const imageVector = await embeddings.embedDocuments([{ image: base64 }])
-    const imageDocument: Document = {
-      pageContent: base64, // 传入base64用于后续多模态reranker
-      metadata: { source: file.path, type: 'image', mimeType: mime, name: file.origin_name, ext: file.ext, id: file.id }
-    }
-    await vectorStore.addVectors(imageVector, [imageDocument], { ids: [file.id] })
-    return {
-      entriesAdded: 1,
-      uniqueId: file.id || '',
-      uniqueIds: [file.id],
-      loaderType: 'image'
-    }
-  } catch (error) {
-    logger.error(`Error loading or processing file ${file.path} with loader : ${error}`)
     return emptyResult
   }
 }

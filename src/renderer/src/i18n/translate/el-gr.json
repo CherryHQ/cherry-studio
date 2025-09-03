@@ -1066,6 +1066,7 @@
     "status_preprocess_completed": "Η προεπεξεργασία ολοκληρώθηκε",
     "status_preprocess_failed": "Η προεπεξεργασία απέτυχε",
     "status_processing": "Επεξεργασία",
+    "subtitle_file": "[to be translated]:字幕文件",
     "threshold": "Περιθώριο συνάφειας",
     "threshold_placeholder": "Δεν έχει ρυθμιστεί",
     "threshold_too_large_or_small": "Το περιθώριο δεν μπορεί να είναι μεγαλύτερο από 1 ή μικρότερο από 0",
@@ -1078,7 +1079,8 @@
     "url_added": "Η διεύθυνση προστέθηκε",
     "url_placeholder": "Εισάγετε τη διεύθυνση, χωρίστε πολλαπλές διευθύνσεις με επιστροφή",
     "urls": "Διευθύνσεις",
-    "videos": "βίντεο"
+    "videos": "βίντεο",
+    "videos_file": "[to be translated]:视频文件"
   },
   "languages": {
     "arabic": "Αραβικά",
@@ -1654,9 +1656,12 @@
     "new_folder": "Νέος φάκελος",
     "new_note": "Δημιουργία νέας σημείωσης",
     "no_content_to_copy": "Δεν υπάρχει περιεχόμενο προς αντιγραφή",
+    "no_file_selected": "[to be translated]:请选择要上传的文件",
     "only_markdown": "Υποστηρίζεται μόνο η μορφή Markdown",
+    "only_one_file_allowed": "[to be translated]:只能上传一个文件",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
     "rename": "μετονομασία",
+    "rename_changed": "[to be translated]:由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "αποθήκευση στις σημειώσεις",
     "settings": {
       "data": {

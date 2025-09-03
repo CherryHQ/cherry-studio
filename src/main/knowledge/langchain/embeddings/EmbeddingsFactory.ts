@@ -30,14 +30,14 @@ export default class EmbeddingsFactory {
         modelName: model,
         apiKey,
         outputDimension: dimensions,
-        batchSize: batchSize
+        batchSize
       })
     }
     if (isJinaEmbeddingsModel(model)) {
       return new JinaEmbeddings({
-        model: model,
+        model,
         apiKey,
-        batchSize: batchSize,
+        batchSize,
         dimensions,
         baseUrl: baseURL
       })

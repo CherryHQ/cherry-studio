@@ -4,11 +4,9 @@ import path from 'node:path'
 import { FaissStore } from '@langchain/community/vectorstores/faiss'
 import type { Document } from '@langchain/core/documents'
 import { loggerService } from '@logger'
-import MultiModalEmbeddings from '@main/knowledge/langchain/embeddings/MultiModalEmbeddings'
 import TextEmbeddings from '@main/knowledge/langchain/embeddings/TextEmbeddings'
 import {
   addFileLoader,
-  addImageLoader,
   addNoteLoader,
   addSitemapLoader,
   addVideoLoader,
@@ -25,7 +23,6 @@ import {
   FileMetadata,
   isKnowledgeDirectoryItem,
   isKnowledgeFileItem,
-  isKnowledgeImageItem,
   isKnowledgeNoteItem,
   isKnowledgeSitemapItem,
   isKnowledgeUrlItem,
@@ -70,12 +67,9 @@ export class LangChainFramework implements IKnowledgeFramework {
   }
 
   private async createDatabase(base: KnowledgeBaseParams): Promise<void> {
-    // 在base.id目录下创建一个新的数据库 包含docstore.json 和 faiss.index
     const dbPath = path.join(this.storageDir, base.id)
-    // Create empty FAISS vector store
     const embeddings = this.getEmbeddings(base)
-    // FaissStore expects TextEmbeddings, MultiModalEmbeddings extends TextEmbeddings
-    const vectorStore = new FaissStore(embeddings as TextEmbeddings, {})
+    const vectorStore = new FaissStore(embeddings, {})
 
     const mockDocument: Document = {
       pageContent: 'Create Database Document',
@@ -88,14 +82,7 @@ export class LangChainFramework implements IKnowledgeFramework {
     await vectorStore.save(dbPath)
   }
 
-  private getEmbeddings(base: KnowledgeBaseParams): TextEmbeddings | MultiModalEmbeddings {
-    if (base.embedApiClient.model.includes('jina')) {
-      return new MultiModalEmbeddings({
-        embedApiClient: base.embedApiClient,
-        dimensions: base.dimensions
-      })
-    }
-
+  private getEmbeddings(base: KnowledgeBaseParams): TextEmbeddings {
     return new TextEmbeddings({
       embedApiClient: base.embedApiClient,
       dimensions: base.dimensions
@@ -104,8 +91,7 @@ export class LangChainFramework implements IKnowledgeFramework {
 
   private async getVectorStore(base: KnowledgeBaseParams): Promise<FaissStore> {
     const embeddings = this.getEmbeddings(base)
-    // FaissStore.load expects TextEmbeddings, MultiModalEmbeddings extends TextEmbeddings
-    const vectorStore = await FaissStore.load(path.join(this.storageDir, base.id), embeddings as TextEmbeddings)
+    const vectorStore = await FaissStore.load(path.join(this.storageDir, base.id), embeddings)
 
     return vectorStore
   }
@@ -142,8 +128,6 @@ export class LangChainFramework implements IKnowledgeFramework {
         return this.noteTask(getStore, options)
       case 'video':
         return this.videoTask(getStore, options)
-      case 'image':
-        return this.imageTask(getStore, options)
       default:
         return {
           loaderTasks: [],
@@ -554,68 +538,6 @@ export class LangChainFramework implements IKnowledgeFramework {
     return loaderTask
   }
 
-  private imageTask(
-    getVectorStore: () => Promise<FaissStore>,
-    options: KnowledgeBaseAddItemOptionsNonNullableAttribute
-  ): LoaderTask {
-    const { base, item } = options
-
-    if (!isKnowledgeImageItem(item)) {
-      logger.error(`Invalid item type for imageTask: expected 'image', got '${item.type}'`)
-      return {
-        loaderTasks: [],
-        loaderDoneReturn: {
-          ...LangChainFramework.ERROR_LOADER_RETURN,
-          message: `Invalid item type: expected 'image', got '${item.type}'`,
-          messageSource: 'validation'
-        }
-      }
-    }
-
-    const file = item.content
-    const embeddings = this.getEmbeddings(base)
-
-    const loaderTask: LoaderTask = {
-      loaderTasks: [
-        {
-          state: LoaderTaskItemState.PENDING,
-          task: async () => {
-            const vectorStore = await getVectorStore()
-            // Type guard for MultiModalEmbeddings
-            if (!(embeddings instanceof MultiModalEmbeddings)) {
-              const errorResult: LoaderReturn = {
-                ...LangChainFramework.ERROR_LOADER_RETURN,
-                message: 'Image loader requires MultiModal embeddings (e.g., jina model)',
-                messageSource: 'validation'
-              }
-              return errorResult
-            }
-            return addImageLoader(embeddings, vectorStore, file)
-              .then((result) => {
-                loaderTask.loaderDoneReturn = result
-                return result
-              })
-              .then(async () => {
-                await vectorStore.save(path.join(this.storageDir, base.id))
-              })
-              .catch((e) => {
-                logger.error(`Preprocessing failed for ${file.name}: ${e}`)
-                const errorResult: LoaderReturn = {
-                  ...LangChainFramework.ERROR_LOADER_RETURN,
-                  message: e.message,
-                  messageSource: 'preprocess'
-                }
-                loaderTask.loaderDoneReturn = errorResult
-                return errorResult
-              })
-          },
-          evaluateTaskWorkload: { workload: file.size }
-        }
-      ],
-      loaderDoneReturn: null
-    }
-    return loaderTask
-  }
   private async getAllDocuments(base: KnowledgeBaseParams): Promise<Document[]> {
     logger.info(`Fetching all documents from database for knowledge base: ${base.id}`)
 
