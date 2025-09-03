@@ -97,7 +97,12 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         }
 
         if (finalStatus === MessageBlockStatus.ERROR) {
-          changes.error = { message: `Tool execution failed/error`, details: toolResponse.response }
+          changes.error = {
+            message: `Tool execution failed/error`,
+            details: toolResponse.response,
+            name: null,
+            stack: null
+          }
         }
 
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
