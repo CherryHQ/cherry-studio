@@ -1,10 +1,15 @@
 import type { File } from '@google/genai'
 import type { FileSchema } from '@mistralai/mistralai/models/components'
 
-export interface RemoteFile {
-  type: 'gemini' | 'mistral'
-  file: File | FileSchema
-}
+export type RemoteFile =
+  | {
+      type: 'gemini'
+      file: File
+    }
+  | {
+      type: 'mistral'
+      file: FileSchema
+    }
 
 /**
  * Type guard to check if a RemoteFile is a Gemini file

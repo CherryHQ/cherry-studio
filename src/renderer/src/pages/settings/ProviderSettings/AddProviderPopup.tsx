@@ -7,7 +7,8 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
-import React, { useEffect, useState } from 'react'
+import { ItemType } from 'antd/es/menu/interface'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,6 +27,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
+  const uploadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (provider?.id) {
@@ -107,80 +109,67 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     {
       key: 'upload',
       label: (
-        <div style={{ width: '100%', textAlign: 'center' }}>
-          <Upload
-            customRequest={() => {}}
-            accept="image/png, image/jpeg, image/gif"
-            itemRender={() => null}
-            maxCount={1}
-            onChange={async ({ file }) => {
-              try {
-                const _file = file.originFileObj as File
-                let logoData: string | Blob
+        <Upload
+          customRequest={() => {}}
+          accept="image/png, image/jpeg, image/gif"
+          itemRender={() => null}
+          maxCount={1}
+          onChange={async ({ file }) => {
+            try {
+              const _file = file.originFileObj as File
+              let logoData: string | Blob
 
-                if (_file.type === 'image/gif') {
-                  logoData = _file
-                } else {
-                  logoData = await compressImage(_file)
-                }
-
-                if (provider?.id) {
-                  if (logoData instanceof Blob && !(logoData instanceof File)) {
-                    const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
-                    await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
-                  } else {
-                    await ImageStorage.set(`provider-${provider.id}`, logoData)
-                  }
-                  const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                  setLogo(savedLogo)
-                } else {
-                  // 临时保存在内存中，等创建 provider 后会在调用方保存
-                  const tempUrl = await new Promise<string>((resolve) => {
-                    const reader = new FileReader()
-                    reader.onload = () => resolve(reader.result as string)
-                    reader.readAsDataURL(logoData)
-                  })
-                  setLogo(tempUrl)
-                }
-
-                setDropdownOpen(false)
-              } catch (error: any) {
-                window.message.error(error.message)
+              if (_file.type === 'image/gif') {
+                logoData = _file
+              } else {
+                logoData = await compressImage(_file)
               }
-            }}>
-            {t('settings.general.image_upload')}
-          </Upload>
-        </div>
-      )
+
+              if (provider?.id) {
+                if (logoData instanceof Blob && !(logoData instanceof File)) {
+                  const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
+                  await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
+                } else {
+                  await ImageStorage.set(`provider-${provider.id}`, logoData)
+                }
+                const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+                setLogo(savedLogo)
+              } else {
+                // 临时保存在内存中，等创建 provider 后会在调用方保存
+                const tempUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader()
+                  reader.onload = () => resolve(reader.result as string)
+                  reader.readAsDataURL(logoData)
+                })
+                setLogo(tempUrl)
+              }
+
+              setDropdownOpen(false)
+            } catch (error: any) {
+              window.message.error(error.message)
+            }
+          }}>
+          <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
+        </Upload>
+      ),
+      onClick: () => {
+        uploadRef.current?.click()
+      }
     },
     {
       key: 'builtin',
-      label: (
-        <div
-          style={{ width: '100%', textAlign: 'center' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            setDropdownOpen(false)
-            setLogoPickerOpen(true)
-          }}>
-          {t('settings.general.avatar.builtin')}
-        </div>
-      )
+      label: <MenuItem>{t('settings.general.avatar.builtin')}</MenuItem>,
+      onClick: () => {
+        setDropdownOpen(false)
+        setLogoPickerOpen(true)
+      }
     },
     {
       key: 'reset',
-      label: (
-        <div
-          style={{ width: '100%', textAlign: 'center' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleReset()
-          }}>
-          {t('settings.general.avatar.reset')}
-        </div>
-      )
+      label: <MenuItem>{t('settings.general.avatar.reset')}</MenuItem>,
+      onClick: handleReset
     }
-  ]
+  ] satisfies ItemType[]
 
   // for logo
   const backgroundColor = generateColorFromChar(name)
@@ -300,6 +289,11 @@ const ProviderInitialsLogo = styled.div`
   &:hover {
     opacity: 0.8;
   }
+`
+
+const MenuItem = styled.div`
+  width: 100%;
+  text-align: center;
 `
 
 export default class AddProviderPopup {

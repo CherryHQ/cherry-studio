@@ -20,7 +20,13 @@ export interface CodeEditorProps {
   value: string
   /** Placeholder when the editor content is empty. */
   placeholder?: string | HTMLElement
-  /** Code language, supports aliases. */
+  /**
+   * Code language string.
+   * - Case-insensitive.
+   * - Supports common names: javascript, json, python, etc.
+   * - Supports aliases: c#/csharp, objective-c++/obj-c++/objc++, etc.
+   * - Supports file extensions: .cpp/cpp, .js/js, .py/py, etc.
+   */
   language: string
   /** Fired when ref.save() is called or the save shortcut is triggered. */
   onSave?: (newContent: string) => void
@@ -42,8 +48,6 @@ export interface CodeEditorProps {
   maxHeight?: string
   /** Minimum editor height. */
   minHeight?: string
-  /** Font size that overrides the app setting. */
-  fontSize?: string
   /** Editor options that extend BasicSetupOptions. */
   options?: {
     /**
@@ -64,6 +68,8 @@ export interface CodeEditorProps {
   } & BasicSetupOptions
   /** Additional extensions for CodeMirror. */
   extensions?: Extension[]
+  /** Font size that overrides the app setting. */
+  fontSize?: number
   /** Style overrides for the editor, passed directly to CodeMirror's style property. */
   style?: React.CSSProperties
   /** CSS class name appended to the default `code-editor` class. */
@@ -102,9 +108,9 @@ const CodeEditor = ({
   height,
   maxHeight,
   minHeight,
-  fontSize,
   options,
   extensions,
+  fontSize: customFontSize,
   style,
   className,
   editable = true,
@@ -115,7 +121,7 @@ const CodeEditor = ({
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
 
   // 合并 codeEditor 和 options 的 basicSetup，options 优先
-  const customBasicSetup = useMemo(() => {
+  const basicSetup = useMemo(() => {
     return {
       lineNumbers: _lineNumbers,
       ...(codeEditor as BasicSetupOptions),
@@ -123,7 +129,7 @@ const CodeEditor = ({
     }
   }, [codeEditor, _lineNumbers, options])
 
-  const customFontSize = useMemo(() => fontSize ?? `${_fontSize - 1}px`, [fontSize, _fontSize])
+  const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
 
   const { activeCmTheme } = useCodeStyle()
   const initialContent = useRef(options?.stream ? (value ?? '').trimEnd() : (value ?? ''))
@@ -208,10 +214,10 @@ const CodeEditor = ({
         foldKeymap: enableKeymap,
         completionKeymap: enableKeymap,
         lintKeymap: enableKeymap,
-        ...customBasicSetup // override basicSetup
+        ...basicSetup // override basicSetup
       }}
       style={{
-        fontSize: customFontSize,
+        fontSize,
         marginTop: 0,
         borderRadius: 'inherit',
         ...style

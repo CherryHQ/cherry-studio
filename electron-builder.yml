@@ -62,6 +62,7 @@ files:
 asarUnpack:
   - resources/**
   - '**/*.{metal,exp,lib}'
+  - 'node_modules/@img/sharp-libvips-*/**'
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -114,16 +115,18 @@ publish:
   url: https://releases.cherry-ai.com
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
+beforePack: scripts/before-pack.js
 afterPack: scripts/after-pack.js
 afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    输入框快捷菜单增加清除按钮
-    侧边栏增加代码工具入口，代码工具增加环境变量设置
-    小程序增加多语言显示
-    优化 MCP 服务器列表
-    新增 Web 搜索图标
-    优化 SVG 预览，优化 HTML 内容样式
-    修复知识库文档预处理失败问题
-    稳定性改进和错误修复
+    🔧 性能优化：
+    - 优化AI服务连接方式，提升响应速度和稳定性
+    - 改进模型列表获取功能，减少不必要的网络请求
+    - 增强各AI服务商的兼容性和连接可靠性
+
+    🐛 问题修复：
+    - 修复部分AI服务商连接失败的问题
+    - 修复模型配置加载时的潜在错误
+    - 提升应用整体稳定性和容错能力

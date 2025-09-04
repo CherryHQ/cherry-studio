@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { ConversationService } from '@renderer/services/ConversationService'
 import { getAssistantMessage, getUserMessage } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
@@ -62,11 +63,14 @@ export const processMessages = async (
     // 显式关闭这些功能
     newAssistant.webSearchProviderId = undefined
     newAssistant.mcpServers = undefined
-    // newAssistant.knowledge_bases = undefined
+    newAssistant.knowledge_bases = undefined
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel([userMessage], newAssistant)
 
     await fetchChatCompletion({
-      messages: [userMessage],
+      messages: modelMessages,
       assistant: newAssistant,
+      options: {},
+      uiMessages: uiMessages,
       onChunkReceived: (chunk: Chunk) => {
         if (finished) {
           return

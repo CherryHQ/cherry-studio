@@ -3,7 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import {
   createFolder,
   createNote,
@@ -16,10 +16,11 @@ import {
 } from '@renderer/services/NotesService'
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectActiveFilePath, setActiveFilePath } from '@renderer/store/note'
+import { selectActiveFilePath, selectSortType, setActiveFilePath, setSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion } from 'framer-motion'
 import { debounce } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,9 +35,10 @@ const logger = loggerService.withContext('NotesPage')
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
   const { t } = useTranslation()
-  const { showWorkspace } = useSettings()
+  const { showWorkspace } = useShowWorkspace()
   const dispatch = useAppDispatch()
   const activeFilePath = useAppSelector(selectActiveFilePath)
+  const sortType = useAppSelector(selectSortType)
   const { settings, notesPath, updateNotesPath } = useNotesSettings()
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
@@ -50,9 +52,11 @@ const NotesPage: FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const watcherRef = useRef<(() => void) | null>(null)
   const isSyncingTreeRef = useRef(false)
-  const isEditorInitialized = useRef(false)
   const lastContentRef = useRef<string>('')
+  const lastFilePathRef = useRef<string | undefined>(undefined)
   const isInitialSortApplied = useRef(false)
+  const isRenamingRef = useRef(false)
+  const isCreatingNoteRef = useRef(false)
 
   useEffect(() => {
     const updateCharCount = () => {
@@ -79,34 +83,39 @@ const NotesPage: FC = () => {
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
-    async (content: string) => {
-      if (!activeFilePath || content === currentContent) return
+    async (content: string, filePath?: string) => {
+      const targetPath = filePath || activeFilePath
+      if (!targetPath || content.trim() === currentContent.trim()) return
 
       try {
-        await window.api.file.write(activeFilePath, content)
+        await window.api.file.write(targetPath, content)
+        // 保存后立即刷新缓存，确保下次读取时获取最新内容
+        invalidateFileContent(targetPath)
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
       }
     },
-    [activeFilePath, currentContent]
+    [activeFilePath, currentContent, invalidateFileContent]
   )
 
   // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
   const debouncedSave = useMemo(
     () =>
-      debounce((content: string) => {
-        saveCurrentNote(content)
+      debounce((content: string, filePath: string | undefined) => {
+        saveCurrentNote(content, filePath)
       }, 800), // 800ms防抖延迟
     [saveCurrentNote]
   )
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
-      // 记录最新内容，用于兜底保存
+      // 记录最新内容和文件路径，用于兜底保存
       lastContentRef.current = newMarkdown
-      debouncedSave(newMarkdown)
+      lastFilePathRef.current = activeFilePath
+      // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
+      debouncedSave(newMarkdown, activeFilePath)
     },
-    [debouncedSave]
+    [debouncedSave, activeFilePath]
   )
 
   useEffect(() => {
@@ -129,7 +138,7 @@ const NotesPage: FC = () => {
     async function applyInitialSort() {
       if (notesTree.length > 0 && !isInitialSortApplied.current) {
         try {
-          await sortAllLevels('sort_a2z')
+          await sortAllLevels(sortType)
           isInitialSortApplied.current = true
         } catch (error) {
           logger.error('Failed to apply initial sorting:', error as Error)
@@ -138,14 +147,21 @@ const NotesPage: FC = () => {
     }
 
     applyInitialSort()
-  }, [notesTree.length])
+  }, [notesTree.length, sortType])
 
   // 处理树同步时的状态管理
   useEffect(() => {
     if (notesTree.length === 0) return
-
     // 如果有activeFilePath但找不到对应节点，清空选择
-    if (activeFilePath && !activeNode) {
+    // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
+    const shouldClearPath =
+      activeFilePath && !activeNode && !isSyncingTreeRef.current && !isRenamingRef.current && !isCreatingNoteRef.current
+
+    if (shouldClearPath) {
+      logger.warn('Clearing activeFilePath - node not found in tree', {
+        activeFilePath,
+        reason: 'Node not found in current tree'
+      })
       dispatch(setActiveFilePath(undefined))
     }
   }, [notesTree, activeFilePath, activeNode, dispatch])
@@ -189,7 +205,7 @@ const NotesPage: FC = () => {
                   invalidateFileContent(filePath)
                 }
               } else {
-                await initWorkSpace(notesPath)
+                await initWorkSpace(notesPath, sortType)
               }
               break
             }
@@ -208,7 +224,7 @@ const NotesPage: FC = () => {
 
               // 重新同步数据库，useLiveQuery会自动响应数据库变化
               try {
-                await initWorkSpace(notesPath)
+                await initWorkSpace(notesPath, sortType)
               } catch (error) {
                 logger.error('Failed to sync database:', error as Error)
               } finally {
@@ -245,8 +261,8 @@ const NotesPage: FC = () => {
       })
 
       // 如果有未保存的内容，立即保存
-      if (lastContentRef.current && lastContentRef.current !== currentContent) {
-        saveCurrentNote(lastContentRef.current).catch((error) => {
+      if (lastContentRef.current && lastContentRef.current !== currentContent && lastFilePathRef.current) {
+        saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
           logger.error('Emergency save failed:', error as Error)
         })
       }
@@ -262,29 +278,40 @@ const NotesPage: FC = () => {
     dispatch,
     currentContent,
     debouncedSave,
-    saveCurrentNote
+    saveCurrentNote,
+    sortType
   ])
 
   useEffect(() => {
-    if (currentContent && editorRef.current) {
-      editorRef.current.setMarkdown(currentContent)
-      // 标记编辑器已初始化
-      isEditorInitialized.current = true
-    }
-  }, [currentContent])
+    const editor = editorRef.current
+    if (!editor || !currentContent) return
+    // 获取编辑器当前内容
+    const editorMarkdown = editor.getMarkdown()
 
-  // 切换文件时重置编辑器初始化状态并兜底保存
+    // 只有当编辑器内容与期望内容不一致时才更新
+    // 这样既能处理初始化，也能处理后续的内容同步，还能避免光标跳动
+    if (editorMarkdown !== currentContent) {
+      editor.setMarkdown(currentContent)
+    }
+  }, [currentContent, activeFilePath])
+
+  // 切换文件时的清理工作
   useEffect(() => {
-    if (lastContentRef.current && lastContentRef.current !== currentContent) {
-      saveCurrentNote(lastContentRef.current).catch((error) => {
-        logger.error('Emergency save before file switch failed:', error as Error)
-      })
-    }
+    return () => {
+      // 保存之前文件的内容
+      if (lastContentRef.current && lastFilePathRef.current) {
+        saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
+          logger.error('Emergency save before file switch failed:', error as Error)
+        })
+      }
 
-    // 重置状态
-    isEditorInitialized.current = false
-    lastContentRef.current = ''
-  }, [activeFilePath, currentContent, saveCurrentNote])
+      // 取消防抖保存并清理状态
+      debouncedSave.cancel()
+      lastContentRef.current = ''
+      lastFilePathRef.current = undefined
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilePath])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
   const getTargetFolderPath = useCallback(() => {
@@ -317,17 +344,27 @@ const NotesPage: FC = () => {
   const handleCreateNote = useCallback(
     async (name: string) => {
       try {
+        isCreatingNoteRef.current = true
+
         const targetPath = getTargetFolderPath()
         if (!targetPath) {
           throw new Error('No folder path selected')
         }
         const newNote = await createNote(name, '', targetPath)
         dispatch(setActiveFilePath(newNote.externalPath))
+        setSelectedFolderId(null)
+
+        await sortAllLevels(sortType)
       } catch (error) {
         logger.error('Failed to create note:', error as Error)
+      } finally {
+        // 延迟重置标志，给数据库同步一些时间
+        setTimeout(() => {
+          isCreatingNoteRef.current = false
+        }, 500)
       }
     },
-    [dispatch, getTargetFolderPath]
+    [dispatch, getTargetFolderPath, sortType]
   )
 
   // 切换展开状态
@@ -402,20 +439,18 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           dispatch(setActiveFilePath(node.externalPath))
+          invalidateFileContent(node.externalPath)
           // 清除文件夹选择状态
           setSelectedFolderId(null)
         } catch (error) {
           logger.error('Failed to load note:', error as Error)
         }
       } else if (node.type === 'folder') {
-        // 设置选中的文件夹，同时清除活动文件
         setSelectedFolderId(node.id)
-        // 清除活动文件状态，这样文件的高亮会被清除
-        dispatch(setActiveFilePath(undefined))
         await handleToggleExpanded(node.id)
       }
     },
-    [dispatch, handleToggleExpanded]
+    [dispatch, handleToggleExpanded, invalidateFileContent]
   )
 
   // 删除节点
@@ -430,6 +465,7 @@ const NotesPage: FC = () => {
           (nodeToDelete.externalPath === activeFilePath || isParentNode(notesTree, nodeId, activeNode?.id || ''))
 
         await deleteNode(nodeId)
+        await sortAllLevels(sortType)
 
         // 如果删除的是当前活动节点或其父节点，清空编辑器
         if (isActiveNodeOrParent) {
@@ -442,24 +478,47 @@ const NotesPage: FC = () => {
         logger.error('Failed to delete node:', error as Error)
       }
     },
-    [activeFilePath, activeNode, notesTree, dispatch, findNodeById]
+    [findNodeById, notesTree, activeFilePath, activeNode?.id, sortType, dispatch]
   )
 
   // 重命名节点
   const handleRenameNode = useCallback(
     async (nodeId: string, newName: string) => {
       try {
+        isRenamingRef.current = true
+
         const tree = await getNotesTree()
         const node = findNodeById(tree, nodeId)
 
         if (node && node.name !== newName) {
-          await renameNode(nodeId, newName)
+          const oldExternalPath = node.externalPath
+          const renamedNode = await renameNode(nodeId, newName)
+
+          if (renamedNode.type === 'file' && activeFilePath === oldExternalPath) {
+            dispatch(setActiveFilePath(renamedNode.externalPath))
+          } else if (
+            renamedNode.type === 'folder' &&
+            activeFilePath &&
+            activeFilePath.startsWith(oldExternalPath + '/')
+          ) {
+            const relativePath = activeFilePath.substring(oldExternalPath.length)
+            const newFilePath = renamedNode.externalPath + relativePath
+            dispatch(setActiveFilePath(newFilePath))
+          }
+          await sortAllLevels(sortType)
+          if (renamedNode.name !== newName) {
+            window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
+          }
         }
       } catch (error) {
         logger.error('Failed to rename node:', error as Error)
+      } finally {
+        setTimeout(() => {
+          isRenamingRef.current = false
+        }, 500)
       }
     },
-    [findNodeById]
+    [activeFilePath, dispatch, findNodeById, sortType, t]
   )
 
   // 处理文件上传
@@ -505,22 +564,28 @@ const NotesPage: FC = () => {
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       try {
         await moveNode(sourceNodeId, targetNodeId, position)
+        await sortAllLevels(sortType)
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
       }
     },
-    []
+    [sortType]
   )
 
   // 处理节点排序
-  const handleSortNodes = useCallback(async (sortType: NotesSortType) => {
-    try {
-      await sortAllLevels(sortType)
-    } catch (error) {
-      logger.error('Failed to sort notes:', error as Error)
-      throw error
-    }
-  }, [])
+  const handleSortNodes = useCallback(
+    async (newSortType: NotesSortType) => {
+      try {
+        // 更新Redux中的排序类型
+        dispatch(setSortType(newSortType))
+        await sortAllLevels(newSortType)
+      } catch (error) {
+        logger.error('Failed to sort notes:', error as Error)
+        throw error
+      }
+    },
+    [dispatch]
+  )
 
   const getCurrentNoteContent = useCallback(() => {
     if (settings.defaultEditMode === 'source') {
@@ -536,22 +601,31 @@ const NotesPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('notes.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        {showWorkspace && (
-          <NotesSidebar
-            notesTree={notesTree}
-            selectedFolderId={selectedFolderId}
-            onSelectNode={handleSelectNode}
-            onCreateFolder={handleCreateFolder}
-            onCreateNote={handleCreateNote}
-            onDeleteNode={handleDeleteNode}
-            onRenameNode={handleRenameNode}
-            onToggleExpanded={handleToggleExpanded}
-            onToggleStar={handleToggleStar}
-            onMoveNode={handleMoveNode}
-            onSortNodes={handleSortNodes}
-            onUploadFiles={handleUploadFiles}
-          />
-        )}
+        <AnimatePresence initial={false}>
+          {showWorkspace && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 250, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <NotesSidebar
+                notesTree={notesTree}
+                selectedFolderId={selectedFolderId}
+                onSelectNode={handleSelectNode}
+                onCreateFolder={handleCreateFolder}
+                onCreateNote={handleCreateNote}
+                onDeleteNode={handleDeleteNode}
+                onRenameNode={handleRenameNode}
+                onToggleExpanded={handleToggleExpanded}
+                onToggleStar={handleToggleStar}
+                onMoveNode={handleMoveNode}
+                onSortNodes={handleSortNodes}
+                onUploadFiles={handleUploadFiles}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
         <EditorWrapper>
           <HeaderNavbar notesTree={notesTree} getCurrentNoteContent={getCurrentNoteContent} />
           <NotesEditor

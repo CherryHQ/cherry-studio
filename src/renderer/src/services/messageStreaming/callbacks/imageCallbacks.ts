@@ -47,7 +47,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
       }
     },
 
-    onImageGenerated: (imageData: any) => {
+    onImageGenerated: async (imageData: any) => {
       if (imageBlockId) {
         if (!imageData) {
           const changes: Partial<ImageMessageBlock> = {
@@ -65,7 +65,31 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
         }
         imageBlockId = null
       } else {
-        logger.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
+        if (imageData) {
+          const imageBlock = createImageBlock(assistantMsgId, {
+            status: MessageBlockStatus.SUCCESS,
+            url: imageData.images?.[0] || 'placeholder_image_url',
+            metadata: { generateImageResponse: imageData }
+          })
+          await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+        } else {
+          logger.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
+        }
+      }
+    },
+
+    onImageSearched: async (content: string, metadata: Record<string, any>) => {
+      if (!imageBlockId) {
+        const imageBlock = createImageBlock(assistantMsgId, {
+          status: MessageBlockStatus.SUCCESS,
+          metadata: {
+            generateImageResponse: {
+              type: 'base64',
+              images: [`data:${metadata.mime};base64,${content}`]
+            }
+          }
+        })
+        await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
       }
     }
   }

@@ -155,9 +155,12 @@ const Container = styled.div`
   flex-direction: column;
   max-width: var(--assistants-width);
   min-width: var(--assistants-width);
+  height: calc(100vh - var(--navbar-height));
+
   &.right {
     height: calc(100vh - var(--navbar-height));
   }
+
   [navbar-position='left'] & {
     background-color: var(--color-background);
   }

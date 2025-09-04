@@ -1,5 +1,4 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types/newMessage'
 import { Popover } from 'antd'
@@ -12,7 +11,6 @@ interface MessageTokensProps {
 }
 
 const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
-  const { showTokens } = useSettings()
   // const { generating } = useRuntime()
   const locateMessage = () => {
     EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, false)
@@ -59,7 +57,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   if (message.role === 'user') {
     return (
       <MessageMetadata className="message-tokens" onClick={locateMessage}>
-        {showTokens && `Tokens: ${message?.usage?.total_tokens}`}
+        {`Tokens: ${message?.usage?.total_tokens}`}
       </MessageMetadata>
     )
   }
@@ -88,17 +86,15 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     )
 
     return (
-      showTokens && (
-        <MessageMetadata className="message-tokens" onClick={locateMessage}>
-          {hasMetrics ? (
-            <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
-              {tokensInfo}
-            </Popover>
-          ) : (
-            tokensInfo
-          )}
-        </MessageMetadata>
-      )
+      <MessageMetadata className="message-tokens" onClick={locateMessage}>
+        {hasMetrics ? (
+          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+            {tokensInfo}
+          </Popover>
+        ) : (
+          tokensInfo
+        )}
+      </MessageMetadata>
     )
   }
 

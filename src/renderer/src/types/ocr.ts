@@ -4,7 +4,8 @@ import { FileMetadata, ImageFileMetadata, isImageFileMetadata, TranslateLanguage
 
 export const BuiltinOcrProviderIds = {
   tesseract: 'tesseract',
-  system: 'system'
+  system: 'system',
+  paddleocr: 'paddleocr'
 } as const
 
 export type BuiltinOcrProviderId = keyof typeof BuiltinOcrProviderIds
@@ -74,7 +75,7 @@ export type OcrProviderBaseConfig = {
   enabled?: boolean
 }
 
-export type OcrProviderConfig = OcrApiProviderConfig | OcrTesseractConfig | OcrSystemConfig
+export type OcrProviderConfig = OcrApiProviderConfig | OcrTesseractConfig | OcrSystemConfig | OcrPpocrConfig
 
 export type OcrProvider = {
   id: string
@@ -103,7 +104,7 @@ export const isBuiltinOcrProvider = (p: OcrProvider): p is BuiltinOcrProvider =>
   return isBuiltinOcrProviderId(p.id)
 }
 
-// Not sure compatiable api endpoint exists. May not support custom ocr provider
+// Not sure compatible api endpoint exists. May not support custom ocr provider
 export type CustomOcrProvider = OcrProvider & {
   id: Exclude<string, BuiltinOcrProviderId>
 }
@@ -169,4 +170,21 @@ export type OcrSystemProvider = {
 
 export const isOcrSystemProvider = (p: OcrProvider): p is OcrSystemProvider => {
   return p.id === BuiltinOcrProviderIds.system
+}
+
+// PaddleOCR Types
+export type OcrPpocrConfig = OcrProviderBaseConfig & {
+  apiUrl?: string
+  accessToken?: string
+}
+
+export type OcrPpocrProvider = {
+  id: 'paddleocr'
+  config: OcrPpocrConfig
+} & ImageOcrProvider &
+  // PdfOcrProvider &
+  BuiltinOcrProvider
+
+export const isOcrPpocrProvider = (p: OcrProvider): p is OcrPpocrProvider => {
+  return p.id === BuiltinOcrProviderIds.paddleocr
 }

@@ -3,7 +3,7 @@ import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/ap
 import { HStack } from '@renderer/components/Layout'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useShowWorkspace } from '@renderer/hooks/useStore'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNodeInTree } from '@renderer/services/NotesTreeService'
 import { Breadcrumb, BreadcrumbProps, Dropdown, Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -109,7 +109,9 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader className="home-navbar" style={{ justifyContent: 'flex-start' }}>
+    <NavbarHeader
+      className="home-navbar"
+      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <HStack alignItems="center" flex="0 0 auto">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
