@@ -8,9 +8,9 @@ import { Divider, Flex } from 'antd'
 import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
+import { OcrPpocrSettings } from './OcrPpocrSettings'
 import { OcrSystemSettings } from './OcrSystemSettings'
 import { OcrTesseractSettings } from './OcrTesseractSettings'
-import { OcrPpocrSettings } from './OcrPpocrSettings'
 
 // const logger = loggerService.withContext('OcrTesseractSettings')
 

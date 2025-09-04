@@ -3865,6 +3865,10 @@
           "title": "图片"
         },
         "image_provider": "OCR 服务提供商",
+        "paddleocr": {
+          "aistudio_access_token": "星河社区访问令牌",
+          "api_url": "API URL"
+        },
         "system": {
           "win": {
             "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"
@@ -3872,10 +3876,6 @@
         },
         "tesseract": {
           "langs_tooltip": "阅读文档以了解哪些自定义语言是受支持的"
-        },
-        "paddleocr": {
-          "api_url": "API URL",
-          "aistudio_access_token": "星河社区访问令牌"
         },
         "title": "OCR 服务"
       },

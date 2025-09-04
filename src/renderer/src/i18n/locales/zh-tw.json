@@ -3865,6 +3865,10 @@
           "title": "圖片"
         },
         "image_provider": "OCR 服務提供商",
+        "paddleocr": {
+          "aistudio_access_token": "星河社區存取權杖",
+          "api_url": "API 網址"
+        },
         "system": {
           "win": {
             "langs_tooltip": "依賴 Windows 提供服務，您需要在系統中下載語言包來支援相關語言。"
@@ -3872,10 +3876,6 @@
         },
         "tesseract": {
           "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援"
-        },
-        "paddleocr": {
-          "api_url": "API 網址",
-          "aistudio_access_token": "星河社區存取權杖"
         },
         "title": "OCR 服務"
       },

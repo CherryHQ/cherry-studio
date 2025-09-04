@@ -3865,6 +3865,10 @@
           "title": "Imagem"
         },
         "image_provider": "Provedor de serviços OCR",
+        "paddleocr": {
+          "aistudio_access_token": "Token de acesso da comunidade AI Studio",
+          "api_url": "URL da API"
+        },
         "system": {
           "win": {
             "langs_tooltip": "Dependendo do Windows para fornecer serviços, você precisa baixar pacotes de idiomas no sistema para dar suporte aos idiomas relevantes."
@@ -3872,10 +3876,6 @@
         },
         "tesseract": {
           "langs_tooltip": "Leia a documentação para saber quais idiomas personalizados são suportados"
-        },
-        "paddleocr": {
-          "api_url": "URL da API",
-          "aistudio_access_token": "Token de acesso da comunidade AI Studio"
         },
         "title": "Serviço OCR"
       },

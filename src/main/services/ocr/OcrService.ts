@@ -2,9 +2,9 @@ import { loggerService } from '@logger'
 import { isLinux } from '@main/constant'
 import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 
+import { ppocrService } from './builtin/PpocrService'
 import { systemOcrService } from './builtin/SystemOcrService'
 import { tesseractService } from './builtin/TesseractService'
-import { ppocrService } from './builtin/PpocrService'
 
 const logger = loggerService.withContext('OcrService')
 

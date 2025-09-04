@@ -1,12 +1,12 @@
 import {
   BuiltinOcrProvider,
   BuiltinOcrProviderId,
+  OcrPpocrProvider,
   OcrProviderCapability,
   OcrSystemProvider,
   OcrTesseractProvider,
   TesseractLangCode,
-  TranslateLanguageCode,
-  OcrPpocrProvider
+  TranslateLanguageCode
 } from '@renderer/types'
 
 import { isMac, isWin } from './constant'
@@ -38,7 +38,6 @@ const systemOcr: OcrSystemProvider = {
   }
 } as const satisfies OcrSystemProvider
 
-
 const ppocrOcr: OcrPpocrProvider = {
   id: 'paddleocr',
   name: 'PaddleOCR',
@@ -50,7 +49,6 @@ const ppocrOcr: OcrPpocrProvider = {
     // pdf: true
   }
 } as const
-
 
 export const BUILTIN_OCR_PROVIDERS_MAP = {
   tesseract,

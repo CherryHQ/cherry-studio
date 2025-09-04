@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
+import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'

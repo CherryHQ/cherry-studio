@@ -14,8 +14,8 @@ export const OcrPpocrSettings = () => {
     throw new Error('Not PaddleOCR provider.')
   }
 
-  const [apiUrl, setApiUrl] = useState<string>(provider.config.apiUrl)
-  const [aistudioAccessToken, setAistudioAccessToken] = useState<string>(provider.config.aistudioAccessToken)
+  const [apiUrl, setApiUrl] = useState<string>(provider.config.apiUrl || '')
+  const [aistudioAccessToken, setAistudioAccessToken] = useState<string>(provider.config.aistudioAccessToken || '')
 
   const onApiUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -50,7 +50,9 @@ export const OcrPpocrSettings = () => {
       </SettingRow>
 
       <SettingRow>
-        <SettingRowTitle style={{ width: 150 }}>{t('settings.tool.ocr.paddleocr.aistudio_access_token')}</SettingRowTitle>
+        <SettingRowTitle style={{ width: 150 }}>
+          {t('settings.tool.ocr.paddleocr.aistudio_access_token')}
+        </SettingRowTitle>
         <Input.Password
           value={aistudioAccessToken}
           onChange={onAistudioAccessTokenChange}
