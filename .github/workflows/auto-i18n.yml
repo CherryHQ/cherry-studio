@@ -32,8 +32,10 @@ jobs:
       - name: 📦 Enable Yarn Corepack
         run: corepack enable
 
-      - name: 📦 Dependencies
-        run: yarn add openai cli-progress tsx
+      - name: 📦 Install only required dependencies
+        run: |
+          yarn config set nodeLinker node-modules
+          yarn add --production=false --no-lockfile openai cli-progress tsx
 
       - name: 🏃‍♀️ Translate
         run: tsx scripts/update-i18n.ts
