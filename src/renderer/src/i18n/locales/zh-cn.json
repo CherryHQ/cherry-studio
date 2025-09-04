@@ -538,7 +538,10 @@
         "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
         "title": "代码执行"
       },
-      "code_image_tools": "启用预览工具",
+      "code_image_tools": {
+        "label": "启用预览工具",
+        "tip": "为 mermaid 等代码块渲染后的图像启用预览工具"
+      },
       "code_wrappable": "代码块可换行",
       "context_count": {
         "label": "上下文数",
@@ -1626,6 +1629,7 @@
     "only_markdown": "仅支持 Markdown 格式",
     "only_one_file_allowed": "只能上传一个文件",
     "open_folder": "打开外部文件夹",
+    "open_outside": "从外部打开",
     "rename": "重命名",
     "rename_changed": "由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
     "save": "保存到笔记",

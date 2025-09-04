@@ -9,6 +9,7 @@ export interface NotesSettings {
   defaultViewMode: 'edit' | 'read'
   defaultEditMode: Omit<EditorView, 'read'>
   showTabStatus: boolean
+  showWorkspace: boolean
 }
 
 export interface NoteState {
@@ -27,7 +28,8 @@ export const initialState: NoteState = {
     fontFamily: 'default',
     defaultViewMode: 'edit',
     defaultEditMode: 'preview',
-    showTabStatus: true
+    showTabStatus: true,
+    showWorkspace: true
   },
   notesPath: '',
   sortType: 'sort_a2z'

@@ -677,7 +677,7 @@
     "model_placeholder": "Sélectionnez le modèle à utiliser",
     "model_required": "Veuillez sélectionner le modèle",
     "select_folder": "Sélectionner le dossier",
-    "supported_providers": "Fournisseurs pris en charge",
+    "supported_providers": "fournisseurs pris en charge",
     "title": "Outils de code",
     "update_options": "Options de mise à jour",
     "working_directory": "répertoire de travail"
@@ -1321,7 +1321,7 @@
         "content": "La suppression du groupe de messages supprimera les questions des utilisateurs et toutes les réponses des assistants",
         "title": "Supprimer le groupe de messages"
       },
-      "retry_failed": "Message d'erreur lors de la réessai"
+      "retry_failed": "message d'erreur de nouvelle tentative"
     },
     "ignore": {
       "knowledge": {
@@ -1624,8 +1624,9 @@
     "no_content_to_copy": "Aucun contenu à copier",
     "no_file_selected": "Veuillez sélectionner le fichier à télécharger",
     "only_markdown": "uniquement le format Markdown est pris en charge",
-    "only_one_file_allowed": "Vous ne pouvez télécharger qu’un seul fichier",
+    "only_one_file_allowed": "On ne peut télécharger qu'un seul fichier",
     "open_folder": "ouvrir le dossier externe",
+    "open_outside": "Ouvrir depuis l'extérieur",
     "rename": "renommer",
     "rename_changed": "En raison de la politique de sécurité, le nom du fichier a été changé de {{original}} à {{final}}",
     "save": "sauvegarder dans les notes",

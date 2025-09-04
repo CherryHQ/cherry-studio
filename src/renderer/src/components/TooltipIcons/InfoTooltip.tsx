@@ -9,7 +9,7 @@ interface InfoTooltipProps extends InheritedTooltipProps {
   iconStyle?: React.CSSProperties
 }
 
-const InfoTooltip = ({ iconColor = 'var(--color-text-3)', iconSize = 14, iconStyle, ...rest }: InfoTooltipProps) => {
+const InfoTooltip = ({ iconColor = 'var(--color-text-2)', iconSize = 14, iconStyle, ...rest }: InfoTooltipProps) => {
   return (
     <Tooltip {...rest}>
       <Info size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
