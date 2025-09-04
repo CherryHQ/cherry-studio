@@ -1,5 +1,6 @@
 import { loadOcrImage } from '@main/utils/ocr'
 import { ImageFileMetadata, isImageFileMetadata, OcrPpocrConfig, OcrResult, SupportedOcrFile } from '@types'
+import { net } from 'electron'
 import { z } from 'zod'
 
 import { OcrBaseService } from './OcrBaseService'
@@ -52,7 +53,7 @@ export class PpocrService extends OcrBaseService {
     }
 
     try {
-      const response = await fetch(apiUrl, {
+      const response = await net.fetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
