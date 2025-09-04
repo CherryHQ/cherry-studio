@@ -10064,7 +10064,7 @@ __metadata:
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
     officeparser: "npm:^4.2.0"
-    openai: "patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch"
+    openai: "npm:^5.19.1"
     os-proxy-config: "npm:^1.1.2"
     p-queue: "npm:^8.1.0"
     pdf-lib: "npm:^1.17.1"
@@ -10114,7 +10114,7 @@ __metadata:
     tesseract.js: "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch"
     tiny-pinyin: "npm:^1.3.2"
     tokenx: "npm:^1.1.0"
-    tsx: "npm:^4.20.3"
+    tsx: "npm:^4.20.5"
     turndown: "npm:7.2.0"
     turndown-plugin-gfm: "npm:^1.0.2"
     typescript: "npm:^5.6.2"
@@ -19628,6 +19628,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"openai@npm:^5.19.1":
+  version: 5.19.1
+  resolution: "openai@npm:5.19.1"
+  peerDependencies:
+    ws: ^8.18.0
+    zod: ^3.23.8
+  peerDependenciesMeta:
+    ws:
+      optional: true
+    zod:
+      optional: true
+  bin:
+    openai: bin/cli
+  checksum: 10c0/ac0040e5d578cd1ca105e93697e9df582aa17845b92caf728159eedc8d5d72cf2df0af2a8fcefc5c0a2c311cffedf967b08986522520b3c1285b4d2485b06a1f
+  languageName: node
+  linkType: hard
+
 "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch":
   version: 5.12.2
   resolution: "openai@patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch::version=5.12.2&hash=ad5d10"
@@ -24205,9 +24222,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tsx@npm:^4.20.3":
-  version: 4.20.3
-  resolution: "tsx@npm:4.20.3"
+"tsx@npm:^4.20.5":
+  version: 4.20.5
+  resolution: "tsx@npm:4.20.5"
   dependencies:
     esbuild: "npm:~0.25.0"
     fsevents: "npm:~2.3.3"
@@ -24217,7 +24234,7 @@ __metadata:
       optional: true
   bin:
     tsx: dist/cli.mjs
-  checksum: 10c0/6ff0d91ed046ec743fac7ed60a07f3c025e5b71a5aaf58f3d2a6b45e4db114c83e59ebbb078c8e079e48d3730b944a02bc0de87695088aef4ec8bbc705dc791b
+  checksum: 10c0/70f9bf746be69281312a369c712902dbf9bcbdd9db9184a4859eb4859c36ef0c5a6d79b935c1ec429158ee73fd6584089400ae8790345dae34c5b0222bdb94f3
   languageName: node
   linkType: hard
 
