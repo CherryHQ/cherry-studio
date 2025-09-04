@@ -16,6 +16,7 @@ jobs:
     name: Auto I18N
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       - name: 🐈‍⬛ Checkout
@@ -40,7 +41,7 @@ jobs:
           git commit -m "fix: Auto update i18n locales from GitHub Actions"
 
       - name: 🚀 Push changes
-        uses: ad-m/git-push@v1
+        uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          branch: main
+          branch: ${{ github.event.pull_request.head.ref }}
