@@ -5,7 +5,8 @@ import { RenderItemType } from './types'
 
 interface SortableItemProps<T> {
   item: T
-  getId: (item: T) => string | number
+  id: string | number
+  index: number
   renderItem: RenderItemType<T>
   useDragOverlay?: boolean
   showGhost?: boolean
@@ -13,13 +14,12 @@ interface SortableItemProps<T> {
 
 export function SortableItem<T>({
   item,
-  getId,
+  id,
+  index,
   renderItem,
   useDragOverlay = true,
   showGhost = true
 }: SortableItemProps<T>) {
-  const id = getId(item)
-
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id
   })
@@ -28,6 +28,7 @@ export function SortableItem<T>({
     <ItemRenderer
       ref={setNodeRef}
       item={item}
+      index={index}
       renderItem={renderItem}
       dragging={isDragging}
       dragOverlay={!useDragOverlay && isDragging}

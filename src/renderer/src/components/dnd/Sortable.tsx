@@ -189,8 +189,9 @@ function Sortable<T>({
           {items.map((item, index) => (
             <SortableItem
               key={itemIds[index]}
+              id={itemIds[index]}
+              index={index}
               item={item}
-              getId={getId}
               renderItem={renderItem}
               useDragOverlay={useDragOverlay}
               showGhost={showGhost}
