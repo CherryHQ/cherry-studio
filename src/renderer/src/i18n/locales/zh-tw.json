@@ -4149,7 +4149,7 @@
       "aborted": "翻譯中止"
     },
     "input": {
-      "placeholder": "可粘貼或拖入文字、檔案、圖片（支援OCR）"
+      "placeholder": "可粘貼或拖入文字、文字檔案、圖片（支援OCR）"
     },
     "language": {
       "not_pair": "源語言與設定的語言不同",

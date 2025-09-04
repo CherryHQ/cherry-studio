@@ -277,7 +277,7 @@ const TranslatePage: FC = () => {
   // 控制复制按钮
   const onCopy = () => {
     navigator.clipboard.writeText(translatedContent)
-    setCopied(false)
+    setCopied(true)
   }
 
   // 控制历史记录点击

@@ -538,7 +538,10 @@
         "tip": "Une bouton d'exécution s'affichera dans la barre d'outils des blocs de code exécutables. Attention à ne pas exécuter de code dangereux !",
         "title": "Exécution de code"
       },
-      "code_image_tools": "Activer l'outil d'aperçu",
+      "code_image_tools": {
+        "label": "Activer l'outil d'aperçu",
+        "tip": "Activer les outils de prévisualisation pour les images rendues des blocs de code tels que mermaid"
+      },
       "code_wrappable": "Blocs de code avec retours à la ligne",
       "context_count": {
         "label": "Nombre de contextes",
@@ -4146,7 +4149,7 @@
       "aborted": "Traduction annulée"
     },
     "input": {
-      "placeholder": "Peut coller ou glisser du texte, des fichiers, des images (avec reconnaissance optique de caractères)"
+      "placeholder": "Peut coller ou glisser du texte, des fichiers texte ou des images (avec prise en charge de l'OCR)"
     },
     "language": {
       "not_pair": "La langue source est différente de la langue définie",

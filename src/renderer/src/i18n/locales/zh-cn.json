@@ -4149,7 +4149,7 @@
       "aborted": "翻译中止"
     },
     "input": {
-      "placeholder": "可粘贴或拖入文本、文件、图片（支持OCR）"
+      "placeholder": "可粘贴或拖入文本、文本文件、图片（支持OCR）"
     },
     "language": {
       "not_pair": "源语言与设置的语言不同",
