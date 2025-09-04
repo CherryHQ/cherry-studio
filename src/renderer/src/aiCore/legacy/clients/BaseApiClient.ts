@@ -256,19 +256,27 @@ export abstract class BaseApiClient<
     return defaultTimeout
   }
 
-  public async getMessageContent(message: Message): Promise<string> {
+  public async getMessageContent(
+    message: Message
+  ): Promise<{ textContent: string; imageContents: { fileId: string; fileExt: string }[] }> {
     const content = getMainTextContent(message)
 
     if (isEmpty(content)) {
-      return ''
+      return {
+        textContent: '',
+        imageContents: []
+      }
     }
 
     const webSearchReferences = await this.getWebSearchReferencesFromCache(message)
     const knowledgeReferences = await this.getKnowledgeBaseReferencesFromCache(message)
     const memoryReferences = this.getMemoryReferencesFromCache(message)
 
+    const knowledgeTextReferences = knowledgeReferences.filter((k) => k.metadata?.type !== 'image')
+    const knowledgeImageReferences = knowledgeReferences.filter((k) => k.metadata?.type === 'image')
+
     // 添加偏移量以避免ID冲突
-    const reindexedKnowledgeReferences = knowledgeReferences.map((ref) => ({
+    const reindexedKnowledgeReferences = knowledgeTextReferences.map((ref) => ({
       ...ref,
       id: ref.id + webSearchReferences.length // 为知识库引用的ID添加网络搜索引用的数量作为偏移量
     }))
@@ -277,12 +285,17 @@ export abstract class BaseApiClient<
 
     logger.debug(`Found ${allReferences.length} references for ID: ${message.id}`, allReferences)
 
-    if (!isEmpty(allReferences)) {
-      const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
-      return REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent)
-    }
+    const referenceContent = `\`\`\`json\n${JSON.stringify(allReferences, null, 2)}\n\`\`\``
+    const imageReferences = knowledgeImageReferences.map((r) => {
+      return { fileId: r.metadata?.id, fileExt: r.metadata?.ext }
+    })
 
-    return content
+    return {
+      textContent: isEmpty(allReferences)
+        ? content
+        : REFERENCE_PROMPT.replace('{question}', content).replace('{references}', referenceContent),
+      imageContents: isEmpty(knowledgeImageReferences) ? [] : imageReferences
+    }
   }
 
   /**

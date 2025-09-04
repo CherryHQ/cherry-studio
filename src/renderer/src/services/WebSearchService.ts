@@ -55,7 +55,7 @@ class WebSearchService {
     dispose: (requestState: RequestState, requestId: string) => {
       if (!requestState.searchBase) return
       window.api.knowledgeBase
-        .delete(requestState.searchBase.id)
+        .delete(getKnowledgeBaseParams(requestState.searchBase), requestState.searchBase.id)
         .catch((error) => logger.warn(`Failed to cleanup search base for ${requestId}:`, error))
     }
   })
@@ -231,7 +231,7 @@ class WebSearchService {
 
     // 清理旧的知识库
     if (state.searchBase) {
-      await window.api.knowledgeBase.delete(state.searchBase.id)
+      await window.api.knowledgeBase.delete(getKnowledgeBaseParams(state.searchBase), state.searchBase.id)
     }
 
     if (!config.embeddingModel) {
@@ -249,7 +249,8 @@ class WebSearchService {
       items: [],
       created_at: Date.now(),
       updated_at: Date.now(),
-      version: 1
+      version: 1,
+      framework: 'embedjs'
     }
 
     // 更新LRU cache

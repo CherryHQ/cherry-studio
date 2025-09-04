@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
-import { FileMetadata, KnowledgeItem } from '@renderer/types'
+import { FileMetadata, isKnowledgeNoteItem, KnowledgeItem } from '@renderer/types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { AppDispatch } from '..'
+
+const logger = loggerService.withContext('knowledgeThunk')
 
 /**
  * Creates a new knowledge item with default values.
@@ -51,6 +54,11 @@ export const addNoteThunk = (baseId: string, content: string) => async (dispatch
   const noteId = uuidv4()
   const note = createKnowledgeItem('note', content, { id: noteId })
 
+  if (!isKnowledgeNoteItem(note)) {
+    logger.error('Invalid note item', note)
+    throw new Error('Invalid note item')
+  }
+
   // 存储完整笔记到数据库，出错时交给调用者处理
   await db.knowledge_notes.add(note)
 
@@ -69,5 +77,11 @@ export const addNoteThunk = (baseId: string, content: string) => async (dispatch
 export const addItemThunk =
   (baseId: string, type: KnowledgeItem['type'], content: string) => (dispatch: AppDispatch) => {
     const newItem = createKnowledgeItem(type, content)
+    dispatch(addItem({ baseId, item: newItem }))
+  }
+
+export const addVedioThunk =
+  (baseId: string, type: KnowledgeItem['type'], files: FileMetadata[]) => (dispatch: AppDispatch) => {
+    const newItem = createKnowledgeItem(type, files)
     dispatch(addItem({ baseId, item: newItem }))
   }

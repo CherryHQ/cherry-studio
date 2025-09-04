@@ -1,19 +1,14 @@
-import { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
-import { KnowledgeBaseParams } from '@types'
+import { KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 import { net } from 'electron'
 
 import BaseReranker from './BaseReranker'
-
 export default class GeneralReranker extends BaseReranker {
   constructor(base: KnowledgeBaseParams) {
     super(base)
   }
-
-  public rerank = async (query: string, searchResults: ExtractChunkData[]): Promise<ExtractChunkData[]> => {
+  public rerank = async (query: string, searchResults: KnowledgeSearchResult[]): Promise<KnowledgeSearchResult[]> => {
     const url = this.getRerankUrl()
-
     const requestBody = this.getRerankRequestBody(query, searchResults)
-
     try {
       const response = await net.fetch(url, {
         method: 'POST',

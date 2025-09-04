@@ -14,7 +14,14 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
-import { FlexAlignCenter, ItemContainer, ItemHeader, KnowledgeEmptyView, StatusIconWrapper } from '../KnowledgeContent'
+import {
+  FlexAlignCenter,
+  ItemContainer,
+  ItemHeader,
+  KnowledgeEmptyView,
+  ResponsiveButton,
+  StatusIconWrapper
+} from '../KnowledgeContent'
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
@@ -73,7 +80,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
@@ -82,7 +89,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           }}
           disabled={disabled}>
           {t('knowledge.add_note')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
       <ItemFlexColumn>
         {noteItems.length === 0 && <KnowledgeEmptyView />}

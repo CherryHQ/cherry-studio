@@ -28,7 +28,8 @@ export enum MessageBlockType {
   TOOL = 'tool', // Added unified tool block type
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
-  CITATION = 'citation' // 引用类型 (Now includes web search, grounding, etc.)
+  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
+  VIDEO = 'video' // 视频内容
 }
 
 // 块状态定义
@@ -129,6 +130,14 @@ export interface FileMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.FILE
   file: FileMetadata // 文件信息
 }
+
+// 视频块
+export interface VideoMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.VIDEO
+  url?: string // For generated video or direct links
+  filePath?: string // For user uploaded video files
+}
+
 // 错误块
 export interface ErrorMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.ERROR
@@ -146,6 +155,7 @@ export type MessageBlock =
   | FileMessageBlock
   | ErrorMessageBlock
   | CitationMessageBlock
+  | VideoMessageBlock
 
 export enum UserMessageStatus {
   SUCCESS = 'success'

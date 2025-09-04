@@ -205,6 +205,19 @@ export async function readTextFileWithAutoEncoding(filePath: string): Promise<st
   return iconv.decode(data, 'UTF-8')
 }
 
+export async function base64Image(file: FileMetadata): Promise<{ mime: string; base64: string; data: string }> {
+  const filePath = path.join(getFilesDir(), `${file.id}${file.ext}`)
+  const data = await fs.promises.readFile(filePath)
+  const base64 = data.toString('base64')
+  const ext = path.extname(filePath).slice(1) == 'jpg' ? 'jpeg' : path.extname(filePath).slice(1)
+  const mime = `image/${ext}`
+  return {
+    mime,
+    base64,
+    data: `data:${mime};base64,${base64}`
+  }
+}
+
 /**
  * 递归扫描目录，获取符合条件的文件和目录结构
  * @param dirPath 当前要扫描的路径

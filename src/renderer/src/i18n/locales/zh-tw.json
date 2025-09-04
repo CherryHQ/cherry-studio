@@ -963,9 +963,11 @@
     },
     "add_directory": "新增目錄",
     "add_file": "新增檔案",
+    "add_image": "新增圖片",
     "add_note": "新增筆記",
     "add_sitemap": "網站地圖",
     "add_url": "新增網址",
+    "add_video": "新增影片",
     "cancel_index": "取消索引",
     "chunk_overlap": "重疊大小",
     "chunk_overlap_placeholder": "預設值（不建議修改）",
@@ -992,6 +994,7 @@
     "document_count_default": "預設",
     "document_count_help": "請求文件片段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
     "drag_file": "拖拽檔案到這裡",
+    "drag_image": "拖曳圖片到這裡",
     "edit_remark": "修改備註",
     "edit_remark_placeholder": "請輸入備註內容",
     "embedding_model": "嵌入模型",
@@ -1000,9 +1003,15 @@
     "error": {
       "failed_to_create": "知識庫創建失敗",
       "failed_to_edit": "知識庫編輯失敗",
-      "model_invalid": "未選擇模型"
+      "model_invalid": "未選擇模型",
+      "video": {
+        "local_file_missing": "影片檔案不存在",
+        "youtube_url_missing": "YouTube 影片連結不存在"
+      }
     },
     "file_hint": "支援 {{file_types}} 格式",
+    "image_hint": "支援 {{image_types}} 格式",
+    "images": "圖片",
     "index_all": "索引全部",
     "index_cancelled": "索引已取消",
     "index_started": "索引開始",
@@ -1018,6 +1027,10 @@
       },
       "error": {
         "failed": "遷移失敗"
+      },
+      "migrate_to_langchain": {
+        "content": "知識庫遷移不會刪除舊知識庫，而是建立一個副本後重新處理所有知識庫條目，可能消耗大量 tokens，請謹慎操作。",
+        "info": "知識庫架構已更新，點擊遷移到新架構"
       },
       "source_dimensions": "源維度",
       "source_model": "源模型",
@@ -1037,6 +1050,20 @@
     "quota": "{{name}} 剩餘配額：{{quota}}",
     "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
+    "retriever": "搜尋模式",
+    "retriever_bm25": "全文搜尋",
+    "retriever_bm25_desc": "根據關鍵字的相關性和頻率查找文件。",
+    "retriever_hybrid": "混合搜尋（推薦）",
+    "retriever_hybrid_desc": "結合關鍵字搜索和語義搜索，以實現最佳檢索準確性。",
+    "retriever_hybrid_weight": {
+      "bm25": "全文",
+      "recommended": "推薦",
+      "title": "混合搜尋權重調整 (全文/向量)",
+      "vector": "向量"
+    },
+    "retriever_tooltip": "使用不同的檢索方式檢索知識庫",
+    "retriever_vector": "向量搜尋",
+    "retriever_vector_desc": "根據語意相似性和含義查找文件。",
     "search": "搜尋知識庫",
     "search_placeholder": "輸入查詢內容",
     "settings": {
@@ -1058,6 +1085,7 @@
     "status_preprocess_completed": "預處理完成",
     "status_preprocess_failed": "預處理失敗",
     "status_processing": "處理中",
+    "subtitle_file": "字幕檔案",
     "threshold": "匹配度閾值",
     "threshold_placeholder": "未設定",
     "threshold_too_large_or_small": "閾值不能大於 1 或小於 0",
@@ -1069,7 +1097,9 @@
     "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多",
     "url_added": "網址已新增",
     "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-    "urls": "網址"
+    "urls": "網址",
+    "videos": "影片",
+    "videos_file": "影片檔案"
   },
   "languages": {
     "arabic": "阿拉伯文",
@@ -1376,6 +1406,13 @@
         "bubble": "氣泡",
         "label": "訊息樣式",
         "plain": "簡潔"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "本地視頻檔案路徑不存在",
+          "unsupported_type": "不支援的視頻類型",
+          "youtube_url_missing": "YouTube 視頻連結不存在"
+        }
       }
     },
     "processing": "正在處理...",

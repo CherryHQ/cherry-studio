@@ -963,9 +963,11 @@
     },
     "add_directory": "Ajouter un répertoire",
     "add_file": "Ajouter un fichier",
+    "add_image": "Ajouter une image",
     "add_note": "Ajouter une note",
     "add_sitemap": "Plan du site",
     "add_url": "Ajouter une URL",
+    "add_video": "Ajouter une vidéo",
     "cancel_index": "Annuler l'indexation",
     "chunk_overlap": "Chevauchement de blocs",
     "chunk_overlap_placeholder": "Valeur par défaut (ne pas modifier)",
@@ -992,6 +994,7 @@
     "document_count_default": "Par défaut",
     "document_count_help": "Plus vous demandez de fragments de documents, plus d'informations sont fournies, mais plus de jetons sont consommés",
     "drag_file": "Glissez-déposez un fichier ici",
+    "drag_image": "Faites glisser l'image ici",
     "edit_remark": "Modifier la remarque",
     "edit_remark_placeholder": "Entrez le contenu de la remarque",
     "embedding_model": "Modèle d'intégration",
@@ -1000,9 +1003,15 @@
     "error": {
       "failed_to_create": "Erreur lors de la création de la base de connaissances",
       "failed_to_edit": "Erreur lors de la modification de la base de connaissances",
-      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé"
+      "model_invalid": "Aucun modèle sélectionné ou modèle supprimé",
+      "video": {
+        "local_file_missing": "Le fichier vidéo n'existe pas.",
+        "youtube_url_missing": "Le lien de la vidéo YouTube n'existe pas."
+      }
     },
     "file_hint": "Format supporté : {{file_types}}",
+    "image_hint": "Prise en charge des formats {{image_types}}",
+    "images": "Image",
     "index_all": "Indexer tout",
     "index_cancelled": "L'indexation a été annulée",
     "index_started": "L'indexation a commencé",
@@ -1018,6 +1027,10 @@
       },
       "error": {
         "failed": "Erreur lors de la migration"
+      },
+      "migrate_to_langchain": {
+        "content": "La migration de la base de connaissances ne supprime pas l'ancienne base, mais crée une copie avant de retraiter tous les éléments, ce qui peut consommer un grand nombre de tokens. Veuillez agir avec prudence.",
+        "info": "L'architecture de la base de connaissances a été mise à jour, cliquez pour migrer vers la nouvelle architecture."
       },
       "source_dimensions": "Dimensions source",
       "source_model": "Modèle source",
@@ -1037,6 +1050,20 @@
     "quota": "Quota restant pour {{name}} : {{quota}}",
     "quota_infinity": "Quota restant pour {{name}} : illimité",
     "rename": "Renommer",
+    "retriever": "Mode de recherche",
+    "retriever_bm25": "Recherche plein texte",
+    "retriever_bm25_desc": "Rechercher des documents en fonction de la pertinence et de la fréquence des mots-clés.",
+    "retriever_hybrid": "Recherche hybride (recommandé)",
+    "retriever_hybrid_desc": "Associez la recherche par mots-clés et la recherche sémantique pour une précision de recherche optimale.",
+    "retriever_hybrid_weight": {
+      "bm25": "texte intégral",
+      "recommended": "Recommandé",
+      "title": "Ajustement des pondérations de recherche hybride (texte intégral/vecteur)",
+      "vector": "vecteur"
+    },
+    "retriever_tooltip": "Utiliser différentes méthodes de recherche pour interroger la base de connaissances",
+    "retriever_vector": "Recherche vectorielle",
+    "retriever_vector_desc": "Rechercher des documents selon la similarité sémantique et le sens.",
     "search": "Rechercher dans la base de connaissances",
     "search_placeholder": "Entrez votre requête",
     "settings": {
@@ -1058,6 +1085,7 @@
     "status_preprocess_completed": "Prétraitement terminé",
     "status_preprocess_failed": "Échec du prétraitement",
     "status_processing": "En cours de traitement",
+    "subtitle_file": "[to be translated]:字幕文件",
     "threshold": "Seuil de similarité",
     "threshold_placeholder": "Non défini",
     "threshold_too_large_or_small": "Le seuil ne peut pas être supérieur à 1 ou inférieur à 0",
@@ -1069,7 +1097,9 @@
     "topN_tooltip": "Nombre de résultats de correspondance retournés, plus le chiffre est élevé, plus il y a de résultats de correspondance, mais plus de jetons sont consommés",
     "url_added": "URL ajoutée",
     "url_placeholder": "Entrez l'URL, plusieurs URLs séparées par des sauts de ligne",
-    "urls": "URLs"
+    "urls": "URLs",
+    "videos": "vidéo",
+    "videos_file": "[to be translated]:视频文件"
   },
   "languages": {
     "arabic": "Arabe",
@@ -1376,6 +1406,13 @@
         "bubble": "Bulles",
         "label": "Style du message",
         "plain": "Simplifié"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Chemin du fichier vidéo local introuvable",
+          "unsupported_type": "Type de vidéo non supporté",
+          "youtube_url_missing": "URL de la vidéo YouTube introuvable"
+        }
       }
     },
     "processing": "En cours de traitement...",

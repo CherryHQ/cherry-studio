@@ -963,9 +963,11 @@
     },
     "add_directory": "ディレクトリを追加",
     "add_file": "ファイルを追加",
+    "add_image": "画像を追加",
     "add_note": "ノートを追加",
     "add_sitemap": "サイトマップを追加",
     "add_url": "URLを追加",
+    "add_video": "動画を追加",
     "cancel_index": "インデックスをキャンセル",
     "chunk_overlap": "チャンクの重なり",
     "chunk_overlap_placeholder": "デフォルト（変更しないでください）",
@@ -992,6 +994,7 @@
     "document_count_default": "デフォルト",
     "document_count_help": "要求されたドキュメント分段数が多いほど、付随する情報が多くなりますが、トークンの消費量も増加します",
     "drag_file": "ファイルをここにドラッグ",
+    "drag_image": "画像をここにドラッグ",
     "edit_remark": "備考を編集",
     "edit_remark_placeholder": "備考内容を入力してください",
     "embedding_model": "埋め込みモデル",
@@ -1000,9 +1003,15 @@
     "error": {
       "failed_to_create": "ナレッジベースの作成に失敗しました",
       "failed_to_edit": "ナレッジベースの編集に失敗しました",
-      "model_invalid": "モデルが選択されていません"
+      "model_invalid": "モデルが選択されていません",
+      "video": {
+        "local_file_missing": "動画ファイルが見つかりません",
+        "youtube_url_missing": "YouTube動画のURLが見つかりません"
+      }
     },
     "file_hint": "{{file_types}} 形式をサポート",
+    "image_hint": "{{image_types}} 形式に対応しています",
+    "images": "画像",
     "index_all": "すべてをインデックス",
     "index_cancelled": "インデックスがキャンセルされました",
     "index_started": "インデックスを開始",
@@ -1018,6 +1027,10 @@
       },
       "error": {
         "failed": "移行が失敗しました"
+      },
+      "migrate_to_langchain": {
+        "content": "ナレッジベースの移行は旧ナレッジベースを削除せず、すべてのエントリーを再処理したコピーを作成します。大量のトークンを消費する可能性があるため、操作には十分注意してください。",
+        "info": "ナレッジベースのアーキテクチャが更新されました、新しいアーキテクチャに移行するにはクリックしてください"
       },
       "source_dimensions": "ソース次元",
       "source_model": "ソースモデル",
@@ -1037,6 +1050,20 @@
     "quota": "{{name}} 残りクォータ: {{quota}}",
     "quota_infinity": "{{name}} クォータ: 無制限",
     "rename": "名前を変更",
+    "retriever": "検索モード",
+    "retriever_bm25": "全文検索",
+    "retriever_bm25_desc": "キーワードの関連性と頻度に基づいてドキュメントを検索します。",
+    "retriever_hybrid": "ハイブリッド検索（おすすめ）",
+    "retriever_hybrid_desc": "キーワード検索と意味検索を組み合わせて、最高の検索精度を実現します。",
+    "retriever_hybrid_weight": {
+      "bm25": "全文（ぜんぶん）",
+      "recommended": "おすすめ",
+      "title": "ハイブリッド検索の重み付け調整 (全文/ベクトル)",
+      "vector": "ベクトル"
+    },
+    "retriever_tooltip": "異なる検索方法を使用してナレッジベースを検索する",
+    "retriever_vector": "ベクトル検索",
+    "retriever_vector_desc": "意味的な類似性と意味に基づいて文書を検索します。",
     "search": "ナレッジベースを検索",
     "search_placeholder": "検索するテキストを入力",
     "settings": {
@@ -1058,6 +1085,7 @@
     "status_preprocess_completed": "前処理完了",
     "status_preprocess_failed": "前処理に失敗しました",
     "status_processing": "処理中",
+    "subtitle_file": "字幕ファイル",
     "threshold": "マッチング度閾値",
     "threshold_placeholder": "未設置",
     "threshold_too_large_or_small": "しきい値は0より大きく1より小さい必要があります",
@@ -1069,7 +1097,9 @@
     "topN_tooltip": "返されるマッチ結果の数は、数値が大きいほどマッチ結果が多くなりますが、消費されるトークンも増えます。",
     "url_added": "URLが追加されました",
     "url_placeholder": "URLを入力, 複数のURLはEnterで区切る",
-    "urls": "URL"
+    "urls": "URL",
+    "videos": "動画",
+    "videos_file": "動画ファイル"
   },
   "languages": {
     "arabic": "アラビア語",
@@ -1376,6 +1406,13 @@
         "bubble": "バブル",
         "label": "メッセージスタイル",
         "plain": "プレーン"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "ローカル動画ファイルのパスが見つかりません",
+          "unsupported_type": "サポートされていない動画タイプです",
+          "youtube_url_missing": "YouTube動画のURLが見つかりません"
+        }
       }
     },
     "processing": "処理中...",

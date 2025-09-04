@@ -963,9 +963,11 @@
     },
     "add_directory": "Agregar directorio",
     "add_file": "Agregar archivo",
+    "add_image": "Añadir imagen",
     "add_note": "Agregar nota",
     "add_sitemap": "Mapa del sitio",
     "add_url": "Agregar URL",
+    "add_video": "Añadir video",
     "cancel_index": "Cancelar índice",
     "chunk_overlap": "Superposición de fragmentos",
     "chunk_overlap_placeholder": "Valor predeterminado (no recomendado para modificar)",
@@ -992,6 +994,7 @@
     "document_count_default": "Predeterminado",
     "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
     "drag_file": "Arrastre archivos aquí",
+    "drag_image": "Arrastra la imagen aquí",
     "edit_remark": "Editar observación",
     "edit_remark_placeholder": "Ingrese el contenido de la observación",
     "embedding_model": "Modelo de incrustación",
@@ -1000,9 +1003,15 @@
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_edit": "Error al editar la base de conocimientos",
-      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
+      "video": {
+        "local_file_missing": "El archivo de video no existe.",
+        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
+      }
     },
     "file_hint": "Formatos soportados: {{file_types}}",
+    "image_hint": "Soporta formatos {{image_types}}",
+    "images": "Imagen",
     "index_all": "Indexar todo",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
@@ -1018,6 +1027,10 @@
       },
       "error": {
         "failed": "Error en la migración"
+      },
+      "migrate_to_langchain": {
+        "content": "La migración de la base de conocimiento no elimina la base antigua, sino que crea una copia y luego reprocesa todas las entradas, lo que puede consumir una gran cantidad de tokens. Proceda con precaución.",
+        "info": "La estructura de la base de conocimiento ha sido actualizada. Haz clic para migrar a la nueva estructura."
       },
       "source_dimensions": "Dimensiones de origen",
       "source_model": "Modelo de origen",
@@ -1037,6 +1050,20 @@
     "quota": "Cupo restante de {{name}}: {{quota}}",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
+    "retriever": "modo de recuperación",
+    "retriever_bm25": "búsqueda de texto completo",
+    "retriever_bm25_desc": "Encontrar documentos basados en la relevancia y frecuencia de las palabras clave.",
+    "retriever_hybrid": "Búsqueda híbrida (recomendada)",
+    "retriever_hybrid_desc": "Combinar la búsqueda por palabras clave con la búsqueda semántica para lograr la máxima precisión en la recuperación.",
+    "retriever_hybrid_weight": {
+      "bm25": "texto completo",
+      "recommended": "Recomendado",
+      "title": "Ajuste de ponderación en búsqueda híbrida (texto completo/vectorial)",
+      "vector": "vector"
+    },
+    "retriever_tooltip": "Usar diferentes métodos de búsqueda para consultar la base de conocimiento",
+    "retriever_vector": "búsqueda vectorial",
+    "retriever_vector_desc": "Buscar documentos según similitud semántica y significado.",
     "search": "Buscar en la base de conocimientos",
     "search_placeholder": "Ingrese el contenido de la consulta",
     "settings": {
@@ -1058,6 +1085,7 @@
     "status_preprocess_completed": "Preprocesamiento completado",
     "status_preprocess_failed": "Error en el preprocesamiento",
     "status_processing": "Procesando",
+    "subtitle_file": "[to be translated]:字幕文件",
     "threshold": "Umbral de coincidencia",
     "threshold_placeholder": "No configurado",
     "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
@@ -1069,7 +1097,9 @@
     "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
     "url_added": "URL agregada",
     "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
-    "urls": "URLs"
+    "urls": "URLs",
+    "videos": "vídeo",
+    "videos_file": "[to be translated]:视频文件"
   },
   "languages": {
     "arabic": "Árabe",
@@ -1376,6 +1406,13 @@
         "bubble": "Burbuja",
         "label": "Estilo de mensaje",
         "plain": "Simple"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Ruta del archivo de video local no encontrada",
+          "unsupported_type": "Tipo de video no soportado",
+          "youtube_url_missing": "URL del video de YouTube no encontrada"
+        }
       }
     },
     "processing": "Procesando...",

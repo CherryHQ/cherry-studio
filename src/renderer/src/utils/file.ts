@@ -1,5 +1,6 @@
-import { FileMetadata } from '@renderer/types'
-import { KB, MB, textExts } from '@shared/config/constant'
+import { FileMetadata, FileTypes } from '@renderer/types'
+import { audioExts, documentExts, imageExts, KB, MB, textExts, videoExts } from '@shared/config/constant'
+import mime from 'mime-types'
 
 /**
  * 从文件路径中提取目录路径。
@@ -108,4 +109,23 @@ export async function filterSupportedFiles(files: FileMetadata[], supportExts: s
     }))
   )
   return validationResults.filter((result) => result.isValid).map((result) => result.file)
+}
+
+export const mime2type = (mimeStr: string): FileTypes => {
+  const mimeType = mimeStr.toLowerCase()
+  const ext = mime.extension(mimeType)
+  if (ext) {
+    if (textExts.includes(ext)) {
+      return FileTypes.TEXT
+    } else if (imageExts.includes(ext)) {
+      return FileTypes.IMAGE
+    } else if (documentExts.includes(ext)) {
+      return FileTypes.DOCUMENT
+    } else if (audioExts.includes(ext)) {
+      return FileTypes.AUDIO
+    } else if (videoExts.includes(ext)) {
+      return FileTypes.VIDEO
+    }
+  }
+  return FileTypes.OTHER
 }
