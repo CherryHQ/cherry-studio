@@ -60,7 +60,8 @@ export const createCallbacks = (deps: CallbacksDependencies) => {
     blockManager,
     getState,
     assistantMsgId,
-    getCitationBlockId: citationCallbacks.getCitationBlockId
+    getCitationBlockId: citationCallbacks.getCitationBlockId,
+    getCitationBlockIdFromTool: toolCallbacks.getCitationBlockId
   })
 
   const videoCallbacks = createVideoCallbacks({ blockManager, assistantMsgId })

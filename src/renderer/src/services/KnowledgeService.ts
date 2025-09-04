@@ -12,6 +12,7 @@ import {
   KnowledgeReference,
   KnowledgeSearchResult
 } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -290,4 +291,50 @@ export const processKnowledgeSearch = async (
     ...ref,
     id: index + 1
   }))
+}
+
+/**
+ * 处理知识库搜索结果中的引用
+ * @param references 知识库引用
+ * @param onChunkReceived Chunk接收回调
+ */
+export function processKnowledgeReferences(
+  references: KnowledgeReference[] | undefined,
+  onChunkReceived: (chunk: Chunk) => void
+) {
+  if (!references || references.length === 0) {
+    return
+  }
+
+  for (const ref of references) {
+    const { metadata } = ref
+    if (!metadata?.source) {
+      continue
+    }
+
+    switch (metadata.type) {
+      case 'youtube': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'url',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
+      case 'video': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'path',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
+    }
+  }
 }

@@ -838,6 +838,7 @@ const migrateConfig = {
 
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'qwenlm'
         }
       })
@@ -895,6 +896,7 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'qwenlm'
         }
       })
@@ -2378,6 +2380,19 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 147 error', error as Error)
+      return state
+    }
+  },
+  '148': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if (!base.framework) {
+          base.framework = 'embedjs'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 148 error', error as Error)
       return state
     }
   }
