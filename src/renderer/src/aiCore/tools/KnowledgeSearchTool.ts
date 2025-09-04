@@ -102,7 +102,8 @@ Call this tool to execute the search. You can optionally provide additional cont
           content: ref.content,
           sourceUrl: ref.sourceUrl,
           type: ref.type,
-          file: ref.file
+          file: ref.file,
+          metadata: ref.metadata
         }))
 
         // const referenceContent = `\`\`\`json\n${JSON.stringify(knowledgeReferencesData, null, 2)}\n\`\`\``
