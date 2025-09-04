@@ -379,16 +379,9 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
    */
   public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAISdkMessageParam> {
     const isVision = isVisionModel(model)
-    const content = await this.getMessageContent(message)
+    const { textContent, imageContents } = await this.getMessageContent(message)
     const fileBlocks = findFileBlocks(message)
     const imageBlocks = findImageBlocks(message)
-
-    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
-      return {
-        role: message.role === 'system' ? 'user' : message.role,
-        content
-      } as OpenAISdkMessageParam
-    }
 
     // If the model does not support files, extract the file content
     if (this.isNotSupportFiles) {
@@ -396,15 +389,30 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
 
       return {
         role: message.role === 'system' ? 'user' : message.role,
-        content: content + '\n\n---\n\n' + fileContent
+        content: textContent + '\n\n---\n\n' + fileContent
+      } as OpenAISdkMessageParam
+    }
+
+    // Check if we only have text content and no other media
+    if (fileBlocks.length === 0 && imageBlocks.length === 0 && imageContents.length === 0) {
+      return {
+        role: message.role === 'system' ? 'user' : message.role,
+        content: textContent
       } as OpenAISdkMessageParam
     }
 
     // If the model supports files, add the file content to the message
     const parts: ChatCompletionContentPart[] = []
 
-    if (content) {
-      parts.push({ type: 'text', text: content })
+    if (textContent) {
+      parts.push({ type: 'text', text: textContent })
+    }
+
+    if (imageContents.length > 0) {
+      for (const imageContent of imageContents) {
+        const image = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
+        parts.push({ type: 'image_url', image_url: { url: image.data } })
+      }
     }
 
     for (const imageBlock of imageBlocks) {

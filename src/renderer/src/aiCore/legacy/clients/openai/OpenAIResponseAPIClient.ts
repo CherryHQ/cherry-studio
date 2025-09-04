@@ -171,30 +171,41 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   public async convertMessageToSdkParam(message: Message, model: Model): Promise<OpenAIResponseSdkMessageParam> {
     const isVision = isVisionModel(model)
-    const content = await this.getMessageContent(message)
+    const { textContent, imageContents } = await this.getMessageContent(message)
     const fileBlocks = findFileBlocks(message)
     const imageBlocks = findImageBlocks(message)
 
-    if (fileBlocks.length === 0 && imageBlocks.length === 0) {
+    if (fileBlocks.length === 0 && imageBlocks.length === 0 && imageContents.length === 0) {
       if (message.role === 'assistant') {
         return {
           role: 'assistant',
-          content: content
+          content: textContent
         }
       } else {
         return {
           role: message.role === 'system' ? 'user' : message.role,
-          content: content ? [{ type: 'input_text', text: content }] : []
+          content: textContent ? [{ type: 'input_text', text: textContent }] : []
         } as OpenAI.Responses.EasyInputMessage
       }
     }
 
     const parts: OpenAI.Responses.ResponseInputContent[] = []
-    if (content) {
+    if (imageContents) {
       parts.push({
         type: 'input_text',
-        text: content
+        text: textContent
       })
+    }
+
+    if (imageContents.length > 0) {
+      for (const imageContent of imageContents) {
+        const image = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
+        parts.push({
+          detail: 'auto',
+          type: 'input_image',
+          image_url: image.data
+        })
+      }
     }
 
     for (const imageBlock of imageBlocks) {

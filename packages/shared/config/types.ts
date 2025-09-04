@@ -7,7 +7,7 @@ export type LoaderReturn = {
   loaderType: string
   status?: ProcessingStatus
   message?: string
-  messageSource?: 'preprocess' | 'embedding'
+  messageSource?: 'preprocess' | 'embedding' | 'validation'
 }
 
 export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir'

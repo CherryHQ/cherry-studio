@@ -187,6 +187,10 @@ export class AnthropicAPIClient extends BaseApiClient<
     }
   }
 
+  private static isValidBase64ImageMediaType(mime: string): mime is Base64ImageSource['media_type'] {
+    return ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mime)
+  }
+
   /**
    * Get the message parameter
    * @param message - The message
@@ -194,12 +198,33 @@ export class AnthropicAPIClient extends BaseApiClient<
    * @returns The message parameter
    */
   public async convertMessageToSdkParam(message: Message): Promise<AnthropicSdkMessageParam> {
+    const { textContent, imageContents } = await this.getMessageContent(message)
+
     const parts: MessageParam['content'] = [
       {
         type: 'text',
-        text: await this.getMessageContent(message)
+        text: textContent
       }
     ]
+
+    if (imageContents.length > 0) {
+      for (const imageContent of imageContents) {
+        const base64Data = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
+        base64Data.mime = base64Data.mime.replace('jpg', 'jpeg')
+        if (AnthropicAPIClient.isValidBase64ImageMediaType(base64Data.mime)) {
+          parts.push({
+            type: 'image',
+            source: {
+              data: base64Data.base64,
+              media_type: base64Data.mime,
+              type: 'base64'
+            }
+          })
+        } else {
+          logger.warn('Unsupported image type, ignored.', { mime: base64Data.mime })
+        }
+      }
+    }
 
     // Get and process image blocks
     const imageBlocks = findImageBlocks(message)

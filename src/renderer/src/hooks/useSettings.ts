@@ -116,7 +116,7 @@ export function useMessageStyle() {
   }
 }
 
-export const getStoreSetting = (key: keyof SettingsState) => {
+export const getStoreSetting = <K extends keyof SettingsState>(key: K): SettingsState[K] => {
   return store.getState().settings[key]
 }
 

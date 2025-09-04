@@ -76,6 +76,21 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
           logger.error('[onImageGenerated] Last block was not an Image block or ID is missing.')
         }
       }
+    },
+
+    onImageSearched: async (content: string, metadata: Record<string, any>) => {
+      if (!imageBlockId) {
+        const imageBlock = createImageBlock(assistantMsgId, {
+          status: MessageBlockStatus.SUCCESS,
+          metadata: {
+            generateImageResponse: {
+              type: 'base64',
+              images: [`data:${metadata.mime};base64,${content}`]
+            }
+          }
+        })
+        await blockManager.handleBlockTransition(imageBlock, MessageBlockType.IMAGE)
+      }
     }
   }
 }
