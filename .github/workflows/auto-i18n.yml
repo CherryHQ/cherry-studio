@@ -35,7 +35,7 @@ jobs:
       - name: 📦 Install only required dependencies
         run: |
           yarn config set nodeLinker node-modules
-          yarn add --production=false --no-lockfile openai cli-progress tsx
+          yarn add --no-lockfile openai cli-progress tsx
 
       - name: 🏃‍♀️ Translate
         run: yarn run tsx scripts/update-i18n.ts
