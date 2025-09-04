@@ -106,7 +106,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
       }
     }
   }, [ref, zoom])
-          
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScroll, setCanScroll] = useState(false)
   const getTabId = (path: string): string => {
