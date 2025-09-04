@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { MCPTool, Model, Provider } from '@renderer/types'
+import type { MCPTool, Message, Model, Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
 
@@ -23,6 +23,7 @@ export interface AiSdkMiddlewareConfig {
   enableWebSearch: boolean
   enableGenerateImage: boolean
   mcpTools?: MCPTool[]
+  uiMessages?: Message[]
 }
 
 /**

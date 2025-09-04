@@ -83,7 +83,8 @@ export async function fetchChatCompletion({
   assistant,
   options,
   onChunkReceived,
-  topicId
+  topicId,
+  uiMessages
 }: FetchChatCompletionParams) {
   logger.info('fetchChatCompletion called with detailed context', {
     messageCount: messages?.length || 0,
@@ -132,7 +133,8 @@ export async function fetchChatCompletion({
     isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
-    mcpTools
+    mcpTools,
+    uiMessages
   }
 
   // --- Call AI Completions ---
@@ -141,7 +143,8 @@ export async function fetchChatCompletion({
     ...middlewareConfig,
     assistant,
     topicId,
-    callType: 'chat'
+    callType: 'chat',
+    uiMessages
   })
 }
 

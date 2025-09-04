@@ -6,7 +6,6 @@
 import { loggerService } from '@logger'
 import { isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
-import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import {
   findFileBlocks,
@@ -154,11 +153,8 @@ async function convertMessageToAssistantModelMessage(
 /**
  * 转换 Cherry Studio 消息数组为 AI SDK 消息数组
  */
-export async function convertMessagesToSdkMessages(
-  messages: Message[],
-  model: Model
-): Promise<StreamTextParams['messages']> {
-  const sdkMessages: StreamTextParams['messages'] = []
+export async function convertMessagesToSdkMessages(messages: Message[], model: Model): Promise<ModelMessage[]> {
+  const sdkMessages: ModelMessage[] = []
   const isVision = isVisionModel(model)
 
   for (const message of messages) {

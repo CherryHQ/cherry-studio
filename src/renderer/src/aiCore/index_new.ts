@@ -9,18 +9,16 @@
 
 import { createExecutor } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { isNotSupportedImageSizeModel } from '@renderer/config/models'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
-import { ChunkType } from '@renderer/types/chunk'
 import { type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
-import { CompletionsResult } from './legacy/middleware/schemas'
+import { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
 import { AiSdkMiddlewareConfig, buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { createAiSdkProvider } from './provider/factory'
@@ -140,7 +138,24 @@ export default class ModernAiProvider {
     config: ModernAiProviderConfig
   ): Promise<CompletionsResult> {
     if (config.isImageGenerationEndpoint) {
-      return await this.modernImageGeneration(model as ImageModel, params, config)
+      // 使用 legacy 实现处理图像生成（支持图片编辑等高级功能）
+      if (!config.uiMessages) {
+        throw new Error('uiMessages is required for image generation endpoint')
+      }
+
+      const legacyParams: CompletionsParams = {
+        callType: 'chat',
+        messages: config.uiMessages, // 使用原始的 UI 消息格式
+        assistant: config.assistant,
+        streamOutput: config.streamOutput ?? true,
+        onChunk: config.onChunk,
+        topicId: config.topicId,
+        mcpTools: config.mcpTools,
+        enableWebSearch: config.enableWebSearch
+      }
+
+      // 调用 legacy 的 completions，会自动使用 ImageGenerationMiddleware
+      return await this.legacyProvider.completions(legacyParams)
     }
 
     return await this.modernCompletions(model as LanguageModel, params, config)
@@ -290,7 +305,9 @@ export default class ModernAiProvider {
 
   /**
    * 使用现代化 AI SDK 的图像生成实现，支持流式输出
+   * @deprecated 已改为使用 legacy 实现以支持图片编辑等高级功能
    */
+  /*
   private async modernImageGeneration(
     model: ImageModel,
     params: StreamTextParams,
@@ -407,6 +424,7 @@ export default class ModernAiProvider {
       throw error
     }
   }
+  */
 
   // 代理其他方法到原有实现
   public async models() {

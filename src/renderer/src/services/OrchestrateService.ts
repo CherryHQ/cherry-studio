@@ -42,14 +42,15 @@ export class OrchestrationService {
     const { messages, assistant } = request
 
     try {
-      const llmMessages = await ConversationService.prepareMessagesForModel(messages, assistant)
+      const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
 
       await fetchChatCompletion({
-        messages: llmMessages,
+        messages: modelMessages,
         assistant: assistant,
         options: request.options,
         onChunkReceived,
-        topicId: request.topicId
+        topicId: request.topicId,
+        uiMessages: uiMessages
       })
     } catch (error: any) {
       onChunkReceived({ type: ChunkType.ERROR, error })
@@ -70,17 +71,18 @@ export async function transformMessagesAndFetch(
   const { messages, assistant } = request
 
   try {
-    const llmMessages = await ConversationService.prepareMessagesForModel(messages, assistant)
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(messages, assistant)
 
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
     await fetchChatCompletion({
-      messages: llmMessages,
+      messages: modelMessages,
       assistant: assistant,
       options: request.options,
       onChunkReceived,
-      topicId: request.topicId
+      topicId: request.topicId,
+      uiMessages
     })
   } catch (error: any) {
     onChunkReceived({ type: ChunkType.ERROR, error })
