@@ -44,7 +44,7 @@ jobs:
         run: npx tsx scripts/auto-translate-i18n.ts
 
       - name: 🔍 Format
-        run: npx prettier --write --config .prettierrc src/renderer/src/i18n/
+        run: cd /tmp/translation-deps && npx prettier --write --config /home/runner/work/cherry-studio/cherry-studio/.prettierrc /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/
 
       - name: 🔄 Commit changes
         run: |
