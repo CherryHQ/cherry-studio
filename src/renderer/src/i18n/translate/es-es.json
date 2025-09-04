@@ -1085,7 +1085,7 @@
     "status_preprocess_completed": "Preprocesamiento completado",
     "status_preprocess_failed": "Error en el preprocesamiento",
     "status_processing": "Procesando",
-    "subtitle_file": "字幕文件",
+    "subtitle_file": "Archivo de subtítulos",
     "threshold": "Umbral de coincidencia",
     "threshold_placeholder": "No configurado",
     "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
