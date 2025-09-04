@@ -13,6 +13,7 @@ on:
 jobs:
   auto-i18n:
     runs-on: ubuntu-latest
+    if: github.repository == 'CherryHQ/cherry-studio'
     name: Auto I18N
     permissions:
       contents: write
@@ -23,7 +24,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
 
       - name: 📦 Setting Node.js
         uses: actions/setup-node@v4
@@ -64,4 +64,3 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ github.event.pull_request.head.ref }}
-          repository: ${{github.event.pull_request.head.repo.full_name}}
