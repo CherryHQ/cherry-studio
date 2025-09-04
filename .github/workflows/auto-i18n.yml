@@ -29,11 +29,19 @@ jobs:
         with:
           node-version: 20
 
-      - name: 📦 Install global dependencies
-        run: npm install -g openai@^5.12.2 cli-progress@^3.12.0 tsx@^4.20.3
+      - name: 📦 Install dependencies in isolated directory
+        run: |
+          # 在临时目录安装依赖
+          mkdir -p /tmp/translation-deps
+          cd /tmp/translation-deps
+          echo '{"dependencies": {"openai": "^5.12.2", "cli-progress": "^3.12.0", "tsx": "^4.20.3"}}' > package.json
+          npm install --no-package-lock
+          
+          # 设置 NODE_PATH 让项目能找到这些依赖
+          echo "NODE_PATH=/tmp/translation-deps/node_modules" >> $GITHUB_ENV
 
       - name: 🏃‍♀️ Translate
-        run: tsx scripts/update-i18n.ts
+        run: npx tsx scripts/update-i18n.ts
 
       - name: 🔄 Commit changes
         run: |
