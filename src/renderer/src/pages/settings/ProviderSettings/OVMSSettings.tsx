@@ -154,6 +154,7 @@ const OVMSSettings: FC = () => {
         description={<div>
           <p>1. Download OV Models.</p>
           <p>2. Add Models in "Manager".</p>
+          <p>Support Windows Only!</p>
           <p>OVMS Install Path: '%USERPROFILE%\.cherrystudio\ovms' .</p>
           <p>Please refer to <a href={urlGuide}>Intel OVMS Guide</a></p>
         </div>}
