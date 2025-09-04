@@ -48,7 +48,7 @@ export function parseMatchPattern(pattern: string): ParsedMatchPattern | null {
   const groups = execResult.groups as
     | { allURLs: string }
     | { allURLs?: never; scheme: string; host: string; path: string }
-  return groups.allURLs != null
+  return groups.allURLs !== null && groups.allURLs !== undefined
     ? { allURLs: true }
     : {
         allURLs: false,

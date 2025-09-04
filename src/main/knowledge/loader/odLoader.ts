@@ -11,7 +11,7 @@ export enum OdType {
   OdtLoader = 'OdtLoader',
   OdsLoader = 'OdsLoader',
   OdpLoader = 'OdpLoader',
-  undefined = 'undefined'
+  Unknown = 'Unknown'
 }
 
 export class OdLoader<OdType> extends BaseLoader<{ type: string }> {

@@ -61,8 +61,8 @@ export function getCellSelectionBounds(view: EditorView, tableNode: ProseMirrorN
     }
   })
 
-  if (!isFinite(minRow) || !isFinite(minCol) || topLeftPos == null) return null
-  if (topRightPos == null) topRightPos = topLeftPos
+  if (!isFinite(minRow) || !isFinite(minCol) || topLeftPos === null) return null
+  if (topRightPos === null) topRightPos = topLeftPos
 
   return { tablePos, tableStart, map, minRow, maxRow, minCol, maxCol, topLeftPos, topRightPos }
 }

@@ -1,7 +1,6 @@
 import 'reflect-metadata'
 
-import { SpanStatusCode, trace } from '@opentelemetry/api'
-import { context as traceContext } from '@opentelemetry/api'
+import { SpanStatusCode, trace, context as traceContext } from '@opentelemetry/api'
 
 import { defaultConfig } from '../types/config'
 

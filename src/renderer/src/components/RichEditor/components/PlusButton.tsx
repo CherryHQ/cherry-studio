@@ -1,7 +1,6 @@
 import type { Plugin } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
-import React from 'react'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import React, { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { defaultComputePositionConfig } from '../extensions/plus-button'
 import { PlusButtonPlugin, plusButtonPluginDefaultKey, PlusButtonPluginOptions } from '../plugins/plusButtonPlugin'

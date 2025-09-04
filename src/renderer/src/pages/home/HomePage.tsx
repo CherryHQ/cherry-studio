@@ -81,7 +81,7 @@ const HomePage: FC = () => {
   }, [assistants, setActiveAssistant])
 
   useEffect(() => {
-    const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
+    const canMinimize = topicPosition === 'left' ? !showAssistants : !showAssistants && !showTopics
     window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {

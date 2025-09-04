@@ -25,8 +25,7 @@ import dayjs from 'dayjs'
 import { LRUCache } from 'lru-cache'
 import { sliceByTokens } from 'tokenx'
 
-import { getKnowledgeBaseParams } from './KnowledgeService'
-import { getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
+import { getKnowledgeBaseParams, getKnowledgeSourceUrl, searchKnowledgeBase } from './KnowledgeService'
 
 const logger = loggerService.withContext('WebSearchService')
 

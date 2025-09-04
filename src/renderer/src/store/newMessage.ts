@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { createEntityAdapter, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit'
+import { createEntityAdapter, createSelector, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit'
 // Separate type-only imports from value imports
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
@@ -266,7 +266,6 @@ export const newMessagesActions = messagesSlice.actions
 export default messagesSlice.reducer
 
 // --- Selectors ---
-import { createSelector } from '@reduxjs/toolkit'
 
 import type { RootState } from './index' // Adjust path if necessary
 

@@ -17,8 +17,7 @@ import {
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getTopicQueue } from '@renderer/utils/queue'
-import { waitForTopicQueue } from '@renderer/utils/queue'
+import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'

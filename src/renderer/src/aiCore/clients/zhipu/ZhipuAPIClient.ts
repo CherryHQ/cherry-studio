@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import { Provider } from '@renderer/types'
-import { GenerateImageParams } from '@renderer/types'
+import { Provider, GenerateImageParams } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'

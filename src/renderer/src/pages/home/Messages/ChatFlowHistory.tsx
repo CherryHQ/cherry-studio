@@ -14,8 +14,19 @@ import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { Model } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
-import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
+import {
+  Controls,
+  Handle,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  Edge,
+  Node,
+  NodeTypes,
+  Position,
+  useEdgesState,
+  useNodesState
+} from '@xyflow/react'
 import { Avatar, Spin, Tooltip } from 'antd'
 import { isEqual } from 'lodash'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'

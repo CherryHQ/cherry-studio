@@ -326,7 +326,7 @@ export async function captureScrollableIframe(
     if (fontEmbedCSS && fontEmbedCSS.trim().length > 0) {
       injectedFontStyle = ensureFontStyle(fontEmbedCSS)
       // 访问一次以避免被标记为未使用
-      if (injectedFontStyle.parentNode == null) {
+      if (injectedFontStyle.parentNode === null) {
         doc.head.appendChild(injectedFontStyle)
       }
     }

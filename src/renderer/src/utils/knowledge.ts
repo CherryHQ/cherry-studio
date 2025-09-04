@@ -1,19 +1,20 @@
 import { TopicManager } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import type { FileType, Topic } from '@renderer/types'
-import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import type {
-  CitationMessageBlock,
-  CodeMessageBlock,
-  ErrorMessageBlock,
-  FileMessageBlock,
-  ImageMessageBlock,
-  MainTextMessageBlock,
-  ThinkingMessageBlock,
-  ToolMessageBlock,
-  TranslationMessageBlock
+import {
+  MessageBlockType,
+  type CitationMessageBlock,
+  type CodeMessageBlock,
+  type ErrorMessageBlock,
+  type FileMessageBlock,
+  type ImageMessageBlock,
+  type MainTextMessageBlock,
+  type Message,
+  type MessageBlock,
+  type ThinkingMessageBlock,
+  type ToolMessageBlock,
+  type TranslationMessageBlock
 } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
 
 import { findAllBlocks } from './messageUtils/find'
 

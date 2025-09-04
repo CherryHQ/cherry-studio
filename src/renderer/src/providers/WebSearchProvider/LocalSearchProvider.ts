@@ -69,7 +69,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
 
       return {
         query: query,
-        results: results.filter((result) => result.content != noContent)
+        results: results.filter((result) => result.content !== noContent)
       }
     } catch (error) {
       if (isAbortError(error)) {

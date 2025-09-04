@@ -207,7 +207,7 @@ async function performLocalSearch(apiKey: string, query: string, count: number =
 
   const webData = (await webResponse.json()) as BraveWeb
   const locationIds =
-    webData.locations?.results?.filter((r): r is { id: string; title?: string } => r.id != null).map((r) => r.id) || []
+    webData.locations?.results?.filter((r): r is { id: string; title?: string } => r.id !== null && r.id !== undefined).map((r) => r.id) || []
 
   if (locationIds.length === 0) {
     return performWebSearch(apiKey, query, count) // Fallback to web search

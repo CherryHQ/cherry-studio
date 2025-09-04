@@ -42,7 +42,7 @@ export async function handleProvidersProtocolUrl(url: URL) {
 
       const mainWindow = windowService.getMainWindow()
       const version = params.get('v')
-      if (version == '1') {
+      if (version === '1') {
         // TODO: handle different version
         logger.debug('handleProvidersProtocolUrl', { data, version })
       }

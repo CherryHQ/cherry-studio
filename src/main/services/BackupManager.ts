@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { IpcChannel } from '@shared/IpcChannel'
-import { WebDavConfig } from '@types'
-import { S3Config } from '@types'
+import { S3Config, WebDavConfig } from '@types'
 import archiver from 'archiver'
 import { exec } from 'child_process'
 import { app } from 'electron'
