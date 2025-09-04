@@ -1,12 +1,14 @@
-import { FC, useEffect, useState } from 'react'
 import { VStack } from '@renderer/components/Layout'
 import { Alert, Button } from 'antd'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
 import { SettingRow, SettingSubtitle } from '..'
 
 const OVMSSettings: FC = () => {
   const { t } = useTranslation()
-  const urlGuide = 'https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md'
+  const urlGuide =
+    'https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md'
 
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
   const [isInstallingOvms, setIsInstallingOvms] = useState(false)
@@ -32,7 +34,6 @@ const OVMSSettings: FC = () => {
     } catch (error: any) {
       window.message.error({ content: t('ovms.failed.install') + error.message, key: 'ovms-install-error' })
       setIsInstallingOvms(false)
-
     }
   }
 
@@ -99,10 +100,8 @@ const OVMSSettings: FC = () => {
         description={
           <VStack>
             <SettingRow style={{ width: '100%' }}>
-              <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
-                {getStatusMessage()}
-              </SettingSubtitle>
-               {ovmsStatus==='not-installed' && (
+              <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>{getStatusMessage()}</SettingSubtitle>
+              {ovmsStatus === 'not-installed' && (
                 <Button
                   type="primary"
                   onClick={installOvms}
@@ -112,7 +111,7 @@ const OVMSSettings: FC = () => {
                   {isInstallingOvms ? t('ovms.action.installing') : t('ovms.action.install')}
                 </Button>
               )}
-              {ovmsStatus==='not-running' && (
+              {ovmsStatus === 'not-running' && (
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <Button
                     type="primary"
@@ -120,7 +119,7 @@ const OVMSSettings: FC = () => {
                     loading={isInstallingOvms}
                     disabled={isInstallingOvms || isRunningOvms}
                     size="small">
-                     {isInstallingOvms ? t('ovms.action.installing') : t('ovms.action.reinstall')}
+                    {isInstallingOvms ? t('ovms.action.installing') : t('ovms.action.reinstall')}
                   </Button>
                   <Button
                     type="primary"
@@ -132,7 +131,7 @@ const OVMSSettings: FC = () => {
                   </Button>
                 </div>
               )}
-              {ovmsStatus==='running' && (
+              {ovmsStatus === 'running' && (
                 <Button
                   type="primary"
                   danger
@@ -151,18 +150,21 @@ const OVMSSettings: FC = () => {
         type="info"
         style={{ marginTop: 5 }}
         message={'Intel OVMS Guide:'}
-        description={<div>
-          <p>1. Download OV Models.</p>
-          <p>2. Add Models in "Manager".</p>
-          <p>Support Windows Only!</p>
-          <p>OVMS Install Path: '%USERPROFILE%\.cherrystudio\ovms' .</p>
-          <p>Please refer to <a href={urlGuide}>Intel OVMS Guide</a></p>
-        </div>}
+        description={
+          <div>
+            <p>1. Download OV Models.</p>
+            <p>2. Add Models in "Manager".</p>
+            <p>Support Windows Only!</p>
+            <p>OVMS Install Path: '%USERPROFILE%\.cherrystudio\ovms' .</p>
+            <p>
+              Please refer to <a href={urlGuide}>Intel OVMS Guide</a>
+            </p>
+          </div>
+        }
         showIcon
       />
     </>
   )
 }
-
 
 export default OVMSSettings

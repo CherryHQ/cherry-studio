@@ -47,10 +47,10 @@ import DMXAPISettings from './DMXAPISettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
 import GPUStackSettings from './GPUStackSettings'
 import LMStudioSettings from './LMStudioSettings'
+import OVMSSettings from './OVMSSettings'
 import ProviderOAuth from './ProviderOAuth'
 import SelectProviderModelPopup from './SelectProviderModelPopup'
 import VertexAISettings from './VertexAISettings'
-import OVMSSettings from './OVMSSettings'
 
 interface Props {
   providerId: string
@@ -70,7 +70,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
   const isDmxapi = provider.id === 'dmxapi'
   const hideApiInput = ['vertexai', 'aws-bedrock'].includes(provider.id)
-
 
   const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
@@ -411,7 +410,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'gpustack' && <GPUStackSettings />}
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
-      {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}      
+      {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

@@ -11,9 +11,9 @@ import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { NewAPIClient } from './newapi/NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
+import { OVMSClient } from './ovms/OVMSClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
-import { OVMSClient } from './ovms/OVMSClient'
 
 const logger = loggerService.withContext('ApiClientFactory')
 

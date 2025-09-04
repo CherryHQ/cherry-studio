@@ -1,10 +1,15 @@
+import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
+import { Provider } from '@renderer/types'
 import { AutoComplete, Button, Flex, Form, FormProps, Input, Modal, Progress, Select } from 'antd'
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('OVMSClient')
 
 interface ShowParams {
   title: string
+  provider: Provider
 }
 
 interface Props extends ShowParams {
@@ -92,14 +97,17 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const startFakeProgress = () => {
     setProgress(0)
     progressIntervalRef.current = setInterval(() => {
-      setProgress(prev => {
+      setProgress((prev) => {
         if (prev >= 95) {
           return prev // Stop at 90% until actual completion
         }
         // Simulate realistic download progress with slowing speed
-        const increment = prev < 30 ? Math.random() * 1 + 0.25 : 
-                         prev < 60 ? Math.random() * 0.5 + 0.125 : 
-                         Math.random() * 0.25 + 0.03125
+        const increment =
+          prev < 30
+            ? Math.random() * 1 + 0.25
+            : prev < 60
+              ? Math.random() * 0.5 + 0.125
+              : Math.random() * 0.25 + 0.03125
 
         return Math.min(prev + increment, 95)
       })
@@ -121,7 +129,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   }
 
   const handlePresetSelect = (value: string) => {
-    const selectedPreset = PRESET_MODELS.find(model => model.modelId === value)
+    const selectedPreset = PRESET_MODELS.find((model) => model.modelId === value)
     if (selectedPreset) {
       form.setFieldsValue({
         modelId: selectedPreset.modelId,
@@ -148,12 +156,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       // Stop the download
       try {
         setCancelled(true) // Mark as cancelled by user
-        console.log('Stopping download...')
+        logger.info('Stopping download...')
         await window.api.ovms.stopAddModel()
         stopFakeProgress(false)
         setLoading(false)
       } catch (error) {
-        console.error('Failed to stop download:', error)
+        logger.error(`Failed to stop download: ${error}`)
       }
       return
     }
@@ -170,26 +178,26 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     startFakeProgress()
     try {
       const { modelName, modelId, modelSource, task } = values
-      console.log(`🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${modelSource}, task: ${task}`)
+      logger.info(`🔄 Downloading model: ${modelName} with ID: ${modelId}, source: ${modelSource}, task: ${task}`)
       const result = await window.api.ovms.addModel(modelName, modelId, modelSource, task)
 
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
         Modal.success({
           title: t('settings.models.download.ov.success'),
-          content: t('settings.models.download.ov.success.content', { modelName:modelName, modelId:modelId }),
+          content: t('settings.models.download.ov.success.content', { modelName: modelName, modelId: modelId }),
           onOk: () => {
             setOpen(false)
           }
         })
       } else {
         stopFakeProgress(false) // Reset progress on error
-        console.error('Download failed, is it cancelled?', cancelled)
+        logger.error(`Download failed, is it cancelled? ${cancelled}`)
         // Only show error if not cancelled by user
         if (!cancelled) {
           Modal.error({
             title: t('ovms.download.error'),
-            content: (<div dangerouslySetInnerHTML={{ __html: result.message}}></div>),
+            content: <div dangerouslySetInnerHTML={{ __html: result.message }}></div>,
             onOk: () => {
               // Keep the form open for retry
             }
@@ -198,7 +206,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       }
     } catch (error: any) {
       stopFakeProgress(false) // Reset progress on error
-      console.error('Download creashed, is it cancelled?', cancelled)
+      logger.error(`Download crashed, is it cancelled? ${cancelled}`)
       // Only show error if not cancelled by user
       if (!cancelled) {
         Modal.error({
@@ -224,8 +232,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       footer={null}
       transitionName="animation-move-down"
       centered
-      closeIcon={!loading}
-    >
+      closeIcon={!loading}>
       <Form
         form={form}
         labelCol={{ flex: '110px' }}
@@ -233,8 +240,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         colon={false}
         style={{ marginTop: 25 }}
         onFinish={onFinish}
-        disabled={false}
-      >
+        disabled={false}>
         <Form.Item
           name="modelId"
           label={t('ovms.download.model_id')}
@@ -244,11 +250,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               pattern: /^OpenVINO\/.+/,
               message: t('ovms.download.model_id.model_id_pattern')
             }
-          ]}
-        >
+          ]}>
           <AutoComplete
             placeholder={t('ovms.download.model_id.placeholder')}
-            options={PRESET_MODELS.map(model => ({
+            options={PRESET_MODELS.map((model) => ({
               value: model.modelId,
               label: model.label
             }))}
@@ -261,8 +266,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <Form.Item
           name="modelName"
           label={t('ovms.download.model_name')}
-          rules={[{ required: true, message: t('ovms.download.model_name.required') }]}
-        >
+          rules={[{ required: true, message: t('ovms.download.model_name.required') }]}>
           <Input
             placeholder={t('ovms.download.model_name.placeholder')}
             spellCheck={false}
@@ -274,8 +278,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           name="modelSource"
           label={t('ovms.download.model_source')}
           initialValue="https://www.modelscope.cn/models"
-          rules={[{ required: false }]}
-        >
+          rules={[{ required: false }]}>
           <Select
             options={[
               { value: '', label: 'HuggingFace' },
@@ -289,8 +292,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           name="task"
           label={t('ovms.download.model_task')}
           initialValue="text_generation"
-          rules={[{ required: false }]}
-        >
+          rules={[{ required: false }]}>
           <Select
             options={[
               { value: 'text_generation', label: 'Text Generation' },
@@ -303,12 +305,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         </Form.Item>
         {loading && (
           <Form.Item style={{ marginBottom: 16 }}>
-            <Progress 
-              percent={Math.round(progress)} 
+            <Progress
+              percent={Math.round(progress)}
               status={progress === 100 ? 'success' : 'active'}
               strokeColor={{
                 '0%': '#108ee9',
-                '100%': '#87d068',
+                '100%': '#87d068'
               }}
               showInfo={true}
               format={(percent) => `${percent}%`}
@@ -320,13 +322,12 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         )}
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
           <Flex justify="end" align="center" style={{ position: 'relative' }}>
-            <Button 
-              type="primary" 
-              htmlType={loading ? "button" : "submit"} 
-              size="middle" 
+            <Button
+              type="primary"
+              htmlType={loading ? 'button' : 'submit'}
+              size="middle"
               loading={false}
-              onClick={loading ? onCancel : undefined}
-            >
+              onClick={loading ? onCancel : undefined}>
               {loading ? t('common.cancel') : t('ovms.download.button')}
             </Button>
           </Flex>

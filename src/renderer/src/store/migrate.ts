@@ -2538,6 +2538,15 @@ const migrateConfig = {
       logger.error('migrate 157 error', error as Error)
       return state
     }
+  },
+  '158': (state: RootState) => {
+    try {
+      addProvider(state, 'ovms')
+      return state
+    } catch (error) {
+      logger.error('migrate 157 error', error as Error)
+      return state
+    }
   }
 }
 
