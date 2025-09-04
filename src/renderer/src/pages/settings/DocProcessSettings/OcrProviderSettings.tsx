@@ -10,6 +10,7 @@ import styled from 'styled-components'
 import { SettingGroup, SettingTitle } from '..'
 import { OcrSystemSettings } from './OcrSystemSettings'
 import { OcrTesseractSettings } from './OcrTesseractSettings'
+import { OcrPpocrSettings } from './OcrPpocrSettings'
 
 // const logger = loggerService.withContext('OcrTesseractSettings')
 
@@ -32,6 +33,8 @@ const OcrProviderSettings = ({ provider }: Props) => {
           return <OcrTesseractSettings />
         case 'system':
           return <OcrSystemSettings />
+        case 'paddleocr':
+          return <OcrPpocrSettings />
         default:
           return null
       }

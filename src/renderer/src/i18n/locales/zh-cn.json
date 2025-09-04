@@ -3873,6 +3873,10 @@
         "tesseract": {
           "langs_tooltip": "阅读文档以了解哪些自定义语言是受支持的"
         },
+        "paddleocr": {
+          "api_url": "API URL",
+          "aistudio_access_token": "星河社区访问令牌"
+        },
         "title": "OCR 服务"
       },
       "preprocess": {

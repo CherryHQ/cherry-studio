@@ -5,7 +5,8 @@ import {
   OcrSystemProvider,
   OcrTesseractProvider,
   TesseractLangCode,
-  TranslateLanguageCode
+  TranslateLanguageCode,
+  OcrPpocrProvider
 } from '@renderer/types'
 
 import { isMac, isWin } from './constant'
@@ -37,9 +38,24 @@ const systemOcr: OcrSystemProvider = {
   }
 } as const satisfies OcrSystemProvider
 
+
+const ppocrOcr: OcrPpocrProvider = {
+  id: 'paddleocr',
+  name: 'PaddleOCR',
+  config: {
+    apiUrl: ''
+  },
+  capabilities: {
+    image: true
+    // pdf: true
+  }
+} as const
+
+
 export const BUILTIN_OCR_PROVIDERS_MAP = {
   tesseract,
-  system: systemOcr
+  system: systemOcr,
+  paddleocr: ppocrOcr
 } as const satisfies Record<BuiltinOcrProviderId, BuiltinOcrProvider>
 
 export const BUILTIN_OCR_PROVIDERS: BuiltinOcrProvider[] = Object.values(BUILTIN_OCR_PROVIDERS_MAP)

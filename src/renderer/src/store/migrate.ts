@@ -2346,7 +2346,19 @@ const migrateConfig = {
       logger.error('migrate 145 error', error as Error)
       return state
     }
-  }
+  },
+  '146': (state: RootState) => {
+    try {
+      state.ocr = {
+        providers: BUILTIN_OCR_PROVIDERS,
+        imageProviderId: DEFAULT_OCR_PROVIDER.image.id
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 146 error', error as Error)
+      return state
+    }
+  },
 }
 
 // 注意：添加新迁移时，记得同时更新 persistReducer

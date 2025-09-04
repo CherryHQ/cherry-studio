@@ -677,6 +677,7 @@
     "model_placeholder": "Selecione o modelo a ser utilizado",
     "model_required": "Selecione o modelo",
     "select_folder": "Selecionar pasta",
+    "supported_providers": "Provedores compatíveis",
     "title": "Ferramenta de código",
     "update_options": "Opções de atualização",
     "working_directory": "diretório de trabalho"
@@ -1319,7 +1320,8 @@
       "delete": {
         "content": "Excluir mensagens de grupo removerá as perguntas dos usuários e todas as respostas do assistente",
         "title": "Excluir mensagens de grupo"
-      }
+      },
+      "retry_failed": "Mensagem de erro ao tentar novamente"
     },
     "ignore": {
       "knowledge": {
@@ -1620,9 +1622,12 @@
     "new_folder": "Nova pasta",
     "new_note": "Nova nota",
     "no_content_to_copy": "Não há conteúdo para copiar",
+    "no_file_selected": "Por favor, selecione o arquivo que deseja enviar",
     "only_markdown": "Apenas o formato Markdown é suportado",
+    "only_one_file_allowed": "Só é possível enviar um arquivo",
     "open_folder": "Abrir pasta externa",
     "rename": "renomear",
+    "rename_changed": "Devido à política de segurança, o nome do arquivo foi alterado de {{original}} para {{final}}",
     "save": "salvar em notas",
     "settings": {
       "data": {
@@ -3344,6 +3349,8 @@
         "label": "Disparador de detalhes da grade"
       },
       "input": {
+        "confirm_delete_message": "Confirmar antes de excluir a mensagem",
+        "confirm_regenerate_message": "Confirmar antes de regenerar a mensagem",
         "enable_quick_triggers": "Ativar menu rápido com '/' e '@'",
         "paste_long_text_as_file": "Colar texto longo como arquivo",
         "paste_long_text_threshold": "Limite de texto longo",
@@ -3865,6 +3872,10 @@
         },
         "tesseract": {
           "langs_tooltip": "Leia a documentação para saber quais idiomas personalizados são suportados"
+        },
+        "paddleocr": {
+          "api_url": "URL da API",
+          "aistudio_access_token": "Token de acesso da comunidade AI Studio"
         },
         "title": "Serviço OCR"
       },

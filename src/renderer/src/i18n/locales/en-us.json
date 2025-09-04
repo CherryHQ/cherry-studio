@@ -3873,6 +3873,10 @@
         "tesseract": {
           "langs_tooltip": "Read the documentation to learn which custom languages are supported"
         },
+        "paddleocr": {
+          "api_url": "API URL",
+          "aistudio_access_token": "Access token of AI Studio Community"
+        },
         "title": "OCR service"
       },
       "preprocess": {

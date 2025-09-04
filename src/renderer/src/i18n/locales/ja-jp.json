@@ -3873,6 +3873,10 @@
         "tesseract": {
           "langs_tooltip": "ドキュメントを読んで、どのカスタム言語がサポートされているかを確認してください。"
         },
+        "paddleocr": {
+          "api_url": "API URL",
+          "aistudio_access_token": "AI Studio Community のアクセス・トークン"
+        },
         "title": "OCRサービス"
       },
       "preprocess": {

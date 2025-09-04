@@ -67,7 +67,7 @@ const persistedReducer = persistReducer(
   {
     key: 'cherry-studio',
     storage,
-    version: 145,
+    version: 146,
     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs'],
     migrate
   },
@@ -97,7 +97,7 @@ const store = configureStore({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER]
       }
-    }).concat(storeSyncService.createMiddleware())
+    }).concat(storeSyncService.createMiddleware()).concat()
   },
   devTools: true
 })

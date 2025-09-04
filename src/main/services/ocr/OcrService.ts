@@ -4,6 +4,7 @@ import { BuiltinOcrProviderIds, OcrHandler, OcrProvider, OcrResult, SupportedOcr
 
 import { systemOcrService } from './builtin/SystemOcrService'
 import { tesseractService } from './builtin/TesseractService'
+import { ppocrService } from './builtin/PpocrService'
 
 const logger = loggerService.withContext('OcrService')
 
@@ -36,3 +37,5 @@ export const ocrService = new OcrService()
 ocrService.register(BuiltinOcrProviderIds.tesseract, tesseractService.ocr.bind(tesseractService))
 
 !isLinux && ocrService.register(BuiltinOcrProviderIds.system, systemOcrService.ocr.bind(systemOcrService))
+
+ocrService.register(BuiltinOcrProviderIds.paddleocr, ppocrService.ocr.bind(ppocrService))
