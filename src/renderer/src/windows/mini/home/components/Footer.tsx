@@ -1,6 +1,6 @@
 import { ArrowLeftOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Tag as AntdTag, Tooltip } from 'antd'
-import { CircleArrowLeft, Copy, Pin } from 'lucide-react'
+import { CircleArrowLeft, Copy, Pin, SquareSquare } from 'lucide-react'
 import { FC } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +15,7 @@ interface FooterProps {
   clearClipboard?: () => void
   onEsc: () => void
   onCopy?: () => void
+  onCenter?: () => void
 }
 
 const Footer: FC<FooterProps> = ({
@@ -25,7 +26,8 @@ const Footer: FC<FooterProps> = ({
   onEsc,
   setIsPinned,
   isPinned,
-  onCopy
+  onCopy,
+  onCenter
 }) => {
   const { t } = useTranslation()
 
@@ -63,6 +65,13 @@ const Footer: FC<FooterProps> = ({
                 ? t('miniwindow.footer.esc_close')
                 : t('miniwindow.footer.esc_back')
           })}
+        </Tag>
+        <Tag
+          bordered={false}
+          icon={<SquareSquare size={14} color="var(--color-text)" />}
+          className="nodrag"
+          onClick={onCenter}>
+          {t('miniwindow.footer.center')}
         </Tag>
         {route === 'home' && !canUseBackspace && (
           <Tag

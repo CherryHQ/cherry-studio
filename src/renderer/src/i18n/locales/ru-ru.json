@@ -1579,7 +1579,8 @@
       "esc": "Нажмите ESC {{action}}",
       "esc_back": "возвращения",
       "esc_close": "закрытия окна",
-      "esc_pause": "пауза"
+      "esc_pause": "пауза",
+      "center": "Центрировать окно"
     },
     "input": {
       "placeholder": {

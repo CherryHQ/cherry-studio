@@ -1579,7 +1579,8 @@
       "esc": "ESC キーを押して{{action}}",
       "esc_back": "戻る",
       "esc_close": "ウィンドウを閉じる",
-      "esc_pause": "一時停止"
+      "esc_pause": "一時停止",
+      "center": "ウィンドウを中央に"
     },
     "input": {
       "placeholder": {

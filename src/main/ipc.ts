@@ -606,6 +606,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.MiniWindow_Close, () => windowService.closeMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_Toggle, () => windowService.toggleMiniWindow())
   ipcMain.handle(IpcChannel.MiniWindow_SetPin, (_, isPinned) => windowService.setPinMiniWindow(isPinned))
+  ipcMain.handle(IpcChannel.MiniWindow_Center, () => windowService.centerMiniWindow())
 
   // aes
   ipcMain.handle(IpcChannel.Aes_Encrypt, (_, text: string, secretKey: string, iv: string) =>
