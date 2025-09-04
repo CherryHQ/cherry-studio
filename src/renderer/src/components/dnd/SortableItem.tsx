@@ -1,12 +1,12 @@
 import { useSortable } from '@dnd-kit/sortable'
-import React from 'react'
 
 import { ItemRenderer } from './ItemRenderer'
+import { RenderItemType } from './types'
 
 interface SortableItemProps<T> {
   item: T
   getId: (item: T) => string | number
-  renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
+  renderItem: RenderItemType<T>
   useDragOverlay?: boolean
   showGhost?: boolean
 }
