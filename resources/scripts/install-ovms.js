@@ -6,16 +6,12 @@ const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
 const OVMS_PKG_NAME = 'ovms250818.zip'
-const OVMS_RELEASE_BASE_URL = [
-  `https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/${OVMS_PKG_NAME}`,
-]
-
+const OVMS_RELEASE_BASE_URL = [`https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/${OVMS_PKG_NAME}`]
 
 /**
  * Downloads and extracts the OVMS binary for the specified platform
  */
 async function downloadOvmsBinary() {
-  
   // Create output directory structure - OVMS goes into its own subdirectory
   const csDir = path.join(os.homedir(), '.cherrystudio')
 
@@ -41,19 +37,18 @@ async function downloadOvmsBinary() {
 
     try {
       console.log(`Downloading OVMS from ${downloadUrl} to ${tempFilename}...`)
-      
+
       // Try PowerShell download first, fallback to Node.js download if it fails
       await downloadWithPowerShell(downloadUrl, tempFilename)
-      
+
       // If we get here, download was successful
       downloadSuccess = true
       console.log(`Successfully downloaded from: ${downloadUrl}`)
       break
-
     } catch (error) {
       console.warn(`Download failed from ${downloadUrl}: ${error.message}`)
       lastError = error
-      
+
       // Clean up failed download file if it exists
       if (fs.existsSync(tempFilename)) {
         try {
@@ -62,7 +57,7 @@ async function downloadOvmsBinary() {
           console.warn(`Failed to clean up temporary file: ${cleanupError.message}`)
         }
       }
-      
+
       // Continue to next URL if this one failed
       if (i < OVMS_RELEASE_BASE_URL.length - 1) {
         console.log(`Trying next URL...`)
@@ -77,7 +72,7 @@ async function downloadOvmsBinary() {
 
   try {
     console.log(`Extracting to ${csDir}...`)
-    
+
     // Use tar.exe to extract the ZIP file
     console.log(`Extracting OVMS to ${csDir}...`)
     execSync(`tar -xf ${tempFilename} -C ${csDir}`, { stdio: 'inherit' })
@@ -87,10 +82,8 @@ async function downloadOvmsBinary() {
     fs.unlinkSync(tempFilename)
     console.log(`Installation directory: ${csDir}`)
     return true
-
   } catch (error) {
     console.error(`Error installing OVMS: ${error.message}`)
-
     if (fs.existsSync(tempFilename)) {
       fs.unlinkSync(tempFilename)
     }
@@ -125,7 +118,7 @@ function getCpuInfo() {
     const psCommand = `powershell -Command "Get-CimInstance -ClassName Win32_Processor | Select-Object Name, DeviceID | ConvertTo-Json"`
     const psOutput = execSync(psCommand).toString()
     const cpuData = JSON.parse(psOutput)
-    
+
     if (Array.isArray(cpuData)) {
       cpuInfo.name = cpuData[0].Name || ''
       cpuInfo.id = cpuData[0].DeviceID || ''
@@ -159,7 +152,7 @@ async function installOvms() {
   if (platform !== 'win32') {
     throw new Error('OVMS installation is only supported on Windows.')
   }
-  
+
   await downloadOvmsBinary()
 }
 

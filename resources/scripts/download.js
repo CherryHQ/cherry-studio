@@ -34,7 +34,6 @@ async function downloadWithRedirects(url, destinationPath) {
   })
 }
 
-
 /**
  * Downloads a file using PowerShell Invoke-WebRequest command
  * @param {string} url The URL to download from
@@ -49,10 +48,10 @@ async function downloadWithPowerShell(url, destinationPath) {
 
       // PowerShell command to download the file with progress disabled for faster download
       const psCommand = `powershell -Command "$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest '${url}' -OutFile '${destinationPath}'"`
-      
+
       console.log(`Downloading with PowerShell: ${url}`)
       execSync(psCommand, { stdio: 'inherit' })
-      
+
       if (fs.existsSync(destinationPath)) {
         console.log(`Download completed: ${destinationPath}`)
         resolve(true)

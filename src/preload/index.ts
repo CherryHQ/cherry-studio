@@ -288,18 +288,12 @@ const api = {
   ovms: {
     addModel: (modelName: string, modelId: string, modelSource: string, task: string) =>
       ipcRenderer.invoke(IpcChannel.Ovms_AddModel, modelName, modelId, modelSource, task),
-    stopAddModel: () =>
-      ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
-    getModels: () =>
-      ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
-    isRunning: () =>
-      ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
-    getStatus: () =>
-      ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
-    runOvms: () =>
-      ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
-    stopOvms: () =>
-      ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
+    stopAddModel: () => ipcRenderer.invoke(IpcChannel.Ovms_StopAddModel),
+    getModels: () => ipcRenderer.invoke(IpcChannel.Ovms_GetModels),
+    isRunning: () => ipcRenderer.invoke(IpcChannel.Ovms_IsRunning),
+    getStatus: () => ipcRenderer.invoke(IpcChannel.Ovms_GetStatus),
+    runOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_RunOVMS),
+    stopOvms: () => ipcRenderer.invoke(IpcChannel.Ovms_StopOVMS)
   },
   config: {
     set: (key: string, value: any, isNotify: boolean = false) =>

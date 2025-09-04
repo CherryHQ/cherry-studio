@@ -8,9 +8,9 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '@renderer/pages/settings'
 import EditModelPopup from '@renderer/pages/settings/ProviderSettings/EditModelPopup/EditModelPopup'
 import AddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/AddModelPopup'
+import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelList/ManageModelsPopup'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
-import DownloadOVMSModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/DownloadOVMSModelPopup'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
 import { Button, Flex, Spin, Tooltip } from 'antd'
@@ -94,8 +94,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     }
   }, [provider, t])
 
-  const onDownloadModel = useCallback(
-    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title') }),
+  const onDownloadModel = useCallback(() => 
+    DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
     [provider, t]
   )
 

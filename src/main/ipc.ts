@@ -845,7 +845,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   )
 
   // OVMS
-  ipcMain.handle(IpcChannel.Ovms_AddModel, (_, modelName: string, modelId: string, modelSource: string, task: string) => ovmsManager.addModel(modelName, modelId, modelSource, task))
+  ipcMain.handle(IpcChannel.Ovms_AddModel, (_, modelName: string, modelId: string, modelSource: string, task: string) =>
+    ovmsManager.addModel(modelName, modelId, modelSource, task)
+  )
   ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
   ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
   ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
