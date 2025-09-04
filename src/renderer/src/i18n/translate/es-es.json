@@ -4164,7 +4164,7 @@
       "aborted": "Traducción cancelada"
     },
     "input": {
-      "placeholder": "Se puede pegar o arrastrar texto, archivos e imágenes (compatible con OCR)"
+      "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",

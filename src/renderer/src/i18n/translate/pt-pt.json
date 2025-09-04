@@ -539,7 +539,7 @@
         "title": "Execução de Código"
       },
       "code_image_tools": {
-        "label": "Ativar ferramenta de visualização",
+        "label": "Habilitar ferramenta de visualização",
         "tip": "Ativar ferramentas de visualização para imagens renderizadas de blocos de código como mermaid"
       },
       "code_wrappable": "Bloco de código com quebra de linha",
@@ -4164,7 +4164,7 @@
       "aborted": "Tradução interrompida"
     },
     "input": {
-      "placeholder": "Pode colar ou arrastar e soltar texto, arquivos e imagens (suporte a OCR)"
+      "placeholder": "Pode colar ou arrastar texto, arquivos de texto ou imagens (com suporte a OCR)"
     },
     "language": {
       "not_pair": "O idioma de origem é diferente do idioma definido",

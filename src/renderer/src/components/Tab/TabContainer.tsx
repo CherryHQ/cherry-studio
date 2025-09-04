@@ -1,4 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { TopNavbarOpenedMinappTabs } from '@renderer/components/app/PinnedMinapps'
+import { Sortable, useDndReorder } from '@renderer/components/dnd'
+import Scrollbar from '@renderer/components/Scrollbar'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -7,11 +10,12 @@ import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
-import { addTab, removeTab, setActiveTab } from '@renderer/store/tabs'
+import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import {
+  ChevronRight,
   FileSearch,
   Folder,
   Hammer,
@@ -28,12 +32,10 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
-
-import { TopNavbarOpenedMinappTabs } from '../app/PinnedMinapps'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -81,6 +83,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
   const { t } = useTranslation()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScroll, setCanScroll] = useState(false)
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -142,34 +146,83 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
+  const handleScrollRight = () => {
+    scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    const scrollElement = scrollRef.current
+    if (!scrollElement) return
+
+    const checkScrollability = () => {
+      setCanScroll(scrollElement.scrollWidth > scrollElement.clientWidth)
+    }
+
+    checkScrollability()
+
+    const resizeObserver = new ResizeObserver(checkScrollability)
+    resizeObserver.observe(scrollElement)
+
+    window.addEventListener('resize', checkScrollability)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', checkScrollability)
+    }
+  }, [tabs])
+
+  const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
+
+  const { onSortEnd } = useDndReorder<Tab>({
+    originalList: tabs,
+    filteredList: visibleTabs,
+    onUpdate: (newTabs) => dispatch(setTabs(newTabs)),
+    itemKey: 'id'
+  })
+
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
-        {tabs
-          .filter((tab) => !specialTabs.includes(tab.id))
-          .map((tab) => {
-            return (
-              <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
-                <TabHeader>
-                  {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                  <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
-                </TabHeader>
-                {tab.id !== 'home' && (
-                  <CloseButton
-                    className="close-button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      closeTab(tab.id)
-                    }}>
-                    <X size={12} />
-                  </CloseButton>
-                )}
-              </Tab>
-            )
-          })}
-        <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
-          <PlusOutlined />
-        </AddTabButton>
+        <TabsArea>
+          <TabsScroll ref={scrollRef}>
+            <Sortable
+              items={visibleTabs}
+              itemKey="id"
+              layout="list"
+              horizontal
+              gap={'6px'}
+              onSortEnd={onSortEnd}
+              className="tabs-sortable"
+              renderItem={(tab) => (
+                <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
+                  <TabHeader>
+                    {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
+                    <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
+                  </TabHeader>
+                  {tab.id !== 'home' && (
+                    <CloseButton
+                      className="close-button"
+                      data-no-dnd
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        closeTab(tab.id)
+                      }}>
+                      <X size={12} />
+                    </CloseButton>
+                  )}
+                </Tab>
+              )}
+            />
+          </TabsScroll>
+          {canScroll && (
+            <ScrollButton onClick={handleScrollRight} className="scroll-right-button" shape="circle" size="small">
+              <ChevronRight size={16} />
+            </ScrollButton>
+          )}
+          <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
+            <PlusOutlined />
+          </AddTabButton>
+        </TabsArea>
         <RightButtonsContainer>
           <TopNavbarOpenedMinappTabs />
           <Tooltip
@@ -200,6 +253,7 @@ const Container = styled.div`
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
 `
 
 const TabsBar = styled.div<{ $isFullscreen: boolean }>`
@@ -221,6 +275,34 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   }
 `
 
+const TabsArea = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
+  padding-right: 2rem;
+  position: relative;
+
+  -webkit-app-region: drag;
+
+  > * {
+    -webkit-app-region: no-drag;
+  }
+
+  &:hover {
+    .scroll-right-button {
+      opacity: 1;
+    }
+  }
+`
+
+const TabsScroll = styled(Scrollbar)`
+  &::-webkit-scrollbar {
+    display: none;
+  }
+`
+
 const Tab = styled.div<{ active?: boolean }>`
   display: flex;
   align-items: center;
@@ -228,12 +310,12 @@ const Tab = styled.div<{ active?: boolean }>`
   padding: 4px 10px;
   padding-right: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
+  transition: background 0.2s;
   border-radius: var(--list-item-border-radius);
-  cursor: pointer;
   user-select: none;
   height: 30px;
   min-width: 90px;
-  transition: background 0.2s;
+
   .close-button {
     opacity: 0;
     transition: opacity 0.2s;
@@ -251,12 +333,15 @@ const TabHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 1;
 `
 
 const TabIcon = styled.span`
   display: flex;
   align-items: center;
   color: var(--color-text-2);
+  flex-shrink: 0;
 `
 
 const TabTitle = styled.span`
@@ -265,6 +350,8 @@ const TabTitle = styled.span`
   display: flex;
   align-items: center;
   margin-right: 4px;
+  overflow: hidden;
+  white-space: nowrap;
 `
 
 const CloseButton = styled.span`
@@ -284,6 +371,7 @@ const AddTabButton = styled.div`
   cursor: pointer;
   color: var(--color-text-2);
   border-radius: var(--list-item-border-radius);
+  flex-shrink: 0;
   &.active {
     background: var(--color-list-item);
   }
@@ -292,11 +380,28 @@ const AddTabButton = styled.div`
   }
 `
 
+const ScrollButton = styled(Button)`
+  position: absolute;
+  right: 4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+
+  border: none;
+  box-shadow:
+    0 6px 16px 0 rgba(0, 0, 0, 0.08),
+    0 3px 6px -4px rgba(0, 0, 0, 0.12),
+    0 9px 28px 8px rgba(0, 0, 0, 0.05);
+`
+
 const RightButtonsContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  flex-shrink: 0;
 `
 
 const ThemeButton = styled.div`

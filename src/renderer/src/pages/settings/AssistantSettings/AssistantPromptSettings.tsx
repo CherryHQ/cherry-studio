@@ -122,7 +122,12 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <TextAreaContainer>
         <RichEditorContainer>
           {showPreview ? (
-            <MarkdownContainer>
+            <MarkdownContainer
+              onDoubleClick={() => {
+                const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+                setShowPreview(false)
+                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+              }}>
               <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
             </MarkdownContainer>
           ) : (
