@@ -13,6 +13,7 @@ import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electro
 
 import { isDev, isLinux, isWin } from './constant'
 import { registerIpc } from './ipc'
+import { claudeCodeService } from './services/ClaudeCodeService'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
@@ -119,6 +120,14 @@ if (!app.requestSingleInstanceLock()) {
 
     nodeTraceService.init()
 
+    // Start Claude-code HTTP service
+    try {
+      await claudeCodeService.start()
+      logger.info('Claude-code HTTP service started successfully')
+    } catch (error) {
+      logger.error('Failed to start Claude-code HTTP service:', error as Error)
+    }
+
     app.on('activate', function () {
       const mainWindow = windowService.getMainWindow()
       if (!mainWindow || mainWindow.isDestroyed()) {
@@ -193,6 +202,15 @@ if (!app.requestSingleInstanceLock()) {
     } catch (error) {
       logger.warn('Error cleaning up MCP service:', error as Error)
     }
+
+    // Stop Claude-code HTTP service
+    try {
+      await claudeCodeService.stop()
+      logger.info('Claude-code HTTP service stopped')
+    } catch (error) {
+      logger.warn('Error stopping Claude-code HTTP service:', error as Error)
+    }
+
     // finish the logger
     logger.finish()
   })

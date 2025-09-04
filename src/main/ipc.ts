@@ -11,6 +11,7 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
+import { claudeCodeService } from './services/ClaudeCodeService'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -755,4 +756,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CherryIN
   ipcMain.handle(IpcChannel.Cherryin_GetSignature, (_, params) => generateSignature(params))
+
+  // Provider
+  ipcMain.handle(IpcChannel.Provider_GetClaudeCodePort, () => {
+    return claudeCodeService.getPort()
+  })
 }

@@ -76,6 +76,17 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
 export async function createAiSdkProvider(config) {
   let localProvider: Awaited<AiSdkProvider> | null = null
   try {
+    // 特殊处理 claude-code provider，通过 IPC 在主线程中创建
+    // if (config.providerId === 'claude-code') {
+    localProvider = await window.api.provider.createClaudeCode()
+    logger.debug('Claude-code provider created via IPC', {
+      providerId: config.providerId,
+      hasOptions: !!config.options
+    })
+    console.log('localProvider', localProvider)
+    return localProvider
+    // }
+
     if (config.providerId === 'openai' && config.options?.mode === 'chat') {
       config.providerId = `${config.providerId}-chat`
     } else if (config.providerId === 'azure' && config.options?.mode === 'responses') {

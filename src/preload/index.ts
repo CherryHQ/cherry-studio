@@ -437,6 +437,9 @@ const api = {
   cherryin: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
+  },
+  provider: {
+    getClaudeCodePort: () => ipcRenderer.invoke(IpcChannel.Provider_GetClaudeCodePort)
   }
 }
 

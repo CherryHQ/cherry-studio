@@ -54,6 +54,54 @@ export class AiSdkToChunkAdapter {
   }
 
   /**
+   * 直接处理单个 chunk 数据
+   * @param chunk AI SDK 的 chunk 数据
+   */
+  async processChunk(response: ReadableStream<TextStreamPart<any>>): Promise<void> {
+    const reader = response.getReader()
+    const final = {
+      text: '',
+      reasoningContent: '',
+      webSearchResults: [],
+      reasoningId: ''
+    }
+    try {
+      let buffer = ''
+      const decoder = new TextDecoder()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        buffer += chunk
+
+        // 按行处理 SSE 数据
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // 保留最后一行（可能不完整）
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6) // 移除 "data: " 前缀
+
+            if (dataStr === '[DONE]') {
+              break
+            }
+            try {
+              const data = JSON.parse(dataStr)
+              this.convertAndEmitChunk(data, final)
+            } catch (parseError) {
+              // 忽略无法解析的数据
+              // logger.debug('Failed to parse streamed data:', parseError as Error, line)
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  /**
    * 读取 fullStream 并转换为 Cherry Studio chunks
    * @param fullStream AI SDK 的 fullStream (ReadableStream)
    */
@@ -90,6 +138,7 @@ export class AiSdkToChunkAdapter {
     final: { text: string; reasoningContent: string; webSearchResults: any[]; reasoningId: string }
   ) {
     logger.info(`AI SDK chunk type: ${chunk.type}`, chunk)
+    console.log('final', final)
     switch (chunk.type) {
       // === 文本相关事件 ===
       case 'text-start':
@@ -99,7 +148,7 @@ export class AiSdkToChunkAdapter {
         break
       case 'text-delta':
         if (this.accumulate) {
-          final.text += chunk.text || ''
+          final.text += chunk.delta || ''
         } else {
           final.text = chunk.text || ''
         }
@@ -232,13 +281,13 @@ export class AiSdkToChunkAdapter {
             text: final.text || '',
             reasoning_content: final.reasoningContent || '',
             usage: {
-              completion_tokens: chunk.totalUsage.outputTokens || 0,
-              prompt_tokens: chunk.totalUsage.inputTokens || 0,
-              total_tokens: chunk.totalUsage.totalTokens || 0
+              completion_tokens: chunk?.totalUsage?.outputTokens || 0,
+              prompt_tokens: chunk?.totalUsage?.inputTokens || 0,
+              total_tokens: chunk?.totalUsage?.totalTokens || 0
             },
-            metrics: chunk.totalUsage
+            metrics: chunk?.totalUsage
               ? {
-                  completion_tokens: chunk.totalUsage.outputTokens || 0,
+                  completion_tokens: chunk?.totalUsage?.outputTokens || 0,
                   time_completion_millsec: 0
                 }
               : undefined
@@ -250,13 +299,13 @@ export class AiSdkToChunkAdapter {
             text: final.text || '',
             reasoning_content: final.reasoningContent || '',
             usage: {
-              completion_tokens: chunk.totalUsage.outputTokens || 0,
-              prompt_tokens: chunk.totalUsage.inputTokens || 0,
-              total_tokens: chunk.totalUsage.totalTokens || 0
+              completion_tokens: chunk?.totalUsage?.outputTokens || 0,
+              prompt_tokens: chunk?.totalUsage?.inputTokens || 0,
+              total_tokens: chunk?.totalUsage?.totalTokens || 0
             },
-            metrics: chunk.totalUsage
+            metrics: chunk?.totalUsage
               ? {
-                  completion_tokens: chunk.totalUsage.outputTokens || 0,
+                  completion_tokens: chunk?.totalUsage?.outputTokens || 0,
                   time_completion_millsec: 0
                 }
               : undefined

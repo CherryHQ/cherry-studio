@@ -250,6 +250,7 @@ export enum IpcChannel {
 
   // Provider
   Provider_AddKey = 'provider:add-key',
+  Provider_GetClaudeCodePort = 'provider:get-claude-code-port',
 
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',

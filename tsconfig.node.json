@@ -7,6 +7,7 @@
     "src/main/env.d.ts",
     "src/renderer/src/types/*",
     "packages/shared/**/*",
+    "packages/aiCore/**/*",
     "scripts",
     "packages/mcp-trace/**/*",
     "src/renderer/src/services/traceApi.ts"  ],
@@ -19,12 +20,17 @@
       "vitest/globals"
     ],
     "baseUrl": ".",
+    "moduleResolution": "bundler",
     "paths": {
       "@logger": ["src/main/services/LoggerService"],
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
       "@shared/*": ["packages/shared/*"],
-      "@mcp-trace/*": ["packages/mcp-trace/*"]
+      "@mcp-trace/*": ["packages/mcp-trace/*"],
+      "@cherrystudio/ai-core/provider": ["packages/aiCore/src/core/providers/index.ts"],
+      "@cherrystudio/ai-core/built-in/plugins": ["packages/aiCore/src/core/plugins/built-in/index.ts"],
+      "@cherrystudio/ai-core/*": ["packages/aiCore/src/*"],
+      "@cherrystudio/ai-core": ["packages/aiCore/src/index.ts"],
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

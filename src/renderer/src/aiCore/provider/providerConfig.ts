@@ -92,7 +92,6 @@ function formatProviderApiHost(provider: Provider): Provider {
  */
 export function getActualProvider(model: Model): Provider {
   const baseProvider = getProviderByModel(model)
-
   // 按顺序处理各种转换
   let actualProvider = cloneDeep(baseProvider)
   actualProvider = handleSpecialProviders(model, actualProvider)

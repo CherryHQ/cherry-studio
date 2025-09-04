@@ -90,6 +90,11 @@ export default class ModernAiProvider {
     // 准备特殊配置
     await prepareSpecialProviderConfig(this.actualProvider, this.config)
 
+    // 特殊处理 claude-code provider，通过本地 HTTP 服务器
+    // if (this.config.providerId === 'claude-code') {
+    return await this._completionsViaHttpService(modelId, params, config)
+    // }
+
     // 提前创建本地 provider 实例
     if (!this.localProvider) {
       this.localProvider = await createAiSdkProvider(this.config)
@@ -244,6 +249,79 @@ export default class ModernAiProvider {
       })
       throw error
     }
+  }
+
+  /**
+   * 通过本地 HTTP 服务器处理 claude-code completions
+   */
+  private async _completionsViaHttpService(
+    modelId: string,
+    params: StreamTextParams,
+    config: ModernAiProviderConfig
+  ): Promise<CompletionsResult> {
+    logger.info('Starting claude-code completions via HTTP service', {
+      modelId,
+      providerId: this.config!.providerId,
+      topicId: config.topicId,
+      hasOnChunk: !!config.onChunk
+    })
+
+    try {
+      // 初始化 claude-code provider
+      const initResponse = await fetch('http://localhost:' + (await this.getClaudeCodePort()) + '/init', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(this.config!.options)
+      })
+
+      if (!initResponse.ok) {
+        throw new Error(`Failed to initialize claude-code provider: ${initResponse.statusText}`)
+      }
+
+      // 发送 completions 请求
+      const completionsResponse = await fetch('http://localhost:' + (await this.getClaudeCodePort()) + '/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          modelId,
+          params,
+          options: this.config!.options
+        })
+      })
+
+      if (!completionsResponse.ok) {
+        throw new Error(`Failed to get completions: ${completionsResponse.statusText}`)
+      }
+
+      let finalText = ''
+
+      if (config.onChunk && completionsResponse.body) {
+        // 创建 adapter 来处理 chunk 数据
+        const accumulate = this.model!.supported_text_delta !== false
+        const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate)
+        await adapter.processChunk(completionsResponse.body)
+      } else {
+        finalText = await completionsResponse.text()
+      }
+
+      return {
+        getText: () => finalText
+      }
+    } catch (error) {
+      logger.error('Error in claude-code HTTP service completions', error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * 获取 Claude-code HTTP 服务端口
+   */
+  private async getClaudeCodePort(): Promise<number> {
+    return await window.api.provider.getClaudeCodePort()
   }
 
   /**
