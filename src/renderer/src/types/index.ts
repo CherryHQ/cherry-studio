@@ -1317,7 +1317,8 @@ type MessagesParams = BaseParams & {
 
 type PromptParams = BaseParams & {
   messages?: never
-  // prompt: StreamTextParams['prompt']
+  // prompt: Just use string for convinience. Native prompt type unite more types, including messages type.
+  // we craete a non-intersecting prompt type to discriminate them.
   // see https://github.com/vercel/ai/issues/8363
   prompt: string
 }
