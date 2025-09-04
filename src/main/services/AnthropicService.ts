@@ -6,17 +6,17 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { getConfigDir } from '@main/utils/file'
 import * as crypto from 'crypto'
-import { shell } from 'electron'
+import { net, shell } from 'electron'
 import { promises } from 'fs'
-import os from 'os'
 import { dirname } from 'path'
 
 const logger = loggerService.withContext('AnthropicOAuth')
 
 // Constants
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
-const CREDS_PATH = path.join(os.homedir(), '.cherrystudio', 'config', 'oauth', 'anthropic.json')
+const CREDS_PATH = path.join(getConfigDir(), 'oauth', 'anthropic.json')
 
 // Types
 interface Credentials {
@@ -63,7 +63,7 @@ class AnthropicService extends Error {
     const authCode = code.includes('#') ? code.split('#')[0] : code
     const state = code.includes('#') ? code.split('#')[1] : verifier
 
-    const response = await fetch('https://console.anthropic.com/v1/oauth/token', {
+    const response = await net.fetch('https://console.anthropic.com/v1/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -91,7 +91,7 @@ class AnthropicService extends Error {
 
   // 4. Refresh access token
   private async refreshAccessToken(refreshToken: string): Promise<Credentials> {
-    const response = await fetch('https://console.anthropic.com/v1/oauth/token', {
+    const response = await net.fetch('https://console.anthropic.com/v1/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
