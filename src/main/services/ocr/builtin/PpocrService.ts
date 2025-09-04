@@ -1,21 +1,20 @@
 import { loadOcrImage } from '@main/utils/ocr'
 import { ImageFileMetadata, isImageFileMetadata, OcrPpocrConfig, OcrResult, SupportedOcrFile } from '@types'
-import axios from 'axios'
+import { z } from 'zod'
 
 import { OcrBaseService } from './OcrBaseService'
 
-interface PpocrResponse {
-  logId: string
-  result: {
-    ocrResults: Array<{
-      prunedResult: {
-        rec_texts: string[]
-      }
-    }>
-  }
-  errorCode: number
-  errorMsg: string
-}
+const OcrResponseSchema = z.object({
+  result: z.object({
+    ocrResults: z.array(
+      z.object({
+        prunedResult: z.object({
+          rec_texts: z.array(z.string())
+        })
+      })
+    )
+  })
+})
 
 export class PpocrService extends OcrBaseService {
   public ocr = async (file: SupportedOcrFile, options?: OcrPpocrConfig): Promise<OcrResult> => {
@@ -53,26 +52,21 @@ export class PpocrService extends OcrBaseService {
     }
 
     try {
-      const response = await axios.post<PpocrResponse>(apiUrl, payload, {
-        headers
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
       })
 
-      const result = response.data?.result
-
-      // 严格校验
-      if (!result) {
-        throw new Error("OCR response missing 'result' field")
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(`OCR service error: ${response.status} ${response.statusText} - ${text}`)
       }
 
-      if (!Array.isArray(result.ocrResults) || result.ocrResults.length === 0) {
-        throw new Error("OCR response has no 'ocrResults'")
-      }
+      const data = await response.json()
 
-      const recTexts = result.ocrResults[0]?.prunedResult?.rec_texts
-
-      if (!Array.isArray(recTexts)) {
-        throw new Error("OCR response has no 'rec_texts'")
-      }
+      const validatedResponse = OcrResponseSchema.parse(data)
+      const recTexts = validatedResponse.result.ocrResults[0].prunedResult.rec_texts
 
       return { text: recTexts.join(' ') }
     } catch (error: any) {

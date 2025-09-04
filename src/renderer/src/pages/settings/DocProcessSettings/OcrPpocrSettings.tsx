@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import { BuiltinOcrProviderIds, isOcrPpocrProvider } from '@renderer/types'
 import { Input } from 'antd'
@@ -38,7 +39,7 @@ export const OcrPpocrSettings = () => {
   }, [apiUrl, aistudioAccessToken, updateConfig])
 
   return (
-    <>
+    <ErrorBoundary>
       <SettingRow>
         <SettingRowTitle style={{ width: 150 }}>{t('settings.tool.ocr.paddleocr.api_url')}</SettingRowTitle>
         <Input
@@ -61,6 +62,6 @@ export const OcrPpocrSettings = () => {
           spellCheck={false}
         />
       </SettingRow>
-    </>
+    </ErrorBoundary>
   )
 }
