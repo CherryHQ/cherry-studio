@@ -410,7 +410,9 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''} style={{ marginRight: isWin || isLinux ? '140px' : 0 }}>
+        <ButtonsGroup
+          className={isWin || isLinux ? 'windows' : ''}
+          style={{ marginRight: isWin || isLinux ? '140px' : 0 }}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
