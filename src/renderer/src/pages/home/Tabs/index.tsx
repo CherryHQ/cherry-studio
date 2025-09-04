@@ -157,6 +157,18 @@ const Container = styled.div`
   min-width: var(--assistants-width);
   height: calc(100vh - var(--navbar-height));
 
+  /* Responsive width for narrow screens */
+  @media (max-width: 640px) {
+    max-width: var(--assistants-width-narrow);
+    min-width: var(--assistants-width-narrow);
+  }
+  
+  /* Extra narrow screens - use even smaller width */
+  @media (max-width: 560px) {
+    max-width: 200px;
+    min-width: 200px;
+  }
+
   &.right {
     height: calc(100vh - var(--navbar-height));
   }

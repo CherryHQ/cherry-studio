@@ -66,6 +66,9 @@
   --assistants-width: 275px;
   --topic-list-width: 275px;
   --settings-width: 250px;
+  
+  /* Responsive assistants width for narrow screens */
+  --assistants-width-narrow: 220px;
   --scrollbar-width: 5px;
 
   --chat-background: transparent;

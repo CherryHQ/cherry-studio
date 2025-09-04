@@ -609,6 +609,16 @@ const TopicListItem = styled.div`
   justify-content: space-between;
   cursor: pointer;
   width: calc(var(--assistants-width) - 20px);
+  
+  /* Responsive width for narrow screens */
+  @media (max-width: 640px) {
+    width: calc(var(--assistants-width-narrow) - 20px);
+  }
+  
+  /* Extra narrow screens */
+  @media (max-width: 560px) {
+    width: calc(200px - 20px);
+  }
 
   .menu {
     opacity: 0;
