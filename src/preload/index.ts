@@ -446,7 +446,6 @@ const api = {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
   }
-  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

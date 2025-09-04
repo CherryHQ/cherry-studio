@@ -16,7 +16,7 @@ const logger = loggerService.withContext('AnthropicOAuth')
 
 // Constants
 const CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e'
-const CREDS_PATH = path.join(os.homedir(), '.cherrystudio', 'config', 'anthropic.json')
+const CREDS_PATH = path.join(os.homedir(), '.cherrystudio', 'config', 'oauth', 'anthropic.json')
 
 // Types
 interface Credentials {
