@@ -30,7 +30,7 @@ jobs:
           node-version: 20
 
       - name: 📦 Install global dependencies
-        run: yarn global add openai@^5.12.2 cli-progress@^3.12.0 tsx@^4.20.3
+        run: npm install -g openai@^5.12.2 cli-progress@^3.12.0 tsx@^4.20.3
 
       - name: 🏃‍♀️ Translate
         run: tsx scripts/update-i18n.ts
