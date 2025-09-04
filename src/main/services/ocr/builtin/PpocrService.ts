@@ -69,7 +69,7 @@ export class PpocrService extends OcrBaseService {
       const validatedResponse = OcrResponseSchema.parse(data)
       const recTexts = validatedResponse.result.ocrResults[0].prunedResult.rec_texts
 
-      return { text: recTexts.join(' ') }
+      return { text: recTexts.join('\n') }
     } catch (error: any) {
       throw new Error(`OCR service error: ${error.message}`)
     }
