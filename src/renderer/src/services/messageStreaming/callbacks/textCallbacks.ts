@@ -12,10 +12,11 @@ interface TextCallbacksDependencies {
   getState: any
   assistantMsgId: string
   getCitationBlockId: () => string | null
+  getCitationBlockIdFromTool: () => string | null
 }
 
 export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
-  const { blockManager, getState, assistantMsgId, getCitationBlockId } = deps
+  const { blockManager, getState, assistantMsgId, getCitationBlockId, getCitationBlockIdFromTool } = deps
 
   // 内部维护的状态
   let mainTextBlockId: string | null = null
@@ -40,7 +41,7 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
     },
 
     onTextChunk: async (text: string) => {
-      const citationBlockId = getCitationBlockId()
+      const citationBlockId = getCitationBlockId() || getCitationBlockIdFromTool()
       const citationBlockSource = citationBlockId
         ? (getState().messageBlocks.entities[citationBlockId] as CitationMessageBlock).response?.source
         : WebSearchSource.WEBSEARCH
