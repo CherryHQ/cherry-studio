@@ -38,7 +38,7 @@ jobs:
           yarn add --production=false --no-lockfile openai cli-progress tsx
 
       - name: 🏃‍♀️ Translate
-        run: tsx scripts/update-i18n.ts
+        run: yarn run tsx scripts/update-i18n.ts
 
       - name: 🔄 Commit changes
         run: |
