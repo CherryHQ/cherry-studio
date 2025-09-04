@@ -1307,7 +1307,7 @@ type BaseParams = {
   options?: FetchChatCompletionOptions
   onChunkReceived: (chunk: Chunk) => void
   topicId?: string // 添加 topicId 参数
-  uiMessages: Message[]
+  uiMessages?: Message[]
 }
 
 type MessagesParams = BaseParams & {

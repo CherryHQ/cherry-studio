@@ -266,13 +266,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         newAssistant.webSearchProviderId = undefined
         newAssistant.mcpServers = undefined
         newAssistant.knowledge_bases = undefined
-        const llmMessages = await ConversationService.prepareMessagesForModel(messagesForContext, newAssistant)
+        const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel(
+          messagesForContext,
+          newAssistant
+        )
 
         await fetchChatCompletion({
-          messages: llmMessages,
+          messages: modelMessages,
           assistant: newAssistant,
           options: {},
           topicId,
+          uiMessages: uiMessages,
           onChunkReceived: (chunk: Chunk) => {
             switch (chunk.type) {
               case ChunkType.THINKING_START:

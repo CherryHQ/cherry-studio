@@ -64,12 +64,13 @@ export const processMessages = async (
     newAssistant.webSearchProviderId = undefined
     newAssistant.mcpServers = undefined
     newAssistant.knowledge_bases = undefined
-    const llmMessages = await ConversationService.prepareMessagesForModel([userMessage], newAssistant)
+    const { modelMessages, uiMessages } = await ConversationService.prepareMessagesForModel([userMessage], newAssistant)
 
     await fetchChatCompletion({
-      messages: llmMessages,
+      messages: modelMessages,
       assistant: newAssistant,
       options: {},
+      uiMessages: uiMessages,
       onChunkReceived: (chunk: Chunk) => {
         if (finished) {
           return
