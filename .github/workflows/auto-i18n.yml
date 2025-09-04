@@ -24,13 +24,16 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
 
-      - name: 📦 Setting Node.js
+      - name: 📦 Setting Node.js and Yarn
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      - name: 📦 Enable Yarn Corepack
+        run: corepack enable
+
       - name: 📦 Dependencies
-        run: npm install openai cli-progress tsx
+        run: yarn add openai cli-progress tsx
 
       - name: 🏃‍♀️ Translate
         run: tsx scripts/update-i18n.ts
