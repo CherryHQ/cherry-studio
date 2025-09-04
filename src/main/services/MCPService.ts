@@ -128,6 +128,7 @@ class McpService {
     // If there's a pending initialization, wait for it
     const pendingClient = this.pendingClients.get(serverKey)
     if (pendingClient) {
+      logger.silly(`Waiting for pending client initialization for server: ${server.name}`)
       return pendingClient
     }
 
@@ -136,7 +137,10 @@ class McpService {
     if (existingClient) {
       try {
         // Check if the existing client is still connected
-        const pingResult = await existingClient.ping()
+        const pingResult = await existingClient.ping({
+          // add short timeout to prevent hanging
+          timeout: 1000
+        })
         logger.debug(`Ping result for ${server.name}:`, pingResult)
         // If the ping fails, remove the client from the cache
         // and create a new one
