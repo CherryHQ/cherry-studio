@@ -52,7 +52,11 @@ jobs:
           git config --local user.name "GitHub Action"
           git add .
           git reset -- package.json yarn.lock  # 不提交 package.json 和 yarn.lock 的更改
-          git commit -m "fix(i18n): Auto update translations for PR #${{ github.event.pull_request.number }}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix(i18n): Auto update translations for PR #${{ github.event.pull_request.number }}"
+          fi
 
       - name: 🚀 Push changes
         uses: ad-m/github-push-action@master
