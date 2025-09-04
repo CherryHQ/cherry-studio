@@ -850,6 +850,11 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
+    "mcp": {
+      "add": {
+        "invalid_server": "Formato de datos del servidor MCP no válido"
+      }
+    },
     "missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
     "model": {
       "exists": "El modelo ya existe",
@@ -3155,6 +3160,7 @@
         "label": "Agregar servidor"
       },
       "addSuccess": "Servidor agregado exitosamente",
+      "add_failed_invalid_data": "Error al agregar: datos no válidos",
       "advancedSettings": "Configuración avanzada",
       "args": "Argumentos",
       "argsTooltip": "Cada argumento en una línea",
@@ -3274,6 +3280,11 @@
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
       "serverSingular": "Servidor",
+      "server_add_confirm": "¿Está seguro de que desea agregar el servidor {{server}}?",
+      "server_added": "El servidor {{server}} se ha agregado correctamente",
+      "server_already_exists": "El servidor {{server}} ya existe",
+      "server_confirm_title": "Confirmar agregar {{server}}",
+      "server_no_change": "El servidor {{server}} ya existe, no se ha realizado ningún cambio",
       "sse": "Eventos enviados por el servidor (sse)",
       "startError": "Inicio fallido",
       "stdio": "Entrada/Salida estándar (stdio)",
