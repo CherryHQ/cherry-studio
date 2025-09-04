@@ -9,7 +9,7 @@ import { Provider, ProviderType } from '@renderer/types'
 import { compressImage, generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -28,6 +28,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
+  const uploadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (provider?.id) {
@@ -114,7 +115,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           accept="image/png, image/jpeg, image/gif"
           itemRender={() => null}
           maxCount={1}
-          showUploadList={false}
           onChange={async ({ file }) => {
             try {
               const _file = file.originFileObj as File
@@ -149,9 +149,13 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               window.message.error(error.message)
             }
           }}>
-          <MenuItem>{t('settings.general.image_upload')}</MenuItem>
+          <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
         </Upload>
-      )
+      ),
+      onClick: (e: any) => {
+        e.stopPropagation()
+        uploadRef.current?.click()
+      }
     },
     {
       key: 'builtin',
