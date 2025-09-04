@@ -3886,7 +3886,10 @@
         "image_provider": "Provedor de serviços OCR",
         "paddleocr": {
           "aistudio_access_token": "Token de acesso da comunidade AI Studio",
-          "api_url": "URL da API"
+          "aistudio_url_label": "Comunidade AI Studio",
+          "api_url": "URL da API",
+          "serving_doc_url_label": "Documentação do PaddleOCR Serving",
+          "tip": "Você pode consultar a documentação oficial do PaddleOCR para implantar um serviço local ou implantar um serviço na nuvem na Comunidade PaddlePaddle AI Studio. No último caso, forneça o token de acesso da Comunidade AI Studio."
         },
         "system": {
           "win": {

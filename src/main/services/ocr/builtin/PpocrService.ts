@@ -57,13 +57,13 @@ export class PpocrService extends OcrBaseService {
 
     const buffer = await loadOcrImage(file)
     const base64 = buffer.toString('base64')
-    const payload: OcrPayload = {
+    const payload = {
       file: base64,
       fileType: FileType.Image,
       useDocOrientationClassify: false,
       useDocUnwarping: false,
       visualize: false
-    }
+    } satisfies OcrPayload
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
