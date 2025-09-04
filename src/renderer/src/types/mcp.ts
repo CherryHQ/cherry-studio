@@ -16,22 +16,18 @@ export type MCPConfigSample = z.infer<typeof MCPConfigSampleSchema>
  * 允许 inMemory 作为合法字段，需要额外校验 name 是否 builtin
  */
 export const McpServerTypeSchema = z
-  .union([
-    z.literal('stdio'),
-    z.literal('sse'),
-    z.literal('streamableHttp'),
-    z.literal('http'),
-    z.literal('streamable_http'),
-    z.literal('inMemory')
-  ])
+  .string()
   .transform((type) => {
-    if (type === 'streamable_http' || type === 'http') {
+    if (type.includes('http')) {
       return 'streamableHttp'
     } else {
       return type
     }
   })
-  .default('stdio') // 大多数情况下默认使用 stdio
+  .pipe(
+    z.union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')]).default('stdio') // 大多数情况下默认使用 stdio
+  )
+
 /**
  * 定义单个 MCP 服务器的配置。
  * FIXME: 为了兼容性，暂时允许用户编辑任意字段，这可能会导致问题。
