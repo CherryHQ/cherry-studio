@@ -6,8 +6,8 @@ env:
   BASE_URL: ${{ vars.BASE_URL || 'https://api.ppinfra.com/openai'}}
 
 on:
-  push:
-    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 jobs:
@@ -31,6 +31,13 @@ jobs:
 
       - name: 🏃‍♀️ Translate
         run: tsx scripts/update-i18n.ts
+
+      - name: 🔄 Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add .
+          git commit -m "fix: Auto update i18n locales from GitHub Actions"
 
       - name: 🚀 Push changes
         uses: ad-m/git-push@v1
