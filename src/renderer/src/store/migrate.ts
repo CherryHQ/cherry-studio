@@ -2385,6 +2385,15 @@ const migrateConfig = {
   },
   '148': (state: RootState) => {
     try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
+      return state
+    } catch (error) {
+      logger.error('migrate 148 error', error as Error)
+      return state
+    }
+  },
+  '149': (state: RootState) => {
+    try {
       state.knowledge.bases.forEach((base) => {
         if (!base.framework) {
           base.framework = 'embedjs'
@@ -2392,7 +2401,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 148 error', error as Error)
+      logger.error('migrate 149 error', error as Error)
       return state
     }
   }

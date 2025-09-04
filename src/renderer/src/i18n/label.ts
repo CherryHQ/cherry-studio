@@ -327,10 +327,12 @@ export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
 
 const builtinOcrProviderKeyMap = {
   system: 'ocr.builtin.system',
-  tesseract: ''
+  tesseract: '',
+  paddleocr: ''
 } as const satisfies Record<BuiltinOcrProviderId, string>
 
 export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   if (key === 'tesseract') return 'Tesseract'
+  else if (key == 'paddleocr') return 'PaddleOCR'
   else return getLabel(builtinOcrProviderKeyMap, key)
 }
