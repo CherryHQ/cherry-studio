@@ -1,7 +1,6 @@
 import { FormOutlined } from '@ant-design/icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { EventEmitter } from '@renderer/services/EventService'
-import { EVENT_NAMES } from '@renderer/services/EventService'
+import { EventEmitter, EVENT_NAMES } from '@renderer/services/EventService'
 import { ThemeMode } from '@renderer/types'
 import { Button as AntdButton } from 'antd'
 import { FC } from 'react'

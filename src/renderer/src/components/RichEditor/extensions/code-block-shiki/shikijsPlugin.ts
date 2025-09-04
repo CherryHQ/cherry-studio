@@ -201,7 +201,7 @@ export function ShikiPlugin({
                 tasks.push(
                   loadThemeIfNeeded(this.highlighter, blockTheme).then((resolvedTheme) => {
                     // If a fallback occurred (e.g., to 'one-light'), avoid repeatedly trying the unsupported theme
-                    if (resolvedTheme == blockTheme) {
+                    if (resolvedTheme === blockTheme) {
                       didLoadSomething = true
                     }
                   })
@@ -212,7 +212,7 @@ export function ShikiPlugin({
                 tasks.push(
                   loadLanguageIfNeeded(this.highlighter, blockLanguage).then((resolvedLanguage) => {
                     // If fallback language differs from requested, mark requested to skip future attempts
-                    if (resolvedLanguage == blockLanguage) {
+                    if (resolvedLanguage === blockLanguage) {
                       didLoadSomething = true
                     } else {
                       SKIP_HIGHLIGHTING_LANGUAGES.add(blockLanguage)

@@ -1,8 +1,7 @@
 import { computePosition, type ComputePositionConfig } from '@floating-ui/dom'
 import type { Editor } from '@tiptap/core'
 import type { Node } from '@tiptap/pm/model'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
 
 import { findElementNextToCoords } from '../helpers/findNextElementFromCursor'

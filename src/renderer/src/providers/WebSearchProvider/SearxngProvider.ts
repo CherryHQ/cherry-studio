@@ -132,7 +132,7 @@ export default class SearxngProvider extends BaseWebSearchProvider {
 
       return {
         query: query,
-        results: results.filter((result) => result.content != noContent)
+        results: results.filter((result) => result.content !== noContent)
       }
     } catch (error) {
       logger.error('Searxng search failed:', error as Error)

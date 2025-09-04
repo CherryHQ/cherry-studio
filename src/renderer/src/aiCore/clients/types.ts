@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse } from '@renderer/types'
-import { Provider } from '@renderer/types'
+import { Assistant, MCPTool, MCPToolResponse, Model, ToolCallResponse, Provider } from '@renderer/types'
 import {
   AnthropicSdkRawChunk,
   OpenAIResponseSdkRawChunk,

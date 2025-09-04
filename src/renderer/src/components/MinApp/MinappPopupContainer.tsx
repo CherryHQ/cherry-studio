@@ -230,7 +230,7 @@ const MinappPopupContainer: React.FC = () => {
   }, [currentMinappId, minappsOpenLinkExternal])
 
   /** only the keepalive minapp can be minimized */
-  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id == currentMinappId)
+  const canMinimize = !(openedOneOffMinapp && openedOneOffMinapp.id === currentMinappId)
 
   /** combine the openedKeepAliveMinapps and openedOneOffMinapp */
   const combinedApps = useMemo(() => {
@@ -297,7 +297,7 @@ const MinappPopupContainer: React.FC = () => {
     if (webviewId) {
       window.api.webview.setOpenLinkExternal(webviewId, minappsOpenLinkExternal)
     }
-    if (appid == currentMinappId) {
+    if (appid === currentMinappId) {
       setTimeoutTimer('handleWebviewLoaded', () => setIsReady(true), 200)
     }
   }

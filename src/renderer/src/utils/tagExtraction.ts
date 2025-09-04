@@ -56,7 +56,7 @@ export class TagExtractor {
       const nextTag = this.state.isInsideTag ? this.config.closingTag : this.config.openingTag
       const startIndex = getPotentialStartIndex(this.state.textBuffer, nextTag)
 
-      if (startIndex == null) {
+      if (startIndex === null) {
         const content = this.state.textBuffer
         if (content.length > 0) {
           results.push({

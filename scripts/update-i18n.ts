@@ -34,13 +34,13 @@ const openai = new OpenAI({
 async function translate(baseObj: I18N, targetObj: I18N, targetLang: string, model: string, updateFile) {
   const toTranslateTexts: { [key: string]: string } = {}
   for (const key in baseObj) {
-    if (typeof baseObj[key] == 'object') {
+    if (typeof baseObj[key] === 'object') {
       // 遍历下一层
-      if (!targetObj[key] || typeof targetObj[key] != 'object') targetObj[key] = {}
+      if (!targetObj[key] || typeof targetObj[key] !== 'object') targetObj[key] = {}
       await translate(baseObj[key], targetObj[key], targetLang, model, updateFile)
     } else if (
       !targetObj[key] ||
-      typeof targetObj[key] != 'string' ||
+      typeof targetObj[key] !== 'string' ||
       (typeof targetObj[key] === 'string' && targetObj[key].startsWith('[to be translated]'))
     ) {
       // 加入到本层待翻译列表

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { runAsyncFunction } from '../index'
-import { hasPath, isValidProxyUrl, removeQuotes, removeSpecialCharacters } from '../index'
+import { hasPath, isValidProxyUrl, removeQuotes, removeSpecialCharacters, runAsyncFunction } from '../index'
 
 describe('Unclassified Utils', () => {
   describe('runAsyncFunction', () => {

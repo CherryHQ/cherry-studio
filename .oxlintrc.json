@@ -1,0 +1,67 @@
+{
+  "$schema": "https://oxc.rs/schema/oxlintrc.json",
+  "ignorePatterns": [
+    "node_modules/**",
+    "build/**",
+    "dist/**",
+    "out/**",
+    "local/**",
+    ".yarn/**",
+    ".gitignore",
+    "scripts/cloudflare-worker.js",
+    "src/main/integration/nutstore/sso/lib/**",
+    "src/main/integration/cherryin/index.js"
+  ],
+  "overrides": [
+    {
+      "excludes": ["src/**/__tests__/**", "src/**/__mocks__/**", "src/**/*.test.*"],
+      "files": ["src/**/*.{ts,tsx,js,jsx}"],
+      "rules": {
+        "no-restricted-syntax": [
+          "warn",
+          {
+            "message": "❗CherryStudio uses unified LoggerService: 📖 docs/technical/how-to-use-logger-en.md\n❗CherryStudio 使用统一的日志服务：📖 docs/technical/how-to-use-logger-zh.md\n\n",
+            "selector": "CallExpression[callee.object.name=\"console\"]"
+          }
+        ]
+      }
+    }
+  ],
+  "plugins": ["import", "react", "typescript", "react-hooks"],
+  "rules": {
+    "eqeqeq": "error",
+    "import/no-duplicates": "error",
+    "no-console": "off",
+    "no-debugger": "error",
+    "no-dupe-keys": "error",
+    "no-shadow-restricted-names": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "caughtErrors": "none", "ignoreRestSiblings": true }],
+    "no-useless-rename": "warn",
+    "oxc/const-comparisons": "warn",
+    "oxc/only-used-in-recursion": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "react-hooks/rules-of-hooks": "error",
+    "react/no-array-index-key": "off",
+    "react/no-children-to-array": "off",
+    "react/no-dangerously-set-innerhtml": "off",
+    "react/no-nested-component-definitions": "off",
+    "react/no-unknown-property": "off",
+    "react/no-unstable-context-value": "off",
+    "react/no-unstable-default-props": "off",
+    "react/prop-types": "off",
+    "typescript/explicit-function-return-type": "off",
+    "typescript/no-empty-object-type": "off",
+    "typescript/no-explicit-any": "off",
+    "typescript/no-non-null-asserted-optional-chain": "off",
+    "typescript/no-require-imports": "off",
+    "typescript/no-unused-expressions": "off",
+    "typescript/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "caughtErrors": "none", "ignoreRestSiblings": true }
+    ],
+    "unicorn/no-new-array": "warn",
+    "unicorn/no-thenable": "off",
+    "unicorn/no-useless-fallback-in-spread": "off",
+    "unicorn/no-useless-spread": "warn"
+  }
+}

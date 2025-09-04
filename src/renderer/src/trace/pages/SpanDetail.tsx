@@ -75,7 +75,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
   }, [t])
 
   const formatDate = (timestamp: number | null) => {
-    if (timestamp == null) {
+    if (timestamp === null) {
       return ''
     }
     const date = new Date(timestamp)

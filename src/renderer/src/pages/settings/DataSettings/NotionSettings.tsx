@@ -10,8 +10,7 @@ import {
   setNotionExportReasoning,
   setNotionPageNameKey
 } from '@renderer/store/settings'
-import { Button, Space, Switch, Tooltip } from 'antd'
-import { Input } from 'antd'
+import { Button, Space, Switch, Tooltip, Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'

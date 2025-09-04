@@ -14,7 +14,7 @@ interface TreeNodeProps {
 }
 
 export const convertTime = (time: number | null): string => {
-  if (time == null) {
+  if (time === null) {
     return ''
   }
   if (time > 100000) {

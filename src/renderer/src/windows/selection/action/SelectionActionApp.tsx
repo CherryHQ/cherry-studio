@@ -247,8 +247,8 @@ const SelectionActionApp: FC = () => {
       </TitleBar>
       <MainContainer>
         <Content ref={contentElementRef}>
-          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
-          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id === 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id !== 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
         </Content>
       </MainContainer>
     </WindowFrame>

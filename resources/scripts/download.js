@@ -12,7 +12,7 @@ async function downloadWithRedirects(url, destinationPath) {
     const request = (url) => {
       https
         .get(url, (response) => {
-          if (response.statusCode == 301 || response.statusCode == 302) {
+          if (response.statusCode === 301 || response.statusCode === 302) {
             request(response.headers.location)
             return
           }

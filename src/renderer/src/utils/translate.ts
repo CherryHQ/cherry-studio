@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
+import { builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
 import { fetchLanguageDetection } from '@renderer/services/ApiService'
 import { estimateTextTokens } from '@renderer/services/TokenService'

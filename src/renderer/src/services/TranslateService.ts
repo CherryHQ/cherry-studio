@@ -7,8 +7,7 @@ import {
   isSupportedThinkingTokenModel
 } from '@renderer/config/models'
 import { db } from '@renderer/databases'
-import { CustomTranslateLanguage, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import { TranslateAssistant } from '@renderer/types'
+import { CustomTranslateLanguage, TranslateAssistant, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
 import { ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { formatErrorMessage, isAbortError } from '@renderer/utils/error'

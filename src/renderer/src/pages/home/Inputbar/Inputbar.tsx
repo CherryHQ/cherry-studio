@@ -641,7 +641,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       if (textArea) {
         textArea.style.height = `${newHeight}px`
-        setExpand(newHeight == maxHeightInPixels)
+        setExpand(newHeight === maxHeightInPixels)
         setTextareaHeight(newHeight)
       }
     },
