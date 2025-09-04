@@ -7,9 +7,12 @@ import * as z from 'zod/v4'
 export * from './file'
 export * from './note'
 
+import type { StreamTextParams } from './aiCoreTypes'
+import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
 import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
+import type { BaseTool, MCPTool } from './tool'
 
 export * from './mcp'
 export * from './ocr'
@@ -329,6 +332,15 @@ export type SystemProvider = Provider & {
   apiOptions?: never
 }
 
+export type VertexProvider = Provider & {
+  googleCredentials: {
+    privateKey: string
+    clientEmail: string
+  }
+  project: string
+  location: string
+}
+
 /**
  * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
  * @param provider - Provider对象，包含提供商的信息
@@ -348,6 +360,7 @@ export type ProviderType =
   | 'vertexai'
   | 'mistral'
   | 'aws-bedrock'
+  | 'vertex-anthropic'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
@@ -809,7 +822,8 @@ export enum WebSearchSource {
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
   ZHIPU = 'zhipu',
-  GROK = 'grok'
+  GROK = 'grok',
+  AISDK = 'ai-sdk'
 }
 
 export type WebSearchResponse = {
@@ -920,17 +934,6 @@ export const MCPToolOutputSchema = z.object({
   required: z.array(z.string())
 })
 
-export interface MCPTool {
-  id: string
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema: MCPToolInputSchema
-  outputSchema?: z.infer<typeof MCPToolOutputSchema>
-  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
-}
-
 export interface MCPPromptArguments {
   name: string
   description?: string
@@ -969,7 +972,7 @@ export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done
 
 interface BaseToolResponse {
   id: string // unique id
-  tool: MCPTool
+  tool: BaseTool | MCPTool
   arguments: Record<string, unknown> | undefined
   status: MCPToolResponseStatus
   response?: any
@@ -984,7 +987,17 @@ export interface ToolCallResponse extends BaseToolResponse {
   toolCallId?: string
 }
 
-export type MCPToolResponse = ToolUseResponse | ToolCallResponse
+// export type MCPToolResponse = ToolUseResponse | ToolCallResponse
+export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
+  tool: MCPTool
+  toolCallId?: string
+  toolUseId?: string
+}
+
+export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
+  tool: BaseTool
+  toolCallId: string
+}
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -1110,6 +1123,7 @@ export interface ApiServerConfig {
   port: number
   apiKey: string
 }
+export * from './tool'
 
 // Memory Service Types
 // ========================================================================
@@ -1281,3 +1295,32 @@ export type HexColor = string
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
+
+export type FetchChatCompletionOptions = {
+  signal?: AbortSignal
+  timeout?: number
+  headers?: Record<string, string>
+}
+
+type BaseParams = {
+  assistant: Assistant
+  options?: FetchChatCompletionOptions
+  onChunkReceived: (chunk: Chunk) => void
+  topicId?: string // 添加 topicId 参数
+  uiMessages?: Message[]
+}
+
+type MessagesParams = BaseParams & {
+  messages: StreamTextParams['messages']
+  prompt?: never
+}
+
+type PromptParams = BaseParams & {
+  messages?: never
+  // prompt: Just use string for convinience. Native prompt type unite more types, including messages type.
+  // we craete a non-intersecting prompt type to discriminate them.
+  // see https://github.com/vercel/ai/issues/8363
+  prompt: string
+}
+
+export type FetchChatCompletionParams = MessagesParams | PromptParams

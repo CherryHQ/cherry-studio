@@ -271,7 +271,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'Anthropic',
     type: 'anthropic',
     apiKey: '',
-    apiHost: 'https://api.anthropic.com/',
+    apiHost: 'https://api.anthropic.com',
     models: SYSTEM_MODELS.anthropic,
     isSystem: true,
     enabled: false

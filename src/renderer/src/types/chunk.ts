@@ -1,4 +1,12 @@
-import { ExternalToolResult, KnowledgeReference, MCPToolResponse, ToolUseResponse, WebSearchResponse } from '.'
+import {
+  ExternalToolResult,
+  KnowledgeReference,
+  MCPTool,
+  MCPToolResponse,
+  NormalToolResponse,
+  ToolUseResponse,
+  WebSearchResponse
+} from '.'
 import { Response, ResponseError } from './newMessage'
 import { SdkToolCall } from './sdk'
 
@@ -287,12 +295,12 @@ export interface ExternalToolCompleteChunk {
 export interface MCPToolCreatedChunk {
   type: ChunkType.MCP_TOOL_CREATED
   tool_calls?: SdkToolCall[] // 工具调用
-  tool_use_responses?: ToolUseResponse[] // 工具使用响应
+  tool_use_responses?: (Omit<ToolUseResponse, 'tool'> & { tool: MCPTool })[] // 工具使用响应
 }
 
 export interface MCPToolPendingChunk {
   type: ChunkType.MCP_TOOL_PENDING
-  responses: MCPToolResponse[]
+  responses: MCPToolResponse[] | NormalToolResponse[]
 }
 
 export interface MCPToolInProgressChunk {
@@ -303,14 +311,14 @@ export interface MCPToolInProgressChunk {
   /**
    * The tool responses of the chunk
    */
-  responses: MCPToolResponse[]
+  responses: MCPToolResponse[] | NormalToolResponse[]
 }
 
 export interface MCPToolCompleteChunk {
   /**
    * The tool response of the chunk
    */
-  responses: MCPToolResponse[]
+  responses: MCPToolResponse[] | NormalToolResponse[]
 
   /**
    * The type of the chunk
