@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
@@ -22,6 +23,8 @@ import InstallNpxUv from './InstallNpxUv'
 import McpMarketList from './McpMarketList'
 import McpServerCard from './McpServerCard'
 import SyncServersPopup from './SyncServersPopup'
+
+const logger = loggerService.withContext('McpServersList')
 
 const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
@@ -158,12 +161,11 @@ const McpServersList: FC = () => {
   const handleToggleActive = async (server: MCPServer, active: boolean) => {
     setLoadingServerIds((prev) => new Set(prev).add(server.id))
     const oldActiveState = server.isActive
-
+    logger.silly('toggle activate', { serverId: server.id, active })
     try {
       if (active) {
-        await window.api.mcp.listTools(server)
         // Fetch version when server is activated
-        fetchServerVersion({ ...server, isActive: active })
+        await fetchServerVersion({ ...server, isActive: active })
       } else {
         await window.api.mcp.stopServer(server)
         // Clear version when server is deactivated
@@ -259,7 +261,7 @@ const McpServersList: FC = () => {
             server={server}
             version={serverVersions[server.id]}
             isLoading={loadingServerIds.has(server.id)}
-            onToggle={(active) => handleToggleActive(server, active)}
+            onToggle={async (active) => await handleToggleActive(server, active)}
             onDelete={() => onDeleteMcpServer(server)}
             onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
             onOpenUrl={(url) => window.open(url, '_blank')}
