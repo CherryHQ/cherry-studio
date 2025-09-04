@@ -80,7 +80,8 @@ const providerKeyMap = {
   yi: 'provider.yi',
   zhinao: 'provider.zhinao',
   zhipu: 'provider.zhipu',
-  poe: 'provider.poe'
+  poe: 'provider.poe',
+  'intern-ai': 'provider.intern-ai'
 } as const
 
 /**

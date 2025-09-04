@@ -23,6 +23,7 @@ import GrokProviderLogo from '@renderer/assets/images/providers/grok.png'
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png'
 import HyperbolicProviderLogo from '@renderer/assets/images/providers/hyperbolic.png'
 import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
+import InternAIProviderLogo from '@renderer/assets/images/providers/intern-ai.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
@@ -600,6 +601,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
     enabled: false
+  },
+  'intern-ai': {
+    id: 'intern-ai',
+    name: 'InternAI',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://chat.intern-ai.org.cn/api/v1/',
+    models: SYSTEM_MODELS['intern-ai'],
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -661,7 +672,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'svg' // use svg icon component
+  poe: 'svg', // use svg icon component
+  'intern-ai': InternAIProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1254,6 +1266,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://poe.com/api_key',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
+    }
+  },
+  'intern-ai': {
+    api: {
+      url: 'https://intern-ai.org.cn/'
+    },
+    websites: {
+      official: 'https://internlm.intern-ai.org.cn/',
+      docs: 'https://internlm.intern-ai.org.cn/api/document',
+      models: 'https://internlm.intern-ai.org.cn/doc/docs/%E6%A8%A1%E5%9E%8B%E5%88%97%E8%A1%A8/',
+      apiKey: 'https://internlm.intern-ai.org.cn/api/tokens'
     }
   }
 }

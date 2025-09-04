@@ -85,7 +85,8 @@ const ThinkModelTypes = [
   'hunyuan',
   'zhipu',
   'perplexity',
-  'deepseek_hybrid'
+  'deepseek_hybrid',
+  'intern'
 ] as const
 
 export type ReasoningEffortOption = NonNullable<OpenAI.ReasoningEffort> | 'auto'
@@ -319,7 +320,8 @@ export const SystemProviderIds = {
   gpustack: 'gpustack',
   voyageai: 'voyageai',
   'aws-bedrock': 'aws-bedrock',
-  poe: 'poe'
+  poe: 'poe',
+  'intern-ai': 'intern-ai'
 } as const
 
 export type SystemProviderId = keyof typeof SystemProviderIds

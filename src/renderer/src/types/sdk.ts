@@ -95,6 +95,7 @@ export type ReasoningEffortOptionalParams = {
       }
     }
   }
+  thinking_mode?: boolean
   // Add any other potential reasoning-related keys here if they exist
 }
 

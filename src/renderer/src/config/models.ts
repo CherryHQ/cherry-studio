@@ -242,6 +242,7 @@ export function getModelLogo(modelId: string) {
     hunyuan: isLight ? HunyuanModelLogo : HunyuanModelLogoDark,
     internlm: isLight ? InternlmModelLogo : InternlmModelLogoDark,
     internvl: InternvlModelLogo,
+    'intern-s': isLight ? InternlmModelLogo : InternlmModelLogoDark,
     llava: isLight ? LLavaModelLogo : LLavaModelLogoDark,
     magic: isLight ? MagicModelLogo : MagicModelLogoDark,
     midjourney: isLight ? MidjourneyModelLogo : MidjourneyModelLogoDark,
@@ -2090,6 +2091,20 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'poe',
       group: 'poe'
     }
+  ],
+  'intern-ai': [
+    {
+      id: 'intern-s1',
+      name: 'intern-s1',
+      provider: 'intern-ai',
+      group: 'intern-ai'
+    },
+    {
+      id: 'internvl3.5',
+      name: 'internvl3.5',
+      provider: 'intern-ai',
+      group: 'intern-ai'
+    }
   ]
 }
 
@@ -2135,7 +2150,9 @@ const visionAllowedModels = [
   'llama-guard-4(?:-[\\w-]+)?',
   'llama-4(?:-[\\w-]+)?',
   'step-1o(?:.*vision)?',
-  'step-1v(?:-[\\w-]+)?'
+  'step-1v(?:-[\\w-]+)?',
+  'intern-s[\\w-]*',
+  'internvl[\\w-]*'
 ]
 
 const visionExcludedModels = [
@@ -2230,7 +2247,8 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   hunyuan: ['auto'] as const,
   zhipu: ['auto'] as const,
   perplexity: ['low', 'medium', 'high'] as const,
-  deepseek_hybrid: ['auto'] as const
+  deepseek_hybrid: ['auto'] as const,
+  intern: ['auto'] as const
 } as const
 
 // 模型类型到支持选项的映射表
@@ -2248,7 +2266,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   hunyuan: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
   perplexity: MODEL_SUPPORTED_REASONING_EFFORT.perplexity,
-  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const
+  deepseek_hybrid: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
+  intern: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.intern] as const
 } as const
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
@@ -2279,6 +2298,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
   else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
+  else if (isSupportedThinkingTokenInternModel(model)) thinkingModelType = 'intern'
   return thinkingModelType
 }
 
@@ -2301,7 +2321,7 @@ export function isFunctionCallingModel(model?: Model): boolean {
     return FUNCTION_CALLING_REGEX.test(modelId) || FUNCTION_CALLING_REGEX.test(model.name)
   }
 
-  if (['deepseek', 'anthropic', 'kimi', 'moonshot'].includes(model.provider)) {
+  if (['deepseek', 'anthropic', 'kimi', 'moonshot', 'intern-ai'].includes(model.provider)) {
     return true
   }
 
@@ -2464,6 +2484,11 @@ export function isOpenAIReasoningModel(model: Model): boolean {
   return isSupportedReasoningEffortOpenAIModel(model) || modelId.includes('o1')
 }
 
+export function isInternAIReasoningModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('intern-s') || modelId.includes('internvl3.5')
+}
+
 export function isOpenAILLMModel(model: Model): boolean {
   if (!model) {
     return false
@@ -2572,7 +2597,8 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenClaudeModel(model) ||
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
-    isSupportedThinkingTokenZhipuModel(model)
+    isSupportedThinkingTokenZhipuModel(model) ||
+    isSupportedThinkingTokenInternModel(model)
   )
 }
 
@@ -2781,6 +2807,11 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return modelId.includes('sonar-deep-research')
 }
 
+export const isSupportedThinkingTokenInternModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.includes('intern-s') || modelId.includes('internvl3.5')
+}
+
 export const isSupportedThinkingTokenZhipuModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return modelId.includes('glm-4.5')
@@ -2844,6 +2875,7 @@ export function isReasoningModel(model?: Model): boolean {
     isZhipuReasoningModel(model) ||
     isStepReasoningModel(model) ||
     isDeepSeekHybridInferenceModel(model) ||
+    isInternAIReasoningModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
     modelId.includes('pangu-pro-moe')
