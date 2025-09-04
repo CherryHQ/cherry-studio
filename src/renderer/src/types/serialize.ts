@@ -1,6 +1,6 @@
-export type Serializable = null | boolean | number | string | { [key: string]: SerializableValue } | SerializableValue[]
+export type Serializable = SerializablePrimitive | { [key: string]: SerializablePrimitive } | SerializablePrimitive[]
 
-type SerializableValue = null | boolean | number | string | { [key: string]: any } | any[] /**
+type SerializablePrimitive = null | boolean | number | string /**
  * 判断一个值是否可序列化（适合用于 Redux 状态）
  * 支持嵌套对象、数组的深度检测
  */
