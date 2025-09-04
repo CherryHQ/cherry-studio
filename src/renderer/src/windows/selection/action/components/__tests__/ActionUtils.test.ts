@@ -13,7 +13,10 @@ vi.mock('@renderer/services/ApiService', () => ({
 vi.mock('@renderer/services/ConversationService', () => ({
   ConversationService: class {
     static async prepareMessagesForModel() {
-      // do nothing
+      return {
+        modelMessages: [{ role: 'user', content: 'test prompt' }],
+        uiMessages: [{ id: 'user-message-1', role: 'user', content: 'test prompt' }]
+      }
     }
   }
 }))
