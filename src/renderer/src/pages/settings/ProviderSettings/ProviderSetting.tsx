@@ -281,9 +281,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
       {provider.id === 'anthropic' && (
         <>
-          <SettingSubtitle>{t('settings.provider.anthropic.auth_method')}</SettingSubtitle>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.anthropic.auth_method')}</SettingSubtitle>
           <Select
-            style={{ width: '40%', marginTop: 5 }}
+            style={{ width: '40%', marginTop: 5, marginBottom: 10 }}
             value={provider.authType || 'apiKey'}
             onChange={(value) => updateProvider({ authType: value })}
             options={[

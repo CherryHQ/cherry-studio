@@ -158,11 +158,11 @@ const AnthropicSettings = () => {
 }
 
 const Container = styled.div`
-  padding-top: 15px;
+  padding-top: 10px;
 `
 
 const StartContainer = styled.div`
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 `
 
 export default AnthropicSettings
