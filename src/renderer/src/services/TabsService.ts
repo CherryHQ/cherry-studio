@@ -34,12 +34,18 @@ class TabsService {
       const remainingTabs = tabs.filter((tab) => tab.id !== tabId)
       const lastTab = remainingTabs[remainingTabs.length - 1]
 
+      store.dispatch(setActiveTab(lastTab.id))
+
       // 使用 NavigationService 导航到新的标签页
       if (NavigationService.navigate) {
         NavigationService.navigate(lastTab.path)
       } else {
-        logger.error('Navigation service is not initialized')
-        return false
+        logger.warn('Navigation service not ready, will navigate on next render')
+        setTimeout(() => {
+          if (NavigationService.navigate) {
+            NavigationService.navigate(lastTab.path)
+          }
+        }, 100)
       }
     }
 

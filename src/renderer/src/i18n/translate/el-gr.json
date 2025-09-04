@@ -677,7 +677,7 @@
     "model_placeholder": "Επιλέξτε το μοντέλο που θα χρησιμοποιήσετε",
     "model_required": "Επιλέξτε μοντέλο",
     "select_folder": "Επιλογή φακέλου",
-    "supported_providers": "[to be translated]:支持的服务商",
+    "supported_providers": "υποστηριζόμενοι πάροχοι",
     "title": "Εργαλεία κώδικα",
     "update_options": "Ενημέρωση επιλογών",
     "working_directory": "κατάλογος εργασίας"
@@ -1321,7 +1321,7 @@
         "content": "Η διαγραφή της ομάδας θα διαγράψει τις ερωτήσεις των χρηστών και όλες τις απαντήσεις του αστρόναυτη",
         "title": "Διαγραφή ομάδας"
       },
-      "retry_failed": "[to be translated]:重试出错的消息"
+      "retry_failed": "Αποτυχημένο μήνυμα επανάληψης"
     },
     "ignore": {
       "knowledge": {
@@ -1552,6 +1552,7 @@
       "selected": "Επιλεγμένη ετικέτα"
     },
     "function_calling": "Ξεχωριστική Κλήση Συναρτήσεων",
+    "invalid_model": "Μη έγκυρο μοντέλο",
     "no_matches": "Δεν υπάρχουν διαθέσιμα μοντέλα",
     "parameter_name": "Όνομα παραμέτρου",
     "parameter_type": {
@@ -1627,12 +1628,13 @@
     "new_folder": "Νέος φάκελος",
     "new_note": "Δημιουργία νέας σημείωσης",
     "no_content_to_copy": "Δεν υπάρχει περιεχόμενο προς αντιγραφή",
-    "no_file_selected": "[to be translated]:请选择要上传的文件",
+    "no_file_selected": "Επιλέξτε το αρχείο για μεταφόρτωση",
     "only_markdown": "Υποστηρίζεται μόνο η μορφή Markdown",
-    "only_one_file_allowed": "[to be translated]:只能上传一个文件",
+    "only_one_file_allowed": "Μπορείτε να ανεβάσετε μόνο ένα αρχείο",
     "open_folder": "Άνοιγμα εξωτερικού φακέλου",
+    "open_outside": "Από το εξωτερικό",
     "rename": "μετονομασία",
-    "rename_changed": "[to be translated]:由于安全策略，文件名已从 {{original}} 更改为 {{final}}",
+    "rename_changed": "Λόγω πολιτικής ασφάλειας, το όνομα του αρχείου έχει αλλάξει από {{original}} σε {{final}}",
     "save": "αποθήκευση στις σημειώσεις",
     "settings": {
       "data": {
@@ -3354,8 +3356,8 @@
         "label": "Καταγραφή στοιχείων στο grid"
       },
       "input": {
-        "confirm_delete_message": "[to be translated]:删除消息前确认",
-        "confirm_regenerate_message": "[to be translated]:重新生成消息前确认",
+        "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
+        "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
         "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
         "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
         "paste_long_text_threshold": "Όριο μεγάλου κειμένου",

@@ -134,8 +134,15 @@ export function getAssistantProvider(assistant: Assistant): Provider {
 
 export function getProviderByModel(model?: Model): Provider {
   const providers = store.getState().llm.providers
-  const providerId = model ? model.provider : getDefaultProvider().id
-  return providers.find((p) => p.id === providerId) as Provider
+  const provider = providers.find((p) => p.id === model?.provider)
+
+  if (!provider) {
+    const defaultProvider = providers.find((p) => p.id === getDefaultModel()?.provider)
+    const cherryinProvider = providers.find((p) => p.id === 'cherryin')
+    return defaultProvider || cherryinProvider || providers[0]
+  }
+
+  return provider
 }
 
 export function getProviderByModelId(modelId?: string) {

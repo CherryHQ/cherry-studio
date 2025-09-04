@@ -56,6 +56,7 @@ const MermaidPreview = ({
         document.body.removeChild(measureEl)
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [diagramId, mermaid, forceRenderKey]
   )
 

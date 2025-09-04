@@ -16,7 +16,21 @@ export type MCPConfigSample = z.infer<typeof MCPConfigSampleSchema>
  * 允许 inMemory 作为合法字段，需要额外校验 name 是否 builtin
  */
 export const McpServerTypeSchema = z
-  .union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')])
+  .union([
+    z.literal('stdio'),
+    z.literal('sse'),
+    z.literal('streamableHttp'),
+    z.literal('http'),
+    z.literal('streamable_http'),
+    z.literal('inMemory')
+  ])
+  .transform((type) => {
+    if (type === 'streamable_http' || type === 'http') {
+      return 'streamableHttp'
+    } else {
+      return type
+    }
+  })
   .default('stdio') // 大多数情况下默认使用 stdio
 /**
  * 定义单个 MCP 服务器的配置。
@@ -174,6 +188,26 @@ export const McpServerConfigSchema = z
       message: 'Server type is inMemory but this is not a builtin MCP server, which is not allowed'
     }
   )
+  .transform((schema) => {
+    // 显式传入的type会覆盖掉从url推断的逻辑
+    if (!schema.type) {
+      const url = schema.baseUrl ?? schema.url ?? null
+      if (url !== null) {
+        if (url.endsWith('/mcp')) {
+          return {
+            ...schema,
+            type: 'streamableHttp'
+          } as const
+        } else if (url.endsWith('/sse')) {
+          return {
+            ...schema,
+            type: 'sse'
+          } as const
+        }
+      }
+    }
+    return schema
+  })
 /**
  * 将服务器别名（字符串ID）映射到其配置的对象。
  * 例如: { "my-tools": { command: "...", args: [...] }, "github": { ... } }
