@@ -3884,6 +3884,13 @@
           "title": "Image"
         },
         "image_provider": "Fournisseur de service OCR",
+        "paddleocr": {
+          "aistudio_access_token": "Jeton d’accès de la communauté AI Studio",
+          "aistudio_url_label": "Communauté AI Studio",
+          "api_url": "URL de l’API",
+          "serving_doc_url_label": "Documentation de PaddleOCR Serving",
+          "tip": "Vous pouvez consulter la documentation officielle de PaddleOCR pour déployer un service local, ou déployer un service cloud sur la Communauté PaddlePaddle AI Studio. Dans ce dernier cas, veuillez fournir le jeton d’accès de la Communauté AI Studio."
+        },
         "system": {
           "win": {
             "langs_tooltip": "Dépendre de Windows pour fournir des services, vous devez télécharger des packs linguistiques dans le système afin de prendre en charge les langues concernées."

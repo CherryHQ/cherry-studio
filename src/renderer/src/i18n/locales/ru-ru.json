@@ -3884,6 +3884,13 @@
           "title": "Изображение"
         },
         "image_provider": "Поставщик услуг OCR",
+        "paddleocr": {
+          "aistudio_access_token": "Токен доступа сообщества AI Studio",
+          "aistudio_url_label": "Сообщество AI Studio",
+          "api_url": "URL API",
+          "serving_doc_url_label": "Документация по PaddleOCR Serving",
+          "tip": "Вы можете обратиться к официальной документации PaddleOCR, чтобы развернуть локальный сервис, либо развернуть облачный сервис в сообществе PaddlePaddle AI Studio. В последнем случае, пожалуйста, предоставьте токен доступа сообщества AI Studio."
+        },
         "system": {
           "win": {
             "langs_tooltip": "Для предоставления служб Windows необходимо загрузить языковой пакет в системе для поддержки соответствующего языка."

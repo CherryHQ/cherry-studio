@@ -3884,6 +3884,13 @@
           "title": "Εικόνα"
         },
         "image_provider": "Πάροχοι υπηρεσιών OCR",
+        "paddleocr": {
+          "aistudio_access_token": "Διακριτικό πρόσβασης της κοινότητας AI Studio",
+          "aistudio_url_label": "Κοινότητα AI Studio",
+          "api_url": "Διεύθυνση URL API",
+          "serving_doc_url_label": "Τεκμηρίωση PaddleOCR Serving",
+          "tip": "Μπορείτε να ανατρέξετε στην επίσημη τεκμηρίωση του PaddleOCR για να αναπτύξετε μια τοπική υπηρεσία, ή να αναπτύξετε μια υπηρεσία στο cloud στην Κοινότητα PaddlePaddle AI Studio. Στη δεύτερη περίπτωση, παρακαλώ παρέχετε το διακριτικό πρόσβασης (access token) της Κοινότητας AI Studio."
+        },
         "system": {
           "win": {
             "langs_tooltip": "Εξαρτάται από τα Windows για την παροχή υπηρεσιών, πρέπει να κατεβάσετε το πακέτο γλώσσας στο σύστημα για να υποστηρίξετε τις σχετικές γλώσσες."

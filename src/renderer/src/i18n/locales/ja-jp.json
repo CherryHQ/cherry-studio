@@ -3884,6 +3884,13 @@
           "title": "画像"
         },
         "image_provider": "OCRサービスプロバイダー",
+        "paddleocr": {
+          "aistudio_access_token": "AI Studio Community のアクセス・トークン",
+          "aistudio_url_label": "AI Studio Community",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR サービング ドキュメント",
+          "tip": "ローカルサービスをデプロイするには、公式の PaddleOCR ドキュメントを参照するか、PaddlePaddle AI Studio コミュニティ上でクラウドサービスをデプロイすることができます。後者の場合は、AI Studio コミュニティのアクセストークンを提供してください。"
+        },
         "system": {
           "win": {
             "langs_tooltip": "Windows が提供するサービスに依存しており、関連する言語をサポートするには、システムで言語パックをダウンロードする必要があります。"

@@ -3884,6 +3884,13 @@
           "title": "图片"
         },
         "image_provider": "OCR 服务提供商",
+        "paddleocr": {
+          "aistudio_access_token": "星河社区访问令牌",
+          "aistudio_url_label": "星河社区",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR 服务化部署文档", 
+          "tip": "您可以参考 PaddleOCR 官方文档部署本地服务，或者在飞桨星河社区部署云服务。对于后一种情况，请填写星河社区访问令牌。"
+        },
         "system": {
           "win": {
             "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"

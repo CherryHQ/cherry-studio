@@ -3884,6 +3884,13 @@
           "title": "圖片"
         },
         "image_provider": "OCR 服務提供商",
+        "paddleocr": {
+          "aistudio_access_token": "星河社群存取權杖",
+          "aistudio_url_label": "星河社群",
+          "api_url": "API 網址",
+          "serving_doc_url_label": "PaddleOCR 服務化部署文件",
+          "tip": "您可以參考 PaddleOCR 官方文件來部署本機服務，或是在飛槳星河社群部署雲端服務。對於後者，請提供星河社群的存取權杖。"
+        },
         "system": {
           "win": {
             "langs_tooltip": "依賴 Windows 提供服務，您需要在系統中下載語言包來支援相關語言。"
