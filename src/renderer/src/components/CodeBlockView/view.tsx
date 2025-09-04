@@ -16,6 +16,7 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
+import { getLangLogo } from '@renderer/config/lang'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
@@ -282,8 +283,13 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   }, [children, codeImageTools, language])
 
   const renderHeader = useMemo(() => {
-    const langTag = '<' + language.toUpperCase() + '>'
-    return <CodeHeader $isInSpecialView={isInSpecialView}>{isInSpecialView ? '' : langTag}</CodeHeader>
+    const logo = getLangLogo(language)
+    return (
+      <CodeHeader $isInSpecialView={isInSpecialView}>
+        {logo ? <img src={logo} alt={language} /> : ''}
+        <span style={{ marginTop: '3px' }}>{language}</span>
+      </CodeHeader>
+    )
   }, [isInSpecialView, language])
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
@@ -359,6 +365,12 @@ const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
   margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};
   height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
   background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
+
+  img {
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+  }
 `
 
 const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boolean }>`
