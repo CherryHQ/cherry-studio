@@ -49,6 +49,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
+          git reset -- package.json yarn.lock  # 不提交 package.json 和 yarn.lock 的更改
           git commit -m "fix(i18n): Auto update translations for PR #${{ github.event.pull_request.number }}"
 
       - name: 🚀 Push changes
