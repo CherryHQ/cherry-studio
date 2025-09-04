@@ -1085,7 +1085,7 @@
     "status_preprocess_completed": "Η προεπεξεργασία ολοκληρώθηκε",
     "status_preprocess_failed": "Η προεπεξεργασία απέτυχε",
     "status_processing": "Επεξεργασία",
-    "subtitle_file": "[to be translated]:字幕文件",
+    "subtitle_file": "Υποτίτλων",
     "threshold": "Περιθώριο συνάφειας",
     "threshold_placeholder": "Δεν έχει ρυθμιστεί",
     "threshold_too_large_or_small": "Το περιθώριο δεν μπορεί να είναι μεγαλύτερο από 1 ή μικρότερο από 0",
@@ -1099,7 +1099,7 @@
     "url_placeholder": "Εισάγετε τη διεύθυνση, χωρίστε πολλαπλές διευθύνσεις με επιστροφή",
     "urls": "Διευθύνσεις",
     "videos": "βίντεο",
-    "videos_file": "[to be translated]:视频文件"
+    "videos_file": "Αρχείο βίντεο"
   },
   "languages": {
     "arabic": "Αραβικά",

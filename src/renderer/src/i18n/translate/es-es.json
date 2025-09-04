@@ -1085,7 +1085,7 @@
     "status_preprocess_completed": "Preprocesamiento completado",
     "status_preprocess_failed": "Error en el preprocesamiento",
     "status_processing": "Procesando",
-    "subtitle_file": "[to be translated]:字幕文件",
+    "subtitle_file": "Archivo de subtítulos",
     "threshold": "Umbral de coincidencia",
     "threshold_placeholder": "No configurado",
     "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
@@ -1099,7 +1099,7 @@
     "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
     "urls": "URLs",
     "videos": "vídeo",
-    "videos_file": "[to be translated]:视频文件"
+    "videos_file": "video file"
   },
   "languages": {
     "arabic": "Árabe",
