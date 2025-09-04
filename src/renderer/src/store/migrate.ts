@@ -2369,7 +2369,7 @@ const migrateConfig = {
   },
   '147': (state: RootState) => {
     try {
-      state.ocr.providers = BUILTIN_OCR_PROVIDERS
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
       return state
     } catch (error) {
       logger.error('migrate 147 error', error as Error)
