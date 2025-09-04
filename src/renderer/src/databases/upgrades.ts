@@ -136,7 +136,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
             content: mcpTool.response,
             error:
               mcpTool.status !== 'done'
-                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status }
+                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status, name: null, stack: null }
                 : undefined,
             createdAt: oldMessage.createdAt,
             metadata: { rawMcpToolResponse: mcpTool }
@@ -263,10 +263,18 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       // 10. Error Block (Status is ERROR)
       if (oldMessage.error && typeof oldMessage.error === 'object' && Object.keys(oldMessage.error).length > 0) {
         if (isEmpty(oldMessage.content)) {
-          const block = createErrorBlock(oldMessage.id, oldMessage.error, {
-            createdAt: oldMessage.createdAt,
-            status: MessageBlockStatus.ERROR // Error block status is ERROR
-          })
+          const block = createErrorBlock(
+            oldMessage.id,
+            {
+              message: oldMessage.error?.message ?? null,
+              name: oldMessage.error?.name ?? null,
+              stack: oldMessage.error?.stack ?? null
+            },
+            {
+              createdAt: oldMessage.createdAt,
+              status: MessageBlockStatus.ERROR // Error block status is ERROR
+            }
+          )
           blocksToCreate.push(block)
           messageBlockIds.push(block.id)
         }

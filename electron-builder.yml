@@ -121,24 +121,12 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ✨ 重要更新：
-    - 新增笔记模块，支持富文本编辑和管理
-    - 内置 GLM-4.5-Flash 免费模型（由智谱开放平台提供）
-    - 内置 Qwen3-8B 免费模型（由硅基流动提供）
-    - 新增 Nano Banana（Gemini 2.5 Flash Image）模型支持
-    - 新增系统 OCR 功能 (macOS & Windows)
-    - 新增图片 OCR 识别和翻译功能
-    - 模型切换支持通过标签筛选
-    - 翻译功能增强：历史搜索和收藏
-
     🔧 性能优化：
-    - 优化历史页面搜索性能
-    - 优化拖拽列表组件交互
-    - 升级 Electron 到 37.4.0
+    - 优化AI服务连接方式，提升响应速度和稳定性
+    - 改进模型列表获取功能，减少不必要的网络请求
+    - 增强各AI服务商的兼容性和连接可靠性
 
-    🐛 修复问题：
-    - 修复知识库加密 PDF 文档处理
-    - 修复导航栏在左侧时笔记侧边栏按钮缺失
-    - 修复多个模型兼容性问题
-    - 修复 MCP 相关问题
-    - 其他稳定性改进
+    🐛 问题修复：
+    - 修复部分AI服务商连接失败的问题
+    - 修复模型配置加载时的潜在错误
+    - 提升应用整体稳定性和容错能力

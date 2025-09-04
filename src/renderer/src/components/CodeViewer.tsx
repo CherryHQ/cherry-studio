@@ -19,7 +19,6 @@ interface CodeViewerProps {
    * - Supports shiki aliases: c#/csharp, objective-c++/obj-c++/objc++, etc.
    */
   language: string
-  /** Fired when the editor height changes. */
   onHeightChange?: (scrollHeight: number) => void
   /**
    * Height of the scroll container.

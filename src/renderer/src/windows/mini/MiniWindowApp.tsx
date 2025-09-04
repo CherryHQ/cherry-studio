@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store, { persistor } from '@renderer/store'
 import { message } from 'antd'
@@ -44,8 +45,10 @@ function MiniWindow(): React.ReactElement {
         <AntdProvider>
           <CodeStyleProvider>
             <PersistGate loading={null} persistor={persistor}>
-              {messageContextHolder}
-              <MiniWindowContent />
+              <ErrorBoundary>
+                {messageContextHolder}
+                <MiniWindowContent />
+              </ErrorBoundary>
             </PersistGate>
           </CodeStyleProvider>
         </AntdProvider>

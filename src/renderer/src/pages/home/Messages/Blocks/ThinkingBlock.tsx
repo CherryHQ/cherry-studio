@@ -103,37 +103,41 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 }
 
 const ThinkingTimeSeconds = memo(
-  ({ blockThinkingTime, isThinking }: { blockThinkingTime?: number; isThinking: boolean }) => {
+  ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-
-    const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
+    // console.log('blockThinkingTime', blockThinkingTime)
+    // const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
 
     // FIXME: 这里统计的和请求处统计的有一定误差
-    useEffect(() => {
-      let timer: NodeJS.Timeout | null = null
-      if (isThinking) {
-        timer = setInterval(() => {
-          setThinkingTime((prev) => prev + 100)
-        }, 100)
-      } else if (timer) {
-        // 立即清除计时器
-        clearInterval(timer)
-        timer = null
-      }
+    // useEffect(() => {
+    //   let timer: NodeJS.Timeout | null = null
+    //   if (isThinking) {
+    //     timer = setInterval(() => {
+    //       setThinkingTime((prev) => prev + 100)
+    //     }, 100)
+    //   } else if (timer) {
+    //     // 立即清除计时器
+    //     clearInterval(timer)
+    //     timer = null
+    //   }
 
-      return () => {
-        if (timer) {
-          clearInterval(timer)
-          timer = null
-        }
-      }
-    }, [isThinking])
+    //   return () => {
+    //     if (timer) {
+    //       clearInterval(timer)
+    //       timer = null
+    //     }
+    //   }
+    // }, [isThinking])
 
-    const thinkingTimeSeconds = useMemo(() => (thinkingTime / 1000).toFixed(1), [thinkingTime])
+    const thinkingTimeSeconds = useMemo(() => (blockThinkingTime / 1000).toFixed(1), [blockThinkingTime])
 
-    return t(isThinking ? 'chat.thinking' : 'chat.deeply_thought', {
-      seconds: thinkingTimeSeconds
-    })
+    return isThinking
+      ? t('chat.thinking', {
+          seconds: thinkingTimeSeconds
+        })
+      : t('chat.deeply_thought', {
+          seconds: thinkingTimeSeconds
+        })
   }
 )
 

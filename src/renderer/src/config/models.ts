@@ -2500,6 +2500,9 @@ export function isSupportFlexServiceTierModel(model: Model): boolean {
     (modelId.includes('o3') && !modelId.includes('o3-mini')) || modelId.includes('o4-mini') || modelId.includes('gpt-5')
   )
 }
+export function isSupportedFlexServiceTier(model: Model): boolean {
+  return isSupportFlexServiceTierModel(model)
+}
 
 export function isSupportVerbosityModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
@@ -3001,6 +3004,16 @@ export function isOpenRouterBuiltInWebSearchModel(model: Model): boolean {
   return isOpenAIWebSearchChatCompletionOnlyModel(model) || modelId.includes('sonar')
 }
 
+export function isNotSupportedImageSizeModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const baseName = getLowerBaseModelName(model.id, '/')
+
+  return baseName.includes('grok-2-image')
+}
+
 export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boolean): Record<string, any> {
   if (!isEnableWebSearch) {
     return {}
@@ -3046,8 +3059,6 @@ export function getOpenAIWebSearchParams(model: Model, isEnableWebSearch?: boole
   return {
     tools: webSearchTools
   }
-
-  return {}
 }
 
 export function isGemmaModel(model?: Model): boolean {

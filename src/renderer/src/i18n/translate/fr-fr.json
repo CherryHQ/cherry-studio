@@ -747,6 +747,7 @@
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
     "description": "Description",
+    "detail": "détails",
     "disabled": "Désactivé",
     "docs": "Documents",
     "download": "Télécharger",
@@ -830,6 +831,7 @@
         "invalid": "Serveur MCP invalide"
       }
     },
+    "cause": "Erreur causée par",
     "chat": {
       "chunk": {
         "non_json": "a renvoyé un format de données invalide"
@@ -839,6 +841,9 @@
       "quota_exceeded": "Votre quota gratuit quotidien de {{quota}} tokens a été épuisé. Veuillez vous rendre sur <provider>{{provider}}</provider> pour obtenir une clé API et configurer la clé API pour continuer à utiliser.",
       "response": "Une erreur s'est produite, si l'API n'est pas configurée, veuillez aller dans Paramètres > Fournisseurs de modèles pour configurer la clé"
     },
+    "data": "données",
+    "detail": "Détails de l'erreur",
+    "details": "Informations détaillées",
     "http": {
       "400": "Erreur de requête, veuillez vérifier si les paramètres de la requête sont corrects. Si vous avez modifié les paramètres du modèle, réinitialisez-les aux paramètres par défaut.",
       "401": "Échec de l'authentification, veuillez vérifier que votre clé API est correcte.",
@@ -850,11 +855,13 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "message": "Erreur message",
     "missing_user_message": "Impossible de changer de modèle de réponse : le message utilisateur d'origine a été supprimé. Veuillez envoyer un nouveau message pour obtenir une réponse de ce modèle.",
     "model": {
       "exists": "Le modèle existe déjà",
       "not_exists": "Le modèle n'existe pas"
     },
+    "name": "Nom d'erreur",
     "no_api_key": "La clé API n'est pas configurée",
     "pause_placeholder": "Прервано",
     "provider_disabled": "Le fournisseur de modèles n'est pas activé",
@@ -862,6 +869,14 @@
       "description": "La formule n'a pas été rendue avec succès, veuillez vérifier si le format de la formule est correct",
       "title": "Erreur de rendu"
     },
+    "requestBody": "Contenu de la demande",
+    "requestBodyValues": "Corps de la requête",
+    "requestUrl": "Chemin de la requête",
+    "responseBody": "Contenu de la réponse",
+    "responseHeaders": "En-têtes de réponse",
+    "stack": "Informations de la pile",
+    "status": "Code d'état",
+    "statusCode": "Code d'état",
     "unknown": "Неизвестная ошибка",
     "user_message_not_found": "Impossible de trouver le message d'utilisateur original"
   },
@@ -1448,7 +1463,7 @@
     },
     "websearch": {
       "cutoff": "Troncature du contenu de recherche en cours...",
-      "fetch_complete": "{{count}} recherches terminées...",
+      "fetch_complete": "{{count}} résultats de recherche",
       "rag": "Exécution de la RAG en cours...",
       "rag_complete": "Conserver {{countAfter}} résultats sur {{countBefore}}...",
       "rag_failed": "Échec de la RAG, retour d'un résultat vide..."

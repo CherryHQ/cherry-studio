@@ -747,6 +747,7 @@
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
     "description": "Descrição",
+    "detail": "detalhes",
     "disabled": "Desativado",
     "docs": "Documentos",
     "download": "Baixar",
@@ -830,6 +831,7 @@
         "invalid": "Servidor MCP inválido"
       }
     },
+    "cause": "Causa do erro",
     "chat": {
       "chunk": {
         "non_json": "Devolveu um formato de dados inválido"
@@ -839,6 +841,9 @@
       "quota_exceeded": "Sua cota gratuita diária de {{quota}} tokens foi esgotada. Por favor, vá para <provider>{{provider}}</provider> para obter uma chave API e configurar a chave API para continuar usando.",
       "response": "Ocorreu um erro, se a chave da API não foi configurada, por favor vá para Configurações > Provedores de Modelo para configurar a chave"
     },
+    "data": "dados",
+    "detail": "Detalhes do erro",
+    "details": "Detalhes",
     "http": {
       "400": "Erro na solicitação, por favor verifique se os parâmetros da solicitação estão corretos. Se você alterou as configurações do modelo, redefina para as configurações padrão",
       "401": "Falha na autenticação, por favor verifique se a chave da API está correta",
@@ -850,11 +855,13 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
+    "message": "Mensagem de erro",
     "missing_user_message": "Não é possível alternar a resposta do modelo: a mensagem original do usuário foi excluída. Envie uma nova mensagem para obter a resposta deste modelo",
     "model": {
       "exists": "O modelo já existe",
       "not_exists": "O modelo não existe"
     },
+    "name": "Nome do erro",
     "no_api_key": "A chave da API não foi configurada",
     "pause_placeholder": "Interrompido",
     "provider_disabled": "O provedor de modelos está desativado",
@@ -862,6 +869,14 @@
       "description": "Falha ao renderizar a fórmula, por favor verifique se o formato da fórmula está correto",
       "title": "Erro de Renderização"
     },
+    "requestBody": "Conteúdo da solicitação",
+    "requestBodyValues": "Corpo da solicitação",
+    "requestUrl": "Caminho da solicitação",
+    "responseBody": "Conteúdo da resposta",
+    "responseHeaders": "Cabeçalho de resposta",
+    "stack": "Informações da pilha",
+    "status": "Código de status",
+    "statusCode": "Código de status",
     "unknown": "Erro desconhecido",
     "user_message_not_found": "Não foi possível encontrar a mensagem original do usuário"
   },
@@ -1448,7 +1463,7 @@
     },
     "websearch": {
       "cutoff": "Truncando o conteúdo da pesquisa...",
-      "fetch_complete": "Concluída {{count}} busca...",
+      "fetch_complete": "{{count}} resultados da pesquisa",
       "rag": "Executando RAG...",
       "rag_complete": "Mantendo {{countAfter}} dos {{countBefore}} resultados...",
       "rag_failed": "RAG falhou, retornando resultado vazio..."

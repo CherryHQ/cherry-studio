@@ -747,6 +747,7 @@
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
     "description": "描述",
+    "detail": "詳情",
     "disabled": "已停用",
     "docs": "文件",
     "download": "下載",
@@ -830,6 +831,7 @@
         "invalid": "無效的MCP伺服器"
       }
     },
+    "cause": "錯誤原因",
     "chat": {
       "chunk": {
         "non_json": "返回了無效的資料格式"
@@ -839,6 +841,9 @@
       "quota_exceeded": "您今日{{quota}}免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
+    "data": "数据",
+    "detail": "錯誤詳情",
+    "details": "詳細信息",
     "http": {
       "400": "請求錯誤，請檢查請求參數是否正確。如果修改了模型設定，請重設到預設設定",
       "401": "身份驗證失敗，請檢查 API 金鑰是否正確",
@@ -850,11 +855,13 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器超時，請稍後再試"
     },
+    "message": "錯誤訊息",
     "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
     "model": {
       "exists": "模型已存在",
       "not_exists": "模型不存在"
     },
+    "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
     "pause_placeholder": "回應已暫停",
     "provider_disabled": "模型供應商未啟用",
@@ -862,6 +869,14 @@
       "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
       "title": "渲染錯誤"
     },
+    "requestBody": "請求內容",
+    "requestBodyValues": "请求体",
+    "requestUrl": "請求路徑",
+    "responseBody": "响应内容",
+    "responseHeaders": "响应首部",
+    "stack": "堆棧信息",
+    "status": "狀態碼",
+    "statusCode": "狀態碼",
     "unknown": "未知錯誤",
     "user_message_not_found": "無法找到原始用戶訊息"
   },
@@ -1448,7 +1463,7 @@
     },
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
-      "fetch_complete": "已完成 {{count}} 次搜尋...",
+      "fetch_complete": "{{count}} 個搜尋結果",
       "rag": "正在執行 RAG...",
       "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
       "rag_failed": "RAG 失敗，返回空結果..."

@@ -747,6 +747,7 @@
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
     "description": "Description",
+    "detail": "Detail",
     "disabled": "Disabled",
     "docs": "Docs",
     "download": "Download",
@@ -830,6 +831,7 @@
         "invalid": "Invalid MCP server"
       }
     },
+    "cause": "Error cause",
     "chat": {
       "chunk": {
         "non_json": "Returned an invalid data format"
@@ -839,6 +841,9 @@
       "quota_exceeded": "Your daily {{quota}} free quota has been exhausted. Please go to the <provider>{{provider}}</provider> to obtain an API key and configure the API key to continue using.",
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
+    "data": "data",
+    "detail": "Error Details",
+    "details": "Details",
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
@@ -850,11 +855,13 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "message": "Error Message",
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
       "exists": "Model already exists",
       "not_exists": "Model does not exist"
     },
+    "name": "Error name",
     "no_api_key": "API key is not configured",
     "pause_placeholder": "Paused",
     "provider_disabled": "Model provider is not enabled",
@@ -862,6 +869,14 @@
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
     },
+    "requestBody": "Request Body",
+    "requestBodyValues": "Request Body Values",
+    "requestUrl": "Request URL",
+    "responseBody": "Response Body",
+    "responseHeaders": "Response Header",
+    "stack": "Stack Trace",
+    "status": "Status Code",
+    "statusCode": "Status code",
     "unknown": "Unknown error",
     "user_message_not_found": "Cannot find original user message to resend"
   },
@@ -1448,7 +1463,7 @@
     },
     "websearch": {
       "cutoff": "Truncating search content...",
-      "fetch_complete": "Completed {{count}} searches...",
+      "fetch_complete": "{{count}} search result(s)",
       "rag": "Executing RAG...",
       "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
       "rag_failed": "RAG failed, returning empty results..."

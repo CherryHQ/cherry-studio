@@ -326,7 +326,11 @@ export function isToolAutoApproved(tool: MCPTool, server?: MCPServer): boolean {
   return effectiveServer ? !effectiveServer.disabledAutoApproveTools?.includes(tool.name) : false
 }
 
-export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: number = 0): ToolUseResponse[] {
+export function parseToolUse(
+  content: string,
+  mcpTools: MCPTool[],
+  startIdx: number = 0
+): (Omit<ToolUseResponse, 'tool'> & { tool: MCPTool })[] {
   if (!content || !mcpTools || mcpTools.length === 0) {
     return []
   }
@@ -344,7 +348,7 @@ export function parseToolUse(content: string, mcpTools: MCPTool[], startIdx: num
 
   const toolUsePattern =
     /<tool_use>([\s\S]*?)<name>([\s\S]*?)<\/name>([\s\S]*?)<arguments>([\s\S]*?)<\/arguments>([\s\S]*?)<\/tool_use>/g
-  const tools: ToolUseResponse[] = []
+  const tools: (Omit<ToolUseResponse, 'tool'> & { tool: MCPTool })[] = []
   let match
   let idx = startIdx
   // Find all tool use blocks
@@ -821,10 +825,26 @@ export function mcpToolCallResponseToAwsBedrockMessage(
   return message
 }
 
-export function isEnabledToolUse(assistant: Assistant) {
+/**
+ * 是否启用工具使用
+ * 1. 如果模型支持函数调用，则启用工具使用
+ * 2. 如果工具使用模式为 prompt，则启用工具使用
+ * @param assistant
+ * @returns 是否启用工具使用
+ */
+export function isSupportedToolUse(assistant: Assistant) {
   if (assistant.model) {
     return isFunctionCallingModel(assistant.model) && isToolUseModeFunction(assistant)
   }
 
   return false
+}
+
+/**
+ * 是否使用提示词工具使用
+ * @param assistant
+ * @returns 是否使用提示词工具使用
+ */
+export function isPromptToolUse(assistant: Assistant) {
+  return assistant.settings?.toolUseMode === 'prompt'
 }
