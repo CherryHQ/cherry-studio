@@ -1,4 +1,10 @@
-import { CustomTranslateLanguage, FileMetadata, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
+import {
+  CustomTranslateLanguage,
+  FileMetadata,
+  KnowledgeNoteItem,
+  QuickPhrase,
+  TranslateHistory
+} from '@renderer/types'
 // Import necessary types for blocks and new message structure
 import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMessage'
 import { NotesTreeNode } from '@renderer/types/note'
@@ -13,7 +19,7 @@ export const db = new Dexie('CherryStudio', {
   files: EntityTable<FileMetadata, 'id'>
   topics: EntityTable<{ id: string; messages: NewMessage[] }, 'id'> // Correct type for topics
   settings: EntityTable<{ id: string; value: any }, 'id'>
-  knowledge_notes: EntityTable<KnowledgeItem, 'id'>
+  knowledge_notes: EntityTable<KnowledgeNoteItem, 'id'>
   translate_history: EntityTable<TranslateHistory, 'id'>
   quick_phrases: EntityTable<QuickPhrase, 'id'>
   message_blocks: EntityTable<MessageBlock, 'id'> // Correct type for message_blocks

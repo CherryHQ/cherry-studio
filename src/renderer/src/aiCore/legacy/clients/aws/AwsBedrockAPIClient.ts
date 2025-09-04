@@ -622,7 +622,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
   }
 
   public async convertMessageToSdkParam(message: Message): Promise<AwsBedrockSdkMessageParam> {
-    const content = await this.getMessageContent(message)
+    const { textContent, imageContents } = await this.getMessageContent(message)
     const parts: Array<{
       text?: string
       image?: {
@@ -638,8 +638,29 @@ export class AwsBedrockAPIClient extends BaseApiClient<
     }> = []
 
     // 添加文本内容 - 只在有非空内容时添加
-    if (content && content.trim()) {
-      parts.push({ text: content })
+    if (textContent && textContent.trim()) {
+      parts.push({ text: textContent })
+    }
+
+    if (imageContents.length > 0) {
+      for (const imageContent of imageContents) {
+        try {
+          const image = await window.api.file.base64Image(imageContent.fileId + imageContent.fileExt)
+          const mimeType = image.mime || 'image/png'
+          const base64Data = image.base64
+
+          const awsImage = convertBase64ImageToAwsBedrockFormat(base64Data, mimeType)
+          if (awsImage) {
+            parts.push({ image: awsImage })
+          } else {
+            // 不支持的格式，转换为文本描述
+            parts.push({ text: `[Image: ${mimeType}]` })
+          }
+        } catch (error) {
+          logger.error('Error processing image:', error as Error)
+          parts.push({ text: '[Image processing failed]' })
+        }
+      }
     }
 
     // 处理图片内容

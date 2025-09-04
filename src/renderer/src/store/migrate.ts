@@ -1897,6 +1897,7 @@ const migrateConfig = {
       return state
     }
   },
+
   '123': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
@@ -2371,16 +2372,36 @@ const migrateConfig = {
   },
   '147': (state: RootState) => {
     try {
-      state.llm.providers.forEach((provider) => {
-        if (provider.id === SystemProviderIds.anthropic) {
-          if (provider.apiHost.endsWith('/')) {
-            provider.apiHost = provider.apiHost.slice(0, -1)
-          }
+      state.knowledge.bases.forEach((base) => {
+        if (!base.framework) {
+          base.framework = 'embedjs'
         }
       })
       return state
     } catch (error) {
       logger.error('migrate 147 error', error as Error)
+      return state
+    }
+  },
+  '148': (state: RootState) => {
+    try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
+      return state
+    } catch (error) {
+      logger.error('migrate 148 error', error as Error)
+      return state
+    }
+  },
+  '149': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if (!base.framework) {
+          base.framework = 'embedjs'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 149 error', error as Error)
       return state
     }
   }
