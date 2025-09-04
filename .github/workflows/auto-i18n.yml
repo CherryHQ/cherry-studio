@@ -29,11 +29,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: 📦 Install only required dependencies
-        run: npm install --no-package-lock --no-save openai@^5.12.2 cli-progress@^3.12.0 tsx@^4.20.3
+      - name: 📦 Install global dependencies
+        run: yarn global add openai@^5.12.2 cli-progress@^3.12.0 tsx@^4.20.3
 
       - name: 🏃‍♀️ Translate
-        run: ./node_modules/.bin/tsx scripts/update-i18n.ts
+        run: tsx scripts/update-i18n.ts
 
       - name: 🔄 Commit changes
         run: |
