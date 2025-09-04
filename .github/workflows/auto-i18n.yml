@@ -34,8 +34,12 @@ jobs:
 
       - name: 📦 Install only required dependencies
         run: |
-          yarn config set nodeLinker node-modules
-          yarn add --mode=skip-build openai cli-progress tsx
+          mkdir -p temp-deps
+          cd temp-deps
+          echo '{"dependencies": {"openai": "^5.12.2", "cli-progress": "^3.12.0", "tsx": "^4.20.3"}}' > package.json
+          npm install --no-package-lock
+          cd ..
+          ln -sf temp-deps/node_modules .
 
       - name: 🏃‍♀️ Translate
         run: yarn run tsx scripts/update-i18n.ts
