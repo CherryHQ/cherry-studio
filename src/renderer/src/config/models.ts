@@ -2298,7 +2298,7 @@ export const getThinkModelType = (model: Model): ThinkingModelType => {
   else if (isSupportedReasoningEffortPerplexityModel(model)) thinkingModelType = 'perplexity'
   else if (isSupportedThinkingTokenZhipuModel(model)) thinkingModelType = 'zhipu'
   else if (isDeepSeekHybridInferenceModel(model)) thinkingModelType = 'deepseek_hybrid'
-  else if (isSupportedThinkingTokenInternModel(model)) thinkingModelType = 'intern'
+  else if (isSupportedThinkingTokenInternAIModel(model)) thinkingModelType = 'intern'
   return thinkingModelType
 }
 
@@ -2598,7 +2598,7 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
     isSupportedThinkingTokenZhipuModel(model) ||
-    isSupportedThinkingTokenInternModel(model)
+    isSupportedThinkingTokenInternAIModel(model)
   )
 }
 
@@ -2807,7 +2807,7 @@ export const isSupportedReasoningEffortPerplexityModel = (model: Model): boolean
   return modelId.includes('sonar-deep-research')
 }
 
-export const isSupportedThinkingTokenInternModel = (model: Model): boolean => {
+export const isSupportedThinkingTokenInternAIModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
   return modelId.includes('intern-s') || modelId.includes('internvl3.5')
 }

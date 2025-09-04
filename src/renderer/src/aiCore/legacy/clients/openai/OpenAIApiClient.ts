@@ -24,7 +24,7 @@ import {
   isSupportedThinkingTokenDoubaoModel,
   isSupportedThinkingTokenGeminiModel,
   isSupportedThinkingTokenHunyuanModel,
-  isSupportedThinkingTokenInternModel,
+  isSupportedThinkingTokenInternAIModel,
   isSupportedThinkingTokenModel,
   isSupportedThinkingTokenQwenModel,
   isSupportedThinkingTokenZhipuModel,
@@ -191,7 +191,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
         return { thinking: { type: 'disabled' } }
       }
 
-      if (isSupportedThinkingTokenInternModel(model)) {
+      if (isSupportedThinkingTokenInternAIModel(model)) {
         return { thinking_mode: false }
       }
 
@@ -272,7 +272,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
     }
 
     // InternS1
-    if (isSupportedThinkingTokenInternModel(model)) {
+    if (isSupportedThinkingTokenInternAIModel(model)) {
       return {
         thinking_mode: true
       }
