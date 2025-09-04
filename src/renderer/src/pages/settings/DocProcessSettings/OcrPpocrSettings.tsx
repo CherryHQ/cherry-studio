@@ -16,7 +16,7 @@ export const OcrPpocrSettings = () => {
   }
 
   const [apiUrl, setApiUrl] = useState<string>(provider.config.apiUrl || '')
-  const [aistudioAccessToken, setAistudioAccessToken] = useState<string>(provider.config.aistudioAccessToken || '')
+  const [accessToken, setAccessToken] = useState<string>(provider.config.accessToken || '')
 
   const onApiUrlChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
@@ -24,23 +24,23 @@ export const OcrPpocrSettings = () => {
       setApiUrl(value)
     })
   }, [])
-  const onAistudioAccessTokenChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const onAccessTokenChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     startTransition(() => {
-      setAistudioAccessToken(value)
+      setAccessToken(value)
     })
   }, [])
 
   const onBlur = useCallback(() => {
     updateConfig({
       apiUrl,
-      aistudioAccessToken
+      accessToken
     })
-  }, [apiUrl, aistudioAccessToken, updateConfig])
+  }, [apiUrl, accessToken, updateConfig])
 
   return (
     <ErrorBoundary>
-      <SettingRow>
+      <SettingRow style={{ marginBottom: 10 }}>
         <SettingRowTitle style={{ width: 150 }}>{t('settings.tool.ocr.paddleocr.api_url')}</SettingRowTitle>
         <Input
           value={apiUrl}
@@ -55,8 +55,8 @@ export const OcrPpocrSettings = () => {
           {t('settings.tool.ocr.paddleocr.aistudio_access_token')}
         </SettingRowTitle>
         <Input.Password
-          value={aistudioAccessToken}
-          onChange={onAistudioAccessTokenChange}
+          value={accessToken}
+          onChange={onAccessTokenChange}
           onBlur={onBlur}
           placeholder={t('settings.tool.ocr.paddleocr.aistudio_access_token')}
           spellCheck={false}

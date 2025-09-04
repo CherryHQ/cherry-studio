@@ -5,6 +5,27 @@ import { z } from 'zod'
 
 import { OcrBaseService } from './OcrBaseService'
 
+enum FileType {
+  PDF = 0,
+  Image = 1
+}
+
+// API Reference: https://www.paddleocr.ai/latest/version3.x/pipeline_usage/OCR.html#3
+interface OcrPayload {
+  file: string
+  fileType?: FileType | null
+  useDocOrientationClassify?: boolean | null
+  useDocUnwarping?: boolean | null
+  useTextlineOrientation?: boolean | null
+  textDetLimitSideLen?: number | null
+  textDetLimitType?: string | null
+  textDetThresh?: number | null
+  textDetBoxThresh?: number | null
+  textDetUnclipRatio?: number | null
+  textRecScoreThresh?: number | null
+  visualize?: boolean | null
+}
+
 const OcrResponseSchema = z.object({
   result: z.object({
     ocrResults: z.array(
@@ -36,9 +57,9 @@ export class PpocrService extends OcrBaseService {
 
     const buffer = await loadOcrImage(file)
     const base64 = buffer.toString('base64')
-    const payload = {
+    const payload: OcrPayload = {
       file: base64,
-      fileType: 1,
+      fileType: FileType.Image,
       useDocOrientationClassify: false,
       useDocUnwarping: false,
       visualize: false
@@ -48,8 +69,8 @@ export class PpocrService extends OcrBaseService {
       'Content-Type': 'application/json'
     }
 
-    if (options.aistudioAccessToken) {
-      headers['Authorization'] = `token ${options.aistudioAccessToken}`
+    if (options.accessToken) {
+      headers['Authorization'] = `token ${options.accessToken}`
     }
 
     try {

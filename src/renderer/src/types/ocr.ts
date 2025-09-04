@@ -175,7 +175,7 @@ export const isOcrSystemProvider = (p: OcrProvider): p is OcrSystemProvider => {
 // PaddleOCR Types
 export type OcrPpocrConfig = OcrProviderBaseConfig & {
   apiUrl?: string
-  aistudioAccessToken?: string
+  accessToken?: string
 }
 
 export type OcrPpocrProvider = {
