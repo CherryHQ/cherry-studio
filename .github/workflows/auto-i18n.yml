@@ -14,6 +14,8 @@ jobs:
   auto-i18n:
     runs-on: ubuntu-latest
     name: Auto I18N
+    permissions:
+      contents: write
 
     steps:
       - name: 🐈‍⬛ Checkout
