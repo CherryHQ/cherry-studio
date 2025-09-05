@@ -773,6 +773,7 @@
     "more": "Más",
     "name": "Nombre",
     "no_results": "Sin resultados",
+    "none": "无",
     "open": "Abrir",
     "paste": "Pegar",
     "preview": "Vista previa",
@@ -817,6 +818,8 @@
     "openai-response": "Respuesta de OpenAI"
   },
   "error": {
+    "availableProviders": "Proveedores disponibles",
+    "availableTools": "Herramientas disponibles",
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
@@ -841,9 +844,13 @@
       "quota_exceeded": "Su cuota gratuita diaria de {{quota}} tokens se ha agotado. Por favor, vaya a <provider>{{provider}}</provider> para obtener una clave API y configurar la clave API para continuar usando.",
       "response": "Ha ocurrido un error, si no ha configurado la clave API, vaya a Configuración > Proveedor de modelos para configurar la clave"
     },
+    "content": "contenido",
     "data": "datos",
     "detail": "Detalles del error",
     "details": "Detalles",
+    "errors": "error",
+    "finishReason": "Razón de finalización",
+    "functionality": "función",
     "http": {
       "400": "Error en la solicitud, revise si los parámetros de la solicitud son correctos. Si modificó la configuración del modelo, restablezca a la configuración predeterminada",
       "401": "Fallo en la autenticación, revise si la clave API es correcta",
@@ -855,16 +862,27 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
-    "message": "错误信息",
+    "lastError": "Último error",
+    "maxEmbeddingsPerCall": "máximo de incrustaciones por llamada",
+    "message": "Mensaje de error",
     "missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
     "model": {
       "exists": "El modelo ya existe",
       "not_exists": "El modelo no existe"
     },
+    "modelId": "ID del modelo",
+    "modelType": "Tipo de modelo",
     "name": "Nombre de error",
     "no_api_key": "La clave API no está configurada",
+    "originalError": "Error original",
+    "originalMessage": "mensaje original",
+    "parameter": "parámetro",
     "pause_placeholder": "Interrumpido",
+    "prompt": "prompt",
+    "provider": "proveedor",
+    "providerId": "ID del proveedor",
     "provider_disabled": "El proveedor de modelos no está habilitado",
+    "reason": "causa",
     "render": {
       "description": "Error al renderizar la fórmula, por favor, compruebe si el formato de la fórmula es correcto",
       "title": "Error de renderizado"
@@ -872,13 +890,23 @@
     "requestBody": "Contenido de la solicitud",
     "requestBodyValues": "Cuerpo de la solicitud",
     "requestUrl": "Ruta de solicitud",
+    "response": "respuesta",
     "responseBody": "Contenido de la respuesta",
     "responseHeaders": "Encabezados de respuesta",
+    "responses": "respuesta",
+    "role": "Rol",
     "stack": "Información de la pila",
-    "status": "código de estado",
-    "statusCode": "código de estado",
+    "status": "Estado",
+    "statusCode": "Código de estado",
+    "statusText": "Texto de estado",
+    "text": "Texto",
+    "toolInput": "Herramienta de entrada",
+    "toolName": "Nombre de la herramienta",
     "unknown": "Error desconocido",
-    "user_message_not_found": "No se pudo encontrar el mensaje original del usuario"
+    "usage": "Cantidad de uso",
+    "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
+    "value": "Valor",
+    "values": "Valor"
   },
   "export": {
     "assistant": "Asistente",

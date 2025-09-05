@@ -773,6 +773,7 @@
     "more": "Plus",
     "name": "Nom",
     "no_results": "Aucun résultat",
+    "none": "Aucun",
     "open": "Ouvrir",
     "paste": "Coller",
     "preview": "Aperçu",
@@ -817,6 +818,8 @@
     "openai-response": "Réponse OpenAI"
   },
   "error": {
+    "availableProviders": "Fournisseurs disponibles",
+    "availableTools": "Outils disponibles",
     "backup": {
       "file_format": "Le format du fichier de sauvegarde est incorrect"
     },
@@ -841,9 +844,13 @@
       "quota_exceeded": "Votre quota gratuit quotidien de {{quota}} tokens a été épuisé. Veuillez vous rendre sur <provider>{{provider}}</provider> pour obtenir une clé API et configurer la clé API pour continuer à utiliser.",
       "response": "Une erreur s'est produite, si l'API n'est pas configurée, veuillez aller dans Paramètres > Fournisseurs de modèles pour configurer la clé"
     },
+    "content": "suivre l'instruction du système",
     "data": "données",
     "detail": "Détails de l'erreur",
     "details": "Informations détaillées",
+    "errors": "erreur",
+    "finishReason": "Raison de la fin",
+    "functionality": "fonction",
     "http": {
       "400": "Erreur de requête, veuillez vérifier si les paramètres de la requête sont corrects. Si vous avez modifié les paramètres du modèle, réinitialisez-les aux paramètres par défaut.",
       "401": "Échec de l'authentification, veuillez vérifier que votre clé API est correcte.",
@@ -855,16 +862,27 @@
       "503": "Service indisponible, veuillez réessayer plus tard.",
       "504": "Délai d'expiration de la passerelle, veuillez réessayer plus tard."
     },
+    "lastError": "Dernière erreur",
+    "maxEmbeddingsPerCall": "Maximum d’intégrations par appel",
     "message": "Erreur message",
     "missing_user_message": "Impossible de changer de modèle de réponse : le message utilisateur d'origine a été supprimé. Veuillez envoyer un nouveau message pour obtenir une réponse de ce modèle.",
     "model": {
       "exists": "Le modèle existe déjà",
       "not_exists": "Le modèle n'existe pas"
     },
+    "modelId": "ID du modèle",
+    "modelType": "Type de modèle",
     "name": "Nom d'erreur",
     "no_api_key": "La clé API n'est pas configurée",
+    "originalError": "Erreur d'origine",
+    "originalMessage": "message original",
+    "parameter": "paramètre",
     "pause_placeholder": "Прервано",
+    "prompt": "mot-clé",
+    "provider": "fournisseur",
+    "providerId": "ID du fournisseur",
     "provider_disabled": "Le fournisseur de modèles n'est pas activé",
+    "reason": "raison",
     "render": {
       "description": "La formule n'a pas été rendue avec succès, veuillez vérifier si le format de la formule est correct",
       "title": "Erreur de rendu"
@@ -872,13 +890,23 @@
     "requestBody": "Contenu de la demande",
     "requestBodyValues": "Corps de la requête",
     "requestUrl": "Chemin de la requête",
+    "response": "réponse",
     "responseBody": "Contenu de la réponse",
     "responseHeaders": "En-têtes de réponse",
+    "responses": "réponse",
+    "role": "rôle",
     "stack": "Informations de la pile",
     "status": "Code d'état",
     "statusCode": "Code d'état",
+    "statusText": "Texte d'état",
+    "text": "texte",
+    "toolInput": "entrée de l'outil",
+    "toolName": "Nom de l'outil",
     "unknown": "Неизвестная ошибка",
-    "user_message_not_found": "Impossible de trouver le message d'utilisateur original"
+    "usage": "Quantité",
+    "user_message_not_found": "Impossible de trouver le message d'utilisateur original",
+    "value": "valeur",
+    "values": "valeur"
   },
   "export": {
     "assistant": "Assistant",

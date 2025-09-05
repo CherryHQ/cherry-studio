@@ -773,6 +773,7 @@
     "more": "更多",
     "name": "名稱",
     "no_results": "沒有結果",
+    "none": "無",
     "open": "開啟",
     "paste": "貼上",
     "preview": "預覽",
@@ -817,6 +818,8 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "availableProviders": "可用提供商",
+    "availableTools": "可用工具",
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
@@ -841,9 +844,13 @@
       "quota_exceeded": "您今日{{quota}}免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
+    "content": "內容",
     "data": "数据",
     "detail": "錯誤詳情",
     "details": "詳細信息",
+    "errors": "錯誤",
+    "finishReason": "結束原因",
+    "functionality": "功能",
     "http": {
       "400": "請求錯誤，請檢查請求參數是否正確。如果修改了模型設定，請重設到預設設定",
       "401": "身份驗證失敗，請檢查 API 金鑰是否正確",
@@ -855,16 +862,27 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器超時，請稍後再試"
     },
+    "lastError": "最後錯誤",
+    "maxEmbeddingsPerCall": "每次調用的最大嵌入",
     "message": "錯誤訊息",
     "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
     "model": {
       "exists": "模型已存在",
       "not_exists": "模型不存在"
     },
+    "modelId": "模型 ID",
+    "modelType": "模型類型",
     "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
+    "originalError": "原錯誤",
+    "originalMessage": "原消息",
+    "parameter": "參數",
     "pause_placeholder": "回應已暫停",
+    "prompt": "提示詞",
+    "provider": "提供商",
+    "providerId": "提供者 ID",
     "provider_disabled": "模型供應商未啟用",
+    "reason": "原因",
     "render": {
       "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
       "title": "渲染錯誤"
@@ -872,13 +890,23 @@
     "requestBody": "請求內容",
     "requestBodyValues": "请求体",
     "requestUrl": "請求路徑",
+    "response": "響應",
     "responseBody": "响应内容",
     "responseHeaders": "响应首部",
+    "responses": "響應",
+    "role": "角色",
     "stack": "堆棧信息",
     "status": "狀態碼",
     "statusCode": "狀態碼",
+    "statusText": "狀態文本",
+    "text": "文本",
+    "toolInput": "工具輸入",
+    "toolName": "工具名",
     "unknown": "未知錯誤",
-    "user_message_not_found": "無法找到原始用戶訊息"
+    "usage": "用量",
+    "user_message_not_found": "無法找到原始用戶訊息",
+    "value": "值",
+    "values": "值"
   },
   "export": {
     "assistant": "助手",
