@@ -13,7 +13,7 @@ export function initSessionUserAgent() {
   wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
     const headers = {
       ...details.requestHeaders,
-      'User-Agent': newUA
+      'User-Agent': details.url.includes('google.com') ? originUA : newUA
     }
     cb({ requestHeaders: headers })
   })
