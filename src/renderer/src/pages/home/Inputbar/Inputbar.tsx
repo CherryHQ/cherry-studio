@@ -798,7 +798,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
         })
       } else {
-        logger.error('Cannot add non-vision model when images are uploaded')
+        logger.error('Cannot add non-vision model when images are uploaded just for test')
       }
     },
     [couldMentionNotVisionModel]
