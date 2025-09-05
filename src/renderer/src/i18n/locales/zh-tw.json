@@ -2202,7 +2202,11 @@
       "changeToTags": "標籤",
       "changeToText": "文字",
       "changeType": "更改類型",
-      "deleteProperty": "刪除屬性"
+      "deleteProperty": "刪除屬性",
+      "editValue": "編輯值",
+      "empty": "空",
+      "moreActions": "更多操作",
+      "propertyName": "屬性名稱"
     },
     "image": {
       "placeholder": "添加圖片"
