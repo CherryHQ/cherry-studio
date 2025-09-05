@@ -2691,6 +2691,7 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
   }
 
   if (modelId.startsWith('qwen3')) {
+    // instruct 是非思考模型 thinking 是思考模型，二者都不能控制思考
     if (modelId.includes('thinking') || modelId.includes('instruct') || modelId.includes('qwen3-max')) {
       return false
     }
