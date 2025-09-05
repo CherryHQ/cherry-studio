@@ -143,14 +143,14 @@ export function getForegroundColor(backgroundColor: HexColor): HexColor {
 }
 
 // 目前应该设计到lg就足够
-// 应该和 file://./../assets/styles/breakpoints.scss 保持一致
+// 应该和 file://./../assets/styles/responsive.scss 保持一致
 /**
  * 断点配置对象，定义了不同屏幕尺寸的最小宽度（单位：像素）
  *
  * @property {number} xs - 超小屏幕断点，起始于 0px
  * @property {number} sm - 小屏幕断点，起始于 576px
  * @property {number} md - 中等屏幕断点，起始于 768px
- * @property {number} lg - 大屏幕断点，起始于 992px
+ * @property {number} lg - 大屏幕断点，起始于 1080px
  * @property {number} xl - 超大屏幕断点，起始于 1200px
  * @property {number} xxl - 超超大屏幕断点，起始于 1400px
  */
@@ -158,7 +158,7 @@ export const breakpoints = {
   xs: 0,
   sm: 576,
   md: 768,
-  lg: 992,
+  lg: 1080,
   xl: 1200,
   xxl: 1400
 } as const
