@@ -1,6 +1,6 @@
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
-import { getModelLogo } from '@renderer/config/models'
+import { getModelLogo } from '@renderer/config/modelLogos'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'

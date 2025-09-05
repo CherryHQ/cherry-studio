@@ -63,7 +63,7 @@ import {
 } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { SYSTEM_MODELS } from './models'
+import { SYSTEM_MODELS } from './defaultModel'
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
   cherryin: {
