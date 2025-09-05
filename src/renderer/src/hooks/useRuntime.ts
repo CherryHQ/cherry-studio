@@ -5,6 +5,10 @@ export function useRuntime() {
   return useAppSelector((state) => state.runtime)
 }
 
+export function useResizeValue(key: string) {
+  return useAppSelector((state) => state.runtime.resizeValue[key])
+}
+
 export function modelGenerating() {
   const generating = store.getState().runtime.generating
 

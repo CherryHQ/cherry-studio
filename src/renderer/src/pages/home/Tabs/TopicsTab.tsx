@@ -608,7 +608,7 @@ const TopicListItem = styled.div`
   flex-direction: column;
   justify-content: space-between;
   cursor: pointer;
-  width: calc(var(--assistants-width) - 20px);
+  margin-right: 12px;
 
   .menu {
     opacity: 0;

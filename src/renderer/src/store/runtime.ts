@@ -42,6 +42,7 @@ export interface RuntimeState {
   searching: boolean
   filesPath: string
   resourcesPath: string
+  resizeValue: Record<string, number>
   update: UpdateState
   export: ExportState
   chat: ChatState
@@ -63,6 +64,7 @@ const initialState: RuntimeState = {
   searching: false,
   filesPath: '',
   resourcesPath: '',
+  resizeValue: {},
   update: {
     info: null,
     checking: false,
@@ -123,6 +125,9 @@ const runtimeSlice = createSlice({
     setResourcesPath: (state, action: PayloadAction<string>) => {
       state.resourcesPath = action.payload
     },
+    setResizeValue: (state, action: PayloadAction<{ key: string; value: number }>) => {
+      state.resizeValue[action.payload.key] = action.payload.value
+    },
     setUpdateState: (state, action: PayloadAction<Partial<UpdateState>>) => {
       state.update = { ...state.update, ...action.payload }
     },
@@ -180,6 +185,7 @@ export const {
   toggleMultiSelectMode,
   setSelectedMessageIds,
   setActiveTopic,
+  setResizeValue,
   setRenamingTopics,
   setNewlyRenamedTopics,
   // WebSearch related actions

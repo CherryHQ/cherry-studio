@@ -1,12 +1,16 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useResize } from '@renderer/hooks/useResize'
+import { useResizeValue } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { setResizeValue } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useDispatch } from 'react-redux'
 import styled from 'styled-components'
 
 import Assistants from './AssistantsTab'
@@ -42,6 +46,18 @@ const HomeTabs: FC<Props> = ({
   const { defaultAssistant } = useDefaultAssistant()
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
+  const dispatch = useDispatch()
+  const resizeKey = useMemo(() => {
+    if (topicPosition === 'left' || (topicPosition === 'right' && tab === 'assistants')) {
+      return 'chat-left-width'
+    } else {
+      return 'chat-right-width'
+    }
+  }, [tab, topicPosition])
+  const savedWidth = useResizeValue(resizeKey)
+  const { handleResize } = useResize()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const resizeHandlerRef = useRef<HTMLDivElement>(null)
 
   const { t } = useTranslation()
 
@@ -67,6 +83,37 @@ const HomeTabs: FC<Props> = ({
     addAssistant(assistant)
     setActiveAssistant(assistant)
   }
+
+  const setTabWidth = useCallback(
+    (value: number) => {
+      if (value !== savedWidth) {
+        dispatch(setResizeValue({ key: resizeKey, value }))
+      }
+    },
+    [dispatch, resizeKey, savedWidth]
+  )
+
+  useEffect(() => {
+    if (resizeHandlerRef.current !== null && containerRef.current !== null) {
+      handleResize(resizeHandlerRef.current, {
+        direction: 'horizontal',
+        x: {
+          initial: containerRef.current.clientWidth,
+          deltaSign: topicPosition === 'right' && tab !== 'assistants' ? -1 : 1,
+          min: 200,
+          max: 400
+        },
+        onResizing({ width: w }) {
+          // 使用 css 减少不必要的渲染
+          document.body.style.setProperty(`--${resizeKey}`, `${w}px`)
+        },
+        onResizeEnd({ width: w }) {
+          setTabWidth(w)
+          document.body.style.setProperty(`--${resizeKey}`, '')
+        }
+      })
+    }
+  }, [resizeHandlerRef, containerRef, handleResize, topicPosition, tab, setTabWidth, resizeKey])
 
   useEffect(() => {
     const unsubscribes = [
@@ -99,64 +146,76 @@ const HomeTabs: FC<Props> = ({
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
-    <Container
-      style={{ ...border, ...style }}
-      className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
-      {position === 'left' && topicPosition === 'left' && (
-        <CustomTabs>
-          <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
-            {t('assistants.abbr')}
-          </TabItem>
-          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
-          </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
-        </CustomTabs>
-      )}
-
-      {position === 'right' && topicPosition === 'right' && (
-        <CustomTabs>
-          <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
-          </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
-        </CustomTabs>
-      )}
-
-      <TabContent className="home-tabs-content">
-        {tab === 'assistants' && (
-          <Assistants
-            activeAssistant={activeAssistant}
-            setActiveAssistant={setActiveAssistant}
-            onCreateAssistant={onCreateAssistant}
-            onCreateDefaultAssistant={onCreateDefaultAssistant}
-          />
+    <div
+      style={{
+        position: 'relative',
+        height: '100%',
+        width: `var(--${resizeKey}, ${savedWidth ? savedWidth + 'px' : 'var(--assistants-width)'})`
+      }}>
+      <Container
+        ref={containerRef}
+        style={{ ...border, ...style }}
+        className={classNames('home-tabs', { right: position === 'right' && topicPosition === 'right' })}>
+        {position === 'left' && topicPosition === 'left' && (
+          <CustomTabs>
+            <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
+              {t('assistants.abbr')}
+            </TabItem>
+            <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
+              {t('common.topics')}
+            </TabItem>
+            <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
+              {t('settings.title')}
+            </TabItem>
+          </CustomTabs>
         )}
-        {tab === 'topic' && (
-          <Topics
-            assistant={activeAssistant}
-            activeTopic={activeTopic}
-            setActiveTopic={setActiveTopic}
-            position={position}
-          />
+
+        {position === 'right' && topicPosition === 'right' && (
+          <CustomTabs>
+            <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
+              {t('common.topics')}
+            </TabItem>
+            <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
+              {t('settings.title')}
+            </TabItem>
+          </CustomTabs>
         )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
-      </TabContent>
-    </Container>
+
+        <TabContent className="home-tabs-content">
+          {tab === 'assistants' && (
+            <Assistants
+              activeAssistant={activeAssistant}
+              setActiveAssistant={setActiveAssistant}
+              onCreateAssistant={onCreateAssistant}
+              onCreateDefaultAssistant={onCreateDefaultAssistant}
+            />
+          )}
+          {tab === 'topic' && (
+            <Topics
+              assistant={activeAssistant}
+              activeTopic={activeTopic}
+              setActiveTopic={setActiveTopic}
+              position={position}
+            />
+          )}
+          {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        </TabContent>
+      </Container>
+      <ResizeHandler
+        ref={resizeHandlerRef}
+        style={{
+          right: topicPosition === 'left' || tab === 'assistants' ? '0' : '',
+          left: topicPosition === 'right' && tab !== 'assistants' ? '0' : ''
+        }}
+      />
+    </div>
   )
 }
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  max-width: var(--assistants-width);
-  min-width: var(--assistants-width);
-  height: calc(100vh - var(--navbar-height));
-
+  height: 100%;
   &.right {
     height: calc(100vh - var(--navbar-height));
   }
@@ -237,6 +296,22 @@ const TabItem = styled.button<{ active: boolean }>`
   &:hover::after {
     width: ${(props) => (props.active ? '30px' : '16px')};
     background: ${(props) => (props.active ? 'var(--color-primary)' : 'var(--color-primary-soft)')};
+  }
+`
+
+const ResizeHandler = styled.div`
+  position: absolute;
+  top: 0px;
+  bottom: 0px;
+  height: 100%;
+  width: 2px;
+  background: var(--color-border);
+  opacity: 0.1;
+  transition: all 0.3s ease-in-out;
+  cursor: col-resize;
+
+  &:hover {
+    opacity: 1;
   }
 `
 

@@ -5,7 +5,7 @@ import WindowControls from '@renderer/components/WindowControls'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
+import { modelGenerating, useResizeValue } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -39,6 +39,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+  const resizeValue = useResizeValue('chat-left-width')
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -78,7 +79,13 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
+            <NavbarLeft
+              style={{
+                justifyContent: 'space-between',
+                borderRight: 'none',
+                padding: 0,
+                width: `var(--chat-left-width, ${resizeValue !== undefined ? resizeValue + 'px' : 'var(--assistants-width)'})`
+              }}>
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
                 <NavbarIcon onClick={toggleShowAssistants} style={{ marginLeft: isMac && !isFullscreen ? 16 : 0 }}>
                   <PanelLeftClose size={18} />
