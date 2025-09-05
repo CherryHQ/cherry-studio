@@ -239,3 +239,24 @@ export const isSerializedAiSdkUnsupportedFunctionalityError = (
 ): error is SerializedAiSdkUnsupportedFunctionalityError => {
   return isSerializedAiSdkError(error) && 'functionality' in error
 }
+
+export type AiSdkErrorUnion =
+  | SerializedAiSdkAPICallError
+  | SerializedAiSdkDownloadError
+  | SerializedAiSdkInvalidArgumentError
+  | SerializedAiSdkInvalidDataContentError
+  | SerializedAiSdkInvalidMessageRoleError
+  | SerializedAiSdkInvalidPromptError
+  | SerializedAiSdkInvalidToolInputError
+  | SerializedAiSdkJSONParseError
+  | SerializedAiSdkMessageConversionError
+  | SerializedAiSdkNoAudioGeneratedError
+  | SerializedAiSdkNoObjectGeneratedError
+  | SerializedAiSdkNoSuchModelError
+  | SerializedAiSdkNoSuchProviderError
+  | SerializedAiSdkNoSuchToolError
+  | SerializedAiSdkRetryError
+  | SerializedAiSdkTooManyEmbeddingValuesForCallError
+  | SerializedAiSdkToolCallRepairError
+  | SerializedAiSdkTypeValidationError
+  | SerializedAiSdkUnsupportedFunctionalityError
