@@ -5,9 +5,10 @@ import {
   SerializedAiSdkDownloadError,
   SerializedAiSdkError,
   SerializedAiSdkInvalidArgumentError,
+  SerializedAiSdkInvalidDataContentError,
   SerializedError
 } from '@renderer/types/error'
-import { AISDKError, APICallError, DownloadError, InvalidArgumentError } from 'ai'
+import { AISDKError, APICallError, DownloadError, InvalidArgumentError, InvalidDataContentError } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
 
@@ -150,6 +151,14 @@ const serializeInvalidArgumentError = (error: InvalidArgumentError): SerializedA
   } satisfies SerializedAiSdkInvalidArgumentError
 }
 
+const serializeInvalidDataContentError = (error: InvalidDataContentError): SerializedAiSdkInvalidDataContentError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    content: safeSerialize(error.content)
+  } satisfies SerializedAiSdkInvalidDataContentError
+}
+
 export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
@@ -165,6 +174,9 @@ export const serializeError = (error: AISDKError): SerializedError => {
   }
   if (InvalidArgumentError.isInstance(error)) {
     return serializeInvalidArgumentError(error)
+  }
+  if (InvalidDataContentError.isInstance(error)) {
+    return serializeInvalidDataContentError(error)
   }
   return baseError
 }

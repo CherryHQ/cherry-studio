@@ -60,3 +60,13 @@ export const isSerializedAiSdkInvalidArgumentError = (
 ): error is SerializedAiSdkInvalidArgumentError => {
   return isSerializedAiSdkError(error) && 'parameter' in error && 'value' in error
 }
+
+export interface SerializedAiSdkInvalidDataContentError extends SerializedAiSdkError {
+  readonly content: Serializable
+}
+
+export const isSerializedAiSdkInvalidDataContentError = (
+  error: SerializedError
+): error is SerializedAiSdkInvalidDataContentError => {
+  return isSerializedAiSdkError(error) && 'content' in error
+}
