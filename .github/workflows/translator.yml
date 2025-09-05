@@ -1,57 +1,36 @@
-name: GitHub Issue Translator
-
-env:
-  API_KEY: ${{ secrets.TRANSLATE_API_KEY}}
-  MODEL: ${{ vars.MODEL || 'deepseek/deepseek-v3.1'}}
-  BASE_URL: ${{ vars.BASE_URL || 'https://api.ppinfra.com/openai'}}
+name: Use Claude To Translate
 
 on:
   issues:
     types: [opened, edited]
   issue_comment:
     types: [created, edited]
-  discussion:
-    types: [created, edited]
-  discussion_comment:
-    types: [created, edited]
-  pull_request_target:
-    types: [opened, edited]
-  pull_request_review_comment:
-    types: [created, edited]
-  workflow_dispatch:
 
 jobs:
-  translate:
+  claude-response:
+    if: |
+      (github.event_name == 'issue_comment')||(github.event_name == 'issues')
     runs-on: ubuntu-latest
-    if: github.repository == 'CherryHQ/cherry-studio'
-    name: Auto Translate GitHub Content
     permissions:
-      issues: write
-      discussions: write
-      pull-requests: write
       contents: read
-
+      pull-requests: read
+      issues: read
+      id-token: write
+      actions: read # Required for Claude to read CI results on PRs
     steps:
-      - name: 🐈‍⬛ Checkout
-        uses: actions/checkout@v5
-
-      - name: 📦 Setting Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          node-version: 20
+          fetch-depth: 1
 
-      - name: 📦 Install translation dependencies
-        run: |
-          mkdir -p /tmp/translation-deps
-          cd /tmp/translation-deps
-          echo '{"dependencies": {"openai": "^5.12.2", "@octokit/rest": "^21.0.0"}}' > package.json
-          npm install --no-package-lock
-          echo "NODE_PATH=/tmp/translation-deps/node_modules" >> $GITHUB_ENV
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
-      - name: 🌐 Run Translation Script
-        run: node scripts/github-translator.js
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
+          # This is an optional setting that allows Claude to read CI results on PRs
+          additional_permissions: |
+            actions: read
+
+          prompt: "Replace the issue with its English translation and substitute the original language."
