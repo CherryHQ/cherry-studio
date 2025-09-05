@@ -210,3 +210,13 @@ export const isSerializedAiSdkTooManyEmbeddingValuesForCallError = (
     'values' in error
   )
 }
+
+export interface SerializedAiSdkToolCallRepairError extends SerializedAiSdkError {
+  readonly originalError: SerializedAiSdkNoSuchToolError | SerializedAiSdkInvalidToolInputError
+}
+
+export const isSerializedAiSdkToolCallRepairError = (
+  error: SerializedError
+): error is SerializedAiSdkToolCallRepairError => {
+  return isSerializedAiSdkError(error) && 'originalError' in error
+}
