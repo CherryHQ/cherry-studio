@@ -90,3 +90,14 @@ export const isSerializedAiSdkInvalidPromptError = (
 ): error is SerializedAiSdkInvalidPromptError => {
   return isSerializedAiSdkError(error) && 'prompt' in error
 }
+
+export interface SerializedAiSdkInvalidToolInputError extends SerializedAiSdkError {
+  readonly toolName: string
+  readonly toolInput: string
+}
+
+export const isSerializedAiSdkInvalidToolInputError = (
+  error: SerializedError
+): error is SerializedAiSdkInvalidToolInputError => {
+  return isSerializedAiSdkError(error) && 'toolName' in error && 'toolInput' in error
+}

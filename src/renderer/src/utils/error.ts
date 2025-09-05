@@ -8,6 +8,7 @@ import {
   SerializedAiSdkInvalidDataContentError,
   SerializedAiSdkInvalidMessageRoleError,
   SerializedAiSdkInvalidPromptError,
+  SerializedAiSdkInvalidToolInputError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -17,7 +18,8 @@ import {
   InvalidArgumentError,
   InvalidDataContentError,
   InvalidMessageRoleError,
-  InvalidPromptError
+  InvalidPromptError,
+  InvalidToolInputError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -185,6 +187,15 @@ const serializeInvalidPromptError = (error: InvalidPromptError): SerializedAiSdk
   } satisfies SerializedAiSdkInvalidPromptError
 }
 
+const serializeInvalidToolInputError = (error: InvalidToolInputError): SerializedAiSdkInvalidToolInputError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    toolName: error.toolName,
+    toolInput: error.toolInput
+  } satisfies SerializedAiSdkInvalidToolInputError
+}
+
 export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
@@ -209,6 +220,9 @@ export const serializeError = (error: AISDKError): SerializedError => {
   }
   if (InvalidPromptError.isInstance(error)) {
     return serializeInvalidPromptError(error)
+  }
+  if (InvalidToolInputError.isInstance(error)) {
+    return serializeInvalidToolInputError(error)
   }
 
   return baseError
