@@ -1085,7 +1085,7 @@
     "status_preprocess_completed": "Pré-processamento concluído",
     "status_preprocess_failed": "Falha no pré-processamento",
     "status_processing": "Processando",
-    "subtitle_file": "[to be translated]:字幕文件",
+    "subtitle_file": "arquivo de legenda",
     "threshold": "Limite de correspondência",
     "threshold_placeholder": "Não definido",
     "threshold_too_large_or_small": "O limite não pode ser maior que 1 ou menor que 0",
@@ -1099,7 +1099,7 @@
     "url_placeholder": "Digite a URL, várias URLs separadas por enter",
     "urls": "URLs",
     "videos": "vídeo",
-    "videos_file": "[to be translated]:视频文件"
+    "videos_file": "Arquivo de vídeo"
   },
   "languages": {
     "arabic": "Árabe",
