@@ -2404,6 +2404,16 @@ const migrateConfig = {
       logger.error('migrate 149 error', error as Error)
       return state
     }
+  },
+  '150': (state: RootState) => {
+    try {
+      addShortcuts(state, ['rename_topic'], 'new_topic')
+      addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
+      return state
+    } catch (error) {
+      logger.error('migrate 150 error', error as Error)
+      return state
+    }
   }
 }
 
