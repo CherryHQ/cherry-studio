@@ -286,7 +286,6 @@
     "react-router-dom": "6",
     "react-spinners": "^0.14.1",
     "react-transition-group": "^4.4.5",
-    "react-youtube": "^10.1.0",
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "reflect-metadata": "0.2.2",
