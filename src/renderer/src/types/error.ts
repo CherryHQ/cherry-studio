@@ -1,4 +1,23 @@
-import { FinishReason, NoSuchModelError } from 'ai'
+import {
+  APICallError,
+  DownloadError,
+  FinishReason,
+  InvalidArgumentError,
+  InvalidDataContentError,
+  InvalidMessageRoleError,
+  InvalidPromptError,
+  InvalidToolInputError,
+  JSONParseError,
+  MessageConversionError,
+  NoObjectGeneratedError,
+  NoSuchModelError,
+  NoSuchProviderError,
+  NoSuchToolError,
+  RetryError,
+  ToolCallRepairError,
+  TypeValidationError,
+  UnsupportedFunctionalityError
+} from 'ai'
 
 import { Serializable } from './serialize'
 
@@ -122,6 +141,8 @@ export const isSerializedAiSdkMessageConversionError = (
   return isSerializedAiSdkError(error) && 'originalMessage' in error
 }
 
+// This type is not exported by aisdk.
+
 export interface SerializedAiSdkNoAudioGeneratedError extends SerializedAiSdkError {
   readonly responses: string[]
 }
@@ -241,6 +262,25 @@ export const isSerializedAiSdkUnsupportedFunctionalityError = (
 }
 
 export type AiSdkErrorUnion =
+  | APICallError
+  | DownloadError
+  | InvalidArgumentError
+  | InvalidDataContentError
+  | InvalidMessageRoleError
+  | InvalidPromptError
+  | InvalidToolInputError
+  | JSONParseError
+  | MessageConversionError
+  | NoObjectGeneratedError
+  | NoSuchModelError
+  | NoSuchProviderError
+  | NoSuchToolError
+  | RetryError
+  | ToolCallRepairError
+  | TypeValidationError
+  | UnsupportedFunctionalityError
+
+export type SerializedAiSdkErrorUnion =
   | SerializedAiSdkAPICallError
   | SerializedAiSdkDownloadError
   | SerializedAiSdkInvalidArgumentError
@@ -250,13 +290,11 @@ export type AiSdkErrorUnion =
   | SerializedAiSdkInvalidToolInputError
   | SerializedAiSdkJSONParseError
   | SerializedAiSdkMessageConversionError
-  | SerializedAiSdkNoAudioGeneratedError
   | SerializedAiSdkNoObjectGeneratedError
   | SerializedAiSdkNoSuchModelError
   | SerializedAiSdkNoSuchProviderError
   | SerializedAiSdkNoSuchToolError
   | SerializedAiSdkRetryError
-  | SerializedAiSdkTooManyEmbeddingValuesForCallError
   | SerializedAiSdkToolCallRepairError
   | SerializedAiSdkTypeValidationError
   | SerializedAiSdkUnsupportedFunctionalityError

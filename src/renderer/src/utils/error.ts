@@ -1,52 +1,15 @@
-import { loggerService } from '@logger'
 import {
+  AiSdkErrorUnion,
   isSerializedAiSdkAPICallError,
-  SerializedAiSdkAPICallError,
-  SerializedAiSdkDownloadError,
   SerializedAiSdkError,
-  SerializedAiSdkInvalidArgumentError,
-  SerializedAiSdkInvalidDataContentError,
-  SerializedAiSdkInvalidMessageRoleError,
-  SerializedAiSdkInvalidPromptError,
-  SerializedAiSdkInvalidToolInputError,
-  SerializedAiSdkJSONParseError,
-  SerializedAiSdkMessageConversionError,
-  SerializedAiSdkNoObjectGeneratedError,
-  SerializedAiSdkNoSuchModelError,
-  SerializedAiSdkNoSuchProviderError,
-  SerializedAiSdkNoSuchToolError,
-  SerializedAiSdkRetryError,
-  SerializedAiSdkToolCallRepairError,
-  SerializedAiSdkTypeValidationError,
-  SerializedAiSdkUnsupportedFunctionalityError,
   SerializedError
 } from '@renderer/types/error'
-import {
-  AISDKError,
-  APICallError,
-  DownloadError,
-  InvalidArgumentError,
-  InvalidDataContentError,
-  InvalidMessageRoleError,
-  InvalidPromptError,
-  InvalidToolInputError,
-  JSONParseError,
-  MessageConversionError,
-  NoObjectGeneratedError,
-  NoSuchModelError,
-  NoSuchProviderError,
-  NoSuchToolError,
-  RetryError,
-  ToolCallRepairError,
-  TypeValidationError,
-  UnsupportedFunctionalityError
-} from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
 
 import { safeSerialize } from './serialize'
 
-const logger = loggerService.withContext('Utils:error')
+// const logger = loggerService.withContext('Utils:error')
 
 export function getErrorDetails(err: any, seen = new WeakSet()): any {
   // Handle circular references
@@ -130,221 +93,48 @@ export const formatMcpError = (error: any) => {
   return error.message
 }
 
-const getBaseError = (error: Error) => {
-  return {
+export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
+  // 统一所有可能的错误字段
+  const serializedError: SerializedError = {
     name: error.name ?? null,
     message: error.message ?? null,
     stack: error.stack ?? null,
-    cause: error.cause ? String(error.cause) : null
-  } as const
-}
-
-const serializeAPICallError = (error: APICallError): SerializedAiSdkAPICallError => {
-  const baseError = getBaseError(error)
-  let content = error.message === '' ? error.responseBody || 'Unknown error' : error.message
-  try {
-    const obj = JSON.parse(content)
-    content = obj.error.message
-  } catch (e: any) {
-    logger.warn('Error parsing error response body:', e)
+    cause: safeSerialize(error.cause)
   }
-  return {
-    ...baseError,
-    url: error.url,
-    requestBodyValues: safeSerialize(error.requestBodyValues),
-    statusCode: error.statusCode ?? null,
-    responseBody: content,
-    isRetryable: error.isRetryable,
-    data: safeSerialize(error.data),
-    responseHeaders: error.responseHeaders ?? null
-  } satisfies SerializedAiSdkAPICallError
-}
 
-const serializeDownloadError = (error: DownloadError): SerializedAiSdkDownloadError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    url: error.url,
-    statusCode: error.statusCode ?? null,
-    statusText: error.statusText ?? null,
-    responseHeaders: null,
-    responseBody: null,
-    isRetryable: false,
-    data: null
-  } satisfies SerializedAiSdkDownloadError
-}
+  if ('url' in error) serializedError.url = error.url
+  if ('requestBodyValues' in error) serializedError.requestBodyValues = safeSerialize(error.requestBodyValues)
+  if ('statusCode' in error) serializedError.statusCode = error.statusCode ?? null
+  if ('responseBody' in error) serializedError.responseBody = error.responseBody ?? null
+  if ('isRetryable' in error) serializedError.isRetryable = error.isRetryable
+  if ('data' in error) serializedError.data = safeSerialize(error.data)
+  if ('responseHeaders' in error) serializedError.responseHeaders = error.responseHeaders ?? null
+  if ('statusText' in error) serializedError.statusText = error.statusText ?? null
+  if ('parameter' in error) serializedError.parameter = error.parameter
+  if ('value' in error) serializedError.value = safeSerialize(error.value)
+  if ('content' in error) serializedError.content = safeSerialize(error.content)
+  if ('role' in error) serializedError.role = error.role
+  if ('prompt' in error) serializedError.prompt = safeSerialize(error.prompt)
+  if ('toolName' in error) serializedError.toolName = error.toolName
+  if ('toolInput' in error) serializedError.toolInput = error.toolInput
+  if ('text' in error) serializedError.text = error.text ?? null
+  if ('originalMessage' in error) serializedError.originalMessage = safeSerialize(error.originalMessage)
+  if ('response' in error) serializedError.response = error.response ?? null
+  if ('usage' in error) serializedError.usage = safeSerialize(error.usage)
+  if ('finishReason' in error) serializedError.finishReason = error.finishReason ?? null
+  if ('modelId' in error) serializedError.modelId = error.modelId
+  if ('modelType' in error) serializedError.modelType = error.modelType
+  if ('providerId' in error) serializedError.providerId = error.providerId
+  if ('availableProviders' in error) serializedError.availableProviders = error.availableProviders
+  if ('availableTools' in error) serializedError.availableTools = error.availableTools ?? null
+  if ('reason' in error) serializedError.reason = error.reason
+  if ('lastError' in error) serializedError.lastError = error.lastError ? safeSerialize(error.lastError) : null
+  if ('errors' in error && error.errors !== null)
+    serializedError.errors = error.errors.map((err: unknown) => safeSerialize(err))
+  if ('originalError' in error) serializedError.originalError = safeSerialize(error.originalError)
+  if ('functionality' in error) serializedError.functionality = error.functionality
 
-const serializeInvalidArgumentError = (error: InvalidArgumentError): SerializedAiSdkInvalidArgumentError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    parameter: error.parameter,
-    value: safeSerialize(error.value)
-  } satisfies SerializedAiSdkInvalidArgumentError
-}
-
-const serializeInvalidDataContentError = (error: InvalidDataContentError): SerializedAiSdkInvalidDataContentError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    content: safeSerialize(error.content)
-  } satisfies SerializedAiSdkInvalidDataContentError
-}
-
-const serializeInvalidMessageRoleError = (error: InvalidMessageRoleError): SerializedAiSdkInvalidMessageRoleError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    role: error.role
-  } satisfies SerializedAiSdkInvalidMessageRoleError
-}
-
-const serializeInvalidPromptError = (error: InvalidPromptError): SerializedAiSdkInvalidPromptError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    prompt: safeSerialize(error.prompt)
-  } satisfies SerializedAiSdkInvalidPromptError
-}
-
-const serializeInvalidToolInputError = (error: InvalidToolInputError): SerializedAiSdkInvalidToolInputError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    toolName: error.toolName,
-    toolInput: error.toolInput
-  } satisfies SerializedAiSdkInvalidToolInputError
-}
-
-const serializeJSONParseError = (error: JSONParseError): SerializedAiSdkJSONParseError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    text: error.text
-  } satisfies SerializedAiSdkJSONParseError
-}
-
-const serializeMessageConversionError = (error: MessageConversionError): SerializedAiSdkMessageConversionError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    originalMessage: safeSerialize(error.originalMessage)
-  } satisfies SerializedAiSdkMessageConversionError
-}
-
-const serializeNoObjectGeneratedError = (error: NoObjectGeneratedError): SerializedAiSdkNoObjectGeneratedError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    text: error.text ?? null,
-    response: error.response ?? null,
-    usage: safeSerialize(error.usage),
-    finishReason: error.finishReason ?? null
-  } satisfies SerializedAiSdkNoObjectGeneratedError
-}
-
-const serializeNoSuchModelError = (error: NoSuchModelError): SerializedAiSdkNoSuchModelError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    modelId: error.modelId ?? null,
-    modelType: error.modelType ?? null
-  } satisfies SerializedAiSdkNoSuchModelError
-}
-
-const serializeNoSuchProviderError = (error: NoSuchProviderError): SerializedAiSdkNoSuchProviderError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    providerId: error.providerId ?? null,
-    availableProviders: error.availableProviders ?? null,
-    modelId: error.modelId ?? null,
-    modelType: error.modelType ?? null
-  } satisfies SerializedAiSdkNoSuchProviderError
-}
-
-const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuchToolError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    toolName: error.toolName ?? null,
-    availableTools: error.availableTools ?? null
-  } satisfies SerializedAiSdkNoSuchToolError
-}
-
-const serializeRetryError = (error: RetryError): SerializedAiSdkRetryError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    reason: error.reason ?? null,
-    lastError: error.lastError ? safeSerialize(error.lastError) : null,
-    errors: error.errors.map((err) => safeSerialize(err))
-  } satisfies SerializedAiSdkRetryError
-}
-
-const serializeToolCallRepairError = (error: ToolCallRepairError): SerializedAiSdkToolCallRepairError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    originalError: InvalidToolInputError.isInstance(error.originalError)
-      ? serializeInvalidToolInputError(error.originalError)
-      : serializeNoSuchToolError(error.originalError)
-  } satisfies SerializedAiSdkToolCallRepairError
-}
-
-const serializeTypeValidationError = (error: TypeValidationError): SerializedAiSdkTypeValidationError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    value: safeSerialize(error.value)
-  } satisfies SerializedAiSdkTypeValidationError
-}
-
-const serializeUnsupportedFunctionalityError = (
-  error: UnsupportedFunctionalityError
-): SerializedAiSdkUnsupportedFunctionalityError => {
-  const baseError = getBaseError(error)
-  return {
-    ...baseError,
-    functionality: error.functionality
-  } satisfies SerializedAiSdkUnsupportedFunctionalityError
-}
-
-export const serializeError = (error: AISDKError): SerializedError => {
-  const baseError = {
-    name: error.name,
-    message: error.message,
-    stack: error.stack ?? null,
-    cause: error.cause ? String(error.cause) : null
-  }
-  if (APICallError.isInstance(error)) {
-    return serializeAPICallError(error)
-  }
-  if (DownloadError.isInstance(error)) {
-    return serializeDownloadError(error)
-  }
-  if (InvalidArgumentError.isInstance(error)) {
-    return serializeInvalidArgumentError(error)
-  }
-  if (InvalidDataContentError.isInstance(error)) {
-    return serializeInvalidDataContentError(error)
-  }
-  if (InvalidMessageRoleError.isInstance(error)) {
-    return serializeInvalidMessageRoleError(error)
-  }
-  if (InvalidPromptError.isInstance(error)) {
-    return serializeInvalidPromptError(error)
-  }
-  if (InvalidToolInputError.isInstance(error)) {
-    return serializeInvalidToolInputError(error)
-  }
-  if (JSONParseError.isInstance(error)) {
-    return serializeJSONParseError(error)
-  }
-  if (MessageConversionError.isInstance(error)) {
-    return serializeMessageConversionError(error)
-  }
-  return baseError
+  return serializedError
 }
 /**
  * 格式化 Zod 验证错误信息为可读的字符串
