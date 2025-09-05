@@ -11,6 +11,7 @@ import {
   ReloadOutlined
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import WindowControls from '@renderer/components/WindowControls'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
@@ -434,7 +435,10 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
         )}
         <Spacer />
-        <ButtonsGroup className={isWin || isLinux ? 'windows' : ''} isTopNavbar={isTopNavbar}>
+        <ButtonsGroup
+          className={isWin || isLinux ? 'windows' : ''}
+          style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
+          isTopNavbar={isTopNavbar}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
@@ -500,6 +504,11 @@ const MinappPopupContainer: React.FC = () => {
             </TitleButton>
           </Tooltip>
         </ButtonsGroup>
+        {(isWin || isLinux) && (
+          <div style={{ position: 'absolute', right: 0, top: 0, height: '100%' }}>
+            <WindowControls />
+          </div>
+        )}
       </TitleContainer>
     )
   }
@@ -537,7 +546,9 @@ const MinappPopupContainer: React.FC = () => {
         wrapper: {
           position: 'fixed',
           marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
-          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
+          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0
+        },
+        content: {
           backgroundColor: window.root.style.background
         }
       }}>
@@ -602,7 +613,6 @@ const ButtonsGroup = styled.div<{ isTopNavbar: boolean }>`
   gap: 5px;
   -webkit-app-region: no-drag;
   &.windows {
-    margin-right: ${isWin ? '130px' : isLinux ? '100px' : 0};
     background-color: var(--color-background-mute);
     border-radius: 50px;
     padding: 0 3px;

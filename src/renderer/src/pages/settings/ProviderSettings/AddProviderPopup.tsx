@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { Center, VStack } from '@renderer/components/Layout'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
@@ -143,7 +144,6 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                 })
                 setLogo(tempUrl)
               }
-
               setDropdownOpen(false)
             } catch (error: any) {
               window.message.error(error.message)
@@ -152,7 +152,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
           <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
         </Upload>
       ),
-      onClick: () => {
+      onClick: (e: any) => {
+        e.stopPropagation()
         uploadRef.current?.click()
       }
     },
@@ -215,7 +216,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               }}
               placement="bottom">
               {logo ? (
-                <ProviderLogo src={logo} />
+                <ProviderLogo>
+                  <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />
+                </ProviderLogo>
               ) : (
                 <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
                   {getInitials()}
@@ -258,16 +261,17 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   )
 }
 
-const ProviderLogo = styled.img`
+const ProviderLogo = styled.div`
   cursor: pointer;
   width: 60px;
   height: 60px;
-  border-radius: 12px;
-  object-fit: contain;
+  border-radius: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  padding: 5px;
-  border: 0.5px solid var(--color-border);
   &:hover {
     opacity: 0.8;
   }
@@ -277,7 +281,7 @@ const ProviderInitialsLogo = styled.div`
   cursor: pointer;
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
