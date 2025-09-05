@@ -75,19 +75,30 @@ export const DEDICATED_IMAGE_MODELS = [
   'gpt-image-1'
 ]
 
+export const IMAGE_ENHANCEMENT_MODELS = [
+  'grok-2-image(?:-[\\w-]+)?',
+  'qwen-image-edit',
+  'gpt-image-1',
+  'gemini-2.5-flash-image-preview',
+  'gemini-2.0-flash-preview-image-generation'
+]
+
+const IMAGE_ENHANCEMENT_MODELS_REGEX = new RegExp(IMAGE_ENHANCEMENT_MODELS.join('|'), 'i')
+
 // Models that should auto-enable image generation button when selected
 export const AUTO_ENABLE_IMAGE_MODELS = ['gemini-2.5-flash-image-preview', ...DEDICATED_IMAGE_MODELS]
 
-export const OPENAI_IMAGE_GENERATION_MODELS = [
+export const OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS = [
   'o3',
   'gpt-4o',
   'gpt-4o-mini',
   'gpt-4.1',
   'gpt-4.1-mini',
   'gpt-4.1-nano',
-  'gpt-5',
-  'gpt-image-1'
+  'gpt-5'
 ]
+
+export const OPENAI_IMAGE_GENERATION_MODELS = [...OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS, 'gpt-image-1']
 
 export const GENERATE_IMAGE_MODELS = [
   'gemini-2.0-flash-exp',
@@ -139,6 +150,20 @@ export function isGenerateImageModel(model: Model): boolean {
   return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
 }
 
+/**
+ * 判断模型是否支持纯图片生成（不支持通过工具调用）
+ * @param model
+ * @returns
+ */
+export function isPureGenerateImageModel(model: Model): boolean {
+  if (!isGenerateImageModel(model) || !isTextToImageModel(model)) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id)
+  return !OPENAI_TOOL_USE_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel))
+}
+
 // Text to image models
 export const TEXT_TO_IMAGE_REGEX = /flux|diffusion|stabilityai|sd-|dall|cogview|janus|midjourney|mj-|image|gpt-image/i
 
@@ -155,6 +180,15 @@ export function isNotSupportedImageSizeModel(model?: Model): boolean {
   const baseName = getLowerBaseModelName(model.id, '/')
 
   return baseName.includes('grok-2-image')
+}
+
+/**
+ * 判断模型是否支持图片增强（包括编辑、增强、修复等）
+ * @param model
+ */
+export function isImageEnhancementModel(model: Model): boolean {
+  const modelId = getLowerBaseModelName(model.id)
+  return IMAGE_ENHANCEMENT_MODELS_REGEX.test(modelId)
 }
 
 export function isVisionModel(model: Model): boolean {
@@ -174,5 +208,5 @@ export function isVisionModel(model: Model): boolean {
     return VISION_REGEX.test(model.name) || VISION_REGEX.test(modelId) || false
   }
 
-  return VISION_REGEX.test(modelId) || false
+  return VISION_REGEX.test(modelId) || IMAGE_ENHANCEMENT_MODELS_REGEX.test(modelId) || false
 }

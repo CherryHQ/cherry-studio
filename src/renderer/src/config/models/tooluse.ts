@@ -3,7 +3,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isDeepSeekHybridInferenceModel } from './reasoning'
-import { isGenerateImageModel, isTextToImageModel } from './vision'
+import { isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 // Tool calling models
 export const FUNCTION_CALLING_MODELS = [
@@ -51,7 +51,7 @@ export function isFunctionCallingModel(model?: Model): boolean {
     isEmbeddingModel(model) ||
     isRerankModel(model) ||
     isTextToImageModel(model) ||
-    isGenerateImageModel(model)
+    isPureGenerateImageModel(model)
   ) {
     return false
   }

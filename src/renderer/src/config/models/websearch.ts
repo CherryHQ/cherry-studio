@@ -4,7 +4,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isAnthropicModel } from './utils'
-import { isGenerateImageModel, isTextToImageModel } from './vision'
+import { isPureGenerateImageModel, isTextToImageModel } from './vision'
 
 export const CLAUDE_SUPPORTED_WEBSEARCH_REGEX = new RegExp(
   `\\b(?:claude-3(-|\\.)(7|5)-sonnet(?:-[\\w-]+)|claude-3(-|\\.)5-haiku(?:-[\\w-]+)|claude-sonnet-4(?:-[\\w-]+)?|claude-opus-4(?:-[\\w-]+)?)\\b`,
@@ -29,7 +29,7 @@ export function isWebSearchModel(model: Model): boolean {
     isEmbeddingModel(model) ||
     isRerankModel(model) ||
     isTextToImageModel(model) ||
-    isGenerateImageModel(model)
+    isPureGenerateImageModel(model)
   ) {
     return false
   }
