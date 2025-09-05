@@ -661,7 +661,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'svg' // use svg icon component
+  poe: 'poe' // use svg icon component
 } as const
 
 export function getProviderLogo(providerId: string) {
