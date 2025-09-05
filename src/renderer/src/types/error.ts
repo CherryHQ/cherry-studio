@@ -1,4 +1,5 @@
 import {
+  AISDKError,
   APICallError,
   DownloadError,
   FinishReason,
@@ -262,6 +263,7 @@ export const isSerializedAiSdkUnsupportedFunctionalityError = (
 }
 
 export type AiSdkErrorUnion =
+  | AISDKError
   | APICallError
   | DownloadError
   | InvalidArgumentError
