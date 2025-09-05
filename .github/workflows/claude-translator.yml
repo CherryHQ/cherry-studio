@@ -1,4 +1,7 @@
 name: English Translator
+concurrency:
+  group: translator-${{ github.event.issue.number }}
+  cancel-in-progress: false
 
 on:
   issues:
