@@ -146,7 +146,7 @@ const NpxSearch: FC = () => {
       {!searchLoading && (
         <ResultList>
           {searchResults?.map((record) => {
-            const isInstalled = mcpServers.some((server) => server.name === record.name)
+            const isInstalled = (mcpServers || []).some((server) => server.name === record.name)
             return (
               <Card
                 size="small"

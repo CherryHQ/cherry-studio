@@ -18,7 +18,7 @@ const BuiltinMCPServerList: FC = () => {
       <SettingTitle style={{ gap: 3 }}>{t('settings.mcp.builtinServers')}</SettingTitle>
       <ServersGrid>
         {builtinMCPServers.map((server) => {
-          const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
+          const isInstalled = (mcpServers || []).some((existingServer) => existingServer.name === server.name)
 
           return (
             <ServerCard key={server.id}>

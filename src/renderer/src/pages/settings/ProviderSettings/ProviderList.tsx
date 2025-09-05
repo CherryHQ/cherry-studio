@@ -275,7 +275,7 @@ const ProviderList: FC = () => {
   const filteredProviders = providers.filter((provider) => {
     const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
     const isProviderMatch = matchKeywordsInProvider(keywords, provider)
-    const isModelMatch = provider.models.some((model) => matchKeywordsInModel(keywords, model))
+    const isModelMatch = (provider.models || []).some((model) => matchKeywordsInModel(keywords, model))
     return isProviderMatch || isModelMatch
   })
 

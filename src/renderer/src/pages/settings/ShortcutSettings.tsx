@@ -85,7 +85,7 @@ const ShortcutSettings: FC = () => {
   }
 
   const isDuplicateShortcut = (newShortcut: string[], currentKey: string): boolean => {
-    return shortcuts.some(
+    return (shortcuts || []).some(
       (s) => s.key !== currentKey && s.shortcut.length > 0 && s.shortcut.join('+') === newShortcut.join('+')
     )
   }

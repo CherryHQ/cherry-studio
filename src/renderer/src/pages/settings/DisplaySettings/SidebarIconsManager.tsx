@@ -51,29 +51,29 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       const { source, destination } = result
 
       // 如果是chat图标且目标是disabled区域,则不允许移动并提示
-      const draggedItem = source.droppableId === 'visible' ? visibleIcons[source.index] : disabledIcons[source.index]
+      const draggedItem = source.droppableId === 'visible' ? (visibleIcons || [])[source.index] : (disabledIcons || [])[source.index]
       if (draggedItem === 'assistants' && destination.droppableId === 'disabled') {
         message.warning(t('settings.display.sidebar.chat.hiddenMessage'))
         return
       }
 
       if (source.droppableId === destination.droppableId) {
-        const list = source.droppableId === 'visible' ? [...visibleIcons] : [...disabledIcons]
+        const list = source.droppableId === 'visible' ? [...(visibleIcons || [])] : [...(disabledIcons || [])]
         const [removed] = list.splice(source.index, 1)
         list.splice(destination.index, 0, removed)
 
         if (source.droppableId === 'visible') {
           setVisibleIcons(list)
-          dispatch(setSidebarIcons({ visible: list, disabled: disabledIcons }))
+          dispatch(setSidebarIcons({ visible: list, disabled: disabledIcons || [] }))
         } else {
           setDisabledIcons(list)
-          dispatch(setSidebarIcons({ visible: visibleIcons, disabled: list }))
+          dispatch(setSidebarIcons({ visible: visibleIcons || [], disabled: list }))
         }
         return
       }
 
-      const sourceList = source.droppableId === 'visible' ? [...visibleIcons] : [...disabledIcons]
-      const destList = destination.droppableId === 'visible' ? [...visibleIcons] : [...disabledIcons]
+      const sourceList = source.droppableId === 'visible' ? [...(visibleIcons || [])] : [...(disabledIcons || [])]
+      const destList = destination.droppableId === 'visible' ? [...(visibleIcons || [])] : [...(disabledIcons || [])]
 
       const [removed] = sourceList.splice(source.index, 1)
       const targetList = destList.filter((icon) => icon !== removed)
@@ -98,15 +98,15 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       }
 
       if (fromList === 'visible') {
-        const newVisibleIcons = visibleIcons.filter((i) => i !== icon)
-        const newDisabledIcons = disabledIcons.some((i) => i === icon) ? disabledIcons : [...disabledIcons, icon]
+        const newVisibleIcons = (visibleIcons || []).filter((i) => i !== icon)
+        const newDisabledIcons = (disabledIcons || []).some((i) => i === icon) ? disabledIcons : [...(disabledIcons || []), icon]
 
         setVisibleIcons(newVisibleIcons)
         setDisabledIcons(newDisabledIcons)
         dispatch(setSidebarIcons({ visible: newVisibleIcons, disabled: newDisabledIcons }))
       } else {
-        const newDisabledIcons = disabledIcons.filter((i) => i !== icon)
-        const newVisibleIcons = visibleIcons.some((i) => i === icon) ? visibleIcons : [...visibleIcons, icon]
+        const newDisabledIcons = (disabledIcons || []).filter((i) => i !== icon)
+        const newVisibleIcons = (visibleIcons || []).some((i) => i === icon) ? visibleIcons : [...(visibleIcons || []), icon]
 
         setDisabledIcons(newDisabledIcons)
         setVisibleIcons(newVisibleIcons)
@@ -142,7 +142,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
           <Droppable droppableId="visible">
             {(provided: DroppableProvided) => (
               <IconList ref={provided.innerRef} {...provided.droppableProps}>
-                {visibleIcons.map((icon, index) => (
+                {(visibleIcons || []).map((icon, index) => (
                   <Draggable key={icon} draggableId={icon} index={index}>
                     {(provided: DraggableProvided) => (
                       <IconItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
@@ -169,10 +169,10 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
           <Droppable droppableId="disabled">
             {(provided: DroppableProvided) => (
               <IconList ref={provided.innerRef} {...provided.droppableProps}>
-                {disabledIcons.length === 0 ? (
+                {(disabledIcons || []).length === 0 ? (
                   <EmptyPlaceholder>{t('settings.display.sidebar.empty')}</EmptyPlaceholder>
                 ) : (
-                  disabledIcons.map((icon, index) => (
+                  (disabledIcons || []).map((icon, index) => (
                     <Draggable key={icon} draggableId={icon} index={index}>
                       {(provided: DraggableProvided) => (
                         <IconItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>

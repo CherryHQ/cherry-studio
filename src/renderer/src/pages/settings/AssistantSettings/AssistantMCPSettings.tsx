@@ -68,7 +68,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       {allMcpServers.length > 0 ? (
         <ServerList>
           {allMcpServers.map((server) => {
-            const isEnabled = assistant.mcpServers?.some((s) => s.id === server.id) || false
+            const isEnabled = (assistant.mcpServers || []).some((s) => s.id === server.id) || false
 
             return (
               <ServerItem key={server.id} isEnabled={isEnabled}>
