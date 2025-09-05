@@ -1653,7 +1653,13 @@
   "navbar": {
     "expand": "伸縮對話框",
     "hide_sidebar": "隱藏側邊欄",
-    "show_sidebar": "顯示側邊欄"
+    "show_sidebar": "顯示側邊欄",
+    "window": {
+      "close": "關閉",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "restore": "還原"
+    }
   },
   "navigate": {
     "provider_settings": "跳轉到服務商設置界面"

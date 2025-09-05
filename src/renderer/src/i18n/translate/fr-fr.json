@@ -1653,7 +1653,13 @@
   "navbar": {
     "expand": "Agrandir la boîte de dialogue",
     "hide_sidebar": "Cacher la barre latérale",
-    "show_sidebar": "Afficher la barre latérale"
+    "show_sidebar": "Afficher la barre latérale",
+    "window": {
+      "close": "Fermer",
+      "maximize": "Agrandir",
+      "minimize": "Réduire",
+      "restore": "Restaurer"
+    }
   },
   "navigate": {
     "provider_settings": "Aller aux paramètres du fournisseur"

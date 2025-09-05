@@ -587,6 +587,41 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return [width, height]
   })
 
+  // Window Controls
+  ipcMain.handle(IpcChannel.Windows_Minimize, () => {
+    checkMainWindow()
+    mainWindow.minimize()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_Maximize, () => {
+    checkMainWindow()
+    mainWindow.maximize()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_Unmaximize, () => {
+    checkMainWindow()
+    mainWindow.unmaximize()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_Close, () => {
+    checkMainWindow()
+    mainWindow.close()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_IsMaximized, () => {
+    checkMainWindow()
+    return mainWindow.isMaximized()
+  })
+
+  // Send maximized state changes to renderer
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, true)
+  })
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
+  })
+
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
     return vertexAIService.getAuthHeaders(params)

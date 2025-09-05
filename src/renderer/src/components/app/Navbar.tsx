@@ -6,6 +6,8 @@ import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
+import WindowControls from '../WindowControls'
+
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
@@ -28,7 +30,17 @@ export const NavbarLeft: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
-  return <NavbarCenterContainer {...props}>{children}</NavbarCenterContainer>
+  return (
+    <NavbarCenterContainer {...props}>
+      {children}
+      {/* Add WindowControls for Windows and Linux in NavbarCenter */}
+      {(isWin || isLinux) && (
+        <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
+          <WindowControls />
+        </div>
+      )}
+    </NavbarCenterContainer>
+  )
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
@@ -81,6 +93,7 @@ const NavbarCenterContainer = styled.div`
   padding: 0 ${isMac ? '20px' : 0};
   font-weight: bold;
   color: var(--color-text-1);
+  position: relative;
 `
 
 const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
