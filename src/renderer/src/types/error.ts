@@ -179,3 +179,13 @@ export interface SerializedAiSdkNoSuchToolError extends SerializedAiSdkError {
 export const isSerializedAiSdkNoSuchToolError = (error: SerializedError): error is SerializedAiSdkNoSuchToolError => {
   return isSerializedAiSdkError(error) && 'toolName' in error && 'availableTools' in error
 }
+
+export interface SerializedAiSdkRetryError extends SerializedAiSdkError {
+  readonly reason: string
+  readonly lastError: Serializable
+  readonly errors: Serializable[]
+}
+
+export const isSerializedAiSdkRetryError = (error: SerializedError): error is SerializedAiSdkRetryError => {
+  return isSerializedAiSdkError(error) && 'reason' in error && 'lastError' in error && 'errors' in error
+}
