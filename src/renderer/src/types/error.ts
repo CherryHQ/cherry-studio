@@ -142,14 +142,14 @@ export const isSerializedAiSdkMessageConversionError = (
 }
 
 // This type is not exported by aisdk.
-
-export interface SerializedAiSdkNoAudioGeneratedError extends SerializedAiSdkError {
+// See https://github.com/vercel/ai/issues/8466
+export interface SerializedAiSdkNoSpeechGeneratedError extends SerializedAiSdkError {
   readonly responses: string[]
 }
 
-export const isSerializedAiSdkNoAudioGeneratedError = (
+export const isSerializedAiSdkNoSpeechGeneratedError = (
   error: SerializedError
-): error is SerializedAiSdkNoAudioGeneratedError => {
+): error is SerializedAiSdkNoSpeechGeneratedError => {
   return isSerializedAiSdkError(error) && 'responses' in error
 }
 
@@ -245,7 +245,7 @@ export interface SerializedAiSdkTypeValidationError extends SerializedAiSdkError
   readonly value: Serializable
 }
 
-export const isSerializedAiSdkToolTypeValidationError = (
+export const isSerializedAiSdkTypeValidationError = (
   error: SerializedError
 ): error is SerializedAiSdkTypeValidationError => {
   return isSerializedAiSdkError(error) && 'value' in error
@@ -298,3 +298,25 @@ export type SerializedAiSdkErrorUnion =
   | SerializedAiSdkToolCallRepairError
   | SerializedAiSdkTypeValidationError
   | SerializedAiSdkUnsupportedFunctionalityError
+
+export const isSerializedAiSdkErrorUnion = (error: SerializedError): error is SerializedAiSdkErrorUnion => {
+  return (
+    isSerializedAiSdkAPICallError(error) ||
+    isSerializedAiSdkDownloadError(error) ||
+    isSerializedAiSdkInvalidArgumentError(error) ||
+    isSerializedAiSdkInvalidDataContentError(error) ||
+    isSerializedAiSdkInvalidMessageRoleError(error) ||
+    isSerializedAiSdkInvalidPromptError(error) ||
+    isSerializedAiSdkInvalidToolInputError(error) ||
+    isSerializedAiSdkJSONParseError(error) ||
+    isSerializedAiSdkMessageConversionError(error) ||
+    isSerializedAiSdkNoObjectGeneratedError(error) ||
+    isSerializedAiSdkNoSuchModelError(error) ||
+    isSerializedAiSdkNoSuchProviderError(error) ||
+    isSerializedAiSdkNoSuchToolError(error) ||
+    isSerializedAiSdkRetryError(error) ||
+    isSerializedAiSdkToolCallRepairError(error) ||
+    isSerializedAiSdkTypeValidationError(error) ||
+    isSerializedAiSdkUnsupportedFunctionalityError(error)
+  )
+}
