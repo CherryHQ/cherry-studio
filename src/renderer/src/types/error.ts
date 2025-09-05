@@ -51,7 +51,12 @@ export const isSerializedAiSdkDownloadError = (error: SerializedError): error is
 }
 
 export interface SerializedAiSdkInvalidArgumentError extends SerializedAiSdkError {
-  readonly url: string
-  readonly statusCode: number | null
-  readonly statusText: string | null
+  readonly parameter: string
+  readonly value: Serializable
+}
+
+export const isSerializedAiSdkInvalidArgumentError = (
+  error: SerializedError
+): error is SerializedAiSdkInvalidArgumentError => {
+  return isSerializedAiSdkError(error) && 'parameter' in error && 'value' in error
 }
