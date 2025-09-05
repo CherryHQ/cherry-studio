@@ -40,6 +40,43 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
+      settings.tool.preprocess.title
+      <span
+        data-placement="right"
+        data-testid="info-tooltip"
+        title="settings.tool.preprocess.tooltip"
+      >
+        ℹ️
+      </span>
+    </div>
+    <select
+      data-allow-clear="true"
+      data-placeholder="settings.tool.preprocess.provider_placeholder"
+      data-testid="preprocess-select"
+    >
+      <option
+        value=""
+      >
+        Select option
+      </option>
+      <option
+        value="doc2x"
+      >
+        Doc2X
+      </option>
+      <option
+        value="mistral"
+      >
+        Mistral
+      </option>
+    </select>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
       models.embedding_model
       <span
         data-placement="right"
@@ -139,36 +176,62 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
-      settings.tool.preprocess.title
+      knowledge.retriever
       <span
         data-placement="right"
         data-testid="info-tooltip"
-        title="settings.tool.preprocess.tooltip"
+        title="knowledge.retriever_tooltip"
       >
         ℹ️
       </span>
     </div>
-    <select
-      data-allow-clear="true"
-      data-placeholder="settings.tool.preprocess.provider_placeholder"
-      data-testid="preprocess-select"
+    <div
+      data-testid="retriever-segmented"
     >
-      <option
-        value=""
+      <button
+        data-active="true"
+        data-testid="segmented-option-hybrid"
+        style="background-color: rgb(22, 119, 255); color: rgb(255, 255, 255);"
+        type="button"
       >
-        Select option
-      </option>
-      <option
-        value="doc2x"
+        knowledge.retriever_hybrid
+      </button>
+      <button
+        data-active="false"
+        data-testid="segmented-option-vector"
+        style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"
+        type="button"
       >
-        Doc2X
-      </option>
-      <option
-        value="mistral"
+        knowledge.retriever_vector
+      </button>
+      <button
+        data-active="false"
+        data-testid="segmented-option-bm25"
+        style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"
+        type="button"
       >
-        Mistral
-      </option>
-    </select>
+        knowledge.retriever_bm25
+      </button>
+    </div>
+  </div>
+  <div
+    class="c1"
+  >
+    <div
+      class="settings-label"
+    >
+      knowledge.retriever_hybrid_weight.title
+    </div>
+    <input
+      data-marks="{"0":"knowledge.retriever_hybrid_weight.bm25","1":"knowledge.retriever_hybrid_weight.vector","0.5":"knowledge.retriever_hybrid_weight.recommended"}"
+      data-testid="weight-slider"
+      max="1"
+      min="0"
+      step="0.1"
+      style="width: 100%;"
+      type="range"
+      value="0.5"
+    />
   </div>
   <div
     class="c1"
@@ -191,6 +254,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       max="50"
       min="1"
       step="1"
+      style="width: 100%;"
       type="range"
       value="6"
     />

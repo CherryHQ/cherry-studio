@@ -7,19 +7,21 @@ import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
-import { Book, Folder, Globe, Link, Notebook, Search, Settings } from 'lucide-react'
+import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import EditKnowledgeBasePopup from './components/EditKnowledgeBasePopup'
 import KnowledgeSearchPopup from './components/KnowledgeSearchPopup'
+import MigrationInfoTag from './components/MigrationInfoTag'
 import QuotaTag from './components/QuotaTag'
 import KnowledgeDirectories from './items/KnowledgeDirectories'
 import KnowledgeFiles from './items/KnowledgeFiles'
 import KnowledgeNotes from './items/KnowledgeNotes'
 import KnowledgeSitemaps from './items/KnowledgeSitemaps'
 import KnowledgeUrls from './items/KnowledgeUrls'
+import KnowledgeVideos from './items/KnowledgeVideos'
 
 const logger = loggerService.withContext('KnowledgeContent')
 interface KnowledgeContentProps {
@@ -28,7 +30,9 @@ interface KnowledgeContentProps {
 
 const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   const { t } = useTranslation()
-  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems } = useKnowledge(selectedBase.id || '')
+  const { base, urlItems, fileItems, directoryItems, noteItems, sitemapItems, videoItems } = useKnowledge(
+    selectedBase.id || ''
+  )
   const [activeKey, setActiveKey] = useState('files')
   const [quota, setQuota] = useState<number | undefined>(undefined)
   const [progressMap, setProgressMap] = useState<Map<string, number>>(new Map())
@@ -69,35 +73,49 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       title: t('files.title'),
       icon: activeKey === 'files' ? <Book size={16} color="var(--color-primary)" /> : <Book size={16} />,
       items: fileItems,
-      content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />
+      content: <KnowledgeFiles selectedBase={selectedBase} progressMap={progressMap} preprocessMap={preprocessMap} />,
+      show: true
     },
+
     {
       key: 'notes',
       title: t('knowledge.notes'),
       icon: activeKey === 'notes' ? <Notebook size={16} color="var(--color-primary)" /> : <Notebook size={16} />,
       items: noteItems,
-      content: <KnowledgeNotes selectedBase={selectedBase} />
+      content: <KnowledgeNotes selectedBase={selectedBase} />,
+      show: true
     },
     {
       key: 'directories',
       title: t('knowledge.directories'),
       icon: activeKey === 'directories' ? <Folder size={16} color="var(--color-primary)" /> : <Folder size={16} />,
       items: directoryItems,
-      content: <KnowledgeDirectories selectedBase={selectedBase} progressMap={progressMap} />
+      content: <KnowledgeDirectories selectedBase={selectedBase} progressMap={progressMap} />,
+      show: true
     },
     {
       key: 'urls',
       title: t('knowledge.urls'),
       icon: activeKey === 'urls' ? <Link size={16} color="var(--color-primary)" /> : <Link size={16} />,
       items: urlItems,
-      content: <KnowledgeUrls selectedBase={selectedBase} />
+      content: <KnowledgeUrls selectedBase={selectedBase} />,
+      show: true
     },
     {
       key: 'sitemaps',
       title: t('knowledge.sitemaps'),
       icon: activeKey === 'sitemaps' ? <Globe size={16} color="var(--color-primary)" /> : <Globe size={16} />,
       items: sitemapItems,
-      content: <KnowledgeSitemaps selectedBase={selectedBase} />
+      content: <KnowledgeSitemaps selectedBase={selectedBase} />,
+      show: true
+    },
+    {
+      key: 'videos',
+      title: t('knowledge.videos'),
+      icon: activeKey === 'videos' ? <Video size={16} color="var(--color-primary)" /> : <Video size={16} />,
+      items: videoItems,
+      content: <KnowledgeVideos selectedBase={selectedBase} />,
+      show: base?.framework === 'langchain'
     }
   ]
 
@@ -105,19 +123,21 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     return null
   }
 
-  const tabItems = knowledgeItems.map((item) => ({
-    key: item.key,
-    label: (
-      <TabLabel>
-        {item.icon}
-        <span>{item.title}</span>
-        <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
-          {item.items.length}
-        </CustomTag>
-      </TabLabel>
-    ),
-    children: <TabContent>{item.content}</TabContent>
-  }))
+  const tabItems = knowledgeItems
+    .filter((item) => item.show)
+    .map((item) => ({
+      key: item.key,
+      label: (
+        <TabLabel>
+          {item.icon}
+          <span>{item.title}</span>
+          <CustomTag size={10} color={item.items.length > 0 ? '#00b96b' : '#cccccc'}>
+            {item.items.length}
+          </CustomTag>
+        </TabLabel>
+      ),
+      children: <TabContent>{item.content}</TabContent>
+    }))
 
   return (
     <MainContainer>
@@ -142,6 +162,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             {base.preprocessProvider && base.preprocessProvider.type === 'preprocess' && (
               <QuotaTag base={base} providerId={base.preprocessProvider?.provider.id} quota={quota} />
             )}
+            {base.framework !== 'langchain' && <MigrationInfoTag base={base} />}
           </div>
         </ModelInfo>
         <HStack gap={8} alignItems="center">
@@ -320,6 +341,14 @@ export const FlexAlignCenter = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+`
+
+export const ResponsiveButton = styled(Button)`
+  @media (max-width: 1080px) {
+    .ant-btn-icon + span {
+      display: none;
+    }
+  }
 `
 
 export default KnowledgeContent

@@ -747,6 +747,7 @@
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
     "description": "Description",
+    "detail": "Detail",
     "disabled": "Disabled",
     "docs": "Docs",
     "download": "Download",
@@ -830,6 +831,7 @@
         "invalid": "Invalid MCP server"
       }
     },
+    "cause": "Error cause",
     "chat": {
       "chunk": {
         "non_json": "Returned an invalid data format"
@@ -839,6 +841,9 @@
       "quota_exceeded": "Your daily {{quota}} free quota has been exhausted. Please go to the <provider>{{provider}}</provider> to obtain an API key and configure the API key to continue using.",
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
+    "data": "data",
+    "detail": "Error Details",
+    "details": "Details",
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
@@ -850,11 +855,13 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "message": "Error Message",
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
       "exists": "Model already exists",
       "not_exists": "Model does not exist"
     },
+    "name": "Error name",
     "no_api_key": "API key is not configured",
     "pause_placeholder": "Paused",
     "provider_disabled": "Model provider is not enabled",
@@ -862,6 +869,14 @@
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
     },
+    "requestBody": "Request Body",
+    "requestBodyValues": "Request Body Values",
+    "requestUrl": "Request URL",
+    "responseBody": "Response Body",
+    "responseHeaders": "Response Header",
+    "stack": "Stack Trace",
+    "status": "Status Code",
+    "statusCode": "Status code",
     "unknown": "Unknown error",
     "user_message_not_found": "Cannot find original user message to resend"
   },
@@ -948,9 +963,11 @@
     },
     "add_directory": "Add Directory",
     "add_file": "Add File",
+    "add_image": "Add Image",
     "add_note": "Add Note",
     "add_sitemap": "Website Map",
     "add_url": "Add URL",
+    "add_video": "Add video",
     "cancel_index": "Cancel Indexing",
     "chunk_overlap": "Chunk Overlap",
     "chunk_overlap_placeholder": "Default (not recommended to change)",
@@ -977,6 +994,7 @@
     "document_count_default": "Default",
     "document_count_help": "The more document chunks requested, the more information is included, but the more tokens are consumed",
     "drag_file": "Drag file here",
+    "drag_image": "Drag image here",
     "edit_remark": "Edit Remark",
     "edit_remark_placeholder": "Please enter remark content",
     "embedding_model": "Embedding Model",
@@ -985,9 +1003,15 @@
     "error": {
       "failed_to_create": "Knowledge base creation failed",
       "failed_to_edit": "Knowledge base editing failed",
-      "model_invalid": "No model selected"
+      "model_invalid": "No model selected",
+      "video": {
+        "local_file_missing": "Video file not found",
+        "youtube_url_missing": "YouTube video URL not found"
+      }
     },
     "file_hint": "Support {{file_types}}",
+    "image_hint": "Support {{image_types}}",
+    "images": "Images",
     "index_all": "Index All",
     "index_cancelled": "Indexing cancelled",
     "index_started": "Indexing started",
@@ -1003,6 +1027,10 @@
       },
       "error": {
         "failed": "Migration failed"
+      },
+      "migrate_to_langchain": {
+        "content": "The knowledge base migration does not delete the old knowledge base but creates a copy and reprocesses all entries, which may consume a significant number of tokens. Please proceed with caution.",
+        "info": "The knowledge base architecture has been updated. Click to migrate to the new architecture."
       },
       "source_dimensions": "Source Dimensions",
       "source_model": "Source Model",
@@ -1022,6 +1050,20 @@
     "quota": "{{name}} Left Quota: {{quota}}",
     "quota_infinity": "{{name}} Quota: Unlimited",
     "rename": "Rename",
+    "retriever": "Retrieve mode",
+    "retriever_bm25": "full-text search",
+    "retriever_bm25_desc": "Search for documents based on keyword relevance and frequency.",
+    "retriever_hybrid": "Hybrid Search (Recommended)",
+    "retriever_hybrid_desc": "Combine keyword search and semantic search to achieve optimal retrieval accuracy.",
+    "retriever_hybrid_weight": {
+      "bm25": "full text",
+      "recommended": "recommend",
+      "title": "Hybrid Search Weight Adjustment (Full-text/Vector)",
+      "vector": "vector"
+    },
+    "retriever_tooltip": "Using different retrieval methods to search the knowledge base",
+    "retriever_vector": "vector search",
+    "retriever_vector_desc": "Retrieve documents based on semantic similarity and meaning.",
     "search": "Search knowledge base",
     "search_placeholder": "Enter text to search",
     "settings": {
@@ -1043,6 +1085,7 @@
     "status_preprocess_completed": "Preprocessing Completed",
     "status_preprocess_failed": "Preprocessing Failed",
     "status_processing": "Processing",
+    "subtitle_file": "subtitle file",
     "threshold": "Matching threshold",
     "threshold_placeholder": "Not set",
     "threshold_too_large_or_small": "Threshold cannot be greater than 1 or less than 0",
@@ -1054,7 +1097,9 @@
     "topN_tooltip": "The number of matching results returned; the larger the value, the more matching results, but also the more tokens consumed.",
     "url_added": "URL added",
     "url_placeholder": "Enter URL, multiple URLs separated by Enter",
-    "urls": "URLs"
+    "urls": "URLs",
+    "videos": "video",
+    "videos_file": "video file"
   },
   "languages": {
     "arabic": "Arabic",
@@ -1361,6 +1406,13 @@
         "bubble": "Bubble",
         "label": "Message style",
         "plain": "Plain"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Local video file path not found",
+          "unsupported_type": "Unsupported video type",
+          "youtube_url_missing": "YouTube video URL not found"
+        }
       }
     },
     "processing": "Processing...",
@@ -1448,7 +1500,7 @@
     },
     "websearch": {
       "cutoff": "Truncating search content...",
-      "fetch_complete": "Completed {{count}} searches...",
+      "fetch_complete": "{{count}} search result(s)",
       "rag": "Executing RAG...",
       "rag_complete": "Keeping {{countAfter}} out of {{countBefore}} results...",
       "rag_failed": "RAG failed, returning empty results..."
@@ -3875,6 +3927,13 @@
           "title": "Image"
         },
         "image_provider": "OCR service provider",
+        "paddleocr": {
+          "aistudio_access_token": "Access token of AI Studio Community",
+          "aistudio_url_label": "AI Studio Community",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR Serving Documentation",
+          "tip": "You can refer to the official PaddleOCR documentation to deploy a local service, or deploy a cloud service on the PaddlePaddle AI Studio Community. For the latter case, please provide the access token of the AI Studio Community."
+        },
         "system": {
           "win": {
             "langs_tooltip": "Dependent on Windows to provide services, you need to download language packs in the system to support the relevant languages."
@@ -4155,7 +4214,7 @@
       "aborted": "Translation aborted"
     },
     "input": {
-      "placeholder": "Text, files, or images (OCR supported) can be pasted or dragged in"
+      "placeholder": "Text, text files, or images (with OCR support) can be pasted or dragged in"
     },
     "language": {
       "not_pair": "Source language is different from the set language",

@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
-import { fetchChatCompletion } from '@renderer/services/ApiService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
+import { transformMessagesAndFetch } from '@renderer/services/OrchestrateService'
 import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
@@ -12,13 +12,13 @@ import { type Assistant, type FileMetadata, type Model, type Topic } from '@rend
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
+import { addAbortController } from '@renderer/utils/abortController'
 import {
   createAssistantMessage,
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
-import { getTopicQueue } from '@renderer/utils/queue'
-import { waitForTopicQueue } from '@renderer/utils/queue'
+import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -155,6 +155,7 @@ const getBlockThrottler = (id: string) => {
  */
 export const throttledBlockUpdate = (id: string, blockUpdate: any) => {
   const throttler = getBlockThrottler(id)
+  // store.dispatch(updateOneBlock({ id, changes: blockUpdate }))
   throttler(blockUpdate)
 }
 
@@ -358,28 +359,36 @@ const fetchAndProcessAssistantResponseImpl = async (
     })
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
 
-    // const startTime = Date.now()
-    const result = await fetchChatCompletion({
-      messages: messagesForContext,
-      assistant: assistant,
-      onChunkReceived: streamProcessorCallbacks
-    })
-    endSpan({
-      topicId,
-      outputs: result ? result.getText() : '',
-      modelName: assistant.model?.name,
-      modelEnded: true
-    })
+    const abortController = new AbortController()
+    addAbortController(userMessageId!, () => abortController.abort())
+
+    await transformMessagesAndFetch(
+      {
+        messages: messagesForContext,
+        assistant,
+        topicId,
+        options: {
+          signal: abortController.signal,
+          timeout: 30000
+        }
+      },
+      streamProcessorCallbacks
+    )
   } catch (error: any) {
-    logger.error('Error fetching chat completion:', error)
+    logger.error('Error in fetchAndProcessAssistantResponseImpl:', error)
     endSpan({
       topicId,
       error: error,
       modelName: assistant.model?.name
     })
-    if (assistantMessage) {
-      callbacks.onError?.(error)
-      throw error
+    // 统一错误处理：确保 loading 状态被正确设置，避免队列任务卡住
+    try {
+      await callbacks.onError?.(error)
+    } catch (callbackError) {
+      logger.error('Error in onError callback:', callbackError as Error)
+    } finally {
+      // 确保无论如何都设置 loading 为 false（onError 回调中已设置，这里是保险）
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
     }
   }
 }
@@ -970,10 +979,10 @@ export const appendAssistantResponseThunk =
       const existingMessageIndex = currentTopicMessageIds.findIndex((id) => id === existingAssistantMessageId)
       const insertAtIndex = existingMessageIndex !== -1 ? existingMessageIndex + 1 : currentTopicMessageIds.length
 
-      dispatch(newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantStub, index: insertAtIndex }))
-
       // 4. Update Database (Save the stub to the topic's message list)
       await saveMessageAndBlocksToDB(newAssistantStub, [], insertAtIndex)
+
+      dispatch(newMessagesActions.insertMessageAtIndex({ topicId, message: newAssistantStub, index: insertAtIndex }))
 
       // 5. Prepare and queue the processing task
       const assistantConfigForThisCall = {

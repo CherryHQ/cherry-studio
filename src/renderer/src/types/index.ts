@@ -7,10 +7,15 @@ import * as z from 'zod/v4'
 export * from './file'
 export * from './note'
 
+import type { StreamTextParams } from './aiCoreTypes'
+import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
+import { KnowledgeBase, KnowledgeReference } from './knowledge'
 import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
+import type { BaseTool, MCPTool } from './tool'
 
+export * from './knowledge'
 export * from './mcp'
 export * from './ocr'
 
@@ -329,6 +334,15 @@ export type SystemProvider = Provider & {
   apiOptions?: never
 }
 
+export type VertexProvider = Provider & {
+  googleCredentials: {
+    privateKey: string
+    clientEmail: string
+  }
+  project: string
+  location: string
+}
+
 /**
  * 判断是否为系统内置的提供商。比直接使用`provider.isSystem`更好，因为该数据字段不会随着版本更新而变化。
  * @param provider - Provider对象，包含提供商的信息
@@ -348,6 +362,7 @@ export type ProviderType =
   | 'vertexai'
   | 'mistral'
   | 'aws-bedrock'
+  | 'vertex-anthropic'
 
 export type ModelType = 'text' | 'vision' | 'embedding' | 'reasoning' | 'function_calling' | 'web_search' | 'rerank'
 
@@ -579,91 +594,12 @@ export interface Shortcut {
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
-export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory'
-
-export type KnowledgeItem = {
-  id: string
-  baseId?: string
-  uniqueId?: string
-  uniqueIds?: string[]
-  type: KnowledgeItemType
-  content: string | FileMetadata
-  remark?: string
-  created_at: number
-  updated_at: number
-  processingStatus?: ProcessingStatus
-  processingProgress?: number
-  processingError?: string
-  retryCount?: number
-  isPreprocessed?: boolean
-}
-
-export interface KnowledgeBase {
-  id: string
-  name: string
-  model: Model
-  dimensions?: number
-  description?: string
-  items: KnowledgeItem[]
-  created_at: number
-  updated_at: number
-  version: number
-  documentCount?: number
-  chunkSize?: number
-  chunkOverlap?: number
-  threshold?: number
-  rerankModel?: Model
-  // topN?: number
-  // preprocessing?: boolean
-  preprocessProvider?: {
-    type: 'preprocess'
-    provider: PreprocessProvider
-  }
-}
-
 export type ApiClient = {
   model: string
   provider: string
   apiKey: string
   apiVersion?: string
   baseURL: string
-}
-
-export type KnowledgeBaseParams = {
-  id: string
-  dimensions?: number
-  chunkSize?: number
-  chunkOverlap?: number
-  embedApiClient: ApiClient
-  rerankApiClient?: ApiClient
-  documentCount?: number
-  // preprocessing?: boolean
-  preprocessProvider?: {
-    type: 'preprocess'
-    provider: PreprocessProvider
-  }
-}
-
-export const PreprocessProviderIds = {
-  doc2x: 'doc2x',
-  mistral: 'mistral',
-  mineru: 'mineru'
-} as const
-
-export type PreprocessProviderId = keyof typeof PreprocessProviderIds
-
-export const isPreprocessProviderId = (id: string): id is PreprocessProviderId => {
-  return Object.hasOwn(PreprocessProviderIds, id)
-}
-
-export interface PreprocessProvider {
-  id: PreprocessProviderId
-  name: string
-  apiKey?: string
-  apiHost?: string
-  model?: string
-  options?: any
-  quota?: number
 }
 
 export type GenerateImageParams = {
@@ -809,7 +745,8 @@ export enum WebSearchSource {
   QWEN = 'qwen',
   HUNYUAN = 'hunyuan',
   ZHIPU = 'zhipu',
-  GROK = 'grok'
+  GROK = 'grok',
+  AISDK = 'ai-sdk'
 }
 
 export type WebSearchResponse = {
@@ -823,14 +760,6 @@ export type WebSearchStatus = {
   phase: WebSearchPhase
   countBefore?: number
   countAfter?: number
-}
-
-export type KnowledgeReference = {
-  id: number
-  content: string
-  sourceUrl: string
-  type: KnowledgeItemType
-  file?: FileMetadata
 }
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
@@ -920,17 +849,6 @@ export const MCPToolOutputSchema = z.object({
   required: z.array(z.string())
 })
 
-export interface MCPTool {
-  id: string
-  serverId: string
-  serverName: string
-  name: string
-  description?: string
-  inputSchema: MCPToolInputSchema
-  outputSchema?: z.infer<typeof MCPToolOutputSchema>
-  isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
-}
-
 export interface MCPPromptArguments {
   name: string
   description?: string
@@ -969,7 +887,7 @@ export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done
 
 interface BaseToolResponse {
   id: string // unique id
-  tool: MCPTool
+  tool: BaseTool | MCPTool
   arguments: Record<string, unknown> | undefined
   status: MCPToolResponseStatus
   response?: any
@@ -984,7 +902,17 @@ export interface ToolCallResponse extends BaseToolResponse {
   toolCallId?: string
 }
 
-export type MCPToolResponse = ToolUseResponse | ToolCallResponse
+// export type MCPToolResponse = ToolUseResponse | ToolCallResponse
+export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
+  tool: MCPTool
+  toolCallId?: string
+  toolUseId?: string
+}
+
+export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
+  tool: BaseTool
+  toolCallId: string
+}
 
 export interface MCPToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
@@ -1110,6 +1038,7 @@ export interface ApiServerConfig {
   port: number
   apiKey: string
 }
+export * from './tool'
 
 // Memory Service Types
 // ========================================================================
@@ -1234,6 +1163,19 @@ export function objectEntriesStrict<T extends Record<string | number | symbol, u
 }
 
 /**
+ * 获取对象所有值的类型安全版本
+ * @template T - 对象类型
+ * @param obj - 要获取值的对象
+ * @returns 对象值组成的数组
+ * @example
+ * const obj = { a: 1, b: 2 } as const;
+ * const values = objectValues(obj); // (1 | 2)[]
+ */
+export function objectValues<T extends Record<string, unknown>>(obj: T): T[keyof T][] {
+  return Object.values(obj) as T[keyof T][]
+}
+
+/**
  * 表示一个对象类型，该对象至少包含类型T中指定的所有键，这些键的值类型为U
  * 同时也允许包含其他任意string类型的键，这些键的值类型也必须是U
  * @template T - 必需包含的键的字面量字符串联合类型
@@ -1281,3 +1223,32 @@ export type HexColor = string
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
+
+export type FetchChatCompletionOptions = {
+  signal?: AbortSignal
+  timeout?: number
+  headers?: Record<string, string>
+}
+
+type BaseParams = {
+  assistant: Assistant
+  options?: FetchChatCompletionOptions
+  onChunkReceived: (chunk: Chunk) => void
+  topicId?: string // 添加 topicId 参数
+  uiMessages?: Message[]
+}
+
+type MessagesParams = BaseParams & {
+  messages: StreamTextParams['messages']
+  prompt?: never
+}
+
+type PromptParams = BaseParams & {
+  messages?: never
+  // prompt: Just use string for convinience. Native prompt type unite more types, including messages type.
+  // we craete a non-intersecting prompt type to discriminate them.
+  // see https://github.com/vercel/ai/issues/8363
+  prompt: string
+}
+
+export type FetchChatCompletionParams = MessagesParams | PromptParams

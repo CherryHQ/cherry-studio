@@ -747,6 +747,7 @@
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
     "description": "描述",
+    "detail": "详情",
     "disabled": "已禁用",
     "docs": "文档",
     "download": "下载",
@@ -830,6 +831,7 @@
         "invalid": "无效的MCP服务器"
       }
     },
+    "cause": "错误原因",
     "chat": {
       "chunk": {
         "non_json": "返回了无效的数据格式"
@@ -839,6 +841,9 @@
       "quota_exceeded": "您今日免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出错了，如果没有配置 API 密钥，请前往设置 > 模型提供商中配置密钥"
     },
+    "data": "数据",
+    "detail": "错误详情",
+    "details": "详细信息",
     "http": {
       "400": "请求错误，请检查请求参数是否正确。如果修改了模型设置，请重置到默认设置",
       "401": "身份验证失败，请检查 API 密钥是否正确",
@@ -850,11 +855,13 @@
       "503": "服务不可用，请稍后再试",
       "504": "网关超时，请稍后再试"
     },
+    "message": "错误信息",
     "missing_user_message": "无法切换模型响应：原始用户消息已被删除。请发送新消息以获取此模型的响应",
     "model": {
       "exists": "模型已存在",
       "not_exists": "模型不存在"
     },
+    "name": "错误名称",
     "no_api_key": "API 密钥未配置",
     "pause_placeholder": "已中断",
     "provider_disabled": "模型提供商未启用",
@@ -862,6 +869,14 @@
       "description": "消息内容渲染失败，请检查消息内容格式是否正确",
       "title": "渲染错误"
     },
+    "requestBody": "请求内容",
+    "requestBodyValues": "请求体",
+    "requestUrl": "请求路径",
+    "responseBody": "响应内容",
+    "responseHeaders": "响应首部",
+    "stack": "堆栈信息",
+    "status": "状态码",
+    "statusCode": "状态码",
     "unknown": "未知错误",
     "user_message_not_found": "无法找到原始用户消息"
   },
@@ -948,9 +963,11 @@
     },
     "add_directory": "添加目录",
     "add_file": "添加文件",
+    "add_image": "添加图片",
     "add_note": "添加笔记",
     "add_sitemap": "站点地图",
     "add_url": "添加网址",
+    "add_video": "添加视频",
     "cancel_index": "取消索引",
     "chunk_overlap": "重叠大小",
     "chunk_overlap_placeholder": "默认值（不建议修改）",
@@ -977,6 +994,7 @@
     "document_count_default": "默认",
     "document_count_help": "请求文档片段数量越多，附带的信息越多，但需要消耗的 Token 也越多",
     "drag_file": "拖拽文件到这里",
+    "drag_image": "拖拽图片到这里",
     "edit_remark": "修改备注",
     "edit_remark_placeholder": "请输入备注内容",
     "embedding_model": "嵌入模型",
@@ -985,9 +1003,15 @@
     "error": {
       "failed_to_create": "知识库创建失败",
       "failed_to_edit": "知识库编辑失败",
-      "model_invalid": "未选择模型"
+      "model_invalid": "未选择模型",
+      "video": {
+        "local_file_missing": "视频文件不存在",
+        "youtube_url_missing": "YouTube 视频链接不存在"
+      }
     },
     "file_hint": "支持 {{file_types}} 格式",
+    "image_hint": "支持 {{image_types}} 格式",
+    "images": "图片",
     "index_all": "索引全部",
     "index_cancelled": "索引已取消",
     "index_started": "索引开始",
@@ -1003,6 +1027,10 @@
       },
       "error": {
         "failed": "迁移失败"
+      },
+      "migrate_to_langchain": {
+        "content": "知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
+        "info": "知识库架构已更新，点击迁移到新架构"
       },
       "source_dimensions": "源维度",
       "source_model": "源模型",
@@ -1022,6 +1050,20 @@
     "quota": "{{name}} 剩余额度：{{quota}}",
     "quota_infinity": "{{name}} 剩余额度：无限制",
     "rename": "重命名",
+    "retriever": "检索模式",
+    "retriever_bm25": "全文搜索",
+    "retriever_bm25_desc": "根据关键字的相关性和频率查找文档。",
+    "retriever_hybrid": "混合搜索 (推荐)",
+    "retriever_hybrid_desc": "结合关键词搜索和语义搜索，以实现最佳检索准确性。",
+    "retriever_hybrid_weight": {
+      "bm25": "全文",
+      "recommended": "推荐",
+      "title": "混合搜索权重调整 (全文/向量)",
+      "vector": "向量"
+    },
+    "retriever_tooltip": "使用不同的检索方式检索知识库",
+    "retriever_vector": "向量搜索",
+    "retriever_vector_desc": "根据语义相似性和含义查找文档。",
     "search": "搜索知识库",
     "search_placeholder": "输入查询内容",
     "settings": {
@@ -1043,6 +1085,7 @@
     "status_preprocess_completed": "预处理完成",
     "status_preprocess_failed": "预处理失败",
     "status_processing": "处理中",
+    "subtitle_file": "字幕文件",
     "threshold": "匹配度阈值",
     "threshold_placeholder": "未设置",
     "threshold_too_large_or_small": "阈值不能大于 1 或小于 0",
@@ -1054,7 +1097,9 @@
     "topN_tooltip": "返回的匹配结果数量，数值越大，匹配结果越多，但消耗的 Token 也越多",
     "url_added": "网址已添加",
     "url_placeholder": "请输入网址, 多个网址用回车分隔",
-    "urls": "网址"
+    "urls": "网址",
+    "videos": "视频",
+    "videos_file": "视频文件"
   },
   "languages": {
     "arabic": "阿拉伯文",
@@ -1361,6 +1406,13 @@
         "bubble": "气泡",
         "label": "消息样式",
         "plain": "简洁"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "本地视频文件路径不存在",
+          "unsupported_type": "不支持的视频类型",
+          "youtube_url_missing": "YouTube 视频链接不存在"
+        }
       }
     },
     "processing": "正在处理...",
@@ -1448,7 +1500,7 @@
     },
     "websearch": {
       "cutoff": "正在截断搜索内容...",
-      "fetch_complete": "已完成 {{count}} 次搜索...",
+      "fetch_complete": "{{count}} 个搜索结果",
       "rag": "正在执行 RAG...",
       "rag_complete": "保留 {{countBefore}} 个结果中的 {{countAfter}} 个...",
       "rag_failed": "RAG 失败，返回空结果..."
@@ -3875,6 +3927,13 @@
           "title": "图片"
         },
         "image_provider": "OCR 服务提供商",
+        "paddleocr": {
+          "aistudio_access_token": "星河社区访问令牌",
+          "aistudio_url_label": "星河社区",
+          "api_url": "API URL",
+          "serving_doc_url_label": "PaddleOCR 服务化部署文档",
+          "tip": "您可以参考 PaddleOCR 官方文档部署本地服务，或者在飞桨星河社区部署云服务。对于后一种情况，请填写星河社区访问令牌。"
+        },
         "system": {
           "win": {
             "langs_tooltip": "依赖 Windows 提供服务，您需要在系统中下载语言包来支持相关语言。"
@@ -4155,7 +4214,7 @@
       "aborted": "翻译中止"
     },
     "input": {
-      "placeholder": "可粘贴或拖入文本、文件、图片（支持OCR）"
+      "placeholder": "可粘贴或拖入文本、文本文件、图片（支持OCR）"
     },
     "language": {
       "not_pair": "源语言与设置的语言不同",
