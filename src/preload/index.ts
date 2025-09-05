@@ -440,14 +440,14 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
   },
   windowControls: {
-    minimize: () => ipcRenderer.invoke(IpcChannel.Windows_Minimize),
-    maximize: () => ipcRenderer.invoke(IpcChannel.Windows_Maximize),
-    unmaximize: () => ipcRenderer.invoke(IpcChannel.Windows_Unmaximize),
-    close: () => ipcRenderer.invoke(IpcChannel.Windows_Close),
-    isMaximized: () => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
-    onMaximizedChange: (callback: (isMaximized: boolean) => void) => {
+    minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Minimize),
+    maximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Maximize),
+    unmaximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Unmaximize),
+    close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Close),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
+    onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
       const channel = IpcChannel.Windows_MaximizedChanged
-      ipcRenderer.on(channel, (_, isMaximized) => callback(isMaximized))
+      ipcRenderer.on(channel, (_, isMaximized: boolean) => callback(isMaximized))
       return () => {
         ipcRenderer.removeAllListeners(channel)
       }
