@@ -11,6 +11,7 @@ import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { NewAPIClient } from './newapi/NewAPIClient'
 import { OpenAIAPIClient } from './openai/OpenAIApiClient'
 import { OpenAIResponseAPIClient } from './openai/OpenAIResponseAPIClient'
+import { OVMSClient } from './ovms/OVMSClient'
 import { PPIOAPIClient } from './ppio/PPIOAPIClient'
 import { ZhipuAPIClient } from './zhipu/ZhipuAPIClient'
 
@@ -59,6 +60,12 @@ export class ApiClientFactory {
 
     if (provider.id === 'zhipu') {
       instance = new ZhipuAPIClient(provider) as BaseApiClient
+      return instance
+    }
+
+    if (provider.id === 'ovms') {
+      logger.debug(`Creating OVMSClient for provider: ${provider.id}`)
+      instance = new OVMSClient(provider) as BaseApiClient
       return instance
     }
 

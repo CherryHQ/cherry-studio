@@ -271,6 +271,7 @@ export const SystemProviderIds = {
   cherryin: 'cherryin',
   silicon: 'silicon',
   aihubmix: 'aihubmix',
+  ovms: 'ovms',
   ocoolai: 'ocoolai',
   deepseek: 'deepseek',
   ppio: 'ppio',

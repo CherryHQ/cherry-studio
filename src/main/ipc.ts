@@ -57,6 +57,7 @@ import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
+import { OvmsManager } from './services/OvmsManager'
 import { calculateDirectorySize, getResourcePath } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import {
@@ -79,6 +80,7 @@ const obsidianVaultService = new ObsidianVaultService()
 const vertexAIService = VertexAIService.getInstance()
 const memoryService = MemoryService.getInstance()
 const dxtService = new DxtService()
+const ovmsManager = new OvmsManager()
 
 export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   const appUpdater = new AppUpdater()
@@ -696,6 +698,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))
   ipcMain.handle(IpcChannel.App_InstallUvBinary, () => runInstallScript('install-uv.js'))
   ipcMain.handle(IpcChannel.App_InstallBunBinary, () => runInstallScript('install-bun.js'))
+  ipcMain.handle(IpcChannel.App_InstallOvmsBinary, () => runInstallScript('install-ovms.js'))
 
   //copilot
   ipcMain.handle(IpcChannel.Copilot_GetAuthMessage, CopilotService.getAuthMessage.bind(CopilotService))
@@ -797,6 +800,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // OCR
   ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
+
+  // OVMS
+  ipcMain.handle(IpcChannel.Ovms_AddModel, (_, modelName: string, modelId: string, modelSource: string, task: string) =>
+    ovmsManager.addModel(modelName, modelId, modelSource, task)
+  )
+  ipcMain.handle(IpcChannel.Ovms_StopAddModel, () => ovmsManager.stopAddModel())
+  ipcMain.handle(IpcChannel.Ovms_GetModels, () => ovmsManager.getModels())
+  ipcMain.handle(IpcChannel.Ovms_IsRunning, () => ovmsManager.initializeOvms())
+  ipcMain.handle(IpcChannel.Ovms_GetStatus, () => ovmsManager.getOvmsStatus())
+  ipcMain.handle(IpcChannel.Ovms_RunOVMS, () => ovmsManager.runOvms())
+  ipcMain.handle(IpcChannel.Ovms_StopOVMS, () => ovmsManager.stopOvms())
 
   // CherryIN
   ipcMain.handle(IpcChannel.Cherryin_GetSignature, (_, params) => generateSignature(params))
