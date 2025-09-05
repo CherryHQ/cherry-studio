@@ -2,7 +2,6 @@ import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
 import { Typography } from 'antd'
 import React, { FC, useRef } from 'react'
 import ReactPlayer from 'react-player'
-import YouTube, { YouTubeProps } from 'react-youtube'
 import styled from 'styled-components'
 
 const { Paragraph } = Typography
@@ -27,37 +26,6 @@ const VideoItem: FC<Props> = ({ item, searchKeyword }) => {
   const playerRef = useRef<HTMLVideoElement | null>(null)
 
   const { highlightText } = useHighlightText()
-
-  /**
-   * 渲染 YouTube 视频
-   */
-  const renderYoutube = () => {
-    if (!item.metadata.source) {
-      logger.warn('YouTube video was requested but block.url is missing.')
-      return <ErrorContainer>{t('knowledge.error.video.youtube_url_missing')}</ErrorContainer>
-    }
-
-    const onPlayerReady: YouTubeProps['onReady'] = (event) => {
-      event.target.pauseVideo()
-    }
-
-    const opts: YouTubeProps['opts'] = {
-      height: '100%',
-      width: '100%',
-      playerVars: {
-        start: Math.floor(item.metadata?.startTime ?? 0)
-      }
-    }
-
-    return (
-      <YouTube
-        style={{ height: '100%', width: '100%' }}
-        videoId={item.metadata.source}
-        opts={opts}
-        onReady={onPlayerReady}
-      />
-    )
-  }
 
   /**
    * 渲染本地视频文件
@@ -93,9 +61,6 @@ const VideoItem: FC<Props> = ({ item, searchKeyword }) => {
 
   const renderVideo = () => {
     switch (item.metadata?.type) {
-      case 'youtube':
-        return renderYoutube()
-
       case 'video':
         return renderLocalVideo()
 

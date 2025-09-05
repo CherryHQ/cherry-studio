@@ -313,17 +313,6 @@ export function processKnowledgeReferences(
     }
 
     switch (metadata.type) {
-      case 'youtube': {
-        onChunkReceived({
-          type: ChunkType.VIDEO_SEARCHED,
-          video: {
-            type: 'url',
-            content: metadata.source
-          },
-          metadata
-        })
-        break
-      }
       case 'video': {
         onChunkReceived({
           type: ChunkType.VIDEO_SEARCHED,
