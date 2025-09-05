@@ -17,7 +17,7 @@ import {
   isSerializedAiSdkJSONParseError,
   isSerializedAiSdkMessageConversionError,
   isSerializedAiSdkNoObjectGeneratedError,
-  isSerializedAiSdkNoSpeechGeneratedError as isSerializedAiSdkNoSpeechGeneratedError,
+  isSerializedAiSdkNoSpeechGeneratedError,
   isSerializedAiSdkNoSuchModelError,
   isSerializedAiSdkNoSuchProviderError,
   isSerializedAiSdkNoSuchToolError,

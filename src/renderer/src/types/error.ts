@@ -249,7 +249,7 @@ export interface SerializedAiSdkTypeValidationError extends SerializedAiSdkError
 export const isSerializedAiSdkTypeValidationError = (
   error: SerializedError
 ): error is SerializedAiSdkTypeValidationError => {
-  return isSerializedAiSdkError(error) && 'value' in error
+  return isSerializedAiSdkError(error) && 'value' in error && !('parameter' in error)
 }
 
 export interface SerializedAiSdkUnsupportedFunctionalityError extends SerializedAiSdkError {
@@ -292,6 +292,7 @@ export type SerializedAiSdkErrorUnion =
   | SerializedAiSdkInvalidToolInputError
   | SerializedAiSdkJSONParseError
   | SerializedAiSdkMessageConversionError
+  | SerializedAiSdkNoSpeechGeneratedError
   | SerializedAiSdkNoObjectGeneratedError
   | SerializedAiSdkNoSuchModelError
   | SerializedAiSdkNoSuchProviderError
