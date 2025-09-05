@@ -1,0 +1,13 @@
+$breakpoints: (
+  sm: 576px,
+  md: 768px,
+  lg: 992px,
+  xl: 1200px,
+  xxl: 1400px
+);
+
+:root {
+  @each $breakpoint, $value in $breakpoints {
+    --breakpoint-#{$breakpoint}: #{$value};
+  }
+}

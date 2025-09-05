@@ -141,3 +141,53 @@ export function getForegroundColor(backgroundColor: HexColor): HexColor {
 
   return luminance > 0.179 ? '#000000' : '#FFFFFF'
 }
+
+// 目前应该设计到lg就足够
+// 应该和 file://./../assets/styles/breakpoints.scss 保持一致
+/**
+ * 断点配置对象，定义了不同屏幕尺寸的最小宽度（单位：像素）
+ *
+ * @property {number} xs - 超小屏幕断点，起始于 0px
+ * @property {number} sm - 小屏幕断点，起始于 576px
+ * @property {number} md - 中等屏幕断点，起始于 768px
+ * @property {number} lg - 大屏幕断点，起始于 992px
+ * @property {number} xl - 超大屏幕断点，起始于 1200px
+ * @property {number} xxl - 超超大屏幕断点，起始于 1400px
+ */
+export const breakpoints = {
+  xs: 0,
+  sm: 576,
+  md: 768,
+  lg: 992,
+  xl: 1200,
+  xxl: 1400
+} as const
+
+/**
+ * 媒体查询工具对象，用于生成响应式样式的媒体查询字符串
+ *
+ * @example
+ * // 使用示例：
+ * const styles = {
+ *   color: 'red',
+ *   [media.md]: `
+ *     color: blue;
+ *   `,
+ *   [media.lg]: `
+ *     color: green;
+ *   `
+ * }
+ *
+ * // 生成的CSS将包含：
+ * // color: red;
+ * // @media (min-width: 768px) { color: blue; }
+ * // @media (min-width: 992px) { color: green; }
+ */
+export const media = Object.keys(breakpoints).reduce((acc, label) => {
+  acc[label] = (styles) => `
+    @media (min-width: ${breakpoints[label]}px) {
+      ${styles}
+    }
+  `
+  return acc
+}, {})
