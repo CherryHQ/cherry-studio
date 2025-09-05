@@ -95,6 +95,36 @@ export const formatMcpError = (error: any) => {
   return error.message
 }
 
+const getBaseError = (error: Error) => {
+  return {
+    name: error.name,
+    message: error.message,
+    stack: error.stack ?? null,
+    cause: error.cause ? String(error.cause) : null
+  } as const
+}
+
+const serializeAPICallError = (error: APICallError): SerializedError => {
+  const baseError = getBaseError(error)
+  let content = error.message === '' ? error.responseBody || 'Unknown error' : error.message
+  try {
+    const obj = JSON.parse(content)
+    content = obj.error.message
+  } catch (e: any) {
+    logger.warn('Error parsing error response body:', e)
+  }
+  return {
+    ...baseError,
+    url: error.url,
+    requestBodyValues: safeSerialize(error.requestBodyValues),
+    statusCode: error.statusCode ?? null,
+    responseBody: content,
+    isRetryable: error.isRetryable,
+    data: safeSerialize(error.data),
+    responseHeaders: error.responseHeaders ?? null
+  } satisfies SerializedAiSdkAPICallError
+}
+
 export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
@@ -103,23 +133,7 @@ export const serializeError = (error: AISDKError): SerializedError => {
     cause: error.cause ? String(error.cause) : null
   }
   if (APICallError.isInstance(error)) {
-    let content = error.message === '' ? error.responseBody || 'Unknown error' : error.message
-    try {
-      const obj = JSON.parse(content)
-      content = obj.error.message
-    } catch (e: any) {
-      logger.warn('Error parsing error response body:', e)
-    }
-    return {
-      ...baseError,
-      url: error.url,
-      requestBodyValues: safeSerialize(error.requestBodyValues),
-      statusCode: error.statusCode ?? null,
-      responseBody: content,
-      isRetryable: error.isRetryable,
-      data: safeSerialize(error.data),
-      responseHeaders: error.responseHeaders ?? null
-    } satisfies SerializedAiSdkAPICallError
+    return serializeAPICallError(error)
   }
   return baseError
 }
