@@ -168,11 +168,14 @@ export interface SerializedAiSdkNoSuchProviderError extends SerializedAiSdkNoSuc
 export const isSerializedAiSdkNoSuchProviderError = (
   error: SerializedError
 ): error is SerializedAiSdkNoSuchProviderError => {
-  return (
-    isSerializedAiSdkError(error) &&
-    'providerId' in error &&
-    'availableProviders' in error &&
-    'modelId' in error &&
-    'modelType' in error
-  )
+  return isSerializedAiSdkNoSuchModelError(error) && 'providerId' in error && 'availableProviders' in error
+}
+
+export interface SerializedAiSdkNoSuchToolError extends SerializedAiSdkError {
+  readonly toolName: string
+  readonly availableTools: string[] | null
+}
+
+export const isSerializedAiSdkNoSuchToolError = (error: SerializedError): error is SerializedAiSdkNoSuchToolError => {
+  return isSerializedAiSdkError(error) && 'toolName' in error && 'availableTools' in error
 }
