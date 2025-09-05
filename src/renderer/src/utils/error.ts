@@ -9,6 +9,7 @@ import {
   SerializedAiSdkInvalidMessageRoleError,
   SerializedAiSdkInvalidPromptError,
   SerializedAiSdkInvalidToolInputError,
+  SerializedAiSdkJSONParseError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -19,7 +20,8 @@ import {
   InvalidDataContentError,
   InvalidMessageRoleError,
   InvalidPromptError,
-  InvalidToolInputError
+  InvalidToolInputError,
+  JSONParseError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -196,6 +198,14 @@ const serializeInvalidToolInputError = (error: InvalidToolInputError): Serialize
   } satisfies SerializedAiSdkInvalidToolInputError
 }
 
+const serializeJSONParseError = (error: JSONParseError): SerializedAiSdkJSONParseError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    text: error.text
+  } satisfies SerializedAiSdkJSONParseError
+}
+
 export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
@@ -223,6 +233,9 @@ export const serializeError = (error: AISDKError): SerializedError => {
   }
   if (InvalidToolInputError.isInstance(error)) {
     return serializeInvalidToolInputError(error)
+  }
+  if (JSONParseError.isInstance(error)) {
+    return serializeJSONParseError(error)
   }
 
   return baseError

@@ -101,3 +101,11 @@ export const isSerializedAiSdkInvalidToolInputError = (
 ): error is SerializedAiSdkInvalidToolInputError => {
   return isSerializedAiSdkError(error) && 'toolName' in error && 'toolInput' in error
 }
+
+export interface SerializedAiSdkJSONParseError extends SerializedAiSdkError {
+  readonly text: string
+}
+
+export const isSerializedAiSdkJSONParseError = (error: SerializedError): error is SerializedAiSdkJSONParseError => {
+  return isSerializedAiSdkError(error) && 'text' in error
+}
