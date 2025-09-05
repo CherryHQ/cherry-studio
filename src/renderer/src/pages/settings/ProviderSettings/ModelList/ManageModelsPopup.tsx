@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { SYSTEM_MODELS } from '@renderer/config/defaultModel'
 import {
   groupQwenModels,
   isEmbeddingModel,
@@ -13,6 +12,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { SYSTEM_MODELS } from '@renderer/config/models/default'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
