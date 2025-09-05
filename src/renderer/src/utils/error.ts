@@ -2,8 +2,11 @@ import {
   AiSdkErrorUnion,
   isSerializedAiSdkAPICallError,
   SerializedAiSdkError,
+  SerializedAiSdkInvalidToolInputError,
+  SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
+import { InvalidToolInputError, NoSuchToolError } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
 
@@ -93,6 +96,33 @@ export const formatMcpError = (error: any) => {
   return error.message
 }
 
+const getBaseError = (error: Error) => {
+  return {
+    name: error.name ?? null,
+    message: error.message ?? null,
+    stack: error.stack ?? null,
+    cause: error.cause ? String(error.cause) : null
+  } as const
+}
+
+const serializeInvalidToolInputError = (error: InvalidToolInputError): SerializedAiSdkInvalidToolInputError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    toolName: error.toolName,
+    toolInput: error.toolInput
+  } satisfies SerializedAiSdkInvalidToolInputError
+}
+
+const serializeNoSuchToolError = (error: NoSuchToolError): SerializedAiSdkNoSuchToolError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    toolName: error.toolName ?? null,
+    availableTools: error.availableTools ?? null
+  } satisfies SerializedAiSdkNoSuchToolError
+}
+
 export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   // 统一所有可能的错误字段
   const serializedError: SerializedError = {
@@ -128,10 +158,12 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('availableProviders' in error) serializedError.availableProviders = error.availableProviders
   if ('availableTools' in error) serializedError.availableTools = error.availableTools ?? null
   if ('reason' in error) serializedError.reason = error.reason
-  if ('lastError' in error) serializedError.lastError = error.lastError ? safeSerialize(error.lastError) : null
-  if ('errors' in error && error.errors !== null)
-    serializedError.errors = error.errors.map((err: unknown) => safeSerialize(err))
-  if ('originalError' in error) serializedError.originalError = safeSerialize(error.originalError)
+  if ('lastError' in error) serializedError.lastError = safeSerialize(error.lastError)
+  if ('errors' in error) serializedError.errors = error.errors.map((err: unknown) => safeSerialize(err))
+  if ('originalError' in error)
+    serializedError.originalError = InvalidToolInputError.isInstance(error.originalError)
+      ? serializeInvalidToolInputError(error.originalError)
+      : serializeNoSuchToolError(error.originalError)
   if ('functionality' in error) serializedError.functionality = error.functionality
 
   return serializedError
