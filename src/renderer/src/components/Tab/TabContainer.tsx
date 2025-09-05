@@ -1,7 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
+import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -289,9 +289,10 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
+  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-x)' : '15px')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   height: var(--navbar-height);
+  min-height: env(titlebar-area-height);
   position: relative;
   -webkit-app-region: drag;
 

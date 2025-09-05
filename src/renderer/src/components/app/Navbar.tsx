@@ -69,10 +69,10 @@ const NavbarContainer = styled.div`
   min-width: 100%;
   display: flex;
   flex-direction: row;
-  min-height: var(--navbar-height);
+  min-height: env(titlebar-area-height);
   max-height: var(--navbar-height);
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
+  padding-left: ${isMac ? 'env(titlebar-area-x)' : 0};
   -webkit-app-region: drag;
 `
 
