@@ -1,3 +1,4 @@
+import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg'
 import Ai360ModelLogo from '@renderer/assets/images/models/360.png'
 import Ai360ModelLogoDark from '@renderer/assets/images/models/360_dark.png'
 import AdeptModelLogo from '@renderer/assets/images/models/adept.png'
@@ -13,6 +14,7 @@ import BaichuanModelLogoDark from '@renderer/assets/images/models/baichuan_dark.
 import BgeModelLogo from '@renderer/assets/images/models/bge.webp'
 import BigcodeModelLogo from '@renderer/assets/images/models/bigcode.webp'
 import BigcodeModelLogoDark from '@renderer/assets/images/models/bigcode_dark.webp'
+import BytedanceModelLogo from '@renderer/assets/images/models/byte_dance.svg'
 import ChatGLMModelLogo from '@renderer/assets/images/models/chatglm.png'
 import ChatGLMModelLogoDark from '@renderer/assets/images/models/chatglm_dark.png'
 import ChatGptModelLogo from '@renderer/assets/images/models/chatgpt.jpeg'
@@ -73,6 +75,7 @@ import HunyuanModelLogo from '@renderer/assets/images/models/hunyuan.png'
 import HunyuanModelLogoDark from '@renderer/assets/images/models/hunyuan_dark.png'
 import IbmModelLogo from '@renderer/assets/images/models/ibm.png'
 import IbmModelLogoDark from '@renderer/assets/images/models/ibm_dark.png'
+import IdeogramModelLogo from '@renderer/assets/images/models/ideogram.svg'
 import InternlmModelLogo from '@renderer/assets/images/models/internlm.png'
 import InternlmModelLogoDark from '@renderer/assets/images/models/internlm_dark.png'
 import InternvlModelLogo from '@renderer/assets/images/models/internvl.png'
@@ -201,7 +204,7 @@ export function getModelLogo(modelId: string) {
     'davinci-': isLight ? ChatGptModelLogo : ChatGptModelLogoDark,
     glm: isLight ? ChatGLMModelLogo : ChatGLMModelLogoDark,
     deepseek: isLight ? DeepSeekModelLogo : DeepSeekModelLogoDark,
-    '(qwen|qwq|qwq-|qvq-)': isLight ? QwenModelLogo : QwenModelLogoDark,
+    '(qwen|qwq|qwq-|qvq-|wan-)': isLight ? QwenModelLogo : QwenModelLogoDark,
     gemma: isLight ? GemmaModelLogo : GemmaModelLogoDark,
     'yi-': isLight ? YiModelLogo : YiModelLogoDark,
     llama: isLight ? LlamaModelLogo : LlamaModelLogoDark,
@@ -214,7 +217,7 @@ export function getModelLogo(modelId: string) {
     kimi: isLight ? MoonshotModelLogo : MoonshotModelLogoDark,
     phi: isLight ? MicrosoftModelLogo : MicrosoftModelLogoDark,
     baichuan: isLight ? BaichuanModelLogo : BaichuanModelLogoDark,
-    claude: isLight ? ClaudeModelLogo : ClaudeModelLogoDark,
+    '(claude|anthropic-)': isLight ? ClaudeModelLogo : ClaudeModelLogoDark,
     gemini: isLight ? GeminiModelLogo : GeminiModelLogoDark,
     bison: isLight ? PalmModelLogo : PalmModelLogoDark,
     palm: isLight ? PalmModelLogo : PalmModelLogoDark,
@@ -293,7 +296,10 @@ export function getModelLogo(modelId: string) {
     'nomic-': NomicLogo,
     'pangu-': PanguModelLogo,
     cogview: isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
-    zhipu: isLight ? ZhipuModelLogo : ZhipuModelLogoDark
+    zhipu: isLight ? ZhipuModelLogo : ZhipuModelLogoDark,
+    longcat: LongCatAppLogo,
+    bytedance: BytedanceModelLogo,
+    '(V_1|V_1_TURBO|V_2|V_2A|V_2_TURBO|DESCRIBE|UPSCALE)': IdeogramModelLogo
   }
 
   for (const key in logoMap) {
