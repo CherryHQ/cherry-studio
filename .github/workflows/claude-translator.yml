@@ -8,6 +8,9 @@ on:
 
 jobs:
   translate:
+    if: |
+      github.event_name == 'issues' && !contains(github.event.issue.body, '**English Translation:**') ||
+      github.event_name == 'issue_comment' && !contains(github.event.comment.body, '**English Translation:**')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,7 +29,7 @@ jobs:
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools Bash(gh:*)'
+          claude_args: '--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
           prompt: |
             你是一个多语言翻译助手。请完成以下任务：
 
@@ -47,9 +50,9 @@ jobs:
 
             4. 使用gh工具更新：
                - 如果是issue：
-                 gh issue edit $ISSUE_NUMBER --title "英文标题" --body "翻译内容 + 原始内容"
+                 gh issue edit ${{ github.event.issue.number }} --title "英文标题" --body "翻译内容 + 原始内容"
                - 如果是comment：
-                 gh api -X PATCH /repos/$REPO/issues/comments/$COMMENT_ID -f body="翻译内容 + 原始内容"
+                 gh api -X PATCH /repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }} -f body="翻译内容 + 原始内容"
 
             环境信息：
             - Event: ${{ github.event_name }}
@@ -57,4 +60,4 @@ jobs:
             - Repository: ${{ github.repository }}
 
             使用以下命令获取完整信息：
-            gh issue view $ISSUE_NUMBER --json title,body,comments
+            gh issue view ${{ github.event.issue.number }} --json title,body,comments
