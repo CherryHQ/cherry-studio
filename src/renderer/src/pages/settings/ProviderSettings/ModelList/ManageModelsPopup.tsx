@@ -10,9 +10,9 @@ import {
   isReasoningModel,
   isRerankModel,
   isVisionModel,
-  isWebSearchModel
+  isWebSearchModel,
+  SYSTEM_MODELS
 } from '@renderer/config/models'
-import { SYSTEM_MODELS } from '@renderer/config/models/default'
 import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
