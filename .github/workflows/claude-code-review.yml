@@ -33,7 +33,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Run Claude Code Review
         id: claude-review
