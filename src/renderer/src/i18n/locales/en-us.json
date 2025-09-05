@@ -3649,6 +3649,27 @@
         "title": "Add Provider",
         "type": "Provider Type"
       },
+      "anthropic": {
+        "apikey": "API key",
+        "auth_failed": "Anthropic authentication failed",
+        "auth_method": "Authentication method",
+        "auth_success": "Anthropic OAuth authentication successful",
+        "authenticated": "Verified",
+        "authenticating": "Authenticating",
+        "cancel": "Cancel",
+        "code_error": "Invalid authorization code, please try again",
+        "code_placeholder": "Please enter the authorization code displayed in your browser",
+        "code_required": "Authorization code cannot be empty",
+        "description": "OAuth authentication",
+        "description_detail": "You need to subscribe to Claude Pro or a higher version to use this authentication method",
+        "enter_auth_code": "Authorization code",
+        "logout": "Log out",
+        "logout_failed": "Logout failed, please try again",
+        "logout_success": "Successfully logged out of Anthropic",
+        "oauth": "Web OAuth",
+        "start_auth": "Start authorization",
+        "submit_code": "Complete login"
+      },
       "api": {
         "key": {
           "check": {

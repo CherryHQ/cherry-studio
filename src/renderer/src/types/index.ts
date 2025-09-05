@@ -261,6 +261,7 @@ export type Provider = {
   /** @deprecated */
   isNotSupportServiceTier?: boolean
 
+  authType?: 'apiKey' | 'oauth'
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>

@@ -422,6 +422,14 @@ const api = {
     addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
   },
+  anthropic_oauth: {
+    startOAuthFlow: () => ipcRenderer.invoke(IpcChannel.Anthropic_StartOAuthFlow),
+    completeOAuthWithCode: (code: string) => ipcRenderer.invoke(IpcChannel.Anthropic_CompleteOAuthWithCode, code),
+    cancelOAuthFlow: () => ipcRenderer.invoke(IpcChannel.Anthropic_CancelOAuthFlow),
+    getAccessToken: () => ipcRenderer.invoke(IpcChannel.Anthropic_GetAccessToken),
+    hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
+    clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
+  },
   codeTools: {
     run: (
       cliTool: string,

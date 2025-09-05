@@ -3649,6 +3649,27 @@
         "title": "新增提供者",
         "type": "供應商類型"
       },
+      "anthropic": {
+        "apikey": "API 密鑰",
+        "auth_failed": "Anthropic 身份驗證失敗",
+        "auth_method": "认证方式",
+        "auth_success": "Anthropic OAuth 認證成功",
+        "authenticated": "已認證",
+        "authenticating": "正在認證",
+        "cancel": "取消",
+        "code_error": "無效的授權碼，請重試",
+        "code_placeholder": "請輸入瀏覽器中顯示的授權碼",
+        "code_required": "授權碼不能為空",
+        "description": "OAuth 身份認證",
+        "description_detail": "您需要訂閱 Claude Pro 或更高版本才能使用此認證方式",
+        "enter_auth_code": "授權碼",
+        "logout": "登出",
+        "logout_failed": "登出失敗，請重試",
+        "logout_success": "成功登出 Anthropic",
+        "oauth": "網頁 OAuth",
+        "start_auth": "開始授權",
+        "submit_code": "完成登錄"
+      },
       "api": {
         "key": {
           "check": {

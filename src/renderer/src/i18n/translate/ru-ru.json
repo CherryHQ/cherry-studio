@@ -3649,6 +3649,27 @@
         "title": "Добавить провайдер",
         "type": "Тип провайдера"
       },
+      "anthropic": {
+        "apikey": "API-ключ",
+        "auth_failed": "Ошибка аутентификации Anthropic",
+        "auth_method": "Способ аутентификации",
+        "auth_success": "Аутентификация Anthropic OAuth успешна",
+        "authenticated": "Подтверждено",
+        "authenticating": "Выполняется аутентификация",
+        "cancel": "Отмена",
+        "code_error": "Неверный код авторизации, попробуйте еще раз",
+        "code_placeholder": "Пожалуйста, введите код авторизации, отображаемый в браузере",
+        "code_required": "Код авторизации не может быть пустым",
+        "description": "OAuth аутентификация",
+        "description_detail": "Чтобы использовать этот способ аутентификации, вам необходимо подписаться на Claude Pro или более высокую версию.",
+        "enter_auth_code": "Код авторизации",
+        "logout": "Выйти",
+        "logout_failed": "Ошибка выхода, попробуйте еще раз",
+        "logout_success": "Успешно вышли из Anthropic",
+        "oauth": "веб OAuth",
+        "start_auth": "Начать авторизацию",
+        "submit_code": "Завершить вход"
+      },
       "api": {
         "key": {
           "check": {

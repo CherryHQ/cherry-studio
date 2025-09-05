@@ -240,27 +240,48 @@ export async function prepareSpecialProviderConfig(
   provider: Provider,
   config: ReturnType<typeof providerToAiSdkConfig>
 ) {
-  if (provider.id === 'copilot') {
-    const defaultHeaders = store.getState().copilot.defaultHeaders
-    const { token } = await window.api.copilot.getToken(defaultHeaders)
-    config.options.apiKey = token
-  }
-  if (provider.id === 'cherryin') {
-    config.options.fetch = async (url, options) => {
-      // 在这里对最终参数进行签名
-      const signature = await window.api.cherryin.generateSignature({
-        method: 'POST',
-        path: '/chat/completions',
-        query: '',
-        body: JSON.parse(options.body)
-      })
-      return fetch(url, {
-        ...options,
-        headers: {
-          ...options.headers,
-          ...signature
+  switch (provider.id) {
+    case 'copilot': {
+      const defaultHeaders = store.getState().copilot.defaultHeaders
+      const { token } = await window.api.copilot.getToken(defaultHeaders)
+      config.options.apiKey = token
+      break
+    }
+    case 'cherryin': {
+      config.options.fetch = async (url, options) => {
+        // 在这里对最终参数进行签名
+        const signature = await window.api.cherryin.generateSignature({
+          method: 'POST',
+          path: '/chat/completions',
+          query: '',
+          body: JSON.parse(options.body)
+        })
+        return fetch(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            ...signature
+          }
+        })
+      }
+      break
+    }
+    case 'anthropic': {
+      if (provider.authType === 'oauth') {
+        const oauthToken = await window.api.anthropic_oauth.getAccessToken()
+        config.options = {
+          ...config.options,
+          headers: {
+            ...(config.options.headers ? config.options.headers : {}),
+            'Content-Type': 'application/json',
+            'anthropic-version': '2023-06-01',
+            'anthropic-beta': 'oauth-2025-04-20',
+            Authorization: `Bearer ${oauthToken}`
+          },
+          baseURL: 'https://api.anthropic.com/v1',
+          apiKey: ''
         }
-      })
+      }
     }
   }
   return config

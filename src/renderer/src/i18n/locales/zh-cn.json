@@ -3649,6 +3649,27 @@
         "title": "添加提供商",
         "type": "提供商类型"
       },
+      "anthropic": {
+        "apikey": "API 密钥",
+        "auth_failed": "Anthropic 身份认证失败",
+        "auth_method": "认证方式",
+        "auth_success": "Anthropic OAuth 认证成功",
+        "authenticated": "已认证",
+        "authenticating": "正在认证",
+        "cancel": "取消",
+        "code_error": "无效的授权码，请重试",
+        "code_placeholder": "请输入浏览器中显示的授权码",
+        "code_required": "授权码不能为空",
+        "description": "OAuth 身份认证",
+        "description_detail": "你需要订阅 Claude Pro 或以上版本才能使用此认证方式",
+        "enter_auth_code": "授权码",
+        "logout": "退出登录",
+        "logout_failed": "退出登录失败，请重试",
+        "logout_success": "成功退出 Anthropic 登录",
+        "oauth": "网页 OAuth",
+        "start_auth": "开始授权",
+        "submit_code": "完成登录"
+      },
       "api": {
         "key": {
           "check": {

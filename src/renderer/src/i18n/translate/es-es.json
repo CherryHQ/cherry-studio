@@ -3649,6 +3649,23 @@
         "title": "Agregar proveedor",
         "type": "Tipo de proveedor"
       },
+      "anthropic": {
+        "apikey": "Clave de API",
+        "auth_failed": "Error de autenticación de Anthropic",
+        "auth_method": "Método de autenticación",
+        "authenticated": "Verificado",
+        "authenticating": "Autenticando",
+        "cancel": "Cancelar",
+        "code_placeholder": "Introduzca el código de autorización que se muestra en el navegador",
+        "code_required": "El código de autorización no puede estar vacío",
+        "description": "Autenticación OAuth",
+        "description_detail": "Necesitas suscribirte a Claude Pro o a una versión superior para utilizar este método de autenticación",
+        "enter_auth_code": "Código de autorización",
+        "logout": "Cerrar sesión",
+        "oauth": "Web OAuth",
+        "start_auth": "Comenzar autorización",
+        "submit_code": "Iniciar sesión completado"
+      },
       "api": {
         "key": {
           "check": {
