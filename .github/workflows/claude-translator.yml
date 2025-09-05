@@ -1,4 +1,4 @@
-name: Use Claude To Translate
+name: English Translator
 
 on:
   issues:
@@ -7,30 +7,54 @@ on:
     types: [created, edited]
 
 jobs:
-  claude-response:
-    if: |
-      (github.event_name == 'issue_comment')||(github.event_name == 'issues')
+  translate:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: write # 编辑issues/comments
       pull-requests: read
-      issues: read
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code
-        id: claude
+      - name: Run Claude for translation
         uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools Bash(gh:*)'
+          prompt: |
+            你是一个多语言翻译助手。请完成以下任务：
 
-          # This is an optional setting that allows Claude to read CI results on PRs
-          additional_permissions: |
-            actions: read
+            1. 获取当前issue/comment的完整信息
+            2. 智能检测内容。
+                1. 如果是已经遵循格式要求翻译过的issue/comment，检查翻译内容和原始内容是否匹配。若不匹配，则重新翻译一次令其匹配，并遵循格式要求；若匹配，则跳过任务。
+                2. 如果是未翻译过的issue/comment，检查其内容语言。若不是英文，则翻译成英文；若已经是英文，则跳过任务。
+            3. 格式要求：
+               - 标题：英文翻译（如果非英文）
+               - 内容格式：
+                 **English Translation:**
+                 [英文翻译内容]
 
-          prompt: "Replace the issue with its English translation and substitute the original language."
+                 ---
+
+                 **Original Content:**
+                 [原始内容]
+
+            4. 使用gh工具更新：
+               - 如果是issue：
+                 gh issue edit $ISSUE_NUMBER --title "英文标题" --body "翻译内容 + 原始内容"
+               - 如果是comment：
+                 gh api -X PATCH /repos/$REPO/issues/comments/$COMMENT_ID -f body="翻译内容 + 原始内容"
+
+            环境信息：
+            - Event: ${{ github.event_name }}
+            - Issue Number: ${{ github.event.issue.number }}
+            - Repository: ${{ github.repository }}
+
+            使用以下命令获取完整信息：
+            gh issue view $ISSUE_NUMBER --json title,body,comments
