@@ -28,7 +28,7 @@ export interface SerializedError {
   stack: string | null
   [key: string]: Serializable
 }
-export const isSerializedError = (error: Record<string, unknown>): error is SerializedAiSdkError => {
+export const isSerializedError = (error: Record<string, unknown>): error is SerializedError => {
   return 'name' in error && 'message' in error && 'stack' in error
 }
 export interface SerializedAiSdkError extends SerializedError {
@@ -129,7 +129,7 @@ export interface SerializedAiSdkJSONParseError extends SerializedAiSdkError {
 }
 
 export const isSerializedAiSdkJSONParseError = (error: SerializedError): error is SerializedAiSdkJSONParseError => {
-  return isSerializedAiSdkError(error) && 'text' in error && 'message' in error
+  return isSerializedAiSdkError(error) && 'text' in error
 }
 
 export interface SerializedAiSdkMessageConversionError extends SerializedAiSdkError {
