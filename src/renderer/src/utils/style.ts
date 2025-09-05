@@ -185,7 +185,7 @@ export const breakpoints = {
  */
 export const media = Object.keys(breakpoints).reduce((acc, label) => {
   acc[label] = (styles) => `
-    @media (min-width: ${breakpoints[label]}px) {
+    @media (max-width: ${breakpoints[label]}px) {
       ${styles}
     }
   `
