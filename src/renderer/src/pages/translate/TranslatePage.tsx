@@ -664,7 +664,7 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, isProcessing, processFile, t]
+    [getSingleFile, isProcessing, processFile, setText, t]
   )
   return (
     <Container
