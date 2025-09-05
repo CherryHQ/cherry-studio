@@ -1653,7 +1653,13 @@
   "navbar": {
     "expand": "Expand Dialog",
     "hide_sidebar": "Hide Sidebar",
-    "show_sidebar": "Show Sidebar"
+    "show_sidebar": "Show Sidebar",
+    "window": {
+      "close": "Close",
+      "maximize": "Maximize",
+      "minimize": "Minimize",
+      "restore": "Restore"
+    }
   },
   "navigate": {
     "provider_settings": "Go to provider settings"

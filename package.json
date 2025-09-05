@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.6.0-beta.6",
+  "version": "1.6.0-beta.7",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -286,7 +286,6 @@
     "react-router-dom": "6",
     "react-spinners": "^0.14.1",
     "react-transition-group": "^4.4.5",
-    "react-youtube": "^10.1.0",
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",
     "reflect-metadata": "0.2.2",

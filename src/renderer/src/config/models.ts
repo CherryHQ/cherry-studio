@@ -2385,8 +2385,11 @@ export function isGenerateImageModel(model: Model): boolean {
 
   const modelId = getLowerBaseModelName(model.id, '/')
 
-  if (provider && provider.type === 'openai-response') {
-    return OPENAI_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel))
+  if (provider.type === 'openai-response') {
+    return (
+      OPENAI_IMAGE_GENERATION_MODELS.some((imageModel) => modelId.includes(imageModel)) ||
+      GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
+    )
   }
 
   return GENERATE_IMAGE_MODELS.some((imageModel) => modelId.includes(imageModel))
