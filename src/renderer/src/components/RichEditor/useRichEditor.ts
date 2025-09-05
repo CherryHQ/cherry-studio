@@ -5,6 +5,13 @@ import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import {
+  getAiCompleteAssistant,
+  getAiFixSpellingAssistant,
+  getAiGenerateAssistant,
+  getAiImproveAssistant,
+  getAiSummarizeAssistant
+} from '@renderer/services/AssistantService'
+import {
   htmlToMarkdown,
   isMarkdownContent,
   markdownToHtml,
@@ -26,6 +33,7 @@ import { t } from 'i18next'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { commandSuggestion } from './command'
+import { Ai } from './extensions/ai'
 import { CodeBlockShiki } from './extensions/code-block-shiki/code-block-shiki'
 import { EnhancedImage } from './extensions/enhanced-image'
 import { EnhancedLink } from './extensions/enhanced-link'
@@ -347,6 +355,54 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       TaskList,
       TaskItem.configure({
         nested: true
+      }),
+      // AI扩展配置 - 使用预定义的AI助手
+      Ai.configure({
+        // 指定不同AI功能使用的专门助手（基于quickModel）
+        generateAssistant: getAiGenerateAssistant(),
+        completeAssistant: getAiCompleteAssistant(),
+        improveAssistant: getAiImproveAssistant(),
+        summarizeAssistant: getAiSummarizeAssistant(),
+        fixSpellingAssistant: getAiFixSpellingAssistant(),
+
+        // AI补全触发模式配置
+        completionTriggerMode: 'manual', // 'manual' | 'auto' | 'hybrid'
+        autoCompletionDelay: 800, // 自动触发延迟(ms)
+        minTextLength: 8, // 触发补全的最小文本长度
+
+        // 配置每个AI功能的文本获取策略
+        textSourceConfig: {
+          complete: { source: 'beforeCursor' },
+          improve: { source: 'selectionOrAll' },
+          summarize: { source: 'selectionOrAll' },
+          translate: { source: 'selectionOrAll' },
+          fixSpelling: { source: 'currentParagraph' }
+          // 自定义文本提取示例：
+          // generate: {
+          //   source: 'custom',
+          //   customExtractor: (editor) => {
+          //     // 自定义逻辑：获取当前行的文本
+          //     const { $from } = editor.state.selection
+          //     const lineStart = $from.start($from.depth)
+          //     const lineEnd = $from.end($from.depth)
+          //     return editor.state.doc.textBetween(lineStart, lineEnd)
+          //   }
+          // }
+        },
+
+        // 回调函数
+        onLoading: () => {
+          logger.info('AI生成开始...')
+        },
+        onChunk: ({ response }) => {
+          logger.debug('AI流式更新', { response })
+        },
+        onSuccess: ({ response }) => {
+          logger.info('AI生成完成', { response })
+        },
+        onError: (error) => {
+          logger.error('AI生成错误', error)
+        }
       })
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps

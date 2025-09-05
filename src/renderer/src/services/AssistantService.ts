@@ -7,6 +7,13 @@ import {
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
 import { isQwenMTModel } from '@renderer/config/models'
+import {
+  AI_COMPLETE_PROMPT,
+  AI_FIX_SPELLING_PROMPT,
+  AI_GENERATE_PROMPT,
+  AI_IMPROVE_PROMPT,
+  AI_SUMMARIZE_PROMPT
+} from '@renderer/config/prompts'
 import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -207,6 +214,158 @@ export async function createAssistantFromAgent(agent: Agent) {
     content: i18n.t('message.assistant.added.content'),
     key: 'assistant-added'
   })
+
+  return assistant
+}
+
+// ============================================================================
+// AI Extension Assistants - AI扩展助手创建函数
+// ============================================================================
+
+/**
+ * 创建AI生成助手 - 用于创建新内容
+ */
+export function getAiGenerateAssistant(): Assistant {
+  const quickModel = getQuickModel()
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.id = 'ai-generate'
+  assistant.name = 'AI Generate'
+  assistant.emoji = '✨'
+  assistant.prompt = AI_GENERATE_PROMPT
+  assistant.model = quickModel
+  assistant.settings = {
+    temperature: 0.8, // 较高创造性
+    enableTemperature: true,
+    contextCount: DEFAULT_CONTEXTCOUNT,
+    enableMaxTokens: false,
+    maxTokens: 0,
+    streamOutput: true,
+    topP: 0.9,
+    enableTopP: true,
+    toolUseMode: 'prompt',
+    customParameters: []
+  }
+
+  return assistant
+}
+
+/**
+ * 创建AI补全助手 - 用于文本补全
+ */
+export function getAiCompleteAssistant(): Assistant {
+  const quickModel = getQuickModel()
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.id = 'ai-complete'
+  assistant.name = 'AI Complete'
+  assistant.emoji = '🔄'
+  assistant.prompt = AI_COMPLETE_PROMPT
+  assistant.model = quickModel
+  assistant.settings = {
+    temperature: 0.7, // 中等创造性
+    enableTemperature: true,
+    contextCount: DEFAULT_CONTEXTCOUNT,
+    enableMaxTokens: false,
+    maxTokens: 0,
+    streamOutput: true, // 改为true以支持Tab补全的流式预览
+    topP: 0.8,
+    enableTopP: true,
+    toolUseMode: 'prompt',
+    customParameters: []
+  }
+
+  return assistant
+}
+
+/**
+ * 创建AI改进助手 - 用于文本改进
+ */
+export function getAiImproveAssistant(): Assistant {
+  const quickModel = getQuickModel()
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.id = 'ai-improve'
+  assistant.name = 'AI Improve'
+  assistant.emoji = '📝'
+  assistant.prompt = AI_IMPROVE_PROMPT
+  assistant.model = quickModel
+  assistant.settings = {
+    temperature: 0.3, // 较低创造性，注重准确性
+    enableTemperature: true,
+    contextCount: DEFAULT_CONTEXTCOUNT,
+    enableMaxTokens: false,
+    maxTokens: 0,
+    streamOutput: true,
+    topP: 0.7,
+    enableTopP: true,
+    toolUseMode: 'prompt',
+    customParameters: []
+  }
+
+  return assistant
+}
+
+/**
+ * 创建AI总结助手 - 用于文本总结
+ */
+export function getAiSummarizeAssistant(): Assistant {
+  const quickModel = getQuickModel()
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.id = 'ai-summarize'
+  assistant.name = 'AI Summarize'
+  assistant.emoji = '📋'
+  assistant.prompt = AI_SUMMARIZE_PROMPT
+  assistant.model = quickModel
+  assistant.settings = {
+    temperature: 0.2, // 低创造性，注重准确性
+    enableTemperature: true,
+    contextCount: DEFAULT_CONTEXTCOUNT,
+    enableMaxTokens: false,
+    maxTokens: 0,
+    streamOutput: true,
+    topP: 0.6,
+    enableTopP: true,
+    toolUseMode: 'prompt',
+    customParameters: []
+  }
+
+  return assistant
+}
+
+/**
+ * 创建AI翻译助手 - 复用现有的翻译助手逻辑
+ * 注意：这个函数需要目标语言和文本参数，所以在使用时需要动态创建
+ */
+export function getAiTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
+  return getDefaultTranslateAssistant(targetLanguage, text)
+}
+
+/**
+ * 创建AI拼写检查助手 - 用于拼写和语法检查
+ */
+export function getAiFixSpellingAssistant(): Assistant {
+  const quickModel = getQuickModel()
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.id = 'ai-fix-spelling'
+  assistant.name = 'AI Fix Spelling'
+  assistant.emoji = '✅'
+  assistant.prompt = AI_FIX_SPELLING_PROMPT
+  assistant.model = quickModel
+  assistant.settings = {
+    temperature: 0.1, // 极低创造性，注重准确性
+    enableTemperature: true,
+    contextCount: DEFAULT_CONTEXTCOUNT,
+    enableMaxTokens: false,
+    maxTokens: 0,
+    streamOutput: true,
+    topP: 0.5,
+    enableTopP: true,
+    toolUseMode: 'prompt',
+    customParameters: []
+  }
 
   return assistant
 }
