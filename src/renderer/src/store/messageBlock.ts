@@ -216,6 +216,15 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
             type: 'websearch'
           })) || []
         break
+      case WebSearchSource.AISDK:
+        formattedCitations =
+          (block.response.results as any[])?.map((result, index) => ({
+            number: index + 1,
+            url: result.url,
+            title: result.title,
+            providerMetadata: result?.providerMetadata
+          })) || []
+        break
     }
   }
   // 3. Handle Knowledge Base References

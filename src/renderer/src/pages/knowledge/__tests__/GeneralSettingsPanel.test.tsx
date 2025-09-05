@@ -31,8 +31,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // Mock InfoTooltip component
-vi.mock('@renderer/components/InfoTooltip', () => ({
-  default: ({ title, placement }: { title: string; placement: string }) => (
+vi.mock('@renderer/components/TooltipIcons', () => ({
+  InfoTooltip: ({ title, placement }: { title: string; placement: string }) => (
     <span data-testid="info-tooltip" title={title} data-placement={placement}>
       ℹ️
     </span>
@@ -137,18 +137,43 @@ vi.mock('antd', () => ({
       {children}
     </select>
   ),
-  Slider: ({ value, onChange, min, max, step, marks }: any) => (
-    <input
-      data-testid="document-count-slider"
-      type="range"
-      value={value}
-      onChange={(e) => onChange?.(Number(e.target.value))}
-      min={min}
-      max={max}
-      step={step}
-      data-marks={JSON.stringify(marks)}
-    />
-  )
+  Segmented: ({ value, onChange, options, style }: any) => (
+    <div data-testid="retriever-segmented" style={style}>
+      {options?.map((option: any) => (
+        <button
+          key={option.value}
+          type="button"
+          data-testid={`segmented-option-${option.value}`}
+          onClick={() => onChange?.(option.value)}
+          data-active={value === option.value}
+          style={{
+            backgroundColor: value === option.value ? '#1677ff' : '#fff',
+            color: value === option.value ? '#fff' : '#000'
+          }}>
+          {option.label}
+        </button>
+      ))}
+    </div>
+  ),
+  Slider: ({ value, onChange, min, max, step, marks, style }: any) => {
+    // Determine test ID based on slider characteristics
+    const isWeightSlider = min === 0 && max === 1 && step === 0.1
+    const testId = isWeightSlider ? 'weight-slider' : 'document-count-slider'
+
+    return (
+      <input
+        data-testid={testId}
+        type="range"
+        value={value}
+        onChange={(e) => onChange?.(Number(e.target.value))}
+        min={min}
+        max={max}
+        step={step}
+        style={style}
+        data-marks={JSON.stringify(marks)}
+      />
+    )
+  }
 }))
 
 /**
@@ -168,10 +193,14 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     id: 'test-base-id',
     name: 'Test Knowledge Base',
     model: defaultModel,
+    retriever: {
+      mode: 'hybrid'
+    },
     items: [],
     created_at: Date.now(),
     updated_at: Date.now(),
     version: 1,
+    framework: 'langchain',
     ...overrides
   }
 }
@@ -288,6 +317,42 @@ describe('GeneralSettingsPanel', () => {
       fireEvent.change(documentCountSlider, { target: { value: '10' } })
 
       expect(mockSetNewBase).toHaveBeenCalledWith(expect.any(Function))
+    })
+
+    it('should handle hybrid weight change', async () => {
+      renderComponent()
+
+      const weightSlider = screen.getByTestId('weight-slider')
+      fireEvent.change(weightSlider, { target: { value: '0.7' } })
+
+      expect(mockSetNewBase).toHaveBeenCalledWith({
+        ...mockBase,
+        retriever: {
+          ...mockBase.retriever,
+          mode: 'hybrid',
+          weight: 0.7
+        }
+      })
+    })
+
+    it('should handle retriever selection change', async () => {
+      renderComponent()
+
+      // Test clicking on hybrid retriever option
+      const hybridOption = screen.getByTestId('segmented-option-hybrid')
+      await user.click(hybridOption)
+
+      expect(mockSetNewBase).toHaveBeenCalledWith({
+        ...mockBase,
+        retriever: { mode: 'hybrid' }
+      })
+    })
+
+    it('should not render retriever segmented when framework is embedjs', () => {
+      const baseWithEmbedjs = createKnowledgeBase({ framework: 'embedjs' })
+      renderComponent({ newBase: baseWithEmbedjs })
+
+      expect(screen.queryByTestId('retriever-segmented')).not.toBeInTheDocument()
     })
 
     it('should disable dimension input when no model is selected', () => {

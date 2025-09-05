@@ -11,7 +11,6 @@ import {
   setNavbarPosition,
   setPinTopicsToTop,
   setSendMessageShortcut as _setSendMessageShortcut,
-  setShowTokens,
   setSidebarIcons,
   setTargetLanguage,
   setTestChannel as _setTestChannel,
@@ -101,9 +100,6 @@ export function useSettings() {
     setAssistantIconType(assistantIconType: AssistantIconType) {
       dispatch(setAssistantIconType(assistantIconType))
     },
-    setShowTokens(showTokens: boolean) {
-      dispatch(setShowTokens(showTokens))
-    },
     setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
       dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
       window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
@@ -120,7 +116,7 @@ export function useMessageStyle() {
   }
 }
 
-export const getStoreSetting = (key: keyof SettingsState) => {
+export const getStoreSetting = <K extends keyof SettingsState>(key: K): SettingsState[K] => {
   return store.getState().settings[key]
 }
 

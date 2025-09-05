@@ -71,15 +71,27 @@ const BlacklistSettings: FC = () => {
 
   function updateManualBlacklist(blacklist: string) {
     const blacklistDomains = blacklist.split('\n').filter((url) => url.trim() !== '')
-
     const validDomains: string[] = []
     const hasError = blacklistDomains.some((domain) => {
-      const parsed = parseMatchPattern(domain.trim())
-      if (parsed === null) {
-        return true // 有错误
+      const trimmedDomain = domain.trim()
+      // 正则表达式
+      if (trimmedDomain.startsWith('/') && trimmedDomain.endsWith('/')) {
+        try {
+          const regexPattern = trimmedDomain.slice(1, -1)
+          new RegExp(regexPattern, 'i')
+          validDomains.push(trimmedDomain)
+          return false
+        } catch (error) {
+          return true
+        }
+      } else {
+        const parsed = parseMatchPattern(trimmedDomain)
+        if (parsed === null) {
+          return true
+        }
+        validDomains.push(trimmedDomain)
+        return false
       }
-      validDomains.push(domain.trim())
-      return false
     })
 
     setErrFormat(hasError)
@@ -237,7 +249,9 @@ const BlacklistSettings: FC = () => {
         <Button onClick={() => updateManualBlacklist(blacklistInput)} style={{ marginTop: 10 }}>
           {t('common.save')}
         </Button>
-        {errFormat && <Alert message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />}
+        {errFormat && (
+          <Alert style={{ marginTop: 10 }} message={t('settings.tool.websearch.blacklist_tooltip')} type="error" />
+        )}
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>

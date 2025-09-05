@@ -3,7 +3,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import {
   createFolder,
   createNote,
@@ -20,6 +20,7 @@ import { selectActiveFilePath, selectSortType, setActiveFilePath, setSortType } 
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion } from 'framer-motion'
 import { debounce } from 'lodash'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +35,7 @@ const logger = loggerService.withContext('NotesPage')
 const NotesPage: FC = () => {
   const editorRef = useRef<RichEditorRef>(null)
   const { t } = useTranslation()
-  const { showWorkspace } = useSettings()
+  const { showWorkspace } = useShowWorkspace()
   const dispatch = useAppDispatch()
   const activeFilePath = useAppSelector(selectActiveFilePath)
   const sortType = useAppSelector(selectSortType)
@@ -51,8 +52,8 @@ const NotesPage: FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
   const watcherRef = useRef<(() => void) | null>(null)
   const isSyncingTreeRef = useRef(false)
-  const isEditorInitialized = useRef(false)
   const lastContentRef = useRef<string>('')
+  const lastFilePathRef = useRef<string | undefined>(undefined)
   const isInitialSortApplied = useRef(false)
   const isRenamingRef = useRef(false)
   const isCreatingNoteRef = useRef(false)
@@ -82,13 +83,14 @@ const NotesPage: FC = () => {
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
-    async (content: string) => {
-      if (!activeFilePath || content === currentContent) return
+    async (content: string, filePath?: string) => {
+      const targetPath = filePath || activeFilePath
+      if (!targetPath || content.trim() === currentContent.trim()) return
 
       try {
-        await window.api.file.write(activeFilePath, content)
+        await window.api.file.write(targetPath, content)
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
-        invalidateFileContent(activeFilePath)
+        invalidateFileContent(targetPath)
       } catch (error) {
         logger.error('Failed to save note:', error as Error)
       }
@@ -99,19 +101,21 @@ const NotesPage: FC = () => {
   // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
   const debouncedSave = useMemo(
     () =>
-      debounce((content: string) => {
-        saveCurrentNote(content)
+      debounce((content: string, filePath: string | undefined) => {
+        saveCurrentNote(content, filePath)
       }, 800), // 800ms防抖延迟
     [saveCurrentNote]
   )
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
-      // 记录最新内容，用于兜底保存
+      // 记录最新内容和文件路径，用于兜底保存
       lastContentRef.current = newMarkdown
-      debouncedSave(newMarkdown)
+      lastFilePathRef.current = activeFilePath
+      // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
+      debouncedSave(newMarkdown, activeFilePath)
     },
-    [debouncedSave]
+    [debouncedSave, activeFilePath]
   )
 
   useEffect(() => {
@@ -148,16 +152,16 @@ const NotesPage: FC = () => {
   // 处理树同步时的状态管理
   useEffect(() => {
     if (notesTree.length === 0) return
-
     // 如果有activeFilePath但找不到对应节点，清空选择
     // 但要排除正在同步树结构、重命名或创建笔记的情况，避免在这些操作中误清空
-    if (
-      activeFilePath &&
-      !activeNode &&
-      !isSyncingTreeRef.current &&
-      !isRenamingRef.current &&
-      !isCreatingNoteRef.current
-    ) {
+    const shouldClearPath =
+      activeFilePath && !activeNode && !isSyncingTreeRef.current && !isRenamingRef.current && !isCreatingNoteRef.current
+
+    if (shouldClearPath) {
+      logger.warn('Clearing activeFilePath - node not found in tree', {
+        activeFilePath,
+        reason: 'Node not found in current tree'
+      })
       dispatch(setActiveFilePath(undefined))
     }
   }, [notesTree, activeFilePath, activeNode, dispatch])
@@ -257,8 +261,8 @@ const NotesPage: FC = () => {
       })
 
       // 如果有未保存的内容，立即保存
-      if (lastContentRef.current && lastContentRef.current !== currentContent) {
-        saveCurrentNote(lastContentRef.current).catch((error) => {
+      if (lastContentRef.current && lastContentRef.current !== currentContent && lastFilePathRef.current) {
+        saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
           logger.error('Emergency save failed:', error as Error)
         })
       }
@@ -279,25 +283,35 @@ const NotesPage: FC = () => {
   ])
 
   useEffect(() => {
-    if (currentContent && editorRef.current) {
-      editorRef.current.setMarkdown(currentContent)
-      // 标记编辑器已初始化
-      isEditorInitialized.current = true
+    const editor = editorRef.current
+    if (!editor || !currentContent) return
+    // 获取编辑器当前内容
+    const editorMarkdown = editor.getMarkdown()
+
+    // 只有当编辑器内容与期望内容不一致时才更新
+    // 这样既能处理初始化，也能处理后续的内容同步，还能避免光标跳动
+    if (editorMarkdown !== currentContent) {
+      editor.setMarkdown(currentContent)
     }
   }, [currentContent, activeFilePath])
 
-  // 切换文件时重置编辑器初始化状态并兜底保存
+  // 切换文件时的清理工作
   useEffect(() => {
-    if (lastContentRef.current && lastContentRef.current !== currentContent) {
-      saveCurrentNote(lastContentRef.current).catch((error) => {
-        logger.error('Emergency save before file switch failed:', error as Error)
-      })
-    }
+    return () => {
+      // 保存之前文件的内容
+      if (lastContentRef.current && lastFilePathRef.current) {
+        saveCurrentNote(lastContentRef.current, lastFilePathRef.current).catch((error) => {
+          logger.error('Emergency save before file switch failed:', error as Error)
+        })
+      }
 
-    // 重置状态
-    isEditorInitialized.current = false
-    lastContentRef.current = ''
-  }, [activeFilePath, currentContent, saveCurrentNote])
+      // 取消防抖保存并清理状态
+      debouncedSave.cancel()
+      lastContentRef.current = ''
+      lastFilePathRef.current = undefined
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFilePath])
 
   // 获取目标文件夹路径（选中文件夹或根目录）
   const getTargetFolderPath = useCallback(() => {
@@ -425,6 +439,7 @@ const NotesPage: FC = () => {
       if (node.type === 'file') {
         try {
           dispatch(setActiveFilePath(node.externalPath))
+          invalidateFileContent(node.externalPath)
           // 清除文件夹选择状态
           setSelectedFolderId(null)
         } catch (error) {
@@ -435,7 +450,7 @@ const NotesPage: FC = () => {
         await handleToggleExpanded(node.id)
       }
     },
-    [dispatch, handleToggleExpanded]
+    [dispatch, handleToggleExpanded, invalidateFileContent]
   )
 
   // 删除节点
@@ -586,22 +601,31 @@ const NotesPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('notes.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        {showWorkspace && (
-          <NotesSidebar
-            notesTree={notesTree}
-            selectedFolderId={selectedFolderId}
-            onSelectNode={handleSelectNode}
-            onCreateFolder={handleCreateFolder}
-            onCreateNote={handleCreateNote}
-            onDeleteNode={handleDeleteNode}
-            onRenameNode={handleRenameNode}
-            onToggleExpanded={handleToggleExpanded}
-            onToggleStar={handleToggleStar}
-            onMoveNode={handleMoveNode}
-            onSortNodes={handleSortNodes}
-            onUploadFiles={handleUploadFiles}
-          />
-        )}
+        <AnimatePresence initial={false}>
+          {showWorkspace && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 250, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <NotesSidebar
+                notesTree={notesTree}
+                selectedFolderId={selectedFolderId}
+                onSelectNode={handleSelectNode}
+                onCreateFolder={handleCreateFolder}
+                onCreateNote={handleCreateNote}
+                onDeleteNode={handleDeleteNode}
+                onRenameNode={handleRenameNode}
+                onToggleExpanded={handleToggleExpanded}
+                onToggleStar={handleToggleStar}
+                onMoveNode={handleMoveNode}
+                onSortNodes={handleSortNodes}
+                onUploadFiles={handleUploadFiles}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
         <EditorWrapper>
           <HeaderNavbar notesTree={notesTree} getCurrentNoteContent={getCurrentNoteContent} />
           <NotesEditor

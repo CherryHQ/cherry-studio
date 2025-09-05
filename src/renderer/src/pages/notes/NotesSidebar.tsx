@@ -303,6 +303,14 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           onClick: () => {
             handleStartEdit(node)
           }
+        },
+        {
+          label: t('notes.open_outside'),
+          key: 'open_outside',
+          icon: <FolderOpen size={14} />,
+          onClick: () => {
+            window.api.openPath(node.externalPath)
+          }
         }
       ]
       if (node.type !== 'folder') {
@@ -520,9 +528,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
 const SidebarContainer = styled.div`
   width: 250px;
+  min-width: 250px;
   height: 100vh;
   background-color: var(--color-background);
-  border-right: 1px solid var(--color-border);
+  border-right: 0.5px solid var(--color-border);
   border-top-left-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -568,7 +577,7 @@ const TreeNodeContainer = styled.div<{
     if (props.active) return 'var(--color-background-soft)'
     return 'transparent'
   }};
-  border: 1px solid
+  border: 0.5px solid
     ${(props) => {
       if (props.isDragInside) return 'var(--color-primary)'
       if (props.active) return 'var(--color-border)'
@@ -669,7 +678,7 @@ const EditInput = styled(Input)`
   .ant-input {
     font-size: 13px;
     padding: 2px 6px;
-    border: 1px solid var(--color-primary);
+    border: 0.5px solid var(--color-primary);
   }
 `
 

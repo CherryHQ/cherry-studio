@@ -5,6 +5,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryin'
+import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
@@ -24,7 +25,7 @@ import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import KnowledgeService from './services/KnowledgeService'
+import KnowledgeService from './services/knowledge/KnowledgeService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
@@ -524,7 +525,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  // knowledge base
   ipcMain.handle(IpcChannel.KnowledgeBase_Create, KnowledgeService.create.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Reset, KnowledgeService.reset.bind(KnowledgeService))
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, KnowledgeService.delete.bind(KnowledgeService))
@@ -586,6 +586,41 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     checkMainWindow()
     const [width, height] = mainWindow.getSize() ?? [MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT]
     return [width, height]
+  })
+
+  // Window Controls
+  ipcMain.handle(IpcChannel.Windows_Minimize, () => {
+    checkMainWindow()
+    mainWindow.minimize()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_Maximize, () => {
+    checkMainWindow()
+    mainWindow.maximize()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_Unmaximize, () => {
+    checkMainWindow()
+    mainWindow.unmaximize()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_Close, () => {
+    checkMainWindow()
+    mainWindow.close()
+  })
+
+  ipcMain.handle(IpcChannel.Windows_IsMaximized, () => {
+    checkMainWindow()
+    return mainWindow.isMaximized()
+  })
+
+  // Send maximized state changes to renderer
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, true)
+  })
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send(IpcChannel.Windows_MaximizedChanged, false)
   })
 
   // VertexAI
@@ -746,6 +781,16 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     (_, spanId: string, modelName: string, context: string, msg: any) =>
       addStreamMessage(spanId, modelName, context, msg)
   )
+
+  // Anthropic OAuth
+  ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())
+  ipcMain.handle(IpcChannel.Anthropic_CompleteOAuthWithCode, (_, code: string) =>
+    anthropicService.completeOAuthWithCode(code)
+  )
+  ipcMain.handle(IpcChannel.Anthropic_CancelOAuthFlow, () => anthropicService.cancelOAuthFlow())
+  ipcMain.handle(IpcChannel.Anthropic_GetAccessToken, () => anthropicService.getValidAccessToken())
+  ipcMain.handle(IpcChannel.Anthropic_HasCredentials, () => anthropicService.hasCredentials())
+  ipcMain.handle(IpcChannel.Anthropic_ClearCredentials, () => anthropicService.clearCredentials())
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)

@@ -83,7 +83,7 @@ export enum IpcChannel {
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
-
+  Mcp_Progress = 'mcp:progress',
   // Python
   Python_Execute = 'python:execute',
 
@@ -123,6 +123,12 @@ export enum IpcChannel {
   Windows_SetMinimumSize = 'window:set-minimum-size',
   Windows_Resize = 'window:resize',
   Windows_GetSize = 'window:get-size',
+  Windows_Minimize = 'window:minimize',
+  Windows_Maximize = 'window:maximize',
+  Windows_Unmaximize = 'window:unmaximize',
+  Windows_Close = 'window:close',
+  Windows_IsMaximized = 'window:is-maximized',
+  Windows_MaximizedChanged = 'window:maximized-changed',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
@@ -295,6 +301,14 @@ export enum IpcChannel {
   TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
   TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+
+  // Anthropic OAuth
+  Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
+  Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',
+  Anthropic_CancelOAuthFlow = 'anthropic:cancel-oauth-flow',
+  Anthropic_GetAccessToken = 'anthropic:get-access-token',
+  Anthropic_HasCredentials = 'anthropic:has-credentials',
+  Anthropic_ClearCredentials = 'anthropic:clear-credentials',
 
   // CodeTools
   CodeTools_Run = 'code-tools:run',

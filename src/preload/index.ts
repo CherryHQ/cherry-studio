@@ -1,4 +1,3 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
@@ -14,6 +13,7 @@ import {
   FileUploadResponse,
   KnowledgeBaseParams,
   KnowledgeItem,
+  KnowledgeSearchResult,
   MCPServer,
   MemoryConfig,
   MemoryListOptions,
@@ -166,7 +166,8 @@ const api = {
     selectFolder: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_SelectFolder, options),
     saveImage: (name: string, data: string) => ipcRenderer.invoke(IpcChannel.File_SaveImage, name, data),
     binaryImage: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_BinaryImage, fileId),
-    base64Image: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
+    base64Image: (fileId: string): Promise<{ mime: string; base64: string; data: string }> =>
+      ipcRenderer.invoke(IpcChannel.File_Base64Image, fileId),
     saveBase64Image: (data: string) => ipcRenderer.invoke(IpcChannel.File_SaveBase64Image, data),
     savePastedImage: (imageData: Uint8Array, extension?: string) =>
       ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
@@ -215,7 +216,7 @@ const api = {
     create: (base: KnowledgeBaseParams, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Create, context, base),
     reset: (base: KnowledgeBaseParams) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Reset, base),
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id),
+    delete: (base: KnowledgeBaseParams, id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, base, id),
     add: ({
       base,
       item,
@@ -232,7 +233,7 @@ const api = {
     search: ({ search, base }: { search: string; base: KnowledgeBaseParams }, context?: SpanContext) =>
       tracedInvoke(IpcChannel.KnowledgeBase_Search, context, { search, base }),
     rerank: (
-      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] },
+      { search, base, results }: { search: string; base: KnowledgeBaseParams; results: KnowledgeSearchResult[] },
       context?: SpanContext
     ) => tracedInvoke(IpcChannel.KnowledgeBase_Rerank, context, { search, base, results }),
     checkQuota: ({ base, userId }: { base: KnowledgeBaseParams; userId: string }) =>
@@ -421,6 +422,14 @@ const api = {
     addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
       ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
   },
+  anthropic_oauth: {
+    startOAuthFlow: () => ipcRenderer.invoke(IpcChannel.Anthropic_StartOAuthFlow),
+    completeOAuthWithCode: (code: string) => ipcRenderer.invoke(IpcChannel.Anthropic_CompleteOAuthWithCode, code),
+    cancelOAuthFlow: () => ipcRenderer.invoke(IpcChannel.Anthropic_CancelOAuthFlow),
+    getAccessToken: () => ipcRenderer.invoke(IpcChannel.Anthropic_GetAccessToken),
+    hasCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_HasCredentials),
+    clearCredentials: () => ipcRenderer.invoke(IpcChannel.Anthropic_ClearCredentials)
+  },
   codeTools: {
     run: (
       cliTool: string,
@@ -437,6 +446,20 @@ const api = {
   cherryin: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
+  },
+  windowControls: {
+    minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Minimize),
+    maximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Maximize),
+    unmaximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Unmaximize),
+    close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Close),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
+    onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
+      const channel = IpcChannel.Windows_MaximizedChanged
+      ipcRenderer.on(channel, (_, isMaximized: boolean) => callback(isMaximized))
+      return () => {
+        ipcRenderer.removeAllListeners(channel)
+      }
+    }
   }
 }
 

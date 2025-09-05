@@ -1,42 +1,34 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`Hyperlink > should match snapshot for normal url 1`] = `
-.c0 {
-  color: var(--color-text);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.c0 span {
-  max-width: min(400px,70vw);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 <div>
   <div
     data-arrow="false"
-    data-color="var(--color-background)"
     data-placement="top"
-    data-styles="{"body":{"border":"1px solid var(--color-border)","padding":"12px","borderRadius":"8px"}}"
+    data-styles="{"body":{"padding":0,"borderRadius":"8px","overflow":"hidden"}}"
     data-testid="popover"
   >
     <div
       data-testid="popover-content"
     >
       <div
-        class="c0"
+        data-testid="og-card"
       >
         <img
           alt="https://example.com/path with space"
           data-hostname="example.com"
           data-testid="favicon"
         />
-        <span>
+        <div
+          data-testid="title"
+        >
+          example.com
+        </div>
+        <div
+          data-testid="text"
+        >
           https://example.com/path with space
-        </span>
+        </div>
       </div>
     </div>
     <div

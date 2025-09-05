@@ -45,7 +45,7 @@ export const useTimer = () => {
 
   // 组件卸载时自动清理所有定时器
   useEffect(() => {
-    return clearAllTimers
+    return () => clearAllTimers()
   }, [])
 
   /**

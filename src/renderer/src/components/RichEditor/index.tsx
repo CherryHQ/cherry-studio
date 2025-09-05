@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { ContentSearch, type ContentSearchRef } from '@renderer/components/ContentSearch'
 import DragHandle from '@tiptap/extension-drag-handle-react'
 import { EditorContent } from '@tiptap/react'
@@ -26,6 +27,7 @@ import { ToC } from './TableOfContent'
 import { Toolbar } from './toolbar'
 import type { FormattingCommand, RichEditorProps, RichEditorRef } from './types'
 import { useRichEditor } from './useRichEditor'
+const logger = loggerService.withContext('RichEditor')
 
 const RichEditor = ({
   ref,
@@ -290,6 +292,7 @@ const RichEditor = ({
                   const end = $from.end()
                   editor.chain().focus().setTextSelection({ from: start, to: end }).setEnhancedLink({ href: url }).run()
                 } catch (error) {
+                  logger.warn('Failed to set enhanced link:', error as Error)
                   editor.chain().focus().toggleEnhancedLink({ href: '' }).run()
                 }
               } else {
