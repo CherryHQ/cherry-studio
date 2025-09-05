@@ -537,7 +537,9 @@ const MinappPopupContainer: React.FC = () => {
         wrapper: {
           position: 'fixed',
           marginLeft: isLeftNavbar ? 'var(--sidebar-width)' : 0,
-          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0,
+          marginTop: isTopNavbar ? 'var(--navbar-height)' : 0
+        },
+        content: {
           backgroundColor: window.root.style.background
         }
       }}>
