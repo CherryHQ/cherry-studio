@@ -9,8 +9,8 @@ on:
 jobs:
   translate:
     if: |
-      github.event_name == 'issues' && !contains(github.event.issue.body, '**English Translation:**') ||
-      github.event_name == 'issue_comment' && !contains(github.event.comment.body, '**English Translation:**')
+      (github.event_name == 'issues' && !contains(github.event.issue.body, '**English Translation:**')) ||
+      (github.event_name == 'issue_comment' && !contains(github.event.comment.body, '**English Translation:**'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,15 +49,15 @@ jobs:
                  [原始内容]
 
             4. 使用gh工具更新：
-               - 如果是issue：
-                 gh issue edit ${{ github.event.issue.number }} --title "英文标题" --body "翻译内容 + 原始内容"
-               - 如果是comment：
-                 gh api -X PATCH /repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }} -f body="翻译内容 + 原始内容"
+               - 根据环境信息中的Event类型选择正确的命令：
+                 - 如果Event是'issues'：gh issue edit [ISSUE_NUMBER] --title "[英文标题]" --body "[翻译内容 + 原始内容]"
+                 - 如果Event是'issue_comment'：gh api -X PATCH /repos/[REPO]/issues/comments/[COMMENT_ID] -f body="[翻译内容 + 原始内容]"
 
             环境信息：
             - Event: ${{ github.event_name }}
             - Issue Number: ${{ github.event.issue.number }}
             - Repository: ${{ github.repository }}
+            - Comment ID: ${{ github.event.comment.id || 'N/A' }} (only available for comment events)
 
             使用以下命令获取完整信息：
             gh issue view ${{ github.event.issue.number }} --json title,body,comments
