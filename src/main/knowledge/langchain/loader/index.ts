@@ -153,8 +153,7 @@ export async function addWebLoader(
     case 'youtube':
       loaderInstance = YoutubeLoader.createFromUrl(url, {
         addVideoInfo: true,
-        transcriptFormat: 'srt',
-        language: 'zh'
+        transcriptFormat: 'srt'
       })
       splitterType = 'srt'
       break
