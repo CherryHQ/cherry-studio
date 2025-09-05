@@ -119,3 +119,13 @@ export const isSerializedAiSdkMessageConversionError = (
 ): error is SerializedAiSdkMessageConversionError => {
   return isSerializedAiSdkError(error) && 'originalMessage' in error
 }
+
+export interface SerializedAiSdkNoAudioGeneratedError extends SerializedAiSdkError {
+  readonly responses: string[]
+}
+
+export const isSerializedAiSdkNoAudioGeneratedError = (
+  error: SerializedError
+): error is SerializedAiSdkNoAudioGeneratedError => {
+  return isSerializedAiSdkError(error) && 'responses' in error
+}
