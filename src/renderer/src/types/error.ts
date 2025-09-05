@@ -107,5 +107,15 @@ export interface SerializedAiSdkJSONParseError extends SerializedAiSdkError {
 }
 
 export const isSerializedAiSdkJSONParseError = (error: SerializedError): error is SerializedAiSdkJSONParseError => {
-  return isSerializedAiSdkError(error) && 'text' in error
+  return isSerializedAiSdkError(error) && 'text' in error && 'message' in error
+}
+
+export interface SerializedAiSdkMessageConversionError extends SerializedAiSdkError {
+  readonly originalMessage: Serializable
+}
+
+export const isSerializedAiSdkMessageConversionError = (
+  error: SerializedError
+): error is SerializedAiSdkMessageConversionError => {
+  return isSerializedAiSdkError(error) && 'originalMessage' in error
 }
