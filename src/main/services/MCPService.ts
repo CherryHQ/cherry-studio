@@ -27,6 +27,8 @@ import {
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { nanoid } from '@reduxjs/toolkit'
+import { MCPProgressEvent } from '@shared/config/types'
+import { IpcChannel } from '@shared/IpcChannel'
 import {
   BuiltinMCPServerNames,
   type GetResourceResponse,
@@ -689,7 +691,10 @@ class McpService {
             })
             const mainWindow = windowService.getMainWindow()
             if (mainWindow) {
-              mainWindow.webContents.send('mcp-progress', process.progress / (process.total || 1))
+              mainWindow.webContents.send(IpcChannel.Mcp_Progress, {
+                callId: toolCallId,
+                progress: process.progress / (process.total || 1)
+              } as MCPProgressEvent)
             }
           },
           timeout: server.timeout ? server.timeout * 1000 : 60000, // Default timeout of 1 minute,
