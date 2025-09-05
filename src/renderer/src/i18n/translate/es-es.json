@@ -773,7 +773,7 @@
     "more": "Más",
     "name": "Nombre",
     "no_results": "Sin resultados",
-    "none": "[to be translated]:无",
+    "none": "无",
     "open": "Abrir",
     "paste": "Pegar",
     "preview": "Vista previa",
@@ -818,8 +818,8 @@
     "openai-response": "Respuesta de OpenAI"
   },
   "error": {
-    "availableProviders": "[to be translated]:可用提供商",
-    "availableTools": "[to be translated]:可用工具",
+    "availableProviders": "Proveedores disponibles",
+    "availableTools": "Herramientas disponibles",
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
@@ -844,13 +844,13 @@
       "quota_exceeded": "Su cuota gratuita diaria de {{quota}} tokens se ha agotado. Por favor, vaya a <provider>{{provider}}</provider> para obtener una clave API y configurar la clave API para continuar usando.",
       "response": "Ha ocurrido un error, si no ha configurado la clave API, vaya a Configuración > Proveedor de modelos para configurar la clave"
     },
-    "content": "[to be translated]:内容",
+    "content": "contenido",
     "data": "datos",
     "detail": "Detalles del error",
     "details": "Detalles",
-    "errors": "[to be translated]:错误",
-    "finishReason": "[to be translated]:结束原因",
-    "functionality": "[to be translated]:功能",
+    "errors": "error",
+    "finishReason": "Razón de finalización",
+    "functionality": "función",
     "http": {
       "400": "Error en la solicitud, revise si los parámetros de la solicitud son correctos. Si modificó la configuración del modelo, restablezca a la configuración predeterminada",
       "401": "Fallo en la autenticación, revise si la clave API es correcta",
@@ -862,23 +862,23 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
-    "lastError": "[to be translated]:最后错误",
-    "maxEmbeddingsPerCall": "[to be translated]:每次调用的最大嵌入",
+    "lastError": "最后错误",
+    "maxEmbeddingsPerCall": "máximo de incrustaciones por llamada",
     "message": "错误信息",
     "missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
     "model": {
       "exists": "El modelo ya existe",
       "not_exists": "El modelo no existe"
     },
-    "modelId": "[to be translated]:模型 ID",
-    "modelType": "[to be translated]:模型类型",
+    "modelId": "ID del modelo",
+    "modelType": "Tipo de modelo",
     "name": "Nombre de error",
     "no_api_key": "La clave API no está configurada",
-    "originalError": "[to be translated]:原错误",
-    "originalMessage": "[to be translated]:原消息",
-    "parameter": "[to be translated]:参数",
+    "originalError": "Error original",
+    "originalMessage": "mensaje original",
+    "parameter": "parámetro",
     "pause_placeholder": "Interrumpido",
-    "prompt": "[to be translated]:提示词",
+    "prompt": "prompt",
     "provider": "[to be translated]:提供商",
     "providerId": "[to be translated]:提供商 ID",
     "provider_disabled": "El proveedor de modelos no está habilitado",
@@ -905,8 +905,8 @@
     "unknown": "Error desconocido",
     "usage": "[to be translated]:用量",
     "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
-    "value": "[to be translated]:值",
-    "values": "[to be translated]:值"
+    "value": "Valor",
+    "values": "Valor"
   },
   "export": {
     "assistant": "Asistente",
