@@ -2,8 +2,12 @@ import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
-import { isFunctionCallingModel, isNotSupportedTextDelta } from '@renderer/config/models'
-import { glm45FlashModel, SYSTEM_MODELS } from '@renderer/config/models/default'
+import {
+  glm45FlashModel,
+  isFunctionCallingModel,
+  isNotSupportedTextDelta,
+  SYSTEM_MODELS
+} from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import {
