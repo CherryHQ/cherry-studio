@@ -16,6 +16,8 @@ const RestoreIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
   </svg>
 )
 
+const DEFAULT_DELAY = 1
+
 const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
@@ -55,7 +57,7 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
-      <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={0.2}>
+      <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMinimize} aria-label="Minimize">
           <Minus size={14} />
         </ControlButton>
@@ -63,12 +65,12 @@ const WindowControls: React.FC = () => {
       <Tooltip
         title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
         placement="bottom"
-        mouseEnterDelay={0.2}>
+        mouseEnterDelay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
           {isMaximized ? <RestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
-      <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={0.2}>
+      <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
         <ControlButton $isClose onClick={handleClose} aria-label="Close">
           <X size={17} />
         </ControlButton>
