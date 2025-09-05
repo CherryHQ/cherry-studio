@@ -459,9 +459,7 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
         </>
       )}
 
-      {(isSerializedAiSdkJSONParseError(error) ||
-        isSerializedAiSdkNoObjectGeneratedError(error) ||
-        isSerializedAiSdkNoObjectGeneratedError(error)) && (
+      {(isSerializedAiSdkJSONParseError(error) || isSerializedAiSdkNoObjectGeneratedError(error)) && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.text')}:</ErrorDetailLabel>
           <ErrorDetailValue>{error.text}</ErrorDetailValue>
