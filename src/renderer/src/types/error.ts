@@ -1,3 +1,5 @@
+import { FinishReason } from 'ai'
+
 import { Serializable } from './serialize'
 
 export interface SerializedError {
@@ -128,4 +130,23 @@ export const isSerializedAiSdkNoAudioGeneratedError = (
   error: SerializedError
 ): error is SerializedAiSdkNoAudioGeneratedError => {
   return isSerializedAiSdkError(error) && 'responses' in error
+}
+
+export interface SerializedAiSdkNoObjectGeneratedError extends SerializedAiSdkError {
+  readonly text: string | null
+  readonly response: Serializable
+  readonly usage: Serializable
+  readonly finishReason: FinishReason | null
+}
+
+export const isSerializedAiSdkNoObjectGeneratedError = (
+  error: SerializedError
+): error is SerializedAiSdkNoObjectGeneratedError => {
+  return (
+    isSerializedAiSdkError(error) &&
+    'text' in error &&
+    'response' in error &&
+    'usage' in error &&
+    'finishReason' in error
+  )
 }

@@ -11,6 +11,7 @@ import {
   SerializedAiSdkInvalidToolInputError,
   SerializedAiSdkJSONParseError,
   SerializedAiSdkMessageConversionError,
+  SerializedAiSdkNoObjectGeneratedError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -23,7 +24,8 @@ import {
   InvalidPromptError,
   InvalidToolInputError,
   JSONParseError,
-  MessageConversionError
+  MessageConversionError,
+  NoObjectGeneratedError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -214,6 +216,17 @@ const serializeMessageConversionError = (error: MessageConversionError): Seriali
     ...baseError,
     originalMessage: safeSerialize(error.originalMessage)
   } satisfies SerializedAiSdkMessageConversionError
+}
+
+const serializeNoObjectGeneratedError = (error: NoObjectGeneratedError): SerializedAiSdkNoObjectGeneratedError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    text: error.text ?? null,
+    response: error.response ?? null,
+    usage: safeSerialize(error.usage),
+    finishReason: error.finishReason ?? null
+  } satisfies SerializedAiSdkNoObjectGeneratedError
 }
 
 export const serializeError = (error: AISDKError): SerializedError => {
