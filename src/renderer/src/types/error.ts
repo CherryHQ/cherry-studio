@@ -27,12 +27,31 @@ export interface SerializedAiSdkAPICallError extends SerializedAiSdkError {
   readonly data: Serializable | null
 }
 
+export const isSerializedAiSdkAPICallError = (error: SerializedError): error is SerializedAiSdkAPICallError => {
+  return (
+    isSerializedAiSdkError(error) &&
+    'url' in error &&
+    'requestBodyValues' in error &&
+    'statusCode' in error &&
+    'responseHeaders' in error &&
+    'responseBody' in error &&
+    'isRetryable' in error &&
+    'data' in error
+  )
+}
+
 export interface SerializedAiSdkDownloadError extends SerializedAiSdkError {
   readonly url: string
   readonly statusCode: number | null
   readonly statusText: string | null
 }
 
-export const isSerializedAiSdkAPICallError = (error: SerializedError): error is SerializedAiSdkAPICallError => {
-  return isSerializedAiSdkError(error) && 'url' in error && 'requestBodyValues' in error && 'isRetryable' in error
+export const isSerializedAiSdkDownloadError = (error: SerializedError): error is SerializedAiSdkDownloadError => {
+  return isSerializedAiSdkError(error) && 'url' in error && 'statusCode' in error && 'statusText' in error
+}
+
+export interface SerializedAiSdkInvalidArgumentError extends SerializedAiSdkError {
+  readonly url: string
+  readonly statusCode: number | null
+  readonly statusText: string | null
 }
