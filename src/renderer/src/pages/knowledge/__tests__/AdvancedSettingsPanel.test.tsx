@@ -78,6 +78,7 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     chunkSize: 500,
     chunkOverlap: 200,
     threshold: 0.5,
+    framework: 'langchain',
     ...overrides
   }
 }

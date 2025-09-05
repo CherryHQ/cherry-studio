@@ -1,111 +1,40 @@
-/**
- * Knowledge Service - Manages knowledge bases using RAG (Retrieval-Augmented Generation)
- *
- * This service handles creation, management, and querying of knowledge bases from various sources
- * including files, directories, URLs, sitemaps, and notes.
- *
- * Features:
- * - Concurrent task processing with workload management
- * - Multiple data source support
- * - Vector database integration
- *
- * For detailed documentation, see:
- * @see {@link ../../../docs/technical/KnowledgeService.md}
- */
-
 import * as fs from 'node:fs'
 import path from 'node:path'
 
 import { RAGApplication, RAGApplicationBuilder } from '@cherrystudio/embedjs'
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { LibSqlDb } from '@cherrystudio/embedjs-libsql'
 import { SitemapLoader } from '@cherrystudio/embedjs-loader-sitemap'
 import { WebLoader } from '@cherrystudio/embedjs-loader-web'
 import { loggerService } from '@logger'
-import Embeddings from '@main/knowledge/embeddings/Embeddings'
-import { addFileLoader } from '@main/knowledge/loader'
-import { NoteLoader } from '@main/knowledge/loader/noteLoader'
-import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
-import Reranker from '@main/knowledge/reranker/Reranker'
-import { fileStorage } from '@main/services/FileStorage'
-import { windowService } from '@main/services/WindowService'
-import { getDataPath } from '@main/utils'
+import Embeddings from '@main/knowledge/embedjs/embeddings/Embeddings'
+import { addFileLoader } from '@main/knowledge/embedjs/loader'
+import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
+import { preprocessingService } from '@main/knowledge/preprocess/PreprocessingService'
 import { getAllFiles } from '@main/utils/file'
-import { TraceMethod } from '@mcp-trace/trace-core'
 import { MB } from '@shared/config/constant'
-import type { LoaderReturn } from '@shared/config/types'
+import { LoaderReturn } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, KnowledgeBaseParams, KnowledgeItem } from '@types'
+import { FileMetadata, KnowledgeBaseParams, KnowledgeSearchResult } from '@types'
 import { v4 as uuidv4 } from 'uuid'
+
+import { windowService } from '../WindowService'
+import {
+  IKnowledgeFramework,
+  KnowledgeBaseAddItemOptionsNonNullableAttribute,
+  LoaderDoneReturn,
+  LoaderTask,
+  LoaderTaskItem,
+  LoaderTaskItemState
+} from './IKnowledgeFramework'
 
 const logger = loggerService.withContext('MainKnowledgeService')
 
-export interface KnowledgeBaseAddItemOptions {
-  base: KnowledgeBaseParams
-  item: KnowledgeItem
-  forceReload?: boolean
-  userId?: string
-}
-
-interface KnowledgeBaseAddItemOptionsNonNullableAttribute {
-  base: KnowledgeBaseParams
-  item: KnowledgeItem
-  forceReload: boolean
-  userId: string
-}
-
-interface EvaluateTaskWorkload {
-  workload: number
-}
-
-type LoaderDoneReturn = LoaderReturn | null
-
-enum LoaderTaskItemState {
-  PENDING,
-  PROCESSING,
-  DONE
-}
-
-interface LoaderTaskItem {
-  state: LoaderTaskItemState
-  task: () => Promise<unknown>
-  evaluateTaskWorkload: EvaluateTaskWorkload
-}
-
-interface LoaderTask {
-  loaderTasks: LoaderTaskItem[]
-  loaderDoneReturn: LoaderDoneReturn
-}
-
-interface LoaderTaskOfSet {
-  loaderTasks: Set<LoaderTaskItem>
-  loaderDoneReturn: LoaderDoneReturn
-}
-
-interface QueueTaskItem {
-  taskPromise: () => Promise<unknown>
-  resolve: () => void
-  evaluateTaskWorkload: EvaluateTaskWorkload
-}
-
-const loaderTaskIntoOfSet = (loaderTask: LoaderTask): LoaderTaskOfSet => {
-  return {
-    loaderTasks: new Set(loaderTask.loaderTasks),
-    loaderDoneReturn: loaderTask.loaderDoneReturn
-  }
-}
-
-class KnowledgeService {
-  private storageDir = path.join(getDataPath(), 'KnowledgeBase')
-  private pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete.json')
-  // Byte based
-  private workload = 0
-  private processingItemCount = 0
-  private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
+export class EmbedJsFramework implements IKnowledgeFramework {
+  private storageDir: string
   private ragApplications: Map<string, RAGApplication> = new Map()
+  private pendingDeleteFile: string
   private dbInstances: Map<string, LibSqlDb> = new Map()
-  private static MAXIMUM_WORKLOAD = 80 * MB
-  private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
+
   private static ERROR_LOADER_RETURN: LoaderReturn = {
     entriesAdded: 0,
     uniqueId: '',
@@ -114,7 +43,9 @@ class KnowledgeService {
     status: 'failed'
   }
 
-  constructor() {
+  constructor(storageDir: string) {
+    this.storageDir = storageDir
+    this.pendingDeleteFile = path.join(this.storageDir, 'knowledge_pending_delete.json')
     this.initStorageDir()
     this.cleanupOnStartup()
   }
@@ -229,33 +160,28 @@ class KnowledgeService {
     logger.info(`Startup cleanup completed: ${deletedCount}/${pendingDeleteIds.length} knowledge bases deleted`)
   }
 
-  private getRagApplication = async ({
-    id,
-    embedApiClient,
-    dimensions,
-    documentCount
-  }: KnowledgeBaseParams): Promise<RAGApplication> => {
-    if (this.ragApplications.has(id)) {
-      return this.ragApplications.get(id)!
+  private async getRagApplication(base: KnowledgeBaseParams): Promise<RAGApplication> {
+    if (this.ragApplications.has(base.id)) {
+      return this.ragApplications.get(base.id)!
     }
 
     let ragApplication: RAGApplication
     const embeddings = new Embeddings({
-      embedApiClient,
-      dimensions
+      embedApiClient: base.embedApiClient,
+      dimensions: base.dimensions
     })
     try {
-      const libSqlDb = new LibSqlDb({ path: path.join(this.storageDir, id) })
+      const libSqlDb = new LibSqlDb({ path: path.join(this.storageDir, base.id) })
       // Save database instance for later closing
-      this.dbInstances.set(id, libSqlDb)
+      this.dbInstances.set(base.id, libSqlDb)
 
       ragApplication = await new RAGApplicationBuilder()
         .setModel('NO_MODEL')
         .setEmbeddingModel(embeddings)
         .setVectorDatabase(libSqlDb)
-        .setSearchResultCount(documentCount || 30)
+        .setSearchResultCount(base.documentCount || 30)
         .build()
-      this.ragApplications.set(id, ragApplication)
+      this.ragApplications.set(base.id, ragApplication)
     } catch (e) {
       logger.error('Failed to create RAGApplication:', e as Error)
       throw new Error(`Failed to create RAGApplication: ${e}`)
@@ -263,17 +189,14 @@ class KnowledgeService {
 
     return ragApplication
   }
-
-  public create = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
+  async initialize(base: KnowledgeBaseParams): Promise<void> {
     await this.getRagApplication(base)
   }
-
-  public reset = async (_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> => {
-    const ragApplication = await this.getRagApplication(base)
-    await ragApplication.reset()
+  async reset(base: KnowledgeBaseParams): Promise<void> {
+    const ragApp = await this.getRagApplication(base)
+    await ragApp.reset()
   }
-
-  public async delete(_: Electron.IpcMainInvokeEvent, id: string): Promise<void> {
+  async delete(id: string): Promise<void> {
     logger.debug(`delete id: ${id}`)
 
     await this.cleanupKnowledgeResources(id)
@@ -286,15 +209,41 @@ class KnowledgeService {
       this.pendingDeleteManager.add(id)
     }
   }
-
-  private maximumLoad() {
-    return (
-      this.processingItemCount >= KnowledgeService.MAXIMUM_PROCESSING_ITEM_COUNT ||
-      this.workload >= KnowledgeService.MAXIMUM_WORKLOAD
-    )
+  getLoaderTask(options: KnowledgeBaseAddItemOptionsNonNullableAttribute): LoaderTask {
+    const { item } = options
+    const getRagApplication = () => this.getRagApplication(options.base)
+    switch (item.type) {
+      case 'file':
+        return this.fileTask(getRagApplication, options)
+      case 'directory':
+        return this.directoryTask(getRagApplication, options)
+      case 'url':
+        return this.urlTask(getRagApplication, options)
+      case 'sitemap':
+        return this.sitemapTask(getRagApplication, options)
+      case 'note':
+        return this.noteTask(getRagApplication, options)
+      default:
+        return {
+          loaderTasks: [],
+          loaderDoneReturn: null
+        }
+    }
   }
+
+  async remove(options: { uniqueIds: string[]; base: KnowledgeBaseParams }): Promise<void> {
+    const ragApp = await this.getRagApplication(options.base)
+    for (const id of options.uniqueIds) {
+      await ragApp.deleteLoader(id)
+    }
+  }
+  async search(options: { search: string; base: KnowledgeBaseParams }): Promise<KnowledgeSearchResult[]> {
+    const ragApp = await this.getRagApplication(options.base)
+    return await ragApp.search(options.search)
+  }
+
   private fileTask(
-    ragApplication: RAGApplication,
+    getRagApplication: () => Promise<RAGApplication>,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, forceReload, userId } = options
@@ -307,7 +256,8 @@ class KnowledgeService {
           task: async () => {
             try {
               // Add preprocessing logic
-              const fileToProcess: FileMetadata = await this.preprocessing(file, base, item, userId)
+              const ragApplication = await getRagApplication()
+              const fileToProcess: FileMetadata = await preprocessingService.preprocessFile(file, base, item, userId)
 
               // Use processed file for loading
               return addFileLoader(ragApplication, fileToProcess, base, forceReload)
@@ -318,7 +268,7 @@ class KnowledgeService {
                 .catch((e) => {
                   logger.error(`Error in addFileLoader for ${file.name}: ${e}`)
                   const errorResult: LoaderReturn = {
-                    ...KnowledgeService.ERROR_LOADER_RETURN,
+                    ...EmbedJsFramework.ERROR_LOADER_RETURN,
                     message: e.message,
                     messageSource: 'embedding'
                   }
@@ -328,7 +278,7 @@ class KnowledgeService {
             } catch (e: any) {
               logger.error(`Preprocessing failed for ${file.name}: ${e}`)
               const errorResult: LoaderReturn = {
-                ...KnowledgeService.ERROR_LOADER_RETURN,
+                ...EmbedJsFramework.ERROR_LOADER_RETURN,
                 message: e.message,
                 messageSource: 'preprocess'
               }
@@ -345,7 +295,7 @@ class KnowledgeService {
     return loaderTask
   }
   private directoryTask(
-    ragApplication: RAGApplication,
+    getRagApplication: () => Promise<RAGApplication>,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, forceReload } = options
@@ -372,8 +322,9 @@ class KnowledgeService {
     for (const file of files) {
       loaderTasks.push({
         state: LoaderTaskItemState.PENDING,
-        task: () =>
-          addFileLoader(ragApplication, file, base, forceReload)
+        task: async () => {
+          const ragApplication = await getRagApplication()
+          return addFileLoader(ragApplication, file, base, forceReload)
             .then((result) => {
               loaderDoneReturn.entriesAdded += 1
               processedFiles += 1
@@ -384,11 +335,12 @@ class KnowledgeService {
             .catch((err) => {
               logger.error('Failed to add dir loader:', err)
               return {
-                ...KnowledgeService.ERROR_LOADER_RETURN,
+                ...EmbedJsFramework.ERROR_LOADER_RETURN,
                 message: `Failed to add dir loader: ${err.message}`,
                 messageSource: 'embedding'
               }
-            }),
+            })
+        },
         evaluateTaskWorkload: { workload: file.size }
       })
     }
@@ -400,7 +352,7 @@ class KnowledgeService {
   }
 
   private urlTask(
-    ragApplication: RAGApplication,
+    getRagApplication: () => Promise<RAGApplication>,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, forceReload } = options
@@ -410,7 +362,8 @@ class KnowledgeService {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () => {
+          task: async () => {
+            const ragApplication = await getRagApplication()
             const loaderReturn = ragApplication.addLoader(
               new WebLoader({
                 urlOrContent: content,
@@ -434,7 +387,7 @@ class KnowledgeService {
               .catch((err) => {
                 logger.error('Failed to add url loader:', err)
                 return {
-                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  ...EmbedJsFramework.ERROR_LOADER_RETURN,
                   message: `Failed to add url loader: ${err.message}`,
                   messageSource: 'embedding'
                 }
@@ -449,7 +402,7 @@ class KnowledgeService {
   }
 
   private sitemapTask(
-    ragApplication: RAGApplication,
+    getRagApplication: () => Promise<RAGApplication>,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, forceReload } = options
@@ -459,8 +412,9 @@ class KnowledgeService {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () =>
-            ragApplication
+          task: async () => {
+            const ragApplication = await getRagApplication()
+            return ragApplication
               .addLoader(
                 new SitemapLoader({ url: content, chunkSize: base.chunkSize, chunkOverlap: base.chunkOverlap }) as any,
                 forceReload
@@ -478,11 +432,12 @@ class KnowledgeService {
               .catch((err) => {
                 logger.error('Failed to add sitemap loader:', err)
                 return {
-                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  ...EmbedJsFramework.ERROR_LOADER_RETURN,
                   message: `Failed to add sitemap loader: ${err.message}`,
                   messageSource: 'embedding'
                 }
-              }),
+              })
+          },
           evaluateTaskWorkload: { workload: 20 * MB }
         }
       ],
@@ -492,7 +447,7 @@ class KnowledgeService {
   }
 
   private noteTask(
-    ragApplication: RAGApplication,
+    getRagApplication: () => Promise<RAGApplication>,
     options: KnowledgeBaseAddItemOptionsNonNullableAttribute
   ): LoaderTask {
     const { base, item, forceReload } = options
@@ -505,7 +460,8 @@ class KnowledgeService {
       loaderTasks: [
         {
           state: LoaderTaskItemState.PENDING,
-          task: () => {
+          task: async () => {
+            const ragApplication = await getRagApplication()
             const loaderReturn = ragApplication.addLoader(
               new NoteLoader({
                 text: content,
@@ -528,7 +484,7 @@ class KnowledgeService {
               .catch((err) => {
                 logger.error('Failed to add note loader:', err)
                 return {
-                  ...KnowledgeService.ERROR_LOADER_RETURN,
+                  ...EmbedJsFramework.ERROR_LOADER_RETURN,
                   message: `Failed to add note loader: ${err.message}`,
                   messageSource: 'embedding'
                 }
@@ -541,199 +497,4 @@ class KnowledgeService {
     }
     return loaderTask
   }
-
-  private processingQueueHandle() {
-    const getSubtasksUntilMaximumLoad = (): QueueTaskItem[] => {
-      const queueTaskList: QueueTaskItem[] = []
-      that: for (const [task, resolve] of this.knowledgeItemProcessingQueueMappingPromise) {
-        for (const item of task.loaderTasks) {
-          if (this.maximumLoad()) {
-            break that
-          }
-
-          const { state, task: taskPromise, evaluateTaskWorkload } = item
-
-          if (state !== LoaderTaskItemState.PENDING) {
-            continue
-          }
-
-          const { workload } = evaluateTaskWorkload
-          this.workload += workload
-          this.processingItemCount += 1
-          item.state = LoaderTaskItemState.PROCESSING
-          queueTaskList.push({
-            taskPromise: () =>
-              taskPromise().then(() => {
-                this.workload -= workload
-                this.processingItemCount -= 1
-                task.loaderTasks.delete(item)
-                if (task.loaderTasks.size === 0) {
-                  this.knowledgeItemProcessingQueueMappingPromise.delete(task)
-                  resolve()
-                }
-                this.processingQueueHandle()
-              }),
-            resolve: () => {},
-            evaluateTaskWorkload
-          })
-        }
-      }
-      return queueTaskList
-    }
-    const subTasks = getSubtasksUntilMaximumLoad()
-    if (subTasks.length > 0) {
-      const subTaskPromises = subTasks.map(({ taskPromise }) => taskPromise())
-      Promise.all(subTaskPromises).then(() => {
-        subTasks.forEach(({ resolve }) => resolve())
-      })
-    }
-  }
-
-  private appendProcessingQueue(task: LoaderTask): Promise<LoaderReturn> {
-    return new Promise((resolve) => {
-      this.knowledgeItemProcessingQueueMappingPromise.set(loaderTaskIntoOfSet(task), () => {
-        resolve(task.loaderDoneReturn!)
-      })
-    })
-  }
-
-  public add = (_: Electron.IpcMainInvokeEvent, options: KnowledgeBaseAddItemOptions): Promise<LoaderReturn> => {
-    return new Promise((resolve) => {
-      const { base, item, forceReload = false, userId = '' } = options
-      const optionsNonNullableAttribute = { base, item, forceReload, userId }
-      this.getRagApplication(base)
-        .then((ragApplication) => {
-          const task = (() => {
-            switch (item.type) {
-              case 'file':
-                return this.fileTask(ragApplication, optionsNonNullableAttribute)
-              case 'directory':
-                return this.directoryTask(ragApplication, optionsNonNullableAttribute)
-              case 'url':
-                return this.urlTask(ragApplication, optionsNonNullableAttribute)
-              case 'sitemap':
-                return this.sitemapTask(ragApplication, optionsNonNullableAttribute)
-              case 'note':
-                return this.noteTask(ragApplication, optionsNonNullableAttribute)
-              default:
-                return null
-            }
-          })()
-
-          if (task) {
-            this.appendProcessingQueue(task).then(() => {
-              resolve(task.loaderDoneReturn!)
-            })
-            this.processingQueueHandle()
-          } else {
-            resolve({
-              ...KnowledgeService.ERROR_LOADER_RETURN,
-              message: 'Unsupported item type',
-              messageSource: 'embedding'
-            })
-          }
-        })
-        .catch((err) => {
-          logger.error('Failed to add item:', err)
-          resolve({
-            ...KnowledgeService.ERROR_LOADER_RETURN,
-            message: `Failed to add item: ${err.message}`,
-            messageSource: 'embedding'
-          })
-        })
-    })
-  }
-
-  @TraceMethod({ spanName: 'remove', tag: 'Knowledge' })
-  public async remove(
-    _: Electron.IpcMainInvokeEvent,
-    { uniqueId, uniqueIds, base }: { uniqueId: string; uniqueIds: string[]; base: KnowledgeBaseParams }
-  ): Promise<void> {
-    const ragApplication = await this.getRagApplication(base)
-    logger.debug(`Remove Item UniqueId: ${uniqueId}`)
-    for (const id of uniqueIds) {
-      await ragApplication.deleteLoader(id)
-    }
-  }
-
-  @TraceMethod({ spanName: 'RagSearch', tag: 'Knowledge' })
-  public async search(
-    _: Electron.IpcMainInvokeEvent,
-    { search, base }: { search: string; base: KnowledgeBaseParams }
-  ): Promise<ExtractChunkData[]> {
-    const ragApplication = await this.getRagApplication(base)
-    return await ragApplication.search(search)
-  }
-
-  @TraceMethod({ spanName: 'rerank', tag: 'Knowledge' })
-  public async rerank(
-    _: Electron.IpcMainInvokeEvent,
-    { search, base, results }: { search: string; base: KnowledgeBaseParams; results: ExtractChunkData[] }
-  ): Promise<ExtractChunkData[]> {
-    if (results.length === 0) {
-      return results
-    }
-    return await new Reranker(base).rerank(search, results)
-  }
-
-  public getStorageDir = (): string => {
-    return this.storageDir
-  }
-
-  private preprocessing = async (
-    file: FileMetadata,
-    base: KnowledgeBaseParams,
-    item: KnowledgeItem,
-    userId: string
-  ): Promise<FileMetadata> => {
-    let fileToProcess: FileMetadata = file
-    if (base.preprocessProvider && file.ext.toLowerCase() === '.pdf') {
-      try {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
-        const filePath = fileStorage.getFilePathById(file)
-        // Check if file has already been preprocessed
-        const alreadyProcessed = await provider.checkIfAlreadyProcessed(file)
-        if (alreadyProcessed) {
-          logger.debug(`File already preprocess processed, using cached result: ${filePath}`)
-          return alreadyProcessed
-        }
-
-        // Execute preprocessing
-        logger.debug(`Starting preprocess processing for scanned PDF: ${filePath}`)
-        const { processedFile, quota } = await provider.parseFile(item.id, file)
-        fileToProcess = processedFile
-        const mainWindow = windowService.getMainWindow()
-        mainWindow?.webContents.send('file-preprocess-finished', {
-          itemId: item.id,
-          quota: quota
-        })
-      } catch (err) {
-        logger.error(`Preprocess processing failed: ${err}`)
-        // If preprocessing fails, use original file
-        // fileToProcess = file
-        throw new Error(`Preprocess processing failed: ${err}`)
-      }
-    }
-
-    return fileToProcess
-  }
-
-  public checkQuota = async (
-    _: Electron.IpcMainInvokeEvent,
-    base: KnowledgeBaseParams,
-    userId: string
-  ): Promise<number> => {
-    try {
-      if (base.preprocessProvider && base.preprocessProvider.type === 'preprocess') {
-        const provider = new PreprocessProvider(base.preprocessProvider.provider, userId)
-        return await provider.checkQuota()
-      }
-      throw new Error('No preprocess provider configured')
-    } catch (err) {
-      logger.error(`Failed to check quota: ${err}`)
-      throw new Error(`Failed to check quota: ${err}`)
-    }
-  }
 }
-
-export default new KnowledgeService()

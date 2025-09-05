@@ -1,11 +1,12 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { TopNavbarOpenedMinappTabs } from '@renderer/components/app/PinnedMinapps'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
+import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
+import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
 import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -37,11 +38,23 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
+import MinAppIcon from '../Icons/MinAppIcon'
+import WindowControls from '../WindowControls'
+
 interface TabsContainerProps {
   children: React.ReactNode
 }
 
-const getTabIcon = (tabId: string): React.ReactNode | undefined => {
+const getTabIcon = (tabId: string, minapps: any[]): React.ReactNode | undefined => {
+  // Check if it's a minapp tab (format: apps:appId)
+  if (tabId.startsWith('apps:')) {
+    const appId = tabId.replace('apps:', '')
+    const app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+    if (app) {
+      return <MinAppIcon size={14} app={app} />
+    }
+  }
+
   switch (tabId) {
     case 'home':
       return <Home size={14} />
@@ -82,6 +95,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const isFullscreen = useFullscreen()
   const { settedTheme, toggleTheme } = useTheme()
   const { hideMinappPopup } = useMinappPopup()
+  const { minapps } = useMinapps()
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScroll, setCanScroll] = useState(false)
@@ -89,7 +103,21 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
     const segments = path.split('/')
+    // Handle minapp paths: /apps/appId -> apps:appId
+    if (segments[1] === 'apps' && segments[2]) {
+      return `apps:${segments[2]}`
+    }
     return segments[1] // 获取第一个路径段作为 id
+  }
+
+  const getTabTitle = (tabId: string): string => {
+    // Check if it's a minapp tab
+    if (tabId.startsWith('apps:')) {
+      const appId = tabId.replace('apps:', '')
+      const app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+      return app ? app.name : 'MinApp'
+    }
+    return getTitleLabel(tabId)
   }
 
   const shouldCreateTab = (path: string) => {
@@ -196,8 +224,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
               renderItem={(tab) => (
                 <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
                   <TabHeader>
-                    {tab.id && <TabIcon>{getTabIcon(tab.id)}</TabIcon>}
-                    <TabTitle>{getTitleLabel(tab.id)}</TabTitle>
+                    {tab.id && <TabIcon>{getTabIcon(tab.id, minapps)}</TabIcon>}
+                    <TabTitle>{getTabTitle(tab.id)}</TabTitle>
                   </TabHeader>
                   {tab.id !== 'home' && (
                     <CloseButton
@@ -224,7 +252,6 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           </AddTabButton>
         </TabsArea>
         <RightButtonsContainer>
-          <TopNavbarOpenedMinappTabs />
           <Tooltip
             title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
             mouseEnterDelay={0.8}
@@ -242,6 +269,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
           </SettingsButton>
+          <WindowControls />
         </RightButtonsContainer>
       </TabsBar>
       <TabContent>{children}</TabContent>
@@ -262,7 +290,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   align-items: center;
   gap: 5px;
   padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   position: relative;
   -webkit-app-region: drag;
@@ -401,6 +429,7 @@ const RightButtonsContainer = styled.div`
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  padding-right: ${isMac ? '12px' : '0'};
   flex-shrink: 0;
 `
 

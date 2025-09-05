@@ -780,11 +780,12 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     ) {
       updateAssistant({ ...assistant, webSearchProviderId: undefined })
     }
-    if (!isGenerateImageModel(model) && assistant.enableGenerateImage) {
+    if (isGenerateImageModel(model)) {
+      if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
+        updateAssistant({ ...assistant, enableGenerateImage: true })
+      }
+    } else if (assistant.enableGenerateImage) {
       updateAssistant({ ...assistant, enableGenerateImage: false })
-    }
-    if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
-      updateAssistant({ ...assistant, enableGenerateImage: true })
     }
   }, [assistant, model, updateAssistant])
 
