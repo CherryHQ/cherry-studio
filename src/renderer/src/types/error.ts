@@ -27,6 +27,12 @@ export interface SerializedAiSdkAPICallError extends SerializedAiSdkError {
   readonly data: Serializable | null
 }
 
+export interface SerializedAiSdkDownloadError extends SerializedAiSdkError {
+  readonly url: string
+  readonly statusCode: number | null
+  readonly statusText: string | null
+}
+
 export const isSerializedAiSdkAPICallError = (error: SerializedError): error is SerializedAiSdkAPICallError => {
   return isSerializedAiSdkError(error) && 'url' in error && 'requestBodyValues' in error && 'isRetryable' in error
 }

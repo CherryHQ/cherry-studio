@@ -2,10 +2,11 @@ import { loggerService } from '@logger'
 import {
   isSerializedAiSdkAPICallError,
   SerializedAiSdkAPICallError,
+  SerializedAiSdkDownloadError,
   SerializedAiSdkError,
   SerializedError
 } from '@renderer/types/error'
-import { AISDKError, APICallError } from 'ai'
+import { AISDKError, APICallError, DownloadError } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
 
@@ -104,7 +105,7 @@ const getBaseError = (error: Error) => {
   } as const
 }
 
-const serializeAPICallError = (error: APICallError): SerializedError => {
+const serializeAPICallError = (error: APICallError): SerializedAiSdkAPICallError => {
   const baseError = getBaseError(error)
   let content = error.message === '' ? error.responseBody || 'Unknown error' : error.message
   try {
@@ -124,6 +125,19 @@ const serializeAPICallError = (error: APICallError): SerializedError => {
     responseHeaders: error.responseHeaders ?? null
   } satisfies SerializedAiSdkAPICallError
 }
+const serializeDownloadError = (error: DownloadError): SerializedAiSdkDownloadError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    url: error.url,
+    statusCode: error.statusCode ?? null,
+    statusText: error.statusText ?? null,
+    responseHeaders: null,
+    responseBody: null,
+    isRetryable: false,
+    data: null
+  } satisfies SerializedAiSdkDownloadError
+}
 
 export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
@@ -134,6 +148,9 @@ export const serializeError = (error: AISDKError): SerializedError => {
   }
   if (APICallError.isInstance(error)) {
     return serializeAPICallError(error)
+  }
+  if (DownloadError.isInstance(error)) {
+    return serializeDownloadError(error)
   }
   return baseError
 }
