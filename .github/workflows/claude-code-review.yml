@@ -4,7 +4,7 @@ on:
   # Use pull_request_target so the workflow runs in the context of the base repository.
   # This allows OIDC and the ability to comment on PRs from forks safely.
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize]
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"
