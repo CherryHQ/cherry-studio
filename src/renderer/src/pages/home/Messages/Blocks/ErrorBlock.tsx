@@ -601,13 +601,6 @@ const AiSdkError = ({ error }: { error: SerializedAiSdkErrorUnion }) => {
         </ErrorDetailItem>
       )}
 
-      {isSerializedAiSdkTypeValidationError(error) && (
-        <ErrorDetailItem>
-          <ErrorDetailLabel>{t('error.value')}:</ErrorDetailLabel>
-          <ErrorDetailValue>{safeToString(error.value)}</ErrorDetailValue>
-        </ErrorDetailItem>
-      )}
-
       {isSerializedAiSdkUnsupportedFunctionalityError(error) && (
         <ErrorDetailItem>
           <ErrorDetailLabel>{t('error.functionality')}:</ErrorDetailLabel>
