@@ -229,3 +229,13 @@ export const isSerializedAiSdkToolTypeValidationError = (
 ): error is SerializedAiSdkTypeValidationError => {
   return isSerializedAiSdkError(error) && 'value' in error
 }
+
+export interface SerializedAiSdkUnsupportedFunctionalityError extends SerializedAiSdkError {
+  readonly functionality: string
+}
+
+export const isSerializedAiSdkUnsupportedFunctionalityError = (
+  error: SerializedError
+): error is SerializedAiSdkUnsupportedFunctionalityError => {
+  return isSerializedAiSdkError(error) && 'functionality' in error
+}
