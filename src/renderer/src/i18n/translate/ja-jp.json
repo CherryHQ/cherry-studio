@@ -1653,7 +1653,13 @@
   "navbar": {
     "expand": "ダイアログを展開",
     "hide_sidebar": "サイドバーを非表示",
-    "show_sidebar": "サイドバーを表示"
+    "show_sidebar": "サイドバーを表示",
+    "window": {
+      "close": "閉じる",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "restore": "元に戻す"
+    }
   },
   "navigate": {
     "provider_settings": "プロバイダー設定に移動"

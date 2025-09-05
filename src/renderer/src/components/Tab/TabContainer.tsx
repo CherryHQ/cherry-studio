@@ -1,7 +1,7 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
@@ -39,6 +39,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
 import MinAppIcon from '../Icons/MinAppIcon'
+import WindowControls from '../WindowControls'
 
 interface TabsContainerProps {
   children: React.ReactNode
@@ -268,6 +269,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
           </SettingsButton>
+          <WindowControls />
         </RightButtonsContainer>
       </TabsBar>
       <TabContent>{children}</TabContent>
@@ -288,7 +290,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   align-items: center;
   gap: 5px;
   padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? '75px' : '15px')};
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   position: relative;
   -webkit-app-region: drag;
@@ -427,6 +429,7 @@ const RightButtonsContainer = styled.div`
   align-items: center;
   gap: 6px;
   margin-left: auto;
+  padding-right: ${isMac ? '12px' : '0'};
   flex-shrink: 0;
 `
 
