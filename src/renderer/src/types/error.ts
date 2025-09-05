@@ -1,4 +1,4 @@
-import { FinishReason } from 'ai'
+import { FinishReason, NoSuchModelError } from 'ai'
 
 import { Serializable } from './serialize'
 
@@ -149,4 +149,13 @@ export const isSerializedAiSdkNoObjectGeneratedError = (
     'usage' in error &&
     'finishReason' in error
   )
+}
+
+export interface SerializedAiSdkNoSuchModelError extends SerializedAiSdkError {
+  readonly modelId: string
+  readonly modelType: NoSuchModelError['modelType']
+}
+
+export const isSerializedAiSdkNoSuchModelError = (error: SerializedError): error is SerializedAiSdkNoSuchModelError => {
+  return isSerializedAiSdkError(error) && 'modelId' in error && 'modelType' in error
 }

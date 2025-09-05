@@ -12,6 +12,7 @@ import {
   SerializedAiSdkJSONParseError,
   SerializedAiSdkMessageConversionError,
   SerializedAiSdkNoObjectGeneratedError,
+  SerializedAiSdkNoSuchModelError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -25,7 +26,8 @@ import {
   InvalidToolInputError,
   JSONParseError,
   MessageConversionError,
-  NoObjectGeneratedError
+  NoObjectGeneratedError,
+  NoSuchModelError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -227,6 +229,15 @@ const serializeNoObjectGeneratedError = (error: NoObjectGeneratedError): Seriali
     usage: safeSerialize(error.usage),
     finishReason: error.finishReason ?? null
   } satisfies SerializedAiSdkNoObjectGeneratedError
+}
+
+const serializeNoSuchModelError = (error: NoSuchModelError): SerializedAiSdkNoSuchModelError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    modelId: error.modelId ?? null,
+    modelType: error.modelType ?? null
+  } satisfies SerializedAiSdkNoSuchModelError
 }
 
 export const serializeError = (error: AISDKError): SerializedError => {
