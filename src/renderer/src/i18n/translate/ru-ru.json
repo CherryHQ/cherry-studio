@@ -773,7 +773,7 @@
     "more": "Ещё",
     "name": "Имя",
     "no_results": "Результатов не найдено",
-    "none": "[to be translated]:无",
+    "none": "без",
     "open": "Открыть",
     "paste": "Вставить",
     "preview": "Предварительный просмотр",
@@ -818,8 +818,8 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
-    "availableProviders": "[to be translated]:可用提供商",
-    "availableTools": "[to be translated]:可用工具",
+    "availableProviders": "Доступные провайдеры",
+    "availableTools": "Доступные инструменты",
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
@@ -844,7 +844,7 @@
       "quota_exceeded": "Ваша ежедневная {{quota}} бесплатная квота исчерпана. Пожалуйста, перейдите в <provider>{{provider}}</provider> для получения ключа API и настройте ключ API для продолжения использования.",
       "response": "Что-то пошло не так. Пожалуйста, проверьте, установлен ли ваш ключ API в Настройки > Провайдеры"
     },
-    "content": "[to be translated]:内容",
+    "content": "内容",
     "data": "данные",
     "detail": "Детали ошибки",
     "details": "Подробности",

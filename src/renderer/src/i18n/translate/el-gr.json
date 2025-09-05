@@ -773,7 +773,7 @@
     "more": "Περισσότερα",
     "name": "Όνομα",
     "no_results": "Δεν βρέθηκαν αποτελέσματα",
-    "none": "<translate_output>\nΧωρίς\n</translate_output>",
+    "none": "Χωρίς",
     "open": "Άνοιγμα",
     "paste": "Επικόλληση",
     "preview": "Προεπισκόπηση",
@@ -819,7 +819,7 @@
   },
   "error": {
     "availableProviders": "Διαθέσιμοι πάροχοι",
-    "availableTools": "[to be translated]:可用工具",
+    "availableTools": "Διαθέσιμα εργαλεία",
     "backup": {
       "file_format": "Λάθος μορφή αρχείου που επιστρέφεται"
     },
@@ -844,13 +844,13 @@
       "quota_exceeded": "Η ημερήσια δωρεάν ποσόστωση {{quota}} tokens σας έχει εξαντληθεί. Παρακαλώ μεταβείτε στο <provider>{{provider}}</provider> για να λάβετε ένα κλειδί API και να ρυθμίσετε το κλειδί API για να συνεχίσετε τη χρήση.",
       "response": "Σφάλμα. Εάν δεν έχετε ρυθμίσει το κλειδί API, πηγαίνετε στο ρυθμισμένα > παρέχοντας το πρόσωπο του μοντέλου"
     },
-    "content": "[to be translated]:内容",
+    "content": "Περιεχόμενο",
     "data": "δεδομένα",
     "detail": "Λεπτομέρειες σφάλματος",
     "details": "Λεπτομέρειες",
-    "errors": "[to be translated]:错误",
-    "finishReason": "[to be translated]:结束原因",
-    "functionality": "[to be translated]:功能",
+    "errors": "Λάθος",
+    "finishReason": "Αιτία λήξης",
+    "functionality": "λειτουργία",
     "http": {
       "400": "Σφάλμα ζητήματος, παρακαλώ ελέγξτε αν τα παράμετρα του ζητήματος είναι σωστά. Εάν έχετε αλλάξει τις ρυθμίσεις του μοντέλου, επαναφέρετε τις προεπιλεγμένες ρυθμίσεις.",
       "401": "Αποτυχία επιβεβαίωσης ταυτότητας, παρακαλώ ελέγξτε αν η κλειδί API είναι σωστή",
@@ -862,20 +862,20 @@
       "503": "Η υπηρεσία δεν είναι διαθέσιμη, παρακαλώ δοκιμάστε ξανά",
       "504": "Υπερχρονισμός φάρων, παρακαλώ δοκιμάστε ξανά"
     },
-    "lastError": "[to be translated]:最后错误",
-    "maxEmbeddingsPerCall": "[to be translated]:每次调用的最大嵌入",
+    "lastError": "Τελευταίο σφάλμα",
+    "maxEmbeddingsPerCall": "Μέγιστες ενσωματώσεις ανά κλήση",
     "message": "Μήνυμα σφάλματος",
     "missing_user_message": "Αδυναμία εναλλαγής απάντησης μοντέλου: το αρχικό μήνυμα χρήστη έχει διαγραφεί. Παρακαλούμε στείλτε ένα νέο μήνυμα για να λάβετε απάντηση από αυτό το μοντέλο",
     "model": {
       "exists": "Το μοντέλο υπάρχει ήδη",
       "not_exists": "Το μοντέλο δεν υπάρχει"
     },
-    "modelId": "[to be translated]:模型 ID",
-    "modelType": "[to be translated]:模型类型",
+    "modelId": "Αναγνωριστικό μοντέλου",
+    "modelType": "Τύπος μοντέλου",
     "name": "Λάθος όνομα",
     "no_api_key": "Δεν έχετε ρυθμίσει το κλειδί API",
-    "originalError": "[to be translated]:原错误",
-    "originalMessage": "[to be translated]:原消息",
+    "originalError": "Αρχικό σφάλμα",
+    "originalMessage": "Αρχικό μήνυμα",
     "parameter": "παράμετροι",
     "pause_placeholder": "Διακόπηκε",
     "prompt": "συμβουλές",
