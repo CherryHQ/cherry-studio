@@ -8,7 +8,14 @@ import {
   SerializedAiSdkInvalidDataContentError,
   SerializedError
 } from '@renderer/types/error'
-import { AISDKError, APICallError, DownloadError, InvalidArgumentError, InvalidDataContentError } from 'ai'
+import {
+  AISDKError,
+  APICallError,
+  DownloadError,
+  InvalidArgumentError,
+  InvalidDataContentError,
+  InvalidMessageRoleError
+} from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
 
@@ -100,8 +107,8 @@ export const formatMcpError = (error: any) => {
 
 const getBaseError = (error: Error) => {
   return {
-    name: error.name,
-    message: error.message,
+    name: error.name ?? null,
+    message: error.message ?? null,
     stack: error.stack ?? null,
     cause: error.cause ? String(error.cause) : null
   } as const
@@ -159,6 +166,14 @@ const serializeInvalidDataContentError = (error: InvalidDataContentError): Seria
   } satisfies SerializedAiSdkInvalidDataContentError
 }
 
+const serializeInvalidMessageRoleError = (error: InvalidMessageRoleError): SerializedAiSdkError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    role: error.role
+  } satisfies SerializedAiSdkError
+}
+
 export const serializeError = (error: AISDKError): SerializedError => {
   const baseError = {
     name: error.name,
@@ -178,6 +193,10 @@ export const serializeError = (error: AISDKError): SerializedError => {
   if (InvalidDataContentError.isInstance(error)) {
     return serializeInvalidDataContentError(error)
   }
+  if (InvalidMessageRoleError.isInstance(error)) {
+    return serializeInvalidMessageRoleError(error)
+  }
+
   return baseError
 }
 /**

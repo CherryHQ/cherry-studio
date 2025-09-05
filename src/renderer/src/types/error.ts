@@ -70,3 +70,13 @@ export const isSerializedAiSdkInvalidDataContentError = (
 ): error is SerializedAiSdkInvalidDataContentError => {
   return isSerializedAiSdkError(error) && 'content' in error
 }
+
+export interface SerializedAiSdkInvalidMessageRoleError extends SerializedAiSdkError {
+  readonly role: string
+}
+
+export const isSerializedAiSdkInvalidMessageRoleError = (
+  error: SerializedError
+): error is SerializedAiSdkInvalidMessageRoleError => {
+  return isSerializedAiSdkError(error) && 'role' in error
+}
