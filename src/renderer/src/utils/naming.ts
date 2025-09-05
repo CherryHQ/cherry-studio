@@ -149,6 +149,47 @@ export function removeSpecialCharactersForTopicName(str: string): string {
 }
 
 /**
+ * 大小写不敏感的模型分组函数
+ * @param models 模型列表
+ * @param groupKey 分组字段名或分组函数
+ * @param defaultGroupName 默认分组名称，当模型没有分组时使用
+ * @returns 分组后的模型对象
+ */
+export function groupModelsCaseInsensitive<T extends Record<string, any>>(
+  models: T[],
+  groupKey: keyof T | ((item: T) => string) = 'group',
+  defaultGroupName: string = 'Other'
+): Record<string, T[]> {
+  const normalizedGroups: Record<string, T[]> = {}
+  const groupCaseMap: Record<string, string> = {} // 记录小写key到原始大小写的映射
+
+  models.forEach((model) => {
+    const originalGroup =
+      typeof groupKey === 'function' ? groupKey(model) : (model[groupKey] as string) || defaultGroupName
+    const normalizedKey = originalGroup.toLowerCase()
+
+    if (!normalizedGroups[normalizedKey]) {
+      normalizedGroups[normalizedKey] = []
+      // 使用第一次遇到的分组名称作为显示名称
+      groupCaseMap[normalizedKey] = originalGroup
+    }
+
+    normalizedGroups[normalizedKey].push(model)
+  })
+
+  // 转换回正常的格式，使用原始大小写的分组名，并按key排序
+  const result: Record<string, T[]> = {}
+  const sortedKeys = Object.keys(normalizedGroups).sort((a, b) => a.localeCompare(b))
+
+  sortedKeys.forEach((normalizedKey) => {
+    const displayName = groupCaseMap[normalizedKey]
+    result[displayName] = normalizedGroups[normalizedKey]
+  })
+
+  return result
+}
+
+/**
  * 获取字符串的第一个字符。
  * @param {string} str 输入字符串
  * @returns {string} 第一个字符，或者空字符串

@@ -18,11 +18,16 @@ import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/Model
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
-import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
+import {
+  filterModelsByKeywords,
+  getDefaultGroupName,
+  getFancyProviderName,
+  groupModelsCaseInsensitive
+} from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
 import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
-import { groupBy, isEmpty, uniqBy } from 'lodash'
+import { isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
 import { ListMinus, ListPlus, RefreshCcw, Search } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react'
@@ -106,19 +111,19 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     [filterSearchText, actualFilterType, allModels]
   )
 
-  const modelGroups = useMemo(
-    () =>
-      provider.id === 'dashscope'
-        ? {
-            ...groupBy(
-              list.filter((model) => !model.id.startsWith('qwen')),
-              'group'
-            ),
-            ...groupQwenModels(list.filter((model) => model.id.startsWith('qwen')))
-          }
-        : groupBy(list, 'group'),
-    [list, provider.id]
-  )
+  const modelGroups = useMemo(() => {
+    if (provider.id === 'dashscope') {
+      const qwenModels = list.filter((model) => model.id.startsWith('qwen'))
+      const otherModels = list.filter((model) => !model.id.startsWith('qwen'))
+
+      return {
+        ...groupModelsCaseInsensitive(otherModels, 'group', t('settings.provider.misc')),
+        ...groupQwenModels(qwenModels, t('settings.provider.misc'))
+      }
+    } else {
+      return groupModelsCaseInsensitive(list, 'group', t('settings.provider.misc'))
+    }
+  }, [list, provider.id, t])
 
   const onOk = useCallback(() => setOpen(false), [])
 
