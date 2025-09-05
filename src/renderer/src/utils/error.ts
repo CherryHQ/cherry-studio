@@ -13,6 +13,7 @@ import {
   SerializedAiSdkMessageConversionError,
   SerializedAiSdkNoObjectGeneratedError,
   SerializedAiSdkNoSuchModelError,
+  SerializedAiSdkNoSuchProviderError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -27,7 +28,8 @@ import {
   JSONParseError,
   MessageConversionError,
   NoObjectGeneratedError,
-  NoSuchModelError
+  NoSuchModelError,
+  NoSuchProviderError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -238,6 +240,17 @@ const serializeNoSuchModelError = (error: NoSuchModelError): SerializedAiSdkNoSu
     modelId: error.modelId ?? null,
     modelType: error.modelType ?? null
   } satisfies SerializedAiSdkNoSuchModelError
+}
+
+const serializeNoSuchProviderError = (error: NoSuchProviderError): SerializedAiSdkNoSuchProviderError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    providerId: error.providerId ?? null,
+    availableProviders: error.availableProviders ?? null,
+    modelId: error.modelId ?? null,
+    modelType: error.modelType ?? null
+  } satisfies SerializedAiSdkNoSuchProviderError
 }
 
 export const serializeError = (error: AISDKError): SerializedError => {
