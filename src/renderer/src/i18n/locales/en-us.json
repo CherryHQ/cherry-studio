@@ -773,6 +773,7 @@
     "more": "More",
     "name": "Name",
     "no_results": "No results",
+    "none": "None",
     "open": "Open",
     "paste": "Paste",
     "preview": "Preview",
@@ -817,6 +818,8 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "availableProviders": "Available Providers",
+    "availableTools": "Available Tools",
     "backup": {
       "file_format": "Backup file format error"
     },
@@ -841,9 +844,13 @@
       "quota_exceeded": "Your daily {{quota}} free quota has been exhausted. Please go to the <provider>{{provider}}</provider> to obtain an API key and configure the API key to continue using.",
       "response": "Something went wrong. Please check if you have set your API key in the Settings > Providers"
     },
-    "data": "data",
+    "content": "Content",
+    "data": "Data",
     "detail": "Error Details",
     "details": "Details",
+    "errors": "Errors",
+    "finishReason": "Finish Reason",
+    "functionality": "Functionality",
     "http": {
       "400": "Request failed. Please check if the request parameters are correct. If you have changed the model settings, please reset them to the default settings",
       "401": "Authentication failed. Please check if your API key is correct",
@@ -855,16 +862,27 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "lastError": "Last Error",
+    "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
     "missing_user_message": "Cannot switch model response: The original user message has been deleted. Please send a new message to get a response with this model.",
     "model": {
       "exists": "Model already exists",
       "not_exists": "Model does not exist"
     },
+    "modelId": "Model ID",
+    "modelType": "Model Type",
     "name": "Error name",
     "no_api_key": "API key is not configured",
+    "originalError": "Original Error",
+    "originalMessage": "Original Message",
+    "parameter": "Parameter",
     "pause_placeholder": "Paused",
+    "prompt": "Prompt",
+    "provider": "Provider",
+    "providerId": "Provider ID",
     "provider_disabled": "Model provider is not enabled",
+    "reason": "Reason",
     "render": {
       "description": "Failed to render message content. Please check if the message content format is correct",
       "title": "Render Error"
@@ -872,13 +890,23 @@
     "requestBody": "Request Body",
     "requestBodyValues": "Request Body Values",
     "requestUrl": "Request URL",
+    "response": "Response",
     "responseBody": "Response Body",
     "responseHeaders": "Response Header",
+    "responses": "Responses",
+    "role": "Role",
     "stack": "Stack Trace",
     "status": "Status Code",
-    "statusCode": "Status code",
+    "statusCode": "Status Code",
+    "statusText": "Status Text",
+    "text": "Text",
+    "toolInput": "Tool Input",
+    "toolName": "Tool Name",
     "unknown": "Unknown error",
-    "user_message_not_found": "Cannot find original user message to resend"
+    "usage": "Usage",
+    "user_message_not_found": "Cannot find original user message to resend",
+    "value": "Value",
+    "values": "Values"
   },
   "export": {
     "assistant": "Assistant",
