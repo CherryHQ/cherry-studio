@@ -773,6 +773,7 @@
     "more": "もっと",
     "name": "名前",
     "no_results": "検索結果なし",
+    "none": "無",
     "open": "開く",
     "paste": "貼り付け",
     "preview": "プレビュー",
@@ -817,6 +818,8 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "availableProviders": "利用可能なプロバイダー",
+    "availableTools": "利用可能なツール",
     "backup": {
       "file_format": "バックアップファイルの形式エラー"
     },
@@ -841,9 +844,13 @@
       "quota_exceeded": "本日の{{quota}}無料クォータが使い果たされました。<provider>{{provider}}</provider>でAPIキーを取得し、APIキーを設定して使用を続けてください。",
       "response": "エラーが発生しました。APIキーが設定されていない場合は、設定 > プロバイダーでキーを設定してください"
     },
+    "content": "内容",
     "data": "データ",
     "detail": "エラーの詳細",
     "details": "詳細",
+    "errors": "エラー",
+    "finishReason": "終了理由",
+    "functionality": "機能",
     "http": {
       "400": "リクエストに失敗しました。リクエストパラメータが正しいか確認してください。モデルの設定を変更した場合は、デフォルトの設定にリセットしてください",
       "401": "認証に失敗しました。APIキーが正しいか確認してください",
@@ -855,16 +862,27 @@
       "503": "サービスが利用できません。後でもう一度試してください",
       "504": "ゲートウェイタイムアウトが発生しました。後でもう一度試してください"
     },
+    "lastError": "最後のエラー",
+    "maxEmbeddingsPerCall": "1回の呼び出しでの最大埋め込み数",
     "message": "エラーメッセージ",
     "missing_user_message": "モデル応答を切り替えられません：元のユーザーメッセージが削除されました。このモデルで応答を得るには、新しいメッセージを送信してください",
     "model": {
       "exists": "モデルが既に存在します",
       "not_exists": "モデルが存在しません"
     },
+    "modelId": "モデル ID",
+    "modelType": "モデルの種類",
     "name": "エラー名",
     "no_api_key": "APIキーが設定されていません",
+    "originalError": "元のエラー",
+    "originalMessage": "元のメッセージ",
+    "parameter": "パラメータ",
     "pause_placeholder": "応答を一時停止しました",
+    "prompt": "プロンプトを表示する",
+    "provider": "プロバイダー",
+    "providerId": "プロバイダーID",
     "provider_disabled": "モデルプロバイダーが有効になっていません",
+    "reason": "原因",
     "render": {
       "description": "メッセージの内容のレンダリングに失敗しました。メッセージの内容の形式が正しいか確認してください",
       "title": "レンダリングエラー"
@@ -872,13 +890,23 @@
     "requestBody": "要求されたコンテンツ",
     "requestBodyValues": "リクエストボディ",
     "requestUrl": "リクエストパス",
+    "response": "応答",
     "responseBody": "レスポンス内容",
     "responseHeaders": "レスポンスヘッダー",
+    "responses": "応答",
+    "role": "キャラクター",
     "stack": "スタック情報",
     "status": "ステータスコード",
     "statusCode": "ステータスコード",
+    "statusText": "状態テキスト",
+    "text": "テキスト",
+    "toolInput": "<translate_input>\nツール入力\n</translate_input>",
+    "toolName": "ツール名",
     "unknown": "不明なエラー",
-    "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした"
+    "usage": "用量",
+    "user_message_not_found": "元のユーザーメッセージを見つけることができませんでした",
+    "value": "値",
+    "values": "値"
   },
   "export": {
     "assistant": "アシスタント",
