@@ -3,7 +3,6 @@ import { VideoMessageBlock } from '@renderer/types/newMessage'
 import { FC, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactPlayer from 'react-player'
-import YouTube, { YouTubeProps } from 'react-youtube'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('MessageVideo')
@@ -19,30 +18,6 @@ const MessageVideo: FC<Props> = ({ block }) => {
 
   if (!block.url && !block.filePath) {
     return null
-  }
-
-  /**
-   * 渲染 YouTube 视频
-   */
-  const renderYoutube = () => {
-    if (!block.url) {
-      logger.warn('YouTube video was requested but block.url is missing.')
-      return <div>{t('message.video.error.youtube_url_missing')}</div>
-    }
-
-    const onPlayerReady: YouTubeProps['onReady'] = (event) => {
-      event.target.pauseVideo()
-    }
-
-    const opts: YouTubeProps['opts'] = {
-      height: '100%',
-      width: '100%',
-      playerVars: {
-        start: Math.floor(block.metadata?.startTime ?? 0)
-      }
-    }
-
-    return <YouTube style={{ height: '100%', width: '100%' }} videoId={block.url} opts={opts} onReady={onPlayerReady} />
   }
 
   /**
@@ -79,9 +54,6 @@ const MessageVideo: FC<Props> = ({ block }) => {
 
   const renderVideo = () => {
     switch (block.metadata?.type) {
-      case 'youtube':
-        return renderYoutube()
-
       case 'video':
         return renderLocalVideo()
 
