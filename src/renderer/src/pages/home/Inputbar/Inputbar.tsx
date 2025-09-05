@@ -799,6 +799,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         })
       } else {
         logger.error('Cannot add non-vision model when images are uploaded')
+        logger.error('This is a test message.')
       }
     },
     [couldMentionNotVisionModel]
