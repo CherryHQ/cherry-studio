@@ -220,3 +220,12 @@ export const isSerializedAiSdkToolCallRepairError = (
 ): error is SerializedAiSdkToolCallRepairError => {
   return isSerializedAiSdkError(error) && 'originalError' in error
 }
+export interface SerializedAiSdkTypeValidationError extends SerializedAiSdkError {
+  readonly value: Serializable
+}
+
+export const isSerializedAiSdkToolTypeValidationError = (
+  error: SerializedError
+): error is SerializedAiSdkTypeValidationError => {
+  return isSerializedAiSdkError(error) && 'value' in error
+}

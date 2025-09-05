@@ -17,6 +17,7 @@ import {
   SerializedAiSdkNoSuchToolError,
   SerializedAiSdkRetryError,
   SerializedAiSdkToolCallRepairError,
+  SerializedAiSdkTypeValidationError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -35,7 +36,8 @@ import {
   NoSuchProviderError,
   NoSuchToolError,
   RetryError,
-  ToolCallRepairError
+  ToolCallRepairError,
+  TypeValidationError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -286,6 +288,14 @@ const serializeToolCallRepairError = (error: ToolCallRepairError): SerializedAiS
       ? serializeInvalidToolInputError(error.originalError)
       : serializeNoSuchToolError(error.originalError)
   } satisfies SerializedAiSdkToolCallRepairError
+}
+
+const serializeTypeValidationError = (error: TypeValidationError): SerializedAiSdkTypeValidationError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    value: safeSerialize(error.value)
+  } satisfies SerializedAiSdkTypeValidationError
 }
 
 export const serializeError = (error: AISDKError): SerializedError => {
