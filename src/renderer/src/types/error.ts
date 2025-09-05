@@ -80,3 +80,13 @@ export const isSerializedAiSdkInvalidMessageRoleError = (
 ): error is SerializedAiSdkInvalidMessageRoleError => {
   return isSerializedAiSdkError(error) && 'role' in error
 }
+
+export interface SerializedAiSdkInvalidPromptError extends SerializedAiSdkError {
+  readonly prompt: Serializable
+}
+
+export const isSerializedAiSdkInvalidPromptError = (
+  error: SerializedError
+): error is SerializedAiSdkInvalidPromptError => {
+  return isSerializedAiSdkError(error) && 'prompt' in error
+}

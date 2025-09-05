@@ -6,6 +6,8 @@ import {
   SerializedAiSdkError,
   SerializedAiSdkInvalidArgumentError,
   SerializedAiSdkInvalidDataContentError,
+  SerializedAiSdkInvalidMessageRoleError,
+  SerializedAiSdkInvalidPromptError,
   SerializedError
 } from '@renderer/types/error'
 import {
@@ -14,7 +16,8 @@ import {
   DownloadError,
   InvalidArgumentError,
   InvalidDataContentError,
-  InvalidMessageRoleError
+  InvalidMessageRoleError,
+  InvalidPromptError
 } from 'ai'
 import { t } from 'i18next'
 import z from 'zod'
@@ -166,12 +169,20 @@ const serializeInvalidDataContentError = (error: InvalidDataContentError): Seria
   } satisfies SerializedAiSdkInvalidDataContentError
 }
 
-const serializeInvalidMessageRoleError = (error: InvalidMessageRoleError): SerializedAiSdkError => {
+const serializeInvalidMessageRoleError = (error: InvalidMessageRoleError): SerializedAiSdkInvalidMessageRoleError => {
   const baseError = getBaseError(error)
   return {
     ...baseError,
     role: error.role
-  } satisfies SerializedAiSdkError
+  } satisfies SerializedAiSdkInvalidMessageRoleError
+}
+
+const serializeInvalidPromptError = (error: InvalidPromptError): SerializedAiSdkInvalidPromptError => {
+  const baseError = getBaseError(error)
+  return {
+    ...baseError,
+    prompt: safeSerialize(error.prompt)
+  } satisfies SerializedAiSdkInvalidPromptError
 }
 
 export const serializeError = (error: AISDKError): SerializedError => {
@@ -195,6 +206,9 @@ export const serializeError = (error: AISDKError): SerializedError => {
   }
   if (InvalidMessageRoleError.isInstance(error)) {
     return serializeInvalidMessageRoleError(error)
+  }
+  if (InvalidPromptError.isInstance(error)) {
+    return serializeInvalidPromptError(error)
   }
 
   return baseError
