@@ -169,7 +169,7 @@ const WindowFooter: FC<FooterProps> = ({
                 <Pause size={14} className="btn-icon loading-icon" style={{ position: 'absolute', left: 1, top: 1 }} />
                 <LoadingOutlined
                   style={{ fontSize: 16, position: 'absolute', left: 0, top: 0 }}
-                  className="btn-icon  loading-icon"
+                  className="btn-icon loading-icon"
                   spin
                 />
               </LoadingIconWrapper>
