@@ -5,7 +5,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import TabsService from '@renderer/services/TabsService'
-import { FC, useEffect, useMemo, useRef } from 'react'
+import { FC, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -21,9 +21,8 @@ const MinAppPage: FC = () => {
   const { openedKeepAliveMinapps } = useRuntime()
   const navigate = useNavigate()
 
-  // Remember the initial navbar position when component mounts
-  const initialIsTopNavbar = useRef<boolean>(isTopNavbar)
-  const hasRedirected = useRef<boolean>(false)
+  // Track if we've handled the initial redirect for this app
+  const [hasHandledRedirect, setHasHandledRedirect] = useState<boolean>(false)
 
   // Initialize TabsService with cache reference
   useEffect(() => {
@@ -32,12 +31,10 @@ const MinAppPage: FC = () => {
     }
   }, [minAppsCache])
 
-  // Debug: track navbar position changes
+  // Reset redirect state when app changes or navbar position changes
   useEffect(() => {
-    if (initialIsTopNavbar.current !== isTopNavbar) {
-      logger.debug(`NavBar position changed from ${initialIsTopNavbar.current} to ${isTopNavbar}`)
-    }
-  }, [isTopNavbar])
+    setHasHandledRedirect(false)
+  }, [appId, isTopNavbar])
 
   // Find the app from all available apps
   const app = useMemo(() => {
@@ -54,8 +51,8 @@ const MinAppPage: FC = () => {
 
     // For sidebar navigation, redirect to apps list and open popup
     // Only check once and only if we haven't already redirected
-    if (!initialIsTopNavbar.current && !hasRedirected.current) {
-      hasRedirected.current = true
+    if (!isTopNavbar && !hasHandledRedirect) {
+      setHasHandledRedirect(true)
       navigate('/apps')
       // Open popup after navigation
       setTimeout(() => {
@@ -65,7 +62,7 @@ const MinAppPage: FC = () => {
     }
 
     // For top navbar mode, integrate with cache system
-    if (initialIsTopNavbar.current) {
+    if (isTopNavbar) {
       // Check if app is already in the keep-alive cache
       const isAlreadyInCache = openedKeepAliveMinapps.some((cachedApp) => cachedApp.id === app.id)
 
@@ -77,10 +74,10 @@ const MinAppPage: FC = () => {
         logger.debug(`App ${app.id} already in keep-alive cache`)
       }
     }
-  }, [app, navigate, openMinappKeepAlive, openedKeepAliveMinapps, initialIsTopNavbar])
+  }, [app, navigate, openMinappKeepAlive, openedKeepAliveMinapps, isTopNavbar, hasHandledRedirect])
 
-  // Don't render anything if app not found or not in top navbar mode initially
-  if (!app || !initialIsTopNavbar.current) {
+  // Don't render anything if app not found or not in top navbar mode
+  if (!app || !isTopNavbar) {
     return null
   }
 
