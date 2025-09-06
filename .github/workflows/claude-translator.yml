@@ -1,6 +1,6 @@
-name: English Translator
+name: Claude Translator
 concurrency:
-  group: translator-${{ github.event.issue.number }}
+  group: translator-${{ github.event.comment.id || github.event.issue.number }}
   cancel-in-progress: false
 
 on:
