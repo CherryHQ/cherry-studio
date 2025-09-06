@@ -3930,35 +3930,14 @@
       "titlePlaceholder": "请输入短语标题"
     },
     "shortcuts": {
-      "action": "操作",
-      "actions": "操作",
-      "clear_shortcut": "清除快捷键",
-      "clear_topic": "清空消息",
-      "copy_last_message": "复制上一条消息",
-      "edit_last_user_message": "编辑最后一条用户消息",
-      "enabled": "启用",
-      "exit_fullscreen": "退出全屏",
-      "label": "按键",
-      "mini_window": "快捷助手",
-      "new_topic": "新建话题",
-      "press_shortcut": "按下快捷键",
-      "rename_topic": "重命名话题",
-      "reset_defaults": "重置默认快捷键",
-      "reset_defaults_confirm": "确定要重置所有快捷键吗？",
-      "reset_to_default": "重置为默认",
-      "search_message": "搜索消息",
-      "search_message_in_chat": "在当前对话中搜索消息",
-      "selection_assistant_select_text": "划词助手：取词",
-      "selection_assistant_toggle": "开关划词助手",
-      "show_app": "显示 / 隐藏应用",
-      "show_settings": "打开设置",
-      "title": "快捷键",
-      "toggle_new_context": "清除上下文",
-      "toggle_show_assistants": "切换助手显示",
-      "toggle_show_topics": "切换话题显示",
-      "zoom_in": "放大界面",
-      "zoom_out": "缩小界面",
-      "zoom_reset": "重置缩放"
+      "category": {
+        "editing": "编辑",
+        "navigation": "导航",
+        "other": "其他",
+        "search": "搜索",
+        "system": "系统"
+      },
+      "no_results": "没有找到匹配的快捷键"
     },
     "theme": {
       "color_primary": "主题颜色",

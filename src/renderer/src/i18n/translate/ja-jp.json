@@ -3915,35 +3915,14 @@
       "titlePlaceholder": "フレーズのタイトルを入力してください"
     },
     "shortcuts": {
-      "action": "操作",
-      "actions": "操作",
-      "clear_shortcut": "ショートカットをクリア",
-      "clear_topic": "メッセージを消去",
-      "copy_last_message": "最後のメッセージをコピー",
-      "edit_last_user_message": "最後のユーザーメッセージを編集",
-      "enabled": "有効化",
-      "exit_fullscreen": "フルスクリーンを終了",
-      "label": "キー",
-      "mini_window": "クイックアシスタント",
-      "new_topic": "新しいトピック",
-      "press_shortcut": "ショートカットを押す",
-      "rename_topic": "トピックの名前を変更",
-      "reset_defaults": "デフォルトのショートカットをリセット",
-      "reset_defaults_confirm": "すべてのショートカットをリセットしてもよろしいですか？",
-      "reset_to_default": "デフォルトにリセット",
-      "search_message": "メッセージを検索",
-      "search_message_in_chat": "現在のチャットでメッセージを検索",
-      "selection_assistant_select_text": "選択アシスタント：テキストを選択",
-      "selection_assistant_toggle": "選択アシスタントを切り替え",
-      "show_app": "アプリを表示/非表示",
-      "show_settings": "設定を開く",
-      "title": "ショートカット",
-      "toggle_new_context": "コンテキストをクリア",
-      "toggle_show_assistants": "アシスタントの表示を切り替え",
-      "toggle_show_topics": "トピックの表示を切り替え",
-      "zoom_in": "ズームイン",
-      "zoom_out": "ズームアウト",
-      "zoom_reset": "ズームをリセット"
+      "category": {
+        "editing": "[to be translated]:编辑",
+        "navigation": "[to be translated]:导航",
+        "other": "[to be translated]:其他",
+        "search": "[to be translated]:搜索",
+        "system": "[to be translated]:系统"
+      },
+      "no_results": "[to be translated]:没有找到匹配的快捷键"
     },
     "theme": {
       "color_primary": "テーマ色",

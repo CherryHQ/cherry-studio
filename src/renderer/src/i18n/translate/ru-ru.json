@@ -3915,35 +3915,14 @@
       "titlePlaceholder": "Введите заголовок фразы"
     },
     "shortcuts": {
-      "action": "Действие",
-      "actions": "操作",
-      "clear_shortcut": "Очистить сочетание клавиш",
-      "clear_topic": "Очистить все сообщения",
-      "copy_last_message": "Копировать последнее сообщение",
-      "edit_last_user_message": "Редактировать последнее сообщение пользователя",
-      "enabled": "Включить",
-      "exit_fullscreen": "Выйти из полноэкранного режима",
-      "label": "Клавиша",
-      "mini_window": "Быстрый помощник",
-      "new_topic": "Новый топик",
-      "press_shortcut": "Нажмите сочетание клавиш",
-      "rename_topic": "Переименовать топик",
-      "reset_defaults": "Сбросить настройки по умолчанию",
-      "reset_defaults_confirm": "Вы уверены, что хотите сбросить все горячие клавиши?",
-      "reset_to_default": "Сбросить настройки по умолчанию",
-      "search_message": "Поиск сообщения",
-      "search_message_in_chat": "Поиск сообщения в текущем диалоге",
-      "selection_assistant_select_text": "Помощник выделения: выделить текст",
-      "selection_assistant_toggle": "Переключить помощник выделения",
-      "show_app": "Показать/скрыть приложение",
-      "show_settings": "Открыть настройки",
-      "title": "Горячие клавиши",
-      "toggle_new_context": "Очистить контекст",
-      "toggle_show_assistants": "Переключить отображение ассистентов",
-      "toggle_show_topics": "Переключить отображение топиков",
-      "zoom_in": "Увеличить",
-      "zoom_out": "Уменьшить",
-      "zoom_reset": "Сбросить масштаб"
+      "category": {
+        "editing": "[to be translated]:编辑",
+        "navigation": "[to be translated]:导航",
+        "other": "[to be translated]:其他",
+        "search": "[to be translated]:搜索",
+        "system": "[to be translated]:系统"
+      },
+      "no_results": "[to be translated]:没有找到匹配的快捷键"
     },
     "theme": {
       "color_primary": "Цвет темы",
