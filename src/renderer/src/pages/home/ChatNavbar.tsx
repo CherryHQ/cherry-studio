@@ -98,15 +98,15 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </HStack>
       <HStack alignItems="center" gap={8}>
         <UpdateAppButton />
-        <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-          <NarrowIcon onClick={() => SearchPopup.show()}>
-            <Search size={18} />
-          </NarrowIcon>
-        </Tooltip>
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
           <NarrowIcon onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NarrowIcon>
+        </Tooltip>
+        <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+          <NavbarIcon onClick={() => SearchPopup.show()}>
+            <Search size={18} />
+          </NavbarIcon>
         </Tooltip>
         {topicPosition === 'right' && !showTopics && (
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
