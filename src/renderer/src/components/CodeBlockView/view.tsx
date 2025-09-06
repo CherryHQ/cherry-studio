@@ -286,8 +286,14 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     const logo = getLangLogo(language)
     return (
       <CodeHeader $isInSpecialView={isInSpecialView}>
-        {logo ? <img src={logo} alt={language} /> : ''}
-        <span style={{ marginTop: '3px' }}>{language}</span>
+        {isInSpecialView ? (
+          ''
+        ) : (
+          <>
+            {logo && <img src={logo} alt={language} />}
+            <span style={{ marginTop: '2px' }}>{language}</span>
+          </>
+        )}
       </CodeHeader>
     )
   }, [isInSpecialView, language])
@@ -356,7 +362,7 @@ const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
   display: flex;
   align-items: center;
   color: var(--color-text);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   font-weight: bold;
   padding: 0 10px;
@@ -367,9 +373,9 @@ const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
   background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
 
   img {
-    width: 16px;
-    height: 16px;
-    margin-right: 8px;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
   }
 `
 

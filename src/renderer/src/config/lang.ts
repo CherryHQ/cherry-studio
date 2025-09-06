@@ -21,6 +21,7 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+import BashIcon from '@renderer/assets/images/lang/bash.svg'
 import CIcon from '@renderer/assets/images/lang/c.svg'
 import CMakeIcon from '@renderer/assets/images/lang/cmake.svg'
 import CppIcon from '@renderer/assets/images/lang/cplusplus.svg'
@@ -31,6 +32,7 @@ import JavaIcon from '@renderer/assets/images/lang/java.svg'
 import JavaScriptIcon from '@renderer/assets/images/lang/javascript.svg'
 import JsonIcon from '@renderer/assets/images/lang/json.svg'
 import LuaIcon from '@renderer/assets/images/lang/lua.svg'
+import PerlIcon from '@renderer/assets/images/lang/perl.svg'
 import PhpIcon from '@renderer/assets/images/lang/php.svg'
 import PythonIcon from '@renderer/assets/images/lang/python.svg'
 import RubyIcon from '@renderer/assets/images/lang/ruby.svg'
@@ -40,37 +42,39 @@ import VBIcon from '@renderer/assets/images/lang/vb.svg'
 import XMLIcon from '@renderer/assets/images/lang/xml.svg'
 import YamlIcon from '@renderer/assets/images/lang/yaml.svg'
 export function getLangLogo(lang: string) {
-  const isLight = true
-
   if (!lang) {
     return undefined
   }
 
   const logoMap = {
-    TS: isLight ? TypeScriptIcon : TypeScriptIcon,
-    TypeScript: isLight ? TypeScriptIcon : TypeScriptIcon,
-    JS: isLight ? JavaScriptIcon : JavaScriptIcon,
-    JavaScript: isLight ? JavaScriptIcon : JavaScriptIcon,
-    Python: isLight ? PythonIcon : PythonIcon,
-    PY: isLight ? PythonIcon : PythonIcon,
-    Java: isLight ? JavaIcon : JavaIcon,
-    CPP: isLight ? CppIcon : CppIcon,
-    CMake: isLight ? CMakeIcon : CMakeIcon,
-    '^c$': isLight ? CIcon : CIcon,
-    csharp: isLight ? CSharpIcon : CSharpIcon,
-    Go: isLight ? GoIcon : GoIcon,
-    Json: isLight ? JsonIcon : JsonIcon,
-    Rust: isLight ? RustIcon : RustIcon,
-    Yaml: isLight ? YamlIcon : YamlIcon,
-    Php: isLight ? PhpIcon : PhpIcon,
-    Ruby: isLight ? RubyIcon : RubyIcon,
-    Lua: isLight ? LuaIcon : LuaIcon,
-    CSS: isLight ? CSS3Icon : CSS3Icon,
-    CSS3: isLight ? CSS3Icon : CSS3Icon,
-    XML: isLight ? XMLIcon : XMLIcon,
-    vb: isLight ? VBIcon : VBIcon,
-    visualbasic: isLight ? VBIcon : VBIcon,
-    HTML: isLight ? XMLIcon : XMLIcon
+    bash: BashIcon,
+    cpp: CppIcon,
+    cmake: CMakeIcon,
+    css: CSS3Icon,
+    css3: CSS3Icon,
+    '^c$': CIcon,
+    '^cs$': CSharpIcon,
+    csharp: CSharpIcon,
+    go: GoIcon,
+    lua: LuaIcon,
+    js: JavaScriptIcon,
+    javascript: JavaScriptIcon,
+    java: JavaIcon,
+    json: JsonIcon,
+    python: PythonIcon,
+    py: PythonIcon,
+    perl: PerlIcon,
+    php: PhpIcon,
+    rs: RustIcon,
+    rust: RustIcon,
+    ts: TypeScriptIcon,
+    typescript: TypeScriptIcon,
+    yml: YamlIcon,
+    yaml: YamlIcon,
+    ruby: RubyIcon,
+    vb: VBIcon,
+    visualbasic: VBIcon,
+    xml: XMLIcon
   }
 
   for (const key in logoMap) {
