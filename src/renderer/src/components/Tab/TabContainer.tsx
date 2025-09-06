@@ -1,10 +1,10 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
+import { useHorizontalScroll } from '@renderer/hooks/useHorizontalScroll'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { getThemeModeLabel, getTitleLabel } from '@renderer/i18n/label'
@@ -14,9 +14,8 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import {
-  ChevronRight,
   FileSearch,
   Folder,
   Hammer,
@@ -33,7 +32,7 @@ import {
   Terminal,
   X
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -97,8 +96,10 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const { hideMinappPopup } = useMinappPopup()
   const { minapps } = useMinapps()
   const { t } = useTranslation()
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const [canScroll, setCanScroll] = useState(false)
+
+  const { scrollRef, ScrollContainer, ScrollContent, renderScrollButton } = useHorizontalScroll({
+    dependencies: [tabs]
+  })
 
   const getTabId = (path: string): string => {
     if (path === '/') return 'home'
@@ -174,31 +175,6 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     navigate(tab.path)
   }
 
-  const handleScrollRight = () => {
-    scrollRef.current?.scrollBy({ left: 200, behavior: 'smooth' })
-  }
-
-  useEffect(() => {
-    const scrollElement = scrollRef.current
-    if (!scrollElement) return
-
-    const checkScrollability = () => {
-      setCanScroll(scrollElement.scrollWidth > scrollElement.clientWidth)
-    }
-
-    checkScrollability()
-
-    const resizeObserver = new ResizeObserver(checkScrollability)
-    resizeObserver.observe(scrollElement)
-
-    window.addEventListener('resize', checkScrollability)
-
-    return () => {
-      resizeObserver.disconnect()
-      window.removeEventListener('resize', checkScrollability)
-    }
-  }, [tabs])
-
   const visibleTabs = useMemo(() => tabs.filter((tab) => !specialTabs.includes(tab.id)), [tabs])
 
   const { onSortEnd } = useDndReorder<Tab>({
@@ -211,8 +187,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   return (
     <Container>
       <TabsBar $isFullscreen={isFullscreen}>
-        <TabsArea>
-          <TabsScroll ref={scrollRef}>
+        <ScrollContainer>
+          <ScrollContent ref={scrollRef}>
             <Sortable
               items={visibleTabs}
               itemKey="id"
@@ -241,16 +217,12 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
                 </Tab>
               )}
             />
-          </TabsScroll>
-          {canScroll && (
-            <ScrollButton onClick={handleScrollRight} className="scroll-right-button" shape="circle" size="small">
-              <ChevronRight size={16} />
-            </ScrollButton>
-          )}
+          </ScrollContent>
+          {renderScrollButton()}
           <AddTabButton onClick={handleAddTab} className={classNames({ active: activeTabId === 'launchpad' })}>
             <PlusOutlined />
           </AddTabButton>
-        </TabsArea>
+        </ScrollContainer>
         <RightButtonsContainer>
           <Tooltip
             title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
@@ -301,34 +273,6 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
     position: relative;
     z-index: 1;
     -webkit-app-region: no-drag;
-  }
-`
-
-const TabsArea = styled.div`
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  gap: 6px;
-  padding-right: 2rem;
-  position: relative;
-
-  -webkit-app-region: drag;
-
-  > * {
-    -webkit-app-region: no-drag;
-  }
-
-  &:hover {
-    .scroll-right-button {
-      opacity: 1;
-    }
-  }
-`
-
-const TabsScroll = styled(Scrollbar)`
-  &::-webkit-scrollbar {
-    display: none;
   }
 `
 
@@ -407,22 +351,6 @@ const AddTabButton = styled.div`
   &:hover {
     background: var(--color-list-item);
   }
-`
-
-const ScrollButton = styled(Button)`
-  position: absolute;
-  right: 4rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  opacity: 0;
-  transition: opacity 0.2s ease-in-out;
-
-  border: none;
-  box-shadow:
-    0 6px 16px 0 rgba(0, 0, 0, 0.08),
-    0 3px 6px -4px rgba(0, 0, 0, 0.12),
-    0 9px 28px 8px rgba(0, 0, 0, 0.05);
 `
 
 const RightButtonsContainer = styled.div`
