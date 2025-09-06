@@ -2,7 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"
@@ -31,6 +31,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+          # set base_ref to avoid ocid problem
+          ref: ${{ github.base_ref }}
 
       - name: Run Claude Code Review
         id: claude-review
@@ -44,6 +46,9 @@ jobs:
             - Performance considerations
             - Security concerns
             - Test coverage
+
+            PR Number: ${{ github.event.pull_request.number }}
+            Repo: ${{ github.repository }}
 
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
