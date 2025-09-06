@@ -1,6 +1,8 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
+import ShortcutsHelpContainer from '@renderer/components/ShortcutsHelp/ShortcutsHelp'
+import { ShortcutsHelpService } from '@renderer/components/ShortcutsHelp/ShortcutsHelp'
 import WindowControls from '@renderer/components/WindowControls'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -9,8 +11,9 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
+import { setActiveTab } from '@renderer/store/tabs'
 import { Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
@@ -52,6 +55,30 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     SearchPopup.show()
   })
 
+  // 获取标签页状态
+  const tabs = useAppSelector((state) => state.tabs.tabs)
+
+  // 标签页切换功能
+  const switchToTab = (index: number) => {
+    if (index >= 0 && index < tabs.length) {
+      dispatch(setActiveTab(tabs[index].id))
+    }
+  }
+
+  // 为每个数字快捷键添加处理
+  useShortcut('switch_tab_1', () => switchToTab(0))
+  useShortcut('switch_tab_2', () => switchToTab(1))
+  useShortcut('switch_tab_3', () => switchToTab(2))
+  useShortcut('switch_tab_4', () => switchToTab(3))
+  useShortcut('switch_tab_5', () => switchToTab(4))
+  useShortcut('switch_tab_6', () => switchToTab(5))
+  useShortcut('switch_tab_7', () => switchToTab(6))
+  useShortcut('switch_tab_8', () => switchToTab(7))
+  useShortcut('switch_tab_9', () => switchToTab(8))
+  useShortcut('show_shortcuts_help', () => {
+    ShortcutsHelpService.show()
+  })
+
   const handleNarrowModeToggle = async () => {
     await modelGenerating()
     dispatch(setNarrowMode(!narrowMode))
@@ -67,111 +94,114 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   }
 
   return (
-    <Navbar className="home-navbar">
-      <AnimatePresence initial={false}>
-        {showAssistants && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'auto', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-                <NavbarIcon onClick={toggleShowAssistants}>
+    <>
+      <Navbar className="home-navbar">
+        <AnimatePresence initial={false}>
+          {showAssistants && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
+              <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
+                <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+                  <NavbarIcon onClick={toggleShowAssistants}>
+                    <PanelLeftClose size={18} />
+                  </NavbarIcon>
+                </Tooltip>
+              </NavbarLeft>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <NavbarRight
+          style={{ justifyContent: 'space-between', flex: 1, position: 'relative' }}
+          className="home-navbar-right">
+          <HStack alignItems="center">
+            {!showAssistants && (
+              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+                <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8, marginLeft: -12 }}>
+                  <PanelRightClose size={18} />
+                </NavbarIcon>
+              </Tooltip>
+            )}
+            <AnimatePresence initial={false}>
+              {!showAssistants && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  style={{ overflow: 'hidden' }}>
+                  <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
+                    <Menu size={18} />
+                  </NavbarIcon>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <SelectModelButton assistant={assistant} />
+          </HStack>
+          <HStack alignItems="center" gap={6}>
+            <UpdateAppButton />
+            {topicPosition === 'right' && !showTopics && (
+              <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+                <NavbarIcon onClick={toggleShowTopics}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
               </Tooltip>
-            </NavbarLeft>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      <NavbarRight
-        style={{ justifyContent: 'space-between', flex: 1, position: 'relative' }}
-        className="home-navbar-right">
-        <HStack alignItems="center">
-          {!showAssistants && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-              <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8, marginLeft: -12 }}>
-                <PanelRightClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
-          )}
-          <AnimatePresence initial={false}>
-            {!showAssistants && (
-              <motion.div
-                initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 'auto', opacity: 1 }}
-                exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                style={{ overflow: 'hidden' }}>
-                <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
-                  <Menu size={18} />
-                </NavbarIcon>
-              </motion.div>
             )}
-          </AnimatePresence>
-          <SelectModelButton assistant={assistant} />
-        </HStack>
-        <HStack alignItems="center" gap={6}>
-          <UpdateAppButton />
-          {topicPosition === 'right' && !showTopics && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelLeftClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
-          )}
-          {topicPosition === 'right' && showTopics && (
-            <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
-              <NavbarIcon onClick={toggleShowTopics}>
-                <PanelRightClose size={18} />
-              </NavbarIcon>
-            </Tooltip>
-          )}
-          {/* For Mac, show search and expand without WindowControls */}
-          {!isWin && !isLinux && (
-            <>
+            {topicPosition === 'right' && showTopics && (
+              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+                <NavbarIcon onClick={toggleShowTopics}>
+                  <PanelRightClose size={18} />
+                </NavbarIcon>
+              </Tooltip>
+            )}
+            {/* For Mac, show search and expand without WindowControls */}
+            {!isWin && !isLinux && (
+              <>
+                <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+                  <NarrowIcon onClick={() => SearchPopup.show()}>
+                    <Search size={18} />
+                  </NarrowIcon>
+                </Tooltip>
+                <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+                  <NarrowIcon onClick={handleNarrowModeToggle}>
+                    <i className="iconfont icon-icon-adaptive-width"></i>
+                  </NarrowIcon>
+                </Tooltip>
+              </>
+            )}
+          </HStack>
+          {/* Search, Expand and WindowControls positioned at the right edge */}
+          {(isWin || isLinux) && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                top: 0,
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
               <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-                <NarrowIcon onClick={() => SearchPopup.show()}>
+                <NavbarIcon onClick={() => SearchPopup.show()}>
                   <Search size={18} />
-                </NarrowIcon>
+                </NavbarIcon>
               </Tooltip>
               <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-                <NarrowIcon onClick={handleNarrowModeToggle}>
+                <NavbarIcon onClick={handleNarrowModeToggle}>
                   <i className="iconfont icon-icon-adaptive-width"></i>
-                </NarrowIcon>
+                </NavbarIcon>
               </Tooltip>
-            </>
+              <WindowControls />
+            </div>
           )}
-        </HStack>
-        {/* Search, Expand and WindowControls positioned at the right edge */}
-        {(isWin || isLinux) && (
-          <div
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}>
-            <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-              <NavbarIcon onClick={() => SearchPopup.show()}>
-                <Search size={18} />
-              </NavbarIcon>
-            </Tooltip>
-            <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-              <NavbarIcon onClick={handleNarrowModeToggle}>
-                <i className="iconfont icon-icon-adaptive-width"></i>
-              </NavbarIcon>
-            </Tooltip>
-            <WindowControls />
-          </div>
-        )}
-      </NavbarRight>
-    </Navbar>
+        </NavbarRight>
+      </Navbar>
+      <ShortcutsHelpContainer />
+    </>
   )
 }
 
