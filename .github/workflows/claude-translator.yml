@@ -12,8 +12,8 @@ on:
 jobs:
   translate:
     if: |
-      (github.event_name == 'issues' && github.event.issue.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, '> [!NOTE]\n> This issue/comment was translated by Claude.')) ||
-      (github.event_name == 'issue_comment' && github.event.comment.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, '> [!NOTE]\n> This issue/comment was translated by Claude.'))
+      (github.event_name == 'issues' && github.event.issue.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue/comment was translated by Claude.')) ||
+      (github.event_name == 'issue_comment' && github.event.comment.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue/comment was translated by Claude.'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
