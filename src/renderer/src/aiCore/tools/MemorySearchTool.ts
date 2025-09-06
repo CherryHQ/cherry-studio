@@ -82,7 +82,7 @@ export const memorySearchToolWithExtraction = (assistant: Assistant) => {
           role: z.enum(['user', 'assistant', 'system']).describe('Message role')
         })
         .optional()
-    }) as z.ZodSchema<MemorySearchWithExtractionInput>,
+    }) satisfies z.ZodSchema<MemorySearchWithExtractionInput>,
     execute: async ({ userMessage }) => {
       // console.log('🧠 [memorySearchToolWithExtraction] Processing:', { userMessage, lastAnswer })
 
