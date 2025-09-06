@@ -310,6 +310,26 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
   return {}
 }
 
+export function getAnthropicThinkingBudget(assistant: Assistant, model: Model): number {
+  const { maxTokens, reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
+  if (maxTokens === undefined || reasoningEffort === undefined) {
+    return 0
+  }
+  const effortRatio = EFFORT_RATIO[reasoningEffort]
+
+  const budgetTokens = Math.max(
+    1024,
+    Math.floor(
+      Math.min(
+        (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
+          findTokenLimit(model.id)?.min!,
+        (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
+      )
+    )
+  )
+  return budgetTokens
+}
+
 /**
  * 获取 Anthropic 推理参数
  * 从 AnthropicAPIClient 中提取的逻辑
@@ -331,19 +351,7 @@ export function getAnthropicReasoningParams(assistant: Assistant, model: Model):
 
   // Claude 推理参数
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    const { maxTokens } = getAssistantSettings(assistant)
-    const effortRatio = EFFORT_RATIO[reasoningEffort]
-
-    const budgetTokens = Math.max(
-      1024,
-      Math.floor(
-        Math.min(
-          (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
-            findTokenLimit(model.id)?.min!,
-          (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
-        )
-      )
-    )
+    const budgetTokens = getAnthropicThinkingBudget(assistant, model)
 
     return {
       thinking: {

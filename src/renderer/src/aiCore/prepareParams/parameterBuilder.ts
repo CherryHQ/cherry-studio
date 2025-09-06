@@ -9,17 +9,19 @@ import {
   isOpenRouterBuiltInWebSearchModel,
   isReasoningModel,
   isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenClaudeModel,
   isSupportedThinkingTokenModel,
   isWebSearchModel
 } from '@renderer/config/models'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
-import type { Assistant, MCPTool, Provider } from '@renderer/types'
+import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import type { ModelMessage } from 'ai'
 import { stepCountIs } from 'ai'
 
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
+import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
@@ -55,7 +57,7 @@ export async function buildStreamTextParams(
 
   const model = assistant.model || getDefaultModel()
 
-  const { maxTokens } = getAssistantSettings(assistant)
+  let { maxTokens } = getAssistantSettings(assistant)
 
   // 这三个变量透传出来，交给下面启用插件/中间件
   // 也可以在外部构建好再传入buildStreamTextParams
@@ -87,6 +89,16 @@ export async function buildStreamTextParams(
     enableWebSearch,
     enableGenerateImage
   })
+
+  // NOTE: ai-sdk会把maxToken和budgetToken加起来
+  if (
+    enableReasoning &&
+    maxTokens !== undefined &&
+    isSupportedThinkingTokenClaudeModel(model) &&
+    (provider.type === 'anthropic' || provider.type === 'aws-bedrock')
+  ) {
+    maxTokens -= getAnthropicThinkingBudget(assistant, model)
+  }
 
   // 构建基础参数
   const params: StreamTextParams = {
