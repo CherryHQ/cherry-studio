@@ -95,7 +95,7 @@ export function isWebSearchModel(model: Model): boolean {
   }
 
   if (provider.id === 'dashscope') {
-    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash']
+    const models = ['qwen-turbo', 'qwen-max', 'qwen-plus', 'qwq', 'qwen-flash', 'qwen3-max']
     // matches id like qwen-max-0919, qwen-max-latest
     return models.some((i) => modelId.startsWith(i))
   }
