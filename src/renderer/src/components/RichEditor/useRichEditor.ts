@@ -8,9 +8,7 @@ import {
   htmlToMarkdown,
   isMarkdownContent,
   markdownToHtml,
-  markdownToPreviewText,
-  markdownToSafeHtml,
-  sanitizeHtml
+  markdownToPreviewText
 } from '@renderer/utils/markdownConverter'
 import type { Editor } from '@tiptap/core'
 import { TaskItem, TaskList } from '@tiptap/extension-list'
@@ -33,6 +31,7 @@ import { EnhancedImage } from './extensions/enhanced-image'
 import { EnhancedLink } from './extensions/enhanced-link'
 import { EnhancedMath } from './extensions/enhanced-math'
 import { Placeholder } from './extensions/placeholder'
+import { YamlFrontMatter } from './extensions/yaml-front-matter'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
 const logger = loggerService.withContext('useRichEditor')
@@ -135,7 +134,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
   const html = useMemo(() => {
     if (!markdown) return ''
-    return markdownToSafeHtml(markdown)
+    return markdownToHtml(markdown)
   }, [markdown])
 
   const previewText = useMemo(() => {
@@ -322,6 +321,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         showOnlyCurrent: true,
         includeChildren: false
       }),
+      YamlFrontMatter,
       Mention.configure({
         HTMLAttributes: {
           class: 'mention'
@@ -423,8 +423,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
         onContentChange?.(content)
         if (onHtmlChange) {
-          const safeHtml = sanitizeHtml(htmlContent)
-          onHtmlChange(safeHtml)
+          onHtmlChange(htmlContent)
         }
       } catch (error) {
         logger.error('Error converting HTML to markdown:', error as Error)
@@ -502,7 +501,10 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed) {
-              editor.commands.focus('end')
+              const isLong = editor.getText().length > 2000
+              if (!isLong) {
+                editor.commands.focus('end')
+              }
             }
           }, 0)
         } catch (error) {
@@ -724,7 +726,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         setMarkdownState(content)
         onChange?.(content)
 
-        const convertedHtml = markdownToSafeHtml(content)
+        const convertedHtml = markdownToHtml(content)
 
         editor.commands.setContent(convertedHtml)
 
@@ -771,7 +773,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
 
   const toSafeHtml = useCallback((content: string): string => {
     try {
-      return markdownToSafeHtml(content)
+      return markdownToHtml(content)
     } catch (error) {
       logger.error('Error converting markdown to safe HTML:', error as Error)
       return ''

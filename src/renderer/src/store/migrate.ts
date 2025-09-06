@@ -838,6 +838,7 @@ const migrateConfig = {
 
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'qwenlm'
         }
       })
@@ -895,6 +896,7 @@ const migrateConfig = {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === 'qwenlm') {
+          // @ts-ignore eslint-disable-next-line
           provider.type = 'qwenlm'
         }
       })
@@ -1604,7 +1606,6 @@ const migrateConfig = {
       if (state.paintings && !state.paintings.tokenflux_paintings) {
         state.paintings.tokenflux_paintings = []
       }
-      state.settings.showTokens = true
       state.settings.testPlan = false
       return state
     } catch (error) {
@@ -1896,6 +1897,7 @@ const migrateConfig = {
       return state
     }
   },
+
   '123': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
@@ -2312,6 +2314,107 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 142 error', error as Error)
+      return state
+    }
+  },
+  '143': (state: RootState) => {
+    try {
+      addMiniApp(state, 'longcat')
+      return state
+    } catch (error) {
+      return state
+    }
+  },
+  '144': (state: RootState) => {
+    try {
+      if (state.settings) {
+        state.settings.confirmDeleteMessage = settingsInitialState.confirmDeleteMessage
+        state.settings.confirmRegenerateMessage = settingsInitialState.confirmRegenerateMessage
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 144 error', error as Error)
+      return state
+    }
+  },
+  '145': (state: RootState) => {
+    try {
+      if (state.settings) {
+        if (state.settings.showMessageOutline === undefined || state.settings.showMessageOutline === null) {
+          state.settings.showMessageOutline = false
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 145 error', error as Error)
+      return state
+    }
+  },
+  '146': (state: RootState) => {
+    try {
+      // Migrate showWorkspace from settings to note store
+      if (state.settings && state.note) {
+        const showWorkspaceValue = (state.settings as any)?.showWorkspace
+        if (showWorkspaceValue !== undefined) {
+          // @ts-ignore eslint-disable-next-line
+          state.note.settings.showWorkspace = showWorkspaceValue
+          // Remove from settings
+          delete (state.settings as any).showWorkspace
+          // @ts-ignore eslint-disable-next-line
+        } else if (state.note.settings.showWorkspace === undefined) {
+          // Set default value if not exists
+          // @ts-ignore eslint-disable-next-line
+          state.note.settings.showWorkspace = true
+        }
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 146 error', error as Error)
+      return state
+    }
+  },
+  '147': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if (!base.framework) {
+          base.framework = 'embedjs'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 147 error', error as Error)
+      return state
+    }
+  },
+  '148': (state: RootState) => {
+    try {
+      addOcrProvider(state, BUILTIN_OCR_PROVIDERS_MAP.paddleocr)
+      return state
+    } catch (error) {
+      logger.error('migrate 148 error', error as Error)
+      return state
+    }
+  },
+  '149': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if (!base.framework) {
+          base.framework = 'embedjs'
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 149 error', error as Error)
+      return state
+    }
+  },
+  '150': (state: RootState) => {
+    try {
+      addShortcuts(state, ['rename_topic'], 'new_topic')
+      addShortcuts(state, ['edit_last_user_message'], 'copy_last_message')
+      return state
+    } catch (error) {
+      logger.error('migrate 150 error', error as Error)
       return state
     }
   }

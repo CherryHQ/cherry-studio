@@ -155,7 +155,7 @@ const TranslatePage: FC = () => {
         } catch (e) {
           if (!isAbortError(e)) {
             logger.error('Failed to translate text', e as Error)
-            window.message.error(t('translate.error.failed' + ': ' + (e as Error).message))
+            window.message.error(t('translate.error.failed') + ': ' + formatErrorMessage(e))
           }
           setTranslating(false)
           return
@@ -167,11 +167,11 @@ const TranslatePage: FC = () => {
           await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
         } catch (e) {
           logger.error('Failed to save translate history', e as Error)
-          window.message.error(t('translate.history.error.save') + ': ' + (e as Error).message)
+          window.message.error(t('translate.history.error.save') + ': ' + formatErrorMessage(e))
         }
       } catch (e) {
         logger.error('Failed to translate', e as Error)
-        window.message.error(t('translate.error.unknown') + ': ' + (e as Error).message)
+        window.message.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
     [dispatch, setTranslatedContent, setTranslating, t, translating]
@@ -277,7 +277,7 @@ const TranslatePage: FC = () => {
   // 控制复制按钮
   const onCopy = () => {
     navigator.clipboard.writeText(translatedContent)
-    setCopied(false)
+    setCopied(true)
   }
 
   // 控制历史记录点击
@@ -612,9 +612,14 @@ const TranslatePage: FC = () => {
   // 粘贴上传文件
   const onPaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      event.preventDefault()
+      if (isProcessing) return
       setIsProcessing(true)
       logger.debug('event', event)
-      if (event.clipboardData?.files && event.clipboardData.files.length > 0) {
+      const text = event.clipboardData.getData('text')
+      if (!isEmpty(text)) {
+        setText(text)
+      } else if (event.clipboardData.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         const files = event.clipboardData.files
         const file = getSingleFile(files) as File
@@ -659,7 +664,7 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, processFile, t]
+    [getSingleFile, isProcessing, processFile, setText, t]
   )
   return (
     <Container

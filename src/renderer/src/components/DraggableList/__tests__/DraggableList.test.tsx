@@ -71,8 +71,9 @@ describe('DraggableList', () => {
     })
 
     it('should render nothing when list is empty', () => {
+      const emptyList: Array<{ id: string; name: string }> = []
       render(
-        <DraggableList list={[]} onUpdate={() => {}}>
+        <DraggableList list={emptyList} onUpdate={() => {}}>
           {(item) => <div data-testid="item">{item.name}</div>}
         </DraggableList>
       )

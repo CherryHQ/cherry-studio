@@ -12,7 +12,6 @@ import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { TEXT_TO_IMAGES_MODELS } from '@renderer/config/models'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -41,6 +40,15 @@ import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
 import { checkProviderEnabled } from './utils'
+
+export const TEXT_TO_IMAGES_MODELS = [
+  {
+    id: 'Kwai-Kolors/Kolors',
+    provider: 'silicon',
+    name: 'Kolors',
+    group: 'Kwai-Kolors'
+  }
+]
 
 const logger = loggerService.withContext('SiliconPage')
 

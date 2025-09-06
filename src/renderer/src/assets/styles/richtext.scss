@@ -1,5 +1,6 @@
 .tiptap {
-  padding: 12px 60px;
+  // 预留5px给scrollbar
+  padding: 12px 55px 12px 60px;
   outline: none;
   min-height: 120px;
   overflow-wrap: break-word;
@@ -146,6 +147,12 @@
       font-style: italic;
       left: 0;
       right: 0;
+    }
+
+    /* Ensure drag handles and plus buttons remain interactive */
+    .drag-handle,
+    .plus-button {
+      pointer-events: auto;
     }
   }
 
@@ -469,6 +476,14 @@
     justify-content: center;
     align-items: center;
     font-size: 1.2rem;
+  }
+
+  /* Bottom spacer to create viewport padding */
+  &::after {
+    content: '';
+    display: block;
+    height: 50px;
+    pointer-events: none;
   }
 }
 

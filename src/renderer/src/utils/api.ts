@@ -16,9 +16,10 @@ export function formatApiKeys(value: string): string {
  * - 要加：其余情况。
  *
  * @param {string} host - 需要格式化的 API 主机地址。
+ * @param {string} apiVersion - 需要添加的 API 版本。
  * @returns {string} 格式化后的 API 主机地址。
  */
-export function formatApiHost(host: string): string {
+export function formatApiHost(host: string, apiVersion: string = 'v1'): string {
   const forceUseOriginalHost = () => {
     if (host.endsWith('/')) {
       return true
@@ -27,7 +28,7 @@ export function formatApiHost(host: string): string {
     return host.endsWith('volces.com/api/v3')
   }
 
-  return forceUseOriginalHost() ? host : `${host}/v1/`
+  return forceUseOriginalHost() ? host : `${host}/${apiVersion}/`
 }
 
 /**

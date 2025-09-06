@@ -6,7 +6,7 @@ import { initWorkSpace } from '@renderer/services/NotesService'
 import { EditorView } from '@renderer/types'
 import { Button, Input, message, Switch } from 'antd'
 import { FolderOpen } from 'lucide-react'
-import { FC, useState } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -28,6 +28,13 @@ const NotesSettings: FC = () => {
   const { settings, updateSettings, notesPath, updateNotesPath } = useNotesSettings()
   const [tempPath, setTempPath] = useState<string>(notesPath || '')
   const [isSelecting, setIsSelecting] = useState(false)
+
+  // Update tempPath when notesPath changes (e.g., after initialization)
+  useEffect(() => {
+    if (notesPath) {
+      setTempPath(notesPath)
+    }
+  }, [notesPath])
 
   const handleSelectWorkDirectory = async () => {
     try {
@@ -63,7 +70,7 @@ const NotesSettings: FC = () => {
       }
 
       updateNotesPath(tempPath)
-      initWorkSpace(tempPath)
+      initWorkSpace(tempPath, 'sort_a2z')
       window.message.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
@@ -76,7 +83,7 @@ const NotesSettings: FC = () => {
       const info = await window.api.getAppInfo()
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
-      initWorkSpace(info.notesPath)
+      initWorkSpace(info.notesPath, 'sort_a2z')
       window.message.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)

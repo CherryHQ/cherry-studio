@@ -271,7 +271,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'Anthropic',
     type: 'anthropic',
     apiKey: '',
-    apiHost: 'https://api.anthropic.com/',
+    apiHost: 'https://api.anthropic.com',
     models: SYSTEM_MODELS.anthropic,
     isSystem: true,
     enabled: false
@@ -661,7 +661,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'svg' // use svg icon component
+  poe: 'poe' // use svg icon component
 } as const
 
 export function getProviderLogo(providerId: string) {
