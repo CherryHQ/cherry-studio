@@ -67,11 +67,14 @@ export async function buildStreamTextParams(
       assistant.settings?.reasoning_effort !== undefined) ||
     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
+  // 判断是否使用内置搜索
+  // 条件：没有外部搜索提供商 && (用户开启了内置搜索 || 模型强制使用内置搜索)
+  const hasExternalSearch = !!options.webSearchProviderId
   const enableWebSearch =
-    (assistant.enableWebSearch && isWebSearchModel(model)) ||
-    isOpenRouterBuiltInWebSearchModel(model) ||
-    model.id.includes('sonar') ||
-    false
+    !hasExternalSearch &&
+    ((assistant.enableWebSearch && isWebSearchModel(model)) ||
+      isOpenRouterBuiltInWebSearchModel(model) ||
+      model.id.includes('sonar'))
 
   const enableUrlContext = assistant.enableUrlContext || false
 
