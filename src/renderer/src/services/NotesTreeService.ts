@@ -89,8 +89,9 @@ export async function moveNodeInTree(
       return false
     }
 
-    // 先保存源节点的副本，以防操作失败需要恢复（暂未实现恢复逻辑）
-    // const sourceNodeCopy = { ...sourceNode }
+    // 在移除节点之前先获取源节点的父节点信息，用于后续判断是否为同级排序
+    const sourceParent = findParentNode(tree, sourceNodeId)
+    const targetParent = findParentNode(tree, targetNodeId)
 
     // 从原位置移除节点（不保存数据库，只在内存中操作）
     const removed = removeNodeFromTreeInMemory(tree, sourceNodeId)
@@ -110,7 +111,6 @@ export async function moveNodeInTree(
 
         sourceNode.treePath = `${targetNode.treePath}/${sourceNode.name}`
       } else {
-        const targetParent = findParentNode(tree, targetNodeId)
         const targetList = targetParent ? targetParent.children! : tree
         const targetIndex = targetList.findIndex((node) => node.id === targetNodeId)
 
@@ -123,11 +123,16 @@ export async function moveNodeInTree(
         const insertIndex = position === 'before' ? targetIndex : targetIndex + 1
         targetList.splice(insertIndex, 0, sourceNode)
 
-        // 更新节点路径
-        if (targetParent) {
-          sourceNode.treePath = `${targetParent.treePath}/${sourceNode.name}`
-        } else {
-          sourceNode.treePath = `/${sourceNode.name}`
+        // 检查是否为同级排序，如果是则保持原有的 treePath
+        const isSameLevelReorder = sourceParent === targetParent
+
+        // 只有在跨级移动时才更新节点路径
+        if (!isSameLevelReorder) {
+          if (targetParent) {
+            sourceNode.treePath = `${targetParent.treePath}/${sourceNode.name}`
+          } else {
+            sourceNode.treePath = `/${sourceNode.name}`
+          }
         }
       }
 

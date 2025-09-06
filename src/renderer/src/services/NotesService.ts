@@ -182,7 +182,7 @@ export async function moveNode(
   sourceNodeId: string,
   targetNodeId: string,
   position: 'before' | 'after' | 'inside'
-): Promise<boolean> {
+): Promise<boolean | 'manual_reorder'> {
   try {
     const tree = await getNotesTree()
 
@@ -224,6 +224,20 @@ export async function moveNode(
       } else {
         targetPath = getFileDirectory(targetNode.externalPath!)
       }
+    }
+
+    // 检查是否为同级拖动排序
+    const sourceParent = findParentNode(tree, sourceNodeId)
+    const sourceDir = sourceParent ? sourceParent.externalPath : getFileDirectory(sourceNode.externalPath!)
+
+    const isSameLevelReorder = position !== 'inside' && sourceDir === targetPath
+
+    if (isSameLevelReorder) {
+      // 同级拖动排序：跳过文件系统操作，只更新树结构
+      logger.debug(`Same level reorder detected, skipping file system operations`)
+      const success = await moveNodeInTree(tree, sourceNodeId, targetNodeId, position)
+      // 返回一个特殊标识，告诉调用方这是手动排序，不需要重新自动排序
+      return success ? ('manual_reorder' as any) : false
     }
 
     // 构建新的文件路径

@@ -563,8 +563,11 @@ const NotesPage: FC = () => {
   const handleMoveNode = useCallback(
     async (sourceNodeId: string, targetNodeId: string, position: 'before' | 'after' | 'inside') => {
       try {
-        await moveNode(sourceNodeId, targetNodeId, position)
-        await sortAllLevels(sortType)
+        const result = await moveNode(sourceNodeId, targetNodeId, position)
+        // 如果不是手动排序（同级拖动），则执行自动排序
+        if (result !== 'manual_reorder') {
+          await sortAllLevels(sortType)
+        }
       } catch (error) {
         logger.error('Failed to move nodes:', error as Error)
       }
