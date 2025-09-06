@@ -8,4 +8,5 @@ CHANGELOG*.md
 agents.json
 src/renderer/src/integration/nutstore/sso/lib
 AGENT.md
-src/main/integration/cherryin/index.js
+src/main/integration/
+.yarn/releases/

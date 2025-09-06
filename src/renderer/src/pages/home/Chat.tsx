@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
+import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
@@ -9,6 +10,7 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
@@ -16,6 +18,7 @@ import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { FC, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
@@ -34,7 +37,8 @@ interface Props {
 }
 
 const Chat: FC<Props> = (props) => {
-  const { assistant } = useAssistant(props.assistant.id)
+  const { assistant, updateTopic } = useAssistant(props.assistant.id)
+  const { t } = useTranslation()
   const { topicPosition, messageStyle, messageNavigation } = useSettings()
   const { showTopics } = useShowTopics()
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
@@ -56,6 +60,24 @@ const Chat: FC<Props> = (props) => {
       contentSearchRef.current?.enable(selectedText)
     } catch (error) {
       logger.error('Error enabling content search:', error as Error)
+    }
+  })
+
+  useShortcut('rename_topic', async () => {
+    const topic = props.activeTopic
+    if (!topic) return
+
+    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+
+    const name = await PromptPopup.show({
+      title: t('chat.topics.edit.title'),
+      message: '',
+      defaultValue: topic.name || '',
+      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+    })
+    if (name && topic.name !== name) {
+      const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
+      updateTopic(updatedTopic as Topic)
     }
   })
 

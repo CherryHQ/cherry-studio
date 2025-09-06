@@ -45,6 +45,9 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
+      - name: Format Check
+        run: yarn format:check
+
       - name: Lint Check
         run: yarn test:lint
 

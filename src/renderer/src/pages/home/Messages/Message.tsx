@@ -70,7 +70,7 @@ const MessageItem: FC<Props> = ({
   const { messageFont, fontSize, messageStyle, showMessageOutline } = useSettings()
   const { editMessageBlocks, resendUserMessageWithEdit, editMessage } = useMessageOperations(topic)
   const messageContainerRef = useRef<HTMLDivElement>(null)
-  const { editingMessageId, stopEditing } = useMessageEditing()
+  const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
   const isEditing = editingMessageId === message.id
 
@@ -147,6 +147,19 @@ const MessageItem: FC<Props> = ({
     const unsubscribes = [EventEmitter.on(EVENT_NAMES.LOCATE_MESSAGE + ':' + message.id, messageHighlightHandler)]
     return () => unsubscribes.forEach((unsub) => unsub())
   }, [message.id, messageHighlightHandler])
+
+  // Listen for external edit requests and activate editor for this message if it matches
+  useEffect(() => {
+    const handleEditRequest = (targetId: string) => {
+      if (targetId === message.id) {
+        startEditing(message.id)
+      }
+    }
+    const unsubscribe = EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, handleEditRequest)
+    return () => {
+      unsubscribe()
+    }
+  }, [message.id, startEditing])
 
   if (message.type === 'clear') {
     return (
