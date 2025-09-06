@@ -118,6 +118,76 @@ const initialState: ShortcutsState = {
       system: false
     },
     {
+      key: 'switch_tab_1',
+      shortcut: ['CommandOrControl', '1'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_2',
+      shortcut: ['CommandOrControl', '2'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_3',
+      shortcut: ['CommandOrControl', '3'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_4',
+      shortcut: ['CommandOrControl', '4'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_5',
+      shortcut: ['CommandOrControl', '5'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_6',
+      shortcut: ['CommandOrControl', '6'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_7',
+      shortcut: ['CommandOrControl', '7'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_8',
+      shortcut: ['CommandOrControl', '8'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'switch_tab_9',
+      shortcut: ['CommandOrControl', '9'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
+      key: 'show_shortcuts_help',
+      shortcut: ['CommandOrControl', '/'],
+      editable: true,
+      enabled: true,
+      system: false
+    },
+    {
       key: 'exit_fullscreen',
       shortcut: ['Escape'],
       editable: false,
