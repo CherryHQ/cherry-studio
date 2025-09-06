@@ -501,7 +501,6 @@ cssclasses:
   - s12
 ---`
       const result = markdownToHtml(markdown)
-      console.log(result)
       const backToMarkdown = htmlToMarkdown(result)
       expect(backToMarkdown).toBe(markdown)
     })
