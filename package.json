@@ -68,7 +68,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts"
   },
   "dependencies": {
     "@libsql/client": "0.14.0",
@@ -221,6 +222,8 @@
     "docx": "^9.0.2",
     "dompurify": "^3.2.6",
     "dotenv-cli": "^7.4.2",
+    "drizzle-kit": "^0.31.4",
+    "drizzle-orm": "^0.44.2",
     "electron": "37.4.0",
     "electron-builder": "26.0.15",
     "electron-devtools-installer": "^3.2.0",

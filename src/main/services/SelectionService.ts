@@ -1,6 +1,8 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { SELECTION_FINETUNED_LIST, SELECTION_PREDEFINED_BLACKLIST } from '@main/configs/SelectionConfig'
 import { isDev, isMac, isWin } from '@main/constant'
+import type { SelectionActionItem, SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, ipcMain, screen, systemPreferences } from 'electron'
 import { join } from 'path'
@@ -11,10 +13,6 @@ import type {
   SelectionHookInstance,
   TextSelectionData
 } from 'selection-hook'
-
-import type { ActionItem } from '../../renderer/src/types/selectionTypes'
-import { ConfigKeys, configManager } from './ConfigManager'
-import storeSyncService from './StoreSyncService'
 
 const logger = loggerService.withContext('SelectionService')
 
@@ -76,6 +74,8 @@ export class SelectionService {
   private isRemeberWinSize = false
   private filterMode = 'default'
   private filterList: string[] = []
+
+  private unsubscriberForChangeListeners: (() => void)[] = []
 
   private toolbarWindow: BrowserWindow | null = null
   private actionWindows = new Set<BrowserWindow>()
@@ -144,12 +144,15 @@ export class SelectionService {
    * Ensures UI elements scale properly with system DPI settings
    */
   private initZoomFactor(): void {
-    const zoomFactor = configManager.getZoomFactor()
+    const zoomFactor = preferenceService.get('app.zoom_factor')
+
     if (zoomFactor) {
       this.setZoomFactor(zoomFactor)
     }
 
-    configManager.subscribe('ZoomFactor', this.setZoomFactor)
+    preferenceService.subscribeChange('app.zoom_factor', (zoomFactor: number) => {
+      this.setZoomFactor(zoomFactor)
+    })
   }
 
   public setZoomFactor = (zoomFactor: number) => {
@@ -157,51 +160,57 @@ export class SelectionService {
   }
 
   private initConfig(): void {
-    this.triggerMode = configManager.getSelectionAssistantTriggerMode() as TriggerMode
-    this.isFollowToolbar = configManager.getSelectionAssistantFollowToolbar()
-    this.isRemeberWinSize = configManager.getSelectionAssistantRemeberWinSize()
-    this.filterMode = configManager.getSelectionAssistantFilterMode()
-    this.filterList = configManager.getSelectionAssistantFilterList()
+    this.triggerMode = preferenceService.get('feature.selection.trigger_mode') as TriggerMode
+    this.isFollowToolbar = preferenceService.get('feature.selection.follow_toolbar')
+    this.isRemeberWinSize = preferenceService.get('feature.selection.remember_win_size')
+    this.filterMode = preferenceService.get('feature.selection.filter_mode')
+    this.filterList = preferenceService.get('feature.selection.filter_list')
 
     this.setHookGlobalFilterMode(this.filterMode, this.filterList)
     this.setHookFineTunedList()
 
-    configManager.subscribe(ConfigKeys.SelectionAssistantTriggerMode, (triggerMode: TriggerMode) => {
-      const oldTriggerMode = this.triggerMode
+    this.unsubscriberForChangeListeners.push(
+      preferenceService.subscribeChange('feature.selection.trigger_mode', (triggerMode: string) => {
+        const oldTriggerMode = this.triggerMode as TriggerMode
 
-      this.triggerMode = triggerMode
-      this.processTriggerMode()
+        this.triggerMode = triggerMode as TriggerMode
+        this.processTriggerMode()
 
-      //trigger mode changed, need to update the filter list
-      if (oldTriggerMode !== triggerMode) {
-        this.setHookGlobalFilterMode(this.filterMode, this.filterList)
-      }
-    })
-
-    configManager.subscribe(ConfigKeys.SelectionAssistantFollowToolbar, (isFollowToolbar: boolean) => {
-      this.isFollowToolbar = isFollowToolbar
-    })
-
-    configManager.subscribe(ConfigKeys.SelectionAssistantRemeberWinSize, (isRemeberWinSize: boolean) => {
-      this.isRemeberWinSize = isRemeberWinSize
-      //when off, reset the last action window size to default
-      if (!this.isRemeberWinSize) {
-        this.lastActionWindowSize = {
-          width: this.ACTION_WINDOW_WIDTH,
-          height: this.ACTION_WINDOW_HEIGHT
+        //trigger mode changed, need to update the filter list
+        if (oldTriggerMode !== triggerMode) {
+          this.setHookGlobalFilterMode(this.filterMode, this.filterList)
         }
-      }
-    })
-
-    configManager.subscribe(ConfigKeys.SelectionAssistantFilterMode, (filterMode: string) => {
-      this.filterMode = filterMode
-      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
-    })
-
-    configManager.subscribe(ConfigKeys.SelectionAssistantFilterList, (filterList: string[]) => {
-      this.filterList = filterList
-      this.setHookGlobalFilterMode(this.filterMode, this.filterList)
-    })
+      })
+    )
+    this.unsubscriberForChangeListeners.push(
+      preferenceService.subscribeChange('feature.selection.follow_toolbar', (followToolbar: boolean) => {
+        this.isFollowToolbar = followToolbar
+      })
+    )
+    this.unsubscriberForChangeListeners.push(
+      preferenceService.subscribeChange('feature.selection.remember_win_size', (rememberWinSize: boolean) => {
+        this.isRemeberWinSize = rememberWinSize
+        //when off, reset the last action window size to default
+        if (!this.isRemeberWinSize) {
+          this.lastActionWindowSize = {
+            width: this.ACTION_WINDOW_WIDTH,
+            height: this.ACTION_WINDOW_HEIGHT
+          }
+        }
+      })
+    )
+    this.unsubscriberForChangeListeners.push(
+      preferenceService.subscribeChange('feature.selection.filter_mode', (filterMode: string) => {
+        this.filterMode = filterMode
+        this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+      })
+    )
+    this.unsubscriberForChangeListeners.push(
+      preferenceService.subscribeChange('feature.selection.filter_list', (filterList: string[]) => {
+        this.filterList = filterList
+        this.setHookGlobalFilterMode(this.filterMode, this.filterList)
+      })
+    )
   }
 
   /**
@@ -340,8 +349,12 @@ export class SelectionService {
     if (!this.selectionHook) return false
 
     this.selectionHook.stop()
-
     this.selectionHook.cleanup() //already remove all listeners
+
+    for (const unsubscriber of this.unsubscriberForChangeListeners) {
+      unsubscriber()
+    }
+    this.unsubscriberForChangeListeners = []
 
     //reset the listener states
     this.isCtrlkeyListenerActive = false
@@ -381,12 +394,9 @@ export class SelectionService {
   public toggleEnabled(enabled: boolean | undefined = undefined): void {
     if (!this.selectionHook) return
 
-    const newEnabled = enabled === undefined ? !configManager.getSelectionAssistantEnabled() : enabled
+    const newEnabled = enabled === undefined ? !preferenceService.get('feature.selection.enabled') : enabled
 
-    configManager.setSelectionAssistantEnabled(newEnabled)
-
-    //sync the new enabled state to all renderer windows
-    storeSyncService.syncToRenderer('selectionStore/setSelectionEnabled', newEnabled)
+    preferenceService.set('feature.selection.enabled', newEnabled)
   }
 
   /**
@@ -1121,7 +1131,7 @@ export class SelectionService {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: true,
+        sandbox: false,
         devTools: true
       }
     })
@@ -1236,7 +1246,7 @@ export class SelectionService {
    * @param actionItem Action item to process
    * @param isFullScreen [macOS] only macOS has the available isFullscreen mode
    */
-  public processAction(actionItem: ActionItem, isFullScreen: boolean = false): void {
+  public processAction(actionItem: SelectionActionItem, isFullScreen: boolean = false): void {
     const actionWindow = this.popActionWindow()
 
     actionWindow.webContents.send(IpcChannel.Selection_UpdateActionData, actionItem)
@@ -1461,33 +1471,36 @@ export class SelectionService {
     })
 
     ipcMain.handle(IpcChannel.Selection_SetEnabled, (_, enabled: boolean) => {
-      configManager.setSelectionAssistantEnabled(enabled)
+      preferenceService.set('feature.selection.enabled', enabled)
     })
 
-    ipcMain.handle(IpcChannel.Selection_SetTriggerMode, (_, triggerMode: string) => {
-      configManager.setSelectionAssistantTriggerMode(triggerMode)
+    ipcMain.handle(IpcChannel.Selection_SetTriggerMode, (_, triggerMode: SelectionTriggerMode) => {
+      preferenceService.set('feature.selection.trigger_mode', triggerMode)
     })
 
     ipcMain.handle(IpcChannel.Selection_SetFollowToolbar, (_, isFollowToolbar: boolean) => {
-      configManager.setSelectionAssistantFollowToolbar(isFollowToolbar)
+      preferenceService.set('feature.selection.follow_toolbar', isFollowToolbar)
     })
 
     ipcMain.handle(IpcChannel.Selection_SetRemeberWinSize, (_, isRemeberWinSize: boolean) => {
-      configManager.setSelectionAssistantRemeberWinSize(isRemeberWinSize)
+      preferenceService.set('feature.selection.remember_win_size', isRemeberWinSize)
     })
 
-    ipcMain.handle(IpcChannel.Selection_SetFilterMode, (_, filterMode: string) => {
-      configManager.setSelectionAssistantFilterMode(filterMode)
+    ipcMain.handle(IpcChannel.Selection_SetFilterMode, (_, filterMode: SelectionFilterMode) => {
+      preferenceService.set('feature.selection.filter_mode', filterMode)
     })
 
     ipcMain.handle(IpcChannel.Selection_SetFilterList, (_, filterList: string[]) => {
-      configManager.setSelectionAssistantFilterList(filterList)
+      preferenceService.set('feature.selection.filter_list', filterList)
     })
 
     // [macOS] only macOS has the available isFullscreen mode
-    ipcMain.handle(IpcChannel.Selection_ProcessAction, (_, actionItem: ActionItem, isFullScreen: boolean = false) => {
-      selectionService?.processAction(actionItem, isFullScreen)
-    })
+    ipcMain.handle(
+      IpcChannel.Selection_ProcessAction,
+      (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
+        selectionService?.processAction(actionItem, isFullScreen)
+      }
+    )
 
     ipcMain.handle(IpcChannel.Selection_ActionWindowClose, (event) => {
       const actionWindow = BrowserWindow.fromWebContents(event.sender)
@@ -1532,7 +1545,9 @@ export class SelectionService {
 export function initSelectionService(): boolean {
   if (!isSupportedOS) return false
 
-  configManager.subscribe(ConfigKeys.SelectionAssistantEnabled, (enabled: boolean): void => {
+  const enabled = preferenceService.get('feature.selection.enabled')
+
+  preferenceService.subscribeChange('feature.selection.enabled', (enabled: boolean): void => {
     //avoid closure
     const ss = SelectionService.getInstance()
     if (!ss) {
@@ -1547,7 +1562,7 @@ export function initSelectionService(): boolean {
     }
   })
 
-  if (!configManager.getSelectionAssistantEnabled()) return false
+  if (!enabled) return false
 
   const ss = SelectionService.getInstance()
   if (!ss) {

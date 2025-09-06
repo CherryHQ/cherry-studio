@@ -5,6 +5,7 @@ import {
   LoadingOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { HStack } from '@renderer/components/Layout'
@@ -15,8 +16,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { reset } from '@renderer/services/BackupService'
-import store, { useAppDispatch } from '@renderer/store'
-import { setSkipBackupFile as _setSkipBackupFile } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
@@ -49,6 +48,8 @@ import WebDavSettings from './WebDavSettings'
 import YuqueSettings from './YuqueSettings'
 
 const DataSettings: FC = () => {
+  const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
+
   const { t } = useTranslation()
   const [appInfo, setAppInfo] = useState<AppInfo>()
   const [cacheSize, setCacheSize] = useState<string>('')
@@ -56,11 +57,6 @@ const DataSettings: FC = () => {
   const { theme } = useTheme()
   const [menu, setMenu] = useState<string>('data')
   const { setTimeoutTimer } = useTimer()
-
-  const _skipBackupFile = store.getState().settings.skipBackupFile
-  const [skipBackupFile, setSkipBackupFile] = useState<boolean>(_skipBackupFile)
-
-  const dispatch = useAppDispatch()
 
   //joplin icon needs to be updated into iconfont
   const JoplinIcon = () => (
@@ -578,7 +574,6 @@ const DataSettings: FC = () => {
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setSkipBackupFile(value)
-    dispatch(_setSkipBackupFile(value))
   }
 
   return (

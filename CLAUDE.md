@@ -92,6 +92,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Multi-language Support**: i18n with dynamic loading
 - **Theme System**: Light/dark themes with custom CSS variables
 
+### Database Architecture
+
+- **Database**: SQLite (`cherrystudio.sqlite`) + libsql driver
+- **ORM**: Drizzle ORM with comprehensive migration system
+- **Schemas**: Located in `src/main/data/db/schemas/` directory
+
+#### Database Standards
+
+- **Table Naming**: Use singular form with snake_case (e.g., `topic`, `message`, `app_state`)
+- **Schema Exports**: Export using `xxxTable` pattern (e.g., `topicTable`, `appStateTable`)
+- **Field Definition**: Drizzle auto-infers field names, no need to add default field names
+- **JSON Fields**: For JSON support, add `{ mode: 'json' }`, refer to `preference.ts` table definition
+- **JSON Serialization**: For JSON fields, no need to manually serialize/deserialize when reading/writing to database, Drizzle handles this automatically
+- **Timestamps**: Use existing `crudTimestamps` utility
+- **Migrations**: Generate via `yarn run migrations:generate`
+
 ## Logging Standards
 
 ### Usage

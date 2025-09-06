@@ -82,7 +82,7 @@ export const translateText = async (
 ) => {
   let abortError
   try {
-    const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+    const assistant = await getDefaultTranslateAssistant(targetLanguage, text)
 
     const signal = abortKey ? readyToAbort(abortKey) : undefined
 

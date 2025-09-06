@@ -1,16 +1,11 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
-import {
-  setClickTrayToShowQuickAssistant,
-  setEnableQuickAssistant,
-  setReadClipboardAtStartup
-} from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
 import { Button, Select, Switch, Tooltip } from 'antd'
 import { FC } from 'react'
@@ -20,9 +15,17 @@ import styled from 'styled-components'
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
+  const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
+  const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
+    'feature.quick_assistant.click_tray_to_show'
+  )
+  const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
+    'feature.quick_assistant.read_clipboard_at_startup'
+  )
+  const [, setTray] = usePreference('app.tray.enabled')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
   const { assistants } = useAssistants()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
@@ -30,8 +33,7 @@ const QuickAssistantSettings: FC = () => {
   const { defaultModel } = useDefaultModel()
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
-    dispatch(setEnableQuickAssistant(enable))
-    await window.api.config.set('enableQuickAssistant', enable, true)
+    await setEnableQuickAssistant(enable)
 
     !enable && window.api.miniWindow.close()
 
@@ -50,14 +52,12 @@ const QuickAssistantSettings: FC = () => {
   }
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
-    dispatch(setClickTrayToShowQuickAssistant(checked))
-    await window.api.config.set('clickTrayToShowQuickAssistant', checked)
+    await setClickTrayToShowQuickAssistant(checked)
     checked && setTray(true)
   }
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
-    dispatch(setReadClipboardAtStartup(checked))
-    await window.api.config.set('readClipboardAtStartup', checked)
+    await setReadClipboardAtStartup(checked)
     window.api.miniWindow.close()
   }
 

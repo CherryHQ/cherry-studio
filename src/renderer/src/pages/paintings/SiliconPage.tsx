@@ -1,4 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
@@ -17,7 +18,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
@@ -303,7 +303,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     setCurrentImageIndex(0)
   }
 
-  const { autoTranslateWithSpace } = useSettings()
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const [spaceClickCount, setSpaceClickCount] = useState(0)
   const [isTranslating, setIsTranslating] = useState(false)
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)

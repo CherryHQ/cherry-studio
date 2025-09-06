@@ -1,13 +1,13 @@
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setUserTheme, UserTheme } from '@renderer/store/settings'
+// import { useAppDispatch, useAppSelector } from '@renderer/store'
+// import { setUserTheme, UserTheme } from '@renderer/store/settings'
+
+import { usePreference } from '@data/hooks/usePreference'
 import Color from 'color'
 
 export default function useUserTheme() {
-  const userTheme = useAppSelector((state) => state.settings.userTheme)
+  const [colorPrimary, setColorPrimary] = usePreference('ui.theme_user.color_primary')
 
-  const dispatch = useAppDispatch()
-
-  const initUserTheme = (theme: UserTheme = userTheme) => {
+  const initUserTheme = (theme: { colorPrimary: string } = { colorPrimary }) => {
     const colorPrimary = Color(theme.colorPrimary)
 
     document.body.style.setProperty('--color-primary', colorPrimary.toString())
@@ -16,13 +16,14 @@ export default function useUserTheme() {
   }
 
   return {
-    colorPrimary: Color(userTheme.colorPrimary),
+    colorPrimary: Color(colorPrimary),
 
     initUserTheme,
 
-    setUserTheme(userTheme: UserTheme) {
-      dispatch(setUserTheme(userTheme))
+    userTheme: { colorPrimary },
 
+    setUserTheme(userTheme: { colorPrimary: string }) {
+      setColorPrimary(userTheme.colorPrimary)
       initUserTheme(userTheme)
     }
   }

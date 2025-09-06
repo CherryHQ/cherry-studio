@@ -98,7 +98,7 @@ vi.mock('@renderer/utils', () => ({
   getLowerBaseModelName: vi.fn((name) => name.toLowerCase())
 }))
 
-vi.mock('@renderer/config/prompts', () => ({
+vi.mock('@shared/config/prompts', () => ({
   WEB_SEARCH_PROMPT_FOR_OPENROUTER: 'mock-prompt'
 }))
 

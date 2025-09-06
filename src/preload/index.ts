@@ -1,9 +1,10 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
-import { UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
+import type { PreferenceDefaultScopeType, PreferenceKeyType, SelectionActionItem } from '@shared/data/preferenceTypes'
+import { UpgradeChannel } from '@shared/data/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
@@ -24,14 +25,11 @@ import {
   S3Config,
   Shortcut,
   SupportedOcrFile,
-  ThemeMode,
   WebDavConfig
 } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
-
-import type { ActionItem } from '../renderer/src/types/selectionTypes'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {
@@ -49,7 +47,7 @@ const api = {
     ipcRenderer.invoke(IpcChannel.App_Proxy, proxy, bypassRules),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   showUpdateDialog: () => ipcRenderer.invoke(IpcChannel.App_ShowUpdateDialog),
-  setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
+  // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),
   setEnableSpellCheck: (isEnable: boolean) => ipcRenderer.invoke(IpcChannel.App_SetEnableSpellCheck, isEnable),
   setSpellCheckLanguages: (languages: string[]) => ipcRenderer.invoke(IpcChannel.App_SetSpellCheckLanguages, languages),
   setLaunchOnBoot: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetLaunchOnBoot, isActive),
@@ -58,7 +56,7 @@ const api = {
   setTrayOnClose: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTrayOnClose, isActive),
   setTestPlan: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetTestPlan, isActive),
   setTestChannel: (channel: UpgradeChannel) => ipcRenderer.invoke(IpcChannel.App_SetTestChannel, channel),
-  setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
+  // setTheme: (theme: ThemeMode) => ipcRenderer.invoke(IpcChannel.App_SetTheme, theme),
   handleZoomFactor: (delta: number, reset: boolean = false) =>
     ipcRenderer.invoke(IpcChannel.App_HandleZoomFactor, delta, reset),
   setAutoUpdate: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetAutoUpdate, isActive),
@@ -392,15 +390,15 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Selection_SetRemeberWinSize, isRemeberWinSize),
     setFilterMode: (filterMode: string) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterMode, filterMode),
     setFilterList: (filterList: string[]) => ipcRenderer.invoke(IpcChannel.Selection_SetFilterList, filterList),
-    processAction: (actionItem: ActionItem, isFullScreen: boolean = false) =>
+    processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
       ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
     closeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowClose),
     minimizeActionWindow: () => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowMinimize),
     pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned)
   },
   quoteToMainWindow: (text: string) => ipcRenderer.invoke(IpcChannel.App_QuoteToMain, text),
-  setDisableHardwareAcceleration: (isDisable: boolean) =>
-    ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
+  // setDisableHardwareAcceleration: (isDisable: boolean) =>
+  //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
     getData: (topicId: string, traceId: string, modelName?: string) =>
@@ -459,6 +457,23 @@ const api = {
       return () => {
         ipcRenderer.removeAllListeners(channel)
       }
+    }
+  },
+  preference: {
+    get: <K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> =>
+      ipcRenderer.invoke(IpcChannel.Preference_Get, key),
+    set: <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Preference_Set, key, value),
+    getMultiple: (keys: PreferenceKeyType[]): Promise<Partial<PreferenceDefaultScopeType>> =>
+      ipcRenderer.invoke(IpcChannel.Preference_GetMultiple, keys),
+    setMultiple: (updates: Partial<PreferenceDefaultScopeType>) =>
+      ipcRenderer.invoke(IpcChannel.Preference_SetMultiple, updates),
+    getAll: (): Promise<PreferenceDefaultScopeType> => ipcRenderer.invoke(IpcChannel.Preference_GetAll),
+    subscribe: (keys: PreferenceKeyType[]) => ipcRenderer.invoke(IpcChannel.Preference_Subscribe, keys),
+    onChanged: (callback: (key: PreferenceKeyType, value: any) => void) => {
+      const listener = (_: any, key: PreferenceKeyType, value: any) => callback(key, value)
+      ipcRenderer.on(IpcChannel.Preference_Changed, listener)
+      return () => ipcRenderer.off(IpcChannel.Preference_Changed, listener)
     }
   }
 }

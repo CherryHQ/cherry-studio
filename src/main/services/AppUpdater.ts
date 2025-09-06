@@ -1,9 +1,11 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
-import { locales } from '@main/utils/locales'
+import { getI18n } from '@main/utils/language'
 import { generateUserAgent } from '@main/utils/systemInfo'
-import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
+import { FeedUrl } from '@shared/config/constant'
+import { UpgradeChannel } from '@shared/data/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
 import { app, BrowserWindow, dialog, net } from 'electron'
@@ -12,7 +14,6 @@ import path from 'path'
 import semver from 'semver'
 
 import icon from '../../../build/icon.png?asset'
-import { configManager } from './ConfigManager'
 import { windowService } from './WindowService'
 
 const logger = loggerService.withContext('AppUpdater')
@@ -26,8 +27,8 @@ export default class AppUpdater {
   constructor() {
     autoUpdater.logger = logger as Logger
     autoUpdater.forceDevUpdateConfig = !app.isPackaged
-    autoUpdater.autoDownload = configManager.getAutoUpdate()
-    autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
+    autoUpdater.autoDownload = preferenceService.get('app.dist.auto_update.enabled')
+    autoUpdater.autoInstallOnAppQuit = preferenceService.get('app.dist.auto_update.enabled')
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
       'User-Agent': generateUserAgent()
@@ -139,7 +140,7 @@ export default class AppUpdater {
 
   private _getTestChannel() {
     const currentChannel = this._getChannelByVersion(app.getVersion())
-    const savedChannel = configManager.getTestChannel()
+    const savedChannel = preferenceService.get('app.dist.test_plan.channel')
 
     if (currentChannel === UpgradeChannel.LATEST) {
       return savedChannel || UpgradeChannel.RC
@@ -164,7 +165,7 @@ export default class AppUpdater {
   }
 
   private async _setFeedUrl() {
-    const testPlan = configManager.getTestPlan()
+    const testPlan = preferenceService.get('app.dist.test_plan.enabled')
     if (testPlan) {
       const channel = this._getTestChannel()
 
@@ -237,12 +238,12 @@ export default class AppUpdater {
     }
   }
 
-  public async showUpdateDialog(mainWindow: BrowserWindow) {
+  public showUpdateDialog(mainWindow: BrowserWindow) {
     if (!this.releaseInfo) {
       return
     }
-    const locale = locales[configManager.getLanguage()]
-    const { update: updateLocale } = locale.translation
+    const i18n = getI18n()
+    const { update: updateLocale } = i18n.translation
 
     let detail = this.formatReleaseNotes(this.releaseInfo.releaseNotes)
     if (detail === '') {

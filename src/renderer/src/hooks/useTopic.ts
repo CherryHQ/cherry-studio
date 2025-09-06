@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
@@ -13,7 +14,6 @@ import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
 
 import { useAssistant } from './useAssistant'
-import { getStoreSetting } from './useSettings'
 
 let _activeTopic: Topic
 let _setActiveTopic: (topic: Topic) => void
@@ -109,7 +109,7 @@ export const autoRenameTopic = async (assistant: Assistant, topicId: string) => 
     topicRenamingLocks.add(topicId)
 
     const topic = await getTopicById(topicId)
-    const enableTopicNaming = getStoreSetting('enableTopicNaming')
+    const enableTopicNaming = await preferenceService.get('topic.naming.enabled')
 
     if (isEmpty(topic.messages)) {
       return

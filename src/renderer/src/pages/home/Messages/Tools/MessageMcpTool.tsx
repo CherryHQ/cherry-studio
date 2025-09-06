@@ -1,8 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
@@ -51,7 +51,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const [progress, setProgress] = useState<number>(0)

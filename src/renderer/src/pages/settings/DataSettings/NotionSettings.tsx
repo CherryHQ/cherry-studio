@@ -1,43 +1,35 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { Client } from '@notionhq/client'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import {
-  setNotionApiKey,
-  setNotionDatabaseID,
-  setNotionExportReasoning,
-  setNotionPageNameKey
-} from '@renderer/store/settings'
 import { Button, Space, Switch, Tooltip } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 const NotionSettings: FC = () => {
+  const [notionApiKey, setNotionApiKey] = usePreference('data.integration.notion.api_key')
+  const [notionDatabaseID, setNotionDatabaseID] = usePreference('data.integration.notion.database_id')
+  const [notionPageNameKey, setNotionPageNameKey] = usePreference('data.integration.notion.page_name_key')
+  const [notionExportReasoning, setNotionExportReasoning] = usePreference('data.integration.notion.export_reasoning')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 
-  const notionApiKey = useSelector((state: RootState) => state.settings.notionApiKey)
-  const notionDatabaseID = useSelector((state: RootState) => state.settings.notionDatabaseID)
-  const notionPageNameKey = useSelector((state: RootState) => state.settings.notionPageNameKey)
-  const notionExportReasoning = useSelector((state: RootState) => state.settings.notionExportReasoning)
-
   const handleNotionTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionApiKey(e.target.value))
+    setNotionApiKey(e.target.value)
   }
 
   const handleNotionDatabaseIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionDatabaseID(e.target.value))
+    setNotionDatabaseID(e.target.value)
   }
 
   const handleNotionPageNameKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setNotionPageNameKey(e.target.value))
+    setNotionPageNameKey(e.target.value)
   }
 
   const handleNotionConnectionCheck = () => {
@@ -75,7 +67,7 @@ const NotionSettings: FC = () => {
   }
 
   const handleNotionExportReasoningChange = (checked: boolean) => {
-    dispatch(setNotionExportReasoning(checked))
+    setNotionExportReasoning(checked)
   }
 
   return (

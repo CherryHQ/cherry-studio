@@ -1,9 +1,9 @@
 import { MessageOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { getAssistantById } from '@renderer/services/AssistantService'
@@ -19,7 +19,6 @@ import { FC, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 import { default as MessageItem } from '../../home/Messages/Message'
-
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   topic?: Topic
 }
@@ -27,7 +26,7 @@ interface Props extends React.HTMLAttributes<HTMLDivElement> {
 const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
   const navigate = NavigationService.navigate!
   const { handleScroll, containerRef } = useScrollPosition('TopicMessages')
-  const { messageStyle } = useSettings()
+  const [messageStyle] = usePreference('chat.message.style')
   const { setTimeoutTimer } = useTimer()
 
   const [topic, setTopic] = useState<Topic | undefined>(_topic)

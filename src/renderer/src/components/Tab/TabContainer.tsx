@@ -12,8 +12,8 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { ThemeMode } from '@shared/data/preferenceTypes'
 import { Button, Tooltip } from 'antd'
 import {
   ChevronRight,

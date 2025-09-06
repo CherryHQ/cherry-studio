@@ -1,70 +1,69 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
-import {
-  setExcludeCitationsInExport,
-  setForceDollarMathInMarkdown,
-  setmarkdownExportPath,
-  setShowModelNameInMarkdown,
-  setShowModelProviderInMarkdown,
-  setStandardizeCitationsInExport,
-  setUseTopicNamingForMessageTitle
-} from '@renderer/store/settings'
 import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const MarkdownExportSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
 
-  const markdownExportPath = useSelector((state: RootState) => state.settings.markdownExportPath)
-  const forceDollarMathInMarkdown = useSelector((state: RootState) => state.settings.forceDollarMathInMarkdown)
-  const useTopicNamingForMessageTitle = useSelector((state: RootState) => state.settings.useTopicNamingForMessageTitle)
-  const showModelNameInExport = useSelector((state: RootState) => state.settings.showModelNameInMarkdown)
-  const showModelProviderInMarkdown = useSelector((state: RootState) => state.settings.showModelProviderInMarkdown)
-  const excludeCitationsInExport = useSelector((state: RootState) => state.settings.excludeCitationsInExport)
-  const standardizeCitationsInExport = useSelector((state: RootState) => state.settings.standardizeCitationsInExport)
+  const [markdownExportPath, setmarkdownExportPath] = usePreference('data.export.markdown.path')
+  const [forceDollarMathInMarkdown, setForceDollarMathInMarkdown] = usePreference(
+    'data.export.markdown.force_dollar_math'
+  )
+  const [useTopicNamingForMessageTitle, setUseTopicNamingForMessageTitle] = usePreference(
+    'data.export.markdown.use_topic_naming_for_message_title'
+  )
+  const [showModelNameInExport, setShowModelNameInMarkdown] = usePreference('data.export.markdown.show_model_name')
+  const [showModelProviderInMarkdown, setShowModelProviderInMarkdown] = usePreference(
+    'data.export.markdown.show_model_provider'
+  )
+  const [excludeCitationsInExport, setExcludeCitationsInExport] = usePreference(
+    'data.export.markdown.exclude_citations'
+  )
+  const [standardizeCitationsInExport, setStandardizeCitationsInExport] = usePreference(
+    'data.export.markdown.standardize_citations'
+  )
 
   const handleSelectFolder = async () => {
     const path = await window.api.file.selectFolder()
     if (path) {
-      dispatch(setmarkdownExportPath(path))
+      setmarkdownExportPath(path)
     }
   }
 
   const handleClearPath = () => {
-    dispatch(setmarkdownExportPath(null))
+    setmarkdownExportPath(null)
   }
 
   const handleToggleForceDollarMath = (checked: boolean) => {
-    dispatch(setForceDollarMathInMarkdown(checked))
+    setForceDollarMathInMarkdown(checked)
   }
 
   const handleToggleTopicNaming = (checked: boolean) => {
-    dispatch(setUseTopicNamingForMessageTitle(checked))
+    setUseTopicNamingForMessageTitle(checked)
   }
 
   const handleToggleShowModelName = (checked: boolean) => {
-    dispatch(setShowModelNameInMarkdown(checked))
+    setShowModelNameInMarkdown(checked)
   }
 
   const handleToggleShowModelProvider = (checked: boolean) => {
-    dispatch(setShowModelProviderInMarkdown(checked))
+    setShowModelProviderInMarkdown(checked)
   }
 
   const handleToggleExcludeCitations = (checked: boolean) => {
-    dispatch(setExcludeCitationsInExport(checked))
+    setExcludeCitationsInExport(checked)
   }
 
   const handleToggleStandardizeCitations = (checked: boolean) => {
-    dispatch(setStandardizeCitationsInExport(checked))
+    setStandardizeCitationsInExport(checked)
   }
 
   return (

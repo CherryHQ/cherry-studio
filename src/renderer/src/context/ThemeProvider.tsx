@@ -1,10 +1,10 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import useUserTheme from '@renderer/hooks/useUserTheme'
-import { ThemeMode } from '@renderer/types'
+import { ThemeMode } from '@shared/data/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
-
 interface ThemeContextType {
   theme: ThemeMode
   settedTheme: ThemeMode
@@ -25,7 +25,10 @@ interface ThemeProviderProps extends PropsWithChildren {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
-  const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
+  // const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
+
+  const [settedTheme, setSettedTheme] = usePreference('ui.theme_mode')
+
   const [actualTheme, setActualTheme] = useState<ThemeMode>(
     window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
   )
@@ -56,18 +59,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     initUserTheme()
 
     // listen for theme updates from main process
-    return window.electron.ipcRenderer.on(IpcChannel.ThemeUpdated, (_, actualTheme: ThemeMode) => {
+    return window.electron.ipcRenderer.on(IpcChannel.NativeThemeUpdated, (_, actualTheme: ThemeMode) => {
       document.body.setAttribute('theme-mode', actualTheme)
       setActualTheme(actualTheme)
     })
   }, [actualTheme, initUserTheme, navbarPosition, setSettedTheme, settedTheme])
 
-  useEffect(() => {
-    window.api.setTheme(settedTheme)
-  }, [settedTheme])
-
   return (
-    <ThemeContext value={{ theme: actualTheme, settedTheme, toggleTheme, setTheme: setSettedTheme }}>
+    <ThemeContext value={{ theme: actualTheme, settedTheme: settedTheme, toggleTheme, setTheme: setSettedTheme }}>
       {children}
     </ThemeContext>
   )

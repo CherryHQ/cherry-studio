@@ -8,17 +8,17 @@
  */
 import { type AiRequestContext, definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-// import { generateObject } from '@cherrystudio/ai-core'
-import {
-  SEARCH_SUMMARY_PROMPT,
-  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
-  SEARCH_SUMMARY_PROMPT_WEB_ONLY
-} from '@renderer/config/prompts'
 import { getDefaultModel, getProviderByModel } from '@renderer/services/AssistantService'
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant } from '@renderer/types'
 import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+// import { generateObject } from '@cherrystudio/ai-core'
+import {
+  SEARCH_SUMMARY_PROMPT,
+  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
+  SEARCH_SUMMARY_PROMPT_WEB_ONLY
+} from '@shared/config/prompts'
 import type { ModelMessage } from 'ai'
 import { isEmpty } from 'lodash'
 

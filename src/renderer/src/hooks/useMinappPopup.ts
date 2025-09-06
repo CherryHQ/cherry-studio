@@ -1,6 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
 import TabsService from '@renderer/services/TabsService'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -33,7 +33,7 @@ let minAppsCache: LRUCache<string, MinAppType>
 export const useMinappPopup = () => {
   const dispatch = useAppDispatch()
   const { openedKeepAliveMinapps, openedOneOffMinapp, minappShow } = useRuntime()
-  const { maxKeepAliveMinapps } = useSettings() // 使用设置中的值
+  const [maxKeepAliveMinapps] = usePreference('feature.minapp.max_keep_alive')
 
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MinAppType>({

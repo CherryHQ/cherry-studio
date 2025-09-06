@@ -1,20 +1,13 @@
 import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import {
-  setLocalBackupAutoSync,
-  setLocalBackupDir as _setLocalBackupDir,
-  setLocalBackupMaxBackups as _setLocalBackupMaxBackups,
-  setLocalBackupSkipBackupFile as _setLocalBackupSkipBackupFile,
-  setLocalBackupSyncInterval as _setLocalBackupSyncInterval
-} from '@renderer/store/settings'
+import { useAppSelector } from '@renderer/store'
 import { AppInfo } from '@renderer/types'
 import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
@@ -22,26 +15,17 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
 const logger = loggerService.withContext('LocalBackupSettings')
 
 const LocalBackupSettings: React.FC = () => {
-  const dispatch = useAppDispatch()
+  const [, setLocalBackupAutoSync] = usePreference('data.backup.local.auto_sync')
+  const [localBackupDir, setLocalBackupDir] = usePreference('data.backup.local.dir')
+  const [localBackupMaxBackups, setLocalBackupMaxBackups] = usePreference('data.backup.local.max_backups')
+  const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
+  const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
-  const {
-    localBackupDir: localBackupDirSetting,
-    localBackupSyncInterval: localBackupSyncIntervalSetting,
-    localBackupMaxBackups: localBackupMaxBackupsSetting,
-    localBackupSkipBackupFile: localBackupSkipBackupFileSetting
-  } = useSettings()
-
-  const [localBackupDir, setLocalBackupDir] = useState<string | undefined>(localBackupDirSetting)
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
-  const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = useState<boolean>(localBackupSkipBackupFileSetting)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
-
-  const [syncInterval, setSyncInterval] = useState<number>(localBackupSyncIntervalSetting)
-  const [maxBackups, setMaxBackups] = useState<number>(localBackupMaxBackupsSetting)
 
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
@@ -50,10 +34,10 @@ const LocalBackupSettings: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (localBackupDirSetting) {
-      window.api.resolvePath(localBackupDirSetting).then(setResolvedLocalBackupDir)
+    if (localBackupDir) {
+      window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
     }
-  }, [localBackupDirSetting])
+  }, [localBackupDir])
 
   const { theme } = useTheme()
 
@@ -62,13 +46,12 @@ const LocalBackupSettings: React.FC = () => {
   const { localBackupSync } = useAppSelector((state) => state.backup)
 
   const onSyncIntervalChange = (value: number) => {
-    setSyncInterval(value)
-    dispatch(_setLocalBackupSyncInterval(value))
+    setLocalBackupSyncInterval(value)
     if (value === 0) {
-      dispatch(setLocalBackupAutoSync(false))
+      setLocalBackupAutoSync(false)
       stopAutoSync('local')
     } else {
-      dispatch(setLocalBackupAutoSync(true))
+      setLocalBackupAutoSync(true)
       startAutoSync(false, 'local')
     }
   }
@@ -105,7 +88,7 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const handleLocalBackupDirChange = async (value: string) => {
-    if (value === localBackupDirSetting) {
+    if (value === localBackupDir) {
       return
     }
 
@@ -115,29 +98,26 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     if (await checkLocalBackupDirValid(value)) {
-      setLocalBackupDir(value)
-      dispatch(_setLocalBackupDir(value))
+      await setLocalBackupDir(value)
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
-      dispatch(setLocalBackupAutoSync(true))
+      await setLocalBackupAutoSync(true)
       startAutoSync(true, 'local')
       return
     }
 
-    if (localBackupDirSetting) {
-      setLocalBackupDir(localBackupDirSetting)
+    if (localBackupDir) {
+      await setLocalBackupDir(localBackupDir)
       return
     }
   }
 
   const onMaxBackupsChange = (value: number) => {
-    setMaxBackups(value)
-    dispatch(_setLocalBackupMaxBackups(value))
+    setLocalBackupMaxBackups(value)
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
     setLocalBackupSkipBackupFile(value)
-    dispatch(_setLocalBackupSkipBackupFile(value))
   }
 
   const handleBrowseDirectory = async () => {
@@ -157,10 +137,9 @@ const LocalBackupSettings: React.FC = () => {
     }
   }
 
-  const handleClearDirectory = () => {
-    setLocalBackupDir('')
-    dispatch(_setLocalBackupDir(''))
-    dispatch(setLocalBackupAutoSync(false))
+  const handleClearDirectory = async () => {
+    await setLocalBackupDir('')
+    await setLocalBackupAutoSync(false)
     stopAutoSync('local')
   }
 
@@ -238,7 +217,7 @@ const LocalBackupSettings: React.FC = () => {
         <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
         <Selector
           size={14}
-          value={syncInterval}
+          value={localBackupSyncInterval}
           onChange={onSyncIntervalChange}
           disabled={!localBackupDir}
           options={[
@@ -260,7 +239,7 @@ const LocalBackupSettings: React.FC = () => {
         <SettingRowTitle>{t('settings.data.local.maxBackups.label')}</SettingRowTitle>
         <Selector
           size={14}
-          value={maxBackups}
+          value={localBackupMaxBackups}
           onChange={onMaxBackupsChange}
           disabled={!localBackupDir}
           options={[
@@ -282,7 +261,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
       </SettingRow>
-      {localBackupSync && syncInterval > 0 && (
+      {localBackupSync && localBackupSyncInterval > 0 && (
         <>
           <SettingDivider />
           <SettingRow>

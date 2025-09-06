@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { HStack } from '@renderer/components/Layout'
 import UserPopup from '@renderer/components/Popups/UserPopup'
@@ -7,7 +8,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useMessageStyle } from '@renderer/hooks/useSettings'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
@@ -36,7 +38,8 @@ const getAvatarSource = (isLocalAi: boolean, modelId: string | undefined) => {
 const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGroupContextMessage }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
-  const { userName, sidebarIcons } = useSettings()
+  const [userName] = usePreference('app.user.name')
+  const showMinappIcon = useSidebarIconShow('minapp')
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
   const { openMinappById } = useMinappPopup()
@@ -61,7 +64,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
-  const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])

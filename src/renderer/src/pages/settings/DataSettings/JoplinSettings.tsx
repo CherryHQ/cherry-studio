@@ -1,33 +1,30 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setJoplinExportReasoning, setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
 import { Button, Space, Switch, Tooltip } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const JoplinSettings: FC = () => {
+  const [joplinToken, setJoplinToken] = usePreference('data.integration.joplin.token')
+  const [joplinUrl, setJoplinUrl] = usePreference('data.integration.joplin.url')
+  const [joplinExportReasoning, setJoplinExportReasoning] = usePreference('data.integration.joplin.export_reasoning')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 
-  const joplinToken = useSelector((state: RootState) => state.settings.joplinToken)
-  const joplinUrl = useSelector((state: RootState) => state.settings.joplinUrl)
-  const joplinExportReasoning = useSelector((state: RootState) => state.settings.joplinExportReasoning)
-
   const handleJoplinTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setJoplinToken(e.target.value))
+    setJoplinToken(e.target.value)
   }
 
   const handleJoplinUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setJoplinUrl(e.target.value))
+    setJoplinUrl(e.target.value)
   }
 
   const handleJoplinUrlBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -35,7 +32,7 @@ const JoplinSettings: FC = () => {
     // 确保URL以/结尾，但只在失去焦点时执行
     if (url && !url.endsWith('/')) {
       url = `${url}/`
-      dispatch(setJoplinUrl(url))
+      setJoplinUrl(url)
     }
   }
 
@@ -74,7 +71,7 @@ const JoplinSettings: FC = () => {
   }
 
   const handleToggleJoplinExportReasoning = (checked: boolean) => {
-    dispatch(setJoplinExportReasoning(checked))
+    setJoplinExportReasoning(checked)
   }
 
   return (

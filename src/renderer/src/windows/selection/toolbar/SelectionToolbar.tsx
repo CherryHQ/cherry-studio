@@ -1,13 +1,12 @@
 import '@renderer/assets/styles/selection-toolbar.scss'
 
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
-import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
+import type { SelectionActionItem } from '@shared/data/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar } from 'antd'
 import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
@@ -33,9 +32,9 @@ const updateWindowSize = () => {
  * ActionIcons is a component that renders the action icons
  */
 const ActionIcons: FC<{
-  actionItems: ActionItem[]
+  actionItems: SelectionActionItem[]
   isCompact: boolean
-  handleAction: (action: ActionItem) => void
+  handleAction: (action: SelectionActionItem) => void
   copyIconStatus: 'normal' | 'success' | 'fail'
   copyIconAnimation: 'none' | 'enter' | 'exit'
 }> = memo(({ actionItems, isCompact, handleAction, copyIconStatus, copyIconAnimation }) => {
@@ -68,7 +67,7 @@ const ActionIcons: FC<{
   }, [copyIconStatus, copyIconAnimation])
 
   const renderActionButton = useCallback(
-    (action: ActionItem) => {
+    (action: SelectionActionItem) => {
       const displayName = action.isBuiltIn ? t(action.name) : action.name
 
       return (
@@ -99,8 +98,10 @@ const ActionIcons: FC<{
  * demo is used in the settings page
  */
 const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
-  const { language, customCss } = useSettings()
-  const { isCompact, actionItems } = useSelectionAssistant()
+  const [language] = usePreference('app.language')
+  const [customCss] = usePreference('ui.custom_css')
+  const [isCompact] = usePreference('feature.selection.compact')
+  const [actionItems] = usePreference('feature.selection.action_items')
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
@@ -205,7 +206,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   }, [setTimeoutTimer])
 
   const handleAction = useCallback(
-    (action: ActionItem) => {
+    (action: SelectionActionItem) => {
       if (demo) return
 
       /** avoid mutating the original action, it will cause syncing issue */
@@ -229,7 +230,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     [demo, handleCopy]
   )
 
-  const handleSearch = (action: ActionItem) => {
+  const handleSearch = (action: SelectionActionItem) => {
     if (!action.searchEngine) return
 
     const customUrl = action.searchEngine.split('|')[1]
@@ -243,14 +244,14 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   /**
    * Quote the selected text to the inputbar of the main window
    */
-  const handleQuote = (action: ActionItem) => {
+  const handleQuote = (action: SelectionActionItem) => {
     if (action.selectedText) {
       window.api?.quoteToMainWindow(action.selectedText)
       window.api?.selection.hideToolbar()
     }
   }
 
-  const handleDefaultAction = (action: ActionItem) => {
+  const handleDefaultAction = (action: SelectionActionItem) => {
     // [macOS] only macOS has the available isFullscreen mode
     window.api?.selection.processAction(action, isFullScreen.current)
     window.api?.selection.hideToolbar()

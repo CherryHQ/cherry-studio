@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { ActionItem } from '@renderer/types/selectionTypes'
+import type { SelectionActionItem } from '@shared/data/preferenceTypes'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { Globe } from 'lucide-react'
 import { FC, useEffect } from 'react'
@@ -79,7 +79,7 @@ interface SelectionActionSearchModalProps {
   isModalOpen: boolean
   onOk: (searchEngine: string) => void
   onCancel: () => void
-  currentAction?: ActionItem
+  currentAction?: SelectionActionItem
 }
 
 const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({

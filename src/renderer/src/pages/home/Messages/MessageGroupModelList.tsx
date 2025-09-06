@@ -1,31 +1,26 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setFoldDisplayMode } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
+import type { MultiModelFoldDisplayMode } from '@shared/data/preferenceTypes'
 import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
 import { motion } from 'motion/react'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
 interface MessageGroupModelListProps {
   messages: Message[]
   selectMessageId: string
   setSelectedMessage: (message: Message) => void
 }
 
-type DisplayMode = 'compact' | 'expanded'
-
 const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selectMessageId, setSelectedMessage }) => {
-  const dispatch = useAppDispatch()
+  const [foldDisplayMode, setFoldDisplayMode] = usePreference('chat.message.multi_model.fold_display_mode')
   const { t } = useTranslation()
-  const { foldDisplayMode } = useSettings()
   const isCompact = foldDisplayMode === 'compact'
 
   const isMessageProcessing = useCallback((message: Message) => {
@@ -80,7 +75,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         mouseLeaveDelay={0}>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
-          onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
+          onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>
           {isCompact ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </DisplayModeToggle>
       </Tooltip>
@@ -115,7 +110,7 @@ const Container = styled(HStack)`
   margin-left: 4px;
 `
 
-const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
+const DisplayModeToggle = styled.div<{ displayMode: MultiModelFoldDisplayMode }>`
   display: flex;
   cursor: pointer;
   padding: 2px 6px 3px 6px;
@@ -128,7 +123,7 @@ const DisplayModeToggle = styled.div<{ displayMode: DisplayMode }>`
   }
 `
 
-const ModelsContainer = styled(Scrollbar)<{ $displayMode: DisplayMode }>`
+const ModelsContainer = styled(Scrollbar)<{ $displayMode: MultiModelFoldDisplayMode }>`
   display: flex;
   flex-direction: ${(props) => (props.$displayMode === 'expanded' ? 'column' : 'row')};
   justify-content: ${(props) => (props.$displayMode === 'expanded' ? 'space-between' : 'flex-start')};
