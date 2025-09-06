@@ -10131,7 +10131,7 @@ __metadata:
     yjs: "npm:^13.6.27"
     youtubei.js: "npm:^15.0.1"
     zipread: "npm:^1.3.3"
-    zod: "npm:^3.25.74"
+    zod: "npm:^4.1.5"
   languageName: unknown
   linkType: soft
 
@@ -25638,10 +25638,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:^3.25.74":
-  version: 3.25.74
-  resolution: "zod@npm:3.25.74"
-  checksum: 10c0/59e38b046ac333b5bd1ba325a83b6798721227cbfb1e69dfc7159bd7824b904241ab923026edb714fafefec3624265ae374a70aee9a5a45b365bd31781ffa105
+"zod@npm:^4.1.5":
+  version: 4.1.5
+  resolution: "zod@npm:4.1.5"
+  checksum: 10c0/7826fb931bc71d4d0fff2fbb72f1a1cf30a6672cf9dbe6933a216bbb60242ef1c3bdfbcd3c5b27e806235a35efaad7a4a9897ff4d3621452f9ea278bce6fd42a
   languageName: node
   linkType: hard
 
