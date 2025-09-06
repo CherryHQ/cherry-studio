@@ -1,4 +1,6 @@
 import './assets/styles/index.scss'
+// import './assets/styles/tailwind.css'
+import './assets/styles/heroui.css'
 import '@ant-design/v5-patch-for-react-19'
 
 import { createRoot } from 'react-dom/client'

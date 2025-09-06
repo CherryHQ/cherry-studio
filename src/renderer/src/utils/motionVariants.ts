@@ -1,4 +1,5 @@
-export const lightbulbVariants = {
+import type { Variants } from 'motion/react'
+export const lightbulbVariants: Variants = {
   active: {
     opacity: [1, 0.2, 1],
     transition: {
@@ -17,7 +18,7 @@ export const lightbulbVariants = {
   }
 }
 
-export const lightbulbSoftVariants = {
+export const lightbulbSoftVariants: Variants = {
   active: {
     opacity: [1, 0.5, 1],
     transition: {

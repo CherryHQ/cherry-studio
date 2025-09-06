@@ -1,5 +1,6 @@
 import '@renderer/databases'
 
+import { HeroUIProvider } from '@heroui/react'
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -32,21 +33,23 @@ function App(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <StyleSheetManager>
-          <ThemeProvider>
-            <AntdProvider>
-              <NotificationProvider>
-                <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <Router />
-                    </TopViewContainer>
-                  </PersistGate>
-                </CodeStyleProvider>
-              </NotificationProvider>
-            </AntdProvider>
-          </ThemeProvider>
-        </StyleSheetManager>
+        <HeroUIProvider>
+          <StyleSheetManager>
+            <ThemeProvider>
+              <AntdProvider>
+                <NotificationProvider>
+                  <CodeStyleProvider>
+                    <PersistGate loading={null} persistor={persistor}>
+                      <TopViewContainer>
+                        <Router />
+                      </TopViewContainer>
+                    </PersistGate>
+                  </CodeStyleProvider>
+                </NotificationProvider>
+              </AntdProvider>
+            </ThemeProvider>
+          </StyleSheetManager>
+        </HeroUIProvider>
       </QueryClientProvider>
     </Provider>
   )
