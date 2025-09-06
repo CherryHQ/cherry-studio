@@ -31,6 +31,7 @@ import { EnhancedImage } from './extensions/enhanced-image'
 import { EnhancedLink } from './extensions/enhanced-link'
 import { EnhancedMath } from './extensions/enhanced-math'
 import { Placeholder } from './extensions/placeholder'
+import { YamlFrontMatter } from './extensions/yaml-front-matter'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
 
 const logger = loggerService.withContext('useRichEditor')
@@ -320,6 +321,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         showOnlyCurrent: true,
         includeChildren: false
       }),
+      YamlFrontMatter,
       Mention.configure({
         HTMLAttributes: {
           class: 'mention'

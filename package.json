@@ -323,6 +323,7 @@
     "winston-daily-rotate-file": "^5.0.0",
     "word-extractor": "^1.0.4",
     "y-protocols": "^1.0.6",
+    "yaml": "^2.8.1",
     "yjs": "^13.6.27",
     "youtubei.js": "^15.0.1",
     "zipread": "^1.3.3",

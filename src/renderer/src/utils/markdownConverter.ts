@@ -229,6 +229,87 @@ interface InlineStateLike {
   push: (type: string, tag: string, nesting: number) => TokenLike & { content?: string }
 }
 
+function yamlFrontMatterPlugin(md: MarkdownIt) {
+  // Parser: recognize YAML front matter
+  md.block.ruler.before(
+    'table',
+    'yaml_front_matter',
+    (stateLike: unknown, startLine: number, endLine: number, silent: boolean): boolean => {
+      const state = stateLike as BlockStateLike
+
+      // Only check at the very beginning of the document
+      if (startLine !== 0) {
+        return false
+      }
+
+      const startPos = state.bMarks[startLine] + state.tShift[startLine]
+      const maxPos = state.eMarks[startLine]
+
+      // Must begin with --- at document start
+      if (startPos + 3 > maxPos) return false
+      if (
+        state.src.charCodeAt(startPos) !== 0x2d /* - */ ||
+        state.src.charCodeAt(startPos + 1) !== 0x2d /* - */ ||
+        state.src.charCodeAt(startPos + 2) !== 0x2d /* - */
+      ) {
+        return false
+      }
+
+      // If requested only to validate existence
+      if (silent) return true
+
+      // Search for closing ---
+      let nextLine = startLine + 1
+      let found = false
+
+      for (nextLine = startLine + 1; nextLine < endLine; nextLine++) {
+        const lineStart = state.bMarks[nextLine] + state.tShift[nextLine]
+        const lineEnd = state.eMarks[nextLine]
+        const line = state.src.slice(lineStart, lineEnd).trim()
+
+        if (line === '---') {
+          found = true
+          break
+        }
+      }
+
+      if (!found) {
+        return false
+      }
+
+      // Extract YAML content between the --- delimiters, preserving original indentation
+      const yamlLines: string[] = []
+      for (let lineIdx = startLine + 1; lineIdx < nextLine; lineIdx++) {
+        // Use the original line markers without shift to preserve indentation
+        const lineStart = state.bMarks[lineIdx]
+        const lineEnd = state.eMarks[lineIdx]
+        yamlLines.push(state.src.slice(lineStart, lineEnd))
+      }
+
+      // Also capture the closing --- line with its indentation
+      const closingLineStart = state.bMarks[nextLine]
+      const closingLineEnd = state.eMarks[nextLine]
+      const closingLine = state.src.slice(closingLineStart, closingLineEnd)
+
+      const yamlContent = yamlLines.join('\n') + '\n' + closingLine
+
+      const token = state.push('yaml_front_matter', 'div', 0)
+      token.block = true
+      token.map = [startLine, nextLine + 1]
+      token.content = yamlContent
+
+      state.line = nextLine + 1
+      return true
+    }
+  )
+
+  // Renderer: output YAML front matter as special HTML element
+  md.renderer.rules.yaml_front_matter = (tokens: Array<{ content?: string }>, idx: number): string => {
+    const content = tokens[idx]?.content ?? ''
+    return `<div data-type="yaml-front-matter" data-content="${he.encode(content)}">${content}</div>`
+  }
+}
+
 function tipTapKatexPlugin(md: MarkdownIt) {
   // 1) Parser: recognize $$ ... $$ as a block math token
   md.block.ruler.before(
@@ -371,6 +452,8 @@ function tipTapKatexPlugin(md: MarkdownIt) {
   }
 }
 
+md.use(yamlFrontMatterPlugin)
+
 md.use(taskListPlugin, {
   label: true
 })
@@ -435,6 +518,28 @@ turndownService.addRule('underline', {
 turndownService.addRule('br', {
   filter: 'br',
   replacement: () => '<br>'
+})
+
+// Custom rule to preserve YAML front matter
+turndownService.addRule('yamlFrontMatter', {
+  filter: (node: Element) => {
+    return node.nodeName === 'DIV' && node.getAttribute?.('data-type') === 'yaml-front-matter'
+  },
+  replacement: (_content: string, node: Node) => {
+    const element = node as Element
+    const yamlContent = element.getAttribute?.('data-content') || ''
+    const decodedContent = he.decode(yamlContent, {
+      isAttributeValue: false,
+      strict: false
+    })
+    // The decodedContent already includes the complete YAML with closing ---
+    // We just need to add the opening --- if it's not there
+    if (decodedContent.startsWith('---')) {
+      return decodedContent
+    } else {
+      return `---\n${decodedContent}`
+    }
+  }
 })
 
 // Helper function to safely get text content and clean it with LaTeX support
