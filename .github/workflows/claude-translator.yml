@@ -1,19 +1,24 @@
-name: English Translator
+name: Claude Translator
 concurrency:
-  group: translator-${{ github.event.issue.number }}
+  group: translator-${{ github.event.comment.id || github.event.issue.number }}
   cancel-in-progress: false
 
 on:
-  issues:
-    types: [opened]
+  # temporally disable this because upstream bug.
+  # issues:
+  #   types: [opened]
   issue_comment:
     types: [created, edited]
 
 jobs:
   translate:
+    # disable issues for now because upstream bug
+    # (github.event_name == 'issues' && github.event.issue.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue was translated by Claude.')) ||
+
     if: |
-      (github.event_name == 'issues' && github.event.issue.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue/comment was translated by Claude.')) ||
-      (github.event_name == 'issue_comment' && github.event.comment.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue/comment was translated by Claude.'))
+      (github.event_name == 'issue_comment' && github.event.sender.type != 'Bot') &&
+      ((github.event_name == 'issue_comment' && github.event.action == 'created' && !contains(github.event.comment.body, 'This issue was translated by Claude')) ||
+      (github.event_name == 'issue_comment' && github.event.action == 'edited'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,7 +37,7 @@ jobs:
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools mcp__github_comment__update_claude_comment,Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
+          claude_args: 'Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
           prompt: |
             你是一个多语言翻译助手。请完成以下任务：
 
@@ -50,7 +55,7 @@ jobs:
 
                  ---
                  <details>
-                 <summary>**Original Content:**</summary>
+                 <summary>Original Content</summary>
                  [原始内容]
                  </details>
 
