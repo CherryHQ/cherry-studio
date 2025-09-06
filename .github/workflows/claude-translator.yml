@@ -5,7 +5,7 @@ concurrency:
 
 on:
   issues:
-    types: [opened, edited]
+    types: [opened]
   issue_comment:
     types: [created, edited]
 
