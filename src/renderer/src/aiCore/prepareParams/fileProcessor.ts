@@ -10,6 +10,7 @@ import { FileTypes } from '@renderer/types'
 import { FileMessageBlock } from '@renderer/types/newMessage'
 import { findFileBlocks } from '@renderer/utils/messageUtils/find'
 import type { FilePart, TextPart } from 'ai'
+import type OpenAI from 'openai'
 
 import { getAiSdkProviderId } from '../provider/factory'
 import { getFileSizeLimit, supportsImageInput, supportsLargeFileUpload, supportsPdfInput } from './modelCapabilities'
@@ -80,12 +81,22 @@ export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): P
 }
 
 /**
- * 处理Gemini大文件上传
+ * 处理大文件上传
  */
-export async function handleGeminiFileUpload(file: FileMetadata, model: Model): Promise<FilePart | null> {
+export async function handleLargeFileUpload(
+  file: FileMetadata,
+  model: Model
+): Promise<(FilePart & { id?: string }) | null> {
+  const provider = getProviderByModel(model)
+  const aiSdkId = getAiSdkProviderId(provider)
+  // 如果模型为qwen-long系列，purpose需要为'file-extract'
+  if (['qwen-long', 'qwen-doc'].some((modelName) => model.name.includes(modelName))) {
+    file = {
+      ...file,
+      purpose: 'file-extract' as OpenAI.FilePurpose
+    }
+  }
   try {
-    const provider = getProviderByModel(model)
-
     // 检查文件是否已经上传过
     const fileMetadata = await window.api.fileService.retrieve(provider, file.id)
 
@@ -93,20 +104,54 @@ export async function handleGeminiFileUpload(file: FileMetadata, model: Model): 
       const remoteFile = fileMetadata.originalFile.file as any // 临时类型断言，因为File类型定义可能不完整
       // 注意：AI SDK的FilePart格式和Gemini原生格式不同，这里需要适配
       // 暂时返回null让它回退到文本处理，或者需要扩展FilePart支持uri
-      logger.info(`File ${file.origin_name} already uploaded to Gemini with URI: ${remoteFile.uri || 'unknown'}`)
-      return null
+      if (['google', 'google-generative-ai', 'google-vertex'].includes(aiSdkId)) {
+        logger.info(`File ${file.origin_name} already uploaded: ${remoteFile.uri || 'unknown'}`)
+        return null
+      }
+      // 标准OpenAI规范
+      if (fileMetadata.originalFile.type === 'openai') {
+        // 判断用途是否一致
+        if (fileMetadata.originalFile.file.purpose !== file.purpose) {
+          logger.warn(
+            `File ${file.origin_name} purpose mismatch: ${fileMetadata.originalFile.file.purpose} vs ${file.purpose}`
+          )
+          throw new Error('File purpose mismatch')
+        }
+        return {
+          type: 'file',
+          filename: file.origin_name,
+          mediaType: '',
+          data: `fileid://${remoteFile.id}`
+        }
+      }
     }
-
+  } catch (error) {
+    logger.error(`Failed to retrieve file ${file.origin_name}:`, error as Error)
+    return null
+  }
+  try {
     // 如果文件未上传，执行上传
     const uploadResult = await window.api.fileService.upload(provider, file)
     if (uploadResult.originalFile?.file) {
       const remoteFile = uploadResult.originalFile.file as any // 临时类型断言
-      logger.info(`File ${file.origin_name} uploaded to Gemini with URI: ${remoteFile.uri || 'unknown'}`)
+      logger.info(`File ${file.origin_name} uploaded.`)
       // 同样，这里需要处理URI格式的文件引用
-      return null
+      if (['google', 'google-generative-ai', 'google-vertex'].includes(aiSdkId)) {
+        logger.info(`File ${file.origin_name} already uploaded: ${remoteFile.uri || remoteFile.id || 'unknown'}`)
+        return null
+      }
+      // 标准OpenAI规范
+      if (uploadResult.originalFile.type === 'openai') {
+        return {
+          type: 'file',
+          filename: remoteFile.filename,
+          mediaType: '',
+          data: `fileid://${remoteFile.id}`
+        }
+      }
     }
   } catch (error) {
-    logger.error(`Failed to upload file ${file.origin_name} to Gemini:`, error as Error)
+    logger.error(`Failed to upload file ${file.origin_name}:`, error as Error)
   }
 
   return null
@@ -127,7 +172,7 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
         // 如果支持大文件上传（如Gemini File API），尝试上传
         if (supportsLargeFileUpload(model)) {
           logger.info(`Large PDF file ${file.origin_name} (${file.size} bytes) attempting File API upload`)
-          const uploadResult = await handleGeminiFileUpload(file, model)
+          const uploadResult = await handleLargeFileUpload(file, model)
           if (uploadResult) {
             return uploadResult
           }

@@ -1,5 +1,6 @@
 import type { File } from '@google/genai'
 import type { FileSchema } from '@mistralai/mistralai/models/components'
+import type OpenAI from 'openai'
 
 export type RemoteFile =
   | {
@@ -9,6 +10,10 @@ export type RemoteFile =
   | {
       type: 'mistral'
       file: FileSchema
+    }
+  | {
+      type: 'openai'
+      file: OpenAI.Files.FileObject
     }
 
 /**
@@ -27,6 +32,16 @@ export const isGeminiFile = (file: RemoteFile): file is RemoteFile & { type: 'ge
  */
 export const isMistralFile = (file: RemoteFile): file is RemoteFile & { type: 'mistral'; file: FileSchema } => {
   return file.type === 'mistral'
+}
+
+/** Type guard to check if a RemoteFile is an OpenAI file
+ * @param file - The RemoteFile to check
+ * @returns True if the file is an OpenAI file (file property is of type OpenAI.Files.FileObject)
+ */
+export const isOpenAIFile = (
+  file: RemoteFile
+): file is RemoteFile & { type: 'openai'; file: OpenAI.Files.FileObject } => {
+  return file.type === 'openai'
 }
 
 export type FileStatus = 'success' | 'processing' | 'failed' | 'unknown'
@@ -93,6 +108,10 @@ export interface FileMetadata {
    * 该文件预计的token大小 (可选)
    */
   tokens?: number
+  /**
+   * 该文件的用途
+   */
+  purpose?: OpenAI.FilePurpose
 }
 
 export interface FileType extends FileMetadata {}
