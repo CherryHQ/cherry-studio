@@ -14,6 +14,7 @@ import { estimateMessageUsage } from '@renderer/services/TokenService'
 import { Assistant, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { isMessageProcessing } from '@renderer/utils/messageUtils/is'
 import { Divider } from 'antd'
 import React, { Dispatch, FC, memo, SetStateAction, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -115,7 +116,8 @@ const MessageItem: FC<Props> = ({
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
-  const showMenubar = !hideMenuBar && !isEditing
+  const isProcessing = isMessageProcessing(message)
+  const showMenubar = !hideMenuBar && !isEditing && !isProcessing
 
   const messageHighlightHandler = useCallback(
     (highlight: boolean = true) => {
