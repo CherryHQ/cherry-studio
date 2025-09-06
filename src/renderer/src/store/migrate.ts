@@ -2356,11 +2356,14 @@ const migrateConfig = {
       if (state.settings && state.note) {
         const showWorkspaceValue = (state.settings as any)?.showWorkspace
         if (showWorkspaceValue !== undefined) {
+          // @ts-ignore eslint-disable-next-line
           state.note.settings.showWorkspace = showWorkspaceValue
           // Remove from settings
           delete (state.settings as any).showWorkspace
+          // @ts-ignore eslint-disable-next-line
         } else if (state.note.settings.showWorkspace === undefined) {
           // Set default value if not exists
+          // @ts-ignore eslint-disable-next-line
           state.note.settings.showWorkspace = true
         }
       }
