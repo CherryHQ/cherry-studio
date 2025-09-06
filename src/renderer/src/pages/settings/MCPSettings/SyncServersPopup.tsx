@@ -9,6 +9,7 @@ import styled from 'styled-components'
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
 import { getBailianToken, saveBailianToken, syncBailianServers } from './providers/bailian'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
+import { getMCProuterToken, saveMCProuterToken, syncMCProuterServers } from './providers/mcprouter'
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './providers/modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
 
@@ -81,6 +82,17 @@ const providers: ProviderConfig[] = [
     getToken: getBailianToken,
     saveToken: saveBailianToken,
     syncServers: syncBailianServers
+  },
+  {
+    key: 'mcprouter',
+    name: 'MCProuter',
+    description: 'MCProuter platform MCP services',
+    discoverUrl: 'https://mcprouter.to/servers',
+    apiKeyUrl: 'https://mcprouter.to/api-keys',
+    tokenFieldName: 'mcprouterToken',
+    getToken: getMCProuterToken,
+    saveToken: saveMCProuterToken,
+    syncServers: syncMCProuterServers
   }
 ]
 
