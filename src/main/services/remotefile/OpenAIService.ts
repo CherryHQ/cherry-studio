@@ -10,8 +10,8 @@ import { BaseFileService } from './BaseFileService'
 const logger = loggerService.withContext('OpenAIService')
 
 export class OpenaiService extends BaseFileService {
-  private static readonly UI_FILE_ID_CACHE_KEY = 'ui_file_id'
   private static readonly FILE_CACHE_DURATION = 7 * 24 * 60 * 60 * 1000
+  private static readonly GenerateUIFileIdCacheKey = (fileId: string) => `ui_file_id_${fileId}`
   private readonly client: OpenAI
 
   constructor(provider: Provider) {
@@ -39,7 +39,7 @@ export class OpenaiService extends BaseFileService {
       }
       // 映射RemoteFileId到UIFileId上
       CacheService.set<string>(
-        `${OpenaiService.UI_FILE_ID_CACHE_KEY}_${file.id}`,
+        OpenaiService.GenerateUIFileIdCacheKey(file.id),
         response.id,
         OpenaiService.FILE_CACHE_DURATION
       )
@@ -88,7 +88,7 @@ export class OpenaiService extends BaseFileService {
 
   async deleteFile(fileId: string): Promise<void> {
     try {
-      const cachedRemoteFileId = CacheService.get<string>(`${OpenaiService.UI_FILE_ID_CACHE_KEY}_${fileId}`)
+      const cachedRemoteFileId = CacheService.get<string>(OpenaiService.GenerateUIFileIdCacheKey(fileId))
       await this.client.files.delete(cachedRemoteFileId || fileId)
       logger.debug(`File ${fileId} deleted`)
     } catch (error) {
@@ -100,7 +100,7 @@ export class OpenaiService extends BaseFileService {
   async retrieveFile(fileId: string): Promise<FileUploadResponse> {
     try {
       // 尝试反映射RemoteFileId
-      const cachedRemoteFileId = CacheService.get<string>(`${OpenaiService.UI_FILE_ID_CACHE_KEY}_${fileId}`)
+      const cachedRemoteFileId = CacheService.get<string>(OpenaiService.GenerateUIFileIdCacheKey(fileId))
       const response = await this.client.files.retrieve(cachedRemoteFileId || fileId)
 
       return {

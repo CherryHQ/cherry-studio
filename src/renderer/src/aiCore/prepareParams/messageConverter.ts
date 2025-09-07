@@ -102,7 +102,7 @@ async function convertMessageToUserModelMessage(
             },
             {
               role: 'user',
-              content: parts
+              content: parts.length > 0 ? parts : ''
             }
           ]
         }
