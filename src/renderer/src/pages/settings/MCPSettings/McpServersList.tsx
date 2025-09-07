@@ -253,7 +253,8 @@ const McpServersList: FC = () => {
         itemKey="id"
         onSortEnd={onSortEnd}
         layout="grid"
-        gap={'12px'}
+        gap="12px"
+        restrictions={{ scrollableAncestor: true }}
         useDragOverlay
         showGhost
         renderItem={(server) => (

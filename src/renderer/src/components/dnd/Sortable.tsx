@@ -5,13 +5,19 @@ import {
   DragOverlay,
   DropAnimation,
   KeyboardSensor,
+  Modifier,
   Over,
   TouchSensor,
   UniqueIdentifier,
   useSensor,
   useSensors
 } from '@dnd-kit/core'
-import { restrictToHorizontalAxis, restrictToVerticalAxis } from '@dnd-kit/modifiers'
+import {
+  restrictToFirstScrollableAncestor,
+  restrictToHorizontalAxis,
+  restrictToVerticalAxis,
+  restrictToWindowEdges
+} from '@dnd-kit/modifiers'
 import {
   horizontalListSortingStrategy,
   rectSortingStrategy,
@@ -25,6 +31,7 @@ import styled from 'styled-components'
 
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
+import { RenderItemType } from './types'
 import { PortalSafePointerSensor } from './utils'
 
 interface SortableProps<T> {
@@ -39,7 +46,7 @@ interface SortableProps<T> {
   /** Callback when drag ends, will be passed to dnd-kit's onDragEnd */
   onDragEnd?: (event: { over: Over }) => void
   /** Function to render individual item, receives item data and drag state */
-  renderItem: (item: T, props: { dragging: boolean }) => React.ReactNode
+  renderItem: RenderItemType<T>
   /** Layout type - 'list' for vertical/horizontal list, 'grid' for grid layout */
   layout?: 'list' | 'grid'
   /** Whether sorting is horizontal */
@@ -54,10 +61,17 @@ interface SortableProps<T> {
   className?: string
   /** Item list style */
   listStyle?: React.CSSProperties
-  /** Ghost item style */
-  ghostItemStyle?: React.CSSProperties
   /** Item gap */
   gap?: number | string
+  /** Restrictions, shortcuts for some modifiers */
+  restrictions?: {
+    /** Add modifier restrictToWindowEdges */
+    windowEdges?: boolean
+    /** Add modifier restrictToFirstScrollableAncestor */
+    scrollableAncestor?: boolean
+  }
+  /** Additional modifiers */
+  modifiers?: Modifier[]
 }
 
 function Sortable<T>({
@@ -73,7 +87,9 @@ function Sortable<T>({
   showGhost = false,
   className,
   listStyle,
-  gap
+  gap,
+  restrictions,
+  modifiers: customModifiers
 }: SortableProps<T>) {
   const sensors = useSensors(
     useSensor(PortalSafePointerSensor, {
@@ -132,7 +148,18 @@ function Sortable<T>({
 
   const strategy =
     layout === 'list' ? (horizontal ? horizontalListSortingStrategy : verticalListSortingStrategy) : rectSortingStrategy
-  const modifiers = layout === 'list' ? (horizontal ? [restrictToHorizontalAxis] : [restrictToVerticalAxis]) : []
+
+  const { windowEdges = false, scrollableAncestor = false } = restrictions ?? {}
+
+  const modifiers = useMemo<Modifier[]>(
+    () => [
+      ...(layout === 'list' ? [horizontal ? restrictToHorizontalAxis : restrictToVerticalAxis] : []),
+      ...(windowEdges ? [restrictToWindowEdges] : []),
+      ...(scrollableAncestor ? [restrictToFirstScrollableAncestor] : []),
+      ...(customModifiers ?? [])
+    ],
+    [layout, horizontal, windowEdges, scrollableAncestor, customModifiers]
+  )
 
   const dropAnimation: DropAnimation = useMemo(
     () => ({
@@ -162,8 +189,9 @@ function Sortable<T>({
           {items.map((item, index) => (
             <SortableItem
               key={itemIds[index]}
+              id={itemIds[index]}
+              index={index}
               item={item}
-              getId={getId}
               renderItem={renderItem}
               useDragOverlay={useDragOverlay}
               showGhost={showGhost}
@@ -200,14 +228,14 @@ const ListWrapper = styled.div<{ $gap?: number | string }>`
   &[data-layout='list'] {
     display: flex;
     align-items: center;
+  }
 
-    [data-direction='horizontal'] {
-      flex-direction: row;
-    }
+  &[data-layout='list'][data-direction='horizontal'] {
+    flex-direction: row;
+  }
 
-    [data-direction='vertical'] {
-      flex-direction: column;
-    }
+  &[data-layout='list'][data-direction='vertical'] {
+    flex-direction: column;
   }
 `
 
