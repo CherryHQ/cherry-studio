@@ -13,7 +13,15 @@ import {
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
-import type { AssistantModelMessage, FilePart, ImagePart, ModelMessage, TextPart, UserModelMessage } from 'ai'
+import type {
+  AssistantModelMessage,
+  FilePart,
+  ImagePart,
+  ModelMessage,
+  SystemModelMessage,
+  TextPart,
+  UserModelMessage
+} from 'ai'
 
 import { convertFileBlockToFilePart, convertFileBlockToTextPart } from './fileProcessor'
 
@@ -27,7 +35,7 @@ export async function convertMessageToSdkParam(
   message: Message,
   isVisionModel = false,
   model?: Model
-): Promise<ModelMessage> {
+): Promise<ModelMessage | ModelMessage[]> {
   const content = getMainTextContent(message)
   const fileBlocks = findFileBlocks(message)
   const imageBlocks = findImageBlocks(message)
@@ -48,7 +56,7 @@ async function convertMessageToUserModelMessage(
   imageBlocks: ImageMessageBlock[],
   isVisionModel = false,
   model?: Model
-): Promise<UserModelMessage> {
+): Promise<UserModelMessage | (UserModelMessage | SystemModelMessage)[]> {
   const parts: Array<TextPart | FilePart | ImagePart> = []
   if (content) {
     parts.push({ type: 'text', text: content })
@@ -85,6 +93,19 @@ async function convertMessageToUserModelMessage(
     if (model) {
       const filePart = await convertFileBlockToFilePart(fileBlock, model)
       if (filePart) {
+        // 判断filePart是否为string
+        if (typeof filePart.data === 'string' && filePart.data.startsWith('fileid://')) {
+          return [
+            {
+              role: 'system',
+              content: filePart.data
+            },
+            {
+              role: 'user',
+              content: parts.length > 0 ? parts : ''
+            }
+          ]
+        }
         parts.push(filePart)
         logger.debug(`File ${file.origin_name} processed as native file format`)
         processed = true
@@ -159,7 +180,7 @@ export async function convertMessagesToSdkMessages(messages: Message[], model: M
 
   for (const message of messages) {
     const sdkMessage = await convertMessageToSdkParam(message, isVision, model)
-    sdkMessages.push(sdkMessage)
+    sdkMessages.push(...(Array.isArray(sdkMessage) ? sdkMessage : [sdkMessage]))
   }
 
   return sdkMessages
