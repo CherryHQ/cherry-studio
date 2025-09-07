@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import ProviderAvatarEditor from '@renderer/components/ImageEditor/ProviderAvatarEditor'
 import { Center, VStack } from '@renderer/components/Layout'
+import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
@@ -8,7 +9,8 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { Provider, ProviderType } from '@renderer/types'
 import { generateColorFromChar, getForegroundColor } from '@renderer/utils'
 import { Divider, Dropdown, Form, Input, Modal, Popover, Select, Upload } from 'antd'
-import React, { useEffect, useState } from 'react'
+import { ItemType } from 'antd/es/menu/interface'
+import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -29,6 +31,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const [imageEditorOpen, setImageEditorOpen] = useState(false)
   const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
   const { t } = useTranslation()
+  const uploadRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (provider?.id) {
@@ -145,82 +148,67 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
     {
       key: 'upload',
       label: (
-        <div style={{ width: '100%', textAlign: 'center' }}>
-          <Upload
-            customRequest={() => {}}
-            accept="image/png, image/jpeg, image/gif"
-            itemRender={() => null}
-            maxCount={1}
-            onChange={async ({ file }) => {
-              try {
-                const _file = file.originFileObj as File
+        <Upload
+          customRequest={() => {}}
+          accept="image/png, image/jpeg, image/gif"
+          itemRender={() => null}
+          maxCount={1}
+          onChange={async ({ file }) => {
+            try {
+              const _file = file.originFileObj as File
+              let logoData: string | Blob
 
-                // 如果是 GIF 图片，直接使用，不进行编辑
-                if (_file.type === 'image/gif') {
-                  const logoData = _file
-
-                  if (provider?.id) {
-                    await ImageStorage.set(`provider-${provider.id}`, logoData)
-                    const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                    setLogo(savedLogo)
-                  } else {
-                    const tempUrl = await new Promise<string>((resolve) => {
-                      const reader = new FileReader()
-                      reader.onload = () => resolve(reader.result as string)
-                      reader.readAsDataURL(logoData)
-                    })
-                    setLogo(tempUrl)
-                  }
-                  setDropdownOpen(false)
-                } else {
-                  // 对于其他图片格式，打开编辑器
-                  const tempUrl = await new Promise<string>((resolve) => {
-                    const reader = new FileReader()
-                    reader.onload = () => resolve(reader.result as string)
-                    reader.readAsDataURL(_file)
-                  })
-
-                  setTempImageSrc(tempUrl)
-                  setDropdownOpen(false)
-                  setImageEditorOpen(true)
-                }
-              } catch (error: any) {
-                window.message.error(error.message)
+              if (_file.type === 'image/gif') {
+                logoData = _file
+              } else {
+                logoData = await compressImage(_file)
               }
-            }}>
-            {t('settings.general.image_upload')}
-          </Upload>
-        </div>
-      )
+
+              if (provider?.id) {
+                if (logoData instanceof Blob && !(logoData instanceof File)) {
+                  const fileFromBlob = new File([logoData], 'logo.png', { type: logoData.type })
+                  await ImageStorage.set(`provider-${provider.id}`, fileFromBlob)
+                } else {
+                  await ImageStorage.set(`provider-${provider.id}`, logoData)
+                }
+                const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+                setLogo(savedLogo)
+              } else {
+                // 临时保存在内存中，等创建 provider 后会在调用方保存
+                const tempUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader()
+                  reader.onload = () => resolve(reader.result as string)
+                  reader.readAsDataURL(logoData)
+                })
+                setLogo(tempUrl)
+              }
+              setDropdownOpen(false)
+            } catch (error: any) {
+              window.message.error(error.message)
+            }
+          }}>
+          <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
+        </Upload>
+      ),
+      onClick: (e: any) => {
+        e.stopPropagation()
+        uploadRef.current?.click()
+      }
     },
     {
       key: 'builtin',
-      label: (
-        <div
-          style={{ width: '100%', textAlign: 'center' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            setDropdownOpen(false)
-            setLogoPickerOpen(true)
-          }}>
-          {t('settings.general.avatar.builtin')}
-        </div>
-      )
+      label: <MenuItem>{t('settings.general.avatar.builtin')}</MenuItem>,
+      onClick: () => {
+        setDropdownOpen(false)
+        setLogoPickerOpen(true)
+      }
     },
     {
       key: 'reset',
-      label: (
-        <div
-          style={{ width: '100%', textAlign: 'center' }}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleReset()
-          }}>
-          {t('settings.general.avatar.reset')}
-        </div>
-      )
+      label: <MenuItem>{t('settings.general.avatar.reset')}</MenuItem>,
+      onClick: handleReset
     }
-  ]
+  ] satisfies ItemType[]
 
   // for logo
   const backgroundColor = generateColorFromChar(name)
@@ -266,7 +254,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               }}
               placement="bottom">
               {logo ? (
-                <ProviderLogo src={logo} />
+                <ProviderLogo>
+                  <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />
+                </ProviderLogo>
               ) : (
                 <ProviderInitialsLogo style={name ? { backgroundColor, color } : undefined}>
                   {getInitials()}
@@ -321,16 +311,17 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   )
 }
 
-const ProviderLogo = styled.img`
+const ProviderLogo = styled.div`
   cursor: pointer;
   width: 60px;
   height: 60px;
-  border-radius: 12px;
-  object-fit: contain;
+  border-radius: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
   transition: opacity 0.3s ease;
-  background-color: var(--color-background-soft);
-  padding: 5px;
-  border: 0.5px solid var(--color-border);
   &:hover {
     opacity: 0.8;
   }
@@ -340,7 +331,7 @@ const ProviderInitialsLogo = styled.div`
   cursor: pointer;
   width: 60px;
   height: 60px;
-  border-radius: 12px;
+  border-radius: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -352,6 +343,11 @@ const ProviderInitialsLogo = styled.div`
   &:hover {
     opacity: 0.8;
   }
+`
+
+const MenuItem = styled.div`
+  width: 100%;
+  text-align: center;
 `
 
 export default class AddProviderPopup {

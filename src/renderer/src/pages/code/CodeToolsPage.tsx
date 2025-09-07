@@ -2,19 +2,22 @@ import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
+import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
-import { useProviders } from '@renderer/hooks/useProvider'
+import { useAllProviders, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
-import { Alert, Button, Checkbox, Input, Select, Space } from 'antd'
-import { Download, Terminal, X } from 'lucide-react'
+import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
+import { ArrowUpRight, Download, HelpCircle, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
 import {
@@ -22,6 +25,7 @@ import {
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
+  getClaudeSupportedProviders,
   parseEnvironmentVariables
 } from '.'
 
@@ -30,6 +34,7 @@ const logger = loggerService.withContext('CodeToolsPage')
 const CodeToolsPage: FC = () => {
   const { t } = useTranslation()
   const { providers } = useProviders()
+  const allProviders = useAllProviders()
   const dispatch = useAppDispatch()
   const isBunInstalled = useAppSelector((state) => state.mcp.isBunInstalled)
   const {
@@ -258,7 +263,35 @@ const CodeToolsPage: FC = () => {
             </SettingsItem>
 
             <SettingsItem>
-              <div className="settings-label">{t('code.model')}</div>
+              <div className="settings-label">
+                {t('code.model')}
+                {selectedCliTool === 'claude-code' && (
+                  <Popover
+                    content={
+                      <div style={{ width: 200 }}>
+                        <div style={{ marginBottom: 8, fontWeight: 500 }}>{t('code.supported_providers')}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {getClaudeSupportedProviders(allProviders).map((provider) => {
+                            return (
+                              <Link
+                                key={provider.id}
+                                style={{ color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 4 }}
+                                to={`/settings/provider?id=${provider.id}`}>
+                                <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
+                                {getProviderLabel(provider.id)}
+                                <ArrowUpRight size={14} />
+                              </Link>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    }
+                    trigger="hover"
+                    placement="right">
+                    <HelpCircle size={14} style={{ color: 'var(--color-text-3)', cursor: 'pointer' }} />
+                  </Popover>
+                )}
+              </div>
               <ModelSelector
                 providers={availableProviders}
                 predicate={modelPredicate}
@@ -393,6 +426,10 @@ const SettingsItem = styled.div`
 
 const BunInstallAlert = styled.div`
   margin-bottom: 24px;
+`
+
+const ProviderLogo = styled(Avatar)`
+  border-radius: 4px;
 `
 
 export default CodeToolsPage

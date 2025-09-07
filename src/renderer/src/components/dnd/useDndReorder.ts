@@ -8,7 +8,7 @@ interface UseDndReorderParams<T> {
   /** 用于更新原始列表状态的函数 */
   onUpdate: (newList: T[]) => void
   /** 用于从列表项中获取唯一ID的属性名或函数 */
-  idKey: keyof T | ((item: T) => Key)
+  itemKey: keyof T | ((item: T) => Key)
 }
 
 /**
@@ -18,8 +18,11 @@ interface UseDndReorderParams<T> {
  * @param params - { originalList, filteredList, onUpdate, idKey }
  * @returns 返回可以直接传递给 Sortable 的 onSortEnd 回调
  */
-export function useDndReorder<T>({ originalList, filteredList, onUpdate, idKey }: UseDndReorderParams<T>) {
-  const getId = useCallback((item: T) => (typeof idKey === 'function' ? idKey(item) : (item[idKey] as Key)), [idKey])
+export function useDndReorder<T>({ originalList, filteredList, onUpdate, itemKey }: UseDndReorderParams<T>) {
+  const getId = useCallback(
+    (item: T) => (typeof itemKey === 'function' ? itemKey(item) : (item[itemKey] as Key)),
+    [itemKey]
+  )
 
   // 创建从 item ID 到其在 *原始列表* 中索引的映射
   const itemIndexMap = useMemo(() => {
