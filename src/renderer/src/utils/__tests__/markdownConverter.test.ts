@@ -484,4 +484,25 @@ describe('markdownConverter', () => {
       expect(backToHtml).toBe('<p>This is a simple paragraph being typed</p>\n')
     })
   })
+
+  describe('shoud keep YAML front matter', () => {
+    it('should keep YAML front matter', () => {
+      const markdown = `---
+tags:
+  - 你好
+aliases:
+  - "1111"
+  - "222"
+  - "333"
+  - "3333"
+cssclasses:
+  - fffff
+  - ssss
+  - s12
+---`
+      const result = markdownToHtml(markdown)
+      const backToMarkdown = htmlToMarkdown(result)
+      expect(backToMarkdown).toBe(markdown)
+    })
+  })
 })

@@ -2221,6 +2221,21 @@
       }
     },
     "dragHandle": "Drag to move",
+    "frontMatter": {
+      "addProperty": "Add a property",
+      "addTag": "Add tag",
+      "changeToBoolean": "Checkbox",
+      "changeToDate": "Date",
+      "changeToNumber": "Number",
+      "changeToTags": "Tags",
+      "changeToText": "Text",
+      "changeType": "Change type",
+      "deleteProperty": "Delete property",
+      "editValue": "Edit value",
+      "empty": "Empty",
+      "moreActions": "More actions",
+      "propertyName": "Property name"
+    },
     "image": {
       "placeholder": "Add a picture"
     },

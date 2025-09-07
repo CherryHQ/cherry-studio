@@ -1,10 +1,12 @@
 import {
+  AssistantMessageStatus,
   type CitationMessageBlock,
   type CodeMessageBlock,
   type ErrorMessageBlock,
   type FileMessageBlock,
   type ImageMessageBlock,
   type MainTextMessageBlock,
+  Message,
   type MessageBlock,
   MessageBlockType,
   type PlaceholderMessageBlock,
@@ -146,4 +148,12 @@ export function isCitationBlock(block: MessageBlock): block is CitationMessageBl
  */
 export function isPlaceholderBlock(block: MessageBlock): block is PlaceholderMessageBlock {
   return block.type === MessageBlockType.UNKNOWN
+}
+
+export function isMessageProcessing(message: Message): boolean {
+  return (
+    message.status === AssistantMessageStatus.PROCESSING ||
+    message.status === AssistantMessageStatus.PENDING ||
+    message.status === AssistantMessageStatus.SEARCHING
+  )
 }

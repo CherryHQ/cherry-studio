@@ -19,6 +19,8 @@ const NOTES_TREE_ID = 'notes-tree-structure'
 
 const logger = loggerService.withContext('NotesService')
 
+export type MoveNodeResult = { success: false } | { success: true; type: 'file_system_move' | 'manual_reorder' }
+
 /**
  * 初始化/同步笔记树结构
  */
@@ -182,7 +184,7 @@ export async function moveNode(
   sourceNodeId: string,
   targetNodeId: string,
   position: 'before' | 'after' | 'inside'
-): Promise<boolean> {
+): Promise<MoveNodeResult> {
   try {
     const tree = await getNotesTree()
 
@@ -192,19 +194,19 @@ export async function moveNode(
 
     if (!sourceNode || !targetNode) {
       logger.error(`Move nodes failed: node not found (source: ${sourceNodeId}, target: ${targetNodeId})`)
-      return false
+      return { success: false }
     }
 
     // 不允许文件夹被放入文件中
     if (position === 'inside' && targetNode.type === 'file' && sourceNode.type === 'folder') {
       logger.error('Move nodes failed: cannot move a folder inside a file')
-      return false
+      return { success: false }
     }
 
     // 不允许将节点移动到自身内部
     if (position === 'inside' && isParentNode(tree, sourceNodeId, targetNodeId)) {
       logger.error('Move nodes failed: cannot move a node inside itself or its descendants')
-      return false
+      return { success: false }
     }
 
     let targetPath: string = ''
@@ -215,7 +217,7 @@ export async function moveNode(
         targetPath = targetNode.externalPath
       } else {
         logger.error('Cannot move node inside a file node')
-        return false
+        return { success: false }
       }
     } else {
       const targetParent = findParentNode(tree, targetNodeId)
@@ -224,6 +226,20 @@ export async function moveNode(
       } else {
         targetPath = getFileDirectory(targetNode.externalPath!)
       }
+    }
+
+    // 检查是否为同级拖动排序
+    const sourceParent = findParentNode(tree, sourceNodeId)
+    const sourceDir = sourceParent ? sourceParent.externalPath : getFileDirectory(sourceNode.externalPath!)
+
+    const isSameLevelReorder = position !== 'inside' && sourceDir === targetPath
+
+    if (isSameLevelReorder) {
+      // 同级拖动排序：跳过文件系统操作，只更新树结构
+      logger.debug(`Same level reorder detected, skipping file system operations`)
+      const success = await moveNodeInTree(tree, sourceNodeId, targetNodeId, position)
+      // 返回一个特殊标识，告诉调用方这是手动排序，不需要重新自动排序
+      return success ? { success: true, type: 'manual_reorder' } : { success: false }
     }
 
     // 构建新的文件路径
@@ -250,14 +266,15 @@ export async function moveNode(
         logger.debug(`Moved external ${sourceNode.type} to: ${newPath}`)
       } catch (error) {
         logger.error(`Failed to move external ${sourceNode.type}:`, error as Error)
-        return false
+        return { success: false }
       }
     }
 
-    return await moveNodeInTree(tree, sourceNodeId, targetNodeId, position)
+    const success = await moveNodeInTree(tree, sourceNodeId, targetNodeId, position)
+    return success ? { success: true, type: 'file_system_move' } : { success: false }
   } catch (error) {
     logger.error('Move nodes failed:', error as Error)
-    return false
+    return { success: false }
   }
 }
 

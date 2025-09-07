@@ -2221,6 +2221,21 @@
       }
     },
     "dragHandle": "拖拽塊",
+    "frontMatter": {
+      "addProperty": "新增屬性",
+      "addTag": "新增標籤",
+      "changeToBoolean": "核取方塊",
+      "changeToDate": "日期",
+      "changeToNumber": "數字",
+      "changeToTags": "標籤",
+      "changeToText": "文字",
+      "changeType": "更改類型",
+      "deleteProperty": "刪除屬性",
+      "editValue": "編輯值",
+      "empty": "空",
+      "moreActions": "更多操作",
+      "propertyName": "屬性名稱"
+    },
     "image": {
       "placeholder": "添加圖片"
     },
