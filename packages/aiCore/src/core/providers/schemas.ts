@@ -146,7 +146,12 @@ export const providerConfigSchema = z
   .object({
     id: customProviderIdSchema, // 只允许自定义ID
     name: z.string().min(1),
-    creator: z.function().optional(),
+    creator: z
+      .function({
+        input: z.any(),
+        output: z.any()
+      })
+      .optional(),
     import: z.function().optional(),
     creatorFunctionName: z.string().optional(),
     supportsImageGeneration: z.boolean().default(false),
