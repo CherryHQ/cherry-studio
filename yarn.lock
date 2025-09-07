@@ -10137,8 +10137,9 @@ __metadata:
     docx: "npm:^9.0.2"
     dompurify: "npm:^3.2.6"
     dotenv-cli: "npm:^7.4.2"
-    electron: "npm:37.4.0"
+    electron: "npm:^38.0.0"
     electron-builder: "npm:26.0.15"
+    electron-debug: "npm:^4.1.0"
     electron-devtools-installer: "npm:^3.2.0"
     electron-store: "npm:^8.2.0"
     electron-updater: "npm:6.6.4"
@@ -10182,6 +10183,7 @@ __metadata:
     mime: "npm:^4.0.4"
     mime-types: "npm:^3.0.1"
     motion: "npm:^12.10.5"
+    node-gyp: "npm:^11.4.2"
     node-stream-zip: "npm:^1.15.0"
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
@@ -12864,7 +12866,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debug@npm:4, debug@npm:^4.0.0, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.3.4, debug@npm:^4.3.5, debug@npm:^4.3.6, debug@npm:^4.4.0, debug@npm:^4.4.1":
+"debug@npm:4, debug@npm:^4.0.0, debug@npm:^4.0.1, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.3.4, debug@npm:^4.3.5, debug@npm:^4.3.6, debug@npm:^4.4.0, debug@npm:^4.4.1":
   version: 4.4.1
   resolution: "debug@npm:4.4.1"
   dependencies:
@@ -13481,6 +13483,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"electron-debug@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "electron-debug@npm:4.1.0"
+  dependencies:
+    electron-is-dev: "npm:^3.0.1"
+    electron-localshortcut: "npm:^3.2.1"
+  checksum: 10c0/b781a2138dbcc2a0ee87e2dd31810c61b855203e987661786004dbc13f0ecb25c34913b9464cb73ec887e5499e262a25c28d2480ade701d349375a50b4891314
+  languageName: node
+  linkType: hard
+
 "electron-devtools-installer@npm:^3.2.0":
   version: 3.2.1
   resolution: "electron-devtools-installer@npm:3.2.1"
@@ -13490,6 +13502,32 @@ __metadata:
     tslib: "npm:^2.1.0"
     unzip-crx-3: "npm:^0.2.0"
   checksum: 10c0/cbdaeef985497f881b3f50a8d443c4064af023347534ba0564da6e8a0d26b96a6f0e60213a3443f70dbccd4f0f226f691d77e46f83f6c53850b0c45c2404b14d
+  languageName: node
+  linkType: hard
+
+"electron-is-accelerator@npm:^0.1.0":
+  version: 0.1.2
+  resolution: "electron-is-accelerator@npm:0.1.2"
+  checksum: 10c0/120da55c3b581cbca5eccdd80c9099574a7aa0a8ea8b9fd4e5dcd906dcf83308c94587ad771b066cdd073e45e68dbe4c06256602998f16ccafbcfe1cab968718
+  languageName: node
+  linkType: hard
+
+"electron-is-dev@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "electron-is-dev@npm:3.0.1"
+  checksum: 10c0/80d37d61d44b8b7af0af90eab622b09e0f165afbc2560297c760356efa93fcb54dbbd13d4d6522da6474e261d630b76b804c86385564a1f3062d28fc59c340bd
+  languageName: node
+  linkType: hard
+
+"electron-localshortcut@npm:^3.2.1":
+  version: 3.2.1
+  resolution: "electron-localshortcut@npm:3.2.1"
+  dependencies:
+    debug: "npm:^4.0.1"
+    electron-is-accelerator: "npm:^0.1.0"
+    keyboardevent-from-electron-accelerator: "npm:^2.0.0"
+    keyboardevents-areequal: "npm:^0.2.1"
+  checksum: 10c0/6490a1dd0155926d5664500d45a5acb4771ba96e3ad4a878367e24ab96096c8824197cf3e2890a4f51b0307665afe680fe5f22dae2e4ba781cf32ddab9dcc335
   languageName: node
   linkType: hard
 
@@ -13574,16 +13612,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:37.4.0":
-  version: 37.4.0
-  resolution: "electron@npm:37.4.0"
+"electron@npm:^38.0.0":
+  version: 38.0.0
+  resolution: "electron@npm:38.0.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/92a0c41190e234d302bc612af6cce9af08cd07f6699c1ff21a9365297e73dc9d88c6c4c25ddabf352447e3e555878d2ab0f2f31a14e210dda6de74d2787ff323
+  checksum: 10c0/df3e4eaead2b0de4612a1b593f46667dfd4aff4755727371b5630aada40094cddf82b3837ce0ba3babed8c503275da59187f11da9f4ab26cd20e1362dc103ea6
   languageName: node
   linkType: hard
 
@@ -16883,6 +16921,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"keyboardevent-from-electron-accelerator@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "keyboardevent-from-electron-accelerator@npm:2.0.0"
+  checksum: 10c0/94bd9da6eb80145b36f336adb3f0a55cc8fdf0138f0df3028feb30d790d0727f8de27f040278805a499cc61dba816c8fab012e7f76c2495033d2fd7c2762f309
+  languageName: node
+  linkType: hard
+
+"keyboardevents-areequal@npm:^0.2.1":
+  version: 0.2.2
+  resolution: "keyboardevents-areequal@npm:0.2.2"
+  checksum: 10c0/1612c2aa52001163b2517ef6c0ea9abf20117e206e6796ba15eb99c0ae331a8826ab60a18e7ddb8ed0e15272af64d3b14383d2ae832beaa2f68548c1c53e4fa6
+  languageName: node
+  linkType: hard
+
 "keyv@npm:^4.0.0, keyv@npm:^4.5.3, keyv@npm:^4.5.4":
   version: 4.5.4
   resolution: "keyv@npm:4.5.4"
@@ -19417,6 +19469,26 @@ __metadata:
     node-gyp-build-optional: optional.js
     node-gyp-build-test: build-test.js
   checksum: 10c0/444e189907ece2081fe60e75368784f7782cfddb554b60123743dfb89509df89f1f29c03bbfa16b3a3e0be3f48799a4783f487da6203245fa5bed239ba7407e1
+  languageName: node
+  linkType: hard
+
+"node-gyp@npm:^11.4.2":
+  version: 11.4.2
+  resolution: "node-gyp@npm:11.4.2"
+  dependencies:
+    env-paths: "npm:^2.2.0"
+    exponential-backoff: "npm:^3.1.1"
+    graceful-fs: "npm:^4.2.6"
+    make-fetch-happen: "npm:^14.0.3"
+    nopt: "npm:^8.0.0"
+    proc-log: "npm:^5.0.0"
+    semver: "npm:^7.3.5"
+    tar: "npm:^7.4.3"
+    tinyglobby: "npm:^0.2.12"
+    which: "npm:^5.0.0"
+  bin:
+    node-gyp: bin/node-gyp.js
+  checksum: 10c0/0bfd3e96770ed70f07798d881dd37b4267708966d868a0e585986baac487d9cf5831285579fd629a83dc4e434f53e6416ce301097f2ee464cb74d377e4d8bdbe
   languageName: node
   linkType: hard
 
