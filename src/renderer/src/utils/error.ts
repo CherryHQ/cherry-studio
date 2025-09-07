@@ -8,7 +8,7 @@ import {
 } from '@renderer/types/error'
 import { InvalidToolInputError, NoSuchToolError } from 'ai'
 import { t } from 'i18next'
-import z from 'zod'
+import { z } from 'zod'
 
 import { safeSerialize } from './serialize'
 

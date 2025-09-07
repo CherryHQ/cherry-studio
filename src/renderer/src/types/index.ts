@@ -2,7 +2,7 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
-import * as z from 'zod/v4'
+import { z } from 'zod'
 
 export * from './file'
 export * from './note'

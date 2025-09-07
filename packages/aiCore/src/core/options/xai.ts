@@ -1,7 +1,7 @@
 // copy from @ai-sdk/xai/xai-chat-options.ts
 // 如果@ai-sdk/xai暴露出了xaiProviderOptions就删除这个文件
 
-import * as z from 'zod/v4'
+import { z } from 'zod'
 
 const webSourceSchema = z.object({
   type: z.literal('web'),
