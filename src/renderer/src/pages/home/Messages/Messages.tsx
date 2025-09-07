@@ -10,7 +10,7 @@ import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
+import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -61,7 +61,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
 
-  const { updateTopic, addTopic } = useAssistant(assistant.id)
+  const { addTopic } = useAssistant(assistant.id)
   const { showPrompt, messageNavigation } = useSettings()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -105,22 +105,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const clearTopic = useCallback(
     async (data: Topic) => {
-      const defaultTopic = getDefaultTopic(assistant.id)
-
       if (data && data.id !== topic.id) {
         await clearTopicMessages(data.id)
-        updateTopic({ ...data, name: defaultTopic.name } as Topic)
         return
       }
 
       await clearTopicMessages()
-
       setDisplayMessages([])
-
-      const _topic = getTopic(assistant, topic.id)
-      _topic && updateTopic({ ..._topic, name: defaultTopic.name } as Topic)
     },
-    [assistant, clearTopicMessages, topic.id, updateTopic]
+    [clearTopicMessages, topic.id]
   )
 
   useEffect(() => {
