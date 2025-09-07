@@ -43,6 +43,9 @@ export interface StreamProcessorCallbacks {
   onError?: (error: any) => void
   // Called when the entire stream processing is signaled as complete (success or failure)
   onComplete?: (status: AssistantMessageStatus, response?: Response) => void
+  onVideoSearched?: (video?: { type: 'url' | 'path'; content: string }, metadata?: Record<string, any>) => void
+  // Called when a block is created
+  onBlockCreated?: () => void
 }
 
 // Function to create a stream processor instance
@@ -51,7 +54,7 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
   return (chunk: Chunk) => {
     try {
       const data = chunk
-      logger.debug('data: ', data)
+      // logger.debug('data: ', data)
       switch (data.type) {
         case ChunkType.BLOCK_COMPLETE: {
           if (callbacks.onComplete) callbacks.onComplete(AssistantMessageStatus.SUCCESS, data?.response)
@@ -134,6 +137,14 @@ export function createStreamProcessor(callbacks: StreamProcessorCallbacks = {}) 
         }
         case ChunkType.ERROR: {
           if (callbacks.onError) callbacks.onError(data.error)
+          break
+        }
+        case ChunkType.VIDEO_SEARCHED: {
+          if (callbacks.onVideoSearched) callbacks.onVideoSearched(data.video, data.metadata)
+          break
+        }
+        case ChunkType.BLOCK_CREATED: {
+          if (callbacks.onBlockCreated) callbacks.onBlockCreated()
           break
         }
         default: {

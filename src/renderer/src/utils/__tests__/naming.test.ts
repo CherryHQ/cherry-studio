@@ -174,7 +174,6 @@ describe('naming', () => {
 
     it('should return original id if no delimiter found', () => {
       expect(getBaseModelName('deepseek-r1')).toBe('deepseek-r1')
-      expect(getBaseModelName('deepseek-r1:free')).toBe('deepseek-r1:free')
     })
 
     it('should handle edge cases', () => {
@@ -209,7 +208,7 @@ describe('naming', () => {
     it('should return lowercase original id if no delimiter found', () => {
       // 验证没有分隔符时返回小写原始ID
       expect(getLowerBaseModelName('DeepSeek-R1')).toBe('deepseek-r1')
-      expect(getLowerBaseModelName('GPT-4:Free')).toBe('gpt-4:free')
+      expect(getLowerBaseModelName('GPT-4')).toBe('gpt-4')
     })
 
     it('should handle edge cases', () => {
@@ -218,6 +217,10 @@ describe('naming', () => {
       expect(getLowerBaseModelName('Model/')).toBe('')
       expect(getLowerBaseModelName('/Model')).toBe('model')
       expect(getLowerBaseModelName('Model//Name')).toBe('name')
+    })
+
+    it('should remove trailing :free', () => {
+      expect(getLowerBaseModelName('gpt-4:free')).toBe('gpt-4')
     })
   })
 

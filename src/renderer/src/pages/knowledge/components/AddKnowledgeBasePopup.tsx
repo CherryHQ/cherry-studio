@@ -3,6 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,10 +48,11 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
     }
 
     try {
-      const _newBase = {
+      const _newBase: KnowledgeBase = {
         ...newBase,
         created_at: Date.now(),
-        updated_at: Date.now()
+        updated_at: Date.now(),
+        framework: 'langchain'
       }
 
       await window.api.knowledgeBase.create(getKnowledgeBaseParams(_newBase))

@@ -8,6 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
+import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
@@ -17,7 +18,7 @@ import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
@@ -240,6 +241,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     setApiHost(provider.apiHost)
   }, [provider.apiHost, provider.id])
 
+  const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
+
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
@@ -276,7 +279,22 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
-      {!hideApiInput && (
+      {provider.id === 'anthropic' && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.anthropic.auth_method')}</SettingSubtitle>
+          <Select
+            style={{ width: '40%', marginTop: 5, marginBottom: 10 }}
+            value={provider.authType || 'apiKey'}
+            onChange={(value) => updateProvider({ authType: value })}
+            options={[
+              { value: 'apiKey', label: t('settings.provider.anthropic.apikey') },
+              { value: 'oauth', label: t('settings.provider.anthropic.oauth') }
+            ]}
+          />
+          {provider.authType === 'oauth' && <AnthropicSettings />}
+        </>
+      )}
+      {!hideApiInput && !isAnthropicOAuth() && (
         <>
           <SettingSubtitle
             style={{
@@ -328,7 +346,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           )}
-          {!isDmxapi && (
+          {!isDmxapi && !isAnthropicOAuth() && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {t('settings.provider.api_host')}

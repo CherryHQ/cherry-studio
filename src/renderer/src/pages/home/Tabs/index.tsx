@@ -153,11 +153,14 @@ const HomeTabs: FC<Props> = ({
 const Container = styled.div`
   display: flex;
   flex-direction: column;
-  max-width: var(--assistants-width);
-  min-width: var(--assistants-width);
+  width: var(--assistants-width);
+  transition: width 0.3s;
+  height: calc(100vh - var(--navbar-height));
+
   &.right {
     height: calc(100vh - var(--navbar-height));
   }
+
   [navbar-position='left'] & {
     background-color: var(--color-background);
   }
@@ -176,6 +179,7 @@ const Container = styled.div`
 
 const TabContent = styled.div`
   display: flex;
+  transition: width 0.3s;
   flex: 1;
   flex-direction: column;
   overflow-y: hidden;

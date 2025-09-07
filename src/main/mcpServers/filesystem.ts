@@ -8,7 +8,7 @@ import fs from 'fs/promises'
 import { minimatch } from 'minimatch'
 import os from 'os'
 import path from 'path'
-import * as z from 'zod/v4'
+import { z } from 'zod'
 
 const logger = loggerService.withContext('MCP:FileSystemServer')
 

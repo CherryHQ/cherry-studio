@@ -5,7 +5,7 @@ import styled from 'styled-components'
 import { z } from 'zod'
 
 export const CitationSchema = z.object({
-  url: z.string().url(),
+  url: z.url(),
   title: z.string().optional(),
   content: z.string().optional()
 })

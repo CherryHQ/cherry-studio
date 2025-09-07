@@ -175,7 +175,9 @@ const shortcutKeyMap = {
   actions: 'settings.shortcuts.actions',
   clear_shortcut: 'settings.shortcuts.clear_shortcut',
   clear_topic: 'settings.shortcuts.clear_topic',
+  rename_topic: 'settings.shortcuts.rename_topic',
   copy_last_message: 'settings.shortcuts.copy_last_message',
+  edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
   enabled: 'settings.shortcuts.enabled',
   exit_fullscreen: 'settings.shortcuts.exit_fullscreen',
   label: 'settings.shortcuts.label',
@@ -327,10 +329,12 @@ export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
 
 const builtinOcrProviderKeyMap = {
   system: 'ocr.builtin.system',
-  tesseract: ''
+  tesseract: '',
+  paddleocr: ''
 } as const satisfies Record<BuiltinOcrProviderId, string>
 
 export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   if (key === 'tesseract') return 'Tesseract'
+  else if (key == 'paddleocr') return 'PaddleOCR'
   else return getLabel(builtinOcrProviderKeyMap, key)
 }

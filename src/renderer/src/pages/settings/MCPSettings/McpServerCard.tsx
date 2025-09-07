@@ -1,10 +1,15 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
-import { Button, Switch, Tag, Typography } from 'antd'
-import { Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC } from 'react'
+import { formatErrorMessage } from '@renderer/utils/error'
+import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
+import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
+import { FC, useCallback } from 'react'
+import { FallbackProps } from 'react-error-boundary'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface McpServerCardProps {
@@ -26,6 +31,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
   onEdit,
   onOpenUrl
 }) => {
+  const { t } = useTranslation()
   const handleOpenUrl = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (server.providerUrl) {
@@ -33,61 +39,135 @@ const McpServerCard: FC<McpServerCardProps> = ({
     }
   }
 
+  const Fallback = useCallback(
+    (props: FallbackProps) => {
+      const { error } = props
+      const errorDetails = formatErrorMessage(error)
+
+      const ErrorDetails = () => {
+        return (
+          <div
+            style={{
+              padding: 8,
+              textWrap: 'pretty',
+              fontFamily: 'monospace',
+              userSelect: 'text',
+              marginRight: 20,
+              color: 'var(--color-status-error)'
+            }}>
+            {errorDetails}
+          </div>
+        )
+      }
+
+      const onClickDetails = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.stopPropagation()
+        GeneralPopup.show({ content: <ErrorDetails /> })
+      }
+      return (
+        <Alert
+          message={t('error.boundary.mcp.invalid')}
+          showIcon
+          type="error"
+          style={{ height: 125, alignItems: 'flex-start', padding: 12 }}
+          description={
+            <Typography.Paragraph style={{ color: 'var(--color-status-error)' }} ellipsis={{ rows: 3 }}>
+              {errorDetails}
+            </Typography.Paragraph>
+          }
+          onClick={onClickDetails}
+          action={
+            <Space.Compact>
+              <Button
+                danger
+                type="text"
+                icon={
+                  <Tooltip title={t('error.boundary.details')}>
+                    <CircleXIcon size={16} />
+                  </Tooltip>
+                }
+                size="small"
+                onClick={onClickDetails}
+              />
+              <Button
+                danger
+                type="text"
+                icon={
+                  <Tooltip title={t('common.delete')}>
+                    <DeleteIcon size={16} />
+                  </Tooltip>
+                }
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete()
+                }}
+              />
+            </Space.Compact>
+          }
+        />
+      )
+    },
+    [onDelete, t]
+  )
+
   return (
-    <CardContainer $isActive={server.isActive} onClick={onEdit}>
-      <ServerHeader>
-        <ServerNameWrapper>
-          {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
-          <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
-          {server.providerUrl && (
-            <Button
-              type="text"
+    <ErrorBoundary fallbackComponent={Fallback}>
+      <CardContainer $isActive={server.isActive} onClick={onEdit}>
+        <ServerHeader>
+          <ServerNameWrapper>
+            {server.logoUrl && <ServerLogo src={server.logoUrl} alt={`${server.name} logo`} />}
+            <ServerNameText ellipsis={{ tooltip: true }}>{server.name}</ServerNameText>
+            {server.providerUrl && (
+              <Button
+                type="text"
+                size="small"
+                shape="circle"
+                icon={<SquareArrowOutUpRight size={14} />}
+                onClick={handleOpenUrl}
+                data-no-dnd
+              />
+            )}
+          </ServerNameWrapper>
+          <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
+            <Switch
+              value={server.isActive}
+              key={server.id}
+              loading={isLoading}
+              onChange={onToggle}
               size="small"
-              shape="circle"
-              icon={<SquareArrowOutUpRight size={14} />}
-              onClick={handleOpenUrl}
               data-no-dnd
             />
+            <Button
+              type="text"
+              shape="circle"
+              icon={<DeleteIcon size={14} className="lucide-custom" />}
+              danger
+              onClick={onDelete}
+              data-no-dnd
+            />
+            <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
+          </ToolbarWrapper>
+        </ServerHeader>
+        <ServerDescription>{server.description}</ServerDescription>
+        <ServerFooter>
+          {version && (
+            <VersionBadge color="#108ee9">
+              <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
+            </VersionBadge>
           )}
-        </ServerNameWrapper>
-        <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
-          <Switch
-            value={server.isActive}
-            key={server.id}
-            loading={isLoading}
-            onChange={onToggle}
-            size="small"
-            data-no-dnd
-          />
-          <Button
-            type="text"
-            shape="circle"
-            icon={<DeleteIcon size={14} className="lucide-custom" />}
-            danger
-            onClick={onDelete}
-            data-no-dnd
-          />
-          <Button type="text" shape="circle" icon={<Settings2 size={14} />} onClick={onEdit} data-no-dnd />
-        </ToolbarWrapper>
-      </ServerHeader>
-      <ServerDescription>{server.description}</ServerDescription>
-      <ServerFooter>
-        {version && (
-          <VersionBadge color="#108ee9">
-            <VersionText ellipsis={{ tooltip: true }}>{version}</VersionText>
-          </VersionBadge>
-        )}
-        <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
-        {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
-        {server.tags
-          ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
-          .map((tag) => (
-            <ServerTag key={tag} color="default">
-              {tag}
-            </ServerTag>
-          ))}
-      </ServerFooter>
-    </CardContainer>
+          <ServerTag color="processing">{getMcpTypeLabel(server.type ?? 'stdio')}</ServerTag>
+          {server.provider && <ServerTag color="success">{server.provider}</ServerTag>}
+          {server.tags
+            ?.filter((tag): tag is string => typeof tag === 'string') // Avoid existing non-string tags crash the UI
+            .map((tag) => (
+              <ServerTag key={tag} color="default">
+                {tag}
+              </ServerTag>
+            ))}
+        </ServerFooter>
+      </CardContainer>
+    </ErrorBoundary>
   )
 }
 
