@@ -306,7 +306,6 @@
     "remark-math": "^6.0.0",
     "remove-markdown": "^0.6.2",
     "rollup-plugin-visualizer": "^5.12.0",
-    "sass": "^1.88.0",
     "shiki": "^3.12.0",
     "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
@@ -362,7 +361,7 @@
       "prettier --write",
       "eslint --fix"
     ],
-    "*.{json,yml,yaml,css,scss,html}": [
+    "*.{json,yml,yaml,css,html}": [
       "prettier --write"
     ]
   }

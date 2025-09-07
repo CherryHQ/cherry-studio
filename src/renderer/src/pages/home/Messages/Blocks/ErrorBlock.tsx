@@ -176,7 +176,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     }
 
     navigator.clipboard.writeText(errorText)
-    window.message.success(t('message.copied'))
+    window.toast.addToast({ title: t('message.copied') })
   }
 
   const renderErrorDetails = (error?: SerializedError) => {
@@ -198,10 +198,10 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="copy" onPress={copyErrorDetails}>
+        <Button key="copy" size="sm" variant="light" onPress={copyErrorDetails}>
           {t('common.copy')}
         </Button>,
-        <Button key="close" onPress={onClose}>
+        <Button key="close" size="sm" variant="light" onPress={onClose}>
           {t('common.close')}
         </Button>
       ]}
