@@ -3140,6 +3140,7 @@
         "editor_not_ready": "画像エディタの準備ができていません",
         "flip_horizontal": "水平反転",
         "flip_vertical": "垂直反転",
+        "preview": "プレビュー",
         "processing_failed": "画像処理に失敗しました",
         "reset": "アバターをリセット",
         "rotate_left": "左回転",

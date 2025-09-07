@@ -3155,6 +3155,7 @@
         "editor_not_ready": "Image editor is not ready",
         "flip_horizontal": "Flip Horizontal",
         "flip_vertical": "Flip Vertical",
+        "preview": "Preview",
         "processing_failed": "Image processing failed",
         "reset": "Reset avatar",
         "rotate_left": "Rotate Left",

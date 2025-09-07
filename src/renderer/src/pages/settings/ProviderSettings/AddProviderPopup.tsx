@@ -149,43 +149,40 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       key: 'upload',
       label: (
         <Upload
-            customRequest={() => {}}
-            accept="image/png, image/jpeg, image/gif"
-            itemRender={() => null}
-            maxCount={1}
-            onChange={async ({ file }) => {
-              try {
-                const _file = file.originFileObj as File
-
-              // 如果是 GIF 图片，直接使用，不进行编辑
-                if (_file.type === 'image/gif') {
-                  const logoData = _file
-
-                  if (provider?.id) {
-                    await ImageStorage.set(`provider-${provider.id}`, logoData)
-                    const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
-                    setLogo(savedLogo)
-                  } else {
-                    const tempUrl = await new Promise<string>((resolve) => {
-                      const reader = new FileReader()
-                      reader.onload = () => resolve(reader.result as string)
-                      reader.readAsDataURL(logoData)
-                    })
-                    setLogo(tempUrl)
-                  }
-                  setDropdownOpen(false)
+          customRequest={() => {}}
+          accept="image/png, image/jpeg, image/gif"
+          itemRender={() => null}
+          maxCount={1}
+          onChange={async ({ file }) => {
+            try {
+              const _file = file.originFileObj as File
+              if (_file.type === 'image/gif') {
+                const logoData = _file
+                if (provider?.id) {
+                  await ImageStorage.set(`provider-${provider.id}`, logoData)
+                  const savedLogo = await ImageStorage.get(`provider-${provider.id}`)
+                  setLogo(savedLogo)
                 } else {
-                  // 对于其他图片格式，打开编辑器
                   const tempUrl = await new Promise<string>((resolve) => {
                     const reader = new FileReader()
                     reader.onload = () => resolve(reader.result as string)
-                    reader.readAsDataURL(_file)
+                    reader.readAsDataURL(logoData)
                   })
-
-                  setTempImageSrc(tempUrl)
-                  setDropdownOpen(false)
-                  setImageEditorOpen(true)
+                  setLogo(tempUrl)
                 }
+                setDropdownOpen(false)
+              } else {
+                // 对于其他图片格式，打开编辑器
+                const tempUrl = await new Promise<string>((resolve) => {
+                  const reader = new FileReader()
+                  reader.onload = () => resolve(reader.result as string)
+                  reader.readAsDataURL(_file)
+                })
+
+                setTempImageSrc(tempUrl)
+                setDropdownOpen(false)
+                setImageEditorOpen(true)
+              }
             } catch (error: any) {
               window.message.error(error.message)
             }
@@ -309,6 +306,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         aspectRatio={1} // 正方形裁剪
         maxWidth={200}
         maxHeight={200}
+        providerName={name}
       />
     </Modal>
   )
