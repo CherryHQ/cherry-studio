@@ -34,7 +34,7 @@ function App(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <HeroUIProvider className="flex flex-1">
+        <HeroUIProvider className="flex h-full w-full flex-1">
           <StyleSheetManager>
             <ThemeProvider>
               <AntdProvider>
