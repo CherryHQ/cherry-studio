@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionTool } from '@renderer/components/ActionTools'
 import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
@@ -16,7 +17,6 @@ import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
 import { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
 import { extractHtmlTitle } from '@renderer/utils/formats'
@@ -28,7 +28,6 @@ import styled, { css } from 'styled-components'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
 import { ViewMode } from './types'
-
 const logger = loggerService.withContext('CodeBlockView')
 
 interface Props {
@@ -55,7 +54,13 @@ interface Props {
  */
 export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
-  const { codeEditor, codeExecution, codeImageTools, codeCollapsible, codeWrappable } = useSettings()
+
+  const [codeEditorEnabled] = usePreference('chat.code.editor.enabled')
+  const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
+  const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
+  const [codeCollapsible] = usePreference('chat.code.collapsible')
+  const [codeWrappable] = usePreference('chat.code.wrappable')
+  const [codeImageTools] = usePreference('chat.code.image_tools')
 
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
@@ -87,8 +92,8 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
-    return codeExecution.enabled && language === 'python'
-  }, [codeExecution.enabled, language])
+    return codeExecutionEnabled && language === 'python'
+  }, [codeExecutionEnabled, language])
 
   const sourceViewRef = useRef<CodeEditorHandles>(null)
   const specialViewRef = useRef<BasicPreviewHandles>(null)
@@ -153,7 +158,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     setExecutionResult(null)
 
     pyodideService
-      .runScript(children, {}, codeExecution.timeoutMinutes * 60000)
+      .runScript(children, {}, codeExecutionTimeoutMinutes * 60000)
       .then((result) => {
         setExecutionResult(result)
       })
@@ -166,7 +171,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       .finally(() => {
         setIsRunning(false)
       })
-  }, [children, codeExecution.timeoutMinutes])
+  }, [children, codeExecutionTimeoutMinutes])
 
   const showPreviewTools = useMemo(() => {
     return viewMode !== 'source' && hasSpecialView
@@ -191,7 +196,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 特殊视图的编辑/查看源码按钮，在分屏模式下不可用
   useViewSourceTool({
     enabled: hasSpecialView,
-    editable: codeEditor.enabled,
+    editable: codeEditorEnabled,
     viewMode,
     onViewModeChange: setViewMode,
     setTools
@@ -233,7 +238,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 代码编辑器的保存按钮
   useSaveTool({
-    enabled: codeEditor.enabled && !isInSpecialView,
+    enabled: codeEditorEnabled && !isInSpecialView,
     sourceViewRef,
     setTools
   })
@@ -241,7 +246,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 源代码视图组件
   const sourceView = useMemo(
     () =>
-      codeEditor.enabled ? (
+      codeEditorEnabled ? (
         <CodeEditor
           className="source-view"
           ref={sourceViewRef}
@@ -265,7 +270,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
         />
       ),
-    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+    [children, codeEditorEnabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
   )
 
   // 特殊视图组件映射

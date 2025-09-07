@@ -1,9 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
-import { FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
+import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preferenceTypes'
 import { Button, Radio, Row, Slider, Switch, Tooltip } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -27,30 +27,18 @@ import SelectionFilterListModal from './components/SelectionFilterListModal'
 const SelectionAssistantSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const {
-    selectionEnabled,
-    triggerMode,
-    isCompact,
-    isAutoClose,
-    isAutoPin,
-    isFollowToolbar,
-    isRemeberWinSize,
-    actionItems,
-    actionWindowOpacity,
-    filterMode,
-    filterList,
-    setSelectionEnabled,
-    setTriggerMode,
-    setIsCompact,
-    setIsAutoClose,
-    setIsAutoPin,
-    setIsFollowToolbar,
-    setIsRemeberWinSize,
-    setActionWindowOpacity,
-    setActionItems,
-    setFilterMode,
-    setFilterList
-  } = useSelectionAssistant()
+
+  const [selectionEnabled, setSelectionEnabled] = usePreference('feature.selection.enabled')
+  const [triggerMode, setTriggerMode] = usePreference('feature.selection.trigger_mode')
+  const [isCompact, setIsCompact] = usePreference('feature.selection.compact')
+  const [isAutoClose, setIsAutoClose] = usePreference('feature.selection.auto_close')
+  const [isAutoPin, setIsAutoPin] = usePreference('feature.selection.auto_pin')
+  const [isFollowToolbar, setIsFollowToolbar] = usePreference('feature.selection.follow_toolbar')
+  const [isRemeberWinSize, setIsRemeberWinSize] = usePreference('feature.selection.remember_win_size')
+  const [actionWindowOpacity, setActionWindowOpacity] = usePreference('feature.selection.action_window_opacity')
+  const [filterMode, setFilterMode] = usePreference('feature.selection.filter_mode')
+  const [filterList, setFilterList] = usePreference('feature.selection.filter_list')
+  const [actionItems, setActionItems] = usePreference('feature.selection.action_items')
 
   const isSupportedOS = isWin || isMac
 
@@ -140,7 +128,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <Radio.Group
                 value={triggerMode}
-                onChange={(e) => setTriggerMode(e.target.value as TriggerMode)}
+                onChange={(e) => setTriggerMode(e.target.value as SelectionTriggerMode)}
                 buttonStyle="solid">
                 <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.selected_note')} arrow>
                   <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
@@ -241,7 +229,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <Radio.Group
                 value={filterMode ?? 'default'}
-                onChange={(e) => setFilterMode(e.target.value as FilterMode)}
+                onChange={(e) => setFilterMode(e.target.value as SelectionFilterMode)}
                 buttonStyle="solid">
                 <Radio.Button value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio.Button>
                 <Radio.Button value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio.Button>

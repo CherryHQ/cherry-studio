@@ -21,6 +21,7 @@
     "baseUrl": ".",
     "paths": {
       "@logger": ["src/main/services/LoggerService"],
+      "@data/*": ["src/main/data/*"],
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
       "@shared/*": ["packages/shared/*"],

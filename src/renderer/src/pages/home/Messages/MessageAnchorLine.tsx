@@ -1,9 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { getModelName } from '@renderer/services/ModelService'
@@ -33,7 +33,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
   const avatar = useAvatar()
   const { theme } = useTheme()
   const dispatch = useAppDispatch()
-  const { userName } = useSettings()
+  const [userName] = usePreference('app.user.name')
   const { setTimeoutTimer } = useTimer()
 
   const messagesListRef = useRef<HTMLDivElement>(null)

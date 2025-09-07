@@ -1,6 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
 import { Button, Tooltip } from 'antd'
@@ -22,7 +22,8 @@ const logger = loggerService.withContext('TranslateButton')
 const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoading }) => {
   const { t } = useTranslation()
   const [isTranslating, setIsTranslating] = useState(false)
-  const { targetLanguage, showTranslateConfirm } = useSettings()
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const { getLanguageByLangcode } = useTranslate()
 
   const translateConfirm = () => {

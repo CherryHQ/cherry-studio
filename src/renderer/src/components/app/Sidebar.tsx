@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
@@ -10,8 +11,8 @@ import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
-import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
+import { ThemeMode } from '@shared/data/preferenceTypes'
 import { Avatar, Tooltip } from 'antd'
 import {
   Code,
@@ -39,8 +40,8 @@ import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { minappShow } = useRuntime()
-  const { sidebarIcons } = useSettings()
   const { pinned } = useMinapps()
+  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
 
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -53,7 +54,7 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
+  const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
 
   const to = async (path: string) => {
     await modelGenerating()
@@ -122,7 +123,8 @@ const Sidebar: FC = () => {
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
   const { pathname } = useLocation()
-  const { sidebarIcons, defaultPaintingProvider } = useSettings()
+  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const { defaultPaintingProvider } = useSettings()
   const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
@@ -154,7 +156,7 @@ const MainMenus: FC = () => {
     notes: '/notes'
   }
 
-  return sidebarIcons.visible.map((icon) => {
+  return visibleSidebarIcons.map((icon) => {
     const path = pathMap[icon]
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 

@@ -1,32 +1,30 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 
-  const yuqueToken = useSelector((state: RootState) => state.settings.yuqueToken)
-  const yuqueUrl = useSelector((state: RootState) => state.settings.yuqueUrl)
+  const [yuqueToken, setYuqueToken] = usePreference('data.integration.yuque.token')
+  const [yuqueUrl, setYuqueUrl] = usePreference('data.integration.yuque.url')
+  const [, setYuqueRepoId] = usePreference('data.integration.yuque.repo_id')
 
   const handleYuqueTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setYuqueToken(e.target.value))
+    setYuqueToken(e.target.value)
   }
 
   const handleYuqueRepoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setYuqueUrl(e.target.value))
+    setYuqueUrl(e.target.value)
   }
 
   const handleYuqueConnectionCheck = async () => {
@@ -60,7 +58,7 @@ const YuqueSettings: FC = () => {
       return
     }
     const data = await repoIDResponse.json()
-    dispatch(setYuqueRepoId(data.data.id))
+    setYuqueRepoId(data.data.id)
     window.message.success(t('settings.data.yuque.check.success'))
   }
 

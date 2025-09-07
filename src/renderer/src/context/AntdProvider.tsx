@@ -1,5 +1,6 @@
-import { useSettings } from '@renderer/hooks/useSettings'
-import { LanguageVarious } from '@renderer/types'
+import { usePreference } from '@data/hooks/usePreference'
+import { defaultLanguage } from '@shared/config/constant'
+import { LanguageVarious } from '@shared/data/preferenceTypes'
 import { ConfigProvider, theme } from 'antd'
 import elGR from 'antd/locale/el_GR'
 import enUS from 'antd/locale/en_US'
@@ -15,15 +16,13 @@ import { FC, PropsWithChildren } from 'react'
 import { useTheme } from './ThemeProvider'
 
 const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
-  const {
-    language,
-    userTheme: { colorPrimary }
-  } = useSettings()
+  const [language] = usePreference('app.language')
+  const [colorPrimary] = usePreference('ui.theme_user.color_primary')
   const { theme: _theme } = useTheme()
 
   return (
     <ConfigProvider
-      locale={getAntdLocale(language)}
+      locale={getAntdLocale((language || navigator.language || defaultLanguage) as LanguageVarious)}
       theme={{
         cssVar: true,
         hashed: false,

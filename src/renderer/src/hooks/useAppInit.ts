@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
@@ -20,23 +21,20 @@ import { useEffect } from 'react'
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
-import { useSettings } from './useSettings'
 import useUpdateHandler from './useUpdateHandler'
-
 const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
   const dispatch = useAppDispatch()
-  const {
-    proxyUrl,
-    proxyBypassRules,
-    language,
-    windowStyle,
-    autoCheckUpdate,
-    proxyMode,
-    customCss,
-    enableDataCollection
-  } = useSettings()
+  const [language] = usePreference('app.language')
+  const [windowStyle] = usePreference('ui.window_style')
+  const [customCss] = usePreference('ui.custom_css')
+  const [proxyUrl] = usePreference('app.proxy.url')
+  const [proxyBypassRules] = usePreference('app.proxy.bypass_rules')
+  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
+  const [proxyMode] = usePreference('app.proxy.mode')
+  const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+
   const { minappShow } = useRuntime()
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))

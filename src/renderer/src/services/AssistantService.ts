@@ -1,3 +1,4 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import {
   DEFAULT_CONTEXTCOUNT,
@@ -52,7 +53,10 @@ export function getDefaultAssistant(): Assistant {
   }
 }
 
-export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, text: string): TranslateAssistant {
+export async function getDefaultTranslateAssistant(
+  targetLanguage: TranslateLanguage,
+  text: string
+): Promise<TranslateAssistant> {
   const model = getTranslateModel()
   const assistant: Assistant = getDefaultAssistant()
 
@@ -77,10 +81,8 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     prompt = ''
   } else {
     content = 'follow system instruction'
-    prompt = store
-      .getState()
-      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
-      .replaceAll('{{text}}', text)
+    const translateModelPrompt = await preferenceService.get('feature.translate.model_prompt')
+    prompt = translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value).replaceAll('{{text}}', text)
   }
 
   const translateAssistant = {

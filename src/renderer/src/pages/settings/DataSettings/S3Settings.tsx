@@ -1,15 +1,13 @@
 import { FolderOpenOutlined, InfoCircleOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack } from '@renderer/components/Layout'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setS3Partial } from '@renderer/store/settings'
-import { S3Config } from '@renderer/types'
+import { useAppSelector } from '@renderer/store'
 import { Button, Input, Switch, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
@@ -18,45 +16,32 @@ import { useTranslation } from 'react-i18next'
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const S3Settings: FC = () => {
-  const { s3 = {} as S3Config } = useSettings()
+  const [, setS3AutoSync] = usePreference('data.backup.s3.auto_sync')
+  const [s3Endpoint, setS3Endpoint] = usePreference('data.backup.s3.endpoint')
+  const [s3Region, setS3Region] = usePreference('data.backup.s3.region')
+  const [s3Bucket, setS3Bucket] = usePreference('data.backup.s3.bucket')
+  const [s3AccessKeyId, setS3AccessKeyId] = usePreference('data.backup.s3.access_key_id')
+  const [s3SecretAccessKey, setS3SecretAccessKey] = usePreference('data.backup.s3.secret_access_key')
+  const [s3Root, setS3Root] = usePreference('data.backup.s3.root')
+  const [s3SkipBackupFile, setS3SkipBackupFile] = usePreference('data.backup.s3.skip_backup_file')
+  const [s3SyncInterval, setS3SyncInterval] = usePreference('data.backup.s3.sync_interval')
+  const [s3MaxBackups, setS3MaxBackups] = usePreference('data.backup.s3.max_backups')
 
-  const {
-    endpoint: s3EndpointInit = '',
-    region: s3RegionInit = '',
-    bucket: s3BucketInit = '',
-    accessKeyId: s3AccessKeyIdInit = '',
-    secretAccessKey: s3SecretAccessKeyInit = '',
-    root: s3RootInit = '',
-    syncInterval: s3SyncIntervalInit = 0,
-    maxBackups: s3MaxBackupsInit = 5,
-    skipBackupFile: s3SkipBackupFileInit = false
-  } = s3
-
-  const [endpoint, setEndpoint] = useState<string | undefined>(s3EndpointInit)
-  const [region, setRegion] = useState<string | undefined>(s3RegionInit)
-  const [bucket, setBucket] = useState<string | undefined>(s3BucketInit)
-  const [accessKeyId, setAccessKeyId] = useState<string | undefined>(s3AccessKeyIdInit)
-  const [secretAccessKey, setSecretAccessKey] = useState<string | undefined>(s3SecretAccessKeyInit)
-  const [root, setRoot] = useState<string | undefined>(s3RootInit)
-  const [skipBackupFile, setSkipBackupFile] = useState<boolean>(s3SkipBackupFileInit)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
-  const [syncInterval, setSyncInterval] = useState<number>(s3SyncIntervalInit)
-  const [maxBackups, setMaxBackups] = useState<number>(s3MaxBackupsInit)
-
-  const dispatch = useAppDispatch()
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { openMinapp } = useMinappPopup()
 
   const { s3Sync } = useAppSelector((state) => state.backup)
 
-  const onSyncIntervalChange = (value: number) => {
-    setSyncInterval(value)
-    dispatch(setS3Partial({ syncInterval: value, autoSync: value !== 0 }))
+  const onSyncIntervalChange = async (value: number) => {
+    setS3SyncInterval(value)
     if (value === 0) {
+      await setS3AutoSync(false)
       stopAutoSync('s3')
     } else {
+      await setS3AutoSync(true)
       startAutoSync(false, 's3')
     }
   }
@@ -70,17 +55,15 @@ const S3Settings: FC = () => {
   }
 
   const onMaxBackupsChange = (value: number) => {
-    setMaxBackups(value)
-    dispatch(setS3Partial({ maxBackups: value }))
+    setS3MaxBackups(value)
   }
 
   const onSkipBackupFilesChange = (value: boolean) => {
-    setSkipBackupFile(value)
-    dispatch(setS3Partial({ skipBackupFile: value }))
+    setS3SkipBackupFile(value)
   }
 
   const renderSyncStatus = () => {
-    if (!endpoint) return null
+    if (!s3Endpoint) return null
 
     if (!s3Sync?.lastSyncTime && !s3Sync?.syncing && !s3Sync?.lastSyncError) {
       return <span style={{ color: 'var(--text-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
@@ -128,11 +111,11 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.endpoint.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.endpoint.placeholder')}
-          value={endpoint}
-          onChange={(e) => setEndpoint(e.target.value)}
+          value={s3Endpoint}
+          onChange={(e) => setS3Endpoint(e.target.value)}
           style={{ width: 250 }}
           type="url"
-          onBlur={() => dispatch(setS3Partial({ endpoint: endpoint || '' }))}
+          onBlur={(e) => setS3Endpoint(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
@@ -140,10 +123,10 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.region.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.region.placeholder')}
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
+          value={s3Region}
+          onChange={(e) => setS3Region(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3Partial({ region: region || '' }))}
+          onBlur={(e) => setS3Region(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
@@ -151,10 +134,10 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.bucket.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.bucket.placeholder')}
-          value={bucket}
-          onChange={(e) => setBucket(e.target.value)}
+          value={s3Bucket}
+          onChange={(e) => setS3Bucket(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3Partial({ bucket: bucket || '' }))}
+          onBlur={(e) => setS3Bucket(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
@@ -162,10 +145,10 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.accessKeyId.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.accessKeyId.placeholder')}
-          value={accessKeyId}
-          onChange={(e) => setAccessKeyId(e.target.value)}
+          value={s3AccessKeyId}
+          onChange={(e) => setS3AccessKeyId(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3Partial({ accessKeyId: accessKeyId || '' }))}
+          onBlur={(e) => setS3AccessKeyId(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
@@ -173,10 +156,10 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.secretAccessKey.label')}</SettingRowTitle>
         <Input.Password
           placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
-          value={secretAccessKey}
-          onChange={(e) => setSecretAccessKey(e.target.value)}
+          value={s3SecretAccessKey}
+          onChange={(e) => setS3SecretAccessKey(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3Partial({ secretAccessKey: secretAccessKey || '' }))}
+          onBlur={(e) => setS3SecretAccessKey(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
@@ -184,10 +167,10 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.root.label')}</SettingRowTitle>
         <Input
           placeholder={t('settings.data.s3.root.placeholder')}
-          value={root}
-          onChange={(e) => setRoot(e.target.value)}
+          value={s3Root}
+          onChange={(e) => setS3Root(e.target.value)}
           style={{ width: 250 }}
-          onBlur={() => dispatch(setS3Partial({ root: root || '' }))}
+          onBlur={(e) => setS3Root(e.target.value)}
         />
       </SettingRow>
       <SettingDivider />
@@ -198,13 +181,13 @@ const S3Settings: FC = () => {
             onClick={showBackupModal}
             icon={<SaveOutlined />}
             loading={backuping}
-            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}>
+            disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
             onClick={showBackupManager}
             icon={<FolderOpenOutlined />}
-            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}>
+            disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             {t('settings.data.s3.backup.manager.button')}
           </Button>
         </HStack>
@@ -214,9 +197,9 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.autoSync.label')}</SettingRowTitle>
         <Selector
           size={14}
-          value={syncInterval}
+          value={s3SyncInterval}
           onChange={onSyncIntervalChange}
-          disabled={!endpoint || !accessKeyId || !secretAccessKey}
+          disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
           options={[
             { label: t('settings.data.s3.autoSync.off'), value: 0 },
             { label: t('settings.data.s3.autoSync.minute', { count: 1 }), value: 1 },
@@ -236,9 +219,9 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.maxBackups.label')}</SettingRowTitle>
         <Selector
           size={14}
-          value={maxBackups}
+          value={s3MaxBackups}
           onChange={onMaxBackupsChange}
-          disabled={!endpoint || !accessKeyId || !secretAccessKey}
+          disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
           options={[
             { label: t('settings.data.s3.maxBackups.unlimited'), value: 0 },
             { label: '1', value: 1 },
@@ -253,12 +236,12 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.skipBackupFile.label')}</SettingRowTitle>
-        <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
+        <Switch checked={s3SkipBackupFile} onChange={onSkipBackupFilesChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
       </SettingRow>
-      {syncInterval > 0 && (
+      {s3SyncInterval > 0 && (
         <>
           <SettingDivider />
           <SettingRow>
@@ -281,12 +264,12 @@ const S3Settings: FC = () => {
           visible={backupManagerVisible}
           onClose={closeBackupManager}
           s3Config={{
-            endpoint,
-            region,
-            bucket,
-            accessKeyId,
-            secretAccessKey,
-            root
+            endpoint: s3Endpoint,
+            region: s3Region,
+            bucket: s3Bucket,
+            accessKeyId: s3AccessKeyId,
+            secretAccessKey: s3SecretAccessKey,
+            root: s3Root
           }}
         />
       </>

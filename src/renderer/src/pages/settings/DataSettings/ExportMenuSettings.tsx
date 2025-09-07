@@ -1,27 +1,31 @@
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setExportMenuOptions } from '@renderer/store/settings'
 import { Switch } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
-
 const ExportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
 
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const [exportMenuOptions, setExportMenuOptions] = useMultiplePreferences({
+    image: 'data.export.menus.image',
+    markdown: 'data.export.menus.markdown',
+    markdown_reason: 'data.export.menus.markdown_reason',
+    notion: 'data.export.menus.notion',
+    yuque: 'data.export.menus.yuque',
+    joplin: 'data.export.menus.joplin',
+    obsidian: 'data.export.menus.obsidian',
+    siyuan: 'data.export.menus.siyuan',
+    docx: 'data.export.menus.docx',
+    plain_text: 'data.export.menus.plain_text'
+  })
 
   const handleToggleOption = (option: string, checked: boolean) => {
-    dispatch(
-      setExportMenuOptions({
-        ...exportMenuOptions,
-        [option]: checked
-      })
-    )
+    setExportMenuOptions({
+      [option]: checked
+    })
   }
 
   return (

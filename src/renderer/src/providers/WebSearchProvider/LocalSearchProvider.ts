@@ -1,6 +1,6 @@
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import store from '@renderer/store'
 import { WebSearchState } from '@renderer/store/websearch'
 import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
@@ -30,7 +30,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     httpOptions?: RequestInit
   ): Promise<WebSearchProviderResponse> {
     const uid = nanoid()
-    const language = store.getState().settings.language
+    const language = await preferenceService.get('app.language')
     try {
       if (!query.trim()) {
         throw new Error('Search query cannot be empty')

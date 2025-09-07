@@ -1,11 +1,10 @@
+import { usePreference } from '@data/hooks/usePreference'
 import DefaultAvatar from '@renderer/assets/images/avatar.png'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { useAppDispatch } from '@renderer/store'
 import { setAvatar } from '@renderer/store/runtime'
-import { setUserName } from '@renderer/store/settings'
 import { compressImage, isEmoji } from '@renderer/utils'
 import { Avatar, Dropdown, Input, Modal, Popover, Upload } from 'antd'
 import React, { useState } from 'react'
@@ -21,11 +20,12 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
+  const [userName, setUserName] = usePreference('app.user.name')
+
   const [open, setOpen] = useState(true)
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const { t } = useTranslation()
-  const { userName } = useSettings()
   const dispatch = useAppDispatch()
   const avatar = useAvatar()
 
@@ -170,7 +170,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Input
           placeholder={t('settings.general.user_name.placeholder')}
           value={userName}
-          onChange={(e) => dispatch(setUserName(e.target.value.trim()))}
+          onChange={(e) => setUserName(e.target.value.trim())}
           style={{ flex: 1, textAlign: 'center', width: '100%' }}
           maxLength={30}
         />

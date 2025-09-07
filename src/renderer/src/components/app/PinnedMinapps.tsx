@@ -1,8 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
@@ -17,7 +18,7 @@ import MinAppIcon from '../Icons/MinAppIcon'
 export const SidebarOpenedMinappTabs: FC = () => {
   const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
   const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
-  const { showOpenedMinappsInSidebar } = useSettings() // 获取控制显示的设置
+  const [showOpenedMinappsInSidebar] = usePreference('feature.minapp.show_opened_in_sidebar')
   const { theme } = useTheme()
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()

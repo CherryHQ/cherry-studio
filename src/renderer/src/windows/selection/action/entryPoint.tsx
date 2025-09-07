@@ -1,6 +1,7 @@
 import '@renderer/assets/styles/index.scss'
 import '@ant-design/v5-patch-for-react-19'
 
+import { preferenceService } from '@data/PreferenceService'
 import KeyvStorage from '@kangfenmao/keyv-storage'
 import { loggerService } from '@logger'
 import AntdProvider from '@renderer/context/AntdProvider'
@@ -17,6 +18,16 @@ import { PersistGate } from 'redux-persist/integration/react'
 import SelectionActionApp from './SelectionActionApp'
 
 loggerService.initWindowSource('SelectionActionWindow')
+
+await preferenceService.preload([
+  'app.language',
+  'ui.custom_css',
+  'ui.theme_mode',
+  'ui.theme_user.color_primary',
+  'feature.selection.auto_close',
+  'feature.selection.auto_pin',
+  'feature.selection.action_window_opacity'
+])
 
 /**
  * fetchChatCompletion depends on this,

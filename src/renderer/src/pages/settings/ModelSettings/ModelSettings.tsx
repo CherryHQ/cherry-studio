@@ -1,17 +1,15 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
-import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useProviders } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
-import { useAppDispatch } from '@renderer/store'
-import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
+import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { Button, Tooltip } from 'antd'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
@@ -30,9 +28,8 @@ const ModelSettings: FC = () => {
   const allModels = providers.map((p) => p.models).flat()
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const { translateModelPrompt } = useSettings()
 
-  const dispatch = useAppDispatch()
+  const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
 
   const modelPredicate = useCallback(
     (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m) && !isTextToImageModel(m),
@@ -52,7 +49,7 @@ const ModelSettings: FC = () => {
   )
 
   const onResetTranslatePrompt = () => {
-    dispatch(setTranslateModelPrompt(TRANSLATE_PROMPT))
+    setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
 
   return (

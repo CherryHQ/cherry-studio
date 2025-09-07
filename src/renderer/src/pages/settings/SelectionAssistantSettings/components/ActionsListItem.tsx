@@ -1,5 +1,5 @@
 import type { DraggableProvided } from '@hello-pangea/dnd'
-import type { ActionItem as ActionItemType } from '@renderer/types/selectionTypes'
+import type { SelectionActionItem } from '@shared/data/preferenceTypes'
 import { Button } from 'antd'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
@@ -8,11 +8,11 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface ActionItemProps {
-  item: ActionItemType
+  item: SelectionActionItem
   provided: DraggableProvided
   listType: 'enabled' | 'disabled'
   isLastEnabledItem: boolean
-  onEdit: (item: ActionItemType) => void
+  onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
   getSearchEngineInfo: (engine: string) => { icon: any; name: string } | null
 }
@@ -49,8 +49,8 @@ const ActionsListItem = memo(
 )
 
 interface ActionOperationsProps {
-  item: ActionItemType
-  onEdit: (item: ActionItemType) => void
+  item: SelectionActionItem
+  onEdit: (item: SelectionActionItem) => void
   onDelete: (id: string) => void
 }
 

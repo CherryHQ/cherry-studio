@@ -1,6 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { builtinLanguages, UNKNOWN } from '@renderer/config/translate'
-import { useAppSelector } from '@renderer/store'
 import { TranslateLanguage } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { getTranslateOptions } from '@renderer/utils/translate'
@@ -16,7 +16,7 @@ const logger = loggerService.withContext('useTranslate')
  * - getLanguageByLangcode: 通过语言代码获取语言对象
  */
 export default function useTranslate() {
-  const prompt = useAppSelector((state) => state.settings.translateModelPrompt)
+  const [prompt] = usePreference('feature.translate.model_prompt')
   const [translateLanguages, setTranslateLanguages] = useState<TranslateLanguage[]>(builtinLanguages)
   const [isLoaded, setIsLoaded] = useState(false)
 

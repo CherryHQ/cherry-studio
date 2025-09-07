@@ -1,6 +1,6 @@
 import { SyncOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { Button } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,7 @@ import styled from 'styled-components'
 
 const UpdateAppButton: FC = () => {
   const { update } = useRuntime()
-  const { autoCheckUpdate } = useSettings()
+  const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const { t } = useTranslation()
 
   if (!update) {

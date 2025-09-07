@@ -5,7 +5,8 @@ import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import { Assistant } from '@renderer/types'
+import type { AssistantTabSortType } from '@shared/data/preferenceTypes'
 import { Tooltip, Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
@@ -47,7 +48,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   )
 
   const handleSortByChange = useCallback(
-    (sortType: AssistantsSortType) => {
+    (sortType: AssistantTabSortType) => {
       setAssistantsTabSortType(sortType)
     },
     [setAssistantsTabSortType]

@@ -8,11 +8,9 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { WebviewTag } from 'electron'
@@ -32,8 +30,7 @@ interface Props {
 const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
   const { t } = useTranslation()
   const { pinned, updatePinnedMinapps } = useMinapps()
-  const { minappsOpenLinkExternal } = useSettings()
-  const dispatch = useAppDispatch()
+  const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
   const navigate = useNavigate()
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
@@ -75,8 +72,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [app, isPinned, pinned, updatePinnedMinapps])
 
   const handleToggleOpenExternal = useCallback(() => {
-    dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
-  }, [dispatch, minappsOpenLinkExternal])
+    setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
+  }, [setMinappsOpenLinkExternal, minappsOpenLinkExternal])
 
   const handleOpenLink = useCallback(() => {
     const urlToOpen = currentUrl || app.url

@@ -1,9 +1,7 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useAppDispatch } from '@renderer/store'
-import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
 import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,10 +14,11 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
+  const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
+  const [topicNamingPrompt, setTopicNamingPrompt] = usePreference('topic.naming_prompt')
+
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { enableTopicNaming, topicNamingPrompt } = useSettings()
-  const dispatch = useAppDispatch()
 
   const onOk = () => {
     setOpen(false)
@@ -34,8 +33,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   const handleReset = useCallback(() => {
-    dispatch(setTopicNamingPrompt(''))
-  }, [dispatch])
+    setTopicNamingPrompt('')
+  }, [setTopicNamingPrompt])
 
   TopicNamingModalPopup.hide = onCancel
 
@@ -58,7 +57,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <Flex vertical align="stretch" gap={8}>
         <HStack style={{ gap: 16 }} alignItems="center">
           <div>{t('settings.models.topic_naming.auto')}</div>
-          <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
+          <Switch checked={enableTopicNaming} onChange={(v) => setEnableTopicNaming(v)} />
         </HStack>
         <Divider style={{ margin: 0 }} />
         <div>
@@ -72,7 +71,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 10 }}
             value={topicNamingPrompt || t('prompts.title')}
-            onChange={(e) => dispatch(setTopicNamingPrompt(e.target.value))}
+            onChange={(e) => setTopicNamingPrompt(e.target.value)}
             placeholder={t('prompts.title')}
             style={{ width: '100%' }}
           />

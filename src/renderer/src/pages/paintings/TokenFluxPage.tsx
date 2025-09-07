@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -9,7 +10,6 @@ import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
@@ -74,7 +74,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { generating } = useRuntime()
   const navigate = useNavigate()
   const location = useLocation()
-  const { autoTranslateWithSpace } = useSettings()
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)

@@ -1,8 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import { fetchChatCompletion } from '@renderer/services/ApiService'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
@@ -12,7 +12,7 @@ import store, { useAppSelector } from '@renderer/store'
 import { updateOneBlock, upsertManyBlocks, upsertOneBlock } from '@renderer/store/messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { cancelThrottledBlockUpdate, throttledBlockUpdate } from '@renderer/store/thunk/messageThunk'
-import { ThemeMode, Topic } from '@renderer/types'
+import { Topic } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -20,6 +20,7 @@ import { isAbortError } from '@renderer/utils/error'
 import { createMainTextBlock, createThinkingBlock } from '@renderer/utils/messageUtils/create'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultLanguage } from '@shared/config/constant'
+import { ThemeMode } from '@shared/data/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { cloneDeep, isEmpty } from 'lodash'
@@ -38,7 +39,9 @@ import InputBar from './components/InputBar'
 const logger = loggerService.withContext('HomeWindow')
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
-  const { language, readClipboardAtStartup, windowStyle } = useSettings()
+  const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
+  const [language] = usePreference('app.language')
+  const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
   const { t } = useTranslation()
 

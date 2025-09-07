@@ -1,9 +1,9 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
@@ -45,7 +45,10 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const [isFileDragging, setIsFileDragging] = useState(false)
   const { assistant } = useAssistant(message.assistantId)
   const model = assistant.model || assistant.defaultModel
-  const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
   const attachmentButtonRef = useRef<AttachmentButtonRef>(null)

@@ -76,7 +76,8 @@ vi.mock('@logger', () => ({
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      silly: vi.fn()
+      silly: vi.fn(),
+      verbose: vi.fn()
     })
   }
 }))

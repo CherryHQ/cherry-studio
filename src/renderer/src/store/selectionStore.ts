@@ -1,7 +1,21 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import { ActionItem, FilterMode, SelectionState, TriggerMode } from '@renderer/types/selectionTypes'
+import type { SelectionActionItem, SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preferenceTypes'
 
-export const defaultActionItems: ActionItem[] = [
+export interface SelectionState {
+  selectionEnabled: boolean
+  triggerMode: SelectionTriggerMode
+  isCompact: boolean
+  isAutoClose: boolean
+  isAutoPin: boolean
+  isFollowToolbar: boolean
+  isRemeberWinSize: boolean
+  filterMode: SelectionFilterMode
+  filterList: string[]
+  actionWindowOpacity: number
+  actionItems: SelectionActionItem[]
+}
+
+export const defaultActionItems: SelectionActionItem[] = [
   { id: 'translate', name: 'selection.action.builtin.translate', enabled: true, isBuiltIn: true, icon: 'languages' },
   { id: 'explain', name: 'selection.action.builtin.explain', enabled: true, isBuiltIn: true, icon: 'file-question' },
   { id: 'summary', name: 'selection.action.builtin.summary', enabled: true, isBuiltIn: true, icon: 'scan-text' },
@@ -39,7 +53,7 @@ const selectionSlice = createSlice({
     setSelectionEnabled: (state, action: PayloadAction<boolean>) => {
       state.selectionEnabled = action.payload
     },
-    setTriggerMode: (state, action: PayloadAction<TriggerMode>) => {
+    setTriggerMode: (state, action: PayloadAction<SelectionTriggerMode>) => {
       state.triggerMode = action.payload
     },
     setIsCompact: (state, action: PayloadAction<boolean>) => {
@@ -57,7 +71,7 @@ const selectionSlice = createSlice({
     setIsRemeberWinSize: (state, action: PayloadAction<boolean>) => {
       state.isRemeberWinSize = action.payload
     },
-    setFilterMode: (state, action: PayloadAction<FilterMode>) => {
+    setFilterMode: (state, action: PayloadAction<SelectionFilterMode>) => {
       state.filterMode = action.payload
     },
     setFilterList: (state, action: PayloadAction<string[]>) => {
@@ -66,7 +80,7 @@ const selectionSlice = createSlice({
     setActionWindowOpacity: (state, action: PayloadAction<number>) => {
       state.actionWindowOpacity = action.payload
     },
-    setActionItems: (state, action: PayloadAction<ActionItem[]>) => {
+    setActionItems: (state, action: PayloadAction<SelectionActionItem[]>) => {
       state.actionItems = action.payload
     }
   }

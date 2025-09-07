@@ -1,14 +1,8 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
+import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { useAppDispatch } from '@renderer/store'
-import {
-  setMaxKeepAliveMinapps,
-  setMinappsOpenLinkExternal,
-  setShowOpenedMinappsInSidebar
-} from '@renderer/store/settings'
 import { Button, message, Slider, Switch, Tooltip } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,8 +15,13 @@ const DEFAULT_MAX_KEEPALIVE = 3
 
 const MiniAppSettings: FC = () => {
   const { t } = useTranslation()
-  const dispatch = useAppDispatch()
-  const { maxKeepAliveMinapps, showOpenedMinappsInSidebar, minappsOpenLinkExternal } = useSettings()
+
+  const [maxKeepAliveMinapps, setMaxKeepAliveMinapps] = usePreference('feature.minapp.max_keep_alive')
+  const [showOpenedMinappsInSidebar, setShowOpenedMinappsInSidebar] = usePreference(
+    'feature.minapp.show_opened_in_sidebar'
+  )
+  const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
+
   const { minapps, disabled, updateMinapps, updateDisabledMinapps } = useMinapps()
 
   const [visibleMiniApps, setVisibleMiniApps] = useState(minapps)
@@ -45,14 +44,14 @@ const MiniAppSettings: FC = () => {
 
   // 恢复默认缓存数量
   const handleResetCacheLimit = useCallback(() => {
-    dispatch(setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE))
+    setMaxKeepAliveMinapps(DEFAULT_MAX_KEEPALIVE)
     messageApi.info(t('settings.miniapps.cache_change_notice'))
-  }, [dispatch, messageApi, t])
+  }, [messageApi, t, setMaxKeepAliveMinapps])
 
   // 处理缓存数量变更
   const handleCacheChange = useCallback(
     (value: number) => {
-      dispatch(setMaxKeepAliveMinapps(value))
+      setMaxKeepAliveMinapps(value)
 
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
@@ -63,7 +62,7 @@ const MiniAppSettings: FC = () => {
         debounceTimerRef.current = null
       }, 500)
     },
-    [dispatch, messageApi, t]
+    [messageApi, t, setMaxKeepAliveMinapps]
   )
 
   // 组件卸载时清除定时器
@@ -97,10 +96,7 @@ const MiniAppSettings: FC = () => {
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
-        <Switch
-          checked={minappsOpenLinkExternal}
-          onChange={(checked) => dispatch(setMinappsOpenLinkExternal(checked))}
-        />
+        <Switch checked={minappsOpenLinkExternal} onChange={(checked) => setMinappsOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
       {/* 缓存小程序数量设置 */}
@@ -137,10 +133,7 @@ const MiniAppSettings: FC = () => {
           <SettingRowTitle>{t('settings.miniapps.sidebar_title')}</SettingRowTitle>
           <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
         </SettingLabelGroup>
-        <Switch
-          checked={showOpenedMinappsInSidebar}
-          onChange={(checked) => dispatch(setShowOpenedMinappsInSidebar(checked))}
-        />
+        <Switch checked={showOpenedMinappsInSidebar} onChange={(checked) => setShowOpenedMinappsInSidebar(checked)} />
       </SettingRow>
     </Container>
   )

@@ -1,3 +1,4 @@
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -10,45 +11,16 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import { useAppDispatch } from '@renderer/store'
-import {
-  SendMessageShortcut,
-  setAutoTranslateWithSpace,
-  setCodeCollapsible,
-  setCodeEditor,
-  setCodeExecution,
-  setCodeImageTools,
-  setCodeShowLineNumbers,
-  setCodeViewer,
-  setCodeWrappable,
-  setConfirmDeleteMessage,
-  setConfirmRegenerateMessage,
-  setEnableQuickPanelTriggers,
-  setFontSize,
-  setMathEnableSingleDollar,
-  setMathEngine,
-  setMessageFont,
-  setMessageNavigation,
-  setMessageStyle,
-  setMultiModelMessageStyle,
-  setPasteLongTextAsFile,
-  setPasteLongTextThreshold,
-  setRenderInputMessageAsMarkdown,
-  setShowInputEstimatedTokens,
-  setShowMessageOutline,
-  setShowPrompt,
-  setShowTranslateConfirm,
-  setThoughtAutoCollapse
-} from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine, ThemeMode } from '@renderer/types'
+import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
+import type { SendMessageShortcut } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preferenceTypes'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -56,16 +28,64 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import OpenAISettingsGroup from './components/OpenAISettingsGroup'
-
 interface Props {
   assistant: Assistant
 }
 
 const SettingsTab: FC<Props> = (props) => {
+  const [messageStyle, setMessageStyle] = usePreference('chat.message.style')
+  const [fontSize, setFontSize] = usePreference('chat.message.font_size')
+  const [language] = usePreference('app.language')
+  const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.target_language')
+  const [sendMessageShortcut, setSendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [messageFont, setMessageFont] = usePreference('chat.message.font')
+  const [showPrompt, setShowPrompt] = usePreference('chat.message.show_prompt')
+  const [confirmDeleteMessage, setConfirmDeleteMessage] = usePreference('chat.message.confirm_delete')
+  const [confirmRegenerateMessage, setConfirmRegenerateMessage] = usePreference('chat.message.confirm_regenerate')
+  const [showTranslateConfirm, setShowTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
+  const [enableQuickPanelTriggers, setEnableQuickPanelTriggers] = usePreference(
+    'chat.input.quick_panel.triggers_enabled'
+  )
+  const [messageNavigation, setMessageNavigation] = usePreference('chat.message.navigation_mode')
+  const [thoughtAutoCollapse, setThoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
+  const [multiModelMessageStyle, setMultiModelMessageStyle] = usePreference('chat.message.multi_model.style')
+  const [pasteLongTextAsFile, setPasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold, setPasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [mathEngine, setMathEngine] = usePreference('chat.message.math.engine')
+  const [mathEnableSingleDollar, setMathEnableSingleDollar] = usePreference('chat.message.math.single_dollar')
+  const [showInputEstimatedTokens, setShowInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [renderInputMessageAsMarkdown, setRenderInputMessageAsMarkdown] = usePreference(
+    'chat.message.render_as_markdown'
+  )
+  const [autoTranslateWithSpace, setAutoTranslateWithSpace] = usePreference(
+    'chat.input.translate.auto_translate_with_space'
+  )
+  const [showMessageOutline, setShowMessageOutline] = usePreference('chat.message.show_outline')
+  const [codeShowLineNumbers, setCodeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
+  const [codeCollapsible, setCodeCollapsible] = usePreference('chat.code.collapsible')
+  const [codeWrappable, setCodeWrappable] = usePreference('chat.code.wrappable')
+  const [codeImageTools, setCodeImageTools] = usePreference('chat.code.image_tools')
+  const [codeEditor, setCodeEditor] = useMultiplePreferences({
+    enabled: 'chat.code.editor.enabled',
+    themeLight: 'chat.code.editor.theme_light',
+    themeDark: 'chat.code.editor.theme_dark',
+    highlightActiveLine: 'chat.code.editor.highlight_active_line',
+    foldGutter: 'chat.code.editor.fold_gutter',
+    autocompletion: 'chat.code.editor.autocompletion',
+    keymap: 'chat.code.editor.keymap'
+  })
+  const [codeViewer, setCodeViewer] = useMultiplePreferences({
+    themeLight: 'chat.code.viewer.theme_light',
+    themeDark: 'chat.code.viewer.theme_dark'
+  })
+  const [codeExecution, setCodeExecution] = useMultiplePreferences({
+    enabled: 'chat.code.execution.enabled',
+    timeoutMinutes: 'chat.code.execution.timeout_minutes'
+  })
+
   const { assistant, updateAssistantSettings } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
 
-  const { messageStyle, fontSize, language } = useSettings()
   const { theme } = useTheme()
   const { themeNames } = useCodeStyle()
 
@@ -79,39 +99,6 @@ const SettingsTab: FC<Props> = (props) => {
   const { translateLanguages } = useTranslate()
 
   const { t } = useTranslation()
-
-  const dispatch = useAppDispatch()
-
-  const {
-    showPrompt,
-    messageFont,
-    showInputEstimatedTokens,
-    sendMessageShortcut,
-    setSendMessageShortcut,
-    targetLanguage,
-    setTargetLanguage,
-    pasteLongTextAsFile,
-    renderInputMessageAsMarkdown,
-    codeShowLineNumbers,
-    codeCollapsible,
-    codeWrappable,
-    codeEditor,
-    codeViewer,
-    codeImageTools,
-    codeExecution,
-    mathEngine,
-    mathEnableSingleDollar,
-    autoTranslateWithSpace,
-    pasteLongTextThreshold,
-    multiModelMessageStyle,
-    thoughtAutoCollapse,
-    messageNavigation,
-    enableQuickPanelTriggers,
-    showTranslateConfirm,
-    showMessageOutline,
-    confirmDeleteMessage,
-    confirmRegenerateMessage
-  } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
     updateAssistantSettings(settings)
@@ -156,9 +143,9 @@ const SettingsTab: FC<Props> = (props) => {
     (value: CodeStyleVarious) => {
       const field = theme === ThemeMode.light ? 'themeLight' : 'themeDark'
       const action = codeEditor.enabled ? setCodeEditor : setCodeViewer
-      dispatch(action({ [field]: value }))
+      action({ [field]: value })
     },
-    [dispatch, theme, codeEditor.enabled]
+    [theme, codeEditor.enabled, setCodeEditor, setCodeViewer]
   )
 
   useEffect(() => {
@@ -313,7 +300,7 @@ const SettingsTab: FC<Props> = (props) => {
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.prompt')}</SettingRowTitleSmall>
-            <Switch size="small" checked={showPrompt} onChange={(checked) => dispatch(setShowPrompt(checked))} />
+            <Switch size="small" checked={showPrompt} onChange={(checked) => setShowPrompt(checked)} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -321,7 +308,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={messageFont === 'serif'}
-              onChange={(checked) => dispatch(setMessageFont(checked ? 'serif' : 'system'))}
+              onChange={(checked) => setMessageFont(checked ? 'serif' : 'system')}
             />
           </SettingRow>
           <SettingDivider />
@@ -333,24 +320,20 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={thoughtAutoCollapse}
-              onChange={(checked) => dispatch(setThoughtAutoCollapse(checked))}
+              onChange={(checked) => setThoughtAutoCollapse(checked)}
             />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.show_message_outline')}</SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={showMessageOutline}
-              onChange={(checked) => dispatch(setShowMessageOutline(checked))}
-            />
+            <Switch size="small" checked={showMessageOutline} onChange={(checked) => setShowMessageOutline(checked)} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
             <Selector
               value={messageStyle}
-              onChange={(value) => dispatch(setMessageStyle(value as 'plain' | 'bubble'))}
+              onChange={(value) => setMessageStyle(value as 'plain' | 'bubble')}
               options={[
                 { value: 'plain', label: t('message.message.style.plain') },
                 { value: 'bubble', label: t('message.message.style.bubble') }
@@ -362,7 +345,7 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
             <Selector
               value={multiModelMessageStyle}
-              onChange={(value) => dispatch(setMultiModelMessageStyle(value))}
+              onChange={(value) => setMultiModelMessageStyle(value)}
               options={[
                 { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
                 { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
@@ -376,7 +359,7 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
             <Selector
               value={messageNavigation}
-              onChange={(value) => dispatch(setMessageNavigation(value as 'none' | 'buttons' | 'anchor'))}
+              onChange={(value) => setMessageNavigation(value as 'none' | 'buttons' | 'anchor')}
               options={[
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
@@ -393,7 +376,7 @@ const SettingsTab: FC<Props> = (props) => {
               <Slider
                 value={fontSizeValue}
                 onChange={(value) => setFontSizeValue(value)}
-                onChangeComplete={(value) => dispatch(setFontSize(value))}
+                onChangeComplete={(value) => setFontSize(value)}
                 min={12}
                 max={22}
                 step={1}
@@ -414,7 +397,7 @@ const SettingsTab: FC<Props> = (props) => {
             <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
             <Selector
               value={mathEngine}
-              onChange={(value) => dispatch(setMathEngine(value as MathEngine))}
+              onChange={(value) => setMathEngine(value as MathEngine)}
               options={[
                 { value: 'KaTeX', label: 'KaTeX' },
                 { value: 'MathJax', label: 'MathJax' },
@@ -431,7 +414,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={mathEnableSingleDollar}
-              onChange={(checked) => dispatch(setMathEnableSingleDollar(checked))}
+              onChange={(checked) => setMathEnableSingleDollar(checked)}
             />
           </SettingRow>
           <SettingDivider />
@@ -459,7 +442,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={codeExecution.enabled}
-              onChange={(checked) => dispatch(setCodeExecution({ enabled: checked }))}
+              onChange={(checked) => setCodeExecution({ enabled: checked })}
             />
           </SettingRow>
           {codeExecution.enabled && (
@@ -476,7 +459,7 @@ const SettingsTab: FC<Props> = (props) => {
                   max={60}
                   step={1}
                   value={codeExecution.timeoutMinutes}
-                  onChange={(value) => dispatch(setCodeExecution({ timeoutMinutes: value ?? 1 }))}
+                  onChange={(value) => setCodeExecution({ timeoutMinutes: value ?? 1 })}
                   style={{ width: 80 }}
                 />
               </SettingRow>
@@ -488,7 +471,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={codeEditor.enabled}
-              onChange={(checked) => dispatch(setCodeEditor({ enabled: checked }))}
+              onChange={(checked) => setCodeEditor({ enabled: checked })}
             />
           </SettingRow>
           {codeEditor.enabled && (
@@ -499,7 +482,7 @@ const SettingsTab: FC<Props> = (props) => {
                 <Switch
                   size="small"
                   checked={codeEditor.highlightActiveLine}
-                  onChange={(checked) => dispatch(setCodeEditor({ highlightActiveLine: checked }))}
+                  onChange={(checked) => setCodeEditor({ highlightActiveLine: checked })}
                 />
               </SettingRow>
               <SettingDivider />
@@ -508,7 +491,7 @@ const SettingsTab: FC<Props> = (props) => {
                 <Switch
                   size="small"
                   checked={codeEditor.foldGutter}
-                  onChange={(checked) => dispatch(setCodeEditor({ foldGutter: checked }))}
+                  onChange={(checked) => setCodeEditor({ foldGutter: checked })}
                 />
               </SettingRow>
               <SettingDivider />
@@ -517,7 +500,7 @@ const SettingsTab: FC<Props> = (props) => {
                 <Switch
                   size="small"
                   checked={codeEditor.autocompletion}
-                  onChange={(checked) => dispatch(setCodeEditor({ autocompletion: checked }))}
+                  onChange={(checked) => setCodeEditor({ autocompletion: checked })}
                 />
               </SettingRow>
               <SettingDivider />
@@ -526,7 +509,7 @@ const SettingsTab: FC<Props> = (props) => {
                 <Switch
                   size="small"
                   checked={codeEditor.keymap}
-                  onChange={(checked) => dispatch(setCodeEditor({ keymap: checked }))}
+                  onChange={(checked) => setCodeEditor({ keymap: checked })}
                 />
               </SettingRow>
             </>
@@ -537,22 +520,18 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={codeShowLineNumbers}
-              onChange={(checked) => dispatch(setCodeShowLineNumbers(checked))}
+              onChange={(checked) => setCodeShowLineNumbers(checked)}
             />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('chat.settings.code_collapsible')}</SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={codeCollapsible}
-              onChange={(checked) => dispatch(setCodeCollapsible(checked))}
-            />
+            <Switch size="small" checked={codeCollapsible} onChange={(checked) => setCodeCollapsible(checked)} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitleSmall>{t('chat.settings.code_wrappable')}</SettingRowTitleSmall>
-            <Switch size="small" checked={codeWrappable} onChange={(checked) => dispatch(setCodeWrappable(checked))} />
+            <Switch size="small" checked={codeWrappable} onChange={(checked) => setCodeWrappable(checked)} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
@@ -560,11 +539,7 @@ const SettingsTab: FC<Props> = (props) => {
               {t('chat.settings.code_image_tools.label')}
               <HelpTooltip title={t('chat.settings.code_image_tools.tip')} />
             </SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={codeImageTools}
-              onChange={(checked) => dispatch(setCodeImageTools(checked))}
-            />
+            <Switch size="small" checked={codeImageTools} onChange={(checked) => setCodeImageTools(checked)} />
           </SettingRow>
         </SettingGroup>
         <SettingDivider />
@@ -576,7 +551,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={showInputEstimatedTokens}
-              onChange={(checked) => dispatch(setShowInputEstimatedTokens(checked))}
+              onChange={(checked) => setShowInputEstimatedTokens(checked)}
             />
           </SettingRow>
           <SettingDivider />
@@ -585,7 +560,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={pasteLongTextAsFile}
-              onChange={(checked) => dispatch(setPasteLongTextAsFile(checked))}
+              onChange={(checked) => setPasteLongTextAsFile(checked)}
             />
           </SettingRow>
           {pasteLongTextAsFile && (
@@ -599,7 +574,7 @@ const SettingsTab: FC<Props> = (props) => {
                   max={10000}
                   step={100}
                   value={pasteLongTextThreshold}
-                  onChange={(value) => dispatch(setPasteLongTextThreshold(value ?? 500))}
+                  onChange={(value) => setPasteLongTextThreshold(value ?? 500)}
                   style={{ width: 80 }}
                 />
               </SettingRow>
@@ -611,18 +586,18 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={renderInputMessageAsMarkdown}
-              onChange={(checked) => dispatch(setRenderInputMessageAsMarkdown(checked))}
+              onChange={(checked) => setRenderInputMessageAsMarkdown(checked)}
             />
           </SettingRow>
           <SettingDivider />
-          {!language.startsWith('en') && (
+          {!(language || navigator.language).startsWith('en') && (
             <>
               <SettingRow>
                 <SettingRowTitleSmall>{t('settings.input.auto_translate_with_space')}</SettingRowTitleSmall>
                 <Switch
                   size="small"
                   checked={autoTranslateWithSpace}
-                  onChange={(checked) => dispatch(setAutoTranslateWithSpace(checked))}
+                  onChange={(checked) => setAutoTranslateWithSpace(checked)}
                 />
               </SettingRow>
               <SettingDivider />
@@ -633,7 +608,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={showTranslateConfirm}
-              onChange={(checked) => dispatch(setShowTranslateConfirm(checked))}
+              onChange={(checked) => setShowTranslateConfirm(checked)}
             />
           </SettingRow>
           <SettingDivider />
@@ -642,7 +617,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={enableQuickPanelTriggers}
-              onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+              onChange={(checked) => setEnableQuickPanelTriggers(checked)}
             />
           </SettingRow>
           <SettingDivider />
@@ -651,7 +626,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={confirmDeleteMessage}
-              onChange={(checked) => dispatch(setConfirmDeleteMessage(checked))}
+              onChange={(checked) => setConfirmDeleteMessage(checked)}
             />
           </SettingRow>
           <SettingDivider />
@@ -660,7 +635,7 @@ const SettingsTab: FC<Props> = (props) => {
             <Switch
               size="small"
               checked={confirmRegenerateMessage}
-              onChange={(checked) => dispatch(setConfirmRegenerateMessage(checked))}
+              onChange={(checked) => setConfirmRegenerateMessage(checked)}
             />
           </SettingRow>
           <SettingDivider />

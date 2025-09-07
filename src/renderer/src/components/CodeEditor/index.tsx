@@ -1,5 +1,5 @@
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
@@ -117,7 +117,17 @@ const CodeEditor = ({
   expanded = true,
   wrapped = true
 }: CodeEditorProps) => {
-  const { fontSize: _fontSize, codeShowLineNumbers: _lineNumbers, codeEditor } = useSettings()
+  const [_fontSize] = usePreference('chat.message.font_size')
+  const [_lineNumbers] = usePreference('chat.code.show_line_numbers')
+  const [codeEditor] = useMultiplePreferences({
+    autocompletion: 'chat.code.editor.autocompletion',
+    foldGutter: 'chat.code.editor.fold_gutter',
+    highlightActiveLine: 'chat.code.editor.highlight_active_line',
+    keymap: 'chat.code.editor.keymap',
+    themeLight: 'chat.code.editor.theme_light',
+    themeDark: 'chat.code.editor.theme_dark'
+  })
+
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
 
   // 合并 codeEditor 和 options 的 basicSetup，options 优先

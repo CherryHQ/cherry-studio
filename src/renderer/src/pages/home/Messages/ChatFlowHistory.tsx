@@ -1,12 +1,12 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { RootState } from '@renderer/store'
@@ -205,7 +205,7 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState<any>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<any>([])
   const [loading, setLoading] = useState(true)
-  const { userName } = useSettings()
+  const [userName] = usePreference('app.user.name')
   const { settedTheme } = useTheme()
 
   const topicId = conversationId

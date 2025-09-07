@@ -5,7 +5,6 @@ import {
   isOpenAIModel,
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
@@ -46,6 +45,7 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { isEmpty } from 'lodash'
 
 import { CompletionsContext } from '../middleware/types'

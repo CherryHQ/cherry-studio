@@ -2,7 +2,7 @@ export enum IpcChannel {
   App_GetCacheSize = 'app:get-cache-size',
   App_ClearCache = 'app:clear-cache',
   App_SetLaunchOnBoot = 'app:set-launch-on-boot',
-  App_SetLanguage = 'app:set-language',
+  // App_SetLanguage = 'app:set-language',
   App_SetEnableSpellCheck = 'app:set-enable-spell-check',
   App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
   App_ShowUpdateDialog = 'app:show-update-dialog',
@@ -13,7 +13,7 @@ export enum IpcChannel {
   App_SetLaunchToTray = 'app:set-launch-to-tray',
   App_SetTray = 'app:set-tray',
   App_SetTrayOnClose = 'app:set-tray-on-close',
-  App_SetTheme = 'app:set-theme',
+  // App_SetTheme = 'app:set-theme',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',
@@ -42,7 +42,7 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
-  App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
+  // App_SetDisableHardwareAcceleration = 'app:set-disable-hardware-acceleration',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -210,6 +210,22 @@ export enum IpcChannel {
   Backup_DeleteS3File = 'backup:deleteS3File',
   Backup_CheckS3Connection = 'backup:checkS3Connection',
 
+  // data migration
+  DataMigrate_CheckNeeded = 'data-migrate:check-needed',
+  DataMigrate_GetProgress = 'data-migrate:get-progress',
+  DataMigrate_Cancel = 'data-migrate:cancel',
+  DataMigrate_RequireBackup = 'data-migrate:require-backup',
+  DataMigrate_BackupCompleted = 'data-migrate:backup-completed',
+  DataMigrate_ShowBackupDialog = 'data-migrate:show-backup-dialog',
+  DataMigrate_StartFlow = 'data-migrate:start-flow',
+  DataMigrate_ProceedToBackup = 'data-migrate:proceed-to-backup',
+  DataMigrate_StartMigration = 'data-migrate:start-migration',
+  DataMigrate_RetryMigration = 'data-migrate:retry-migration',
+  DataMigrate_RestartApp = 'data-migrate:restart-app',
+  DataMigrate_CloseWindow = 'data-migrate:close-window',
+  DataMigrate_SendReduxData = 'data-migrate:send-redux-data',
+  DataMigrate_GetReduxData = 'data-migrate:get-redux-data',
+
   // zip
   Zip_Compress = 'zip:compress',
   Zip_Decompress = 'zip:decompress',
@@ -223,7 +239,8 @@ export enum IpcChannel {
 
   // events
   BackupProgress = 'backup-progress',
-  ThemeUpdated = 'theme:updated',
+  DataMigrateProgress = 'data-migrate-progress',
+  NativeThemeUpdated = 'native-theme:updated',
   UpdateDownloadedCancelled = 'update-downloaded-cancelled',
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
@@ -286,6 +303,15 @@ export enum IpcChannel {
   Memory_DeleteUser = 'memory:delete-user',
   Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
   Memory_GetUsersList = 'memory:get-users-list',
+
+  // Preference
+  Preference_Get = 'preference:get',
+  Preference_Set = 'preference:set',
+  Preference_GetMultiple = 'preference:get-multiple',
+  Preference_SetMultiple = 'preference:set-multiple',
+  Preference_GetAll = 'preference:get-all',
+  Preference_Subscribe = 'preference:subscribe',
+  Preference_Changed = 'preference:changed',
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',

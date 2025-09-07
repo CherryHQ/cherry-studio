@@ -1,6 +1,6 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { HStack, VStack } from '@renderer/components/Layout'
 import MaxContextCount from '@renderer/components/MaxContextCount'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { Divider, Popover } from 'antd'
 import { ArrowUp, MenuIcon } from 'lucide-react'
 import { FC } from 'react'
@@ -16,7 +16,7 @@ type Props = {
 
 const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount }) => {
   const { t } = useTranslation()
-  const { showInputEstimatedTokens } = useSettings()
+  const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
 
   if (!showInputEstimatedTokens) {
     return null

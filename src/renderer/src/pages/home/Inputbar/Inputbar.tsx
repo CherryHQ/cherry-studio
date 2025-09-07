@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -18,7 +19,6 @@ import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -76,20 +76,20 @@ let _text = ''
 let _files: FileType[] = []
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
+  const [showInputEstimatedTokens] = usePreference('chat.input.show_estimated_tokens')
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
+  const [enableQuickPanelTriggers] = usePreference('chat.input.quick_panel.triggers_enabled')
+  const [enableSpellCheck] = usePreference('app.spell_check.enabled')
+  const [fontSize] = usePreference('chat.message.font_size')
+
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
-  const {
-    targetLanguage,
-    sendMessageShortcut,
-    fontSize,
-    pasteLongTextAsFile,
-    pasteLongTextThreshold,
-    showInputEstimatedTokens,
-    autoTranslateWithSpace,
-    enableQuickPanelTriggers,
-    enableSpellCheck
-  } = useSettings()
+
   const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
@@ -220,7 +220,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     logger.info('Starting to send message')
 
-    const parent = spanManagerService.startTrace(
+    const parent = await spanManagerService.startTrace(
       { topicId: topic.id, name: 'sendMessage', inputs: text },
       mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )

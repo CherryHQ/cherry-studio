@@ -1,6 +1,6 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
 import { Modal, ModalProps } from 'antd'
@@ -42,7 +42,8 @@ const PopupContainer: React.FC<Props> = ({
   const [textValue, setTextValue] = useState(text)
   const [isTranslating, setIsTranslating] = useState(false)
   const textareaRef = useRef<TextAreaRef>(null)
-  const { targetLanguage, showTranslateConfirm } = useSettings()
+  const [targetLanguage] = usePreference('feature.translate.target_language')
+  const [showTranslateConfirm] = usePreference('chat.input.translate.show_confirm')
   const isMounted = useRef(true)
 
   useEffect(() => {

@@ -1,7 +1,6 @@
 import { Model } from '@renderer/types'
+import { WEB_SEARCH_PROMPT_FOR_ZHIPU } from '@shared/config/prompts'
 import { ChatCompletionTool } from 'openai/resources'
-
-import { WEB_SEARCH_PROMPT_FOR_ZHIPU } from './prompts'
 
 export function getWebSearchTools(model: Model): ChatCompletionTool[] {
   if (model?.provider === 'zhipu') {

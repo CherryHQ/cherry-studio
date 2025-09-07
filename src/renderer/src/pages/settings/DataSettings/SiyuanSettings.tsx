@@ -1,45 +1,42 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setSiyuanApiUrl, setSiyuanBoxId, setSiyuanRootPath, setSiyuanToken } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const logger = loggerService.withContext('SiyuanSettings')
 
 const SiyuanSettings: FC = () => {
+  const [siyuanApiUrl, setSiyuanApiUrl] = usePreference('data.integration.siyuan.api_url')
+  const [siyuanToken, setSiyuanToken] = usePreference('data.integration.siyuan.token')
+  const [siyuanBoxId, setSiyuanBoxId] = usePreference('data.integration.siyuan.box_id')
+  const [siyuanRootPath, setSiyuanRootPath] = usePreference('data.integration.siyuan.root_path')
+
   const { openMinapp } = useMinappPopup()
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-
-  const siyuanApiUrl = useSelector((state: RootState) => state.settings.siyuanApiUrl)
-  const siyuanToken = useSelector((state: RootState) => state.settings.siyuanToken)
-  const siyuanBoxId = useSelector((state: RootState) => state.settings.siyuanBoxId)
-  const siyuanRootPath = useSelector((state: RootState) => state.settings.siyuanRootPath)
 
   const handleApiUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanApiUrl(e.target.value))
+    setSiyuanApiUrl(e.target.value)
   }
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanToken(e.target.value))
+    setSiyuanToken(e.target.value)
   }
 
   const handleBoxIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanBoxId(e.target.value))
+    setSiyuanBoxId(e.target.value)
   }
 
   const handleRootPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setSiyuanRootPath(e.target.value))
+    setSiyuanRootPath(e.target.value)
   }
 
   const handleSiyuanHelpClick = () => {
