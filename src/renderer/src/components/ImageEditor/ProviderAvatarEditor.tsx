@@ -1,19 +1,12 @@
-import {
-  CheckOutlined,
-  CloseOutlined,
-  RotateLeftOutlined,
-  RotateRightOutlined,
-  SwapOutlined,
-  UndoOutlined
-} from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { VStack } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { Button, Modal, Space } from 'antd'
+import { classNames } from '@renderer/utils'
+import { Check, X, RotateCcw, RotateCw, FlipHorizontal, FlipVertical, Undo2 } from 'lucide-react'
 import React, { useCallback, useRef, useState } from 'react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styles from './ProviderAvatarEditor.module.css'
 
 const logger = loggerService.withContext('ProviderAvatarEditor')
 
@@ -169,27 +162,21 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
   }
 
   return (
-    <Modal
-      title={title || t('settings.general.avatar.edit')}
-      open={open}
-      onCancel={handleCancel}
-      width={620}
-      footer={[
-        <Button key="cancel" onClick={handleCancel} icon={<CloseOutlined />}>
-          {t('common.cancel')}
-        </Button>,
-        <Button key="confirm" type="primary" onClick={handleConfirm} icon={<CheckOutlined />}>
-          {t('common.confirm')}
-        </Button>
-      ]}
-      destroyOnClose
-      centered>
-      <VStack gap="16px">
+    <div className={classNames(styles.modal, { [styles.hidden]: !open })}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
+          <h3 className={styles.modalTitle}>{title || t('settings.general.avatar.edit')}</h3>
+          <button className={styles.modalCloseButton} onClick={handleCancel}>
+            <X size={16} />
+          </button>
+        </div>
+        <div className={styles.modalBody}>
+          <VStack gap="16px">
         {/* 主编辑区域 */}
-        <EditorContainer>
+        <div className={styles.editorContainer}>
           {/* 左侧：图片裁剪区域 */}
-          <CropperSection>
-            <CropperContainer>
+          <div className={styles.cropperSection}>
+            <div className={styles.cropperContainer}>
               <Cropper
                 ref={cropperRef}
                 src={imageSrc}
@@ -215,416 +202,75 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
                 crop={handleCrop}
                 zoom={handleZoom}
               />
-            </CropperContainer>
-          </CropperSection>
+            </div>
+          </div>
 
           {/* 右侧：实时预览区域 */}
-          <PreviewSection>
-            <PreviewTitle>{t('settings.general.avatar.preview')}</PreviewTitle>
-            <PreviewContainer>
-              <PreviewAvatar>
+          <div className={styles.previewSection}>
+            <h4 className={styles.previewTitle}>{t('settings.general.avatar.preview')}</h4>
+            <div className={styles.previewContainer}>
+              <div className={styles.previewAvatar}>
                 <ProviderAvatarPrimitive
                   providerId="preview"
                   providerName={providerName}
                   logoSrc={previewImage || undefined}
                   size={60}
                 />
-              </PreviewAvatar>
-            </PreviewContainer>
-          </PreviewSection>
-        </EditorContainer>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* 控制面板 */}
-        <ControlPanel>
-          <ControlSection>
-            <SectionTitle>{t('settings.general.avatar.edit_tools')}</SectionTitle>
-            <Space size="middle" wrap>
-              <Button icon={<RotateLeftOutlined />} onClick={handleRotateLeft} size="small">
+        <div className={styles.controlPanel}>
+          <div className={styles.controlSection}>
+            <h4 className={styles.sectionTitle}>{t('settings.general.avatar.edit_tools')}</h4>
+            <div className={styles.space}>
+              <button className={classNames(styles.button, styles.small)} onClick={handleRotateLeft}>
+                <RotateCcw size={14} />
                 {t('settings.general.avatar.rotate_left')}
-              </Button>
-              <Button icon={<RotateRightOutlined />} onClick={handleRotateRight} size="small">
+              </button>
+              <button className={classNames(styles.button, styles.small)} onClick={handleRotateRight}>
+                <RotateCw size={14} />
                 {t('settings.general.avatar.rotate_right')}
-              </Button>
-              <Button icon={<SwapOutlined />} onClick={handleFlipHorizontal} size="small">
+              </button>
+              <button className={classNames(styles.button, styles.small)} onClick={handleFlipHorizontal}>
+                <FlipHorizontal size={14} />
                 {t('settings.general.avatar.flip_horizontal')}
-              </Button>
-              <Button icon={<SwapOutlined rotate={90} />} onClick={handleFlipVertical} size="small">
+              </button>
+              <button className={classNames(styles.button, styles.small)} onClick={handleFlipVertical}>
+                <FlipVertical size={14} />
                 {t('settings.general.avatar.flip_vertical')}
-              </Button>
-              <Button icon={<UndoOutlined />} onClick={resetTransforms} size="small">
+              </button>
+              <button className={classNames(styles.button, styles.small)} onClick={resetTransforms}>
+                <Undo2 size={14} />
                 {t('common.reset')}
-              </Button>
-            </Space>
-          </ControlSection>
+              </button>
+            </div>
+          </div>
 
-          <TipText>
+          <div className={styles.tipText}>
             💡 {t('settings.general.avatar.usage_guide')}
             <br />• {t('settings.general.avatar.drag_corners_to_resize')}
             <br />• {t('settings.general.avatar.scroll_to_zoom')}
             <br />• {t('settings.general.avatar.use_tools_for_transform')}
-          </TipText>
-        </ControlPanel>
-      </VStack>
-    </Modal>
+          </div>
+        </div>
+          </VStack>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={styles.button} onClick={handleCancel}>
+            <X size={16} />
+            {t('common.cancel')}
+          </button>
+          <button className={classNames(styles.button, styles.primary)} onClick={handleConfirm}>
+            <Check size={16} />
+            {t('common.confirm')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const EditorContainer = styled.div`
-  display: flex;
-  gap: 24px;
-  align-items: flex-start;
-  width: 100%;
-  min-height: 400px;
-`
-
-const CropperSection = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-`
-
-const PreviewSection = styled.div`
-  width: 120px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
-  flex-shrink: 0;
-`
-
-const PreviewTitle = styled.h4`
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  text-align: center;
-`
-
-const PreviewContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-`
-
-const PreviewAvatar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`
-
-const CropperContainer = styled.div`
-  flex: 1;
-  width: 100%;
-  min-height: 400px;
-
-  /* Import and override cropper styles */
-  .cropper-container {
-    direction: ltr;
-    font-size: 0;
-    line-height: 0;
-    position: relative;
-    touch-action: none;
-    user-select: none;
-  }
-
-  .cropper-container img {
-    backface-visibility: hidden;
-    display: block;
-    height: 100%;
-    image-orientation: 0deg;
-    max-height: none;
-    max-width: none;
-    min-height: 0;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .cropper-canvas,
-  .cropper-crop-box,
-  .cropper-drag-box,
-  .cropper-modal,
-  .cropper-wrap-box {
-    bottom: 0;
-    left: 0;
-    position: absolute;
-    right: 0;
-    top: 0;
-  }
-
-  .cropper-wrap-box {
-    overflow: hidden;
-  }
-
-  .cropper-drag-box {
-    background: none;
-    opacity: 0;
-  }
-
-  .cropper-modal {
-    background: rgba(0, 0, 0, 0.5);
-    opacity: 0.5;
-  }
-
-  .cropper-view-box {
-    display: block;
-    height: 100%;
-    outline: 1px solid #39f;
-    outline-color: rgba(51, 153, 255, 0.75);
-    overflow: hidden;
-    width: 100%;
-    border-radius: 12px;
-  }
-
-  .cropper-dashed {
-    border: 0 dashed #eee;
-    display: block;
-    opacity: 0.5;
-    position: absolute;
-  }
-
-  .cropper-dashed.dashed-h {
-    border-bottom-width: 1px;
-    border-top-width: 1px;
-    height: calc(100% / 3);
-    left: 0;
-    top: calc(100% / 3);
-    width: 100%;
-  }
-
-  .cropper-dashed.dashed-v {
-    border-left-width: 1px;
-    border-right-width: 1px;
-    height: 100%;
-    left: calc(100% / 3);
-    top: 0;
-    width: calc(100% / 3);
-  }
-
-  .cropper-center {
-    display: block;
-    height: 0;
-    left: 50%;
-    opacity: 0.75;
-    position: absolute;
-    top: 50%;
-    width: 0;
-  }
-
-  .cropper-center::before,
-  .cropper-center::after {
-    background: #eee;
-    content: ' ';
-    display: block;
-    position: absolute;
-  }
-
-  .cropper-center::before {
-    height: 1px;
-    left: -3px;
-    top: 0;
-    width: 7px;
-  }
-
-  .cropper-center::after {
-    height: 7px;
-    left: 0;
-    top: -3px;
-    width: 1px;
-  }
-
-  .cropper-face,
-  .cropper-line,
-  .cropper-point {
-    display: block;
-    height: 100%;
-    opacity: 0.1;
-    position: absolute;
-    width: 100%;
-  }
-
-  .cropper-face {
-    background: #fff;
-    left: 0;
-    top: 0;
-    border-radius: 12px;
-  }
-
-  .cropper-line {
-    background: #39f;
-  }
-
-  .cropper-line.line-e {
-    cursor: ew-resize;
-    right: -3px;
-    top: 0;
-    width: 5px;
-  }
-
-  .cropper-line.line-n {
-    cursor: ns-resize;
-    height: 5px;
-    left: 0;
-    top: -3px;
-  }
-
-  .cropper-line.line-w {
-    cursor: ew-resize;
-    left: -3px;
-    top: 0;
-    width: 5px;
-  }
-
-  .cropper-line.line-s {
-    bottom: -3px;
-    cursor: ns-resize;
-    height: 5px;
-    left: 0;
-  }
-
-  .cropper-point {
-    background: #39f;
-    height: 5px;
-    opacity: 0.75;
-    width: 5px;
-  }
-
-  .cropper-point.point-e {
-    cursor: ew-resize;
-    margin-top: -3px;
-    right: -3px;
-    top: 50%;
-  }
-
-  .cropper-point.point-n {
-    cursor: ns-resize;
-    left: 50%;
-    margin-left: -3px;
-    top: -3px;
-  }
-
-  .cropper-point.point-w {
-    cursor: ew-resize;
-    left: -3px;
-    margin-top: -3px;
-    top: 50%;
-  }
-
-  .cropper-point.point-s {
-    bottom: -3px;
-    cursor: ns-resize;
-    left: 50%;
-    margin-left: -3px;
-  }
-
-  .cropper-point.point-ne {
-    cursor: nesw-resize;
-    right: -3px;
-    top: -3px;
-  }
-
-  .cropper-point.point-nw {
-    cursor: nwse-resize;
-    left: -3px;
-    top: -3px;
-  }
-
-  .cropper-point.point-sw {
-    bottom: -3px;
-    cursor: nesw-resize;
-    left: -3px;
-  }
-
-  .cropper-point.point-se {
-    bottom: -3px;
-    cursor: nwse-resize;
-    right: -3px;
-  }
-
-  .cropper-crop-box {
-    border-radius: 12px;
-  }
-
-  @media (min-width: 768px) {
-    .cropper-point.point-se {
-      height: 15px;
-      width: 15px;
-    }
-  }
-
-  @media (min-width: 992px) {
-    .cropper-point.point-se {
-      height: 20px;
-      width: 20px;
-    }
-  }
-
-  .cropper-invisible {
-    opacity: 0;
-  }
-
-  .cropper-bg {
-    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQAQMAAAAlPW0iAAAAA3NCSVQICAjb4U/gAAAABlBMVEXMzMz////TjRV2AAAACXBIWXMAAArrAAAK6wGCiw1aAAAAHHRFWHRTb2Z0d2FyZQBBZG9iZSBGaXJld29ya3MgQ1M26LyyjAAAAA5JREFUCJlj+M/AgBVhF/0L2s8miZMYQKiTPE++zWEYhQZGr8Gr8QmjO/Hn7aswNBZfQJ5TU2qsQGiYJqcD4YJnJNQ7KCRhvSuBAT2gOhEH9NjJ5jR8Tr7fZYgH');
-  }
-
-  .cropper-hide {
-    display: block;
-    height: 0;
-    position: absolute;
-    width: 0;
-  }
-
-  .cropper-hidden {
-    display: none;
-  }
-
-  .cropper-move {
-    cursor: move;
-  }
-
-  .cropper-crop {
-    cursor: crosshair;
-  }
-
-  .cropper-disabled .cropper-drag-box,
-  .cropper-disabled .cropper-face,
-  .cropper-disabled .cropper-line,
-  .cropper-disabled .cropper-point {
-    cursor: not-allowed;
-  }
-`
-
-const ControlPanel = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--color-background-soft);
-  border-radius: 8px;
-  width: 100%;
-`
-
-const ControlSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const SectionTitle = styled.h4`
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-`
-
-const TipText = styled.div`
-  font-size: 12px;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-  margin-top: 4px;
-`
 
 export default ProviderAvatarEditor
