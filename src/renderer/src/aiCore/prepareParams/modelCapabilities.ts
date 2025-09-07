@@ -16,18 +16,25 @@ function modelSupportValidator(
   {
     supportedModels = [],
     unsupportedModels = [],
-    supportedProviders = []
+    supportedProviders = [],
+    unsupportedProviders = []
   }: {
     supportedModels?: string[]
     unsupportedModels?: string[]
     supportedProviders?: string[]
+    unsupportedProviders?: string[]
   }
 ): boolean {
   const provider = getProviderByModel(model)
   const aiSdkId = getAiSdkProviderId(provider)
 
-  // 黑名单：命中不支持的直接拒绝
+  // 黑名单：命中不支持的模型直接拒绝
   if (unsupportedModels.some((name) => model.name.includes(name))) {
+    return false
+  }
+
+  // 黑名单：命中不支持的提供商直接拒绝，常用于某些提供商的同名模型并不具备原模型的某些特性
+  if (unsupportedProviders.includes(aiSdkId)) {
     return false
   }
 

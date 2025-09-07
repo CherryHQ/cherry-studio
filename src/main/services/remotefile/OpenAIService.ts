@@ -23,11 +23,15 @@ export class OpenaiService extends BaseFileService {
   }
 
   async uploadFile(file: FileMetadata): Promise<FileUploadResponse> {
+    let fileReadStream: fs.ReadStream | undefined
     try {
-      const fileReadStream = fs.createReadStream(fileStorage.getFilePathById(file))
-      ;(fileReadStream as any).name = file.origin_name
+      fileReadStream = fs.createReadStream(fileStorage.getFilePathById(file))
+      // 还原文件原始名，以提高模型对文件的理解
+      const fileStreamWithMeta = Object.assign(fileReadStream, {
+        name: file.origin_name
+      })
       const response = await this.client.files.create({
-        file: fileReadStream,
+        file: fileStreamWithMeta,
         purpose: file.purpose || 'assistants'
       })
       if (!response.id) {
@@ -55,6 +59,9 @@ export class OpenaiService extends BaseFileService {
         displayName: file.origin_name,
         status: 'failed'
       }
+    } finally {
+      // 销毁文件流
+      if (fileReadStream) fileReadStream.destroy()
     }
   }
 

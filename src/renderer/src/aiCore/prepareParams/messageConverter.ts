@@ -13,7 +13,15 @@ import {
   findThinkingBlocks,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
-import type { AssistantModelMessage, FilePart, ImagePart, ModelMessage, TextPart, UserModelMessage } from 'ai'
+import type {
+  AssistantModelMessage,
+  FilePart,
+  ImagePart,
+  ModelMessage,
+  SystemModelMessage,
+  TextPart,
+  UserModelMessage
+} from 'ai'
 
 import { convertFileBlockToFilePart, convertFileBlockToTextPart } from './fileProcessor'
 
@@ -48,7 +56,7 @@ async function convertMessageToUserModelMessage(
   imageBlocks: ImageMessageBlock[],
   isVisionModel = false,
   model?: Model
-): Promise<UserModelMessage | UserModelMessage[]> {
+): Promise<UserModelMessage | (UserModelMessage | SystemModelMessage)[]> {
   const parts: Array<TextPart | FilePart | ImagePart> = []
   if (content) {
     parts.push({ type: 'text', text: content })
@@ -89,7 +97,7 @@ async function convertMessageToUserModelMessage(
         if (typeof filePart.data === 'string' && filePart.data.startsWith('fileid://')) {
           return [
             {
-              role: 'system' as any,
+              role: 'system',
               content: filePart.data
             },
             {
