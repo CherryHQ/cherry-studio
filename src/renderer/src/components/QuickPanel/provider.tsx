@@ -32,6 +32,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setList((prevList) => prevList.map((item) => (item === targetItem ? { ...item, isSelected } : item)))
   }, [])
 
+
   const open = useCallback((options: QuickPanelOpenOptions) => {
     if (clearTimer.current) {
       clearTimeout(clearTimer.current)

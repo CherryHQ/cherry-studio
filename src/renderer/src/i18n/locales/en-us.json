@@ -4339,5 +4339,22 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
+  },
+  "mention_group": {
+    "title": "Model Groups",
+    "save_as_group": "Save selection as group",
+    "group_name": "Group Name",
+    "rename_group": "Rename group",
+    "delete_group": "Delete group",
+    "delete_confirm_title": "Delete Group",
+    "delete_confirm_content": "Are you sure you want to delete this group?",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "no_selection_warning": "Please select at least one model",
+    "no_usable_models_warning": "This group has no usable models with current attachments",
+    "skipped_info": "{{count}} model(s) skipped due to attachment constraints",
+    "pin_group": "Pin group",
+    "unpin_group": "Unpin group",
+    "name_exists": "Name already exists"
   }
 }
