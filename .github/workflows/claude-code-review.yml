@@ -2,7 +2,7 @@ name: Claude Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened]
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"
@@ -44,6 +44,9 @@ jobs:
             - Performance considerations
             - Security concerns
             - Test coverage
+
+            PR number: ${{ github.event.number }}
+            Repo: ${{ github.repository }}
 
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
