@@ -113,7 +113,7 @@ linux:
 rpm:
   # Workaround for electron build issue on rpm package:
   # https://github.com/electron/forge/issues/3594
-  fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
+  fpm: ['--rpm-rpmbuild-define=_build_id_links none']
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
