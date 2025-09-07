@@ -37,7 +37,7 @@ jobs:
         id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: 'Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
+          claude_args: '--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
           prompt: |
             你是一个多语言翻译助手。请完成以下任务：
 
