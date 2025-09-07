@@ -60,14 +60,25 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const toolResponse = block.metadata?.rawMcpToolResponse
 
   const { id, tool, status, response } = toolResponse!
-
   const isPending = status === 'pending'
   const isInvoking = status === 'invoking'
   const isDone = status === 'done'
+  const isError = status === 'error'
+  const isAutoApproved = useMemo(
+    () =>
+      isToolAutoApproved(
+        tool,
+        mcpServers.find((s) => s.id === tool.serverId)
+      ),
+    [tool, mcpServers]
+  )
 
   const timer = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
     if (!isPending) return
+
+    // 如果是自动批准的工具，不需要倒计时
+    if (isAutoApproved) return
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
@@ -83,7 +94,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         clearTimeout(timer.current)
       }
     }
-  }, [countdown, id, isPending])
+  }, [countdown, id, isPending, tool, isAutoApproved])
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
@@ -228,6 +239,10 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
           icon = <Check size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
         }
         break
+      case 'error':
+        label = t('message.tools.error')
+        icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
+        break
       default:
         label = ''
         icon = null
@@ -248,7 +263,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       params: toolResponse.arguments,
       response: toolResponse.response
     }
-
     items.push({
       key: id,
       label: (
@@ -301,7 +315,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         </MessageTitleLabel>
       ),
       children:
-        isDone && result ? (
+        (isDone || isError) && result ? (
           <ToolResponseContainer
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
@@ -416,29 +430,31 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                       {t('chat.input.pause')}
                     </Button>
                   ) : (
-                    <StyledDropdownButton
-                      size="small"
-                      type="primary"
-                      icon={<ChevronDown size={14} />}
-                      onClick={() => {
-                        handleConfirmTool()
-                      }}
-                      menu={{
-                        items: [
-                          {
-                            key: 'autoApprove',
-                            label: t('settings.mcp.tools.autoApprove.label'),
-                            onClick: () => {
-                              handleAutoApprove()
+                    !isAutoApproved && (
+                      <StyledDropdownButton
+                        size="small"
+                        type="primary"
+                        icon={<ChevronDown size={14} />}
+                        onClick={() => {
+                          handleConfirmTool()
+                        }}
+                        menu={{
+                          items: [
+                            {
+                              key: 'autoApprove',
+                              label: t('settings.mcp.tools.autoApprove.label'),
+                              onClick: () => {
+                                handleAutoApprove()
+                              }
                             }
-                          }
-                        ]
-                      }}>
-                      <CirclePlay size={15} className="lucide-custom" />
-                      <CountdownText>
-                        {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
-                      </CountdownText>
-                    </StyledDropdownButton>
+                          ]
+                        }}>
+                        <CirclePlay size={15} className="lucide-custom" />
+                        <CountdownText>
+                          {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
+                        </CountdownText>
+                      </StyledDropdownButton>
+                    )
                   )}
                 </ActionButtonsGroup>
               </ActionsBar>
@@ -663,6 +679,8 @@ const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
         return 'var(--status-color-error)'
       case 'done':
         return props.hasError ? 'var(--status-color-error)' : 'var(--status-color-success)'
+      case 'error':
+        return 'var(--status-color-error)'
       default:
         return 'var(--color-text)'
     }

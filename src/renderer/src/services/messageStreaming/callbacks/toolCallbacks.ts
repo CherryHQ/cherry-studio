@@ -104,7 +104,6 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
             stack: null
           }
         }
-
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
 
         // Handle citation block creation for web search results
@@ -132,7 +131,6 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           citationBlockId = citationBlock.id
           blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
-        // TODO: 处理 memory 引用
       } else {
         logger.warn(
           `[onToolCallComplete] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`

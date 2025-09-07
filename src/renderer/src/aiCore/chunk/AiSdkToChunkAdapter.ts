@@ -152,12 +152,14 @@ export class AiSdkToChunkAdapter {
       //   this.toolCallHandler.handleToolCallCreated(chunk)
       //   break
       case 'tool-call':
-        // 原始的工具调用（未被中间件处理）
         this.toolCallHandler.handleToolCall(chunk)
         break
 
+      case 'tool-error':
+        this.toolCallHandler.handleToolError(chunk)
+        break
+
       case 'tool-result':
-        // 原始的工具调用结果（未被中间件处理）
         this.toolCallHandler.handleToolResult(chunk)
         break
 

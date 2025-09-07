@@ -8,6 +8,8 @@ import { type Tool, type ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
 import { JSONSchema7 } from 'json-schema'
 
+import { ToolCallChunkHandler } from '../chunk/handleToolCallChunk'
+
 const logger = loggerService.withContext('MCP-utils')
 
 // Setup tools configuration based on provided parameters
@@ -35,6 +37,7 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
       inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
       execute: async (params, { toolCallId, experimental_context }) => {
         const { onChunk } = experimental_context as { onChunk: (chunk: Chunk) => void }
+
         // 创建适配的 MCPToolResponse 对象
         const toolResponse: MCPToolResponse = {
           id: toolCallId,
@@ -50,9 +53,11 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
           const isAutoApproveEnabled = isToolAutoApproved(mcpTool, server)
 
           let confirmed = true
+
           if (!isAutoApproveEnabled) {
             // 请求用户确认
             logger.debug(`Requesting user confirmation for tool: ${mcpTool.name}`)
+            // 先发送一个 pending 状态的 chunk，因为下面的await会导致tool-call chunk先发送
             confirmed = await requestToolConfirmation(toolResponse.id)
           }
 
@@ -71,11 +76,19 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
           }
 
           // 用户确认或自动批准，执行工具
-          toolResponse.status = 'invoking'
           logger.debug(`Executing tool: ${mcpTool.name}`)
 
+          const addActiveToolCall = ToolCallChunkHandler.addActiveToolCall(toolCallId, {
+            toolCallId,
+            toolName: mcpTool.name,
+            args: params,
+            tool: mcpTool
+          })
+
+          const chunkType = addActiveToolCall ? ChunkType.MCP_TOOL_PENDING : ChunkType.MCP_TOOL_IN_PROGRESS
+          toolResponse.status = chunkType === ChunkType.MCP_TOOL_PENDING ? 'pending' : 'invoking'
           onChunk({
-            type: ChunkType.MCP_TOOL_IN_PROGRESS,
+            type: chunkType,
             responses: [toolResponse]
           })
 
@@ -83,13 +96,13 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[]): ToolSet {
 
           // 返回结果，AI SDK 会处理序列化
           if (result.isError) {
-            throw new Error(result.content?.[0]?.text || 'Tool execution failed')
+            // throw new Error(result.content?.[0]?.text || 'Tool execution failed')
+            return Promise.reject(result)
           }
           // 返回工具执行结果
           return result
         } catch (error) {
           logger.error(`MCP Tool execution failed: ${mcpTool.name}`, { error })
-          throw error
         }
       }
     })
