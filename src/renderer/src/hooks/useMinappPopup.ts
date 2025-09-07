@@ -37,7 +37,7 @@ export const useMinappPopup = () => {
 
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MinAppType>({
-      max: maxKeepAliveMinapps,
+      max: maxKeepAliveMinapps ?? 10,
       disposeAfter: (_value, key) => {
         // Clean up WebView state when app is disposed from cache
         clearWebviewState(key)

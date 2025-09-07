@@ -1,3 +1,4 @@
+import { Button } from '@heroui/button'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
@@ -33,7 +34,7 @@ import {
 } from '@renderer/types/error'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { formatAiSdkError, formatError, safeToString } from '@renderer/utils/error'
-import { Alert as AntdAlert, Button, Modal } from 'antd'
+import { Alert as AntdAlert, Modal } from 'antd'
 import React, { useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -143,13 +144,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         onClick={showErrorDetail}
         style={{ cursor: 'pointer' }}
         action={
-          <Button
-            size="small"
-            type="text"
-            onClick={(e) => {
-              e.stopPropagation()
-              showErrorDetail()
-            }}>
+          <Button size="sm" className="p-0" variant="light" onPress={showErrorDetail}>
             {t('common.detail')}
           </Button>
         }
@@ -181,7 +176,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
     }
 
     navigator.clipboard.writeText(errorText)
-    window.message.success(t('message.copied'))
+    window.toast.addToast({ title: t('message.copied') })
   }
 
   const renderErrorDetails = (error?: SerializedError) => {
@@ -203,10 +198,10 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="copy" onClick={copyErrorDetails}>
+        <Button key="copy" size="sm" variant="light" onPress={copyErrorDetails}>
           {t('common.copy')}
         </Button>,
-        <Button key="close" onClick={onClose}>
+        <Button key="close" size="sm" variant="light" onPress={onClose}>
           {t('common.close')}
         </Button>
       ]}

@@ -1,0 +1,9 @@
+#content-container {
+  background-color: var(--color-background);
+}
+
+[navbar-position='left'] #content-container {
+  border-top: 0.5px solid var(--color-border);
+  border-top-left-radius: 10px;
+  border-left: 0.5px solid var(--color-border);
+}

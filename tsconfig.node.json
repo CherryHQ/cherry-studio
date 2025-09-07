@@ -13,6 +13,7 @@
   "compilerOptions": {
     "composite": true,
     "incremental": true,
+    "moduleResolution": "bundler",
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.node.tsbuildinfo",
     "types": [
       "electron-vite/node",
@@ -24,7 +25,8 @@
       "@main/*": ["src/main/*"],
       "@types": ["src/renderer/src/types/index.ts"],
       "@shared/*": ["packages/shared/*"],
-      "@mcp-trace/*": ["packages/mcp-trace/*"]
+      "@mcp-trace/*": ["packages/mcp-trace/*"],
+      "@modelcontextprotocol/sdk/*": ["node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

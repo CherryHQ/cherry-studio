@@ -1,5 +1,5 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { SVGProps } from 'react'
 
 export const StreamlineGoodHealthAndWellBeing = (

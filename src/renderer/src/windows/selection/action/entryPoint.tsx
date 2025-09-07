@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/index.scss'
+import '@renderer/assets/styles/index.css'
 import '@ant-design/v5-patch-for-react-19'
 
 import KeyvStorage from '@kangfenmao/keyv-storage'

@@ -1,4 +1,5 @@
-import './assets/styles/index.scss'
+import './assets/styles/index.css'
+import './assets/styles/tailwind.css'
 import '@ant-design/v5-patch-for-react-19'
 
 import { createRoot } from 'react-dom/client'

@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/selection-toolbar.scss'
+import '@renderer/assets/styles/selection-toolbar.css'
 
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
