@@ -133,9 +133,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           {!isWin && !isLinux && (
             <>
               <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-                <NarrowIcon onClick={() => SearchPopup.show()}>
+                <NavbarIcon onClick={() => SearchPopup.show()}>
                   <Search size={18} />
-                </NarrowIcon>
+                </NavbarIcon>
               </Tooltip>
               <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
                 <NarrowIcon onClick={handleNarrowModeToggle}>
