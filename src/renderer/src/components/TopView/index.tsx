@@ -1,4 +1,5 @@
 // import { loggerService } from '@logger'
+import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
@@ -43,6 +44,13 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
   useEffect(() => {
     window.message = messageApi
     window.modal = modal
+    window.toast = {
+      getToastQueue: getToastQueue,
+      addToast: addToast,
+      closeToast: closeToast,
+      closeAll: closeAll,
+      isToastClosing: isToastClosing
+    }
   }, [messageApi, modal])
 
   onPop = () => {

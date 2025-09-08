@@ -23,6 +23,12 @@ interface ThemeProviderProps extends PropsWithChildren {
   defaultTheme?: ThemeMode
 }
 
+const tailwindThemeChange = (theme: ThemeMode) => {
+  const root = window.document.documentElement
+  root.classList.remove('light', 'dark')
+  root.classList.add(theme)
+}
+
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
   const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
@@ -63,6 +69,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, [actualTheme, initUserTheme, navbarPosition, setSettedTheme, settedTheme])
 
   useEffect(() => {
+    tailwindThemeChange(settedTheme)
     window.api.setTheme(settedTheme)
   }, [settedTheme])
 

@@ -10,14 +10,14 @@
   }
 }
 
-// 电磁波扩散效果
+/* 电磁波扩散效果 */
 .animation-pulse {
   --pulse-color: 59, 130, 246;
   --pulse-size: 8px;
   animation: animation-pulse 1.5s infinite;
 }
 
-// Modal动画
+/* Modal动画 */
 @keyframes animation-move-down-in {
   0% {
     transform: translate3d(0, 100%, 0);
@@ -54,7 +54,7 @@
   animation-duration: 0.25s;
 }
 
-// 旋转动画
+/* 旋转动画 */
 @keyframes animation-rotate {
   from {
     transform: rotate(0deg);
@@ -69,7 +69,7 @@
   animation: animation-rotate 0.75s linear infinite;
 }
 
-// 定位高亮动画
+/* 定位高亮动画 */
 @keyframes animation-locate-highlight {
   0% {
     background-color: transparent;

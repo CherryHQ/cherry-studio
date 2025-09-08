@@ -72,7 +72,7 @@ export function buildPlugins(
   // if (!middlewareConfig.enableTool && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
   //   plugins.push(createNativeToolUsePlugin())
   // }
-  logger.info(
+  logger.debug(
     'Final plugin list:',
     plugins.map((p) => p.name)
   )
