@@ -30,7 +30,7 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const { provider, updateProvider } = useProvider(providerId)
   const [apiHost, setApiHost] = useState(provider.apiHost)
   const [useLiteLLMPassthrough, setUseLiteLLMPassthrough] = useState(provider.useLiteLLMPassthrough || false)
-  const [liteLLMProxyHost, setLiteLLMProxyHost] = useState(provider.liteLLMProxyHost || 'http://localhost:4000')
+  const [liteLLMProxyHost, setLiteLLMProxyHost] = useState(provider.liteLLMProxyHost ?? 'http://localhost:4000')
   const [liteLLMApiKey, setLiteLLMApiKey] = useState(provider.liteLLMApiKey || '')
 
   const providerConfig = PROVIDER_URLS['vertexai']
@@ -39,15 +39,6 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
   const onUpdateApiHost = () => {
     updateProvider({ apiHost })
   }
-
-  const onUpdateLiteLLMSettings = () => {
-    updateProvider({ 
-      useLiteLLMPassthrough, 
-      liteLLMProxyHost, 
-      liteLLMApiKey 
-    })
-  }
-
   const handleProjectIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setLocalProjectId(e.target.value)
   }
@@ -182,7 +173,11 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
           checked={useLiteLLMPassthrough}
           onChange={(checked) => {
             setUseLiteLLMPassthrough(checked)
-            onUpdateLiteLLMSettings()
+            updateProvider({
+              useLiteLLMPassthrough: checked,
+              liteLLMProxyHost,
+              liteLLMApiKey
+            })
           }}
         />
         <span style={{ marginLeft: 8 }}>Enable LiteLLM Pass-through Mode</span>
@@ -195,7 +190,13 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
             value={liteLLMProxyHost}
             placeholder="http://localhost:4000"
             onChange={(e) => setLiteLLMProxyHost(e.target.value)}
-            onBlur={onUpdateLiteLLMSettings}
+            onBlur={(e) =>
+              updateProvider({
+                useLiteLLMPassthrough,
+                liteLLMProxyHost: e.target.value,
+                liteLLMApiKey
+              })
+            }
             style={{ marginTop: 5 }}
           />
           <SettingHelpTextRow>
@@ -207,11 +208,19 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
             value={liteLLMApiKey}
             placeholder="Enter LiteLLM API key (e.g., sk-1234)"
             onChange={(e) => setLiteLLMApiKey(e.target.value)}
-            onBlur={onUpdateLiteLLMSettings}
+            onBlur={(e) =>
+              updateProvider({
+                useLiteLLMPassthrough,
+                liteLLMProxyHost,
+                liteLLMApiKey: e.target.value
+              })
+            }
             style={{ marginTop: 5 }}
           />
           <SettingHelpTextRow>
-            <SettingHelpText>API key for LiteLLM proxy authentication. Used in x-litellm-api-key header.</SettingHelpText>
+            <SettingHelpText>
+              API key for LiteLLM proxy authentication. Used in x-litellm-api-key header.
+            </SettingHelpText>
           </SettingHelpTextRow>
         </>
       )}
