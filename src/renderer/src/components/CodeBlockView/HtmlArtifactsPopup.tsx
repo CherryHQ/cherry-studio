@@ -1,6 +1,6 @@
 import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -102,7 +102,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
         </ViewControls>
       </HeaderCenter>
 
-      <HeaderRight $isFullscreen={isFullscreen} onDoubleClick={(e) => e.stopPropagation()}>
+      <HeaderRight onDoubleClick={(e) => e.stopPropagation()}>
         <Dropdown
           trigger={['click']}
           menu={{
@@ -317,13 +317,13 @@ const HeaderCenter = styled.div`
   transform: translate(-50%, -50%);
 `
 
-const HeaderRight = styled.div<{ $isFullscreen?: boolean }>`
+const HeaderRight = styled.div`
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? (isWin ? '136px' : isLinux ? '120px' : '12px') : '12px')};
+  padding-right: 12px;
 `
 
 const TitleText = styled(Typography.Text)`
