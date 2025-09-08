@@ -574,7 +574,7 @@ const DataSettings: FC = () => {
     }
 
     handleDataMigration()
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     // dont add others to deps
   }, [])
 

@@ -2417,6 +2417,17 @@ const migrateConfig = {
       logger.error('migrate 150 error', error as Error)
       return state
     }
+  },
+  '151': (state: RootState) => {
+    try {
+      if (state.settings) {
+        state.settings.codeFancyBlock = true
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 151 error', error as Error)
+      return state
+    }
   }
 }
 
