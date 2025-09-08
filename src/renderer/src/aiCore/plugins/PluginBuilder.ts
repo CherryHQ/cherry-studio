@@ -51,7 +51,8 @@ export function buildPlugins(
       createPromptToolUsePlugin({
         enabled: true,
         createSystemMessage: (systemPrompt, params, context) => {
-          if (context.modelId.includes('o1-mini') || context.modelId.includes('o1-preview')) {
+          const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
+          if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
             if (context.isRecursiveCall) {
               return null
             }
