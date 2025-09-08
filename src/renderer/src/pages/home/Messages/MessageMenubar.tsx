@@ -186,7 +186,6 @@ const MessageMenubar: FC<Props> = (props) => {
       try {
         await translateText(mainTextContent, language, translationUpdater)
       } catch (error) {
-        // console.error('Translation failed:', error)
         window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
         // 理应只有一个
         const translationBlocks = findTranslationBlocksById(message.id)

@@ -19,8 +19,6 @@ export const memorySearchTool = () => {
       limit: z.number().min(1).max(20).default(5).describe('Maximum number of memories to return')
     }),
     execute: async ({ query, limit = 5 }) => {
-      // console.log('🧠 [memorySearchTool] Searching memories:', { query, limit })
-
       try {
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (!globalMemoryEnabled) {
@@ -29,7 +27,6 @@ export const memorySearchTool = () => {
 
         const memoryConfig = selectMemoryConfig(store.getState())
         if (!memoryConfig.llmApiClient || !memoryConfig.embedderApiClient) {
-          // console.warn('Memory search skipped: embedding or LLM model not configured')
           return []
         }
 
@@ -40,12 +37,10 @@ export const memorySearchTool = () => {
         const relevantMemories = await memoryProcessor.searchRelevantMemories(query, processorConfig, limit)
 
         if (relevantMemories?.length > 0) {
-          // console.log('🧠 [memorySearchTool] Found memories:', relevantMemories.length)
           return relevantMemories
         }
         return []
       } catch (error) {
-        // console.error('🧠 [memorySearchTool] Error:', error)
         return []
       }
     }
@@ -84,8 +79,6 @@ export const memorySearchToolWithExtraction = (assistant: Assistant) => {
         .optional()
     }) satisfies z.ZodSchema<MemorySearchWithExtractionInput>,
     execute: async ({ userMessage }) => {
-      // console.log('🧠 [memorySearchToolWithExtraction] Processing:', { userMessage, lastAnswer })
-
       try {
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
         if (!globalMemoryEnabled || !assistant.enableMemory) {
@@ -97,7 +90,6 @@ export const memorySearchToolWithExtraction = (assistant: Assistant) => {
 
         const memoryConfig = selectMemoryConfig(store.getState())
         if (!memoryConfig.llmApiClient || !memoryConfig.embedderApiClient) {
-          // console.warn('Memory search skipped: embedding or LLM model not configured')
           return {
             extractedKeywords: 'Memory models not configured',
             searchResults: []
@@ -125,7 +117,6 @@ export const memorySearchToolWithExtraction = (assistant: Assistant) => {
         )
 
         if (relevantMemories?.length > 0) {
-          // console.log('🧠 [memorySearchToolWithExtraction] Found memories:', relevantMemories.length)
           return {
             extractedKeywords: content,
             searchResults: relevantMemories
@@ -137,7 +128,6 @@ export const memorySearchToolWithExtraction = (assistant: Assistant) => {
           searchResults: []
         }
       } catch (error) {
-        // console.error('🧠 [memorySearchToolWithExtraction] Error:', error)
         return {
           extractedKeywords: 'Search failed',
           searchResults: []

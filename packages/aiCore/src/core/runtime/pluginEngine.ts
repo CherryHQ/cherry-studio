@@ -83,7 +83,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     }
 
     // 使用正确的createContext创建请求上下文
-    const context = _context ? _context : createContext(this.providerId, modelId, params)
+    const context = _context ? _context : createContext(this.providerId, model, params)
 
     // 🔥 为上下文添加递归调用能力
     context.recursiveCall = async (newParams: any): Promise<TResult> => {
@@ -159,7 +159,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     }
 
     // 使用正确的createContext创建请求上下文
-    const context = _context ? _context : createContext(this.providerId, modelId, params)
+    const context = _context ? _context : createContext(this.providerId, model, params)
 
     // 🔥 为上下文添加递归调用能力
     context.recursiveCall = async (newParams: any): Promise<TResult> => {
@@ -235,7 +235,7 @@ export class PluginEngine<T extends ProviderId = ProviderId> {
     }
 
     // 创建请求上下文
-    const context = _context ? _context : createContext(this.providerId, modelId, params)
+    const context = _context ? _context : createContext(this.providerId, model, params)
 
     // 🔥 为上下文添加递归调用能力
     context.recursiveCall = async (newParams: any): Promise<TResult> => {
