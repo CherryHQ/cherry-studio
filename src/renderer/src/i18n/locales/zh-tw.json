@@ -4301,6 +4301,7 @@
     },
     "processing": "翻譯中...",
     "settings": {
+      "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
       "model": "模型設定",

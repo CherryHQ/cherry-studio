@@ -13,6 +13,7 @@ import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
 import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
@@ -60,10 +61,12 @@ const TranslatePage: FC = () => {
   // hooks
   const { t } = useTranslation()
   const { translateModel, setTranslateModel } = useDefaultModel()
-  const { prompt, getLanguageByLangcode } = useTranslate()
+  const { prompt, getLanguageByLangcode, settings } = useTranslate()
+  const { autoCopy } = settings
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts] })
   const { ocr } = useOcr()
+  const { setTimeoutTimer } = useTimer()
 
   // states
   // const [text, setText] = useState(_text)
@@ -129,6 +132,18 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
+  // 控制复制行为
+  const onCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(translatedContent)
+      setCopied(true)
+    } catch (error) {
+      logger.error('Failed to copy text to clipboard:', error as Error)
+      // TODO: use toast
+      window.message.error(t('common.copy_failed'))
+    }
+  }, [setCopied, t, translatedContent])
+
   /**
    * 翻译文本并保存历史记录，包含完整的异常处理，不会抛出异常
    * @param text - 需要翻译的文本
@@ -153,7 +168,9 @@ const TranslatePage: FC = () => {
         try {
           translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
         } catch (e) {
-          if (!isAbortError(e)) {
+          if (isAbortError(e)) {
+            window.message.info(t('translate.info.aborted'))
+          } else {
             logger.error('Failed to translate text', e as Error)
             window.message.error(t('translate.error.failed') + ': ' + formatErrorMessage(e))
           }
@@ -162,6 +179,15 @@ const TranslatePage: FC = () => {
         }
 
         window.message.success(t('translate.complete'))
+        if (autoCopy) {
+          setTimeoutTimer(
+            'auto-copy',
+            async () => {
+              await onCopy()
+            },
+            100
+          )
+        }
 
         try {
           await saveTranslateHistory(text, translated, actualSourceLanguage.langCode, actualTargetLanguage.langCode)
@@ -174,7 +200,7 @@ const TranslatePage: FC = () => {
         window.message.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [dispatch, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, dispatch, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
@@ -237,10 +263,7 @@ const TranslatePage: FC = () => {
       await translate(text, actualSourceLanguage, actualTargetLanguage)
     } catch (error) {
       logger.error('Translation error:', error as Error)
-      window.message.error({
-        content: String(error),
-        key: 'translate-message'
-      })
+      window.message.error(t('translate.error.failed') + ': ' + formatErrorMessage(error))
       return
     } finally {
       setTranslating(false)
@@ -272,12 +295,6 @@ const TranslatePage: FC = () => {
   const toggleBidirectional = (value: boolean) => {
     setIsBidirectional(value)
     db.settings.put({ id: 'translate:bidirectional:enabled', value })
-  }
-
-  // 控制复制按钮
-  const onCopy = () => {
-    navigator.clipboard.writeText(translatedContent)
-    setCopied(true)
   }
 
   // 控制历史记录点击
