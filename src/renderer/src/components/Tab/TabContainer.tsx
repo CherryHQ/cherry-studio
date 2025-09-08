@@ -269,8 +269,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           <SettingsButton onClick={handleSettingsClick} $active={activeTabId === 'settings'}>
             <Settings size={16} />
           </SettingsButton>
-          <WindowControls />
         </RightButtonsContainer>
+        <WindowControls />
       </TabsBar>
       <TabContent>{children}</TabContent>
     </Container>
