@@ -83,7 +83,6 @@
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
-    "react-cropper": "^2.3.3",
     "selection-hook": "^1.0.11",
     "sharp": "^0.34.3",
     "tesseract.js": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
@@ -337,7 +336,8 @@
     "yjs": "^13.6.27",
     "youtubei.js": "^15.0.1",
     "zipread": "^1.3.3",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "react-cropper": "^2.3.3"
   },
   "resolutions": {
     "@codemirror/language": "6.11.3",
