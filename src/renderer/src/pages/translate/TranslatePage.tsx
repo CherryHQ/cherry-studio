@@ -632,13 +632,12 @@ const TranslatePage: FC = () => {
   // 粘贴上传文件
   const onPaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      event.preventDefault()
       if (isProcessing) return
       setIsProcessing(true)
       logger.debug('event', event)
-      const text = event.clipboardData.getData('text')
-      if (!isEmpty(text)) {
-        setText(text)
+      const clipboardText = event.clipboardData.getData('text')
+      if (!isEmpty(clipboardText)) {
+        // depend default. this branch is only for preventing files when clipboard contains text
       } else if (event.clipboardData.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         const files = event.clipboardData.files
