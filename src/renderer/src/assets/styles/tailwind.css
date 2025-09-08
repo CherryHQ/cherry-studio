@@ -155,8 +155,6 @@
   }
 }
 
-@layer components {
-  :root {
-    background-color: unset;
-  }
+:root {
+  background-color: unset;
 }
