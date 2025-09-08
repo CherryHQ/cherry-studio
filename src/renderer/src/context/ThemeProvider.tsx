@@ -69,7 +69,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, [actualTheme, initUserTheme, navbarPosition, setSettedTheme, settedTheme])
 
   useEffect(() => {
-    tailwindThemeChange(settedTheme)
+    tailwindThemeChange(actualTheme)
+  }, [actualTheme])
+
+  useEffect(() => {
     window.api.setTheme(settedTheme)
   }, [settedTheme])
 
