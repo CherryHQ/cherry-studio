@@ -66,7 +66,6 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
-  // 提取重复的控制按钮组件
   const ControlButtons: FC<{ IconComponent: typeof NavbarIcon }> = ({ IconComponent }) => (
     <>
       <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
