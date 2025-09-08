@@ -77,9 +77,7 @@ async function analyzeSearchIntent(
     shouldKnowledgeSearch?: boolean
     shouldMemorySearch?: boolean
     lastAnswer?: ModelMessage
-    context: AiRequestContext & {
-      isAnalyzing?: boolean
-    }
+    context: AiRequestContext
     topicId: string
   }
 ): Promise<ExtractResults | undefined> {
@@ -125,7 +123,6 @@ async function analyzeSearchIntent(
   }
   // console.log('formattedPrompt', schema)
   try {
-    context.isAnalyzing = true
     logger.info('Starting intent analysis generateText call', {
       modelId: model.id,
       topicId: options.topicId,
@@ -138,7 +135,6 @@ async function analyzeSearchIntent(
       model: context.model as LanguageModel,
       prompt: formattedPrompt
     }).finally(() => {
-      context.isAnalyzing = false
       logger.info('Intent analysis generateText call completed', {
         modelId: model.id,
         topicId: options.topicId,
