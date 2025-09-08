@@ -488,7 +488,7 @@ const TranslatePage: FC = () => {
       if (shouldOCR) {
         try {
           const ocrResult = await ocr(file)
-          setText(ocrResult.text)
+          setText(text + ocrResult.text)
         } finally {
           // do nothing when failed. because error should be handled inside
         }
@@ -520,7 +520,7 @@ const TranslatePage: FC = () => {
           } else {
             try {
               const result = await window.api.fs.readText(file.path)
-              setText(result)
+              setText(text + result)
             } catch (e) {
               logger.error('Failed to read text file.', e as Error)
               window.message.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
@@ -532,7 +532,7 @@ const TranslatePage: FC = () => {
         }
       }
     },
-    [ocr, setText, t]
+    [ocr, setText, t, text]
   )
 
   // 点击上传文件按钮
@@ -683,7 +683,7 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, isProcessing, processFile, setText, t]
+    [getSingleFile, isProcessing, processFile, t]
   )
   return (
     <Container
