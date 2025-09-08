@@ -167,9 +167,9 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
         </ModelInfo>
         <HStack gap={8} alignItems="center">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
-          <NarrowIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
+          <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
-          </NarrowIcon>
+          </NavbarIcon>
         </HStack>
       </HeaderContainer>
       <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
@@ -287,12 +287,6 @@ const ModelInfo = styled.div`
 
   label {
     color: var(--color-text-2);
-  }
-`
-
-const NarrowIcon = styled(NavbarIcon)`
-  @media (max-width: 1000px) {
-    display: none;
   }
 `
 
