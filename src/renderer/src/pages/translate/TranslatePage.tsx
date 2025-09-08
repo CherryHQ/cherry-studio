@@ -568,34 +568,37 @@ const TranslatePage: FC = () => {
     async (e: React.DragEvent<HTMLDivElement>) => {
       setIsProcessing(true)
       setIsDragging(false)
-      // const supportedFiles = await filterSupportedFiles(_files, extensions)
-      const data = await getTextFromDropEvent(e).catch((err) => {
-        logger.error('getTextFromDropEvent', err)
-        window.message.error({
-          key: 'file_error',
-          content: t('translate.files.error.unknown')
+      const process = async () => {
+        // const supportedFiles = await filterSupportedFiles(_files, extensions)
+        const data = await getTextFromDropEvent(e).catch((err) => {
+          logger.error('getTextFromDropEvent', err)
+          window.message.error({
+            key: 'file_error',
+            content: t('translate.files.error.unknown')
+          })
+          return null
         })
-        return null
-      })
-      if (data === null) {
-        return
-      }
-      setText(text + data)
+        if (data === null) {
+          return
+        }
+        setText(text + data)
 
-      const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
-        logger.error('handleDrop:', err)
-        window.message.error({
-          key: 'file_error',
-          content: t('translate.files.error.unknown')
+        const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
+          logger.error('handleDrop:', err)
+          window.message.error({
+            key: 'file_error',
+            content: t('translate.files.error.unknown')
+          })
+          return null
         })
-        return null
-      })
 
-      if (droppedFiles) {
-        const file = getSingleFile(droppedFiles) as FileMetadata
-        if (!file) return
-        processFile(file)
+        if (droppedFiles) {
+          const file = getSingleFile(droppedFiles) as FileMetadata
+          if (!file) return
+          processFile(file)
+        }
       }
+      await process()
       setIsProcessing(false)
     },
     [getSingleFile, processFile, setIsDragging, setText, t, text]
