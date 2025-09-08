@@ -21,6 +21,7 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   return (
     <NavbarContainer {...props} style={{ backgroundColor }}>
       {children}
+      {(isWin || isLinux) && <WindowControls />}
     </NavbarContainer>
   )
 }
@@ -30,17 +31,7 @@ export const NavbarLeft: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
-  return (
-    <NavbarCenterContainer {...props}>
-      {children}
-      {/* Add WindowControls for Windows and Linux in NavbarCenter */}
-      {(isWin || isLinux) && (
-        <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
-          <WindowControls />
-        </div>
-      )}
-    </NavbarCenterContainer>
-  )
+  return <NavbarCenterContainer {...props}>{children}</NavbarCenterContainer>
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
