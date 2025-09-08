@@ -1,6 +1,7 @@
 import { Navbar, NavbarMain, NavbarRight } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MinApp/MinApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isLinux, isWin } from '@renderer/config/constant'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { Button, Input } from 'antd'
@@ -11,7 +12,6 @@ import styled from 'styled-components'
 
 import MinappSettingsPopup from './MiniappSettings/MinappSettingsPopup'
 import NewAppButton from './NewAppButton'
-import { isLinux, isWin } from '@renderer/config/constant'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
