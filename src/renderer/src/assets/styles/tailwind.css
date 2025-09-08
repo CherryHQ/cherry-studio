@@ -154,3 +154,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+:root {
+  background-color: unset;
+}
