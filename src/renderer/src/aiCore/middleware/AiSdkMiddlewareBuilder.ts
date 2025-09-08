@@ -132,7 +132,6 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
     })
   }
 
-  logger.info('builder.build()', builder.buildNamed())
   return builder.build()
 }
 

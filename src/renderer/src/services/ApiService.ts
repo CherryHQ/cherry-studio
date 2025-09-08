@@ -99,8 +99,7 @@ export async function fetchChatCompletion({
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
-
-  if (isSupportedToolUse(assistant)) {
+  if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
     mcpTools.push(...(await fetchMcpTools(assistant)))
   }
   if (prompt) {
