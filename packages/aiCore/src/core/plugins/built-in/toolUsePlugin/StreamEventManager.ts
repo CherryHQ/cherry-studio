@@ -27,7 +27,12 @@ export class StreamEventManager {
   /**
    * 发送步骤完成事件
    */
-  sendStepFinishEvent(controller: StreamController, chunk: any): void {
+  sendStepFinishEvent(controller: StreamController, chunk: any, context: AiRequestContext): void {
+    // 累加当前步骤的 usage
+    if (chunk.usage && context.accumulatedUsage) {
+      this.accumulateUsage(context.accumulatedUsage, chunk.usage)
+    }
+
     controller.enqueue({
       type: 'finish-step',
       finishReason: 'stop',
@@ -52,7 +57,7 @@ export class StreamEventManager {
       const recursiveResult = await context.recursiveCall(recursiveParams)
 
       if (recursiveResult && recursiveResult.fullStream) {
-        await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
+        await this.pipeRecursiveStream(controller, recursiveResult.fullStream, context)
       } else {
         console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
       }
@@ -64,7 +69,11 @@ export class StreamEventManager {
   /**
    * 将递归流的数据传递到当前流
    */
-  private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
+  private async pipeRecursiveStream(
+    controller: StreamController,
+    recursiveStream: ReadableStream,
+    context?: AiRequestContext
+  ): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
       while (true) {
@@ -73,8 +82,15 @@ export class StreamEventManager {
           break
         }
         if (value.type === 'finish') {
-          // 迭代的流不发finish
+          // 迭代的流不发finish，但需要累加其 usage
+          if (value.usage && context?.accumulatedUsage) {
+            this.accumulateUsage(context.accumulatedUsage, value.usage)
+          }
           break
+        }
+        // 对于 finish-step 类型，累加其 usage
+        if (value.type === 'finish-step' && value.usage && context?.accumulatedUsage) {
+          this.accumulateUsage(context.accumulatedUsage, value.usage)
         }
         // 将递归流的数据传递到当前流
         controller.enqueue(value)
@@ -135,5 +151,19 @@ export class StreamEventManager {
     context.originalParams.messages = newMessages
 
     return recursiveParams
+  }
+
+  /**
+   * 累加 usage 数据
+   */
+  private accumulateUsage(target: any, source: any): void {
+    if (!target || !source) return
+
+    // 累加各种 token 类型
+    target.inputTokens = (target.inputTokens || 0) + (source.inputTokens || 0)
+    target.outputTokens = (target.outputTokens || 0) + (source.outputTokens || 0)
+    target.totalTokens = (target.totalTokens || 0) + (source.totalTokens || 0)
+    target.reasoningTokens = (target.reasoningTokens || 0) + (source.reasoningTokens || 0)
+    target.cachedInputTokens = (target.cachedInputTokens || 0) + (source.cachedInputTokens || 0)
   }
 }

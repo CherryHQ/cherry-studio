@@ -36,7 +36,7 @@ export function buildPlugins(
   }
   console.log('middlewareConfig', middlewareConfig)
   // 2. 支持工具调用时添加搜索插件
-  if (middlewareConfig.isSupportedToolUse) {
+  if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {
     plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant, middlewareConfig.topicId || ''))
   }
 
@@ -46,7 +46,7 @@ export function buildPlugins(
   }
 
   // 4. 启用Prompt工具调用时添加工具插件
-  if (middlewareConfig.isPromptToolUse && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
+  if (middlewareConfig.isPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
@@ -73,7 +73,7 @@ export function buildPlugins(
   // if (!middlewareConfig.enableTool && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
   //   plugins.push(createNativeToolUsePlugin())
   // }
-  logger.info(
+  logger.debug(
     'Final plugin list:',
     plugins.map((p) => p.name)
   )

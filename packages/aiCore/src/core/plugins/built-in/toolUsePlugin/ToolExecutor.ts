@@ -56,7 +56,7 @@ export class ToolExecutor {
           type: 'tool-call',
           toolCallId: toolUse.id,
           toolName: toolUse.toolName,
-          input: tool.inputSchema
+          input: toolUse.arguments
         })
 
         const result = await tool.execute(toolUse.arguments, {

@@ -101,7 +101,7 @@ export async function fetchChatCompletion({
   const mcpTools: MCPTool[] = []
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
-  if (isSupportedToolUse(assistant)) {
+  if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
     mcpTools.push(...(await fetchMcpTools(assistant)))
   }
   if (prompt) {

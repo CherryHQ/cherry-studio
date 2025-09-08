@@ -280,6 +280,17 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         throw new Error('No tools available')
       }
 
+      // 从 context 中获取或初始化 usage 累加器
+      if (!context.accumulatedUsage) {
+        context.accumulatedUsage = {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          reasoningTokens: 0,
+          cachedInputTokens: 0
+        }
+      }
+
       // 创建工具执行器和流事件管理器
       const toolExecutor = new ToolExecutor()
       const streamEventManager = new StreamEventManager()
@@ -340,7 +351,7 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
             const executedResults = await toolExecutor.executeTools(validToolUses, tools, controller)
 
             // 发送步骤完成事件
-            streamEventManager.sendStepFinishEvent(controller, chunk)
+            streamEventManager.sendStepFinishEvent(controller, chunk, context)
 
             // 处理递归调用
             if (validToolUses.length > 0) {
@@ -357,6 +368,15 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
 
             // 清理状态
             textBuffer = ''
+            return
+          }
+
+          // 处理 finish 类型，使用累加后的 totalUsage
+          if (chunk.type === 'finish') {
+            controller.enqueue({
+              ...chunk,
+              totalUsage: context.accumulatedUsage
+            })
             return
           }
 
