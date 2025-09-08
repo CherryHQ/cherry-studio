@@ -4,6 +4,7 @@ import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
   isAutoEnableImageGenerationModel,
+  isFunctionCallingModel,
   isGenerateImageModel,
   isGenerateImageModels,
   isMandatoryWebSearchModel,
@@ -35,6 +36,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
+import { abortDeepResearch, canExecuteDeepResearch, executeDeepResearch } from '@renderer/store/thunk/deepResearchThunk'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
 import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
@@ -115,6 +117,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
+  const isDeepResearchAssistant = useMemo(() => isFunctionCallingModel(model) || isWebSearchModel(model), [model])
+  const [deepResearchEnabled, setDeepResearchEnabled] = useState<boolean>(false)
   const { setTimeoutTimer } = useTimer()
 
   const isVisionSupported = useMemo(
@@ -130,6 +134,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       (mentionedModels.length === 0 && isGenerateImageAssistant),
     [mentionedModels, isGenerateImageAssistant]
   )
+
+  const isDeepResearchSupported = useMemo(() => {
+    if (mentionedModels.length > 0) {
+      // 目前只支持单模型
+      return false
+    } else {
+      return isDeepResearchAssistant
+    }
+  }, [mentionedModels, isDeepResearchAssistant])
 
   // 仅允许在不含图片文件时mention非视觉模型
   const couldMentionNotVisionModel = useMemo(() => {
@@ -216,6 +229,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     if (checkRateLimit(assistant)) {
       return
     }
+    if (deepResearchEnabled && isDeepResearchSupported) {
+      const canExecute = dispatch(canExecuteDeepResearch(topic, assistant))
+      if (!canExecute) return
+    }
 
     logger.info('Starting to send message')
 
@@ -246,7 +263,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const { message, blocks } = getUserMessage(baseUserMessage)
       message.traceId = parent?.spanContext().traceId
 
-      dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      if (deepResearchEnabled) {
+        dispatch(executeDeepResearch(message, blocks, assistant, topic.id))
+      } else {
+        dispatch(_sendMessage(message, blocks, assistant, topic.id))
+      }
 
       // Clear input
       setText('')
@@ -258,7 +279,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, mentionedModels, resizeTextArea, setTimeoutTimer, text, topic])
+  }, [
+    assistant,
+    deepResearchEnabled,
+    dispatch,
+    files,
+    inputEmpty,
+    isDeepResearchSupported,
+    mentionedModels,
+    resizeTextArea,
+    setTimeoutTimer,
+    text,
+    topic
+  ])
 
   const translate = useCallback(async () => {
     if (isTranslating) {
@@ -476,6 +509,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const onPause = async () => {
     await pauseMessages()
+    await dispatch(abortDeepResearch(topic.id))
   }
 
   const clearTopic = async () => {
@@ -770,6 +804,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
 
+  const onEnableDeepResearch = useCallback(async () => {
+    if (deepResearchEnabled) {
+      setDeepResearchEnabled(false)
+      return
+    }
+    await addNewTopic()
+    setDeepResearchEnabled((prev) => !prev)
+  }, [deepResearchEnabled, setDeepResearchEnabled, addNewTopic])
+
   useEffect(() => {
     if (!isWebSearchModel(model) && assistant.enableWebSearch) {
       updateAssistant({ ...assistant, enableWebSearch: false })
@@ -917,6 +960,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               onNewContext={onNewContext}
               newTopicShortcut={newTopicShortcut}
               cleanTopicShortcut={cleanTopicShortcut}
+              deepResearchEnabled={deepResearchEnabled}
+              onEnableDeepResearch={onEnableDeepResearch}
             />
             <ToolbarMenu>
               <TokenCount

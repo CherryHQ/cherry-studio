@@ -1,6 +1,12 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
+import {
+  isFunctionCallingModel,
+  isGeminiModel,
+  isGenerateImageModel,
+  isMandatoryWebSearchModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -31,6 +37,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
+import DeepResearchButton from './DeepResearchButton'
 import GenerateImageButton from './GenerateImageButton'
 import { ToolbarButton } from './Inputbar'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
@@ -82,6 +89,10 @@ export interface InputbarToolsProps {
 
   newTopicShortcut: string
   cleanTopicShortcut: string
+
+  // deep research
+  deepResearchEnabled: boolean
+  onEnableDeepResearch: () => void
 }
 
 interface ToolButtonConfig {
@@ -115,6 +126,8 @@ const InputbarTools = ({
   couldMentionNotVisionModel,
   couldAddImageFile,
   onEnableGenerateImage,
+  onEnableDeepResearch,
+  deepResearchEnabled,
   isExpanded: isExpended,
   onToggleExpanded: onToggleExpended,
   addNewTopic,
@@ -346,6 +359,18 @@ const InputbarTools = ({
         condition: !isMandatoryWebSearchModel(model)
       },
       {
+        key: 'deep_research',
+        label: 'Deep Research',
+        component: (
+          <DeepResearchButton
+            enabled={deepResearchEnabled}
+            onEnableDeepResearch={onEnableDeepResearch}
+            ToolbarButton={ToolbarButton}
+          />
+        ),
+        condition: isFunctionCallingModel(model) || isWebSearchModel(model)
+      },
+      {
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
@@ -463,6 +488,7 @@ const InputbarTools = ({
     clearTopic,
     couldAddImageFile,
     couldMentionNotVisionModel,
+    deepResearchEnabled,
     extensions,
     files,
     handleKnowledgeBaseSelect,
@@ -471,6 +497,7 @@ const InputbarTools = ({
     model,
     newTopicShortcut,
     onClearMentionModels,
+    onEnableDeepResearch,
     onEnableGenerateImage,
     onMentionModel,
     onNewContext,

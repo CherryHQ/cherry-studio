@@ -76,11 +76,18 @@ const filterImageBlockGroups = (blocks: MessageBlock[]): (MessageBlock[] | Messa
   }, [])
 }
 
+// TODO: 是否要在这里做显示哪些block的控制？
+// const shouldBlockDisplay = (block: MessageBlock): boolean => {
+//   // return !(block.metadata && block.metadata.DEEP_RESEARCH_PRODUCED)
+//   return true
+// }
+
 const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // 始终调用useSelector，避免条件调用Hook
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
+  // .filter(shouldBlockDisplay)
   const groupedBlocks = useMemo(() => filterImageBlockGroups(renderedBlocks), [renderedBlocks])
   return (
     <AnimatePresence mode="sync">

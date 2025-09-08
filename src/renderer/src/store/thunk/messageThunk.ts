@@ -29,7 +29,7 @@ import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
 
 const logger = loggerService.withContext('MessageThunk')
 
-const finishTopicLoading = async (topicId: string) => {
+export const finishTopicLoading = async (topicId: string) => {
   await waitForTopicQueue(topicId)
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
@@ -204,7 +204,7 @@ export const cleanupMultipleBlocks = (dispatch: AppDispatch, blockIds: string[])
 }
 
 // 新增: 通用的、非节流的函数，用于保存消息和块的更新到数据库
-const saveUpdatesToDB = async (
+export const saveUpdatesToDB = async (
   messageId: string,
   topicId: string,
   messageUpdates: Partial<Message>, // 需要更新的消息字段
@@ -223,7 +223,7 @@ const saveUpdatesToDB = async (
 }
 
 // 新增: 辅助函数，用于获取并保存单个更新后的 Block 到数据库
-const saveUpdatedBlockToDB = async (
+export const saveUpdatedBlockToDB = async (
   blockId: string | null,
   messageId: string,
   topicId: string,

@@ -10,6 +10,7 @@ import assistants from './assistants'
 import backup from './backup'
 import codeTools from './codeTools'
 import copilot from './copilot'
+import deepResearch from './deepResearch'
 import inputToolsReducer from './inputTools'
 import knowledge from './knowledge'
 import llm from './llm'
@@ -60,7 +61,8 @@ const rootReducer = combineReducers({
   inputTools: inputToolsReducer,
   translate,
   ocr,
-  note
+  note,
+  deepResearch
 })
 
 const persistedReducer = persistReducer(
