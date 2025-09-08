@@ -1,6 +1,7 @@
-import { Navbar, NavbarMain } from '@renderer/components/app/Navbar'
+import { Navbar, NavbarMain, NavbarRight } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MinApp/MinApp'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { isLinux, isWin } from '@renderer/config/constant'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { Button, Input } from 'antd'
@@ -57,13 +58,21 @@ const AppsPage: FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </NavbarMain>
+        <NavbarRight
+          style={{
+            justifyContent: 'flex-end',
+            flex: 1,
+            position: 'relative',
+            paddingRight: isWin || isLinux ? '144px' : '6px'
+          }}>
           <Button
             type="text"
             className="nodrag"
             icon={<SettingsIcon size={18} color="var(--color-text-2)" />}
             onClick={MinappSettingsPopup.show}
           />
-        </NavbarMain>
+        </NavbarRight>
       </Navbar>
       <ContentContainer id="content-container">
         <MainContainer>
