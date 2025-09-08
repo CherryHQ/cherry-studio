@@ -2,10 +2,11 @@ import { loggerService } from '@logger'
 import { VStack } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { classNames } from '@renderer/utils'
-import { Check, X, RotateCcw, RotateCw, FlipHorizontal, FlipVertical, Undo2 } from 'lucide-react'
+import { Check, FlipHorizontal, FlipVertical, RotateCcw, RotateCw, Undo2, X } from 'lucide-react'
 import React, { useCallback, useRef, useState } from 'react'
 import Cropper, { ReactCropperElement } from 'react-cropper'
 import { useTranslation } from 'react-i18next'
+
 import styles from './ProviderAvatarEditor.module.css'
 
 const logger = loggerService.withContext('ProviderAvatarEditor')
@@ -166,104 +167,110 @@ const ProviderAvatarEditor: React.FC<ProviderAvatarEditorProps> = ({
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
           <h3 className={styles.modalTitle}>{title || t('settings.general.avatar.edit')}</h3>
-          <button className={styles.modalCloseButton} onClick={handleCancel}>
+          <button type="button" className={styles.modalCloseButton} onClick={handleCancel}>
             <X size={16} />
           </button>
         </div>
         <div className={styles.modalBody}>
           <VStack gap="16px">
-        {/* 主编辑区域 */}
-        <div className={styles.editorContainer}>
-          {/* 左侧：图片裁剪区域 */}
-          <div className={styles.cropperSection}>
-            <div className={styles.cropperContainer}>
-              <Cropper
-                ref={cropperRef}
-                src={imageSrc}
-                style={{ height: 400, width: '100%' }}
-                aspectRatio={aspectRatio}
-                guides={true}
-                background={false}
-                responsive={true}
-                autoCropArea={0.9}
-                initialAspectRatio={1}
-                minCropBoxHeight={100}
-                minCropBoxWidth={100}
-                zoomable={true}
-                movable={true}
-                rotatable={true}
-                scalable={true}
-                checkOrientation={false}
-                viewMode={1}
-                dragMode="crop"
-                cropBoxMovable={true}
-                cropBoxResizable={true}
-                toggleDragModeOnDblclick={false}
-                crop={handleCrop}
-                zoom={handleZoom}
-              />
-            </div>
-          </div>
+            {/* 主编辑区域 */}
+            <div className={styles.editorContainer}>
+              {/* 左侧：图片裁剪区域 */}
+              <div className={styles.cropperSection}>
+                <div className={styles.cropperContainer}>
+                  <Cropper
+                    ref={cropperRef}
+                    src={imageSrc}
+                    style={{ height: 400, width: '100%' }}
+                    aspectRatio={aspectRatio}
+                    guides={true}
+                    background={false}
+                    responsive={true}
+                    autoCropArea={0.9}
+                    initialAspectRatio={1}
+                    minCropBoxHeight={100}
+                    minCropBoxWidth={100}
+                    zoomable={true}
+                    movable={true}
+                    rotatable={true}
+                    scalable={true}
+                    checkOrientation={false}
+                    viewMode={1}
+                    dragMode="crop"
+                    cropBoxMovable={true}
+                    cropBoxResizable={true}
+                    toggleDragModeOnDblclick={false}
+                    crop={handleCrop}
+                    zoom={handleZoom}
+                  />
+                </div>
+              </div>
 
-          {/* 右侧：实时预览区域 */}
-          <div className={styles.previewSection}>
-            <h4 className={styles.previewTitle}>{t('settings.general.avatar.preview')}</h4>
-            <div className={styles.previewContainer}>
-              <div className={styles.previewAvatar}>
-                <ProviderAvatarPrimitive
-                  providerId="preview"
-                  providerName={providerName}
-                  logoSrc={previewImage || undefined}
-                  size={60}
-                />
+              {/* 右侧：实时预览区域 */}
+              <div className={styles.previewSection}>
+                <h4 className={styles.previewTitle}>{t('settings.general.avatar.preview')}</h4>
+                <div className={styles.previewContainer}>
+                  <div className={styles.previewAvatar}>
+                    <ProviderAvatarPrimitive
+                      providerId="preview"
+                      providerName={providerName}
+                      logoSrc={previewImage || undefined}
+                      size={60}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* 控制面板 */}
-        <div className={styles.controlPanel}>
-          <div className={styles.controlSection}>
-            <h4 className={styles.sectionTitle}>{t('settings.general.avatar.edit_tools')}</h4>
-            <div className={styles.space}>
-              <button className={classNames(styles.button, styles.small)} onClick={handleRotateLeft}>
-                <RotateCcw size={14} />
-                {t('settings.general.avatar.rotate_left')}
-              </button>
-              <button className={classNames(styles.button, styles.small)} onClick={handleRotateRight}>
-                <RotateCw size={14} />
-                {t('settings.general.avatar.rotate_right')}
-              </button>
-              <button className={classNames(styles.button, styles.small)} onClick={handleFlipHorizontal}>
-                <FlipHorizontal size={14} />
-                {t('settings.general.avatar.flip_horizontal')}
-              </button>
-              <button className={classNames(styles.button, styles.small)} onClick={handleFlipVertical}>
-                <FlipVertical size={14} />
-                {t('settings.general.avatar.flip_vertical')}
-              </button>
-              <button className={classNames(styles.button, styles.small)} onClick={resetTransforms}>
-                <Undo2 size={14} />
-                {t('common.reset')}
-              </button>
+            {/* 控制面板 */}
+            <div className={styles.controlPanel}>
+              <div className={styles.controlSection}>
+                <h4 className={styles.sectionTitle}>{t('settings.general.avatar.edit_tools')}</h4>
+                <div className={styles.space}>
+                  <button type="button" className={classNames(styles.button, styles.small)} onClick={handleRotateLeft}>
+                    <RotateCcw size={14} />
+                    {t('settings.general.avatar.rotate_left')}
+                  </button>
+                  <button type="button" className={classNames(styles.button, styles.small)} onClick={handleRotateRight}>
+                    <RotateCw size={14} />
+                    {t('settings.general.avatar.rotate_right')}
+                  </button>
+                  <button
+                    type="button"
+                    className={classNames(styles.button, styles.small)}
+                    onClick={handleFlipHorizontal}>
+                    <FlipHorizontal size={14} />
+                    {t('settings.general.avatar.flip_horizontal')}
+                  </button>
+                  <button
+                    type="button"
+                    className={classNames(styles.button, styles.small)}
+                    onClick={handleFlipVertical}>
+                    <FlipVertical size={14} />
+                    {t('settings.general.avatar.flip_vertical')}
+                  </button>
+                  <button type="button" className={classNames(styles.button, styles.small)} onClick={resetTransforms}>
+                    <Undo2 size={14} />
+                    {t('common.reset')}
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.tipText}>
+                💡 {t('settings.general.avatar.usage_guide')}
+                <br />• {t('settings.general.avatar.drag_corners_to_resize')}
+                <br />• {t('settings.general.avatar.scroll_to_zoom')}
+                <br />• {t('settings.general.avatar.use_tools_for_transform')}
+              </div>
             </div>
-          </div>
-
-          <div className={styles.tipText}>
-            💡 {t('settings.general.avatar.usage_guide')}
-            <br />• {t('settings.general.avatar.drag_corners_to_resize')}
-            <br />• {t('settings.general.avatar.scroll_to_zoom')}
-            <br />• {t('settings.general.avatar.use_tools_for_transform')}
-          </div>
-        </div>
           </VStack>
         </div>
         <div className={styles.modalFooter}>
-          <button className={styles.button} onClick={handleCancel}>
+          <button type="button" className={styles.button} onClick={handleCancel}>
             <X size={16} />
             {t('common.cancel')}
           </button>
-          <button className={classNames(styles.button, styles.primary)} onClick={handleConfirm}>
+          <button type="button" className={classNames(styles.button, styles.primary)} onClick={handleConfirm}>
             <Check size={16} />
             {t('common.confirm')}
           </button>
