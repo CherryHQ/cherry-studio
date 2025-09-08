@@ -306,8 +306,6 @@ export class AiSdkToChunkAdapter {
         break
 
       default:
-      // 其他类型的 chunk 可以忽略或记录日志
-      // console.log('Unhandled AI SDK chunk type:', chunk.type, chunk)
     }
   }
 }

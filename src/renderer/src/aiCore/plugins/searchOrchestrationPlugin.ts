@@ -121,7 +121,6 @@ async function analyzeSearchIntent(
     logger.error('Provider not found or missing API key')
     return getFallbackResult()
   }
-  // console.log('formattedPrompt', schema)
   try {
     logger.info('Starting intent analysis generateText call', {
       modelId: model.id,
@@ -179,7 +178,6 @@ async function storeConversationMemory(
   const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
 
   if (!globalMemoryEnabled || !assistant.enableMemory) {
-    // console.log('Memory storage is disabled')
     return
   }
 

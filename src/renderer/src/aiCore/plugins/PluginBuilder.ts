@@ -34,7 +34,6 @@ export function buildPlugins(
     // 内置了默认搜索参数，如果改的话可以传config进去
     plugins.push(webSearchPlugin())
   }
-  console.log('middlewareConfig', middlewareConfig)
   // 2. 支持工具调用时添加搜索插件
   if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {
     plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant, middlewareConfig.topicId || ''))
