@@ -66,17 +66,17 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     })
   }
 
-  const ControlButtons: FC<{ IconComponent: typeof NavbarIcon }> = ({ IconComponent }) => (
+  const ControlButtons: FC = () => (
     <>
       <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
-        <IconComponent onClick={() => SearchPopup.show()}>
+        <NavbarIcon onClick={() => SearchPopup.show()}>
           <Search size={18} />
-        </IconComponent>
+        </NavbarIcon>
       </Tooltip>
       <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
-        <IconComponent onClick={handleNarrowModeToggle}>
+        <NarrowIcon onClick={handleNarrowModeToggle}>
           <i className="iconfont icon-icon-adaptive-width"></i>
-        </IconComponent>
+        </NarrowIcon>
       </Tooltip>
       <UpdateAppButton />
       {topicPosition === 'right' && !showTopics && (
@@ -145,7 +145,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </HStack>
         <HStack alignItems="center" gap={6}>
           {/* For Mac, show search and expand without WindowControls */}
-          {!isWin && !isLinux && <ControlButtons IconComponent={NarrowIcon} />}
+          {!isWin && !isLinux && <ControlButtons />}
         </HStack>
         {/* Search, Expand and WindowControls positioned at the right edge */}
         {(isWin || isLinux) && (
@@ -159,7 +159,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               alignItems: 'center',
               gap: 6
             }}>
-            <ControlButtons IconComponent={NavbarIcon} />
+            <ControlButtons />
             <WindowControls />
           </div>
         )}
