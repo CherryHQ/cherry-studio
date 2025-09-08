@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getCodeBlockId: vi.fn(),
   isOpenFenceBlock: vi.fn(),
   selectById: vi.fn(),
+  useSettings: vi.fn().mockReturnValue({ codeFancyBlock: true }),
   CodeBlockView: vi.fn(({ onSave, children }) => (
     <div>
       <code>{children}</code>
@@ -51,6 +52,10 @@ vi.mock('@renderer/store/messageBlock', () => ({
   messageBlocksSelectors: {
     selectById: mocks.selectById
   }
+}))
+
+vi.mock('@renderer/hooks/useSettings', () => ({
+  useSettings: () => mocks.useSettings()
 }))
 
 vi.mock('@renderer/components/CodeBlockView', () => ({
