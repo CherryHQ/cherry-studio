@@ -1,3 +1,4 @@
+import { isLinux, isWin } from '@renderer/config/constant'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -109,7 +110,12 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         <SelectModelButton assistant={assistant} />
       </HStack>
       <NavbarRight
-        style={{ justifyContent: 'flex-end', flex: 1, position: 'relative', paddingRight: '6px' }}
+        style={{
+          justifyContent: 'flex-end',
+          flex: 1,
+          position: 'relative',
+          paddingRight: isWin || isLinux ? '144px' : '6px'
+        }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>

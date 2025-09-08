@@ -11,6 +11,7 @@ import styled from 'styled-components'
 
 import MinappSettingsPopup from './MiniappSettings/MinappSettingsPopup'
 import NewAppButton from './NewAppButton'
+import { isLinux, isWin } from '@renderer/config/constant'
 
 const AppsPage: FC = () => {
   const { t } = useTranslation()
@@ -58,7 +59,13 @@ const AppsPage: FC = () => {
             onChange={(e) => setSearch(e.target.value)}
           />
         </NavbarMain>
-        <NavbarRight style={{ justifyContent: 'flex-end', flex: 1, position: 'relative', paddingRight: '6px' }}>
+        <NavbarRight
+          style={{
+            justifyContent: 'flex-end',
+            flex: 1,
+            position: 'relative',
+            paddingRight: isWin || isLinux ? '144px' : '6px'
+          }}>
           <Button
             type="text"
             className="nodrag"

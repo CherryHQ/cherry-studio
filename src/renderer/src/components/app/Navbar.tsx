@@ -19,10 +19,12 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   }
 
   return (
-    <NavbarContainer {...props} style={{ backgroundColor }}>
-      {children}
+    <>
+      <NavbarContainer {...props} style={{ backgroundColor }}>
+        {children}
+      </NavbarContainer>
       {(isWin || isLinux) && <WindowControls />}
-    </NavbarContainer>
+    </>
   )
 }
 
@@ -92,8 +94,8 @@ const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   align-items: center;
   padding: 0 12px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   justify-content: flex-end;
+  flex: 1;
 `
 
 const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
