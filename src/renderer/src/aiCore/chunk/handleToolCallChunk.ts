@@ -222,28 +222,25 @@ export class ToolCallChunkHandler {
       }
     }
 
-    const addActiveToolCall = this.addActiveToolCall(toolCallId, {
+    this.addActiveToolCall(toolCallId, {
       toolCallId,
       toolName,
       args,
       tool
     })
-    // if (!addActiveToolCall) {
-    //   return
-    // }
     // 创建 MCPToolResponse 格式
     const toolResponse: MCPToolResponse | NormalToolResponse = {
       id: toolCallId,
       tool: tool,
       arguments: args,
-      status: addActiveToolCall ? 'pending' : 'invoking',
+      status: 'pending', // 统一使用 pending 状态
       toolCallId: toolCallId
     }
 
     // 调用 onChunk
     if (this.onChunk) {
       this.onChunk({
-        type: addActiveToolCall ? ChunkType.MCP_TOOL_PENDING : ChunkType.MCP_TOOL_IN_PROGRESS,
+        type: ChunkType.MCP_TOOL_PENDING, // 统一发送 pending 状态
         responses: [toolResponse]
       })
     }

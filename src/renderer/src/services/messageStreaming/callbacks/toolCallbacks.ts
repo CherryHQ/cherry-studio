@@ -51,28 +51,6 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       }
     },
 
-    onToolCallInProgress: (toolResponse: MCPToolResponse) => {
-      // 根据 toolResponse.id 查找对应的块ID
-      const targetBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
-
-      if (targetBlockId && toolResponse.status === 'invoking') {
-        const changes = {
-          status: MessageBlockStatus.PROCESSING,
-          metadata: { rawMcpToolResponse: toolResponse }
-        }
-        blockManager.smartBlockUpdate(targetBlockId, changes, MessageBlockType.TOOL)
-      } else if (!targetBlockId) {
-        logger.warn(
-          `[onToolCallInProgress] No block ID found for tool ID: ${toolResponse.id}. Available mappings:`,
-          Array.from(toolCallIdToBlockIdMap.entries())
-        )
-      } else {
-        logger.warn(
-          `[onToolCallInProgress] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
-        )
-      }
-    },
-
     onToolCallComplete: (toolResponse: MCPToolResponse) => {
       const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
       toolCallIdToBlockIdMap.delete(toolResponse.id)

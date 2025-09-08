@@ -169,7 +169,6 @@ export class AiSdkToChunkAdapter {
       //     type: ChunkType.LLM_RESPONSE_CREATED
       //   })
       //   break
-      // TODO: 需要区分接口开始和步骤开始
       // case 'start-step':
       //   this.onChunk({
       //     type: ChunkType.BLOCK_CREATED

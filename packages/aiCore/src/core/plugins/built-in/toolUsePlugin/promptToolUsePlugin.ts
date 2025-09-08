@@ -244,6 +244,7 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
   return definePlugin({
     name: 'built-in:prompt-tool-use',
     transformParams: (params: any, context: AiRequestContext) => {
+      console.log('params', params)
       if (!enabled || !params.tools || typeof params.tools !== 'object') {
         return params
       }
