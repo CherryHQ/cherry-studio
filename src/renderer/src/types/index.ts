@@ -259,6 +259,11 @@ export type Provider = {
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+  
+  // LiteLLM pass-through configuration
+  useLiteLLMPassthrough?: boolean
+  liteLLMProxyHost?: string
+  liteLLMApiKey?: string
 }
 
 export const SystemProviderIds = {

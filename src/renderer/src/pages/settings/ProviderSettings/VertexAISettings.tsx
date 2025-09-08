@@ -2,7 +2,7 @@ import { HStack } from '@renderer/components/Layout'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useVertexAISettings } from '@renderer/hooks/useVertexAI'
-import { Alert, Input, Space } from 'antd'
+import { Alert, Divider, Input, Space, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,12 +29,23 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
 
   const { provider, updateProvider } = useProvider(providerId)
   const [apiHost, setApiHost] = useState(provider.apiHost)
+  const [useLiteLLMPassthrough, setUseLiteLLMPassthrough] = useState(provider.useLiteLLMPassthrough || false)
+  const [liteLLMProxyHost, setLiteLLMProxyHost] = useState(provider.liteLLMProxyHost || 'http://localhost:4000')
+  const [liteLLMApiKey, setLiteLLMApiKey] = useState(provider.liteLLMApiKey || '')
 
   const providerConfig = PROVIDER_URLS['vertexai']
   const apiKeyWebsite = providerConfig?.websites?.apiKey
 
   const onUpdateApiHost = () => {
     updateProvider({ apiHost })
+  }
+
+  const onUpdateLiteLLMSettings = () => {
+    updateProvider({ 
+      useLiteLLMPassthrough, 
+      liteLLMProxyHost, 
+      liteLLMApiKey 
+    })
   }
 
   const handleProjectIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -155,6 +166,55 @@ const VertexAISettings: FC<Props> = ({ providerId }) => {
           <SettingHelpText>{t('settings.provider.vertex_ai.location_help')}</SettingHelpText>
         </SettingHelpTextRow>
       </>
+
+      {/* LiteLLM Pass-through Configuration */}
+      <Divider style={{ margin: '20px 0' }} />
+      <SettingSubtitle>LiteLLM Pass-through</SettingSubtitle>
+      <Alert
+        type="info"
+        style={{ marginTop: 5 }}
+        message="Enable LiteLLM proxy pass-through mode for Vertex AI requests. This routes requests through a LiteLLM proxy server."
+        showIcon
+      />
+
+      <HStack style={{ marginTop: 10, alignItems: 'center' }}>
+        <Switch
+          checked={useLiteLLMPassthrough}
+          onChange={(checked) => {
+            setUseLiteLLMPassthrough(checked)
+            onUpdateLiteLLMSettings()
+          }}
+        />
+        <span style={{ marginLeft: 8 }}>Enable LiteLLM Pass-through Mode</span>
+      </HStack>
+
+      {useLiteLLMPassthrough && (
+        <>
+          <SettingSubtitle style={{ marginTop: 15 }}>LiteLLM Proxy Host</SettingSubtitle>
+          <Input
+            value={liteLLMProxyHost}
+            placeholder="http://localhost:4000"
+            onChange={(e) => setLiteLLMProxyHost(e.target.value)}
+            onBlur={onUpdateLiteLLMSettings}
+            style={{ marginTop: 5 }}
+          />
+          <SettingHelpTextRow>
+            <SettingHelpText>The URL of your LiteLLM proxy server. Default is http://localhost:4000</SettingHelpText>
+          </SettingHelpTextRow>
+
+          <SettingSubtitle style={{ marginTop: 15 }}>LiteLLM API Key</SettingSubtitle>
+          <Input.Password
+            value={liteLLMApiKey}
+            placeholder="Enter LiteLLM API key (e.g., sk-1234)"
+            onChange={(e) => setLiteLLMApiKey(e.target.value)}
+            onBlur={onUpdateLiteLLMSettings}
+            style={{ marginTop: 5 }}
+          />
+          <SettingHelpTextRow>
+            <SettingHelpText>API key for LiteLLM proxy authentication. Used in x-litellm-api-key header.</SettingHelpText>
+          </SettingHelpTextRow>
+        </>
+      )}
     </>
   )
 }

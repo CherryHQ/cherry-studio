@@ -48,6 +48,12 @@ export class VertexAPIClient extends GeminiAPIClient {
   }
 
   override getBaseURL() {
+    // If LiteLLM pass-through mode is enabled, use the proxy host with /vertex_ai prefix
+    if (this.provider.useLiteLLMPassthrough && this.provider.liteLLMProxyHost) {
+      const proxyHost = this.provider.liteLLMProxyHost.replace(/\/$/, '') // Remove trailing slash
+      return `${proxyHost}/vertex_ai`
+    }
+    
     return this.formatApiHost(this.provider.apiHost)
   }
 
@@ -60,11 +66,31 @@ export class VertexAPIClient extends GeminiAPIClient {
     const projectId = getVertexAIProjectId()
     const location = getVertexAILocation()
 
-    if (!serviceAccount.privateKey || !serviceAccount.clientEmail || !projectId || !location) {
-      throw new Error('Vertex AI settings are not configured')
+    // For LiteLLM pass-through, we still need project and location, but service account is optional
+    if (this.provider.useLiteLLMPassthrough) {
+      if (!projectId || !location) {
+        throw new Error('Vertex AI project ID and location are required for LiteLLM pass-through')
+      }
+      if (!this.provider.liteLLMApiKey) {
+        throw new Error('LiteLLM API key is required when pass-through mode is enabled')
+      }
+    } else {
+      // For standard Vertex AI, require full service account configuration
+      if (!serviceAccount.privateKey || !serviceAccount.clientEmail || !projectId || !location) {
+        throw new Error('Vertex AI settings are not configured')
+      }
     }
 
-    const authHeaders = await this.getServiceAccountAuthHeaders()
+    let headers: Record<string, string> = {}
+    
+    // If LiteLLM pass-through mode is enabled, use LiteLLM API key
+    if (this.provider.useLiteLLMPassthrough && this.provider.liteLLMApiKey) {
+      headers['x-litellm-api-key'] = `Bearer ${this.provider.liteLLMApiKey}`
+      logger.info('Using LiteLLM pass-through mode for Vertex AI')
+    } else {
+      // Use standard Vertex AI service account authentication
+      headers = await this.getServiceAccountAuthHeaders() || {}
+    }
 
     this.sdkInstance = new GoogleGenAI({
       vertexai: true,
@@ -72,7 +98,7 @@ export class VertexAPIClient extends GeminiAPIClient {
       location: location,
       httpOptions: {
         apiVersion: this.getApiVersion(),
-        headers: authHeaders,
+        headers: headers,
         baseUrl: isEmpty(this.getBaseURL()) ? undefined : this.getBaseURL()
       }
     })
