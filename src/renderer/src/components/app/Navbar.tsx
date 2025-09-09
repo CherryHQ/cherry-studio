@@ -1,6 +1,7 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
@@ -13,6 +14,7 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
+  const { minappShow } = useRuntime()
 
   if (isTopNavbar) {
     return null
@@ -23,7 +25,7 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
       <NavbarContainer {...props} style={{ backgroundColor }}>
         {children}
       </NavbarContainer>
-      {(isWin || isLinux) && <WindowControls />}
+      {!isTopNavbar && !minappShow && <WindowControls />}
     </>
   )
 }
