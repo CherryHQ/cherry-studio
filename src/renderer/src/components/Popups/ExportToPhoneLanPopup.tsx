@@ -1,6 +1,10 @@
+import { Button } from '@heroui/button'
+import { Modal, ModalBody, ModalContent, ModalHeader } from '@heroui/modal'
+import { Progress } from '@heroui/progress'
+import { Spinner } from '@heroui/spinner'
 import { loggerService } from '@logger'
 import { SettingHelpText, SettingRow } from '@renderer/pages/settings'
-import { Button, Modal, Progress, QRCode, Space, Spin } from 'antd'
+import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -12,7 +16,7 @@ interface Props {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(true)
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connected'>('disconnected')
   const [qrCodeValue, setQrCodeValue] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -55,7 +59,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
 
     const handleMessageReceived = (_event: any, data: any) => {
-      logger.info(`收到移动端消息: ${JSON.stringify(data)}`)
+      logger.info(`Received message from mobile: ${JSON.stringify(data)}`)
     }
 
     const handleSendProgress = (_event: any, data: { progress: number }) => {
@@ -105,58 +109,90 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }
 
-  const onOk = async () => {
-    setOpen(false)
+  const handleCancel = () => {
+    setIsOpen(false)
   }
 
-  const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
+  const handleClose = () => {
     resolve({})
   }
 
+  const isDisabled = isSending
+
   return (
     <Modal
-      title={t('exportToPhone.lan.title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered>
-      <SettingRow>
-        <div>{t('exportToPhone.lan.content')}</div>
-      </SettingRow>
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isDisabled) {
+          handleCancel()
+        }
+      }}
+      isDismissable={!isDisabled}
+      isKeyboardDismissDisabled={isDisabled}
+      placement="center"
+      onClose={handleClose}>
+      <ModalContent>
+        {() => (
+          <>
+            <ModalHeader>{t('exportToPhone.lan.title')}</ModalHeader>
+            <ModalBody>
+              <SettingRow>
+                <div>{t('exportToPhone.lan.content')}</div>
+              </SettingRow>
 
-      <SettingRow style={{ display: 'flex', justifyContent: 'center', minHeight: '180px' }}>
-        {isLoading ? (
-          <Spin />
-        ) : !isConnected && qrCodeValue ? (
-          <QRCode value={qrCodeValue} errorLevel="Q" size={160} icon="/src/assets/images/logo.png" iconSize={40} />
-        ) : null}
-      </SettingRow>
+              <SettingRow style={{ display: 'flex', justifyContent: 'center', minHeight: '180px' }}>
+                {isLoading ? (
+                  <Spinner />
+                ) : !isConnected && qrCodeValue ? (
+                  <QRCodeSVG
+                    value={qrCodeValue}
+                    level="Q"
+                    size={160}
+                    imageSettings={{
+                      src: '/src/assets/images/logo.png',
+                      width: 40,
+                      height: 40,
+                      excavate: true
+                    }}
+                  />
+                ) : null}
+              </SettingRow>
 
-      <SettingRow style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <Space direction="vertical" style={{ justifyContent: 'center', width: '100%', alignItems: 'center' }}>
-          <Space>
-            <Button onClick={handleSelectZip}>{t('exportToPhone.lan.selectZip')}</Button>
-            <Button
-              type="primary"
-              onClick={handleSendZip}
-              disabled={!selectedFolderPath || !isConnected || isSending}
-              loading={isSending}>
-              {isSending ? t('common.sending') : t('exportToPhone.lan.sendZip')}
-            </Button>
-          </Space>
-          <SettingHelpText style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {selectedFolderPath || t('exportToPhone.lan.noZipSelected')}
-          </SettingHelpText>
-          {isSending && <Progress percent={Math.round(sendProgress)} />}
-        </Space>
-      </SettingRow>
+              <SettingRow style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', width: '100%' }}>
+                  <Button color="default" variant="flat" onPress={handleSelectZip} isDisabled={isSending}>
+                    {t('exportToPhone.lan.selectZip')}
+                  </Button>
+                  <Button
+                    color="primary"
+                    onPress={handleSendZip}
+                    isDisabled={!selectedFolderPath || !isConnected || isSending}
+                    isLoading={isSending}>
+                    {isSending ? t('common.sending') : t('exportToPhone.lan.sendZip')}
+                  </Button>
+                </div>
+              </SettingRow>
+
+              <SettingHelpText
+                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>
+                {selectedFolderPath || t('exportToPhone.lan.noZipSelected')}
+              </SettingHelpText>
+
+              {isSending && (
+                <div style={{ paddingTop: 8 }}>
+                  <Progress
+                    value={Math.round(sendProgress)}
+                    size="md"
+                    color="primary"
+                    showValueLabel={true}
+                    aria-label="Send progress"
+                  />
+                </div>
+              )}
+            </ModalBody>
+          </>
+        )}
+      </ModalContent>
     </Modal>
   )
 }
