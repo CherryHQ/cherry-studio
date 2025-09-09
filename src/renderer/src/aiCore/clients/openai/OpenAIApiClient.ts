@@ -6,7 +6,6 @@ import {
   getOpenAIWebSearchParams,
   isDoubaoThinkingAutoModel,
   isQwenReasoningModel,
-  isReasoningModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -92,7 +91,7 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       return {}
     }
 
-    if (!isReasoningModel(model)) {
+    if (!model.type?.includes('reasoning')) {
       return {}
     }
     const reasoningEffort = assistant?.settings?.reasoning_effort
@@ -133,17 +132,6 @@ export class OpenAIAPIClient extends OpenAIBaseClient<
       }
 
       if (isSupportedThinkingTokenGeminiModel(model)) {
-        if (GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
-          return {
-            extra_body: {
-              google: {
-                thinking_config: {
-                  thinking_budget: 0
-                }
-              }
-            }
-          }
-        }
         return {}
       }
 

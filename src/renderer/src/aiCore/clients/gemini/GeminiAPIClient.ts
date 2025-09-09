@@ -20,7 +20,6 @@ import { nanoid } from '@reduxjs/toolkit'
 import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
 import {
   findTokenLimit,
-  GEMINI_FLASH_MODEL_REGEX,
   isGemmaModel,
   isSupportedThinkingTokenGeminiModel,
   isVisionModel
@@ -384,42 +383,35 @@ export class GeminiAPIClient extends BaseApiClient<
    * @returns The reasoning effort
    */
   private getBudgetToken(assistant: Assistant, model: Model) {
-    if (isSupportedThinkingTokenGeminiModel(model)) {
-      const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (!model.type?.includes('reasoning') || !isSupportedThinkingTokenGeminiModel(model)) {
+      return {}
+    }
+    const reasoningEffort = assistant?.settings?.reasoning_effort
 
-      // 如果thinking_budget是undefined，不思考
-      if (reasoningEffort === undefined) {
-        return GEMINI_FLASH_MODEL_REGEX.test(model.id)
-          ? {
-              thinkingConfig: {
-                thinkingBudget: 0
-              }
-            }
-          : {}
-      }
-
-      if (reasoningEffort === 'auto') {
-        return {
-          thinkingConfig: {
-            includeThoughts: true,
-            thinkingBudget: -1
-          }
-        }
-      }
-      const effortRatio = EFFORT_RATIO[reasoningEffort]
-      const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
-      // 计算 budgetTokens，确保不低于 min
-      const budget = Math.floor((max - min) * effortRatio + min)
-
-      return {
-        thinkingConfig: {
-          ...(budget > 0 ? { thinkingBudget: budget } : {}),
-          includeThoughts: true
-        } as ThinkingConfig
-      }
+    // 如果thinking_budget是undefined，不思考
+    if (reasoningEffort === undefined) {
+      return {}
     }
 
-    return {}
+    if (reasoningEffort === 'auto') {
+      return {
+        thinkingConfig: {
+          includeThoughts: true,
+          thinkingBudget: -1
+        }
+      }
+    }
+    const effortRatio = EFFORT_RATIO[reasoningEffort]
+    const { min, max } = findTokenLimit(model.id) || { min: 0, max: 0 }
+    // 计算 budgetTokens，确保不低于 min
+    const budget = Math.floor((max - min) * effortRatio + min)
+
+    return {
+      thinkingConfig: {
+        ...(budget > 0 ? { thinkingBudget: budget } : {}),
+        includeThoughts: true
+      } as ThinkingConfig
+    }
   }
 
   private getGenerateImageParameter(): Partial<GenerateContentConfig> {

@@ -20,7 +20,7 @@ import FileItem from '@renderer/pages/files/FileItem'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
-import { Model, Provider } from '@renderer/types'
+import { Model, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, isFreeModel, runAsyncFunction } from '@renderer/utils'
 import { Avatar, Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -146,7 +146,14 @@ const PopupContainer: React.FC<Props> = ({ provider: _provider, resolve }) => {
             NewApiAddModelPopup.show({ title: t('settings.models.add.add_model'), provider, model })
           }
         } else {
-          addModel(model)
+          const defaultTypes = [
+            ...(isVisionModel(model) ? ['vision'] : []),
+            ...(isEmbeddingModel(model) ? ['embedding'] : []),
+            ...(isReasoningModel(model) ? ['reasoning'] : []),
+            ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
+            ...(isWebSearchModel(model) ? ['web_search'] : [])
+          ] as ModelType[]
+          addModel({ ...model, type: defaultTypes })
         }
       }
     },

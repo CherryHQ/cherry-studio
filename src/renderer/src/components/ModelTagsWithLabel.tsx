@@ -1,12 +1,5 @@
 import { EyeOutlined, GlobalOutlined, ToolOutlined } from '@ant-design/icons'
-import {
-  isEmbeddingModel,
-  isFunctionCallingModel,
-  isReasoningModel,
-  isRerankModel,
-  isVisionModel,
-  isWebSearchModel
-} from '@renderer/config/models'
+import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
 import { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils'
@@ -70,7 +63,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
 
   return (
     <Container ref={containerRef} style={style}>
-      {isVisionModel(model) && (
+      {model.type?.includes('vision') && (
         <CustomTag
           size={size}
           color="#00b96b"
@@ -79,7 +72,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           {shouldShowLabel ? t('models.type.vision') : ''}
         </CustomTag>
       )}
-      {isWebSearchModel(model) && (
+      {model.type?.includes('web_search') && (
         <CustomTag
           size={size}
           color="#1677ff"
@@ -88,7 +81,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           {shouldShowLabel ? t('models.type.websearch') : ''}
         </CustomTag>
       )}
-      {showReasoning && isReasoningModel(model) && (
+      {showReasoning && model.type?.includes('reasoning') && (
         <CustomTag
           size={size}
           color="#6372bd"
@@ -97,7 +90,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           {shouldShowLabel ? t('models.type.reasoning') : ''}
         </CustomTag>
       )}
-      {showToolsCalling && isFunctionCallingModel(model) && (
+      {showToolsCalling && model.type?.includes('function_calling') && (
         <CustomTag
           size={size}
           color="#f18737"

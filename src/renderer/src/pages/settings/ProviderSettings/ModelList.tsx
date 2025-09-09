@@ -337,16 +337,15 @@ const ModelList: React.FC<ModelListProps> = ({ providerId, modelStatuses = [], s
           {t('button.add')}
         </Button>
       </Flex>
-      {models.map((model) => (
+      {editingModel && (
         <ModelEditContent
           provider={provider}
-          model={model}
+          model={editingModel}
           onUpdateModel={onUpdateModel}
-          open={editingModel?.id === model.id}
+          open={!!editingModel}
           onClose={() => setEditingModel(null)}
-          key={model.id}
         />
-      ))}
+      )}
     </>
   )
 }

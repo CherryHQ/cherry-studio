@@ -4,7 +4,6 @@ import {
   isEmbeddingModel,
   isGenerateImageModel,
   isOpenRouterBuiltInWebSearchModel,
-  isReasoningModel,
   isSupportedDisableGenerationModel,
   isSupportedReasoningEffortModel,
   isSupportedThinkingTokenModel,
@@ -403,7 +402,8 @@ export async function fetchChatCompletion({
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+    (model.type?.includes('reasoning') &&
+      (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   const enableWebSearch =
     (assistant.enableWebSearch && isWebSearchModel(model)) ||
@@ -595,7 +595,8 @@ export async function fetchTranslate({ content, assistant, onResponse }: FetchTr
   const enableReasoning =
     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
       assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
+    (model.type?.includes('reasoning') &&
+      (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
 
   const params: CompletionsParams = {
     callType: 'translate',

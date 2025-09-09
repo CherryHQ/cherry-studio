@@ -1,6 +1,13 @@
 import { TopView } from '@renderer/components/TopView'
+import {
+  isEmbeddingModel,
+  isFunctionCallingModel,
+  isReasoningModel,
+  isVisionModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Model, Provider } from '@renderer/types'
+import { Model, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
 import { find } from 'lodash'
@@ -55,6 +62,15 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       name: values.name ? values.name : id.toUpperCase(),
       group: values.group ?? getDefaultGroupName(id)
     }
+
+    const defaultTypes = [
+      ...(isVisionModel(model) ? ['vision'] : []),
+      ...(isEmbeddingModel(model) ? ['embedding'] : []),
+      ...(isReasoningModel(model) ? ['reasoning'] : []),
+      ...(isFunctionCallingModel(model) ? ['function_calling'] : []),
+      ...(isWebSearchModel(model) ? ['web_search'] : [])
+    ] as ModelType[]
+    model.type = defaultTypes
 
     addModel(model)
 
