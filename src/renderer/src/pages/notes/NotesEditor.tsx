@@ -59,16 +59,19 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       <>
         <RichEditorContainer>
           {tmpViewMode === 'source' ? (
-            <CodeEditor
-              value={currentContent}
-              language="markdown"
-              onChange={onMarkdownChange}
-              height="100%"
-              expanded={false}
-              style={{
-                height: '100%'
-              }}
-            />
+            <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
+              <CodeEditor
+                value={currentContent}
+                language="markdown"
+                onChange={onMarkdownChange}
+                height="100%"
+                expanded={false}
+                style={{
+                  height: '100%',
+                  fontSize: `${settings.fontSize}px`
+                }}
+              />
+            </SourceEditorWrapper>
           ) : (
             <RichEditor
               key={`${activeNodeId}-${tmpViewMode === 'preview' ? 'preview' : 'read'}`}
@@ -78,11 +81,12 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
-              showTableOfContents
+              showTableOfContents={settings.showTableOfContents}
               enableContentSearch
               className="notes-rich-editor"
               isFullWidth={settings.isFullWidth}
               fontFamily={settings.fontFamily}
+              fontSize={settings.fontSize}
             />
           )}
         </RichEditorContainer>
@@ -169,6 +173,28 @@ const RichEditorContainer = styled.div`
         cursor: default !important;
       }
     }
+  }
+`
+
+const SourceEditorWrapper = styled.div<{ isFullWidth: boolean; fontSize: number }>`
+  height: 100%;
+  width: ${({ isFullWidth }) => (isFullWidth ? '100%' : '60%')};
+  margin: ${({ isFullWidth }) => (isFullWidth ? '0' : '0 auto')};
+
+  /* 应用字体大小到CodeEditor */
+  .monaco-editor {
+    font-size: ${({ fontSize }) => fontSize}px !important;
+  }
+
+  /* 确保CodeEditor内部元素也应用字体大小 */
+  .monaco-editor .monaco-editor-background,
+  .monaco-editor .inputarea.ime-input,
+  .monaco-editor .monaco-editor-container,
+  .monaco-editor .overflow-guard,
+  .monaco-editor .monaco-scrollable-element,
+  .monaco-editor .lines-content.monaco-editor-background,
+  .monaco-editor .view-line {
+    font-size: ${({ fontSize }) => fontSize}px !important;
   }
 `
 

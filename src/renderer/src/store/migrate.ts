@@ -2439,6 +2439,18 @@ const migrateConfig = {
       logger.error('migrate 152 error', error as Error)
       return state
     }
+  },
+  '153': (state: RootState) => {
+    try {
+      if (state.note.settings) {
+        state.note.settings.fontSize = notesInitialState.settings.fontSize
+        state.note.settings.showTableOfContents = notesInitialState.settings.showTableOfContents
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 153 error', error as Error)
+      return state
+    }
   }
 }
 

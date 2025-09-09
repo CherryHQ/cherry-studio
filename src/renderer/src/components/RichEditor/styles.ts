@@ -5,6 +5,7 @@ export const RichEditorWrapper = styled.div<{
   $maxHeight?: number
   $isFullWidth?: boolean
   $fontFamily?: 'default' | 'serif'
+  $fontSize?: number
 }>`
   display: flex;
   flex-direction: column;
@@ -16,6 +17,7 @@ export const RichEditorWrapper = styled.div<{
   width: ${({ $isFullWidth }) => ($isFullWidth ? '100%' : '60%')};
   margin: ${({ $isFullWidth }) => ($isFullWidth ? '0' : '0 auto')};
   font-family: ${({ $fontFamily }) => ($fontFamily === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)')};
+  ${({ $fontSize }) => $fontSize && `--editor-font-size: ${$fontSize}px;`}
 
   ${({ $minHeight }) => $minHeight && `min-height: ${$minHeight}px;`}
   ${({ $maxHeight }) => $maxHeight && `max-height: ${$maxHeight}px;`}

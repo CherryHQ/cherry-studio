@@ -943,6 +943,9 @@
     "image": "Imagem",
     "name": "Nome do Arquivo",
     "open": "Abrir",
+    "preview": {
+      "error": "Falha ao abrir o arquivo"
+    },
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",

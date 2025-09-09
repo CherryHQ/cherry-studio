@@ -498,7 +498,7 @@ const TranslatePage: FC = () => {
         } else {
           try {
             const result = await window.api.fs.readText(file.path)
-            setText(result)
+            setText(text + result)
           } catch (e) {
             logger.error('Failed to read text file.', e as Error)
             window.toast.error(t('translate.files.error.unknown') + ': ' + formatErrorMessage(e))
@@ -508,15 +508,15 @@ const TranslatePage: FC = () => {
       const promise = _readFile()
       window.toast.loading({ title: t('translate.files.reading'), promise })
     },
-    [setText, t]
+    [setText, t, text]
   )
 
   const ocrFile = useCallback(
     async (file: SupportedOcrFile) => {
       const ocrResult = await ocr(file)
-      setText(ocrResult.text)
+      setText(text + ocrResult.text)
     },
-    [ocr, setText]
+    [ocr, setText, text]
   )
 
   // 统一的文件处理
@@ -621,13 +621,12 @@ const TranslatePage: FC = () => {
   // 粘贴上传文件
   const onPaste = useCallback(
     async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      event.preventDefault()
       if (isProcessing) return
       setIsProcessing(true)
-      logger.debug('event', event)
-      const text = event.clipboardData.getData('text')
-      if (!isEmpty(text)) {
-        setText(text)
+      // logger.debug('event', event)
+      const clipboardText = event.clipboardData.getData('text')
+      if (!isEmpty(clipboardText)) {
+        // depend default. this branch is only for preventing files when clipboard contains text
       } else if (event.clipboardData.files && event.clipboardData.files.length > 0) {
         event.preventDefault()
         const files = event.clipboardData.files
@@ -667,7 +666,7 @@ const TranslatePage: FC = () => {
       }
       setIsProcessing(false)
     },
-    [getSingleFile, isProcessing, processFile, setText, t]
+    [getSingleFile, isProcessing, processFile, t]
   )
   return (
     <Container
