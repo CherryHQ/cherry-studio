@@ -332,14 +332,15 @@ class CodeToolsService {
         // macOS - Use osascript to launch terminal and execute command directly, without showing startup command
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        // Combine directory change with the main command to ensure they execute in the same shell session
+        const fullCommand = `cd '${directory.replace(/'/g, "\\'")}' && clear && ${command}`
 
         terminalCommand = 'osascript'
         terminalArgs = [
           '-e',
           `tell application "Terminal"
-  set newTab to do script "cd '${directory.replace(/'/g, "\\'")}' && clear"
+  do script "${fullCommand.replace(/"/g, '\\"')}"
   activate
-  do script "${command.replace(/"/g, '\\"')}" in newTab
 end tell`
         ]
         break
