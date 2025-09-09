@@ -947,6 +947,9 @@
     "image": "Image",
     "name": "Name",
     "open": "Open",
+    "preview": {
+      "error": "Failed to open file"
+    },
     "size": "Size",
     "text": "Text",
     "title": "Files",
