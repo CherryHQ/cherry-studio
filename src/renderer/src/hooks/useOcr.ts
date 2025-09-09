@@ -34,7 +34,6 @@ export const useOcr = () => {
    * @throws 当文件类型不支持或OCR失败时抛出错误
    */
   const ocr = async (file: SupportedOcrFile) => {
-    // await to keep show loading message
     const _ocr = async () => {
       try {
         if (isImageFileMetadata(file)) {
