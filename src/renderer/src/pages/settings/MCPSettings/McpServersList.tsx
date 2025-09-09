@@ -1,13 +1,16 @@
+import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { Sortable } from '@renderer/components/dnd'
+import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import { EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
+import { matchKeywordsInString } from '@renderer/utils/match'
 import { Button, Dropdown, Empty } from 'antd'
 import { Plus } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -21,6 +24,8 @@ import McpMarketList from './McpMarketList'
 import McpServerCard from './McpServerCard'
 import SyncServersPopup from './SyncServersPopup'
 
+const logger = loggerService.withContext('McpServersList')
+
 const McpServersList: FC = () => {
   const { mcpServers, addMCPServer, deleteMCPServer, updateMcpServers, updateMCPServer } = useMCPServers()
   const { t } = useTranslation()
@@ -29,6 +34,32 @@ const McpServersList: FC = () => {
   const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
   const [loadingServerIds, setLoadingServerIds] = useState<Set<string>>(new Set())
   const [serverVersions, setServerVersions] = useState<Record<string, string | null>>({})
+
+  const [searchText, _setSearchText] = useState('')
+
+  const setSearchText = useCallback((text: string) => {
+    startTransition(() => {
+      _setSearchText(text)
+    })
+  }, [])
+
+  const filteredMcpServers = useMemo(() => {
+    if (!searchText.trim()) return mcpServers
+
+    const keywords = searchText.toLowerCase().split(/\s+/).filter(Boolean)
+
+    return mcpServers.filter((server) => {
+      const searchTarget = `${server.name} ${server.description} ${server.tags?.join(' ')}`
+      return matchKeywordsInString(keywords, searchTarget)
+    })
+  }, [mcpServers, searchText])
+
+  const { onSortEnd } = useDndReorder({
+    originalList: mcpServers,
+    filteredList: filteredMcpServers,
+    onUpdate: updateMcpServers,
+    itemKey: 'id'
+  })
 
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -130,12 +161,11 @@ const McpServersList: FC = () => {
   const handleToggleActive = async (server: MCPServer, active: boolean) => {
     setLoadingServerIds((prev) => new Set(prev).add(server.id))
     const oldActiveState = server.isActive
-
+    logger.silly('toggle activate', { serverId: server.id, active })
     try {
       if (active) {
-        await window.api.mcp.listTools(server)
         // Fetch version when server is activated
-        fetchServerVersion({ ...server, isActive: active })
+        await fetchServerVersion({ ...server, isActive: active })
       } else {
         await window.api.mcp.stopServer(server)
         // Clear version when server is deactivated
@@ -190,8 +220,14 @@ const McpServersList: FC = () => {
   return (
     <Container ref={scrollRef}>
       <ListHeader>
-        <SettingTitle style={{ gap: 3 }}>
+        <SettingTitle style={{ gap: 6 }}>
           <span>{t('settings.mcp.newServer')}</span>
+          <CollapsibleSearchBar
+            onSearch={setSearchText}
+            placeholder={t('settings.mcp.search.placeholder')}
+            tooltip={t('settings.mcp.search.tooltip')}
+            style={{ borderRadius: 20 }}
+          />
         </SettingTitle>
         <ButtonGroup>
           <InstallNpxUv mini />
@@ -213,15 +249,12 @@ const McpServersList: FC = () => {
         </ButtonGroup>
       </ListHeader>
       <Sortable
-        items={mcpServers}
+        items={filteredMcpServers}
         itemKey="id"
-        onSortEnd={({ oldIndex, newIndex }) => {
-          const newList = [...mcpServers]
-          const [removed] = newList.splice(oldIndex, 1)
-          newList.splice(newIndex, 0, removed)
-          updateMcpServers(newList)
-        }}
+        onSortEnd={onSortEnd}
         layout="grid"
+        gap="12px"
+        restrictions={{ scrollableAncestor: true }}
         useDragOverlay
         showGhost
         renderItem={(server) => (
@@ -229,17 +262,17 @@ const McpServersList: FC = () => {
             server={server}
             version={serverVersions[server.id]}
             isLoading={loadingServerIds.has(server.id)}
-            onToggle={(active) => handleToggleActive(server, active)}
+            onToggle={async (active) => await handleToggleActive(server, active)}
             onDelete={() => onDeleteMcpServer(server)}
             onEdit={() => navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)}
             onOpenUrl={(url) => window.open(url, '_blank')}
           />
         )}
       />
-      {mcpServers.length === 0 && (
+      {(mcpServers.length === 0 || filteredMcpServers.length === 0) && (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t('settings.mcp.noServers')}
+          description={mcpServers.length === 0 ? t('settings.mcp.noServers') : t('common.no_results')}
           style={{ marginTop: 20 }}
         />
       )}

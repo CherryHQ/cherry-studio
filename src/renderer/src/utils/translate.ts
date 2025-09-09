@@ -1,10 +1,15 @@
 import { loggerService } from '@logger'
+import { isQwenMTModel } from '@renderer/config/models'
+import { LANG_DETECT_PROMPT } from '@renderer/config/prompts'
 import { builtinLanguages as builtinLanguages, LanguagesEnum, UNKNOWN } from '@renderer/config/translate'
 import db from '@renderer/databases'
-import { fetchLanguageDetection } from '@renderer/services/ApiService'
+import i18n from '@renderer/i18n'
+import { fetchChatCompletion } from '@renderer/services/ApiService'
+import { getDefaultAssistant, getDefaultModel, getQuickModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { getAllCustomLanguages } from '@renderer/services/TranslateService'
-import { TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { Assistant, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { franc } from 'franc-min'
 import React, { RefObject } from 'react'
 import { sliceByTokens } from 'tokenx'
@@ -55,13 +60,41 @@ export const detectLanguage = async (inputText: string): Promise<TranslateLangua
 const detectLanguageByLLM = async (inputText: string): Promise<TranslateLanguageCode> => {
   logger.info('Detect language by llm')
   let detectedLang = ''
-  await fetchLanguageDetection({
-    text: sliceByTokens(inputText, 0, 100),
-    onResponse: (text) => {
-      detectedLang = text.replace(/^\s*\n+/g, '')
+  const text = sliceByTokens(inputText, 0, 100)
+
+  const translateLanguageOptions = await getTranslateOptions()
+  const listLang = translateLanguageOptions.map((item) => item.langCode)
+  const listLangText = JSON.stringify(listLang)
+
+  const model = getQuickModel() || getDefaultModel()
+  if (!model) {
+    throw new Error(i18n.t('error.model.not_exists'))
+  }
+
+  if (isQwenMTModel(model)) {
+    logger.info('QwenMT cannot be used for language detection.')
+    if (isQwenMTModel(model)) {
+      throw new Error(i18n.t('translate.error.detect.qwen_mt'))
     }
-  })
-  return detectedLang
+  }
+
+  const assistant: Assistant = getDefaultAssistant()
+
+  assistant.model = model
+  assistant.settings = {
+    temperature: 0.7
+  }
+  assistant.prompt = LANG_DETECT_PROMPT.replace('{{list_lang}}', listLangText).replace('{{input}}', text)
+
+  const onChunk: (chunk: Chunk) => void = (chunk: Chunk) => {
+    // 你的意思是，虽然写的是delta类型，但其实是完整拼接后的结果？
+    if (chunk.type === ChunkType.TEXT_DELTA) {
+      detectedLang = chunk.text
+    }
+  }
+
+  await fetchChatCompletion({ prompt: 'follow system prompt', assistant, onChunkReceived: onChunk })
+  return detectedLang.trim()
 }
 
 const detectLanguageByFranc = (inputText: string): TranslateLanguageCode => {

@@ -203,7 +203,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const updateCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
+      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)
 
       await execAsync(updateCommand, { timeout: 60000 })
@@ -307,7 +307,7 @@ class CodeToolsService {
     }
 
     // Build command to execute
-    let baseCommand = isWin ? `${executablePath}` : `${bunPath} ${executablePath}`
+    let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {
@@ -323,7 +323,7 @@ class CodeToolsService {
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
-      const installCommand = `${installEnvPrefix} ${bunPath} install -g ${packageName}`
+      const installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
       baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
@@ -332,13 +332,15 @@ class CodeToolsService {
         // macOS - Use osascript to launch terminal and execute command directly, without showing startup command
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+        // Combine directory change with the main command to ensure they execute in the same shell session
+        const fullCommand = `cd '${directory.replace(/'/g, "\\'")}' && clear && ${command}`
 
         terminalCommand = 'osascript'
         terminalArgs = [
           '-e',
           `tell application "Terminal"
+  do script "${fullCommand.replace(/"/g, '\\"')}"
   activate
-  do script "cd '${directory.replace(/'/g, "\\'")}' && clear && ${command.replace(/"/g, '\\"')}"
 end tell`
         ]
         break
@@ -420,7 +422,7 @@ end tell`
         const envPrefix = buildEnvPrefix(false)
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
-        const linuxTerminals = ['gnome-terminal', 'konsole', 'xterm', 'x-terminal-emulator']
+        const linuxTerminals = ['gnome-terminal', 'konsole', 'deepin-terminal', 'xterm', 'x-terminal-emulator']
         let foundTerminal = 'xterm' // Default to xterm
 
         for (const terminal of linuxTerminals) {
@@ -447,6 +449,9 @@ end tell`
         } else if (foundTerminal === 'konsole') {
           terminalCommand = 'konsole'
           terminalArgs = ['--workdir', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
+        } else if (foundTerminal === 'deepin-terminal') {
+          terminalCommand = 'deepin-terminal'
+          terminalArgs = ['-w', directory, '-e', 'bash', '-c', `clear && ${command}; exec bash`]
         } else {
           // Default to xterm
           terminalCommand = 'xterm'

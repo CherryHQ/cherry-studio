@@ -15,6 +15,7 @@ import type {
   WebSearchResponse,
   WebSearchSource
 } from '.'
+import { SerializedError } from './error'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {
@@ -27,7 +28,8 @@ export enum MessageBlockType {
   TOOL = 'tool', // Added unified tool block type
   FILE = 'file', // 文件内容
   ERROR = 'error', // 错误信息
-  CITATION = 'citation' // 引用类型 (Now includes web search, grounding, etc.)
+  CITATION = 'citation', // 引用类型 (Now includes web search, grounding, etc.)
+  VIDEO = 'video' // 视频内容
 }
 
 // 块状态定义
@@ -50,7 +52,7 @@ export interface BaseMessageBlock {
   status: MessageBlockStatus // 块状态
   model?: Model // 使用的模型
   metadata?: Record<string, any> // 通用元数据
-  error?: Record<string, any> // Added optional error field to base
+  error?: SerializedError // Serializable error object instead of AISDKError
 }
 
 export interface PlaceholderMessageBlock extends BaseMessageBlock {
@@ -73,7 +75,7 @@ export interface MainTextMessageBlock extends BaseMessageBlock {
 export interface ThinkingMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.THINKING
   content: string
-  thinking_millsec?: number
+  thinking_millsec: number
 }
 
 // 翻译块
@@ -128,6 +130,14 @@ export interface FileMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.FILE
   file: FileMetadata // 文件信息
 }
+
+// 视频块
+export interface VideoMessageBlock extends BaseMessageBlock {
+  type: MessageBlockType.VIDEO
+  url?: string // For generated video or direct links
+  filePath?: string // For user uploaded video files
+}
+
 // 错误块
 export interface ErrorMessageBlock extends BaseMessageBlock {
   type: MessageBlockType.ERROR
@@ -145,6 +155,7 @@ export type MessageBlock =
   | FileMessageBlock
   | ErrorMessageBlock
   | CitationMessageBlock
+  | VideoMessageBlock
 
 export enum UserMessageStatus {
   SUCCESS = 'success'

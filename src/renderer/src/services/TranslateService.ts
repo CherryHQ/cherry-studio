@@ -1,103 +1,89 @@
 import { loggerService } from '@logger'
-import AiProvider from '@renderer/aiCore'
-import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
-import {
-  isReasoningModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel
-} from '@renderer/config/models'
 import { db } from '@renderer/databases'
-import { CustomTranslateLanguage, TranslateHistory, TranslateLanguage, TranslateLanguageCode } from '@renderer/types'
-import { TranslateAssistant } from '@renderer/types'
+import {
+  CustomTranslateLanguage,
+  FetchChatCompletionOptions,
+  TranslateHistory,
+  TranslateLanguage,
+  TranslateLanguageCode
+} from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
+import { readyToAbort } from '@renderer/utils/abortController'
+import { isAbortError } from '@renderer/utils/error'
+import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
 
-import { hasApiKey } from './ApiService'
-import {
-  getDefaultModel,
-  getDefaultTranslateAssistant,
-  getProviderByModel,
-  getTranslateModel
-} from './AssistantService'
+import { fetchChatCompletion } from './ApiService'
+import { getDefaultTranslateAssistant } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
-interface FetchTranslateProps {
-  content: string
-  assistant: TranslateAssistant
-  onResponse?: (text: string, isComplete: boolean) => void
-}
-
-async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
-
-  if (!model) {
-    throw new Error(t('translate.error.not_configured'))
-  }
-
-  const provider = getProviderByModel(model)
-
-  if (!hasApiKey(provider)) {
-    throw new Error(t('error.no_api_key'))
-  }
-
-  const isSupportedStreamOutput = () => {
-    if (!onResponse) {
-      return false
-    }
-    return true
-  }
-
-  const stream = isSupportedStreamOutput()
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-
-  const params: CompletionsParams = {
-    callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
-    streamOutput: stream,
-    enableReasoning,
-    onResponse
-  }
-
-  const AI = new AiProvider(provider)
-
-  return (await AI.completionsForTrace(params)).getText().trim()
-}
 
 /**
  * 翻译文本到目标语言
  * @param text - 需要翻译的文本内容
  * @param targetLanguage - 目标语言
  * @param onResponse - 流式输出的回调函数，用于实时获取翻译结果
+ * @param abortKey - 用于控制 abort 的键
  * @returns 返回翻译后的文本
- * @throws {Error} 当翻译模型未配置或翻译失败时抛出错误
+ * @throws {Error} 翻译中止或失败时抛出异常
  */
 export const translateText = async (
   text: string,
   targetLanguage: TranslateLanguage,
-  onResponse?: (text: string, isComplete: boolean) => void
+  onResponse?: (text: string, isComplete: boolean) => void,
+  abortKey?: string
 ) => {
-  try {
-    const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+  let abortError
+  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const translatedText = await fetchTranslate({ content: text, assistant, onResponse })
+  const signal = abortKey ? readyToAbort(abortKey) : undefined
 
-    const trimmedText = translatedText.trim()
-
-    if (!trimmedText) {
-      return Promise.reject(new Error(t('translate.error.empty')))
+  let translatedText = ''
+  let completed = false
+  const onChunk = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.TEXT_DELTA) {
+      translatedText = chunk.text
+    } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
+      completed = true
+    } else if (chunk.type === ChunkType.ERROR) {
+      if (isAbortError(chunk.error)) {
+        abortError = chunk.error
+        completed = true
+      }
     }
-
-    return trimmedText
-  } catch (e) {
-    logger.error('Failed to translate', e as Error)
-    const message = e instanceof Error ? e.message : String(e)
-    window.message.error(t('translate.error.failed' + ': ' + message))
-    return ''
+    onResponse?.(translatedText, completed)
   }
+
+  const options = {
+    signal
+  } satisfies FetchChatCompletionOptions
+
+  try {
+    await fetchChatCompletion({
+      prompt: assistant.content,
+      assistant,
+      options,
+      onChunkReceived: onChunk
+    })
+  } catch (e) {
+    // dismiss no output generated error. it will be thrown when aborted.
+    if (!NoOutputGeneratedError.isInstance(e)) {
+      throw e
+    }
+  }
+
+  if (abortError) {
+    throw abortError
+  }
+
+  const trimmedText = translatedText.trim()
+
+  if (!trimmedText) {
+    return Promise.reject(new Error(t('translate.error.empty')))
+  }
+
+  return trimmedText
 }
 
 /**

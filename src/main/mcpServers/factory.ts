@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
+import { BuiltinMCPServerName, BuiltinMCPServerNames } from '@types'
 
 import BraveSearchServer from './brave-search'
 import DifyKnowledgeServer from './dify-knowledge'
@@ -11,30 +12,34 @@ import ThinkingServer from './sequentialthinking'
 
 const logger = loggerService.withContext('MCPFactory')
 
-export function createInMemoryMCPServer(name: string, args: string[] = [], envs: Record<string, string> = {}): Server {
+export function createInMemoryMCPServer(
+  name: BuiltinMCPServerName,
+  args: string[] = [],
+  envs: Record<string, string> = {}
+): Server {
   logger.debug(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
   switch (name) {
-    case '@cherry/memory': {
+    case BuiltinMCPServerNames.memory: {
       const envPath = envs.MEMORY_FILE_PATH
       return new MemoryServer(envPath).server
     }
-    case '@cherry/sequentialthinking': {
+    case BuiltinMCPServerNames.sequentialThinking: {
       return new ThinkingServer().server
     }
-    case '@cherry/brave-search': {
+    case BuiltinMCPServerNames.braveSearch: {
       return new BraveSearchServer(envs.BRAVE_API_KEY).server
     }
-    case '@cherry/fetch': {
+    case BuiltinMCPServerNames.fetch: {
       return new FetchServer().server
     }
-    case '@cherry/filesystem': {
+    case BuiltinMCPServerNames.filesystem: {
       return new FileSystemServer(args).server
     }
-    case '@cherry/dify-knowledge': {
+    case BuiltinMCPServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY
       return new DifyKnowledgeServer(difyKey, args).server
     }
-    case '@cherry/python': {
+    case BuiltinMCPServerNames.python: {
       return new PythonServer().server
     }
     default:

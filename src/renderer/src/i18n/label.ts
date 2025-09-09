@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import { ThinkingOption } from '@renderer/types'
+import { BuiltinMCPServerName, BuiltinMCPServerNames, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
 
 import i18n from './index'
 
@@ -13,7 +13,7 @@ const t = i18n.t
 
 const logger = loggerService.withContext('i18n:label')
 
-const getLabel = (key: string, keyMap: Record<string, string>, fallback?: string) => {
+const getLabel = (keyMap: Record<string, string>, key: string, fallback?: string) => {
   const result = keyMap[key]
   if (result) {
     return t(result)
@@ -34,6 +34,7 @@ const providerKeyMap = {
   'baidu-cloud': 'provider.baidu-cloud',
   burncloud: 'provider.burncloud',
   cephalon: 'provider.cephalon',
+  cherryin: 'provider.cherryin',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',
@@ -92,20 +93,35 @@ const providerKeyMap = {
  * 对于可能处理自定义供应商的情况，使用 getProviderName 或 getFancyProviderName 更安全
  */
 export const getProviderLabel = (id: string): string => {
-  return getLabel(id, providerKeyMap)
+  return getLabel(providerKeyMap, id)
 }
 
-const progressKeyMap = {
+const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
   copying_files: 'backup.progress.copying_files',
+  preparing_compression: 'backup.progress.preparing_compression',
   preparing: 'backup.progress.preparing',
   title: 'backup.progress.title',
   writing_data: 'backup.progress.writing_data'
 } as const
 
-export const getProgressLabel = (key: string): string => {
-  return getLabel(key, progressKeyMap)
+export const getBackupProgressLabel = (key: string): string => {
+  return getLabel(backupProgressKeyMap, key)
+}
+
+const restoreProgressKeyMap = {
+  completed: 'restore.progress.completed',
+  copying_files: 'restore.progress.copying_files',
+  extracted: 'restore.progress.extracted',
+  extracting: 'restore.progress.extracting',
+  preparing: 'restore.progress.preparing',
+  reading_data: 'restore.progress.reading_data',
+  title: 'restore.progress.title'
+}
+
+export const getRestoreProgressLabel = (key: string): string => {
+  return getLabel(restoreProgressKeyMap, key)
 }
 
 const titleKeyMap = {
@@ -118,13 +134,14 @@ const titleKeyMap = {
   launchpad: 'title.launchpad',
   'mcp-servers': 'title.mcp-servers',
   memories: 'title.memories',
+  notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate'
 } as const
 
 export const getTitleLabel = (key: string): string => {
-  return getLabel(key, titleKeyMap)
+  return getLabel(titleKeyMap, key)
 }
 
 const themeModeKeyMap = {
@@ -134,7 +151,7 @@ const themeModeKeyMap = {
 } as const
 
 export const getThemeModeLabel = (key: string): string => {
-  return getLabel(key, themeModeKeyMap)
+  return getLabel(themeModeKeyMap, key)
 }
 
 const sidebarIconKeyMap = {
@@ -145,11 +162,12 @@ const sidebarIconKeyMap = {
   minapp: 'minapp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
-  code_tools: 'code.title'
+  code_tools: 'code.title',
+  notes: 'notes.title'
 } as const
 
 export const getSidebarIconLabel = (key: string): string => {
-  return getLabel(key, sidebarIconKeyMap)
+  return getLabel(sidebarIconKeyMap, key)
 }
 
 const shortcutKeyMap = {
@@ -157,7 +175,9 @@ const shortcutKeyMap = {
   actions: 'settings.shortcuts.actions',
   clear_shortcut: 'settings.shortcuts.clear_shortcut',
   clear_topic: 'settings.shortcuts.clear_topic',
+  rename_topic: 'settings.shortcuts.rename_topic',
   copy_last_message: 'settings.shortcuts.copy_last_message',
+  edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
   enabled: 'settings.shortcuts.enabled',
   exit_fullscreen: 'settings.shortcuts.exit_fullscreen',
   label: 'settings.shortcuts.label',
@@ -183,7 +203,7 @@ const shortcutKeyMap = {
 } as const
 
 export const getShortcutLabel = (key: string): string => {
-  return getLabel(key, shortcutKeyMap)
+  return getLabel(shortcutKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {
@@ -192,7 +212,7 @@ const selectionDescriptionKeyMap = {
 } as const
 
 export const getSelectionDescriptionLabel = (key: string): string => {
-  return getLabel(key, selectionDescriptionKeyMap)
+  return getLabel(selectionDescriptionKeyMap, key)
 }
 
 const paintingsImageSizeOptionsKeyMap = {
@@ -200,7 +220,7 @@ const paintingsImageSizeOptionsKeyMap = {
 } as const
 
 export const getPaintingsImageSizeOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsImageSizeOptionsKeyMap)
+  return getLabel(paintingsImageSizeOptionsKeyMap, key)
 }
 
 const paintingsQualityOptionsKeyMap = {
@@ -211,7 +231,7 @@ const paintingsQualityOptionsKeyMap = {
 } as const
 
 export const getPaintingsQualityOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsQualityOptionsKeyMap)
+  return getLabel(paintingsQualityOptionsKeyMap, key)
 }
 
 const paintingsModerationOptionsKeyMap = {
@@ -220,7 +240,7 @@ const paintingsModerationOptionsKeyMap = {
 } as const
 
 export const getPaintingsModerationOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsModerationOptionsKeyMap)
+  return getLabel(paintingsModerationOptionsKeyMap, key)
 }
 
 const paintingsBackgroundOptionsKeyMap = {
@@ -230,7 +250,7 @@ const paintingsBackgroundOptionsKeyMap = {
 } as const
 
 export const getPaintingsBackgroundOptionsLabel = (key: string): string => {
-  return getLabel(key, paintingsBackgroundOptionsKeyMap)
+  return getLabel(paintingsBackgroundOptionsKeyMap, key)
 }
 
 const mcpTypeKeyMap = {
@@ -241,7 +261,7 @@ const mcpTypeKeyMap = {
 } as const
 
 export const getMcpTypeLabel = (key: string): string => {
-  return getLabel(key, mcpTypeKeyMap)
+  return getLabel(mcpTypeKeyMap, key)
 }
 
 const miniappsStatusKeyMap = {
@@ -250,7 +270,7 @@ const miniappsStatusKeyMap = {
 } as const
 
 export const getMiniappsStatusLabel = (key: string): string => {
-  return getLabel(key, miniappsStatusKeyMap)
+  return getLabel(miniappsStatusKeyMap, key)
 }
 
 const httpMessageKeyMap = {
@@ -266,7 +286,7 @@ const httpMessageKeyMap = {
 } as const
 
 export const getHttpMessageLabel = (key: string): string => {
-  return getLabel(key, httpMessageKeyMap)
+  return getLabel(httpMessageKeyMap, key)
 }
 
 const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
@@ -279,7 +299,7 @@ const reasoningEffortOptionsKeyMap: Record<ThinkingOption, string> = {
 } as const
 
 export const getReasoningEffortOptionsLabel = (key: string): string => {
-  return getLabel(key, reasoningEffortOptionsKeyMap)
+  return getLabel(reasoningEffortOptionsKeyMap, key)
 }
 
 const fileFieldKeyMap = {
@@ -289,20 +309,32 @@ const fileFieldKeyMap = {
 } as const
 
 export const getFileFieldLabel = (key: string): string => {
-  return getLabel(key, fileFieldKeyMap)
+  return getLabel(fileFieldKeyMap, key)
 }
 
-const builtInMcpDescriptionKeyMap = {
-  '@cherry/mcp-auto-install': 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
-  '@cherry/memory': 'settings.mcp.builtinServersDescriptions.memory',
-  '@cherry/sequentialthinking': 'settings.mcp.builtinServersDescriptions.sequentialthinking',
-  '@cherry/brave-search': 'settings.mcp.builtinServersDescriptions.brave_search',
-  '@cherry/fetch': 'settings.mcp.builtinServersDescriptions.fetch',
-  '@cherry/filesystem': 'settings.mcp.builtinServersDescriptions.filesystem',
-  '@cherry/dify-knowledge': 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  '@cherry/python': 'settings.mcp.builtinServersDescriptions.python'
+const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
+  [BuiltinMCPServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  [BuiltinMCPServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
+  [BuiltinMCPServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
+  [BuiltinMCPServerNames.braveSearch]: 'settings.mcp.builtinServersDescriptions.brave_search',
+  [BuiltinMCPServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
+  [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
+  [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
+  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
-  return getLabel(key, builtInMcpDescriptionKeyMap, t('settings.mcp.builtinServersDescriptions.no'))
+  return getLabel(builtInMcpDescriptionKeyMap, key, t('settings.mcp.builtinServersDescriptions.no'))
+}
+
+const builtinOcrProviderKeyMap = {
+  system: 'ocr.builtin.system',
+  tesseract: '',
+  paddleocr: ''
+} as const satisfies Record<BuiltinOcrProviderId, string>
+
+export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
+  if (key === 'tesseract') return 'Tesseract'
+  else if (key == 'paddleocr') return 'PaddleOCR'
+  else return getLabel(builtinOcrProviderKeyMap, key)
 }

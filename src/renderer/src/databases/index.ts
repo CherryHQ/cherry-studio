@@ -1,6 +1,13 @@
-import { CustomTranslateLanguage, FileMetadata, KnowledgeItem, QuickPhrase, TranslateHistory } from '@renderer/types'
+import {
+  CustomTranslateLanguage,
+  FileMetadata,
+  KnowledgeNoteItem,
+  QuickPhrase,
+  TranslateHistory
+} from '@renderer/types'
 // Import necessary types for blocks and new message structure
 import type { Message as NewMessage, MessageBlock } from '@renderer/types/newMessage'
+import { NotesTreeNode } from '@renderer/types/note'
 import { Dexie, type EntityTable } from 'dexie'
 
 import { upgradeToV5, upgradeToV7, upgradeToV8 } from './upgrades'
@@ -12,11 +19,12 @@ export const db = new Dexie('CherryStudio', {
   files: EntityTable<FileMetadata, 'id'>
   topics: EntityTable<{ id: string; messages: NewMessage[] }, 'id'> // Correct type for topics
   settings: EntityTable<{ id: string; value: any }, 'id'>
-  knowledge_notes: EntityTable<KnowledgeItem, 'id'>
+  knowledge_notes: EntityTable<KnowledgeNoteItem, 'id'>
   translate_history: EntityTable<TranslateHistory, 'id'>
   quick_phrases: EntityTable<QuickPhrase, 'id'>
   message_blocks: EntityTable<MessageBlock, 'id'> // Correct type for message_blocks
   translate_languages: EntityTable<CustomTranslateLanguage, 'id'>
+  notes_tree: EntityTable<{ id: string; tree: NotesTreeNode[] }, 'id'>
 }
 
 db.version(1).stores({
@@ -100,6 +108,18 @@ db.version(9).stores({
   translate_languages: '&id, langCode',
   quick_phrases: 'id',
   message_blocks: 'id, messageId, file.id' // Correct syntax with comma separator
+})
+
+db.version(10).stores({
+  files: 'id, name, origin_name, path, size, ext, type, created_at, count',
+  topics: '&id',
+  settings: '&id, value',
+  knowledge_notes: '&id, baseId, type, content, created_at, updated_at',
+  translate_history: '&id, sourceText, targetText, sourceLanguage, targetLanguage, createdAt',
+  translate_languages: '&id, langCode',
+  quick_phrases: 'id',
+  message_blocks: 'id, messageId, file.id',
+  notes_tree: '&id'
 })
 
 export default db

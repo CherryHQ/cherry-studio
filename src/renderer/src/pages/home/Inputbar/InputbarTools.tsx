@@ -1,6 +1,8 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
+import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
+import { isSupportUrlContextProvider } from '@renderer/config/providers'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
@@ -61,6 +63,7 @@ export interface InputbarToolsProps {
   extensions: string[]
   showThinkingButton: boolean
   showKnowledgeIcon: boolean
+  showMcpTools: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   handleKnowledgeBaseSelect: (bases?: KnowledgeBase[]) => void
   setText: Dispatch<SetStateAction<string>>
@@ -103,6 +106,7 @@ const InputbarTools = ({
   setFiles,
   showThinkingButton,
   showKnowledgeIcon,
+  showMcpTools,
   selectedKnowledgeBases,
   handleKnowledgeBaseSelect,
   setText,
@@ -347,7 +351,7 @@ const InputbarTools = ({
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
-        condition: model.id.toLowerCase().includes('gemini')
+        condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
         key: 'knowledge_base',
@@ -374,7 +378,8 @@ const InputbarTools = ({
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
           />
-        )
+        ),
+        condition: showMcpTools
       },
       {
         key: 'generate_image',
@@ -478,6 +483,7 @@ const InputbarTools = ({
     setFiles,
     setText,
     showKnowledgeIcon,
+    showMcpTools,
     showThinkingButton,
     t
   ])

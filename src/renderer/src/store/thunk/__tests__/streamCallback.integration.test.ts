@@ -241,7 +241,13 @@ vi.mock('i18next', () => {
 
 vi.mock('@renderer/utils/error', () => ({
   formatErrorMessage: vi.fn((error) => error.message || 'Unknown error'),
-  isAbortError: vi.fn((error) => error.name === 'AbortError')
+  isAbortError: vi.fn((error) => error.name === 'AbortError'),
+  serializeError: vi.fn((error) => ({
+    name: error.name,
+    message: error.message,
+    stack: error.stack,
+    cause: error.cause ? String(error.cause) : undefined
+  }))
 }))
 
 vi.mock('@renderer/utils', () => ({
@@ -434,7 +440,8 @@ describe('streamCallback Integration Tests', () => {
         type: 'object',
         title: 'Test Tool Input',
         properties: {}
-      }
+      },
+      type: 'mcp'
     }
 
     const chunks: Chunk[] = [
@@ -451,18 +458,18 @@ describe('streamCallback Integration Tests', () => {
           }
         ]
       },
-      {
-        type: ChunkType.MCP_TOOL_IN_PROGRESS,
-        responses: [
-          {
-            id: 'tool-call-1',
-            tool: mockTool,
-            arguments: { testArg: 'value' },
-            status: 'invoking' as const,
-            response: ''
-          }
-        ]
-      },
+      // {
+      //   type: ChunkType.MCP_TOOL_PENDING,
+      //   responses: [
+      //     {
+      //       id: 'tool-call-1',
+      //       tool: mockTool,
+      //       arguments: { testArg: 'value' },
+      //       status: 'invoking' as const,
+      //       response: ''
+      //     }
+      //   ]
+      // },
       {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [
@@ -570,7 +577,8 @@ describe('streamCallback Integration Tests', () => {
         type: 'object',
         title: 'Calculator Input',
         properties: {}
-      }
+      },
+      type: 'mcp'
     }
 
     const chunks: Chunk[] = [
@@ -603,18 +611,18 @@ describe('streamCallback Integration Tests', () => {
           }
         ]
       },
-      {
-        type: ChunkType.MCP_TOOL_IN_PROGRESS,
-        responses: [
-          {
-            id: 'tool-call-1',
-            tool: mockCalculatorTool,
-            arguments: { operation: 'add', a: 1, b: 2 },
-            status: 'invoking' as const,
-            response: ''
-          }
-        ]
-      },
+      // {
+      //   type: ChunkType.MCP_TOOL_PENDING,
+      //   responses: [
+      //     {
+      //       id: 'tool-call-1',
+      //       tool: mockCalculatorTool,
+      //       arguments: { operation: 'add', a: 1, b: 2 },
+      //       status: 'invoking' as const,
+      //       response: ''
+      //     }
+      //   ]
+      // },
       {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [

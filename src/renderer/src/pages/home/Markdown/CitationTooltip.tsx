@@ -2,14 +2,17 @@ import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
+import { z } from 'zod'
+
+export const CitationSchema = z.object({
+  url: z.url(),
+  title: z.string().optional(),
+  content: z.string().optional()
+})
 
 interface CitationTooltipProps {
   children: React.ReactNode
-  citation: {
-    url: string
-    title?: string
-    content?: string
-  }
+  citation: z.infer<typeof CitationSchema>
 }
 
 const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation }) => {

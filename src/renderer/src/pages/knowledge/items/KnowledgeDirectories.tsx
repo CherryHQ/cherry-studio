@@ -21,6 +21,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -43,7 +44,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     selectedBase.id || ''
   )
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const reversedItems = useMemo(() => [...directoryItems].reverse(), [directoryItems])
@@ -66,7 +67,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
@@ -75,7 +76,7 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           }}
           disabled={disabled}>
           {t('knowledge.add_directory')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
       <ItemFlexColumn>
         {directoryItems.length === 0 && <KnowledgeEmptyView />}

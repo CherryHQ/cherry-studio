@@ -1,4 +1,4 @@
-import '@renderer/assets/styles/selection-toolbar.scss'
+import '@renderer/assets/styles/selection-toolbar.css'
 
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
@@ -374,10 +374,10 @@ const ActionButton = styled.div`
   }
   &:hover {
     .btn-icon {
-      color: var(--selection-toolbar-button-icon-color-hover);
+      color: var(--color-primary);
     }
     .btn-title {
-      color: var(--selection-toolbar-button-text-color-hover);
+      color: var(--color-primary);
     }
     background-color: var(--selection-toolbar-button-bgcolor-hover);
   }

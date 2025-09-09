@@ -148,9 +148,6 @@
     "edit": {
       "title": "Editar Asistente"
     },
-    "error": {
-      "add": "Error al agregar asistente"
-    },
     "icon": {
       "type": "Ícono del Asistente"
     },
@@ -243,6 +240,7 @@
       "compressing": "Comprimiendo archivos...",
       "copying_files": "Copiando archivos... {{progress}}%",
       "preparing": "Preparando copia de seguridad...",
+      "preparing_compression": "Preparando compresión...",
       "title": "Progreso de la copia de seguridad",
       "writing_data": "Escribiendo datos..."
     },
@@ -290,7 +288,7 @@
         "placeholder": "Buscar"
       }
     },
-    "deeply_thought": "Profundamente pensado (tomó {{secounds}} segundos)",
+    "deeply_thought": "Profundamente pensado (tomó {{seconds}} segundos)",
     "default": {
       "description": "Hola, soy el asistente predeterminado. Puedes comenzar a conversar conmigo de inmediato.",
       "name": "Asistente predeterminado",
@@ -393,8 +391,10 @@
         "parse_tool_call": "No se puede convertir al formato de llamada de herramienta válido: {{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini no admite el uso simultáneo de herramientas de búsqueda nativa y llamadas de funciones",
         "multiple_tools": "Existen múltiples herramientas MCP coincidentes, se ha seleccionado {{tool}}",
-        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}"
+        "no_tool": "No se encontró la herramienta MCP requerida {{tool}}",
+        "url_context": "Gemini no admite el uso simultáneo del contexto de la página web y las llamadas a funciones."
       }
     },
     "message": {
@@ -538,7 +538,10 @@
         "tip": "En la barra de herramientas de bloques de código ejecutables se mostrará un botón de ejecución. ¡Tenga cuidado en no ejecutar código peligroso!",
         "title": "Ejecución de Código"
       },
-      "code_image_tools": "Activar herramientas de vista previa",
+      "code_image_tools": {
+        "label": "Habilitar herramienta de vista previa",
+        "tip": "Habilitar herramientas de vista previa para imágenes renderizadas de bloques de código como mermaid"
+      },
       "code_wrappable": "Bloques de código reemplazables",
       "context_count": {
         "label": "Número de contextos",
@@ -597,6 +600,7 @@
           "label": "Exportar como Markdown",
           "reason": "Exportar como Markdown (incluye el razonamiento)"
         },
+        "notes": "Exportar a notas",
         "notion": "Exportar a Notion",
         "obsidian": "Exportar a Obsidian",
         "obsidian_atributes": "Configurar atributos de nota",
@@ -676,6 +680,7 @@
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
     "select_folder": "Seleccionar carpeta",
+    "supported_providers": "Proveedores de servicios compatibles",
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
     "working_directory": "directorio de trabajo"
@@ -742,6 +747,7 @@
     "delete": "Eliminar",
     "delete_confirm": "¿Está seguro de que desea eliminarlo?",
     "description": "Descripción",
+    "detail": "Detalles",
     "disabled": "Desactivado",
     "docs": "Documentos",
     "download": "Descargar",
@@ -750,9 +756,13 @@
     "enabled": "Activado",
     "error": "error",
     "expand": "Expandir",
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
     "footnote": "Nota al pie",
     "footnotes": "Notas al pie",
     "fullscreen": "En modo pantalla completa, presione F11 para salir",
+    "go_to_settings": "Ir a la configuración",
     "i_know": "Entendido",
     "inspect": "Inspeccionar",
     "knowledge_base": "Base de conocimiento",
@@ -763,6 +773,7 @@
     "more": "Más",
     "name": "Nombre",
     "no_results": "Sin resultados",
+    "none": "无",
     "open": "Abrir",
     "paste": "Pegar",
     "preview": "Vista previa",
@@ -788,9 +799,11 @@
         "label": "Ordenar por pinyin"
       }
     },
+    "stop": "Detener",
     "success": "Éxito",
     "swap": "Intercambiar",
     "topics": "Temas",
+    "upload_files": "Subir archivo",
     "warning": "Advertencia",
     "you": "Usuario"
   },
@@ -806,6 +819,8 @@
     "openai-response": "Respuesta de OpenAI"
   },
   "error": {
+    "availableProviders": "Proveedores disponibles",
+    "availableTools": "Herramientas disponibles",
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
@@ -814,14 +829,29 @@
         "devtools": "Abrir el panel de depuración",
         "message": "Parece que ha surgido un problema...",
         "reload": "Recargar"
+      },
+      "details": "Detalles",
+      "mcp": {
+        "invalid": "Servidor MCP no válido"
       }
     },
+    "cause": "Error原因",
     "chat": {
       "chunk": {
         "non_json": "Devuelve un formato de datos no válido"
       },
+      "insufficient_balance": "Por favor, vaya a <provider>{{provider}}</provider> para recargar.",
+      "no_api_key": "No ha configurado una clave API. Por favor, vaya a <provider>{{provider}}</provider> para obtener una clave API.",
+      "quota_exceeded": "Su cuota gratuita diaria de {{quota}} tokens se ha agotado. Por favor, vaya a <provider>{{provider}}</provider> para obtener una clave API y configurar la clave API para continuar usando.",
       "response": "Ha ocurrido un error, si no ha configurado la clave API, vaya a Configuración > Proveedor de modelos para configurar la clave"
     },
+    "content": "contenido",
+    "data": "datos",
+    "detail": "Detalles del error",
+    "details": "Detalles",
+    "errors": "error",
+    "finishReason": "Razón de finalización",
+    "functionality": "función",
     "http": {
       "400": "Error en la solicitud, revise si los parámetros de la solicitud son correctos. Si modificó la configuración del modelo, restablezca a la configuración predeterminada",
       "401": "Fallo en la autenticación, revise si la clave API es correcta",
@@ -833,20 +863,51 @@
       "503": "Servicio no disponible, inténtelo de nuevo más tarde",
       "504": "Tiempo de espera de la puerta de enlace, inténtelo de nuevo más tarde"
     },
+    "lastError": "Último error",
+    "maxEmbeddingsPerCall": "máximo de incrustaciones por llamada",
+    "message": "Mensaje de error",
     "missing_user_message": "No se puede cambiar la respuesta del modelo: el mensaje original del usuario ha sido eliminado. Envíe un nuevo mensaje para obtener la respuesta de este modelo",
     "model": {
       "exists": "El modelo ya existe",
       "not_exists": "El modelo no existe"
     },
+    "modelId": "ID del modelo",
+    "modelType": "Tipo de modelo",
+    "name": "Nombre de error",
     "no_api_key": "La clave API no está configurada",
+    "originalError": "Error original",
+    "originalMessage": "mensaje original",
+    "parameter": "parámetro",
     "pause_placeholder": "Interrumpido",
+    "prompt": "prompt",
+    "provider": "proveedor",
+    "providerId": "ID del proveedor",
     "provider_disabled": "El proveedor de modelos no está habilitado",
+    "reason": "causa",
     "render": {
       "description": "Error al renderizar la fórmula, por favor, compruebe si el formato de la fórmula es correcto",
       "title": "Error de renderizado"
     },
+    "requestBody": "Contenido de la solicitud",
+    "requestBodyValues": "Cuerpo de la solicitud",
+    "requestUrl": "Ruta de solicitud",
+    "response": "respuesta",
+    "responseBody": "Contenido de la respuesta",
+    "responseHeaders": "Encabezados de respuesta",
+    "responses": "respuesta",
+    "role": "Rol",
+    "stack": "Información de la pila",
+    "status": "Estado",
+    "statusCode": "Código de estado",
+    "statusText": "Texto de estado",
+    "text": "Texto",
+    "toolInput": "Herramienta de entrada",
+    "toolName": "Nombre de la herramienta",
     "unknown": "Error desconocido",
-    "user_message_not_found": "No se pudo encontrar el mensaje original del usuario"
+    "usage": "Cantidad de uso",
+    "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",
+    "value": "Valor",
+    "values": "Valor"
   },
   "export": {
     "assistant": "Asistente",
@@ -876,6 +937,8 @@
   "files": {
     "actions": "Acciones",
     "all": "Todos los archivos",
+    "batch_delete": "Eliminación masiva",
+    "batch_operation": "Seleccionar todo",
     "count": "Número de archivos",
     "created_at": "Fecha de creación",
     "delete": {
@@ -924,6 +987,11 @@
     "title": "Búsqueda de temas"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "Capturar página",
+      "to_clipboard": "Copiar al portapapeles",
+      "to_file": "Guardar como imagen"
+    },
     "code": "Código",
     "empty_preview": "Sin contenido para mostrar",
     "generating": "Generando",
@@ -936,9 +1004,11 @@
     },
     "add_directory": "Agregar directorio",
     "add_file": "Agregar archivo",
+    "add_image": "Añadir imagen",
     "add_note": "Agregar nota",
     "add_sitemap": "Mapa del sitio",
     "add_url": "Agregar URL",
+    "add_video": "Añadir video",
     "cancel_index": "Cancelar índice",
     "chunk_overlap": "Superposición de fragmentos",
     "chunk_overlap_placeholder": "Valor predeterminado (no recomendado para modificar)",
@@ -965,6 +1035,7 @@
     "document_count_default": "Predeterminado",
     "document_count_help": "Más fragmentos de documentos solicitados significa más información adjunta, pero también consume más tokens",
     "drag_file": "Arrastre archivos aquí",
+    "drag_image": "Arrastra la imagen aquí",
     "edit_remark": "Editar observación",
     "edit_remark_placeholder": "Ingrese el contenido de la observación",
     "embedding_model": "Modelo de incrustación",
@@ -973,9 +1044,15 @@
     "error": {
       "failed_to_create": "Error al crear la base de conocimientos",
       "failed_to_edit": "Error al editar la base de conocimientos",
-      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado"
+      "model_invalid": "No se ha seleccionado un modelo o ha sido eliminado",
+      "video": {
+        "local_file_missing": "El archivo de video no existe.",
+        "youtube_url_missing": "El enlace del vídeo de YouTube no existe."
+      }
     },
     "file_hint": "Formatos soportados: {{file_types}}",
+    "image_hint": "Soporta formatos {{image_types}}",
+    "images": "Imagen",
     "index_all": "Indexar todo",
     "index_cancelled": "Índice cancelado",
     "index_started": "Índice iniciado",
@@ -991,6 +1068,10 @@
       },
       "error": {
         "failed": "Error en la migración"
+      },
+      "migrate_to_langchain": {
+        "content": "La migración de la base de conocimiento no elimina la base antigua, sino que crea una copia y luego reprocesa todas las entradas, lo que puede consumir una gran cantidad de tokens. Proceda con precaución.",
+        "info": "La estructura de la base de conocimiento ha sido actualizada. Haz clic para migrar a la nueva estructura."
       },
       "source_dimensions": "Dimensiones de origen",
       "source_model": "Modelo de origen",
@@ -1010,6 +1091,20 @@
     "quota": "Cupo restante de {{name}}: {{quota}}",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
+    "retriever": "modo de recuperación",
+    "retriever_bm25": "búsqueda de texto completo",
+    "retriever_bm25_desc": "Encontrar documentos basados en la relevancia y frecuencia de las palabras clave.",
+    "retriever_hybrid": "Búsqueda híbrida (recomendada)",
+    "retriever_hybrid_desc": "Combinar la búsqueda por palabras clave con la búsqueda semántica para lograr la máxima precisión en la recuperación.",
+    "retriever_hybrid_weight": {
+      "bm25": "texto completo",
+      "recommended": "Recomendado",
+      "title": "Ajuste de ponderación en búsqueda híbrida (texto completo/vectorial)",
+      "vector": "vector"
+    },
+    "retriever_tooltip": "Usar diferentes métodos de búsqueda para consultar la base de conocimiento",
+    "retriever_vector": "búsqueda vectorial",
+    "retriever_vector_desc": "Buscar documentos según similitud semántica y significado.",
     "search": "Buscar en la base de conocimientos",
     "search_placeholder": "Ingrese el contenido de la consulta",
     "settings": {
@@ -1031,6 +1126,7 @@
     "status_preprocess_completed": "Preprocesamiento completado",
     "status_preprocess_failed": "Error en el preprocesamiento",
     "status_processing": "Procesando",
+    "subtitle_file": "Archivo de subtítulos",
     "threshold": "Umbral de coincidencia",
     "threshold_placeholder": "No configurado",
     "threshold_too_large_or_small": "El umbral no puede ser mayor que 1 o menor que 0",
@@ -1042,7 +1138,9 @@
     "topN_tooltip": "Número de resultados coincidentes devueltos, un valor más alto significa más resultados coincidentes, pero también consume más tokens",
     "url_added": "URL agregada",
     "url_placeholder": "Ingrese la URL, múltiples URLs separadas por enter",
-    "urls": "URLs"
+    "urls": "URLs",
+    "videos": "vídeo",
+    "videos_file": "video file"
   },
   "languages": {
     "arabic": "Árabe",
@@ -1289,6 +1387,9 @@
           "specified": "Error al exportar archivo Markdown"
         }
       },
+      "notes": {
+        "export": "Fallo al exportar la nota"
+      },
       "notion": {
         "export": "Error de exportación de Notion, verifique el estado de conexión y la configuración según la documentación",
         "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion",
@@ -1308,7 +1409,8 @@
       "delete": {
         "content": "Eliminar el mensaje del grupo eliminará la pregunta del usuario y todas las respuestas del asistente",
         "title": "Eliminar mensaje del grupo"
-      }
+      },
+      "retry_failed": "Reintentar el mensaje con error"
     },
     "ignore": {
       "knowledge": {
@@ -1345,6 +1447,13 @@
         "bubble": "Burbuja",
         "label": "Estilo de mensaje",
         "plain": "Simple"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "Ruta del archivo de video local no encontrada",
+          "unsupported_type": "Tipo de video no soportado",
+          "youtube_url_missing": "URL del video de YouTube no encontrada"
+        }
       }
     },
     "processing": "Procesando...",
@@ -1381,6 +1490,9 @@
           "preconf": "Archivo Markdown exportado con éxito a la ruta predefinida",
           "specified": "Archivo Markdown exportado con éxito"
         }
+      },
+      "notes": {
+        "export": "Exportado correctamente a las notas"
       },
       "notion": {
         "export": "Exportado con éxito a Notion"
@@ -1429,7 +1541,7 @@
     },
     "websearch": {
       "cutoff": "Truncando el contenido de búsqueda...",
-      "fetch_complete": "Búsqueda completada {{count}} veces...",
+      "fetch_complete": "{{count}} resultados de búsqueda",
       "rag": "Ejecutando RAG...",
       "rag_complete": "Conservando {{countAfter}} de los {{countBefore}} resultados...",
       "rag_failed": "RAG fallido, devolviendo resultados vacíos..."
@@ -1531,7 +1643,12 @@
     "embedding_model": "Modelo de inmersión",
     "embedding_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
     "enable_tool_use": "Habilitar uso de herramientas",
+    "filter": {
+      "by_tag": "Filtrar por etiqueta",
+      "selected": "Etiquetas seleccionadas"
+    },
     "function_calling": "Llamada a función",
+    "invalid_model": "Modelo inválido",
     "no_matches": "No hay modelos disponibles",
     "parameter_name": "Nombre del parámetro",
     "parameter_type": {
@@ -1557,7 +1674,10 @@
     "rerank_model_not_support_provider": "Actualmente, el modelo de reordenamiento no admite este proveedor ({{provider}})",
     "rerank_model_support_provider": "Actualmente, el modelo de reordenamiento solo es compatible con algunos proveedores ({{provider}})",
     "rerank_model_tooltip": "Haga clic en el botón Administrar en Configuración->Servicio de modelos para agregar",
-    "search": "Buscar modelo...",
+    "search": {
+      "placeholder": "Buscar modelo...",
+      "tooltip": "Buscar modelo"
+    },
     "stream_output": "Salida en flujo",
     "type": {
       "embedding": "Incrustación",
@@ -1574,7 +1694,102 @@
   "navbar": {
     "expand": "Expandir cuadro de diálogo",
     "hide_sidebar": "Ocultar barra lateral",
-    "show_sidebar": "Mostrar barra lateral"
+    "show_sidebar": "Mostrar barra lateral",
+    "window": {
+      "close": "Cerrar",
+      "maximize": "Maximizar",
+      "minimize": "Minimizar",
+      "restore": "Restaurar"
+    }
+  },
+  "navigate": {
+    "provider_settings": "Ir a la configuración del proveedor"
+  },
+  "notes": {
+    "characters": "carácter",
+    "collapse": "ocultar",
+    "content_placeholder": "Introduzca el contenido de la nota...",
+    "copyContent": "copiar contenido",
+    "delete": "eliminar",
+    "delete_confirm": "¿Estás seguro de que deseas eliminar este {{type}}?",
+    "delete_folder_confirm": "¿Está seguro de que desea eliminar la carpeta \"{{name}}\" y todo su contenido?",
+    "delete_note_confirm": "¿Está seguro de que desea eliminar la nota \"{{name}}\"?",
+    "drop_markdown_hint": "Arrastra archivos Markdown aquí para importar",
+    "empty": "Sin notas por el momento",
+    "expand": "expandir",
+    "export_failed": "Exportación a la base de conocimientos fallida",
+    "export_knowledge": "exportar notas a la base de conocimientos",
+    "export_success": "Exportado con éxito a la base de conocimientos",
+    "folder": "carpeta",
+    "new_folder": "Nueva carpeta",
+    "new_note": "Crear nota nueva",
+    "no_content_to_copy": "No hay contenido para copiar",
+    "no_file_selected": "Por favor, seleccione el archivo a subir",
+    "only_markdown": "Solo se admite el formato Markdown",
+    "only_one_file_allowed": "solo se puede subir un archivo",
+    "open_folder": "abrir carpeta externa",
+    "open_outside": "Abrir desde el exterior",
+    "rename": "renombrar",
+    "rename_changed": "Debido a políticas de seguridad, el nombre del archivo ha cambiado de {{original}} a {{final}}",
+    "save": "Guardar en notas",
+    "settings": {
+      "data": {
+        "apply": "aplicación",
+        "apply_path_failed": "Error en la ruta de la aplicación",
+        "current_work_directory": "directorio de trabajo actual",
+        "invalid_directory": "El directorio seleccionado no es válido o no tiene permisos",
+        "path_required": "Seleccione el directorio de trabajo",
+        "path_updated": "Directorio de trabajo actualizado correctamente",
+        "reset_failed": "Reinicio fallido",
+        "reset_to_default": "restablecer a predeterminado",
+        "select": "selección",
+        "select_directory_failed": "No se pudo seleccionar el directorio",
+        "title": "Configuración de datos",
+        "work_directory_description": "El directorio de trabajo es la ubicación donde se almacenan todos los archivos de notas. Cambiar el directorio de trabajo no moverá los archivos existentes; por favor, migre los archivos manualmente.",
+        "work_directory_placeholder": "Seleccionar directorio de trabajo de notas"
+      },
+      "display": {
+        "compress_content": "reducir el ancho de la columna",
+        "compress_content_description": "Al activarlo, se limitará el número de caracteres por línea, reduciendo el contenido mostrado en pantalla.",
+        "default_font": "fuente predeterminada",
+        "font_title": "Configuración de fuente",
+        "serif_font": "fuente serif",
+        "title": "configuración de visualización"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "En la vista de edición, el modo de edición predeterminado para nuevas notas",
+          "preview_mode": "vista previa en tiempo real",
+          "source_mode": "modo de código fuente",
+          "title": "vista de edición predeterminada"
+        },
+        "title": "configuración del editor",
+        "view_mode": {
+          "description": "modo de vista predeterminado para nuevas notas",
+          "edit_mode": "modo de edición",
+          "read_mode": "modo de lectura",
+          "title": "vista predeterminada"
+        },
+        "view_mode_description": "Configurar el modo de vista predeterminado para las nuevas pestañas."
+      },
+      "title": "notas"
+    },
+    "show_starred": "mostrar notas guardadas",
+    "sort_a2z": "Nombre de archivo (A-Z)",
+    "sort_created_asc": "Fecha de creación (de más antigua a más nueva)",
+    "sort_created_desc": "Fecha de creación (de nuevo a antiguo)",
+    "sort_updated_asc": "Fecha de actualización (de más antigua a más reciente)",
+    "sort_updated_desc": "Fecha de actualización (de más nuevo a más antiguo)",
+    "sort_z2a": "Nombre de archivo (Z-A)",
+    "star": "Colección",
+    "starred_notes": "notas guardadas",
+    "title": "notas",
+    "unsaved_changes": "Tienes contenido no guardado, ¿estás seguro de que quieres salir?",
+    "unstar": "Quitar de favoritos",
+    "untitled_folder": "Nueva carpeta",
+    "untitled_note": "Nota sin título",
+    "upload_failed": "Error al cargar la nota",
+    "upload_success": "Nota cargada con éxito"
   },
   "notification": {
     "assistant": "Respuesta del asistente",
@@ -1583,6 +1798,29 @@
       "success": "Se agregó correctamente {{type}} a la base de conocimientos"
     },
     "tip": "Si la respuesta es exitosa, solo se enviará un recordatorio para mensajes que excedan los 30 segundos"
+  },
+  "ocr": {
+    "builtin": {
+      "system": "OCR del sistema"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "No se puede eliminar el proveedor integrado",
+        "existing": "El proveedor ya existe",
+        "not_found": "El proveedor de OCR no existe",
+        "update_failed": "Actualización de la configuración fallida"
+      },
+      "unknown": "El proceso OCR ha fallado"
+    },
+    "file": {
+      "not_supported": "Tipo de archivo no compatible {{type}}"
+    },
+    "processing": "Procesando OCR...",
+    "warning": {
+      "provider": {
+        "fallback": "Se ha revertido a {{name}}, lo que podría causar problemas"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -1792,6 +2030,7 @@
     "baidu-cloud": "Baidu Nube Qiánfān",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copiloto",
     "dashscope": "Álibaba Nube BaiLiàn",
     "deepseek": "Profundo Buscar",
@@ -1837,7 +2076,7 @@
     "xirang": "Telecom Nube XiRang",
     "yi": "Cero Uno Todo",
     "zhinao": "360 Inteligente",
-    "zhipu": "ZhiPu IA"
+    "zhipu": "BigModel"
   },
   "restore": {
     "confirm": {
@@ -1855,6 +2094,221 @@
       "title": "Progreso de Restauración"
     },
     "title": "Restauración de Datos"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "eliminar columna",
+        "deleteRow": "eliminar fila",
+        "insertColumnAfter": "insertar en el lado derecho",
+        "insertColumnBefore": "Insertar a la izquierda",
+        "insertRowAfter": "Insertar abajo",
+        "insertRowBefore": "Insertar arriba"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "insertar fórmula matemática",
+        "title": "fórmula matemática"
+      },
+      "blockquote": {
+        "description": "insertar texto de referencia",
+        "title": "cita"
+      },
+      "bold": {
+        "description": "marcado en negrita",
+        "title": "negrita"
+      },
+      "bulletList": {
+        "description": "Crear una lista de viñetas simple",
+        "title": "lista desordenada"
+      },
+      "calloutInfo": {
+        "description": "agregar cuadro de información",
+        "title": "cuadro de mensaje informativo"
+      },
+      "calloutWarning": {
+        "description": "añadir cuadro de advertencia",
+        "title": "cuadro de advertencia"
+      },
+      "code": {
+        "description": "insertar fragmento de código",
+        "title": "código"
+      },
+      "codeBlock": {
+        "description": "insertar fragmento de código",
+        "title": "bloque de código"
+      },
+      "columns": {
+        "description": "crear diseño de columnas",
+        "title": "columnas"
+      },
+      "date": {
+        "description": "insertar la fecha actual",
+        "title": "fecha"
+      },
+      "divider": {
+        "description": "agregar línea divisoria horizontal",
+        "title": "línea divisoria"
+      },
+      "hardBreak": {
+        "description": "insertar salto de línea",
+        "title": "carácter de nueva línea"
+      },
+      "heading1": {
+        "description": "Título del párrafo grande",
+        "title": "título principal"
+      },
+      "heading2": {
+        "description": "subtítulo del párrafo central",
+        "title": "subtítulo"
+      },
+      "heading3": {
+        "description": "subtítulo del párrafo pequeño",
+        "title": "título de tercer nivel"
+      },
+      "heading4": {
+        "description": "subtítulos más pequeños",
+        "title": "título de cuarto nivel"
+      },
+      "heading5": {
+        "description": "Subtítulos más pequeños",
+        "title": "título de quinto nivel"
+      },
+      "heading6": {
+        "description": "el encabezado de párrafo más pequeño",
+        "title": "encabezado de nivel seis"
+      },
+      "image": {
+        "description": "insertar imagen",
+        "title": "imagen"
+      },
+      "inlineCode": {
+        "description": "añadir código en línea",
+        "title": "código en línea"
+      },
+      "inlineMath": {
+        "description": "insertar fórmulas matemáticas en línea",
+        "title": "fórmulas matemáticas en línea"
+      },
+      "italic": {
+        "description": "marcado como cursiva",
+        "title": "cursiva"
+      },
+      "link": {
+        "description": "Añadir enlace",
+        "title": "enlace"
+      },
+      "noCommandsFound": "Comando no encontrado",
+      "orderedList": {
+        "description": "Crear listas numeradas",
+        "title": "lista ordenada"
+      },
+      "paragraph": {
+        "description": "comenzar a escribir texto normal",
+        "title": "cuerpo del texto"
+      },
+      "redo": {
+        "description": "Rehacer la operación anterior",
+        "title": "rehacer"
+      },
+      "strike": {
+        "description": "marcado como tachado",
+        "title": "tachado"
+      },
+      "table": {
+        "description": "insertar tabla",
+        "title": "tabla"
+      },
+      "taskList": {
+        "description": "Crear una lista de tareas pendientes",
+        "title": "lista de tareas"
+      },
+      "underline": {
+        "description": "marcado como subrayado",
+        "title": "subrayado"
+      },
+      "undo": {
+        "description": "Deshacer la última acción",
+        "title": "Revocar"
+      }
+    },
+    "dragHandle": "bloque de arrastre",
+    "frontMatter": {
+      "addProperty": "Agregar atributo",
+      "addTag": "Añadir etiqueta",
+      "changeToBoolean": "Casilla de verificación",
+      "changeToDate": "Fecha",
+      "changeToNumber": "número",
+      "changeToTags": "etiqueta",
+      "changeToText": "texto",
+      "changeType": "cambiar tipo",
+      "deleteProperty": "eliminar atributo",
+      "editValue": "editar valor",
+      "empty": "vacío",
+      "moreActions": "Más operaciones",
+      "propertyName": "Nombre del atributo"
+    },
+    "image": {
+      "placeholder": "añadir imágenes"
+    },
+    "imageUploader": {
+      "embedImage": "incrustar imágenes",
+      "embedLink": "incrustar enlace",
+      "embedSuccess": "La imagen se insertó correctamente",
+      "invalidType": "Por favor, seleccione un archivo de imagen",
+      "invalidUrl": "Enlace de imagen no válido",
+      "processing": "Procesando imágenes...",
+      "title": "agregar imagen",
+      "tooLarge": "El tamaño de la imagen no puede superar los 10MB",
+      "upload": "subir",
+      "uploadError": "La subida de la imagen falló",
+      "uploadFile": "subir archivo",
+      "uploadHint": "Admite formatos como JPG, PNG, GIF, entre otros, con un tamaño máximo de 10MB",
+      "uploadSuccess": "Imagen subida con éxito",
+      "uploadText": "Haz clic o arrastra la imagen aquí para subirla",
+      "uploading": "Subiendo imágenes",
+      "urlPlaceholder": "pegar el enlace de la imagen",
+      "urlRequired": "Por favor, introduce la dirección del enlace de la imagen"
+    },
+    "link": {
+      "remove": "eliminar enlace",
+      "text": "título del enlace",
+      "textPlaceholder": "Por favor, introduce el título del enlace",
+      "url": "dirección del enlace"
+    },
+    "math": {
+      "placeholder": "Ingresar fórmula LaTeX"
+    },
+    "placeholder": "Introduce '/' to call the command",
+    "plusButton": "Haz clic abajo para agregar",
+    "toolbar": {
+      "blockMath": "bloque de fórmulas matemáticas",
+      "blockquote": "citar",
+      "bold": "negrita",
+      "bulletList": "lista desordenada",
+      "clearMarks": "Eliminar formato",
+      "code": "código en línea",
+      "codeBlock": "bloque de código",
+      "heading1": "Título de nivel 1",
+      "heading2": "subtítulo",
+      "heading3": "título de tercer nivel",
+      "heading4": "título de cuarto nivel",
+      "heading5": "encabezado de quinto nivel",
+      "heading6": "título de sexto nivel",
+      "image": "imagen",
+      "inlineMath": "fórmulas matemáticas en línea",
+      "italic": "cursiva",
+      "link": "enlace",
+      "orderedList": "lista ordenada",
+      "paragraph": "cuerpo del texto",
+      "redo": "rehacer",
+      "strike": "tachado",
+      "table": "tabla",
+      "taskList": "Lista de tareas",
+      "underline": "subrayado",
+      "undo": "Revocar"
+    }
   },
   "selection": {
     "action": {
@@ -2167,6 +2621,7 @@
         "joplin": "Exportar a Joplin",
         "markdown": "Exportar a Markdown",
         "markdown_reason": "Exportar a Markdown (con pensamiento incluido)",
+        "notes": "Exportar a notas",
         "notion": "Exportar a Notion",
         "obsidian": "Exportar a Obsidian",
         "plain_text": "Copiar como texto plano",
@@ -2882,7 +3337,8 @@
         "modelscope": "Servidor MCP de la comunidad ModelScope",
         "official": "Colección oficial de servidores MCP",
         "pulsemcp": "Servidor MCP Pulse",
-        "smithery": "Herramienta Smithery MCP"
+        "smithery": "Herramienta Smithery MCP",
+        "zhipu": "MCP Curado, Integración Rápida"
       },
       "name": "Nombre",
       "newServer": "Servidor MCP",
@@ -2927,6 +3383,10 @@
         "size": "Tamaño",
         "text": "Texto",
         "uri": "URI"
+      },
+      "search": {
+        "placeholder": "Buscar servidores MCP...",
+        "tooltip": "Buscar servidores MCP"
       },
       "searchNpx": "Buscar MCP",
       "serverPlural": "Servidores",
@@ -3010,6 +3470,8 @@
         "label": "Desencadenante de detalles de cuadrícula"
       },
       "input": {
+        "confirm_delete_message": "Confirmar antes de eliminar mensaje",
+        "confirm_regenerate_message": "confirmar antes de regenerar el mensaje",
         "enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
         "paste_long_text_as_file": "Pegar texto largo como archivo",
         "paste_long_text_threshold": "Límite de longitud de texto largo",
@@ -3246,6 +3708,27 @@
         "title": "Agregar proveedor",
         "type": "Tipo de proveedor"
       },
+      "anthropic": {
+        "apikey": "Clave de API",
+        "auth_failed": "Error de autenticación de Anthropic",
+        "auth_method": "Método de autenticación",
+        "auth_success": "Autenticación OAuth de Anthropic exitosa",
+        "authenticated": "Verificado",
+        "authenticating": "Autenticando",
+        "cancel": "Cancelar",
+        "code_error": "Código de autorización inválido, inténtalo de nuevo",
+        "code_placeholder": "Introduzca el código de autorización que se muestra en el navegador",
+        "code_required": "El código de autorización no puede estar vacío",
+        "description": "Autenticación OAuth",
+        "description_detail": "Necesitas suscribirte a Claude Pro o a una versión superior para utilizar este método de autenticación",
+        "enter_auth_code": "Código de autorización",
+        "logout": "Cerrar sesión",
+        "logout_failed": "Error al cerrar sesión, inténtalo de nuevo",
+        "logout_success": "Cierre de sesión exitoso en Anthropic",
+        "oauth": "Web OAuth",
+        "start_auth": "Comenzar autorización",
+        "submit_code": "Iniciar sesión completado"
+      },
       "api": {
         "key": {
           "check": {
@@ -3468,12 +3951,14 @@
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
       "copy_last_message": "Copiar el último mensaje",
+      "edit_last_user_message": "Editar último mensaje de usuario",
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
       "mini_window": "Asistente rápido",
       "new_topic": "Nuevo tema",
       "press_shortcut": "Presionar atajo",
+      "rename_topic": "Renombrar tema",
       "reset_defaults": "Restablecer atajos predeterminados",
       "reset_defaults_confirm": "¿Está seguro de querer restablecer todos los atajos?",
       "reset_to_default": "Restablecer a predeterminado",
@@ -3507,6 +3992,40 @@
     },
     "title": "Configuración",
     "tool": {
+      "ocr": {
+        "common": {
+          "langs": "Idiomas compatibles"
+        },
+        "error": {
+          "not_system": "El OCR del sistema solo admite Windows y MacOS"
+        },
+        "image": {
+          "error": {
+            "provider_not_found": "El proveedor no existe"
+          },
+          "system": {
+            "no_need_configure": "MacOS no requiere configuración"
+          },
+          "title": "Imagen"
+        },
+        "image_provider": "Proveedor de servicios OCR",
+        "paddleocr": {
+          "aistudio_access_token": "Token de acceso de la comunidad de AI Studio",
+          "aistudio_url_label": "Comunidad de AI Studio",
+          "api_url": "URL de la API",
+          "serving_doc_url_label": "Documentación de PaddleOCR Serving",
+          "tip": "Puede consultar la documentación oficial de PaddleOCR para implementar un servicio local, o implementar un servicio en la nube en la Comunidad de PaddlePaddle AI Studio. En este último caso, proporcione el token de acceso de la Comunidad de AI Studio."
+        },
+        "system": {
+          "win": {
+            "langs_tooltip": "Dependiendo de Windows para proporcionar servicios, necesita descargar el paquete de idioma en el sistema para admitir los idiomas correspondientes."
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "Lea la documentación para conocer qué idiomas personalizados son compatibles"
+        },
+        "title": "Servicio OCR"
+      },
       "preprocess": {
         "provider": "Proveedor de servicios de preprocesamiento de documentos",
         "provider_placeholder": "Seleccionar un proveedor de servicios de preprocesamiento de documentos",
@@ -3669,6 +4188,7 @@
     "launchpad": "Centro de lanzamiento",
     "mcp-servers": "Servidores MCP",
     "memories": "Memorias",
+    "notes": "notas",
     "paintings": "Pinturas",
     "settings": "Configuración",
     "translate": "Traducir"
@@ -3732,6 +4252,7 @@
     },
     "empty": "El contenido de traducción está vacío",
     "error": {
+      "chat_qwen_mt": "El modelo Qwen MT no está disponible para uso en conversaciones, por favor vaya a la página de traducción.",
       "detect": {
         "qwen_mt": "El modelo QwenMT no se puede utilizar para la detección de idiomas",
         "unknown": "Se detectó un idioma desconocido",
@@ -3747,6 +4268,16 @@
     "exchange": {
       "label": "Intercambiar el idioma de origen y el idioma de destino"
     },
+    "files": {
+      "drag_text": "Arrastrar y soltar aquí",
+      "error": {
+        "check_type": "Se produjo un error al verificar el tipo de archivo",
+        "multiple": "No se permite cargar varios archivos",
+        "too_large": "El archivo es demasiado grande",
+        "unknown": "Error al leer el contenido del archivo"
+      },
+      "reading": "Leyendo el contenido del archivo..."
+    },
     "history": {
       "clear": "Borrar historial",
       "clear_description": "Borrar el historial eliminará todos los registros de traducciones, ¿desea continuar?",
@@ -3761,8 +4292,11 @@
       },
       "title": "Historial de traducciones"
     },
+    "info": {
+      "aborted": "Traducción cancelada"
+    },
     "input": {
-      "placeholder": "Ingrese el texto para traducir"
+      "placeholder": "Puede pegar o arrastrar texto, archivos de texto o imágenes (compatible con OCR)"
     },
     "language": {
       "not_pair": "El idioma de origen es diferente al idioma configurado",
@@ -3779,6 +4313,7 @@
     },
     "processing": "Traduciendo...",
     "settings": {
+      "autoCopy": "Copiar automáticamente después de completar la traducción",
       "bidirectional": "Configuración de traducción bidireccional",
       "bidirectional_tip": "Una vez activada, solo se admitirá la traducción bidireccional entre el idioma de origen y el idioma de destino",
       "model": "Configuración del modelo",
@@ -3814,10 +4349,6 @@
     "title": "Actualización"
   },
   "warning": {
-    "fallback": {
-      "deafult_assistant": "Se ha revertido al asistente predeterminado, lo que podría causar problemas"
-    },
-    "missing_assistant": "El asistente no existe",
     "missing_provider": "El proveedor no existe, se ha revertido al proveedor predeterminado {{provider}}. Esto podría causar problemas."
   },
   "words": {

@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { useFiles } from '@renderer/hooks/useFiles'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import StatusIcon from '@renderer/pages/knowledge/components/StatusIcon'
 import FileManager from '@renderer/services/FileManager'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { FileMetadata, FileType, FileTypes, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import { FileMetadata, FileTypes, isKnowledgeFileItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Tooltip, Upload } from 'antd'
@@ -27,6 +28,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -48,6 +50,7 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
   const { t } = useTranslation()
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
+  const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
   const { base, fileItems, addFiles, refreshItem, removeItem, getProcessingStatus } = useKnowledge(
     selectedBase.id || ''
@@ -62,7 +65,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const estimateSize = useCallback(() => 75, [])
@@ -71,19 +74,12 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     return null
   }
 
-  const handleAddFile = () => {
-    if (disabled) {
+  const handleAddFile = async () => {
+    if (disabled || selecting) {
       return
     }
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.multiple = true
-    input.accept = fileTypes.join(',')
-    input.onchange = (e) => {
-      const files = (e.target as HTMLInputElement).files
-      files && handleDrop(Array.from(files))
-    }
-    input.click()
+    const selectedFiles = await onSelectFile({ multipleSelections: true })
+    processFiles(selectedFiles)
   }
 
   const handleDrop = async (files: File[]) => {
@@ -118,8 +114,14 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           }
         })
         .filter(({ ext }) => fileTypes.includes(ext))
-      const uploadedFiles = await FileManager.uploadFiles(_files)
-      logger.debug('uploadedFiles', uploadedFiles)
+      processFiles(_files)
+    }
+  }
+
+  const processFiles = async (files: FileMetadata[]) => {
+    logger.debug('processFiles', files)
+    if (files.length > 0) {
+      const uploadedFiles = await FileManager.uploadFiles(files)
       addFiles(uploadedFiles)
     }
   }
@@ -137,7 +139,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
@@ -146,20 +148,27 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           }}
           disabled={disabled}>
           {t('knowledge.add_file')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
 
       <ItemFlexColumn>
-        <Dragger
-          showUploadList={false}
-          customRequest={({ file }) => handleDrop([file as File])}
-          multiple={true}
-          accept={fileTypes.join(',')}>
-          <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
-          <p className="ant-upload-hint">
-            {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
-          </p>
-        </Dragger>
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            handleAddFile()
+          }}>
+          <Dragger
+            showUploadList={false}
+            customRequest={({ file }) => handleDrop([file as File])}
+            multiple={true}
+            accept={fileTypes.join(',')}
+            openFileDialogOnClick={false}>
+            <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
+            <p className="ant-upload-hint">
+              {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
+            </p>
+          </Dragger>
+        </div>
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
@@ -170,7 +179,10 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             scrollerStyle={{ height: windowHeight - 270 }}
             autoHideScrollbar>
             {(item) => {
-              const file = item.content as FileType
+              if (!isKnowledgeFileItem(item)) {
+                return null
+              }
+              const file = item.content
               return (
                 <div style={{ height: '75px', paddingTop: '12px' }}>
                   <FileItem

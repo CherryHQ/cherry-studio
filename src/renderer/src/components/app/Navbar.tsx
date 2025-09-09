@@ -6,6 +6,8 @@ import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
+import WindowControls from '../WindowControls'
+
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
@@ -17,9 +19,12 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   }
 
   return (
-    <NavbarContainer {...props} style={{ backgroundColor }}>
-      {children}
-    </NavbarContainer>
+    <>
+      <NavbarContainer {...props} style={{ backgroundColor }}>
+        {children}
+      </NavbarContainer>
+      {(isWin || isLinux) && <WindowControls />}
+    </>
   )
 }
 
@@ -57,10 +62,10 @@ const NavbarContainer = styled.div`
   min-width: 100%;
   display: flex;
   flex-direction: row;
-  min-height: var(--navbar-height);
+  min-height: ${isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
   max-height: var(--navbar-height);
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'var(--sidebar-width)' : 0};
+  padding-left: ${isMac ? 'env(titlebar-area-x)' : 0};
   -webkit-app-region: drag;
 `
 
@@ -81,6 +86,7 @@ const NavbarCenterContainer = styled.div`
   padding: 0 ${isMac ? '20px' : 0};
   font-weight: bold;
   color: var(--color-text-1);
+  position: relative;
 `
 
 const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
@@ -88,8 +94,8 @@ const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   align-items: center;
   padding: 0 12px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   justify-content: flex-end;
+  flex: 1;
 `
 
 const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`

@@ -50,6 +50,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   const providerConfig = PROVIDER_URLS[provider.id]
   const docsWebsite = providerConfig?.websites?.docs
   const modelsWebsite = providerConfig?.websites?.models
+  const editable = provider.id !== 'cherryin'
 
   const [searchText, _setSearchText] = useState('')
   const [displayedModelGroups, setDisplayedModelGroups] = useState<ModelGroups | null>(() => {
@@ -106,17 +107,23 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 {modelCount}
               </CustomTag>
             )}
-            <CollapsibleSearchBar onSearch={setSearchText} />
+            <CollapsibleSearchBar
+              onSearch={setSearchText}
+              placeholder={t('models.search.placeholder')}
+              tooltip={t('models.search.tooltip')}
+            />
           </HStack>
-          <HStack>
-            <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
-              <Button
-                type="text"
-                onClick={runHealthCheck}
-                icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
-              />
-            </Tooltip>
-          </HStack>
+          {editable && (
+            <HStack>
+              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+                <Button
+                  type="text"
+                  onClick={runHealthCheck}
+                  icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
+                />
+              </Tooltip>
+            </HStack>
+          )}
         </HStack>
       </SettingSubtitle>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
@@ -132,6 +139,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 onEditModel={(model) => EditModelPopup.show({ provider, model })}
                 onRemoveModel={removeModel}
                 onRemoveGroup={() => displayedModelGroups[group].forEach((model) => removeModel(model))}
+                disabled={!editable}
               />
             ))}
           </Flex>
@@ -159,14 +167,16 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           <div style={{ height: 5 }} />
         )}
       </Flex>
-      <Flex gap={10} style={{ marginTop: 12 }}>
-        <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
-          {t('button.manage')}
-        </Button>
-        <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-          {t('button.add')}
-        </Button>
-      </Flex>
+      {editable && (
+        <Flex gap={10} style={{ marginTop: 12 }}>
+          <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
+            {t('button.manage')}
+          </Button>
+          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+            {t('button.add')}
+          </Button>
+        </Flex>
+      )}
     </>
   )
 }

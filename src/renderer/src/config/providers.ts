@@ -11,6 +11,7 @@ import BaiduCloudProviderLogo from '@renderer/assets/images/providers/baidu-clou
 import BailianProviderLogo from '@renderer/assets/images/providers/bailian.png'
 import BurnCloudProviderLogo from '@renderer/assets/images/providers/burncloud.png'
 import CephalonProviderLogo from '@renderer/assets/images/providers/cephalon.jpeg'
+import CherryInProviderLogo from '@renderer/assets/images/providers/cherryin.png'
 import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png'
 import DmxapiProviderLogo from '@renderer/assets/images/providers/DMXAPI.png'
 import FireworksProviderLogo from '@renderer/assets/images/providers/fireworks.png'
@@ -56,6 +57,7 @@ import {
   isSystemProvider,
   OpenAIServiceTiers,
   Provider,
+  ProviderType,
   SystemProvider,
   SystemProviderId
 } from '@renderer/types'
@@ -64,6 +66,16 @@ import { TOKENFLUX_HOST } from './constant'
 import { SYSTEM_MODELS } from './models'
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
+  cherryin: {
+    id: 'cherryin',
+    name: 'CherryIN',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.cherry-ai.com/',
+    models: SYSTEM_MODELS.cherryin,
+    isSystem: true,
+    enabled: true
+  },
   silicon: {
     id: 'silicon',
     name: 'Silicon',
@@ -72,7 +84,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiHost: 'https://api.siliconflow.cn',
     models: SYSTEM_MODELS.silicon,
     isSystem: true,
-    enabled: true
+    enabled: false
   },
   aihubmix: {
     id: 'aihubmix',
@@ -91,6 +103,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://api.ocoolai.com',
     models: SYSTEM_MODELS.ocoolai,
+    isSystem: true,
+    enabled: false
+  },
+  zhipu: {
+    id: 'zhipu',
+    name: 'ZhiPu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
+    models: SYSTEM_MODELS.zhipu,
     isSystem: true,
     enabled: false
   },
@@ -249,7 +271,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'Anthropic',
     type: 'anthropic',
     apiKey: '',
-    apiHost: 'https://api.anthropic.com/',
+    apiHost: 'https://api.anthropic.com',
     models: SYSTEM_MODELS.anthropic,
     isSystem: true,
     enabled: false
@@ -318,16 +340,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false,
     isAuthed: false
-  },
-  zhipu: {
-    id: 'zhipu',
-    name: 'ZhiPu',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://open.bigmodel.cn/api/paas/v4/',
-    models: SYSTEM_MODELS.zhipu,
-    isSystem: true,
-    enabled: false
   },
   yi: {
     id: 'yi',
@@ -594,6 +606,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
 export const SYSTEM_PROVIDERS: SystemProvider[] = Object.values(SYSTEM_PROVIDERS_CONFIG)
 
 export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
+  cherryin: CherryInProviderLogo,
   ph8: Ph8ProviderLogo,
   '302ai': Ai302ProviderLogo,
   openai: OpenAiProviderLogo,
@@ -648,7 +661,7 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'svg' // use svg icon component
+  poe: 'poe' // use svg icon component
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -672,6 +685,16 @@ type ProviderUrls = {
 }
 
 export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
+  cherryin: {
+    api: {
+      url: 'https://api.cherry-ai.com'
+    },
+    websites: {
+      official: 'https://cherry-ai.com',
+      docs: 'https://docs.cherry-ai.com',
+      models: 'https://docs.cherry-ai.com/pre-basic/providers/cherryin'
+    }
+  },
   ph8: {
     api: {
       url: 'https://ph8.co'
@@ -1239,7 +1262,8 @@ const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
   'deepseek',
   'baichuan',
   'minimax',
-  'xirang'
+  'xirang',
+  'poe'
 ] as const satisfies SystemProviderId[]
 
 /**
@@ -1276,7 +1300,11 @@ export const isSupportStreamOptionsProvider = (provider: Provider) => {
   )
 }
 
-const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = ['ollama', 'lmstudio'] as const satisfies SystemProviderId[]
+const NOT_SUPPORT_QWEN3_ENABLE_THINKING_PROVIDER = [
+  'ollama',
+  'lmstudio',
+  'nvidia'
+] as const satisfies SystemProviderId[]
 
 /**
  * 判断提供商是否支持使用 enable_thinking 参数来控制 Qwen3 等模型的思考。 Only for OpenAI Chat Completions API.
@@ -1298,4 +1326,17 @@ export const isSupportServiceTierProvider = (provider: Provider) => {
     provider.apiOptions?.isSupportServiceTier === true ||
     (isSystemProvider(provider) && !NOT_SUPPORT_SERVICE_TIER_PROVIDERS.some((pid) => pid === provider.id))
   )
+}
+
+const SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES = ['gemini', 'vertexai'] as const satisfies ProviderType[]
+
+export const isSupportUrlContextProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_URL_CONTEXT_PROVIDER_TYPES.some((type) => type === provider.type)
+}
+
+const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as const satisfies SystemProviderId[]
+
+/** 判断是否是使用 Gemini 原生搜索工具的 provider. 目前假设只有官方 API 使用原生工具 */
+export const isGeminiWebSearchProvider = (provider: Provider) => {
+  return SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS.some((id) => id === provider.id)
 }

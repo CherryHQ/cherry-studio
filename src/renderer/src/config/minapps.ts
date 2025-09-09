@@ -27,6 +27,7 @@ import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
+import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
@@ -35,7 +36,6 @@ import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
-import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
@@ -56,6 +56,7 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
+import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
 import i18n from '@renderer/i18n'
 import { MinAppType } from '@renderer/types'
 
@@ -126,7 +127,8 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     id: 'zhipu',
     name: i18n.t('minapps.chatglm'),
     url: 'https://chatglm.cn/main/alltoolsdetail',
-    logo: ZhipuProviderLogo
+    logo: ZhipuProviderLogo,
+    bodered: true
   },
   {
     id: 'moonshot',
@@ -475,6 +477,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
+  },
+  {
+    id: 'longcat',
+    name: 'LongCat',
+    logo: LongCatAppLogo,
+    url: 'https://longcat.chat/',
+    bodered: true
   }
 ]
 

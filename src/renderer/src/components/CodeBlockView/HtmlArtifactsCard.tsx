@@ -2,7 +2,7 @@ import { CodeOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
-import { extractTitle } from '@renderer/utils/formats'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import { Button } from 'antd'
 import { Code, DownloadIcon, Globe, LinkIcon, Sparkles } from 'lucide-react'
 import { FC, useState } from 'react'
@@ -28,7 +28,7 @@ const getTerminalStyles = (theme: ThemeMode) => ({
 
 const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => {
   const { t } = useTranslation()
-  const title = extractTitle(html) || 'HTML Artifacts'
+  const title = extractHtmlTitle(html) || 'HTML Artifacts'
   const [isPopupOpen, setIsPopupOpen] = useState(false)
   const { theme } = useTheme()
 
@@ -48,7 +48,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
   }
 
   const handleDownload = async () => {
-    const fileName = `${title.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '-') || 'html-artifact'}.html`
+    const fileName = `${getFileNameFromHtmlTitle(title) || 'html-artifact'}.html`
     await window.api.file.save(fileName, htmlContent)
     window.message.success({ content: t('message.download.success'), key: 'download' })
   }

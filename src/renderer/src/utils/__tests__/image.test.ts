@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  captureDiv,
-  captureScrollableDiv,
-  captureScrollableDivAsBlob,
-  captureScrollableDivAsDataURL,
+  captureElement,
+  captureScrollable,
+  captureScrollableAsBlob,
+  captureScrollableAsDataURL,
   compressImage,
   convertToBase64,
   makeSvgSizeAdaptive
@@ -49,34 +49,34 @@ describe('utils/image', () => {
     })
   })
 
-  describe('captureDiv', () => {
-    it('should return image data url when divRef.current exists', async () => {
+  describe('captureElement', () => {
+    it('should return image data url when elRef.current exists', async () => {
       const ref = { current: document.createElement('div') } as React.RefObject<HTMLDivElement>
-      const result = await captureDiv(ref)
+      const result = await captureElement(ref)
       expect(result).toMatch(/^data:image\/png;base64/)
     })
 
-    it('should return undefined when divRef.current is null', async () => {
+    it('should return undefined when elRef.current is null', async () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
-      const result = await captureDiv(ref)
+      const result = await captureElement(ref)
       expect(result).toBeUndefined()
     })
   })
 
-  describe('captureScrollableDiv', () => {
-    it('should return canvas when divRef.current exists', async () => {
+  describe('captureScrollable', () => {
+    it('should return canvas when elRef.current exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
-      const result = await captureScrollableDiv(ref)
+      const result = await captureScrollable(ref)
       expect(result).toBeTruthy()
       expect(typeof (result as HTMLCanvasElement).toDataURL).toBe('function')
     })
 
-    it('should return undefined when divRef.current is null', async () => {
+    it('should return undefined when elRef.current is null', async () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
-      const result = await captureScrollableDiv(ref)
+      const result = await captureScrollable(ref)
       expect(result).toBeUndefined()
     })
 
@@ -85,36 +85,36 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollWidth', { value: 40000, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
-      await expect(captureScrollableDiv(ref)).rejects.toBeUndefined()
+      await expect(captureScrollable(ref)).rejects.toBeUndefined()
       expect(window.message.error).toHaveBeenCalled()
     })
   })
 
-  describe('captureScrollableDivAsDataURL', () => {
+  describe('captureScrollableAsDataURL', () => {
     it('should return data url when canvas exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
-      const result = await captureScrollableDivAsDataURL(ref)
+      const result = await captureScrollableAsDataURL(ref)
       expect(result).toMatch(/^data:image\/png;base64/)
     })
 
     it('should return undefined when canvas is undefined', async () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
-      const result = await captureScrollableDivAsDataURL(ref)
+      const result = await captureScrollableAsDataURL(ref)
       expect(result).toBeUndefined()
     })
   })
 
-  describe('captureScrollableDivAsBlob', () => {
+  describe('captureScrollableAsBlob', () => {
     it('should call func with blob when canvas exists', async () => {
       const div = document.createElement('div')
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
       Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       const func = vi.fn()
-      await captureScrollableDivAsBlob(ref, func)
+      await captureScrollableAsBlob(ref, func)
       expect(func).toHaveBeenCalled()
       expect(func.mock.calls[0][0]).toBeInstanceOf(Blob)
     })
@@ -122,7 +122,7 @@ describe('utils/image', () => {
     it('should not call func when canvas is undefined', async () => {
       const ref = { current: null } as unknown as React.RefObject<HTMLDivElement>
       const func = vi.fn()
-      await captureScrollableDivAsBlob(ref, func)
+      await captureScrollableAsBlob(ref, func)
       expect(func).not.toHaveBeenCalled()
     })
   })

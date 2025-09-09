@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Monitor,
   Moon,
+  NotepadText,
   Palette,
   Settings,
   Sparkle,
@@ -136,7 +137,8 @@ const MainMenus: FC = () => {
     translate: <Languages size={18} className="icon" />,
     minapp: <LayoutGrid size={18} className="icon" />,
     knowledge: <FileSearch size={18} className="icon" />,
-    files: <Folder size={17} className="icon" />,
+    files: <Folder size={18} className="icon" />,
+    notes: <NotepadText size={18} className="icon" />,
     code_tools: <Code size={18} className="icon" />
   }
 
@@ -148,7 +150,8 @@ const MainMenus: FC = () => {
     minapp: '/apps',
     knowledge: '/knowledge',
     files: '/files',
-    code_tools: '/code'
+    code_tools: '/code',
+    notes: '/notes'
   }
 
   return sidebarIcons.visible.map((icon) => {
@@ -182,7 +185,7 @@ const Container = styled.div<{ $isFullscreen: boolean }>`
   min-width: var(--sidebar-width);
   height: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'calc(100vh - var(--navbar-height))' : '100vh')};
   -webkit-app-region: drag !important;
-  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'var(--navbar-height)' : 0)};
+  margin-top: ${({ $isFullscreen }) => (isMac && !$isFullscreen ? 'env(titlebar-area-height)' : 0)};
 
   .sidebar-avatar {
     margin-bottom: ${isMac ? '12px' : '12px'};

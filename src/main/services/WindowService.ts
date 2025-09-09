@@ -5,6 +5,7 @@ import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { getFilesDir } from '@main/utils/file'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, nativeTheme, screen, shell } from 'electron'
 import windowStateKeeper from 'electron-window-state'
@@ -47,8 +48,8 @@ export class WindowService {
     }
 
     const mainWindowState = windowStateKeeper({
-      defaultWidth: 960,
-      defaultHeight: 600,
+      defaultWidth: MIN_WINDOW_WIDTH,
+      defaultHeight: MIN_WINDOW_HEIGHT,
       fullScreen: false,
       maximize: false
     })
@@ -58,18 +59,26 @@ export class WindowService {
       y: mainWindowState.y,
       width: mainWindowState.width,
       height: mainWindowState.height,
-      minWidth: 960,
-      minHeight: 600,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
       show: false,
       autoHideMenuBar: true,
       transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
-      titleBarStyle: 'hidden',
-      titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+      // For Windows and Linux, we use frameless window with custom controls
+      // For Mac, we keep the native title bar style
+      ...(isMac
+        ? {
+            titleBarStyle: 'hidden',
+            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+            trafficLightPosition: { x: 8, y: 13 }
+          }
+        : {
+            frame: false // Frameless window for Windows and Linux
+          }),
       backgroundColor: isMac ? undefined : nativeTheme.shouldUseDarkColors ? '#181818' : '#FFFFFF',
       darkTheme: nativeTheme.shouldUseDarkColors,
-      trafficLightPosition: { x: 8, y: 13 },
       ...(isLinux ? { icon } : {}),
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
@@ -497,6 +506,8 @@ export class WindowService {
         webviewTag: true
       }
     })
+
+    this.setupWebContentsHandlers(this.miniWindow)
 
     miniWindowState.manage(this.miniWindow)
 
