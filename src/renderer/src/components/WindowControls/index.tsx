@@ -28,10 +28,20 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
     xmlns="http://www.w3.org/2000/svg"
     {...props}>
     <defs id="defs1" />
-    {/* Back window - L shape with rounded corner */}
-    <path d="M 8 5 L 17 5 Q 19 5 19 7 L 19 16" fill="none" style={{ strokeWidth: '1.75' }} id="path1" />
-    {/* Front window - rounded rectangle */}
-    <rect width="12" height="12" x="4" y="9" rx="2" ry="2" id="rect2" style={{ strokeWidth: '1.75' }} />
+    <rect
+      width="14.165795"
+      height="14.165795"
+      x="2.7646871"
+      y="7.0695167"
+      rx="1.2377932"
+      id="rect2"
+      style={{ strokeWidth: '1.57397' }}
+    />
+    <path
+      d="m 8.8907777,2.8269172 c -0.5045461,0 -0.9490675,0.2424833 -1.2285866,0.6160739 H 18.993677 c 0.866756,0 1.563332,0.696576 1.563332,1.5633319 v 11.331486 c 0.37359,-0.279519 0.616074,-0.72404 0.616074,-1.228587 V 4.3635407 c 0,-0.8505156 -0.686108,-1.5366235 -1.536624,-1.5366235 z"
+      style={{ strokeWidth: '0.911647', strokeDasharray: 'none' }}
+      id="path5"
+    />
   </svg>
 )
 
