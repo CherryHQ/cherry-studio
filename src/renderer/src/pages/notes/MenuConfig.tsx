@@ -34,6 +34,13 @@ export const menuItems: MenuItem[] = [
     isActive: (settings) => !settings.isFullWidth
   },
   {
+    key: 'table-of-contents',
+    labelKey: 'notes.settings.display.show_table_of_contents',
+    icon: Type,
+    action: (settings, updateSettings) => updateSettings({ showTableOfContents: !settings.showTableOfContents }),
+    isActive: (settings) => settings.showTableOfContents
+  },
+  {
     key: 'divider1',
     type: 'divider',
     labelKey: ''
@@ -54,6 +61,29 @@ export const menuItems: MenuItem[] = [
         labelKey: 'notes.settings.display.serif_font',
         action: (_, updateSettings) => updateSettings({ fontFamily: 'serif' }),
         isActive: (settings) => settings.fontFamily === 'serif'
+      },
+      {
+        key: 'divider2',
+        type: 'divider',
+        labelKey: ''
+      },
+      {
+        key: 'font-size-small',
+        labelKey: 'notes.settings.display.font_size_small',
+        action: (_, updateSettings) => updateSettings({ fontSize: 14 }),
+        isActive: (settings) => settings.fontSize === 14
+      },
+      {
+        key: 'font-size-medium',
+        labelKey: 'notes.settings.display.font_size_medium',
+        action: (_, updateSettings) => updateSettings({ fontSize: 16 }),
+        isActive: (settings) => settings.fontSize === 16
+      },
+      {
+        key: 'font-size-large',
+        labelKey: 'notes.settings.display.font_size_large',
+        action: (_, updateSettings) => updateSettings({ fontSize: 20 }),
+        isActive: (settings) => settings.fontSize === 20
       }
     ]
   }

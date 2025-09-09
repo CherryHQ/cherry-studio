@@ -1743,8 +1743,15 @@
         "compress_content": "缩减栏宽",
         "compress_content_description": "开启后将限制每行字数，使屏幕显示的内容减少",
         "default_font": "默认字体",
+        "font_size": "字体大小",
+        "font_size_description": "调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "大",
+        "font_size_medium": "中",
+        "font_size_small": "小",
         "font_title": "字体设置",
         "serif_font": "衬线字体",
+        "show_table_of_contents": "显示目录大纲",
+        "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
         "title": "显示设置"
       },
       "editor": {

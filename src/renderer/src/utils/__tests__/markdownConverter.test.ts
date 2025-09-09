@@ -485,7 +485,7 @@ describe('markdownConverter', () => {
     })
   })
 
-  describe('shoud keep YAML front matter', () => {
+  describe('should keep YAML front matter', () => {
     it('should keep YAML front matter', () => {
       const markdown = `---
 tags:
@@ -500,6 +500,21 @@ cssclasses:
   - ssss
   - s12
 ---`
+      const result = markdownToHtml(markdown)
+      const backToMarkdown = htmlToMarkdown(result)
+      expect(backToMarkdown).toBe(markdown)
+    })
+  })
+
+  describe('should keep []', () => {
+    it('should keep [[foo]]', () => {
+      const markdown = `[[foo]]`
+      const result = markdownToHtml(markdown)
+      const backToMarkdown = htmlToMarkdown(result)
+      expect(backToMarkdown).toBe(markdown)
+    })
+    it('should keep []', () => {
+      const markdown = `[foo]`
       const result = markdownToHtml(markdown)
       const backToMarkdown = htmlToMarkdown(result)
       expect(backToMarkdown).toBe(markdown)
