@@ -33,7 +33,7 @@ jobs:
         uses: anthropics/claude-code-action@main
         id: claude
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
           prompt: |
