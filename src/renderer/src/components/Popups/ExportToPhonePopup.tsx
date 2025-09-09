@@ -1,6 +1,8 @@
+import { Button } from '@heroui/button'
+import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@heroui/modal'
+import { Progress } from '@heroui/progress'
 import { exportToPhone } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Modal, Progress } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -17,7 +19,7 @@ interface ProgressData {
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
 
@@ -31,16 +33,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     }
   }, [])
 
-  const onOk = async () => {
+  const handleOk = async () => {
     await exportToPhone()
-    setOpen(false)
+    setIsOpen(false)
   }
 
-  const onCancel = () => {
-    setOpen(false)
+  const handleCancel = () => {
+    setIsOpen(false)
   }
 
-  const onClose = () => {
+  const handleClose = () => {
     resolve({})
   }
 
@@ -55,30 +57,52 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     return t(`backup.progress.${progressData.stage}`)
   }
 
-  ExportToPhonePopup.hide = onCancel
+  ExportToPhonePopup.hide = handleCancel
 
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
 
   return (
     <Modal
-      title={t('exportToPhone.title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      okButtonProps={{ disabled: isDisabled }}
-      cancelButtonProps={{ disabled: isDisabled }}
-      okText={t('exportToPhone.confirm.button')}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered>
-      {!progressData && <div>{t('exportToPhone.content')}</div>}
-      {progressData && (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Progress percent={Math.floor(progressData.progress)} strokeColor="var(--color-primary)" />
-          <div style={{ marginTop: 16 }}>{getProgressText()}</div>
-        </div>
-      )}
+      isOpen={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !isDisabled) {
+          handleCancel()
+        }
+      }}
+      isDismissable={!isDisabled}
+      isKeyboardDismissDisabled={isDisabled}
+      placement="center"
+      onClose={handleClose}>
+      <ModalContent>
+        {(onClose) => (
+          <>
+            <ModalHeader>{t('exportToPhone.title')}</ModalHeader>
+            <ModalBody>
+              {!progressData && <div>{t('exportToPhone.content')}</div>}
+              {progressData && (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <Progress
+                    value={Math.floor(progressData.progress)}
+                    size="md"
+                    color="primary"
+                    showValueLabel={true}
+                    aria-label="Export progress"
+                  />
+                  <div style={{ marginTop: 16 }}>{getProgressText()}</div>
+                </div>
+              )}
+            </ModalBody>
+            <ModalFooter>
+              <Button color="default" variant="ghost" onPress={onClose} isDisabled={isDisabled}>
+                {t('common.cancel')}
+              </Button>
+              <Button color="primary" onPress={handleOk} isDisabled={isDisabled}>
+                {t('exportToPhone.confirm.button')}
+              </Button>
+            </ModalFooter>
+          </>
+        )}
+      </ModalContent>
     </Modal>
   )
 }
