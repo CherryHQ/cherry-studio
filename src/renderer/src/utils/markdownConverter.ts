@@ -750,7 +750,35 @@ export const htmlToMarkdown = (html: string | null | undefined): string => {
   try {
     const encodedHtml = escapeCustomTags(html)
     const turndownResult = turndownService.turndown(encodedHtml)
-    const finalResult = he.decode(turndownResult)
+    let finalResult = he.decode(turndownResult)
+
+    // Post-process to unescape square brackets that are not part of Markdown link syntax
+    // This preserves wiki-style double brackets [[foo]] and single brackets [foo]
+    // but keeps proper Markdown links [text](url) intact
+
+    // Use a more sophisticated approach: check for the link pattern first,
+    // then unescape standalone brackets
+
+    // First, protect actual Markdown links by temporarily replacing them
+    const linkPlaceholders: string[] = []
+    let linkCounter = 0
+
+    // Find and replace all Markdown links with placeholders
+    finalResult = finalResult.replace(/\\\[([^\]]*)\\\]\([^)]*\)/g, (match) => {
+      const placeholder = `__MDLINK_${linkCounter++}__`
+      linkPlaceholders[linkCounter - 1] = match
+      return placeholder
+    })
+
+    // Now unescape all remaining square brackets
+    finalResult = finalResult.replace(/\\\[/g, '[').replace(/\\\]/g, ']')
+
+    // Restore the Markdown links
+    for (let i = 0; i < linkPlaceholders.length; i++) {
+      const placeholder = `__MDLINK_${i}__`
+      finalResult = finalResult.replace(placeholder, linkPlaceholders[i])
+    }
+
     return finalResult
   } catch (error) {
     logger.error('Error converting HTML to Markdown:', error as Error)

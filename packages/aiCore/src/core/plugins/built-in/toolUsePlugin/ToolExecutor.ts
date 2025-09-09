@@ -4,7 +4,7 @@
  * 负责工具的执行、结果格式化和相关事件发送
  * 从 promptToolUsePlugin.ts 中提取出来以降低复杂度
  */
-import type { ToolSet } from 'ai'
+import type { ToolSet, TypedToolError } from 'ai'
 
 import type { ToolUseResult } from './type'
 
@@ -38,7 +38,6 @@ export class ToolExecutor {
     controller: StreamController
   ): Promise<ExecutedResult[]> {
     const executedResults: ExecutedResult[] = []
-
     for (const toolUse of toolUses) {
       try {
         const tool = tools[toolUse.toolName]
@@ -46,17 +45,12 @@ export class ToolExecutor {
           throw new Error(`Tool "${toolUse.toolName}" has no execute method`)
         }
 
-        // 发送工具调用开始事件
-        this.sendToolStartEvents(controller, toolUse)
-
-        console.log(`[MCP Prompt Stream] Executing tool: ${toolUse.toolName}`, toolUse.arguments)
-
         // 发送 tool-call 事件
         controller.enqueue({
           type: 'tool-call',
           toolCallId: toolUse.id,
           toolName: toolUse.toolName,
-          input: tool.inputSchema
+          input: toolUse.arguments
         })
 
         const result = await tool.execute(toolUse.arguments, {
@@ -111,45 +105,46 @@ export class ToolExecutor {
   /**
    * 发送工具调用开始相关事件
    */
-  private sendToolStartEvents(controller: StreamController, toolUse: ToolUseResult): void {
-    // 发送 tool-input-start 事件
-    controller.enqueue({
-      type: 'tool-input-start',
-      id: toolUse.id,
-      toolName: toolUse.toolName
-    })
-  }
+  // private sendToolStartEvents(controller: StreamController, toolUse: ToolUseResult): void {
+  //   // 发送 tool-input-start 事件
+  //   controller.enqueue({
+  //     type: 'tool-input-start',
+  //     id: toolUse.id,
+  //     toolName: toolUse.toolName
+  //   })
+  // }
 
   /**
    * 处理工具执行错误
    */
-  private handleToolError(
+  private handleToolError<T extends ToolSet>(
     toolUse: ToolUseResult,
     error: unknown,
     controller: StreamController
-    // _tools: ToolSet
   ): ExecutedResult {
     // 使用 AI SDK 标准错误格式
-    // const toolError: TypedToolError<typeof _tools> = {
-    //   type: 'tool-error',
-    //   toolCallId: toolUse.id,
-    //   toolName: toolUse.toolName,
-    //   input: toolUse.arguments,
-    //   error: error instanceof Error ? error.message : String(error)
-    // }
+    const toolError: TypedToolError<T> = {
+      type: 'tool-error',
+      toolCallId: toolUse.id,
+      toolName: toolUse.toolName,
+      input: toolUse.arguments,
+      error
+    }
 
-    // controller.enqueue(toolError)
+    controller.enqueue(toolError)
 
     // 发送标准错误事件
-    controller.enqueue({
-      type: 'error',
-      error: error instanceof Error ? error.message : String(error)
-    })
+    // controller.enqueue({
+    //   type: 'tool-error',
+    //   toolCallId: toolUse.id,
+    //   error: error instanceof Error ? error.message : String(error),
+    //   input: toolUse.arguments
+    // })
 
     return {
       toolCallId: toolUse.id,
       toolName: toolUse.toolName,
-      result: error instanceof Error ? error.message : String(error),
+      result: error,
       isError: true
     }
   }
