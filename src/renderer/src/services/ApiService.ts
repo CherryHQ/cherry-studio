@@ -99,8 +99,6 @@ export async function fetchChatCompletion({
   const provider = AI.getActualProvider()
 
   const mcpTools: MCPTool[] = []
-  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
-
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
     mcpTools.push(...(await fetchMcpTools(assistant)))
   }
@@ -139,6 +137,7 @@ export async function fetchChatCompletion({
   }
 
   // --- Call AI Completions ---
+  onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
   await AI.completions(modelId, aiSdkParams, {
     ...middlewareConfig,
     assistant,

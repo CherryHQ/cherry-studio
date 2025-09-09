@@ -48,8 +48,6 @@ export interface RichEditorProps {
   isFullWidth?: boolean
   /** Font family setting */
   fontFamily?: 'default' | 'serif'
-  /** Font size in pixels */
-  fontSize?: number
 }
 
 export interface ToolbarItem {

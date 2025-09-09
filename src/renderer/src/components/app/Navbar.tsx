@@ -1,7 +1,6 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
@@ -13,21 +12,17 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
-  const isFullscreen = useFullscreen()
   const { isTopNavbar } = useNavbarPosition()
-  const { minappShow } = useRuntime()
+  const isFullscreen = useFullscreen()
 
   if (isTopNavbar) {
     return null
   }
 
   return (
-    <>
-      <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
-        {children}
-      </NavbarContainer>
-      {!isTopNavbar && !minappShow && <WindowControls />}
-    </>
+    <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
+      {children}
+    </NavbarContainer>
   )
 }
 
@@ -36,7 +31,17 @@ export const NavbarLeft: FC<Props> = ({ children, ...props }) => {
 }
 
 export const NavbarCenter: FC<Props> = ({ children, ...props }) => {
-  return <NavbarCenterContainer {...props}>{children}</NavbarCenterContainer>
+  return (
+    <NavbarCenterContainer {...props}>
+      {children}
+      {/* Add WindowControls for Windows and Linux in NavbarCenter */}
+      {(isWin || isLinux) && (
+        <div style={{ position: 'absolute', right: 0, top: 0, height: '100%', display: 'flex', alignItems: 'center' }}>
+          <WindowControls />
+        </div>
+      )}
+    </NavbarCenterContainer>
+  )
 }
 
 export const NavbarRight: FC<Props> = ({ children, ...props }) => {
@@ -98,8 +103,8 @@ const NavbarRightContainer = styled.div<{ $isFullscreen: boolean }>`
   display: flex;
   align-items: center;
   padding: 0 12px;
+  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
   justify-content: flex-end;
-  flex: 1;
 `
 
 const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`

@@ -35,7 +35,7 @@ export function buildPlugins(
     plugins.push(webSearchPlugin())
   }
   // 2. 支持工具调用时添加搜索插件
-  if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {
+  if (middlewareConfig.isSupportedToolUse) {
     plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant, middlewareConfig.topicId || ''))
   }
 
@@ -45,13 +45,12 @@ export function buildPlugins(
   }
 
   // 4. 启用Prompt工具调用时添加工具插件
-  if (middlewareConfig.isPromptToolUse) {
+  if (middlewareConfig.isPromptToolUse && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
         createSystemMessage: (systemPrompt, params, context) => {
-          const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
-          if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
+          if (context.modelId.includes('o1-mini') || context.modelId.includes('o1-preview')) {
             if (context.isRecursiveCall) {
               return null
             }

@@ -69,6 +69,16 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       })
       await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
     },
+    // onBlockCreated: async () => {
+    //   if (blockManager.hasInitialPlaceholder) {
+    //     return
+    //   }
+    //   console.log('onBlockCreated')
+    //   const baseBlock = createBaseMessageBlock(assistantMsgId, MessageBlockType.UNKNOWN, {
+    //     status: MessageBlockStatus.PROCESSING
+    //   })
+    //   await blockManager.handleBlockTransition(baseBlock as PlaceholderMessageBlock, MessageBlockType.UNKNOWN)
+    // },
 
     onError: async (error: AISDKError) => {
       logger.debug('onError', error)

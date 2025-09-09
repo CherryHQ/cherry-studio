@@ -3,19 +3,12 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 export interface TranslateState {
   translateInput: string
   translatedContent: string
-  // TODO: #9749
-  settings: {
-    autoCopy: boolean
-  }
 }
 
 const initialState: TranslateState = {
   translateInput: '',
-  translatedContent: '',
-  settings: {
-    autoCopy: false
-  }
-} as const
+  translatedContent: ''
+}
 
 const translateSlice = createSlice({
   name: 'translate',
@@ -26,14 +19,10 @@ const translateSlice = createSlice({
     },
     setTranslatedContent: (state, action: PayloadAction<string>) => {
       state.translatedContent = action.payload
-    },
-    updateSettings: (state, action: PayloadAction<Partial<TranslateState['settings']>>) => {
-      const update = action.payload
-      Object.assign(state.settings, update)
     }
   }
 })
 
-export const { setTranslateInput, setTranslatedContent, updateSettings } = translateSlice.actions
+export const { setTranslateInput, setTranslatedContent } = translateSlice.actions
 
 export default translateSlice.reducer

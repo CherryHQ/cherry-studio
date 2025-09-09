@@ -60,29 +60,14 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const toolResponse = block.metadata?.rawMcpToolResponse
 
   const { id, tool, status, response } = toolResponse!
+
   const isPending = status === 'pending'
+  const isInvoking = status === 'invoking'
   const isDone = status === 'done'
-  const isError = status === 'error'
-
-  const isAutoApproved = useMemo(
-    () =>
-      isToolAutoApproved(
-        tool,
-        mcpServers.find((s) => s.id === tool.serverId)
-      ),
-    [tool, mcpServers]
-  )
-
-  // 增加本地状态来跟踪用户确认
-  const [isConfirmed, setIsConfirmed] = useState(isAutoApproved)
-
-  // 判断不同的UI状态
-  const isWaitingConfirmation = isPending && !isAutoApproved && !isConfirmed
-  const isExecuting = isPending && (isAutoApproved || isConfirmed)
 
   const timer = useRef<NodeJS.Timeout | null>(null)
   useEffect(() => {
-    if (!isWaitingConfirmation) return
+    if (!isPending) return
 
     if (countdown > 0) {
       timer.current = setTimeout(() => {
@@ -90,7 +75,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         setCountdown((prev) => prev - 1)
       }, 1000)
     } else if (countdown === 0) {
-      setIsConfirmed(true)
       confirmToolAction(id)
     }
 
@@ -99,7 +83,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         clearTimeout(timer.current)
       }
     }
-  }, [countdown, id, isWaitingConfirmation])
+  }, [countdown, id, isPending])
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
@@ -162,7 +146,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const handleConfirmTool = () => {
     cancelCountdown()
-    setIsConfirmed(true)
     confirmToolAction(id)
   }
 
@@ -212,7 +195,6 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
     updateMCPServer(updatedServer)
 
     // Also confirm the current tool
-    setIsConfirmed(true)
     confirmToolAction(id)
 
     window.message.success({
@@ -224,31 +206,32 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const renderStatusIndicator = (status: string, hasError: boolean) => {
     let label = ''
     let icon: React.ReactNode | null = null
-
-    if (status === 'pending') {
-      if (isWaitingConfirmation) {
+    switch (status) {
+      case 'pending':
         label = t('message.tools.pending', 'Awaiting Approval')
         icon = <LoadingIcon style={{ marginLeft: 6, color: 'var(--status-color-warning)' }} />
-      } else if (isExecuting) {
+        break
+      case 'invoking':
         label = t('message.tools.invoking')
         icon = <LoadingIcon style={{ marginLeft: 6 }} />
-      }
-    } else if (status === 'cancelled') {
-      label = t('message.tools.cancelled')
-      icon = <X size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-    } else if (status === 'done') {
-      if (hasError) {
-        label = t('message.tools.error')
-        icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-      } else {
-        label = t('message.tools.completed')
-        icon = <Check size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
-      }
-    } else if (status === 'error') {
-      label = t('message.tools.error')
-      icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
+        break
+      case 'cancelled':
+        label = t('message.tools.cancelled')
+        icon = <X size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
+        break
+      case 'done':
+        if (hasError) {
+          label = t('message.tools.error')
+          icon = <TriangleAlert size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
+        } else {
+          label = t('message.tools.completed')
+          icon = <Check size={13} style={{ marginLeft: 6 }} className="lucide-custom" />
+        }
+        break
+      default:
+        label = ''
+        icon = null
     }
-
     return (
       <StatusIndicator status={status} hasError={hasError}>
         {label}
@@ -265,6 +248,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       params: toolResponse.arguments,
       response: toolResponse.response
     }
+
     items.push({
       key: id,
       label: (
@@ -299,7 +283,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                 <Maximize size={14} />
               </ActionButton>
             </Tooltip>
-            {!isPending && (
+            {!isPending && !isInvoking && (
               <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
                 <ActionButton
                   className="message-action-button"
@@ -317,7 +301,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         </MessageTitleLabel>
       ),
       children:
-        (isDone || isError) && result ? (
+        isDone && result ? (
           <ToolResponseContainer
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
@@ -386,7 +370,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
           }
         }}>
         <ToolContainer>
-          <ToolContentWrapper className={isPending ? 'pending' : status}>
+          <ToolContentWrapper className={status}>
             <CollapseContainer
               ghost
               activeKey={activeKeys}
@@ -399,16 +383,14 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                 <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
               )}
             />
-            {isPending && (
+            {(isPending || isInvoking) && (
               <ActionsBar>
                 <ActionLabel>
-                  {isWaitingConfirmation
-                    ? t('settings.mcp.tools.autoApprove.tooltip.confirm')
-                    : t('message.tools.invoking')}
+                  {isPending ? t('settings.mcp.tools.autoApprove.tooltip.confirm') : t('message.tools.invoking')}
                 </ActionLabel>
 
                 <ActionButtonsGroup>
-                  {isWaitingConfirmation && (
+                  {isPending && (
                     <Button
                       color="danger"
                       variant="filled"
@@ -420,7 +402,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                       {t('common.cancel')}
                     </Button>
                   )}
-                  {isExecuting && toolResponse?.id ? (
+                  {isInvoking && toolResponse?.id ? (
                     <Button
                       size="small"
                       color="danger"
@@ -434,31 +416,29 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                       {t('chat.input.pause')}
                     </Button>
                   ) : (
-                    isWaitingConfirmation && (
-                      <StyledDropdownButton
-                        size="small"
-                        type="primary"
-                        icon={<ChevronDown size={14} />}
-                        onClick={() => {
-                          handleConfirmTool()
-                        }}
-                        menu={{
-                          items: [
-                            {
-                              key: 'autoApprove',
-                              label: t('settings.mcp.tools.autoApprove.label'),
-                              onClick: () => {
-                                handleAutoApprove()
-                              }
+                    <StyledDropdownButton
+                      size="small"
+                      type="primary"
+                      icon={<ChevronDown size={14} />}
+                      onClick={() => {
+                        handleConfirmTool()
+                      }}
+                      menu={{
+                        items: [
+                          {
+                            key: 'autoApprove',
+                            label: t('settings.mcp.tools.autoApprove.label'),
+                            onClick: () => {
+                              handleAutoApprove()
                             }
-                          ]
-                        }}>
-                        <CirclePlay size={15} className="lucide-custom" />
-                        <CountdownText>
-                          {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
-                        </CountdownText>
-                      </StyledDropdownButton>
-                    )
+                          }
+                        ]
+                      }}>
+                      <CirclePlay size={15} className="lucide-custom" />
+                      <CountdownText>
+                        {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
+                      </CountdownText>
+                    </StyledDropdownButton>
                   )}
                 </ActionButtonsGroup>
               </ActionsBar>
@@ -562,7 +542,8 @@ const ToolContentWrapper = styled.div`
     border: 1px solid var(--color-border);
   }
 
-  &.pending {
+  &.pending,
+  &.invoking {
     background-color: var(--color-background-soft);
     .ant-collapse {
       border: none;
@@ -682,8 +663,6 @@ const StatusIndicator = styled.span<{ status: string; hasError?: boolean }>`
         return 'var(--status-color-error)'
       case 'done':
         return props.hasError ? 'var(--status-color-error)' : 'var(--status-color-success)'
-      case 'error':
-        return 'var(--status-color-error)'
       default:
         return 'var(--color-text)'
     }

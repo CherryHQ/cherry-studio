@@ -455,10 +455,9 @@ const api = {
     isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.Windows_IsMaximized),
     onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
       const channel = IpcChannel.Windows_MaximizedChanged
-      const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
-      ipcRenderer.on(channel, listener)
+      ipcRenderer.on(channel, (_, isMaximized: boolean) => callback(isMaximized))
       return () => {
-        ipcRenderer.removeListener(channel, listener)
+        ipcRenderer.removeAllListeners(channel)
       }
     }
   }

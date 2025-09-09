@@ -178,7 +178,12 @@ class WebSearchService {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
+    // try {
     return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
+    // } catch (error) {
+    //   console.error('Search failed:', error)
+    //   throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    // }
   }
 
   /**
@@ -245,7 +250,7 @@ class WebSearchService {
       created_at: Date.now(),
       updated_at: Date.now(),
       version: 1,
-      framework: 'langchain'
+      framework: 'embedjs'
     }
 
     // 更新LRU cache

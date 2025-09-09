@@ -27,20 +27,10 @@ export class StreamEventManager {
   /**
    * 发送步骤完成事件
    */
-  sendStepFinishEvent(
-    controller: StreamController,
-    chunk: any,
-    context: AiRequestContext,
-    finishReason: string = 'stop'
-  ): void {
-    // 累加当前步骤的 usage
-    if (chunk.usage && context.accumulatedUsage) {
-      this.accumulateUsage(context.accumulatedUsage, chunk.usage)
-    }
-
+  sendStepFinishEvent(controller: StreamController, chunk: any): void {
     controller.enqueue({
       type: 'finish-step',
-      finishReason,
+      finishReason: 'stop',
       response: chunk.response,
       usage: chunk.usage,
       providerMetadata: chunk.providerMetadata
@@ -53,32 +43,28 @@ export class StreamEventManager {
   async handleRecursiveCall(
     controller: StreamController,
     recursiveParams: any,
-    context: AiRequestContext
+    context: AiRequestContext,
+    stepId: string
   ): Promise<void> {
-    // try {
-    // 重置工具执行状态，准备处理新的步骤
-    context.hasExecutedToolsInCurrentStep = false
+    try {
+      console.log('[MCP Prompt] Starting recursive call after tool execution...')
 
-    const recursiveResult = await context.recursiveCall(recursiveParams)
+      const recursiveResult = await context.recursiveCall(recursiveParams)
 
-    if (recursiveResult && recursiveResult.fullStream) {
-      await this.pipeRecursiveStream(controller, recursiveResult.fullStream, context)
-    } else {
-      console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
+      if (recursiveResult && recursiveResult.fullStream) {
+        await this.pipeRecursiveStream(controller, recursiveResult.fullStream)
+      } else {
+        console.warn('[MCP Prompt] No fullstream found in recursive result:', recursiveResult)
+      }
+    } catch (error) {
+      this.handleRecursiveCallError(controller, error, stepId)
     }
-    // } catch (error) {
-    //   this.handleRecursiveCallError(controller, error, stepId)
-    // }
   }
 
   /**
    * 将递归流的数据传递到当前流
    */
-  private async pipeRecursiveStream(
-    controller: StreamController,
-    recursiveStream: ReadableStream,
-    context?: AiRequestContext
-  ): Promise<void> {
+  private async pipeRecursiveStream(controller: StreamController, recursiveStream: ReadableStream): Promise<void> {
     const reader = recursiveStream.getReader()
     try {
       while (true) {
@@ -87,15 +73,8 @@ export class StreamEventManager {
           break
         }
         if (value.type === 'finish') {
-          // 迭代的流不发finish，但需要累加其 usage
-          if (value.usage && context?.accumulatedUsage) {
-            this.accumulateUsage(context.accumulatedUsage, value.usage)
-          }
+          // 迭代的流不发finish
           break
-        }
-        // 对于 finish-step 类型，累加其 usage
-        if (value.type === 'finish-step' && value.usage && context?.accumulatedUsage) {
-          this.accumulateUsage(context.accumulatedUsage, value.usage)
         }
         // 将递归流的数据传递到当前流
         controller.enqueue(value)
@@ -108,25 +87,25 @@ export class StreamEventManager {
   /**
    * 处理递归调用错误
    */
-  // private handleRecursiveCallError(controller: StreamController, error: unknown): void {
-  //   console.error('[MCP Prompt] Recursive call failed:', error)
+  private handleRecursiveCallError(controller: StreamController, error: unknown, stepId: string): void {
+    console.error('[MCP Prompt] Recursive call failed:', error)
 
-  //   // 使用 AI SDK 标准错误格式，但不中断流
-  //   controller.enqueue({
-  //     type: 'error',
-  //     error: {
-  //       message: error instanceof Error ? error.message : String(error),
-  //       name: error instanceof Error ? error.name : 'RecursiveCallError'
-  //     }
-  //   })
+    // 使用 AI SDK 标准错误格式，但不中断流
+    controller.enqueue({
+      type: 'error',
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+        name: error instanceof Error ? error.name : 'RecursiveCallError'
+      }
+    })
 
-  //   // // 继续发送文本增量，保持流的连续性
-  //   // controller.enqueue({
-  //   //   type: 'text-delta',
-  //   //   id: stepId,
-  //   //   text: '\n\n[工具执行后递归调用失败，继续对话...]'
-  //   // })
-  // }
+    // 继续发送文本增量，保持流的连续性
+    controller.enqueue({
+      type: 'text-delta',
+      id: stepId,
+      text: '\n\n[工具执行后递归调用失败，继续对话...]'
+    })
+  }
 
   /**
    * 构建递归调用的参数
@@ -156,19 +135,5 @@ export class StreamEventManager {
     context.originalParams.messages = newMessages
 
     return recursiveParams
-  }
-
-  /**
-   * 累加 usage 数据
-   */
-  private accumulateUsage(target: any, source: any): void {
-    if (!target || !source) return
-
-    // 累加各种 token 类型
-    target.inputTokens = (target.inputTokens || 0) + (source.inputTokens || 0)
-    target.outputTokens = (target.outputTokens || 0) + (source.outputTokens || 0)
-    target.totalTokens = (target.totalTokens || 0) + (source.totalTokens || 0)
-    target.reasoningTokens = (target.reasoningTokens || 0) + (source.reasoningTokens || 0)
-    target.cachedInputTokens = (target.cachedInputTokens || 0) + (source.cachedInputTokens || 0)
   }
 }

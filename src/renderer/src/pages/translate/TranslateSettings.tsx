@@ -1,17 +1,15 @@
-import { Switch } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Flex, Modal, Radio, Space, Tooltip } from 'antd'
+import { Button, Flex, Modal, Radio, Space, Switch, Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateSettingsPopup from '../settings/TranslateSettingsPopup/TranslateSettingsPopup'
 
-// TODO: Just don't send so many props. Migrate them to redux.
 const TranslateSettings: FC<{
   visible: boolean
   onClose: () => void
@@ -42,8 +40,7 @@ const TranslateSettings: FC<{
 }) => {
   const { t } = useTranslation()
   const [localPair, setLocalPair] = useState<[TranslateLanguage, TranslateLanguage]>(bidirectionalPair)
-  const { getLanguageByLangcode, settings, updateSettings } = useTranslate()
-  const { autoCopy } = settings
+  const { getLanguageByLangcode } = useTranslate()
 
   useEffect(() => {
     setLocalPair(bidirectionalPair)
@@ -61,15 +58,15 @@ const TranslateSettings: FC<{
       onCancel={onClose}
       centered={true}
       footer={null}
-      width={520}
+      width={420}
       transitionName="animation-move-down">
       <Flex vertical gap={16} style={{ marginTop: 16, paddingBottom: 20 }}>
         <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
             <Switch
-              isSelected={enableMarkdown}
-              onValueChange={(checked) => {
+              checked={enableMarkdown}
+              onChange={(checked) => {
                 setEnableMarkdown(checked)
                 db.settings.put({ id: 'translate:markdown:enabled', value: checked })
               }}
@@ -78,27 +75,13 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <HStack alignItems="center" justifyContent="space-between">
-            <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
-            <Switch
-              isSelected={autoCopy}
-              color="primary"
-              onValueChange={(isSelected) => {
-                updateSettings({ autoCopy: isSelected })
-              }}
-            />
-          </HStack>
-        </div>
-
-        <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.scroll_sync')}</div>
             <Switch
-              isSelected={isScrollSyncEnabled}
-              color="primary"
-              onValueChange={(isSelected) => {
-                setIsScrollSyncEnabled(isSelected)
-                db.settings.put({ id: 'translate:scroll:sync', value: isSelected })
+              checked={isScrollSyncEnabled}
+              onChange={(checked) => {
+                setIsScrollSyncEnabled(checked)
+                db.settings.put({ id: 'translate:scroll:sync', value: checked })
               }}
             />
           </Flex>
@@ -148,10 +131,9 @@ const TranslateSettings: FC<{
               </HStack>
             </div>
             <Switch
-              isSelected={isBidirectional}
-              color="primary"
-              onValueChange={(isSelected) => {
-                setIsBidirectional(isSelected)
+              checked={isBidirectional}
+              onChange={(checked) => {
+                setIsBidirectional(checked)
                 // 双向翻译设置不需要持久化，它只是界面状态
               }}
             />

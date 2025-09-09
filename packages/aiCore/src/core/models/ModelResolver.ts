@@ -84,6 +84,7 @@ export class ModelResolver {
    */
   private resolveTraditionalModel(providerId: string, modelId: string): LanguageModelV2 {
     const fullModelId = `${providerId}${DEFAULT_SEPARATOR}${modelId}`
+    console.log('fullModelId', fullModelId)
     return globalRegistryManagement.languageModel(fullModelId as any)
   }
 

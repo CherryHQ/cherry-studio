@@ -826,7 +826,9 @@ export function mcpToolCallResponseToAwsBedrockMessage(
 }
 
 /**
- * 是否启用工具使用(function call)
+ * 是否启用工具使用
+ * 1. 如果模型支持函数调用，则启用工具使用
+ * 2. 如果工具使用模式为 prompt，则启用工具使用
  * @param assistant
  * @returns 是否启用工具使用
  */

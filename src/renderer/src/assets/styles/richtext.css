@@ -5,7 +5,6 @@
   min-height: 120px;
   overflow-wrap: break-word;
   word-break: break-word;
-  font-size: var(--editor-font-size, 16px);
 }
 
 .tiptap:focus {

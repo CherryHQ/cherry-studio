@@ -20,8 +20,8 @@ import { selectActiveFilePath, selectSortType, setActiveFilePath, setSortType } 
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { FileChangeEvent } from '@shared/config/types'
 import { useLiveQuery } from 'dexie-react-hooks'
+import { AnimatePresence, motion } from 'framer-motion'
 import { debounce } from 'lodash'
-import { AnimatePresence, motion } from 'motion/react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -629,11 +629,7 @@ const NotesPage: FC = () => {
           )}
         </AnimatePresence>
         <EditorWrapper>
-          <HeaderNavbar
-            notesTree={notesTree}
-            getCurrentNoteContent={getCurrentNoteContent}
-            onToggleStar={handleToggleStar}
-          />
+          <HeaderNavbar notesTree={notesTree} getCurrentNoteContent={getCurrentNoteContent} />
           <NotesEditor
             activeNodeId={activeNode?.id}
             currentContent={currentContent}
