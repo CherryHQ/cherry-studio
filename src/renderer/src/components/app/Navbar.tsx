@@ -13,6 +13,7 @@ type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
 export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
+  const isFullscreen = useFullscreen()
   const { isTopNavbar } = useNavbarPosition()
   const { minappShow } = useRuntime()
 
@@ -22,7 +23,7 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
 
   return (
     <>
-      <NavbarContainer {...props} style={{ backgroundColor }}>
+      <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
         {children}
       </NavbarContainer>
       {!isTopNavbar && !minappShow && <WindowControls />}
@@ -60,14 +61,15 @@ export const NavbarHeader: FC<Props> = ({ children, ...props }) => {
   return <NavbarHeaderContent {...props}>{children}</NavbarHeaderContent>
 }
 
-const NavbarContainer = styled.div`
+const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
   min-width: 100%;
   display: flex;
   flex-direction: row;
   min-height: ${isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)'};
   max-height: var(--navbar-height);
   margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1)' : 0};
-  padding-left: ${isMac ? 'env(titlebar-area-x)' : 0};
+  padding-left: ${({ $isFullScreen }) =>
+    isMac ? ($isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0};
   -webkit-app-region: drag;
 `
 
