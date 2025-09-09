@@ -2,11 +2,10 @@ import { isLinux, isWin } from '@renderer/config/constant'
 import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { SVGProps } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ControlButton, WindowControlsContainer } from './WindowControls.styled'
-
-import { SVGProps } from 'react'
 
 interface WindowRestoreIconProps extends SVGProps<SVGSVGElement> {
   size?: string | number
