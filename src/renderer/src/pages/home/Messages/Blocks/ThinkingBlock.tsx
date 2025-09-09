@@ -105,7 +105,6 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-    // console.log('blockThinkingTime', blockThinkingTime)
     // const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
 
     // FIXME: 这里统计的和请求处统计的有一定误差

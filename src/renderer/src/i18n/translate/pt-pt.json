@@ -943,6 +943,9 @@
     "image": "Imagem",
     "name": "Nome do Arquivo",
     "open": "Abrir",
+    "preview": {
+      "error": "Falha ao abrir o arquivo"
+    },
     "size": "Tamanho",
     "text": "Texto",
     "title": "Arquivo",
@@ -2221,6 +2224,21 @@
       }
     },
     "dragHandle": "bloco de arrastar",
+    "frontMatter": {
+      "addProperty": "Adicionar atributo",
+      "addTag": "Adicionar etiqueta",
+      "changeToBoolean": "Caixa de seleção",
+      "changeToDate": "Data",
+      "changeToNumber": "número",
+      "changeToTags": "etiqueta",
+      "changeToText": "texto",
+      "changeType": "Alterar tipo",
+      "deleteProperty": "Excluir atributo",
+      "editValue": "Editar valor",
+      "empty": "vazio",
+      "moreActions": "Mais ações",
+      "propertyName": "nome do atributo"
+    },
     "image": {
       "placeholder": "adicionar imagem"
     },
@@ -3681,15 +3699,19 @@
         "apikey": "Chave da API",
         "auth_failed": "Falha na autenticação da Anthropic",
         "auth_method": "Método de autenticação",
+        "auth_success": "Autenticação OAuth da Anthropic bem-sucedida",
         "authenticated": "[retranslating]: Verificado",
         "authenticating": "A autenticar",
         "cancel": "Cancelar",
+        "code_error": "Código de autorização inválido, tente novamente",
         "code_placeholder": "Introduza o código de autorização exibido no browser",
         "code_required": "O código de autorização não pode estar vazio",
         "description": "Autenticação OAuth",
         "description_detail": "Precisa de uma subscrição Claude Pro ou superior para utilizar este método de autenticação",
         "enter_auth_code": "Código de autorização",
         "logout": "Sair da sessão",
+        "logout_failed": "Falha ao sair da conta, tente novamente",
+        "logout_success": "Logout bem-sucedido do login Anthropic",
         "oauth": "OAuth da Página Web",
         "start_auth": "Iniciar autorização",
         "submit_code": "Concluir login"
@@ -4278,6 +4300,7 @@
     },
     "processing": "Traduzindo...",
     "settings": {
+      "autoCopy": "Cópia automática após a tradução",
       "bidirectional": "Configuração de Tradução Bidirecional",
       "bidirectional_tip": "Quando ativado, suporta apenas tradução bidirecional entre o idioma de origem e o idioma de destino",
       "model": "Configuração de Modelo",

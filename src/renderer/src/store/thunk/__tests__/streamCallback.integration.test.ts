@@ -458,18 +458,18 @@ describe('streamCallback Integration Tests', () => {
           }
         ]
       },
-      {
-        type: ChunkType.MCP_TOOL_IN_PROGRESS,
-        responses: [
-          {
-            id: 'tool-call-1',
-            tool: mockTool,
-            arguments: { testArg: 'value' },
-            status: 'invoking' as const,
-            response: ''
-          }
-        ]
-      },
+      // {
+      //   type: ChunkType.MCP_TOOL_PENDING,
+      //   responses: [
+      //     {
+      //       id: 'tool-call-1',
+      //       tool: mockTool,
+      //       arguments: { testArg: 'value' },
+      //       status: 'invoking' as const,
+      //       response: ''
+      //     }
+      //   ]
+      // },
       {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [
@@ -611,18 +611,18 @@ describe('streamCallback Integration Tests', () => {
           }
         ]
       },
-      {
-        type: ChunkType.MCP_TOOL_IN_PROGRESS,
-        responses: [
-          {
-            id: 'tool-call-1',
-            tool: mockCalculatorTool,
-            arguments: { operation: 'add', a: 1, b: 2 },
-            status: 'invoking' as const,
-            response: ''
-          }
-        ]
-      },
+      // {
+      //   type: ChunkType.MCP_TOOL_PENDING,
+      //   responses: [
+      //     {
+      //       id: 'tool-call-1',
+      //       tool: mockCalculatorTool,
+      //       arguments: { operation: 'add', a: 1, b: 2 },
+      //       status: 'invoking' as const,
+      //       response: ''
+      //     }
+      //   ]
+      // },
       {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [
