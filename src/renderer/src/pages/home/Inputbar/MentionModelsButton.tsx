@@ -7,6 +7,8 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
+import { generateGroupId, validateGroupName } from '@renderer/utils/groupHelpers'
+import { removeAtSymbolAndText } from '@renderer/utils/textHelpers'
 import { Avatar, Input, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
@@ -47,24 +49,36 @@ const MentionModelsButton: FC<Props> = ({
   const quickPanel = useQuickPanel()
 
   // --- Model Groups ---
-  type MentionModelGroup = { id: string; name: string; modelIds: string[]; pinned?: boolean }
+  interface MentionModelGroup { id: string; name: string; modelIds: string[]; pinned?: boolean }
 
   const modelGroups = useLiveQuery(
     async () => {
-      const setting = await db.settings.get('mention:modelGroups')
-      return (setting?.value || []) as MentionModelGroup[]
+      try {
+        const setting = await db.settings.get('mention:modelGroups')
+        return (setting?.value || []) as MentionModelGroup[]
+      } catch (error) {
+        console.error('Failed to load model groups:', error)
+        window.message?.error?.(t('mention_group.load_failed') || 'Failed to load model groups')
+        return [] as MentionModelGroup[]
+      }
     },
     [],
     [] as MentionModelGroup[]
   )
 
-  // 占位：buildModelItems 在下方依赖项定义后声明
+  // Placeholder: buildModelItems is declared later after dependencies
 
   const saveGroups = useCallback(async (groups: MentionModelGroup[]) => {
-    await db.settings.put({ id: 'mention:modelGroups', value: groups })
-  }, [])
+    try {
+      await db.settings.put({ id: 'mention:modelGroups', value: groups })
+    } catch (error) {
+      console.error('Failed to save model groups:', error)
+      window.message?.error?.(t('mention_group.save_failed') || 'Failed to save model groups')
+      throw error
+    }
+  }, [t])
 
-  // 映射 uniqId -> Model，便于通过分组反查模型对象
+  // Map uniqId -> Model for group reverse lookup
   const uniqIdToModelMap = useMemo(() => {
     const map = new Map<string, Model>()
     providers.forEach((p) => {
@@ -79,7 +93,7 @@ const MentionModelsButton: FC<Props> = ({
 
   const mentionedSet = useMemo(() => new Set(mentionedModels.map((m) => getModelUniqId(m))), [mentionedModels])
 
-  // 始终获取最新的选择和分组，避免 QuickPanel 打开后闭包捕获旧值
+  // Keep latest selection and groups to avoid stale closures
   const mentionedModelsRef = useRef<Model[]>(mentionedModels)
   useEffect(() => {
     mentionedModelsRef.current = mentionedModels
@@ -92,20 +106,20 @@ const MentionModelsButton: FC<Props> = ({
 
   const toggleGroupSelection = useCallback(
     (group: MentionModelGroup) => {
-      // 判断该组是否“全选中”
+      // Determine whether the whole group is selected
       const allSelected = group.modelIds.every((id) => mentionedSet.has(id))
 
-      // 映射分组成员 → 模型对象
+      // Map group members to model objects
       const rawModels = group.modelIds
         .map((id) => uniqIdToModelMap.get(id))
         .filter((m): m is Model => !!m)
 
-      // 受限时仅保留视觉模型，避免点击分组时“无反馈”
+      // When constrained (e.g. images), keep only vision-capable models
       const targetModels = couldMentionNotVisionModel ? rawModels : rawModels.filter((m) => isVisionModel(m))
       const skipped = rawModels.length - targetModels.length
 
       if (targetModels.length === 0) {
-        // 若全部不可用，给出轻提示
+        // If none are usable, show a gentle warning
         if (skipped > 0) {
           window.message?.warning?.(t('mention_group.no_usable_models_warning'))
         }
@@ -116,19 +130,21 @@ const MentionModelsButton: FC<Props> = ({
       targetModels.forEach((m) => {
         const id = getModelUniqId(m)
         const isSelected = mentionedSet.has(id)
-        // 执行与单项相同的切换逻辑
+        // Toggle selection consistently with single-item behavior
         if ((allSelected && isSelected) || (!allSelected && !isSelected)) {
           onMentionModel(m)
         }
       })
 
-      // 若有部分被过滤，提示原因（如含图片时非视觉模型被跳过）
+      // If some were filtered (e.g. non-vision models), show a hint
       if (skipped > 0) {
         window.message?.info?.(t('mention_group.skipped_info', { count: skipped } as any) as string)
       }
     },
     [mentionedSet, onMentionModel, uniqIdToModelMap, couldMentionNotVisionModel, t]
   )
+
+  const modalOpenRef = useRef(false)
 
   const deleteGroup = useCallback(
     async (group: MentionModelGroup) => {
@@ -147,15 +163,21 @@ const MentionModelsButton: FC<Props> = ({
       })
       if (!confirmed) return
 
-      const groups = (modelGroups || []).filter((g) => g.id !== group.id)
-      await saveGroups(groups)
-      window.message?.success?.(t('mention_group.deleted'))
+      try {
+        const groups = (modelGroups || []).filter((g) => g.id !== group.id)
+        await saveGroups(groups)
+        window.message?.success?.(t('mention_group.deleted'))
+      } catch {
+        // handled in saveGroups
+      }
     },
     [modelGroups, saveGroups, t]
   )
 
   const renameGroup = useCallback(
     async (group: MentionModelGroup) => {
+      if (modalOpenRef.current) return
+      modalOpenRef.current = true
       let tempName = group.name
       await new Promise<void>((resolve) => {
         window.modal.confirm({
@@ -176,9 +198,14 @@ const MentionModelsButton: FC<Props> = ({
           onCancel: () => resolve()
         })
       })
+      modalOpenRef.current = false
 
       const name = (tempName || '').trim()
       if (!name || name === group.name) return
+      if (!validateGroupName(name)) {
+        window.message?.warning?.(t('mention_group.invalid_name') || 'Invalid group name')
+        return
+      }
 
       const groups = (modelGroups || []) as MentionModelGroup[]
       const exist = groups.find((g) => g.name === name)
@@ -190,15 +217,19 @@ const MentionModelsButton: FC<Props> = ({
       const target = groups.find((g) => g.id === group.id)
       if (!target) return
       target.name = name
-      await saveGroups([...groups])
-      window.message?.success?.(t('mention_group.saved'))
+      try {
+        await saveGroups([...groups])
+        window.message?.success?.(t('mention_group.saved'))
+      } catch {
+        // handled in saveGroups
+      }
     },
     [modelGroups, saveGroups, t]
   )
 
   // buildModelItems moved below dependencies
 
-  // 移除分组置顶功能
+  // No pin/unpin group feature for now
 
   const saveSelectionAsGroup = useCallback(async () => {
     const selected = mentionedModelsRef.current || []
@@ -208,6 +239,8 @@ const MentionModelsButton: FC<Props> = ({
     }
 
     let tempName = ''
+    if (modalOpenRef.current) return
+    modalOpenRef.current = true
     await new Promise<void>((resolve) => {
       window.modal.confirm({
         centered: true,
@@ -222,108 +255,67 @@ const MentionModelsButton: FC<Props> = ({
         onCancel: () => resolve()
       })
     })
+    modalOpenRef.current = false
 
     const name = (tempName || '').trim()
     if (!name) return
+    if (!validateGroupName(name)) {
+      window.message?.warning?.(t('mention_group.invalid_name') || 'Invalid group name')
+      return
+    }
 
     const modelIds = selected.map((m) => getModelUniqId(m))
     const groups = (modelGroupsRef.current || []) as MentionModelGroup[]
     const exist = groups.find((g) => g.name === name)
     if (exist) {
-      // 覆盖同名分组
+      // Overwrite the group with the same name
       exist.modelIds = modelIds
-      await saveGroups([...groups])
+      try {
+        await saveGroups([...groups])
+      } catch {
+        // handled in saveGroups
+      }
     } else {
-      const id = (globalThis.crypto && 'randomUUID' in globalThis.crypto
-        ? (globalThis.crypto as Crypto).randomUUID()
-        : `${Date.now()}_${Math.random().toString(36).slice(2)}`)
-      await saveGroups([...groups, { id, name, modelIds }])
+      const id = generateGroupId()
+      try {
+        await saveGroups([...groups, { id, name, modelIds }])
+      } catch {
+        // handled in saveGroups
+      }
     }
     window.message?.success?.(t('mention_group.saved'))
   }, [saveGroups, t])
 
-  // 记录是否有模型被选择的动作发生
+  // Track if selection actions happen and keep trigger info for cleanup
   const hasModelActionRef = useRef<boolean>(false)
-  // 记录触发信息，用于清除操作
   const triggerInfoRef = useRef<{ type: 'input' | 'button'; position?: number; originalText?: string } | undefined>(
     undefined
   )
 
-  // 基于光标 + 搜索词定位并删除最近一次触发的 @ 及搜索文本
-  const removeAtSymbolAndText = useCallback(
-    (currentText: string, caretPosition: number, searchText?: string, fallbackPosition?: number) => {
-      const safeCaret = Math.max(0, Math.min(caretPosition ?? 0, currentText.length))
-
-      // ESC/精确删除：优先按 pattern = "@" + searchText 从光标向左最近匹配
-      if (searchText !== undefined) {
-        const pattern = '@' + searchText
-        const fromIndex = Math.max(0, safeCaret - 1)
-        const start = currentText.lastIndexOf(pattern, fromIndex)
-        if (start !== -1) {
-          const end = start + pattern.length
-          return currentText.slice(0, start) + currentText.slice(end)
-        }
-
-        // 兜底：使用打开时的 position 做校验后再删
-        if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
-          const expected = pattern
-          const actual = currentText.slice(fallbackPosition, fallbackPosition + expected.length)
-          if (actual === expected) {
-            return currentText.slice(0, fallbackPosition) + currentText.slice(fallbackPosition + expected.length)
-          }
-          // 如果不完全匹配，安全起见仅删除单个 '@'
-          return currentText.slice(0, fallbackPosition) + currentText.slice(fallbackPosition + 1)
-        }
-
-        // 未找到匹配则不改动
-        return currentText
-      }
-
-      // 清除按钮：未知搜索词，删除离光标最近的 '@' 及后续连续非空白（到空格/换行/结尾）
-      {
-        const fromIndex = Math.max(0, safeCaret - 1)
-        const start = currentText.lastIndexOf('@', fromIndex)
-        if (start === -1) {
-          // 兜底：使用打开时的 position（若存在），按空白边界删除
-          if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
-            let endPos = fallbackPosition + 1
-            while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
-              endPos++
-            }
-            return currentText.slice(0, fallbackPosition) + currentText.slice(endPos)
-          }
-          return currentText
-        }
-
-        let endPos = start + 1
-        while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
-          endPos++
-        }
-        return currentText.slice(0, start) + currentText.slice(endPos)
-      }
-    },
-    []
-  )
-
   const pinnedModels = useLiveQuery(
     async () => {
-      const setting = await db.settings.get('pinned:models')
-      return setting?.value || []
+      try {
+        const setting = await db.settings.get('pinned:models')
+        return setting?.value || []
+      } catch (error) {
+        console.error('Failed to load pinned models:', error)
+        return []
+      }
     },
     [],
     []
   )
 
-  // 基于给定的分组快照构建 QuickPanel 列表（放在依赖声明之后，避免TS的声明顺序问题）
+  // Build QuickPanel items from a groups snapshot (declared after dependencies)
   const buildModelItems = useCallback(
     (groupsSnapshot: MentionModelGroup[]): QuickPanelListItem[] => {
       const items: QuickPanelListItem[] = []
 
-      // 分组项（显示在顶部，紧随“清除”之后）
+      // Group items (top section, after the clear action)
       if ((groupsSnapshot || []).length > 0) {
         const sortedGroups = [...groupsSnapshot].sort((a, b) => a.name.localeCompare(b.name))
         const groupItems: QuickPanelListItem[] = sortedGroups.map((g) => {
-          // 按当前约束过滤出可用模型（有图片时仅视觉模型）
+          // Filter allowed models by current constraints (vision-only when images present)
           const allowedModels = g.modelIds
             .map((id) => uniqIdToModelMap.get(id))
             .filter((m): m is Model => !!m && (couldMentionNotVisionModel || isVisionModel(m)))
@@ -374,7 +366,7 @@ const MentionModelsButton: FC<Props> = ({
         items.push(...groupItems)
       }
 
-      // 置顶模型
+      // Pinned models
       if (pinnedModels.length > 0) {
         const pinnedItems = providers.flatMap((p) =>
           p.models
@@ -396,10 +388,10 @@ const MentionModelsButton: FC<Props> = ({
               ),
               filterText: getFancyProviderName(p) + m.name,
               action: () => {
-                hasModelActionRef.current = true // 标记有模型动作发生
+                hasModelActionRef.current = true // mark action
                 onMentionModel(m)
               },
-              isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+              isSelected: mentionedSet.has(getModelUniqId(m))
             }))
         )
 
@@ -408,7 +400,7 @@ const MentionModelsButton: FC<Props> = ({
         }
       }
 
-      // 常规模型
+      // Regular models
       providers.forEach((p) => {
         const providerModels = sortBy(
           p.models
@@ -433,10 +425,10 @@ const MentionModelsButton: FC<Props> = ({
           ),
           filterText: getFancyProviderName(p) + m.name,
           action: () => {
-            hasModelActionRef.current = true // 标记有模型动作发生
+            hasModelActionRef.current = true // mark action
             onMentionModel(m)
           },
-          isSelected: mentionedModels.some((selected) => getModelUniqId(selected) === getModelUniqId(m))
+          isSelected: mentionedSet.has(getModelUniqId(m))
         }))
 
         if (providerModelItems.length > 0) {
@@ -444,7 +436,7 @@ const MentionModelsButton: FC<Props> = ({
         }
       })
 
-      // 添加/保存项
+      // Add/save items
       items.push({
         label: t('settings.models.add.add_model') + '...',
         icon: <Plus />,
@@ -459,7 +451,7 @@ const MentionModelsButton: FC<Props> = ({
         action: () => saveSelectionAsGroup()
       })
 
-      // 清除项放到顶部
+      // Put clear action at the top
       items.unshift({
         label: t('settings.input.clear.all'),
         description: t('settings.input.clear.models'),
@@ -471,8 +463,7 @@ const MentionModelsButton: FC<Props> = ({
 
           if (triggerInfoRef.current?.type === 'input') {
             setText((currentText) => {
-              const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
-              const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+              const caret = triggerInfoRef.current?.position ?? currentText.length
               return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
             })
           }
@@ -487,13 +478,12 @@ const MentionModelsButton: FC<Props> = ({
       providers,
       t,
       couldMentionNotVisionModel,
-      mentionedModels,
+      
       onMentionModel,
       navigate,
       quickPanel,
       onClearMentionModels,
       setText,
-      removeAtSymbolAndText,
       uniqIdToModelMap,
       mentionedSet,
       toggleGroupSelection,
@@ -508,9 +498,9 @@ const MentionModelsButton: FC<Props> = ({
 
   const openQuickPanel = useCallback(
     (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => {
-      // 重置模型动作标记
+      // Reset model-action flag
       hasModelActionRef.current = false
-      // 保存触发信息
+      // Save trigger info
       triggerInfoRef.current = triggerInfo
 
       quickPanel.open({
@@ -523,28 +513,26 @@ const MentionModelsButton: FC<Props> = ({
           item.isSelected = !item.isSelected
         },
         onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
-          // ESC关闭时的处理：删除 @ 和搜索文本
+          // ESC close: delete '@' and the search text
           if (action === 'esc') {
-            // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
+            // Only do this for input trigger and when a selection occurred
             if (
               hasModelActionRef.current &&
               closeTriggerInfo?.type === 'input' &&
               closeTriggerInfo?.position !== undefined
             ) {
-              // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
+              // Use saved position to avoid DOM queries
               setText((currentText) => {
-                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
-                const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+                const caret = closeTriggerInfo.position!
                 return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
               })
             }
           }
-          // Backspace删除@的情况（delete-symbol）：
-          // @ 已经被Backspace自然删除，面板关闭，不需要额外操作
+          // Backspace deletion of '@': already removed naturally; nothing else to do
         }
       })
     },
-    [modelItems, quickPanel, t, setText, removeAtSymbolAndText]
+    [modelItems, quickPanel, t, setText]
   )
 
   const handleOpenQuickPanel = useCallback(() => {
@@ -558,7 +546,7 @@ const MentionModelsButton: FC<Props> = ({
   const filesRef = useRef(files)
 
   useEffect(() => {
-    // 检查files是否变化
+    // Close the panel if files changed
     if (filesRef.current !== files) {
       if (quickPanel.isVisible && quickPanel.symbol === '@') {
         quickPanel.close()
@@ -566,6 +554,15 @@ const MentionModelsButton: FC<Props> = ({
       filesRef.current = files
     }
   }, [files, quickPanel])
+
+  // Cleanup lingering refs on unmount
+  useEffect(() => {
+    return () => {
+      triggerInfoRef.current = undefined
+      hasModelActionRef.current = false
+      modalOpenRef.current = false
+    }
+  }, [])
 
   useImperativeHandle(ref, () => ({
     openQuickPanel
