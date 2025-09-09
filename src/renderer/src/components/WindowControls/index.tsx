@@ -6,13 +6,32 @@ import { useTranslation } from 'react-i18next'
 
 import { ControlButton, WindowControlsContainer } from './WindowControls.styled'
 
-// Custom restore icon - two overlapping squares like Windows
-const RestoreIcon: React.FC<{ size?: number }> = ({ size = 14 }) => (
-  <svg width={size} height={size} viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1">
-    {/* Back square (top-right) */}
-    <path d="M 4 2 H 11 V 9 H 9 V 4 H 4 V 2" />
-    {/* Front square (bottom-left) */}
-    <rect x="2" y="4" width="7" height="7" />
+import { SVGProps } from 'react'
+
+interface WindowRestoreIconProps extends SVGProps<SVGSVGElement> {
+  size?: string | number
+}
+
+export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIconProps) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="lucide lucide-square-icon lucide-square"
+    version="1.1"
+    id="svg4"
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}>
+    <defs id="defs1" />
+    {/* Back window - L shape with rounded corner */}
+    <path d="M 8 5 L 17 5 Q 19 5 19 7 L 19 16" fill="none" style={{ strokeWidth: '1.75' }} id="path1" />
+    {/* Front window - rounded rectangle */}
+    <rect width="12" height="12" x="4" y="9" rx="2" ry="2" id="rect2" style={{ strokeWidth: '1.75' }} />
   </svg>
 )
 
@@ -67,7 +86,7 @@ const WindowControls: React.FC = () => {
         placement="bottom"
         mouseEnterDelay={DEFAULT_DELAY}>
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
-          {isMaximized ? <RestoreIcon size={14} /> : <Square size={14} />}
+          {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
       <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
