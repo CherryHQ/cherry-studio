@@ -4457,7 +4457,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@heroui/modal@npm:2.2.22":
+"@heroui/modal@npm:2.2.22, @heroui/modal@npm:^2.2.22":
   version: 2.2.22
   resolution: "@heroui/modal@npm:2.2.22"
   dependencies:
@@ -12883,6 +12883,7 @@ __metadata:
     "@eslint/js": "npm:^9.22.0"
     "@google/genai": "patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch"
     "@hello-pangea/dnd": "npm:^18.0.1"
+    "@heroui/modal": "npm:^2.2.22"
     "@heroui/react": "npm:^2.8.3"
     "@kangfenmao/keyv-storage": "npm:^0.1.0"
     "@langchain/community": "npm:^0.3.50"
