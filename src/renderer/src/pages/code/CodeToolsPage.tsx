@@ -109,7 +109,7 @@ const CodeToolsPage: FC = () => {
       const bunExists = await window.api.isBinaryExist('bun')
       dispatch(setIsBunInstalled(bunExists))
     } catch (error) {
-      logger.error('检查 bun 安装状态失败:', error as Error)
+      logger.error('Failed to check bun installation status:', error as Error)
       dispatch(setIsBunInstalled(false))
     }
   }, [dispatch])
@@ -122,7 +122,7 @@ const CodeToolsPage: FC = () => {
       dispatch(setIsBunInstalled(true))
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error: any) {
-      logger.error('安装 bun 失败:', error as Error)
+      logger.error('Failed to install bun:', error as Error)
       window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
     } finally {
       setIsInstallingBun(false)
