@@ -1704,7 +1704,7 @@
     "delete_confirm": "¿Estás seguro de que deseas eliminar este {{type}}?",
     "delete_folder_confirm": "¿Está seguro de que desea eliminar la carpeta \"{{name}}\" y todo su contenido?",
     "delete_note_confirm": "¿Está seguro de que desea eliminar la nota \"{{name}}\"?",
-    "drop_markdown_hint": "Arrastra archivos Markdown aquí para importar",
+    "drop_markdown_hint": "Arrastre y suelte archivos o carpetas de Markdown aquí para importar",
     "empty": "Sin notas por el momento",
     "expand": "expandir",
     "export_failed": "Exportación a la base de conocimientos fallida",

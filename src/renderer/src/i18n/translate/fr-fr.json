@@ -1704,7 +1704,7 @@
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
     "delete_note_confirm": "Êtes-vous sûr de vouloir supprimer la note \"{{name}}\" ?",
-    "drop_markdown_hint": "Glissez-déposez le fichier Markdown ici pour l'importer",
+    "drop_markdown_hint": "Déposez ici des fichiers ou dossiers Markdown pour les importer",
     "empty": "Aucune note pour le moment",
     "expand": "développer",
     "export_failed": "Échec de l'exportation vers la base de connaissances",

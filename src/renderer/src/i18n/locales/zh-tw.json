@@ -1708,7 +1708,7 @@
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
     "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
-    "drop_markdown_hint": "拖拽 Markdown 文件到此處導入",
+    "drop_markdown_hint": "拖拽 Markdown 文件或資料夾到此處導入",
     "empty": "暫無筆記",
     "expand": "展開",
     "export_failed": "匯出至知識庫失敗",

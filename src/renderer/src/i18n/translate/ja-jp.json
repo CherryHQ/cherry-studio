@@ -1704,7 +1704,7 @@
     "delete_confirm": "この{{type}}を本当に削除しますか？",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
     "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
-    "drop_markdown_hint": "マークダウンファイルをドラッグアンドドロップしてここにインポートします",
+    "drop_markdown_hint": "Markdown ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
     "empty": "暫無ノート",
     "expand": "展開",
     "export_failed": "知識ベースへのエクスポートに失敗しました",

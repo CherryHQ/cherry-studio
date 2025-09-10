@@ -1708,7 +1708,7 @@
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
     "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
-    "drop_markdown_hint": "拖拽 Markdown 文件到此处导入",
+    "drop_markdown_hint": "拖拽 Markdown 文件或目录到此处导入",
     "empty": "暂无笔记",
     "expand": "展开",
     "export_failed": "导出到知识库失败",
