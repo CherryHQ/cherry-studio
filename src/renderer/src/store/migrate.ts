@@ -2417,6 +2417,40 @@ const migrateConfig = {
       logger.error('migrate 150 error', error as Error)
       return state
     }
+  },
+  '151': (state: RootState) => {
+    try {
+      if (state.settings) {
+        state.settings.codeFancyBlock = true
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 151 error', error as Error)
+      return state
+    }
+  },
+  '152': (state: RootState) => {
+    try {
+      state.translate.settings = {
+        autoCopy: false
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 152 error', error as Error)
+      return state
+    }
+  },
+  '153': (state: RootState) => {
+    try {
+      if (state.note.settings) {
+        state.note.settings.fontSize = notesInitialState.settings.fontSize
+        state.note.settings.showTableOfContents = notesInitialState.settings.showTableOfContents
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 153 error', error as Error)
+      return state
+    }
   }
 }
 

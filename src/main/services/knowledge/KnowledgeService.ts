@@ -115,7 +115,7 @@ class KnowledgeService {
     const framework = knowledgeFrameworkFactory.getFramework(base)
     await framework.initialize(base)
   }
-  public async reset(_: Electron.IpcMainInvokeEvent, { base }: { base: KnowledgeBaseParams }): Promise<void> {
+  public async reset(_: Electron.IpcMainInvokeEvent, base: KnowledgeBaseParams): Promise<void> {
     const framework = knowledgeFrameworkFactory.getFramework(base)
     await framework.reset(base)
   }

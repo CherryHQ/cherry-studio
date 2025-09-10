@@ -62,17 +62,17 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
         try {
           await updateCustomLanguage(editingCustomLanguage, value, emoji, langCode)
           onEdit({ ...editingCustomLanguage, emoji, value, langCode })
-          window.message.success(t('settings.translate.custom.success.update'))
+          window.toast.success(t('settings.translate.custom.success.update'))
         } catch (e) {
-          window.message.error(t('settings.translate.custom.error.update') + ': ' + (e as Error).message)
+          window.toast.error(t('settings.translate.custom.error.update') + ': ' + (e as Error).message)
         }
       } else {
         try {
           const added = await addCustomLanguage(value, emoji, langCode)
           onAdd(added)
-          window.message.success(t('settings.translate.custom.success.add'))
+          window.toast.success(t('settings.translate.custom.success.add'))
         } catch (e) {
-          window.message.error(t('settings.translate.custom.error.add') + ': ' + (e as Error).message)
+          window.toast.error(t('settings.translate.custom.error.add') + ': ' + (e as Error).message)
         }
       }
       onCancel()

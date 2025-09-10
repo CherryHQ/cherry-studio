@@ -43,7 +43,7 @@ const NpxSearch: FC = () => {
     const searchScope = scopeOverride || npmScope
 
     if (!searchScope.trim()) {
-      window.message.warning({ content: t('settings.mcp.npx_list.scope_required'), key: 'mcp-npx-scope-required' })
+      window.toast.warning(t('settings.mcp.npx_list.scope_required'))
       return
     }
 
@@ -79,18 +79,15 @@ const NpxSearch: FC = () => {
       setSearchResults(formattedResults)
 
       if (formattedResults.length === 0) {
-        window.message.info({ content: t('settings.mcp.npx_list.no_packages'), key: 'mcp-npx-no-packages' })
+        window.toast.info(t('settings.mcp.npx_list.no_packages'))
       }
     } catch (error: unknown) {
       setSearchResults([])
       _searchResults = []
       if (error instanceof Error) {
-        window.message.error({
-          content: `${t('settings.mcp.npx_list.search_error')}: ${error.message}`,
-          key: 'mcp-npx-search-error'
-        })
+        window.toast.error(`${t('settings.mcp.npx_list.search_error')}: ${error.message}`)
       } else {
-        window.message.error({ content: t('settings.mcp.npx_list.search_error'), key: 'mcp-npx-search-error' })
+        window.toast.error(t('settings.mcp.npx_list.search_error'))
       }
     } finally {
       setSearchLoading(false)
@@ -186,7 +183,7 @@ const NpxSearch: FC = () => {
                         }
 
                         addMCPServer(newServer)
-                        window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-server' })
+                        window.toast.success(t('settings.mcp.addSuccess'))
                       }}
                     />
                   </Flex>

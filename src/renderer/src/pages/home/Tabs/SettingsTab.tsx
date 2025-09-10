@@ -23,6 +23,7 @@ import {
   setCodeCollapsible,
   setCodeEditor,
   setCodeExecution,
+  setCodeFancyBlock,
   setCodeImageTools,
   setCodeShowLineNumbers,
   setCodeViewer,
@@ -99,6 +100,7 @@ const SettingsTab: FC<Props> = (props) => {
     codeViewer,
     codeImageTools,
     codeExecution,
+    codeFancyBlock,
     mathEngine,
     mathEnableSingleDollar,
     autoTranslateWithSpace,
@@ -448,6 +450,18 @@ const SettingsTab: FC<Props> = (props) => {
                 value: theme,
                 label: theme
               }))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>
+              {t('chat.settings.code_fancy_block.label')}
+              <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
+            </SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={codeFancyBlock}
+              onChange={(checked) => dispatch(setCodeFancyBlock(checked))}
             />
           </SettingRow>
           <SettingDivider />

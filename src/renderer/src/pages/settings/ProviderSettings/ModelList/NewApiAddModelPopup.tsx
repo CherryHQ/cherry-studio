@@ -51,7 +51,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
     const id = values.id.trim()
 
     if (find(models, { id })) {
-      window.message.error(t('error.model.exists'))
+      window.toast.error(t('error.model.exists'))
       return
     }
 

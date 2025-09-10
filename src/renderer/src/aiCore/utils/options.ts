@@ -120,6 +120,9 @@ export function buildProviderOptions(
         case 'google-vertex':
           providerSpecificOptions = buildGeminiProviderOptions(assistant, model, capabilities)
           break
+        case 'google-vertex-anthropic':
+          providerSpecificOptions = buildAnthropicProviderOptions(assistant, model, capabilities)
+          break
         default:
           // 对于其他 provider，使用通用的构建逻辑
           providerSpecificOptions = {
@@ -137,10 +140,16 @@ export function buildProviderOptions(
     ...providerSpecificOptions,
     ...getCustomParameters(assistant)
   }
+  // vertex需要映射到google或anthropic
+  const rawProviderKey =
+    {
+      'google-vertex': 'google',
+      'google-vertex-anthropic': 'anthropic'
+    }[rawProviderId] || rawProviderId
 
   // 返回 AI Core SDK 要求的格式：{ 'providerId': providerOptions }
   return {
-    [rawProviderId]: providerSpecificOptions
+    [rawProviderKey]: providerSpecificOptions
   }
 }
 

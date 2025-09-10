@@ -50,7 +50,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
   const onUpdate = () => {
     const _assistant = { ...assistant, name: name.trim(), emoji, prompt }
     updateAssistant(_assistant)
-    window.message.success(t('common.saved'))
+    window.toast.success(t('common.saved'))
   }
 
   const handleEmojiSelect = (selectedEmoji: string) => {

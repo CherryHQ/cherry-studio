@@ -103,6 +103,8 @@ export class LangChainFramework implements IKnowledgeFramework {
     if (fs.existsSync(dbPath)) {
       fs.rmSync(dbPath, { recursive: true })
     }
+    // 立即重建空索引，避免随后加载时报错
+    await this.createDatabase(base)
   }
 
   async delete(id: string): Promise<void> {

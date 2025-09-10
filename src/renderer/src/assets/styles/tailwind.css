@@ -153,4 +153,13 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* To disable drag title bar on toast. tailwind css doesn't provide such class name. */
+  .hero-toast {
+    -webkit-app-region: no-drag;
+  }
+}
+
+:root {
+  background-color: unset;
 }

@@ -943,6 +943,9 @@
     "image": "画像",
     "name": "名前",
     "open": "開く",
+    "preview": {
+      "error": "ファイルを開くのに失敗しました"
+    },
     "size": "サイズ",
     "text": "テキスト",
     "title": "ファイル",
@@ -2221,6 +2224,21 @@
       }
     },
     "dragHandle": "ブロックをドラッグします",
+    "frontMatter": {
+      "addProperty": "属性を追加",
+      "addTag": "タグを追加",
+      "changeToBoolean": "チェックボックス",
+      "changeToDate": "日付",
+      "changeToNumber": "数字",
+      "changeToTags": "タグ",
+      "changeToText": "テキスト",
+      "changeType": "種類を変更",
+      "deleteProperty": "削除属性",
+      "editValue": "編集値",
+      "empty": "空",
+      "moreActions": "その他の操作",
+      "propertyName": "プロパティ名"
+    },
     "image": {
       "placeholder": "写真を追加します"
     },
@@ -4282,6 +4300,7 @@
     },
     "processing": "翻訳中...",
     "settings": {
+      "autoCopy": "翻訳完了後、自動的にコピー",
       "bidirectional": "双方向翻訳設定",
       "bidirectional_tip": "有効にすると、ソース言語と目標言語間の双方向翻訳のみがサポートされます",
       "model": "モデル設定",

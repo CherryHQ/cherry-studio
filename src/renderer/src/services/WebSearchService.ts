@@ -178,12 +178,7 @@ class WebSearchService {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
-    // try {
     return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
-    // } catch (error) {
-    //   console.error('Search failed:', error)
-    //   throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    // }
   }
 
   /**
@@ -250,7 +245,7 @@ class WebSearchService {
       created_at: Date.now(),
       updated_at: Date.now(),
       version: 1,
-      framework: 'embedjs'
+      framework: 'langchain'
     }
 
     // 更新LRU cache
@@ -541,10 +536,9 @@ class WebSearchService {
         )
       } catch (error) {
         logger.warn('RAG compression failed, will return empty results:', error as Error)
-        window.message.error({
-          key: 'websearch-rag-failed',
-          duration: 10,
-          content: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
+        window.toast.error({
+          timeout: 10000,
+          title: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
         })
 
         finalResults = []

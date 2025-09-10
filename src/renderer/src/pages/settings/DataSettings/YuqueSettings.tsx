@@ -31,11 +31,11 @@ const YuqueSettings: FC = () => {
 
   const handleYuqueConnectionCheck = async () => {
     if (!yuqueToken) {
-      window.message.error(t('settings.data.yuque.check.empty_token'))
+      window.toast.error(t('settings.data.yuque.check.empty_token'))
       return
     }
     if (!yuqueUrl) {
-      window.message.error(t('settings.data.yuque.check.empty_repo_url'))
+      window.toast.error(t('settings.data.yuque.check.empty_repo_url'))
       return
     }
 
@@ -46,7 +46,7 @@ const YuqueSettings: FC = () => {
     })
 
     if (!response.ok) {
-      window.message.error(t('settings.data.yuque.check.fail'))
+      window.toast.error(t('settings.data.yuque.check.fail'))
       return
     }
     const yuqueSlug = yuqueUrl.replace('https://www.yuque.com/', '')
@@ -56,12 +56,12 @@ const YuqueSettings: FC = () => {
       }
     })
     if (!repoIDResponse.ok) {
-      window.message.error(t('settings.data.yuque.check.fail'))
+      window.toast.error(t('settings.data.yuque.check.fail'))
       return
     }
     const data = await repoIDResponse.json()
     dispatch(setYuqueRepoId(data.data.id))
-    window.message.success(t('settings.data.yuque.check.success'))
+    window.toast.success(t('settings.data.yuque.check.success'))
   }
 
   const handleYuqueHelpClick = () => {

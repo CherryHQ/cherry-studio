@@ -7,7 +7,7 @@ import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNodeInTree } from '@renderer/services/NotesTreeService'
 import { Breadcrumb, BreadcrumbProps, Dropdown, Tooltip } from 'antd'
 import { t } from 'i18next'
-import { MoreHorizontal, PanelLeftClose, PanelRightClose } from 'lucide-react'
+import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
@@ -15,28 +15,35 @@ import { menuItems } from './MenuConfig'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
-const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
+const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
   const { activeNode } = useActiveNode(notesTree)
   const [breadcrumbItems, setBreadcrumbItems] = useState<Required<BreadcrumbProps>['items']>([])
   const { settings, updateSettings } = useNotesSettings()
+  const canShowStarButton = activeNode?.type === 'file' && onToggleStar
 
   const handleToggleShowWorkspace = useCallback(() => {
     toggleShowWorkspace()
   }, [toggleShowWorkspace])
+
+  const handleToggleStarred = useCallback(() => {
+    if (activeNode) {
+      onToggleStar(activeNode.id)
+    }
+  }, [activeNode, onToggleStar])
 
   const handleCopyContent = useCallback(async () => {
     try {
       const content = getCurrentNoteContent?.()
       if (content) {
         await navigator.clipboard.writeText(content)
-        window.message.success(t('common.copied'))
+        window.toast.success(t('common.copied'))
       } else {
-        window.message.warning(t('notes.no_content_to_copy'))
+        window.toast.warning(t('notes.no_content_to_copy'))
       }
     } catch (error) {
       logger.error('Failed to copy content:', error as Error)
-      window.message.error(t('common.copy_failed'))
+      window.toast.error(t('common.copy_failed'))
     }
   }, [getCurrentNoteContent])
 
@@ -132,6 +139,17 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent }) => {
         <Breadcrumb items={breadcrumbItems} />
       </NavbarCenter>
       <NavbarRight style={{ paddingRight: 0 }}>
+        {canShowStarButton && (
+          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} mouseEnterDelay={0.8}>
+            <StarButton onClick={handleToggleStarred}>
+              {activeNode.isStarred ? (
+                <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
+              ) : (
+                <Star size={18} />
+              )}
+            </StarButton>
+          </Tooltip>
+        )}
         <Tooltip title={t('notes.settings.title')} mouseEnterDelay={0.8}>
           <Dropdown
             menu={{ items: menuItems.map(buildMenuItem) }}
@@ -184,6 +202,26 @@ export const NavbarIcon = styled.div`
   &:hover {
     background-color: var(--color-background-mute);
     color: var(--color-icon-white);
+  }
+`
+
+export const StarButton = styled.div`
+  -webkit-app-region: none;
+  border-radius: 8px;
+  height: 30px;
+  padding: 0 7px;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  svg {
+    color: inherit;
+  }
+
+  &:hover {
+    background-color: var(--color-background-mute);
   }
 `
 

@@ -943,6 +943,9 @@
     "image": "Image",
     "name": "Nom du fichier",
     "open": "Ouvrir",
+    "preview": {
+      "error": "Échec de l’ouverture du fichier"
+    },
     "size": "Taille",
     "text": "Texte",
     "title": "Fichier",
@@ -2221,6 +2224,21 @@
       }
     },
     "dragHandle": "bloc de glisser-déposer",
+    "frontMatter": {
+      "addProperty": "Ajouter un attribut",
+      "addTag": "Ajouter une étiquette",
+      "changeToBoolean": "Case à cocher",
+      "changeToDate": "fecha",
+      "changeToNumber": "numérique",
+      "changeToTags": "étiquette",
+      "changeToText": "texte",
+      "changeType": "Modifier le type",
+      "deleteProperty": "Supprimer l'attribut",
+      "editValue": "valeur d'édition",
+      "empty": "vacío",
+      "moreActions": "Plus d'actions",
+      "propertyName": "Nom de l'attribut"
+    },
     "image": {
       "placeholder": "ajouter une image"
     },
@@ -3681,15 +3699,19 @@
         "apikey": "Clé API",
         "auth_failed": "Échec de l'authentification Anthropic",
         "auth_method": "Mode d'authentification",
+        "auth_success": "Authentification OAuth Anthropic réussie",
         "authenticated": "Certifié",
         "authenticating": "Authentification en cours",
         "cancel": "Annuler",
+        "code_error": "Code d'autorisation invalide, veuillez réessayer",
         "code_placeholder": "Veuillez saisir le code d'autorisation affiché dans le navigateur",
         "code_required": "Le code d'autorisation ne peut pas être vide",
         "description": "Authentification OAuth",
         "description_detail": "Vous devez souscrire à Claude Pro ou à une version supérieure pour pouvoir utiliser cette méthode d'authentification.",
         "enter_auth_code": "code d'autorisation",
         "logout": "Déconnexion",
+        "logout_failed": "Échec de la déconnexion, veuillez réessayer",
+        "logout_success": "Déconnexion réussie d'Anthropic",
         "oauth": "Authentification OAuth web",
         "start_auth": "Commencer l'autorisation",
         "submit_code": "Terminer la connexion"
@@ -4278,6 +4300,7 @@
     },
     "processing": "en cours de traduction...",
     "settings": {
+      "autoCopy": "Copié automatiquement après la traduction",
       "bidirectional": "Paramètres de traduction bidirectionnelle",
       "bidirectional_tip": "Une fois activé, seul la traduction bidirectionnelle entre la langue source et la langue cible est prise en charge",
       "model": "Paramètres du modèle",

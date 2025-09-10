@@ -68,7 +68,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "claude": "dotenv -e .env -- claude"
   },
   "dependencies": {
     "@libsql/client": "0.14.0",
@@ -81,7 +82,7 @@
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
-    "selection-hook": "^1.0.11",
+    "selection-hook": "^1.0.12",
     "sharp": "^0.34.3",
     "tesseract.js": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
     "turndown": "7.2.0"
@@ -91,7 +92,7 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.0",
-    "@ai-sdk/google-vertex": "^3.0.0",
+    "@ai-sdk/google-vertex": "^3.0.25",
     "@ai-sdk/mistral": "^2.0.0",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
@@ -202,7 +203,7 @@
     "@viz-js/lang-dot": "^1.0.5",
     "@viz-js/viz": "^3.14.0",
     "@xyflow/react": "^12.4.4",
-    "ai": "^5.0.29",
+    "ai": "^5.0.38",
     "antd": "patch:antd@npm%3A5.27.0#~/.yarn/patches/antd-npm-5.27.0-aa91c36546.patch",
     "archiver": "^7.0.1",
     "async-mutex": "^0.5.0",
