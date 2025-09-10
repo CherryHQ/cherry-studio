@@ -107,7 +107,8 @@ export const Box = ({
   pr,
   paddingRight,
   children,
-  style
+  style,
+  ...props
 }: BoxProps & { children?: React.ReactNode; style?: CSSProperties }) => {
   const _style = {
     width: width || w ? getElementValue(width ?? w) : 'auto',
@@ -138,7 +139,11 @@ export const Box = ({
     ...style
   } satisfies CSSProperties
 
-  return <div style={_style}>{children}</div>
+  return (
+    <div style={_style} {...props}>
+      {children}
+    </div>
+  )
 }
 
 export interface FlexProps extends BoxProps {
@@ -153,17 +158,19 @@ export const Flex = ({
   align: alignItems = 'flex-start',
   flexDirection = 'row',
   children,
+  style,
   ...props
 }: FlexProps & { children?: React.ReactNode }) => {
-  const style = {
+  const _style = {
     display: 'flex',
     justifyContent,
     alignItems,
-    flexDirection
-  }
+    flexDirection,
+    ...style
+  } satisfies CSSProperties
 
   return (
-    <Box style={style} {...props}>
+    <Box style={_style} {...props}>
       {children}
     </Box>
   )
