@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
@@ -609,14 +609,14 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-                <HStack gap="5px" justifyContent="space-between">
+                <RowFlex gap="5px" justifyContent="space-between">
                   <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
                     {t('settings.general.backup.button')}
                   </Button>
                   <Button onClick={RestorePopup.show} icon={<FolderOpen size={14} />}>
                     {t('settings.general.restore.button')}
                   </Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
@@ -639,9 +639,9 @@ const DataSettings: FC = () => {
                     {appInfo?.appDataPath}
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.appDataPath)} style={{ flexShrink: 0 }} />
-                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                  <RowFlex gap="5px" style={{ marginLeft: '8px' }}>
                     <Button onClick={handleSelectAppDataPath}>{t('settings.data.app_data.select')}</Button>
-                  </HStack>
+                  </RowFlex>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
@@ -652,19 +652,19 @@ const DataSettings: FC = () => {
                     {appInfo?.logsPath}
                   </PathText>
                   <StyledIcon onClick={() => handleOpenPath(appInfo?.logsPath)} style={{ flexShrink: 0 }} />
-                  <HStack gap="5px" style={{ marginLeft: '8px' }}>
+                  <RowFlex gap="5px" style={{ marginLeft: '8px' }}>
                     <Button onClick={() => handleOpenPath(appInfo?.logsPath)}>
                       {t('settings.data.app_logs.button')}
                     </Button>
-                  </HStack>
+                  </RowFlex>
                 </PathRow>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
-                <HStack alignItems="center" gap="5px">
+                <RowFlex alignItems="center" gap="5px">
                   <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
@@ -672,18 +672,18 @@ const DataSettings: FC = () => {
                   {t('settings.data.clear_cache.title')}
                   {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
                 </SettingRowTitle>
-                <HStack gap="5px">
+                <RowFlex gap="5px">
                   <Button onClick={handleClearCache}>{t('settings.data.clear_cache.button')}</Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-                <HStack gap="5px">
+                <RowFlex gap="5px">
                   <Button onClick={reset} danger>
                     {t('settings.general.reset.title')}
                   </Button>
-                </HStack>
+                </RowFlex>
               </SettingRow>
             </SettingGroup>
           </>
@@ -705,7 +705,7 @@ const DataSettings: FC = () => {
   )
 }
 
-const Container = styled(HStack)`
+const Container = styled(RowFlex)`
   flex: 1;
 `
 
@@ -760,7 +760,7 @@ const PathText = styled(Typography.Text)`
   cursor: pointer;
 `
 
-const PathRow = styled(HStack)`
+const PathRow = styled(RowFlex)`
   min-width: 0;
   flex: 1;
   width: 0;

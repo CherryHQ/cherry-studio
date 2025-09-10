@@ -1,6 +1,6 @@
 import { MenuOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
-import { Box, HStack } from '@renderer/components/Layout'
+import { Box, RowFlex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { Empty, Modal } from 'antd'
@@ -49,9 +49,9 @@ const PopupContainer: React.FC = () => {
                 <Box mr={8}>
                   {item.emoji} {item.name}
                 </Box>
-                <HStack gap="15px">
+                <RowFlex gap="15px">
                   <MenuOutlined style={{ cursor: 'move' }} />
-                </HStack>
+                </RowFlex>
               </AgentItem>
             )}
           </DraggableList>

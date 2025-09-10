@@ -1,6 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { Client } from '@notionhq/client'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
@@ -92,7 +92,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionDatabaseID || ''}
@@ -101,12 +101,12 @@ const NotionSettings: FC = () => {
             style={{ width: 315 }}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionPageNameKey || ''}
@@ -115,12 +115,12 @@ const NotionSettings: FC = () => {
             style={{ width: 315 }}
             placeholder={t('settings.data.notion.page_name_key_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={notionApiKey || ''}
@@ -131,7 +131,7 @@ const NotionSettings: FC = () => {
             />
             <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
           </Space.Compact>
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

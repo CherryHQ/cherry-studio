@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { Input, InputRef } from 'antd'
 import { Search } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -33,7 +33,7 @@ const SelectModelSearchBar: React.FC<SelectModelSearchBarProps> = ({ onSearch })
   }, [])
 
   return (
-    <HStack style={{ padding: '0 12px', marginTop: 5 }}>
+    <RowFlex style={{ padding: '0 12px', marginTop: 5 }}>
       <Input
         prefix={
           <SearchIcon>
@@ -58,7 +58,7 @@ const SelectModelSearchBar: React.FC<SelectModelSearchBarProps> = ({ onSearch })
           }
         }}
       />
-    </HStack>
+    </RowFlex>
   )
 }
 

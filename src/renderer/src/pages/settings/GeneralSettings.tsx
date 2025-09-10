@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -248,7 +248,7 @@ const GeneralSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
-          <HStack justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
+          <RowFlex justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && (
               <Selector<string>
@@ -270,7 +270,7 @@ const GeneralSettings: FC = () => {
                 }))}
               />
             )}
-          </HStack>
+          </RowFlex>
           <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />

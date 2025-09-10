@@ -1,6 +1,6 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
@@ -165,12 +165,12 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             {base.framework !== 'langchain' && <MigrationInfoTag base={base} />}
           </div>
         </ModelInfo>
-        <HStack gap={8} alignItems="center">
+        <RowFlex gap={8} alignItems="center">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
           </NavbarIcon>
-        </HStack>
+        </RowFlex>
       </HeaderContainer>
       <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
     </MainContainer>
@@ -181,9 +181,9 @@ export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ 
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
-    <HStack alignItems="center" gap={10}>
+    <RowFlex alignItems="center" gap={10}>
       <label style={{ fontWeight: 600 }}>{label}</label>
-    </HStack>
+    </RowFlex>
   )
 }
 

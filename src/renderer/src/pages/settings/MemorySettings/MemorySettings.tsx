@@ -1,7 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
@@ -581,16 +581,16 @@ const MemorySettings = () => {
     <SettingContainer theme={theme}>
       {/* Memory Settings */}
       <SettingGroup style={{ justifyContent: 'space-between', alignItems: 'center' }} theme={theme}>
-        <HStack style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <HStack style={{ alignItems: 'center', gap: '2px' }}>
+        <RowFlex style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <RowFlex style={{ alignItems: 'center', gap: '2px' }}>
             <SettingRowTitle>{t('memory.global_memory')}</SettingRowTitle>
             <TextBadge text="Beta" />
-          </HStack>
-          <HStack style={{ alignItems: 'center', gap: 10 }}>
+          </RowFlex>
+          <RowFlex style={{ alignItems: 'center', gap: 10 }}>
             <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
             <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
       </SettingGroup>
 
       {/* User Management */}

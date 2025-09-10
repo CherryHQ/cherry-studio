@@ -123,15 +123,15 @@ export const Center = styled(Stack)<StackProps>`
   align-items: center;
 `
 
-export const HStack = styled(Stack)<StackProps>`
+export const RowFlex = styled(Stack)<StackProps>`
   flex-direction: row;
 `
 
-export const HSpaceBetweenStack = styled(HStack)<StackProps>`
+export const HSpaceBetweenStack = styled(RowFlex)<StackProps>`
   justify-content: space-between;
 `
 
-export const VStack = styled(Stack)<StackProps>`
+export const ColFlex = styled(Stack)<StackProps>`
   flex-direction: column;
 `
 

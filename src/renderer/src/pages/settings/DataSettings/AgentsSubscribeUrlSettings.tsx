@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
@@ -29,7 +29,7 @@ const AgentsSubscribeUrlSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.websearch.subscribe_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={agentssubscribeUrl || ''}
@@ -37,7 +37,7 @@ const AgentsSubscribeUrlSettings: FC = () => {
             style={{ width: 315 }}
             placeholder={t('settings.tool.websearch.subscribe_name.placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

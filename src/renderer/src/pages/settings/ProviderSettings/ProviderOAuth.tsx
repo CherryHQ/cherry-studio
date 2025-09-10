@@ -3,7 +3,7 @@ import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.web
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -50,14 +50,14 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (
-        <HStack gap={10}>
+        <RowFlex gap={10}>
           <Button shape="round" icon={<CircleDollarSign size={16} />} onClick={() => providerCharge(provider.id)}>
             {t('settings.provider.charge')}
           </Button>
           <Button shape="round" icon={<ReceiptText size={16} />} onClick={() => providerBills(provider.id)}>
             {t('settings.provider.bills')}
           </Button>
-        </HStack>
+        </RowFlex>
       )}
       <Description>
         <Trans

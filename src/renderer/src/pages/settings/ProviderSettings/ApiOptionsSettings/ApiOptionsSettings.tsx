@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
@@ -106,15 +106,15 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   return (
     <Flex vertical gap="middle">
       {options.map((item) => (
-        <HStack key={item.key} justifyContent="space-between">
-          <HStack alignItems="center" gap={6}>
+        <RowFlex key={item.key} justifyContent="space-between">
+          <RowFlex alignItems="center" gap={6}>
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
             <InfoTooltip title={item.tip}></InfoTooltip>
-          </HStack>
+          </RowFlex>
           <Switch id={item.key} checked={item.checked} onChange={item.onChange} />
-        </HStack>
+        </RowFlex>
       ))}
     </Flex>
   )

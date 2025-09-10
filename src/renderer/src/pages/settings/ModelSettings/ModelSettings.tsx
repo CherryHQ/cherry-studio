@@ -1,5 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
@@ -59,12 +59,12 @@ const ModelSettings: FC = () => {
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
+          <RowFlex alignItems="center" gap={10}>
             <MessageSquareMore size={18} color="var(--color-text)" />
             {t('settings.models.default_assistant_model')}
-          </HStack>
+          </RowFlex>
         </SettingTitle>
-        <HStack alignItems="center">
+        <RowFlex alignItems="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -75,18 +75,18 @@ const ModelSettings: FC = () => {
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={DefaultAssistantSettings.show} />
-        </HStack>
+        </RowFlex>
         <SettingDescription>{t('settings.models.default_assistant_model_description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
+          <RowFlex alignItems="center" gap={10}>
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
             <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
-          </HStack>
+          </RowFlex>
         </SettingTitle>
-        <HStack alignItems="center">
+        <RowFlex alignItems="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -97,17 +97,17 @@ const ModelSettings: FC = () => {
             placeholder={t('settings.models.empty')}
           />
           <Button icon={<Settings2 size={16} />} style={{ marginLeft: 8 }} onClick={TopicNamingModalPopup.show} />
-        </HStack>
+        </RowFlex>
         <SettingDescription>{t('settings.models.quick_model.description')}</SettingDescription>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <HStack alignItems="center" gap={10}>
+          <RowFlex alignItems="center" gap={10}>
             <Languages size={18} color="var(--color-text)" />
             {t('settings.models.translate_model')}
-          </HStack>
+          </RowFlex>
         </SettingTitle>
-        <HStack alignItems="center">
+        <RowFlex alignItems="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -127,7 +127,7 @@ const ModelSettings: FC = () => {
               <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
             </Tooltip>
           )}
-        </HStack>
+        </RowFlex>
         <SettingDescription>{t('settings.models.translate_model_description')}</SettingDescription>
       </SettingGroup>
     </SettingContainer>

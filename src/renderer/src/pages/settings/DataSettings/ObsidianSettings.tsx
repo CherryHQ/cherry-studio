@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultObsidianVault } from '@renderer/store/settings'
@@ -63,7 +63,7 @@ const ObsidianSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
-        <HStack gap="5px">
+        <RowFlex gap="5px">
           <Spin spinning={loading} size="small">
             {vaults.length > 0 ? (
               <Select
@@ -88,7 +88,7 @@ const ObsidianSettings: FC = () => {
               />
             )}
           </Spin>
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

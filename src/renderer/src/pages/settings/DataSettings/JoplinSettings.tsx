@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
@@ -83,7 +83,7 @@ const JoplinSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.joplin.url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={joplinUrl || ''}
@@ -92,7 +92,7 @@ const JoplinSettings: FC = () => {
             style={{ width: 315 }}
             placeholder={t('settings.data.joplin.url_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
@@ -105,7 +105,7 @@ const JoplinSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={joplinToken || ''}
@@ -116,7 +116,7 @@ const JoplinSettings: FC = () => {
             />
             <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
           </Space.Compact>
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

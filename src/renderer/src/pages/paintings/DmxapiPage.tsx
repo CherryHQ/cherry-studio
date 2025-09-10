@@ -1,7 +1,7 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
@@ -883,9 +883,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               return modelImageSizes.map((size) => {
                 return (
                   <Select.Option key={size.value} value={size.value}>
-                    <HStack style={{ alignItems: 'center', gap: 8 }}>
+                    <RowFlex style={{ alignItems: 'center', gap: 8 }}>
                       <span>{size.label}</span>
-                    </HStack>
+                    </RowFlex>
                   </Select.Option>
                 )
               })
@@ -893,9 +893,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             {/* 检查当前模型是否支持自定义尺寸 */}
             {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
               <Select.Option value="custom" key="custom">
-                <HStack style={{ alignItems: 'center', gap: 8 }}>
+                <RowFlex style={{ alignItems: 'center', gap: 8 }}>
                   <span>{t('paintings.custom_size')}</span>
-                </HStack>
+                </RowFlex>
               </Select.Option>
             )}
           </Select>
@@ -903,7 +903,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
             <div style={{ marginTop: 10 }}>
-              <HStack style={{ gap: 8, alignItems: 'center' }}>
+              <RowFlex style={{ gap: 8, alignItems: 'center' }}>
                 <InputNumber
                   placeholder="W"
                   value={customWidth}
@@ -924,7 +924,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ width: 80, flex: 1 }}
                 />
                 <span style={{ color: 'var(--color-text-3)', fontSize: '11px' }}>px</span>
-              </HStack>
+              </RowFlex>
             </div>
           )}
 
@@ -970,9 +970,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
-          <HStack>
+          <RowFlex>
             <Switch checked={painting.autoCreate} onChange={(checked) => onChangeAutoCreate(checked)} />
-          </HStack>
+          </RowFlex>
         </LeftContainer>
         <MainContainer>
           <ModeSegmentedContainer>

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { HStack } from './Layout'
+import { RowFlex } from './Layout'
 
 interface NewFolderProps {
   onConfirm: (name: string) => void
@@ -215,7 +215,7 @@ export function NutstorePathSelector(props: Props) {
   )
 }
 
-const FooterContainer = styled(HStack)`
+const FooterContainer = styled(RowFlex)`
   background: transparent;
   margin-top: 12px;
   padding: 0;
@@ -234,20 +234,20 @@ export function NustorePathSelectorFooter(props: FooterProps) {
   const { t } = useTranslation()
   return (
     <FooterContainer justifyContent="space-between">
-      <HStack gap={8} alignItems="center">
+      <RowFlex gap={8} alignItems="center">
         <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
         <Button size="small" type="link" onClick={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
-      </HStack>
-      <HStack gap={8} alignItems="center">
+      </RowFlex>
+      <RowFlex gap={8} alignItems="center">
         <Button type="default" onClick={props.cancel}>
           {t('settings.data.nutstore.new_folder.button.cancel')}
         </Button>
         <Button type="primary" onClick={props.confirm}>
           {t('backup.confirm.button')}
         </Button>
-      </HStack>
+      </RowFlex>
     </FooterContainer>
   )
 }

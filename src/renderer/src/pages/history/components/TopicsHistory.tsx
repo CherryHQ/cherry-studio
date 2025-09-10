@@ -1,5 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { VStack } from '@renderer/components/Layout'
+import { ColFlex } from '@renderer/components/Layout'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { selectAllTopics } from '@renderer/store/assistants'
 import { Topic } from '@renderer/types'
@@ -38,12 +38,12 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   if (isEmpty(filteredTopics)) {
     return (
       <ListContainer {...props}>
-        <VStack alignItems="center">
+        <ColFlex alignItems="center">
           <Empty description={t('history.search.topics.empty')} />
           <Button style={{ width: 200, marginTop: 20 }} type="primary" onClick={onSearch} icon={<SearchOutlined />}>
             {t('history.search.messages')}
           </Button>
-        </VStack>
+        </ColFlex>
       </ListContainer>
     )
   }

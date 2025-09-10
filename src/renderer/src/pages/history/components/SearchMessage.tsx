@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
@@ -51,11 +51,11 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
             onClick={() => locateToMessage(navigate, message)}
             icon={<Forward size={16} />}
           />
-          <HStack mt="10px" justifyContent="center">
+          <RowFlex mt="10px" justifyContent="center">
             <Button onClick={() => locateToMessage(navigate, message)} icon={<Forward size={16} />}>
               {t('history.locate.message')}
             </Button>
-          </HStack>
+          </RowFlex>
         </ContainerWrapper>
       </MessagesContainer>
     </MessageEditingProvider>

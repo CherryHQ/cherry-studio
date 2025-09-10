@@ -3,7 +3,7 @@ import 'emoji-picker-element'
 import { CloseCircleFilled } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { Box, HSpaceBetweenStack, RowFlex } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -72,7 +72,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <Box mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.name')}
       </Box>
-      <HStack gap={8} alignItems="center">
+      <RowFlex gap={8} alignItems="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button
@@ -111,14 +111,14 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           onBlur={onUpdate}
           style={{ flex: 1 }}
         />
-      </HStack>
+      </RowFlex>
       <SettingDivider />
-      <HStack mb={8} alignItems="center" gap={4}>
+      <RowFlex mb={8} alignItems="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
         <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
           <HelpCircle size={14} color="var(--color-text-2)" />
         </Popover>
-      </HStack>
+      </RowFlex>
       <TextAreaContainer>
         <RichEditorContainer>
           {showPreview ? (

@@ -1,7 +1,7 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
-import { Center, HStack } from '@renderer/components/Layout'
+import { Center, RowFlex } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
@@ -119,7 +119,7 @@ const NpxSearch: FC = () => {
               styles={{ input: { borderRadius: 100 } }}
             />
           </Space.Compact>
-          <HStack alignItems="center" justifyContent="center">
+          <RowFlex alignItems="center" justifyContent="center">
             {npmScopes.map((scope) => (
               <Tag
                 key={scope}
@@ -135,7 +135,7 @@ const NpxSearch: FC = () => {
                 {scope}
               </Tag>
             ))}
-          </HStack>
+          </RowFlex>
         </Space>
       </Center>
       {searchLoading && (

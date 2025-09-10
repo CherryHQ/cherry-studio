@@ -1,6 +1,6 @@
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { PROVIDER_URLS } from '@renderer/config/providers'
@@ -336,13 +336,13 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           </Space.Compact>
           {apiKeyWebsite && (
             <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-              <HStack>
+              <RowFlex>
                 {!isDmxapi && (
                   <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                     {t('settings.provider.get_api_key')}
                   </SettingHelpLink>
                 )}
-              </HStack>
+              </RowFlex>
               <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           )}

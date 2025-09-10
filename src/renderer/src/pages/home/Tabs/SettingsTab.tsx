@@ -1,5 +1,5 @@
 import EditableNumber from '@renderer/components/EditableNumber'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
@@ -185,14 +185,14 @@ const SettingsTab: FC<Props> = (props) => {
         title={t('assistants.settings.title')}
         defaultExpanded={true}
         extra={
-          <HStack alignItems="center" gap={2}>
+          <RowFlex alignItems="center" gap={2}>
             <Button
               type="text"
               size="small"
               icon={<Settings2 size={16} />}
               onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
             />
-          </HStack>
+          </RowFlex>
         }>
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
