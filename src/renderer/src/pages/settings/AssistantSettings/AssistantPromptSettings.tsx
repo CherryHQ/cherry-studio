@@ -72,7 +72,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
       <Box mb={8} style={{ fontWeight: 'bold' }}>
         {t('common.name')}
       </Box>
-      <RowFlex gap={8} alignItems="center">
+      <RowFlex gap={8} align="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button
@@ -113,7 +113,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
         />
       </RowFlex>
       <SettingDivider />
-      <RowFlex mb={8} alignItems="center" gap={4}>
+      <RowFlex mb={8} align="center" gap={4}>
         <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
         <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
           <HelpCircle size={14} color="var(--color-text-2)" />

@@ -116,7 +116,7 @@ const NpxSearch: FC = () => {
               styles={{ input: { borderRadius: 100 } }}
             />
           </Space.Compact>
-          <RowFlex alignItems="center" justifyContent="center">
+          <RowFlex align="center" justify="center">
             {npmScopes.map((scope) => (
               <Tag
                 key={scope}

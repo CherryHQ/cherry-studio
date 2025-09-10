@@ -95,17 +95,17 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <RowFlex alignItems="center" justifyContent="space-between">
-            <RowFlex alignItems="center" gap={10}>
+          <RowFlex align="center" justify="space-between">
+            <RowFlex align="center" gap={10}>
               {t('settings.models.quick_assistant_model')}
               <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
                 <InfoCircleOutlined style={{ cursor: 'pointer' }} />
               </Tooltip>
               <Spacer />
             </RowFlex>
-            <RowFlex alignItems="center" gap={10}>
+            <RowFlex align="center" gap={10}>
               {!quickAssistantId ? null : (
-                <RowFlex alignItems="center">
+                <RowFlex align="center">
                   <Select
                     value={quickAssistantId || defaultAssistant.id}
                     style={{ width: 300, height: 34 }}
@@ -133,7 +133,7 @@ const QuickAssistantSettings: FC = () => {
                   </Select>
                 </RowFlex>
               )}
-              <RowFlex alignItems="center" gap={0}>
+              <RowFlex align="center" gap={0}>
                 <StyledButton
                   type={quickAssistantId ? 'primary' : 'default'}
                   onClick={() => {

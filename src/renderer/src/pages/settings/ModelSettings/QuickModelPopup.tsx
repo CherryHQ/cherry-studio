@@ -55,7 +55,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         {t('settings.models.topic_naming.label')}
       </SettingSubtitle>
       <Flex vertical align="stretch" gap={8}>
-        <RowFlex style={{ gap: 16 }} alignItems="center">
+        <RowFlex style={{ gap: 16 }} align="center">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => setEnableTopicNaming(v)} />
         </RowFlex>

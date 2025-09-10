@@ -235,7 +235,7 @@ const GeneralSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
-          <RowFlex justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
+          <RowFlex justify="space-between" align="center" style={{ flex: 1, marginRight: 16 }}>
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && (
               <Selector<string>

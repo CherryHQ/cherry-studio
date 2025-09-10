@@ -186,7 +186,7 @@ const AboutSettings: FC = () => {
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.about.title')}
-          <RowFlex alignItems="center">
+          <RowFlex align="center">
             <Link to="https://github.com/CherryHQ/cherry-studio">
               <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
             </Link>

@@ -56,12 +56,12 @@ const ModelSettings: FC = () => {
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex alignItems="center" gap={10}>
+          <RowFlex align="center" gap={10}>
             <MessageSquareMore size={18} color="var(--color-text)" />
             {t('settings.models.default_assistant_model')}
           </RowFlex>
         </SettingTitle>
-        <RowFlex alignItems="center">
+        <RowFlex align="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -77,13 +77,13 @@ const ModelSettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex alignItems="center" gap={10}>
+          <RowFlex align="center" gap={10}>
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
             <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
           </RowFlex>
         </SettingTitle>
-        <RowFlex alignItems="center">
+        <RowFlex align="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}
@@ -99,12 +99,12 @@ const ModelSettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex alignItems="center" gap={10}>
+          <RowFlex align="center" gap={10}>
             <Languages size={18} color="var(--color-text)" />
             {t('settings.models.translate_model')}
           </RowFlex>
         </SettingTitle>
-        <RowFlex alignItems="center">
+        <RowFlex align="center">
           <ModelSelector
             providers={providers}
             predicate={modelPredicate}

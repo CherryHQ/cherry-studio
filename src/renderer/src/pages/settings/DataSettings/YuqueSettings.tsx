@@ -76,7 +76,7 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={yuqueUrl || ''}
@@ -97,7 +97,7 @@ const YuqueSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={yuqueToken || ''}

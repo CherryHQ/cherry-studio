@@ -1,6 +1,7 @@
-import { Flex } from 'antd'
 import { FC, memo, ReactNode } from 'react'
 import styled from 'styled-components'
+
+import { Flex } from '../Layout'
 
 interface Props {
   children: string | ReactNode

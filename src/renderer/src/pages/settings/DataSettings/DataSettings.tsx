@@ -599,7 +599,7 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-                <RowFlex gap="5px" justifyContent="space-between">
+                <RowFlex gap="5px" justify="space-between">
                   <Button onClick={BackupPopup.show} icon={<SaveIcon size={14} />}>
                     {t('settings.general.backup.button')}
                   </Button>
@@ -652,7 +652,7 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.app_knowledge.label')}</SettingRowTitle>
-                <RowFlex alignItems="center" gap="5px">
+                <RowFlex align="center" gap="5px">
                   <Button onClick={handleRemoveAllFiles}>{t('settings.data.app_knowledge.button.delete')}</Button>
                 </RowFlex>
               </SettingRow>

@@ -72,7 +72,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={markdownExportPath || ''}

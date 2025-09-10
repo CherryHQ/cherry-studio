@@ -211,7 +211,7 @@ const AgentsPage: FC = () => {
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
-                    <RowFlex alignItems="center" justifyContent="center" style={{ minWidth: 40 }}>
+                    <RowFlex align="center" justify="center" style={{ minWidth: 40 }}>
                       <CustomTag color="#A0A0A0" size={8}>
                         {agentGroups[group].length}
                       </CustomTag>

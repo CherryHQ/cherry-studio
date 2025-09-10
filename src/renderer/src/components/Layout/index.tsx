@@ -142,14 +142,14 @@ export const Box = ({
 }
 
 export interface FlexProps extends BoxProps {
-  justifyContent?: CSSProperties['justifyContent']
-  alignItems?: CSSProperties['alignItems']
+  justify?: CSSProperties['justifyContent']
+  align?: CSSProperties['alignItems']
   flexDirection?: CSSProperties['flexDirection']
 }
 
 export const Flex = ({
-  justifyContent = 'flex-start',
-  alignItems = 'flex-start',
+  justify: justifyContent = 'flex-start',
+  align: alignItems = 'flex-start',
   flexDirection = 'row',
   children,
   ...props
@@ -173,7 +173,7 @@ export const Center = ({
   ...props
 }: Omit<FlexProps, 'justifyContent' | 'alignItems'> & { children?: React.ReactNode }) => {
   return (
-    <Flex justifyContent="center" alignItems="center" {...props}>
+    <Flex justify="center" align="center" {...props}>
       {children}
     </Flex>
   )
@@ -192,7 +192,7 @@ export const SpaceBetweenRowFlex = ({
   ...props
 }: Omit<FlexProps, 'justifyContent'> & { children?: React.ReactNode }) => {
   return (
-    <RowFlex justifyContent="space-between" {...props}>
+    <RowFlex justify="space-between" {...props}>
       {children}
     </RowFlex>
   )

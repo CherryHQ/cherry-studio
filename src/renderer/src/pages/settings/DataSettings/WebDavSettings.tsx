@@ -66,7 +66,7 @@ const WebDavSettings: FC = () => {
     }
 
     return (
-      <RowFlex gap="5px" alignItems="center">
+      <RowFlex gap="5px" align="center">
         {webdavSync.syncing && <SyncOutlined spin />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <Tooltip title={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}>
@@ -144,7 +144,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex gap="5px" justifyContent="space-between">
+        <RowFlex gap="5px" justify="space-between">
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>

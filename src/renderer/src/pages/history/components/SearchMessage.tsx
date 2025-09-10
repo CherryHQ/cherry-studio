@@ -51,7 +51,7 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
             onClick={() => locateToMessage(navigate, message)}
             icon={<Forward size={16} />}
           />
-          <RowFlex mt="10px" justifyContent="center">
+          <RowFlex mt="10px" justify="center">
             <Button onClick={() => locateToMessage(navigate, message)} icon={<Forward size={16} />}>
               {t('history.locate.message')}
             </Button>

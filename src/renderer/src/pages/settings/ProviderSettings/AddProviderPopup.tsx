@@ -191,7 +191,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       <Divider style={{ margin: '8px 0' }} />
 
       <Center mt="10px" mb="20px">
-        <ColFlex alignItems="center" gap="10px">
+        <ColFlex align="center" gap="10px">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
