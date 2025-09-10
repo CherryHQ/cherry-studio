@@ -41,13 +41,13 @@ export interface BoxProps {
   padding?: string
 }
 
-export interface StackProps extends BoxProps {
-  justifyContent?: 'center' | 'flex-start' | 'flex-end' | 'space-between'
-  alignItems?: 'center' | 'flex-start' | 'flex-end' | 'space-between'
-  flexDirection?: 'row' | 'row-reverse' | 'column' | 'column-reverse'
+export interface FlexProps extends BoxProps {
+  justifyContent?: CSSProperties['justifyContent']
+  alignItems?: CSSProperties['alignItems']
+  flexDirection?: CSSProperties['flexDirection']
 }
 
-export interface ButtonProps extends StackProps {
+export interface ButtonProps extends FlexProps {
   color?: string
   isDisabled?: boolean
   isLoading?: boolean
@@ -146,13 +146,13 @@ export const Box = ({
   return <div style={_style}>{children}</div>
 }
 
-export const Stack = ({
+export const Flex = ({
   justifyContent = 'flex-start',
   alignItems = 'flex-start',
   flexDirection = 'row',
   children,
   ...props
-}: StackProps & { children?: React.ReactNode }) => {
+}: FlexProps & { children?: React.ReactNode }) => {
   const style = {
     display: 'flex',
     justifyContent,
@@ -170,26 +170,26 @@ export const Stack = ({
 export const Center = ({
   children,
   ...props
-}: Omit<StackProps, 'justifyContent' | 'alignItems'> & { children?: React.ReactNode }) => {
+}: Omit<FlexProps, 'justifyContent' | 'alignItems'> & { children?: React.ReactNode }) => {
   return (
-    <Stack justifyContent="center" alignItems="center" {...props}>
+    <Flex justifyContent="center" alignItems="center" {...props}>
       {children}
-    </Stack>
+    </Flex>
   )
 }
 
-export const RowFlex = ({ children, ...props }: Omit<StackProps, 'flexDirection'> & { children?: React.ReactNode }) => {
+export const RowFlex = ({ children, ...props }: Omit<FlexProps, 'flexDirection'> & { children?: React.ReactNode }) => {
   return (
-    <Stack {...props} flexDirection="row">
+    <Flex {...props} flexDirection="row">
       {children}
-    </Stack>
+    </Flex>
   )
 }
 
 export const SpaceBetweenRowFlex = ({
   children,
   ...props
-}: Omit<StackProps, 'justifyContent'> & { children?: React.ReactNode }) => {
+}: Omit<FlexProps, 'justifyContent'> & { children?: React.ReactNode }) => {
   return (
     <RowFlex justifyContent="space-between" {...props}>
       {children}
@@ -197,11 +197,11 @@ export const SpaceBetweenRowFlex = ({
   )
 }
 
-export const ColFlex = ({ children, ...props }: Omit<StackProps, 'flexDirection'> & { children?: React.ReactNode }) => {
+export const ColFlex = ({ children, ...props }: Omit<FlexProps, 'flexDirection'> & { children?: React.ReactNode }) => {
   return (
-    <Stack {...props} flexDirection="column">
+    <Flex {...props} flexDirection="column">
       {children}
-    </Stack>
+    </Flex>
   )
 }
 
