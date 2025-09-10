@@ -183,7 +183,7 @@ export const Center = ({
   )
 }
 
-export const RowFlex = ({ children, ...props }: StackProps & { children?: React.ReactNode }) => {
+export const RowFlex = ({ children, ...props }: Omit<StackProps, 'flexDirection'> & { children?: React.ReactNode }) => {
   return (
     <Stack {...props} flexDirection="row">
       {children}
@@ -202,9 +202,13 @@ export const SpaceBetweenRowFlex = ({
   )
 }
 
-export const ColFlex = styled(Stack)<StackProps>`
-  flex-direction: column;
-`
+export const ColFlex = ({ children, ...props }: Omit<StackProps, 'flexDirection'> & { children?: React.ReactNode }) => {
+  return (
+    <Stack {...props} flexDirection="column">
+      {children}
+    </Stack>
+  )
+}
 
 export const BaseTypography = styled(Box)<{
   fontSize?: number
