@@ -23,7 +23,7 @@ export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse
   ) : (
     <MessageWebSearchToolTitleTextWrapper type="secondary">
       <FileSearch size={16} style={{ color: 'unset' }} />
-      {i18n.t('message.websearch.fetch_complete', { count: toolOutput.knowledgeReferences.length ?? 0 })}
+      {i18n.t('message.websearch.fetch_complete', { count: toolOutput.length ?? 0 })}
     </MessageWebSearchToolTitleTextWrapper>
   )
 }
@@ -33,7 +33,7 @@ export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse:
 
   return toolResponse.status === 'done' ? (
     <MessageWebSearchToolBodyUlWrapper>
-      {toolOutput.knowledgeReferences.map((result) => (
+      {toolOutput.map((result) => (
         <li key={result.id}>
           <span>{result.id}</span>
           <span>{result.content}</span>

@@ -3,6 +3,8 @@
  * 构建AI SDK的流式和非流式参数
  */
 
+import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
+import { vertex } from '@ai-sdk/google-vertex/edge'
 import { loggerService } from '@logger'
 import {
   isGenerateImageModel,
@@ -19,6 +21,7 @@ import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import type { ModelMessage } from 'ai'
 import { stepCountIs } from 'ai'
 
+import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
@@ -56,6 +59,7 @@ export async function buildStreamTextParams(
   const { mcpTools } = options
 
   const model = assistant.model || getDefaultModel()
+  const aiSdkProviderId = getAiSdkProviderId(provider)
 
   let { maxTokens } = getAssistantSettings(assistant)
 
@@ -80,7 +84,7 @@ export async function buildStreamTextParams(
 
   const enableGenerateImage = !!(isGenerateImageModel(model) && assistant.enableGenerateImage)
 
-  const tools = setupToolsConfig(mcpTools)
+  let tools = setupToolsConfig(mcpTools)
 
   // if (webSearchProviderId) {
   //   tools['builtin_web_search'] = webSearchTool(webSearchProviderId)
@@ -103,6 +107,26 @@ export async function buildStreamTextParams(
     maxTokens -= getAnthropicThinkingBudget(assistant, model)
   }
 
+  // google-vertex | google-vertex-anthropic
+  if (enableWebSearch) {
+    if (!tools) {
+      tools = {}
+    }
+    if (aiSdkProviderId === 'google-vertex') {
+      tools.google_search = vertex.tools.googleSearch({})
+    } else if (aiSdkProviderId === 'google-vertex-anthropic') {
+      tools.web_search = vertexAnthropic.tools.webSearch_20250305({})
+    }
+  }
+
+  // google-vertex
+  if (enableUrlContext && aiSdkProviderId === 'google-vertex') {
+    if (!tools) {
+      tools = {}
+    }
+    tools.url_context = vertex.tools.urlContext({})
+  }
+
   // 构建基础参数
   const params: StreamTextParams = {
     messages: sdkMessages,
@@ -112,9 +136,11 @@ export async function buildStreamTextParams(
     abortSignal: options.requestOptions?.signal,
     headers: options.requestOptions?.headers,
     providerOptions,
-    tools,
     stopWhen: stepCountIs(10),
     maxRetries: 0
+  }
+  if (tools) {
+    params.tools = tools
   }
   if (assistant.prompt) {
     params.system = assistant.prompt

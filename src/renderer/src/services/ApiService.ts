@@ -134,6 +134,7 @@ export async function fetchChatCompletion({
     isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
+    enableUrlContext: capabilities.enableUrlContext,
     mcpTools,
     uiMessages
   }
@@ -222,6 +223,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
+    enableUrlContext: false,
     mcpTools: []
   }
   try {
@@ -308,7 +310,8 @@ export async function fetchGenerate({
     isSupportedToolUse: false,
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
-    enableGenerateImage: false
+    enableGenerateImage: false,
+    enableUrlContext: false
   }
 
   try {
@@ -420,6 +423,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         enableWebSearch: false,
         enableGenerateImage: false,
         isPromptToolUse: false,
+        enableUrlContext: false,
         assistant,
         callType: 'check',
         onChunk: (chunk: Chunk) => {

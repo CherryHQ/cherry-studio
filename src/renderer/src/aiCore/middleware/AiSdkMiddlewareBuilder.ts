@@ -22,6 +22,7 @@ export interface AiSdkMiddlewareConfig {
   isImageGenerationEndpoint: boolean
   enableWebSearch: boolean
   enableGenerateImage: boolean
+  enableUrlContext: boolean
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
 }

@@ -281,7 +281,7 @@ export class ToolCallChunkHandler {
     // 工具特定的后处理
     switch (toolResponse.tool.name) {
       case 'builtin_knowledge_search': {
-        processKnowledgeReferences(toolResponse.response?.knowledgeReferences, this.onChunk)
+        processKnowledgeReferences(toolResponse.response, this.onChunk)
         break
       }
       // 未来可以在这里添加其他工具的后处理逻辑
