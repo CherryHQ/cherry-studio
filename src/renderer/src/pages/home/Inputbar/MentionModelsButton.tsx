@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
@@ -17,6 +18,8 @@ import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef 
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
+
+const logger = loggerService.withContext('MentionModelsButton')
 
 export interface MentionModelsButtonRef {
   openQuickPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
@@ -62,7 +65,7 @@ const MentionModelsButton: FC<Props> = ({
         const setting = await db.settings.get('mention:modelGroups')
         return (setting?.value || []) as MentionModelGroup[]
       } catch (error) {
-        console.error('Failed to load model groups:', error)
+        logger.error('Failed to load model groups:', error as any)
         window.toast?.error?.(t('mention_group.load_failed') || 'Failed to load model groups')
         return [] as MentionModelGroup[]
       }
@@ -78,7 +81,7 @@ const MentionModelsButton: FC<Props> = ({
       try {
         await db.settings.put({ id: 'mention:modelGroups', value: groups })
       } catch (error) {
-        console.error('Failed to save model groups:', error)
+        logger.error('Failed to save model groups:', error as any)
         window.toast?.error?.(t('mention_group.save_failed') || 'Failed to save model groups')
         throw error
       }
@@ -308,7 +311,7 @@ const MentionModelsButton: FC<Props> = ({
         const setting = await db.settings.get('pinned:models')
         return setting?.value || []
       } catch (error) {
-        console.error('Failed to load pinned models:', error)
+        logger.error('Failed to load pinned models:', error as any)
         return []
       }
     },
@@ -499,6 +502,7 @@ const MentionModelsButton: FC<Props> = ({
       setText,
       uniqIdToModelMap,
       mentionedSet,
+      mentionedModels.length,
       toggleGroupSelection,
       saveSelectionAsGroup,
       pinnedModels,
