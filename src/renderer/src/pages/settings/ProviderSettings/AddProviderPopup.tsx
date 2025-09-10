@@ -84,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
       setLogoPickerOpen(false)
     } catch (error: any) {
-      window.message.error(error.message)
+      window.toast.error(error.message)
     }
   }
 
@@ -98,7 +98,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
 
       setDropdownOpen(false)
     } catch (error: any) {
-      window.message.error(error.message)
+      window.toast.error(error.message)
     }
   }
 
@@ -146,7 +146,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               }
               setDropdownOpen(false)
             } catch (error: any) {
-              window.message.error(error.message)
+              window.toast.error(error.message)
             }
           }}>
           <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>

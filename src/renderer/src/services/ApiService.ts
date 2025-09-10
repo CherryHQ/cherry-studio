@@ -134,6 +134,7 @@ export async function fetchChatCompletion({
     isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
+    enableUrlContext: capabilities.enableUrlContext,
     mcpTools,
     uiMessages
   }
@@ -222,6 +223,7 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
     enableGenerateImage: false,
+    enableUrlContext: false,
     mcpTools: []
   }
   try {
@@ -308,7 +310,8 @@ export async function fetchGenerate({
     isSupportedToolUse: false,
     isImageGenerationEndpoint: false,
     enableWebSearch: false,
-    enableGenerateImage: false
+    enableGenerateImage: false,
+    enableUrlContext: false
   }
 
   try {
@@ -363,9 +366,6 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export function checkApiProvider(provider: Provider): void {
-  const key = 'api-check'
-  const style = { marginTop: '3vh' }
-
   if (
     provider.id !== 'ollama' &&
     provider.id !== 'lmstudio' &&
@@ -373,18 +373,18 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 
   if (!provider.apiHost && provider.type !== 'vertexai') {
-    window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
+    window.toast.error(i18n.t('message.error.enter.api.host'))
     throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
-    window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
+    window.toast.error(i18n.t('message.error.enter.model'))
     throw new Error(i18n.t('message.error.enter.model'))
   }
 }
@@ -420,6 +420,7 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         enableWebSearch: false,
         enableGenerateImage: false,
         isPromptToolUse: false,
+        enableUrlContext: false,
         assistant,
         callType: 'check',
         onChunk: (chunk: Chunk) => {

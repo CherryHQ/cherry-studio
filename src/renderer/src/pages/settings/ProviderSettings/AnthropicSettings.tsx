@@ -46,7 +46,7 @@ const AnthropicSettings = () => {
       setCodeModalVisible(true)
     } catch (error) {
       logger.error('OAuth redirect failed:', error as Error)
-      window.message.error(t('settings.provider.anthropic.auth_failed'))
+      window.toast.error(t('settings.provider.anthropic.auth_failed'))
     } finally {
       setLoading(false)
     }
@@ -60,10 +60,10 @@ const AnthropicSettings = () => {
       await window.api.anthropic_oauth.completeOAuthWithCode(authCode)
       setAuthStatus(AuthStatus.AUTHENTICATED)
       setCodeModalVisible(false)
-      window.message.success(t('settings.provider.anthropic.auth_success'))
+      window.toast.success(t('settings.provider.anthropic.auth_success'))
     } catch (error) {
       logger.error('Code submission failed:', error as Error)
-      window.message.error(t('settings.provider.anthropic.code_error'))
+      window.toast.error(t('settings.provider.anthropic.code_error'))
     } finally {
       setLoading(false)
     }
@@ -82,10 +82,10 @@ const AnthropicSettings = () => {
     try {
       await window.api.anthropic_oauth.clearCredentials()
       setAuthStatus(AuthStatus.NOT_STARTED)
-      window.message.success(t('settings.provider.anthropic.logout_success'))
+      window.toast.success(t('settings.provider.anthropic.logout_success'))
     } catch (error) {
       logger.error('Logout failed:', error as Error)
-      window.message.error(t('settings.provider.anthropic.logout_failed'))
+      window.toast.error(t('settings.provider.anthropic.logout_failed'))
     }
   }
 

@@ -187,10 +187,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           imageUrls.map(async (url) => {
             try {
               if (!url || url.trim() === '') {
-                window.message.warning({
-                  content: t('message.empty_url'),
-                  key: 'empty-url-warning'
-                })
+                window.toast.warning(t('message.empty_url'))
                 return null
               }
               return await window.api.file.download(url)
@@ -199,10 +196,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                 error instanceof Error &&
                 (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
               ) {
-                window.message.warning({
-                  content: t('message.empty_url'),
-                  key: 'empty-url-warning'
-                })
+                window.toast.warning(t('message.empty_url'))
               }
               return null
             }

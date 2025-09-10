@@ -24,9 +24,9 @@ const CustomLanguageSettings = () => {
       try {
         await deleteCustomLanguage(id)
         setDisplayedItems((prev) => prev.filter((item) => item.id !== id))
-        window.message.success(t('settings.translate.custom.success.delete'))
+        window.toast.success(t('settings.translate.custom.success.delete'))
       } catch (e) {
-        window.message.error(t('settings.translate.custom.error.delete'))
+        window.toast.error(t('settings.translate.custom.error.delete'))
       }
     },
     [t]

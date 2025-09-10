@@ -52,10 +52,7 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
       onTranslated(translatedText)
     } catch (error) {
       logger.error('Translation failed:', error as Error)
-      window.message.error({
-        content: t('translate.error.failed'),
-        key: 'translate-message'
-      })
+      window.toast.error(t('translate.error.failed'))
     } finally {
       setIsTranslating(false)
     }

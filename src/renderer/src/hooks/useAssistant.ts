@@ -59,7 +59,7 @@ export function useAssistants() {
           dispatch(insertAssistant({ index: index + 1, assistant: _assistant }))
         } catch (e) {
           logger.error('Failed to insert assistant', e as Error)
-          window.message.error(t('message.error.copy'))
+          window.toast.error(t('message.error.copy'))
         }
       }
       return _assistant

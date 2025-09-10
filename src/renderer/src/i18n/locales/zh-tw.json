@@ -947,6 +947,9 @@
     "image": "圖片",
     "name": "名稱",
     "open": "開啟",
+    "preview": {
+      "error": "開啟檔案失敗"
+    },
     "size": "大小",
     "text": "文字",
     "title": "檔案",

@@ -943,6 +943,9 @@
     "image": "Image",
     "name": "Nom du fichier",
     "open": "Ouvrir",
+    "preview": {
+      "error": "Échec de l’ouverture du fichier"
+    },
     "size": "Taille",
     "text": "Texte",
     "title": "Fichier",

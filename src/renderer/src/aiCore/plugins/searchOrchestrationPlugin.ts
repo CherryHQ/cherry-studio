@@ -267,7 +267,6 @@ export const searchOrchestrationPlugin = (assistant: Assistant, topicId: string)
         const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
         const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
         const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
-
         const shouldWebSearch = !!assistant.webSearchProviderId
         const shouldKnowledgeSearch = hasKnowledgeBase && knowledgeRecognition === 'on'
         const shouldMemorySearch = globalMemoryEnabled && assistant.enableMemory

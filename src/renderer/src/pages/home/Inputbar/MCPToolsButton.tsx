@@ -151,7 +151,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
       if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
         const provider = getProviderByModel(model)
         if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
-          window.message.warning(t('chat.mcp.warning.url_context'))
+          window.toast.warning(t('chat.mcp.warning.url_context'))
           update.enableUrlContext = false
         }
         if (
@@ -160,7 +160,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           isGeminiWebSearchProvider(provider) &&
           assistant.enableWebSearch
         ) {
-          window.message.warning(t('chat.mcp.warning.gemini_web_search'))
+          window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
           update.enableWebSearch = false
         }
       }
