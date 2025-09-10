@@ -1277,6 +1277,26 @@
     "user_switched": "User context switched to {{user}}",
     "users": "users"
   },
+  "mention_group": {
+    "delete_confirm_content": "Are you sure you want to delete this group?",
+    "delete_confirm_title": "Delete Group",
+    "delete_group": "Delete group",
+    "deleted": "Deleted",
+    "group_name": "Group Name",
+    "invalid_name": "Invalid group name",
+    "load_failed": "Failed to load model groups",
+    "name_exists": "Name already exists",
+    "no_selection_warning": "Please select at least one model",
+    "no_usable_models_warning": "This group has no usable models with current attachments",
+    "pin_group": "Pin group",
+    "rename_group": "Rename group",
+    "save_as_group": "Save selection as group",
+    "save_failed": "Failed to save model groups",
+    "saved": "Saved",
+    "skipped_info": "{{count}} model(s) skipped due to attachment constraints",
+    "title": "Model Groups",
+    "unpin_group": "Unpin group"
+  },
   "message": {
     "agents": {
       "import": {
@@ -4354,25 +4374,5 @@
     "quit": "Quit",
     "show_window": "Show Window",
     "visualization": "Visualization"
-  },
-  "mention_group": {
-    "title": "Model Groups",
-    "save_as_group": "Save selection as group",
-    "group_name": "Group Name",
-    "rename_group": "Rename group",
-    "delete_group": "Delete group",
-    "delete_confirm_title": "Delete Group",
-    "delete_confirm_content": "Are you sure you want to delete this group?",
-    "invalid_name": "Invalid group name",
-    "load_failed": "Failed to load model groups",
-    "save_failed": "Failed to save model groups",
-    "saved": "Saved",
-    "deleted": "Deleted",
-    "no_selection_warning": "Please select at least one model",
-    "no_usable_models_warning": "This group has no usable models with current attachments",
-    "skipped_info": "{{count}} model(s) skipped due to attachment constraints",
-    "pin_group": "Pin group",
-    "unpin_group": "Unpin group",
-    "name_exists": "Name already exists"
   }
 }

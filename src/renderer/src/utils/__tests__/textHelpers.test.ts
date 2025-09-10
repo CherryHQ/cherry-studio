@@ -25,4 +25,3 @@ describe('textHelpers.removeAtSymbolAndText', () => {
     expect(result).toBe('Hi  next')
   })
 })
-

@@ -63,4 +63,3 @@ export const removeAtSymbolAndText = (
     return currentText.slice(0, start) + currentText.slice(endPos)
   }
 }
-

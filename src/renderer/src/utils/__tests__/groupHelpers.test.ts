@@ -24,4 +24,3 @@ describe('groupHelpers', () => {
     expect(validateGroupName('name\u0001bad')).toBe(false)
   })
 })
-

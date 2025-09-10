@@ -12,7 +12,7 @@ import { removeAtSymbolAndText } from '@renderer/utils/textHelpers'
 import { Avatar, Input, Tooltip } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
-import { AtSign, CircleX, Layers, Plus, Trash2, Pencil } from 'lucide-react'
+import { AtSign, CircleX, Layers, Pencil, Plus, Trash2 } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -49,7 +49,12 @@ const MentionModelsButton: FC<Props> = ({
   const quickPanel = useQuickPanel()
 
   // --- Model Groups ---
-  interface MentionModelGroup { id: string; name: string; modelIds: string[]; pinned?: boolean }
+  interface MentionModelGroup {
+    id: string
+    name: string
+    modelIds: string[]
+    pinned?: boolean
+  }
 
   const modelGroups = useLiveQuery(
     async () => {
@@ -58,7 +63,7 @@ const MentionModelsButton: FC<Props> = ({
         return (setting?.value || []) as MentionModelGroup[]
       } catch (error) {
         console.error('Failed to load model groups:', error)
-        window.message?.error?.(t('mention_group.load_failed') || 'Failed to load model groups')
+        window.toast?.error?.(t('mention_group.load_failed') || 'Failed to load model groups')
         return [] as MentionModelGroup[]
       }
     },
@@ -68,15 +73,18 @@ const MentionModelsButton: FC<Props> = ({
 
   // Placeholder: buildModelItems is declared later after dependencies
 
-  const saveGroups = useCallback(async (groups: MentionModelGroup[]) => {
-    try {
-      await db.settings.put({ id: 'mention:modelGroups', value: groups })
-    } catch (error) {
-      console.error('Failed to save model groups:', error)
-      window.message?.error?.(t('mention_group.save_failed') || 'Failed to save model groups')
-      throw error
-    }
-  }, [t])
+  const saveGroups = useCallback(
+    async (groups: MentionModelGroup[]) => {
+      try {
+        await db.settings.put({ id: 'mention:modelGroups', value: groups })
+      } catch (error) {
+        console.error('Failed to save model groups:', error)
+        window.toast?.error?.(t('mention_group.save_failed') || 'Failed to save model groups')
+        throw error
+      }
+    },
+    [t]
+  )
 
   // Map uniqId -> Model for group reverse lookup
   const uniqIdToModelMap = useMemo(() => {
@@ -110,9 +118,7 @@ const MentionModelsButton: FC<Props> = ({
       const allSelected = group.modelIds.every((id) => mentionedSet.has(id))
 
       // Map group members to model objects
-      const rawModels = group.modelIds
-        .map((id) => uniqIdToModelMap.get(id))
-        .filter((m): m is Model => !!m)
+      const rawModels = group.modelIds.map((id) => uniqIdToModelMap.get(id)).filter((m): m is Model => !!m)
 
       // When constrained (e.g. images), keep only vision-capable models
       const targetModels = couldMentionNotVisionModel ? rawModels : rawModels.filter((m) => isVisionModel(m))
@@ -121,7 +127,7 @@ const MentionModelsButton: FC<Props> = ({
       if (targetModels.length === 0) {
         // If none are usable, show a gentle warning
         if (skipped > 0) {
-          window.message?.warning?.(t('mention_group.no_usable_models_warning'))
+          window.toast?.warning?.(t('mention_group.no_usable_models_warning'))
         }
         return
       }
@@ -138,7 +144,7 @@ const MentionModelsButton: FC<Props> = ({
 
       // If some were filtered (e.g. non-vision models), show a hint
       if (skipped > 0) {
-        window.message?.info?.(t('mention_group.skipped_info', { count: skipped } as any) as string)
+        window.toast?.info?.(t('mention_group.skipped_info', { count: skipped } as any) as string)
       }
     },
     [mentionedSet, onMentionModel, uniqIdToModelMap, couldMentionNotVisionModel, t]
@@ -166,7 +172,7 @@ const MentionModelsButton: FC<Props> = ({
       try {
         const groups = (modelGroups || []).filter((g) => g.id !== group.id)
         await saveGroups(groups)
-        window.message?.success?.(t('mention_group.deleted'))
+        window.toast?.success?.(t('mention_group.deleted'))
       } catch {
         // handled in saveGroups
       }
@@ -203,14 +209,14 @@ const MentionModelsButton: FC<Props> = ({
       const name = (tempName || '').trim()
       if (!name || name === group.name) return
       if (!validateGroupName(name)) {
-        window.message?.warning?.(t('mention_group.invalid_name') || 'Invalid group name')
+        window.toast?.warning?.(t('mention_group.invalid_name') || 'Invalid group name')
         return
       }
 
       const groups = (modelGroups || []) as MentionModelGroup[]
       const exist = groups.find((g) => g.name === name)
       if (exist && exist.id !== group.id) {
-        window.message?.warning?.(t('mention_group.name_exists') || 'Name already exists')
+        window.toast?.warning?.(t('mention_group.name_exists') || 'Name already exists')
         return
       }
 
@@ -219,7 +225,7 @@ const MentionModelsButton: FC<Props> = ({
       target.name = name
       try {
         await saveGroups([...groups])
-        window.message?.success?.(t('mention_group.saved'))
+        window.toast?.success?.(t('mention_group.saved'))
       } catch {
         // handled in saveGroups
       }
@@ -234,7 +240,7 @@ const MentionModelsButton: FC<Props> = ({
   const saveSelectionAsGroup = useCallback(async () => {
     const selected = mentionedModelsRef.current || []
     if (selected.length === 0) {
-      window.message?.warning?.(t('mention_group.no_selection_warning'))
+      window.toast?.warning?.(t('mention_group.no_selection_warning'))
       return
     }
 
@@ -248,7 +254,11 @@ const MentionModelsButton: FC<Props> = ({
         content: (
           <div>
             <div style={{ marginBottom: 8 }}>{t('mention_group.group_name')}</div>
-            <Input autoFocus onChange={(e) => (tempName = e.target.value)} placeholder={t('mention_group.group_name') as string} />
+            <Input
+              autoFocus
+              onChange={(e) => (tempName = e.target.value)}
+              placeholder={t('mention_group.group_name') as string}
+            />
           </div>
         ),
         onOk: () => resolve(),
@@ -260,7 +270,7 @@ const MentionModelsButton: FC<Props> = ({
     const name = (tempName || '').trim()
     if (!name) return
     if (!validateGroupName(name)) {
-      window.message?.warning?.(t('mention_group.invalid_name') || 'Invalid group name')
+      window.toast?.warning?.(t('mention_group.invalid_name') || 'Invalid group name')
       return
     }
 
@@ -283,7 +293,7 @@ const MentionModelsButton: FC<Props> = ({
         // handled in saveGroups
       }
     }
-    window.message?.success?.(t('mention_group.saved'))
+    window.toast?.success?.(t('mention_group.saved'))
   }, [saveGroups, t])
 
   // Track if selection actions happen and keep trigger info for cleanup
@@ -320,7 +330,10 @@ const MentionModelsButton: FC<Props> = ({
             .map((id) => uniqIdToModelMap.get(id))
             .filter((m): m is Model => !!m && (couldMentionNotVisionModel || isVisionModel(m)))
 
-          const groupModelNames = allowedModels.map((m) => m.name).filter(Boolean).join(', ')
+          const groupModelNames = allowedModels
+            .map((m) => m.name)
+            .filter(Boolean)
+            .join(', ')
 
           const allowedIds = allowedModels.map((m) => getModelUniqId(m))
           const isSelected = allowedIds.length > 0 && allowedIds.every((id) => mentionedSet.has(id))
@@ -478,7 +491,7 @@ const MentionModelsButton: FC<Props> = ({
       providers,
       t,
       couldMentionNotVisionModel,
-      
+
       onMentionModel,
       navigate,
       quickPanel,
@@ -494,7 +507,10 @@ const MentionModelsButton: FC<Props> = ({
     ]
   )
 
-  const modelItems = useMemo(() => buildModelItems((modelGroups || []) as MentionModelGroup[]), [buildModelItems, modelGroups])
+  const modelItems = useMemo(
+    () => buildModelItems((modelGroups || []) as MentionModelGroup[]),
+    [buildModelItems, modelGroups]
+  )
 
   const openQuickPanel = useCallback(
     (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => {

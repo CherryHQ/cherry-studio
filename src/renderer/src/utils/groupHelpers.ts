@@ -9,10 +9,12 @@
 export const generateGroupId = (): string => {
   try {
     if (globalThis.crypto && 'randomUUID' in globalThis.crypto) {
-      // @ts-expect-error - randomUUID exists when the check passes
       return (globalThis.crypto as Crypto).randomUUID()
     }
-  } catch {}
+  } catch (_err) {
+    // ignore errors (crypto not available or denied), use fallback below
+    void _err
+  }
   const rand = Math.random().toString(36).slice(2)
   return `g_${Date.now()}_${rand}`
 }
