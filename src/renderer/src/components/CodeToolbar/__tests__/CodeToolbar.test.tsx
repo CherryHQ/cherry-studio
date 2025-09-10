@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
       {children}
     </div>
   )),
-  HStack: vi.fn(({ children, className }) => (
+  RowFlex: vi.fn(({ children, className }) => (
     <div data-testid="hstack" className={className}>
       {children}
     </div>
@@ -44,7 +44,7 @@ vi.mock('antd', () => ({
 }))
 
 vi.mock('@renderer/components/Layout', () => ({
-  HStack: mocks.HStack
+  RowFlex: mocks.RowFlex
 }))
 
 vi.mock('./styles', () => ({

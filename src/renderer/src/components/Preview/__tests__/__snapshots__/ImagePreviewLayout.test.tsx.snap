@@ -7,7 +7,6 @@ exports[`ImagePreviewLayout > should match snapshot 1`] = `
   >
     <div
       data-testid="preview-container"
-      data-vertical="true"
     >
       <div>
         Test Content
