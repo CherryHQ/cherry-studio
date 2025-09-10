@@ -41,7 +41,7 @@ export interface BoxProps extends React.ComponentProps<'div'> {
   padding?: string
 }
 
-// Now used anywhere for now.
+// Not used anywhere for now.
 // export interface ButtonProps extends FlexProps {
 //   color?: string
 //   isDisabled?: boolean
