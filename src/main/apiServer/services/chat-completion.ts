@@ -31,17 +31,34 @@ export class ChatCompletionService {
 
       const models = await listAllAvailableModels()
 
-      const modelData: ModelData[] = models.map((model) => {
-        const openAIModel = transformModelToOpenAI(model)
-        return {
-          ...openAIModel,
-          provider_id: model.provider,
-          model_id: model.id,
-          name: model.name
-        }
-      })
+      // Use Map to deduplicate models by their full ID (provider:model_id)
+      const uniqueModels = new Map<string, ModelData>()
 
-      logger.info(`Successfully retrieved ${modelData.length} models`)
+      for (const model of models) {
+        const openAIModel = transformModelToOpenAI(model)
+        const fullModelId = openAIModel.id // This is already in format "provider:model_id"
+
+        // Only add if not already present (first occurrence wins)
+        if (!uniqueModels.has(fullModelId)) {
+          uniqueModels.set(fullModelId, {
+            ...openAIModel,
+            provider_id: model.provider,
+            model_id: model.id,
+            name: model.name
+          })
+        } else {
+          logger.debug(`Skipping duplicate model: ${fullModelId}`)
+        }
+      }
+
+      const modelData = Array.from(uniqueModels.values())
+
+      logger.info(`Successfully retrieved ${modelData.length} unique models from ${models.length} total models`)
+
+      if (models.length > modelData.length) {
+        logger.debug(`Filtered out ${models.length - modelData.length} duplicate models`)
+      }
+
       return modelData
     } catch (error: any) {
       logger.error('Error getting models:', error)

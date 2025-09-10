@@ -43,10 +43,17 @@ router.get('/', async (_req: Request, res: Response) => {
     const models = await chatCompletionService.getModels()
 
     if (models.length === 0) {
-      logger.warn('No models available from providers')
+      logger.warn(
+        'No models available from providers. This may be because no OpenAI providers are configured or enabled.'
+      )
     }
 
-    logger.info(`Returning ${models.length} models`)
+    logger.info(`Returning ${models.length} models (OpenAI providers only)`)
+    logger.debug(
+      'Model IDs:',
+      models.map((m) => m.id)
+    )
+
     return res.json({
       object: 'list',
       data: models
@@ -55,7 +62,7 @@ router.get('/', async (_req: Request, res: Response) => {
     logger.error('Error fetching models:', error)
     return res.status(503).json({
       error: {
-        message: 'Failed to retrieve models',
+        message: 'Failed to retrieve models from available providers',
         type: 'service_unavailable',
         code: 'models_unavailable'
       }

@@ -4,7 +4,7 @@ import { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
 import { chatCompletionService } from '../services/chat-completion'
-import { getProviderByModel, getRealProviderModel } from '../utils'
+import { validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerChatRoutes')
 
@@ -106,7 +106,8 @@ router.post('/completions', async (req: Request, res: Response) => {
     logger.info('Chat completion request:', {
       model: request.model,
       messageCount: request.messages?.length || 0,
-      stream: request.stream
+      stream: request.stream,
+      temperature: request.temperature
     })
 
     // Validate request
@@ -121,30 +122,29 @@ router.post('/completions', async (req: Request, res: Response) => {
       })
     }
 
-    // Get provider
-    const provider = await getProviderByModel(request.model)
-    if (!provider) {
+    // Validate model ID and get provider
+    const modelValidation = await validateModelId(request.model)
+    if (!modelValidation.valid) {
+      const error = modelValidation.error!
+      logger.warn(`Model validation failed for '${request.model}':`, error)
       return res.status(400).json({
         error: {
-          message: `Model "${request.model}" not found`,
+          message: error.message,
           type: 'invalid_request_error',
-          code: 'model_not_found'
+          code: error.code
         }
       })
     }
 
-    // Validate model availability
-    const modelId = getRealProviderModel(request.model)
-    const model = provider.models?.find((m) => m.id === modelId)
-    if (!model) {
-      return res.status(400).json({
-        error: {
-          message: `Model "${modelId}" not available in provider "${provider.id}"`,
-          type: 'invalid_request_error',
-          code: 'model_not_available'
-        }
-      })
-    }
+    const provider = modelValidation.provider!
+    const modelId = modelValidation.modelId!
+
+    logger.info('Model validation successful:', {
+      provider: provider.id,
+      providerType: provider.type,
+      modelId: modelId,
+      fullModelId: request.model
+    })
 
     // Create OpenAI client
     const client = new OpenAI({
