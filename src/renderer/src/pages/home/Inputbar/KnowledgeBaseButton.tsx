@@ -93,6 +93,14 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
     }
   }, [openQuickPanel, quickPanel])
 
+  // 监听 selectedBases 变化，动态更新已打开的 QuickPanel 列表状态
+  useEffect(() => {
+    if (quickPanel.isVisible && quickPanel.symbol === '#') {
+      // 直接使用重新计算的 baseItems，因为它已经包含了最新的 isSelected 状态
+      quickPanel.updateList(baseItems)
+    }
+  }, [selectedBases, quickPanel, baseItems])
+
   useImperativeHandle(ref, () => ({
     openQuickPanel
   }))
