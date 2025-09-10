@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
-import { RowFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -13,7 +13,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { FC, useState } from 'react'
@@ -150,7 +149,6 @@ const Chat: FC<Props> = (props) => {
         <Main
           ref={mainRef}
           id="chat-main"
-          vertical
           flex={1}
           justify="space-between"
           style={{ maxWidth: '100%', height: mainHeight }}>
@@ -223,7 +221,7 @@ const Container = styled.div`
   }
 `
 
-const Main = styled(Flex)`
+const Main = styled(ColFlex)`
   [navbar-position='left'] & {
     height: calc(100vh - var(--navbar-height));
   }

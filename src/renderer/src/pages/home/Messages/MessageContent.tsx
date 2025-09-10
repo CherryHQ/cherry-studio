@@ -1,6 +1,6 @@
+import { Flex } from '@renderer/components/Layout'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { Message } from '@renderer/types/newMessage'
-import { Flex } from 'antd'
 import { isEmpty } from 'lodash'
 import React from 'react'
 import styled from 'styled-components'
@@ -14,7 +14,7 @@ const MessageContent: React.FC<Props> = ({ message }) => {
   return (
     <>
       {!isEmpty(message.mentions) && (
-        <Flex gap="8px" wrap style={{ marginBottom: '10px' }}>
+        <Flex gap="8px" wrap={'wrap'} style={{ marginBottom: '10px' }}>
           {message.mentions?.map((model) => <MentionTag key={getModelUniqId(model)}>{'@' + model.name}</MentionTag>)}
         </Flex>
       )}

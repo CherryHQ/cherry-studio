@@ -1,3 +1,4 @@
+import { Flex } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { RootState } from '@renderer/store'
@@ -5,7 +6,6 @@ import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
-import { Flex } from 'antd'
 import React, { useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -44,7 +44,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     <>
       {/* Render mentions associated with the message */}
       {mentions && mentions.length > 0 && (
-        <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
+        <Flex gap="8px" wrap={'wrap'} style={{ marginBottom: 10 }}>
           {mentions.map((m) => (
             <MentionTag key={getModelUniqId(m)}>{'@' + m.name}</MentionTag>
           ))}

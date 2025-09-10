@@ -15,11 +15,13 @@ import {
   processTopicContent,
   TopicContentStats
 } from '@renderer/utils/knowledge'
-import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
+import { Form, Modal, Select, Tooltip, Typography } from 'antd'
 import { Check, CircleHelp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { ColFlex, Flex } from '../Layout'
 
 const logger = loggerService.withContext('SaveToKnowledgePopup')
 
@@ -320,7 +322,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 ? 'chat.save.topic.knowledge.select.content.label'
                 : 'chat.save.knowledge.select.content.title'
             )}>
-            <Flex gap={8} style={{ flexDirection: 'column' }}>
+            <ColFlex gap={8}>
               {contentTypeOptions.map((option) => (
                 <ContentTypeItem
                   key={option.type}
@@ -341,7 +343,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                   {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
                 </ContentTypeItem>
               ))}
-            </Flex>
+            </ColFlex>
           </Form.Item>
         )}
       </Form>

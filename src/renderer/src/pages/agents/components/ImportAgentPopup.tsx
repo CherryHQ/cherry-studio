@@ -1,3 +1,4 @@
+import { Flex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -5,7 +6,7 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Flex, Form, Input, Modal, Radio } from 'antd'
+import { Button, Form, Input, Modal, Radio } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

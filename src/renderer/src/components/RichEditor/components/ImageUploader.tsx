@@ -1,5 +1,6 @@
 import { InboxOutlined, LinkOutlined, LoadingOutlined, UploadOutlined } from '@ant-design/icons'
-import { Button, Flex, Input, message, Modal, Spin, Tabs, Upload } from 'antd'
+import { Flex } from '@renderer/components/Layout'
+import { Button, Input, message, Modal, Spin, Tabs, Upload } from 'antd'
 
 const { Dragger } = Upload
 import type { RcFile } from 'antd/es/upload'
@@ -24,20 +25,20 @@ const TabContent = styled.div`
 
 const UrlInput = styled(Input)`
   .ant-input {
-    padding: 12px 16px
-    font-size: 14px
-    border-radius: 4px
-    border: 1px solid #dadce0
-    transition: all 0.2s ease
-    background: #ffffff
+    padding: 12px 16px;
+    font-size: 14px;
+    border-radius: 4px;
+    border: 1px solid #dadce0;
+    transition: all 0.2s ease;
+    background: #ffffff;
 
     &:hover {
-      border-color: #4285f4
+      border-color: #4285f4;
     }
 
     &:focus {
-      border-color: #4285f4
-      box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.3)
+      border-color: #4285f4;
+      box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.3);
     }
   }
 `
