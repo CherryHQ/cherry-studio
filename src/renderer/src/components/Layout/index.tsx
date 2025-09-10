@@ -1,4 +1,4 @@
-import React, { CSSProperties } from 'react'
+import React, { CSSProperties, useMemo } from 'react'
 
 type PxValue = number | string
 
@@ -110,34 +110,76 @@ export const Box = ({
   style,
   ...props
 }: BoxProps & { children?: React.ReactNode; style?: CSSProperties }) => {
-  const _style = {
-    width: width || w ? getElementValue(width ?? w) : 'auto',
-    height: height || h ? getElementValue(height ?? h) : 'auto',
-    color,
-    background,
-    flex,
-    position,
-    left: getElementValue(left),
-    right: getElementValue(right),
-    bottom: getElementValue(bottom),
-    top: getElementValue(top),
-    gap: gap ? getElementValue(gap) : 0,
-    opacity,
-    borderRadius: getElementValue(borderRadius),
-    boxSizing: 'border-box' as const,
-    border,
-    margin: m || margin,
-    marginTop: mt || marginTop ? getElementValue(mt ?? marginTop) : 'default',
-    marginBottom: mb || marginBottom ? getElementValue(mb ?? marginBottom) : 'default',
-    marginLeft: ml || marginLeft ? getElementValue(ml ?? marginLeft) : 'default',
-    marginRight: mr || marginRight ? getElementValue(mr ?? marginRight) : 'default',
-    padding: p || padding,
-    paddingTop: pt || paddingTop ? getElementValue(pt ?? paddingTop) : 'auto',
-    paddingBottom: pb || paddingBottom ? getElementValue(pb ?? paddingBottom) : 'auto',
-    paddingLeft: pl || paddingLeft ? getElementValue(pl ?? paddingLeft) : 'auto',
-    paddingRight: pr || paddingRight ? getElementValue(pr ?? paddingRight) : 'auto',
-    ...style
-  } satisfies CSSProperties
+  const _style = useMemo(
+    () =>
+      ({
+        width: width || w ? getElementValue(width ?? w) : 'auto',
+        height: height || h ? getElementValue(height ?? h) : 'auto',
+        color,
+        background,
+        flex,
+        position,
+        left: getElementValue(left),
+        right: getElementValue(right),
+        bottom: getElementValue(bottom),
+        top: getElementValue(top),
+        gap: gap ? getElementValue(gap) : 0,
+        opacity,
+        borderRadius: getElementValue(borderRadius),
+        boxSizing: 'border-box' as const,
+        border,
+        margin: m || margin,
+        marginTop: mt || marginTop ? getElementValue(mt ?? marginTop) : 'default',
+        marginBottom: mb || marginBottom ? getElementValue(mb ?? marginBottom) : 'default',
+        marginLeft: ml || marginLeft ? getElementValue(ml ?? marginLeft) : 'default',
+        marginRight: mr || marginRight ? getElementValue(mr ?? marginRight) : 'default',
+        padding: p || padding,
+        paddingTop: pt || paddingTop ? getElementValue(pt ?? paddingTop) : 'auto',
+        paddingBottom: pb || paddingBottom ? getElementValue(pb ?? paddingBottom) : 'auto',
+        paddingLeft: pl || paddingLeft ? getElementValue(pl ?? paddingLeft) : 'auto',
+        paddingRight: pr || paddingRight ? getElementValue(pr ?? paddingRight) : 'auto',
+        ...style
+      }) satisfies CSSProperties,
+    [
+      background,
+      border,
+      borderRadius,
+      bottom,
+      color,
+      flex,
+      gap,
+      h,
+      height,
+      left,
+      m,
+      margin,
+      marginBottom,
+      marginLeft,
+      marginRight,
+      marginTop,
+      mb,
+      ml,
+      mr,
+      mt,
+      opacity,
+      p,
+      padding,
+      paddingBottom,
+      paddingLeft,
+      paddingRight,
+      paddingTop,
+      pb,
+      pl,
+      position,
+      pr,
+      pt,
+      right,
+      style,
+      top,
+      w,
+      width
+    ]
+  )
 
   return (
     <div style={_style} {...props}>
