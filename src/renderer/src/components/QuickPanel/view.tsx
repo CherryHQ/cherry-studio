@@ -9,6 +9,7 @@ import { t } from 'i18next'
 import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
 import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import db from '@renderer/databases'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
@@ -552,6 +553,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     window.removeEventListener('mousemove', onResizeMouseMove)
     window.removeEventListener('mouseup', onResizeMouseUp)
     document.body.style.cursor = ''
+    // 持久化当前行数
+    try {
+      void db.settings.put({ id: 'ui:quickpanel:rows', value: ctx.pageSize })
+    } catch {}
   }, [onResizeMouseMove])
 
   const onResizeMouseDown = useCallback(
