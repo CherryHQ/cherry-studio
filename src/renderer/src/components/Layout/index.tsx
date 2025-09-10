@@ -1,9 +1,4 @@
 import { CSSProperties } from 'react'
-import styled from 'styled-components'
-
-interface ContainerProps {
-  padding?: string
-}
 
 type PxValue = number | string
 
@@ -244,11 +239,16 @@ export const ColFlex = ({ children, ...props }: Omit<StackProps, 'flexDirection'
 //   )
 // }
 
-export const Container = styled.main<ContainerProps>`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  box-sizing: border-box;
-  flex: 1;
-  padding: ${(p) => p.padding ?? '0 18px'};
-`
+// Not used anywhere for now.
+// interface ContainerProps {
+//   padding?: string
+// }
+
+// export const Container = styled.main<ContainerProps>`
+//   display: flex;
+//   flex-direction: column;
+//   width: 100%;
+//   box-sizing: border-box;
+//   flex: 1;
+//   padding: ${(p) => p.padding ?? '0 18px'};
+// `
