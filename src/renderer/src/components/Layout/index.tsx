@@ -210,38 +210,39 @@ export const ColFlex = ({ children, ...props }: Omit<StackProps, 'flexDirection'
   )
 }
 
-interface BaseTypographyProps extends BoxProps {
-  fontSize?: number
-  lineHeight?: string
-  fontWeigth?: number | string
-  color?: string
-  textAlign?: CSSProperties['textAlign']
-  children?: React.ReactNode
-}
+// Not used anywhere for now.
+// interface BaseTypographyProps extends BoxProps {
+//   fontSize?: number
+//   lineHeight?: string
+//   fontWeigth?: number | string
+//   color?: string
+//   textAlign?: CSSProperties['textAlign']
+//   children?: React.ReactNode
+// }
 
-export const BaseTypography = ({
-  fontSize = 16,
-  lineHeight = 'normal',
-  fontWeigth = 'normal',
-  color = '#fff',
-  textAlign = 'left',
-  children,
-  ...props
-}: BaseTypographyProps) => {
-  const style = {
-    fontSize: getElementValue(fontSize),
-    lineHeight: getElementValue(lineHeight),
-    fontWeight: fontWeigth,
-    color,
-    textAlign
-  } satisfies CSSProperties
+// export const BaseTypography = ({
+//   fontSize = 16,
+//   lineHeight = 'normal',
+//   fontWeigth = 'normal',
+//   color = '#fff',
+//   textAlign = 'left',
+//   children,
+//   ...props
+// }: BaseTypographyProps) => {
+//   const style = {
+//     fontSize: getElementValue(fontSize),
+//     lineHeight: getElementValue(lineHeight),
+//     fontWeight: fontWeigth,
+//     color,
+//     textAlign
+//   } satisfies CSSProperties
 
-  return (
-    <Box style={style} {...props}>
-      {children}
-    </Box>
-  )
-}
+//   return (
+//     <Box style={style} {...props}>
+//       {children}
+//     </Box>
+//   )
+// }
 
 export const Container = styled.main<ContainerProps>`
   display: flex;
