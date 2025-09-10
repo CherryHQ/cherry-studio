@@ -1,3 +1,4 @@
+import { CSSProperties } from 'react'
 import styled from 'styled-components'
 
 interface ContainerProps {
@@ -14,7 +15,7 @@ export interface BoxProps {
   color?: string
   background?: string
   flex?: string | number
-  position?: string
+  position?: CSSProperties['position']
   left?: PxValue
   top?: PxValue
   right?: PxValue
@@ -78,38 +79,80 @@ const getElementValue = (value?: PxValue) => {
   return value + 'px'
 }
 
-export const Box = styled.div<BoxProps>`
-  width: ${(props) => (props.width || props.w ? getElementValue(props.width ?? props.w) : 'auto')};
-  height: ${(props) => (props.height || props.h ? getElementValue(props.height || props.h) : 'auto')};
-  color: ${(props) => props.color || 'default'};
-  background: ${(props) => props.background || 'default'};
-  flex: ${(props) => props.flex || 'none'};
-  position: ${(props) => props.position || 'default'};
-  left: ${(props) => getElementValue(props.left) || 'auto'};
-  right: ${(props) => getElementValue(props.right) || 'auto'};
-  bottom: ${(props) => getElementValue(props.bottom) || 'auto'};
-  top: ${(props) => getElementValue(props.top) || 'auto'};
-  gap: ${(p) => (p.gap ? getElementValue(p.gap) : 0)};
-  opacity: ${(props) => props.opacity ?? 1};
-  border-radius: ${(props) => getElementValue(props.borderRadius) || 0};
-  box-sizing: border-box;
-  border: ${(props) => props?.border || 'none'};
-  gap: ${(p) => (p.gap ? getElementValue(p.gap) : 0)};
-  margin: ${(props) => (props.m || props.margin ? (props.m ?? props.margin) : 'none')};
-  margin-top: ${(props) => (props.mt || props.marginTop ? getElementValue(props.mt || props.marginTop) : 'default')};
-  margin-bottom: ${(props) =>
-    props.mb || props.marginBottom ? getElementValue(props.mb ?? props.marginBottom) : 'default'};
-  margin-left: ${(props) => (props.ml || props.marginLeft ? getElementValue(props.ml ?? props.marginLeft) : 'default')};
-  margin-right: ${(props) =>
-    props.mr || props.marginRight ? getElementValue(props.mr ?? props.marginRight) : 'default'};
-  padding: ${(props) => (props.p || props.padding ? (props.p ?? props.padding) : 'none')};
-  padding-top: ${(props) => (props.pt || props.paddingTop ? getElementValue(props.pt ?? props.paddingTop) : 'auto')};
-  padding-bottom: ${(props) =>
-    props.pb || props.paddingBottom ? getElementValue(props.pb ?? props.paddingBottom) : 'auto'};
-  padding-left: ${(props) => (props.pl || props.paddingLeft ? getElementValue(props.pl ?? props.paddingLeft) : 'auto')};
-  padding-right: ${(props) =>
-    props.pr || props.paddingRight ? getElementValue(props.pr ?? props.paddingRight) : 'auto'};
-`
+export const Box = ({
+  width,
+  w,
+  height,
+  h,
+  color = 'default',
+  background = 'default',
+  flex = 'none',
+  position,
+  left = 'auto',
+  right = 'auto',
+  bottom = 'auto',
+  top = 'auto',
+  gap = 0,
+  opacity = 1,
+  borderRadius = 0,
+  border = 'none',
+  m,
+  margin = 'none',
+  mt,
+  marginTop,
+  mb,
+  marginBottom,
+  ml,
+  marginLeft,
+  mr,
+  marginRight,
+  p,
+  padding = 'none',
+  pt,
+  paddingTop,
+  pb,
+  paddingBottom,
+  pl,
+  paddingLeft,
+  pr,
+  paddingRight,
+  children,
+  ...rest
+}: BoxProps & { children?: React.ReactNode }) => {
+  const style = {
+    width: width || w ? getElementValue(width ?? w) : 'auto',
+    height: height || h ? getElementValue(height ?? h) : 'auto',
+    color,
+    background,
+    flex,
+    position,
+    left: getElementValue(left),
+    right: getElementValue(right),
+    bottom: getElementValue(bottom),
+    top: getElementValue(top),
+    gap: gap ? getElementValue(gap) : 0,
+    opacity,
+    borderRadius: getElementValue(borderRadius),
+    boxSizing: 'border-box' as const,
+    border,
+    margin: m || margin,
+    marginTop: mt || marginTop ? getElementValue(mt ?? marginTop) : 'default',
+    marginBottom: mb || marginBottom ? getElementValue(mb ?? marginBottom) : 'default',
+    marginLeft: ml || marginLeft ? getElementValue(ml ?? marginLeft) : 'default',
+    marginRight: mr || marginRight ? getElementValue(mr ?? marginRight) : 'default',
+    padding: p || padding,
+    paddingTop: pt || paddingTop ? getElementValue(pt ?? paddingTop) : 'auto',
+    paddingBottom: pb || paddingBottom ? getElementValue(pb ?? paddingBottom) : 'auto',
+    paddingLeft: pl || paddingLeft ? getElementValue(pl ?? paddingLeft) : 'auto',
+    paddingRight: pr || paddingRight ? getElementValue(pr ?? paddingRight) : 'auto'
+  } satisfies CSSProperties
+
+  return (
+    <div style={style} {...rest}>
+      {children}
+    </div>
+  )
+}
 
 export const Stack = styled(Box)<StackProps>`
   display: flex;
