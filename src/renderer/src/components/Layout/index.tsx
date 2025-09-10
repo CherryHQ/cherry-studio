@@ -155,7 +155,8 @@ export const Stack = ({
   justifyContent = 'flex-start',
   alignItems = 'flex-start',
   flexDirection = 'row',
-  children
+  children,
+  ...props
 }: StackProps & { children?: React.ReactNode }) => {
   const style = {
     display: 'flex',
@@ -164,22 +165,31 @@ export const Stack = ({
     flexDirection
   }
 
-  return <Box style={style}>{children}</Box>
+  return (
+    <Box style={style} {...props}>
+      {children}
+    </Box>
+  )
 }
 
 export const Center = ({
-  children
+  children,
+  ...props
 }: Omit<StackProps, 'justifyContent' | 'alignItems'> & { children?: React.ReactNode }) => {
   return (
-    <Stack justifyContent="center" alignItems="center">
+    <Stack justifyContent="center" alignItems="center" {...props}>
       {children}
     </Stack>
   )
 }
 
-export const RowFlex = styled(Stack)<StackProps>`
-  flex-direction: row;
-`
+export const RowFlex = ({ children, ...props }: StackProps & { children?: React.ReactNode }) => {
+  return (
+    <Stack {...props} flexDirection="row">
+      {children}
+    </Stack>
+  )
+}
 
 export const SpaceBetweenRowFlex = styled(RowFlex)<StackProps>`
   justify-content: space-between;
