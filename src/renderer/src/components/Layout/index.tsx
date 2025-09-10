@@ -191,9 +191,16 @@ export const RowFlex = ({ children, ...props }: StackProps & { children?: React.
   )
 }
 
-export const SpaceBetweenRowFlex = styled(RowFlex)<StackProps>`
-  justify-content: space-between;
-`
+export const SpaceBetweenRowFlex = ({
+  children,
+  ...props
+}: Omit<StackProps, 'justifyContent'> & { children?: React.ReactNode }) => {
+  return (
+    <RowFlex justifyContent="space-between" {...props}>
+      {children}
+    </RowFlex>
+  )
+}
 
 export const ColFlex = styled(Stack)<StackProps>`
   flex-direction: column;
