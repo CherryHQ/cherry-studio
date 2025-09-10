@@ -37,7 +37,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const fetchBackupFiles = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -61,7 +61,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         total: files.length
       }))
     } catch (error: any) {
-      window.message.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
+      window.toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
     } finally {
       setLoading(false)
     }
@@ -84,12 +84,12 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      window.message.warning(t('settings.data.s3.manager.select.warning'))
+      window.toast.warning(t('settings.data.s3.manager.select.warning'))
       return
     }
 
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -118,13 +118,11 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
               maxBackups: 0
             })
           }
-          window.message.success(
-            t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length })
-          )
+          window.toast.success(t('settings.data.s3.manager.delete.success.multiple', { count: selectedRowKeys.length }))
           setSelectedRowKeys([])
           await fetchBackupFiles()
         } catch (error: any) {
-          window.message.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+          window.toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
         } finally {
           setDeleting(false)
         }
@@ -134,7 +132,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleDeleteSingle = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -160,10 +158,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             syncInterval: 0,
             maxBackups: 0
           })
-          window.message.success(t('settings.data.s3.manager.delete.success.single'))
+          window.toast.success(t('settings.data.s3.manager.delete.success.single'))
           await fetchBackupFiles()
         } catch (error: any) {
-          window.message.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
+          window.toast.error(t('settings.data.s3.manager.delete.error', { message: error.message }))
         } finally {
           setDeleting(false)
         }
@@ -173,7 +171,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
 
   const handleRestore = async (fileName: string) => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error(t('settings.data.s3.manager.config.incomplete'))
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -188,10 +186,10 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         setRestoring(true)
         try {
           await (restoreMethod || restoreFromS3)(fileName)
-          window.message.success(t('settings.data.s3.restore.success'))
+          window.toast.success(t('settings.data.s3.restore.success'))
           onClose() // 关闭模态框
         } catch (error: any) {
-          window.message.error(t('settings.data.s3.restore.error', { message: error.message }))
+          window.toast.error(t('settings.data.s3.restore.error', { message: error.message }))
         } finally {
           setRestoring(false)
         }

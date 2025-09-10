@@ -281,7 +281,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       resolve({ success: true, savedCount })
     } catch (error) {
       logger.error('save failed:', error as Error)
-      window.message.error(
+      window.toast.error(
         t(isTopicMode ? 'chat.save.topic.knowledge.error.save_failed' : 'chat.save.knowledge.error.save_failed')
       )
       setLoading(false)

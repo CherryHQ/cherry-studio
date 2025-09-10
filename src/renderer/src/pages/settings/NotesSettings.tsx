@@ -71,10 +71,10 @@ const NotesSettings: FC = () => {
 
       updateNotesPath(tempPath)
       initWorkSpace(tempPath, 'sort_a2z')
-      window.message.success(t('notes.settings.data.path_updated'))
+      window.toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
-      window.message.error(t('notes.settings.data.apply_path_failed'))
+      window.toast.error(t('notes.settings.data.apply_path_failed'))
     }
   }
 
@@ -84,10 +84,10 @@ const NotesSettings: FC = () => {
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
       initWorkSpace(info.notesPath, 'sort_a2z')
-      window.message.success(t('notes.settings.data.reset_to_default'))
+      window.toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)
-      window.message.error(t('notes.settings.data.reset_failed'))
+      window.toast.error(t('notes.settings.data.reset_failed'))
     }
   }
 

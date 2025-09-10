@@ -85,7 +85,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
       if (topic && name !== topic.name) {
         const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
         updateTopic(updatedTopic)
-        window.message.success(t('common.saved'))
+        window.toast.success(t('common.saved'))
       }
       setEditingTopicId(null)
     },
@@ -213,7 +213,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 const updatedTopic = { ...topic, name: summaryText, isNameManuallyEdited: false }
                 updateTopic(updatedTopic)
               } else {
-                window.message?.error(t('message.error.fetchTopicName'))
+                window.toast?.error(t('message.error.fetchTopicName'))
               }
             } finally {
               finishTopicRenaming(topic.id)
@@ -348,10 +348,10 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               try {
                 const result = await SaveToKnowledgePopup.showForTopic(topic)
                 if (result?.success) {
-                  window.message.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
+                  window.toast.success(t('chat.save.topic.knowledge.success', { count: result.savedCount }))
                 }
               } catch {
-                window.message.error(t('chat.save.topic.knowledge.error.save_failed'))
+                window.toast.error(t('chat.save.topic.knowledge.error.save_failed'))
               }
             }
           }

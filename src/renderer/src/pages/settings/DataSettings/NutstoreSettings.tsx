@@ -106,11 +106,9 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.message[isConnectedToNutstore ? 'success' : 'error']({
-      key: 'api-check',
-      style: { marginTop: '3vh' },
-      duration: 2,
-      content: isConnectedToNutstore
+    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+      timeout: 2000,
+      title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')
         : t('settings.data.nutstore.checkConnection.fail')
     })

@@ -61,10 +61,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const handleSave = () => {
     const result = onUpdate(editValue)
     if (!result.isValid) {
-      window.message.warning({
-        key: 'api-key-error',
-        content: result.error
-      })
+      window.toast.warning(result.error)
       return
     }
 

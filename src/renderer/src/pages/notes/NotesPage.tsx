@@ -507,7 +507,7 @@ const NotesPage: FC = () => {
           }
           await sortAllLevels(sortType)
           if (renamedNode.name !== newName) {
-            window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
+            window.toast.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
           }
         }
       } catch (error) {
@@ -528,16 +528,16 @@ const NotesPage: FC = () => {
         const fileToUpload = files[0]
 
         if (!fileToUpload) {
-          window.message.warning(t('notes.no_file_selected'))
+          window.toast.warning(t('notes.no_file_selected'))
           return
         }
         // 暂时这么处理
         if (files.length > 1) {
-          window.message.warning(t('notes.only_one_file_allowed'))
+          window.toast.warning(t('notes.only_one_file_allowed'))
         }
 
         if (!fileToUpload.name.toLowerCase().endsWith('.md')) {
-          window.message.warning(t('notes.only_markdown'))
+          window.toast.warning(t('notes.only_markdown'))
           return
         }
 
@@ -546,14 +546,14 @@ const NotesPage: FC = () => {
             throw new Error('No folder path selected')
           }
           await uploadNote(fileToUpload, notesPath)
-          window.message.success(t('notes.upload_success', { count: 1 }))
+          window.toast.success(t('notes.upload_success', { count: 1 }))
         } catch (error) {
           logger.error(`Failed to upload note file ${fileToUpload.name}:`, error as Error)
-          window.message.error(t('notes.upload_failed', { name: fileToUpload.name }))
+          window.toast.error(t('notes.upload_failed', { name: fileToUpload.name }))
         }
       } catch (error) {
         logger.error('Failed to handle file upload:', error as Error)
-        window.message.error(t('notes.upload_failed'))
+        window.toast.error(t('notes.upload_failed'))
       }
     },
     [notesPath, t]

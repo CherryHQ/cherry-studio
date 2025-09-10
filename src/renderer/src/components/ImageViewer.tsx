@@ -62,10 +62,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         ])
       }
 
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     } catch (error) {
       logger.error('Failed to copy image:', error as Error)
-      window.message.error(t('message.copy.failed'))
+      window.toast.error(t('message.copy.failed'))
     }
   }
 
@@ -77,7 +77,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         icon: <CopyIcon size={size} />,
         onClick: () => {
           navigator.clipboard.writeText(src)
-          window.message.success(t('message.copy.success'))
+          window.toast.success(t('message.copy.success'))
         }
       },
       {

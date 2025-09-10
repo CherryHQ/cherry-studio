@@ -394,10 +394,10 @@ const MinappPopupContainer: React.FC = () => {
       navigator.clipboard
         .writeText(url)
         .then(() => {
-          window.toast.addToast({ title: 'URL ' + t('message.copy.success') })
+          window.toast.success('URL ' + t('message.copy.success'))
         })
         .catch(() => {
-          window.toast.addToast({ title: 'URL ' + t('message.copy.failed') })
+          window.toast.error('URL ' + t('message.copy.failed'))
         })
     }
 

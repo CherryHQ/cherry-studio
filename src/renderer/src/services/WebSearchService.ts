@@ -536,10 +536,9 @@ class WebSearchService {
         )
       } catch (error) {
         logger.warn('RAG compression failed, will return empty results:', error as Error)
-        window.message.error({
-          key: 'websearch-rag-failed',
-          duration: 10,
-          content: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
+        window.toast.error({
+          timeout: 10000,
+          title: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
         })
 
         finalResults = []

@@ -114,7 +114,7 @@ export function useS3RestoreModal({
 
   const showRestoreModal = useCallback(async () => {
     if (!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error({ content: t('settings.data.s3.manager.config.incomplete'), key: 's3-error' })
+      window.toast.error(t('settings.data.s3.manager.config.incomplete'))
       return
     }
 
@@ -135,10 +135,7 @@ export function useS3RestoreModal({
       })
       setBackupFiles(files)
     } catch (error: any) {
-      window.message.error({
-        content: t('settings.data.s3.manager.files.fetch.error', { message: error.message }),
-        key: 'list-files-error'
-      })
+      window.toast.error(t('settings.data.s3.manager.files.fetch.error', { message: error.message }))
     } finally {
       setLoadingFiles(false)
     }
@@ -146,12 +143,9 @@ export function useS3RestoreModal({
 
   const handleRestore = useCallback(async () => {
     if (!selectedFile || !endpoint || !region || !bucket || !accessKeyId || !secretAccessKey) {
-      window.message.error({
-        content: !selectedFile
-          ? t('settings.data.s3.restore.file.required')
-          : t('settings.data.s3.restore.config.incomplete'),
-        key: 'restore-error'
-      })
+      window.toast.error(
+        !selectedFile ? t('settings.data.s3.restore.file.required') : t('settings.data.s3.restore.config.incomplete')
+      )
       return
     }
 
@@ -177,13 +171,10 @@ export function useS3RestoreModal({
             maxBackups: 0,
             skipBackupFile: false
           })
-          window.message.success({ content: t('message.restore.success'), key: 's3-restore' })
+          window.toast.success(t('message.restore.success'))
           setIsRestoreModalVisible(false)
         } catch (error: any) {
-          window.message.error({
-            content: t('settings.data.s3.restore.error', { message: error.message }),
-            key: 'restore-error'
-          })
+          window.toast.error(t('settings.data.s3.restore.error', { message: error.message }))
         } finally {
           setRestoring(false)
         }

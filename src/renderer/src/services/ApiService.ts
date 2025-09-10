@@ -366,9 +366,6 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export function checkApiProvider(provider: Provider): void {
-  const key = 'api-check'
-  const style = { marginTop: '3vh' }
-
   if (
     provider.id !== 'ollama' &&
     provider.id !== 'lmstudio' &&
@@ -376,18 +373,18 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 
   if (!provider.apiHost && provider.type !== 'vertexai') {
-    window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
+    window.toast.error(i18n.t('message.error.enter.api.host'))
     throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
-    window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
+    window.toast.error(i18n.t('message.error.enter.model'))
     throw new Error(i18n.t('message.error.enter.model'))
   }
 }

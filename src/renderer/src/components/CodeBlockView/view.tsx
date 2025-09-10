@@ -128,7 +128,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   const handleCopySource = useCallback(() => {
     navigator.clipboard.writeText(children)
-    window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
+    window.toast.success(t('code_block.copy.success'))
   }, [children, t])
 
   const handleDownloadSource = useCallback(() => {

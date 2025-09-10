@@ -36,11 +36,10 @@ const QuickAssistantSettings: FC = () => {
     !enable && window.api.miniWindow.close()
 
     if (enable && !clickTrayToShowQuickAssistant) {
-      window.message.info({
-        content: t('settings.quickAssistant.use_shortcut_to_show'),
-        duration: 4,
-        icon: <InfoCircleOutlined />,
-        key: 'quick-assistant-info'
+      window.toast.info({
+        title: t('settings.quickAssistant.use_shortcut_to_show'),
+        timeout: 4000,
+        icon: <InfoCircleOutlined />
       })
     }
 

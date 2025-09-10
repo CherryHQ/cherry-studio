@@ -37,7 +37,7 @@ export const useCopyText = () => {
       message.success(t('message.copied'))
     } catch (error) {
       logger.error('Failed to copy text:', error as Error)
-      window.message.error(t('message.error.copy') || 'Failed to copy text')
+      window.toast.error(t('message.error.copy') || 'Failed to copy text')
     }
   }
 

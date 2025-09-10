@@ -21,7 +21,7 @@ export default function useUpdateHandler() {
       ipcRenderer.on(IpcChannel.UpdateNotAvailable, () => {
         dispatch(setUpdateState({ checking: false }))
         if (window.location.hash.includes('settings/about')) {
-          window.message.success(t('settings.about.updateNotAvailable'))
+          window.toast.success(t('settings.about.updateNotAvailable'))
         }
       }),
       ipcRenderer.on(IpcChannel.UpdateAvailable, (_, releaseInfo: UpdateInfo) => {

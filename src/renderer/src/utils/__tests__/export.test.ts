@@ -695,9 +695,9 @@ describe('export', () => {
         }
       })
 
-      // Mock window.message methods
+      // Mock window.toast methods
       vi.stubGlobal('window', {
-        message: {
+        toast: {
           success: vi.fn(),
           error: vi.fn(),
           warning: vi.fn(),

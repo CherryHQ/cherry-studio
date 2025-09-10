@@ -39,7 +39,7 @@ export const useOcrProviders = () => {
       if (providers.some((p) => p.id === provider.id)) {
         const msg = `Provider with id ${provider.id} already exists`
         logger.error(msg)
-        window.message.error(t('ocr.error.provider.existing'))
+        window.toast.error(t('ocr.error.provider.existing'))
         throw new Error(msg)
       }
       dispatch(addOcrProvider(provider))
@@ -56,7 +56,7 @@ export const useOcrProviders = () => {
     if (isBuiltinOcrProviderId(id)) {
       const msg = `Cannot remove builtin provider ${id}`
       logger.error(msg)
-      window.message.error(t('ocr.error.provider.cannot_remove_builtin'))
+      window.toast.error(t('ocr.error.provider.cannot_remove_builtin'))
       throw new Error(msg)
     }
 
@@ -123,19 +123,19 @@ export const useOcrProvider = (id: string) => {
   // safely fallback
   if (!provider) {
     logger.error(`Ocr Provider ${id} not found`)
-    window.message.error(t('ocr.error.provider.not_found'))
+    window.toast.error(t('ocr.error.provider.not_found'))
     if (isBuiltinOcrProviderId(id)) {
       try {
         addProvider(BUILTIN_OCR_PROVIDERS_MAP[id])
       } catch (e) {
         logger.warn(`Add ${BUILTIN_OCR_PROVIDERS_MAP[id].name} failed. Just use temp provider from config.`)
-        window.message.warning(t('ocr.warning.provider.fallback', { name: BUILTIN_OCR_PROVIDERS_MAP[id].name }))
+        window.toast.warning(t('ocr.warning.provider.fallback', { name: BUILTIN_OCR_PROVIDERS_MAP[id].name }))
       } finally {
         provider = BUILTIN_OCR_PROVIDERS_MAP[id]
       }
     } else {
       logger.warn(`Fallback to tesseract`)
-      window.message.warning(t('ocr.warning.provider.fallback', { name: 'Tesseract' }))
+      window.toast.warning(t('ocr.warning.provider.fallback', { name: 'Tesseract' }))
       provider = BUILTIN_OCR_PROVIDERS_MAP.tesseract
     }
   }

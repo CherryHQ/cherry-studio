@@ -131,10 +131,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
       if (importMethod === 'dxt') {
         if (!dxtFile) {
-          window.message.error({
-            content: t('settings.mcp.addServer.importFrom.noDxtFile'),
-            key: 'mcp-no-dxt-file'
-          })
+          window.toast.error(t('settings.mcp.addServer.importFrom.noDxtFile'))
           setLoading(false)
           return
         }
@@ -144,10 +141,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           const result = await window.api.mcp.uploadDxt(dxtFile)
 
           if (!result.success) {
-            window.message.error({
-              content: result.error || t('settings.mcp.addServer.importFrom.dxtProcessFailed'),
-              key: 'mcp-dxt-process-failed'
-            })
+            window.toast.error(result.error || t('settings.mcp.addServer.importFrom.dxtProcessFailed'))
             setLoading(false)
             return
           }
@@ -156,10 +150,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
           // Check for duplicate names
           if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
-            window.message.error({
-              content: t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }),
-              key: 'mcp-name-exists'
-            })
+            window.toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
             setLoading(false)
             return
           }
@@ -227,10 +218,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           ) // Delay to ensure server is properly added to store
         } catch (error) {
           logger.error('DXT processing error:', error as Error)
-          window.message.error({
-            content: t('settings.mcp.addServer.importFrom.dxtProcessFailed'),
-            key: 'mcp-dxt-error'
-          })
+          window.toast.error(t('settings.mcp.addServer.importFrom.dxtProcessFailed'))
           setLoading(false)
           return
         }
@@ -286,10 +274,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           })
           .catch((connError: any) => {
             logger.error(`Connectivity check failed for ${newServer.name}:`, connError)
-            window.message.error({
-              content: newServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'),
-              key: 'mcp-quick-add-failed'
-            })
+            window.toast.error(newServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
           })
       }
     } finally {

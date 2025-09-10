@@ -70,7 +70,7 @@ export function deleteMessageFiles(message: Message) {
 export function isGenerating() {
   return new Promise((resolve, reject) => {
     const generating = store.getState().runtime.generating
-    generating && window.message.warning({ content: i18n.t('message.switch.disabled'), key: 'switch-assistant' })
+    generating && window.toast.warning(i18n.t('message.switch.disabled'))
     generating ? reject(false) : resolve(true)
   })
 }
@@ -203,29 +203,24 @@ export async function getMessageTitle(message: Message, length = 30): Promise<st
 
   if ((store.getState().settings as any).useTopicNamingForMessageTitle) {
     try {
-      window.message.loading({
-        content: t('chat.topics.export.wait_for_title_naming'),
-        key: 'message-title-naming',
-        duration: 0
-      })
-
       const tempMessage = resetMessage(message, {
         status: AssistantMessageStatus.SUCCESS,
         blocks: message.blocks
       })
 
-      const title = await fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+      const titlePromise = fetchMessagesSummary({ messages: [tempMessage], assistant: {} as Assistant })
+      window.toast.loading({ title: t('chat.topics.export.wait_for_title_naming'), promise: titlePromise })
+      const title = await titlePromise
 
       // store.dispatch(messageBlocksActions.upsertOneBlock(tempTextBlock))
 
       // store.dispatch(messageBlocksActions.removeOneBlock(tempTextBlock.id))
-      window.message.destroy('message-title-naming')
       if (title) {
-        window.message.success({ content: t('chat.topics.export.title_naming_success'), key: 'message-title-naming' })
+        window.toast.success(t('chat.topics.export.title_naming_success'))
         return title
       }
     } catch (e) {
-      window.message.error({ content: t('chat.topics.export.title_naming_failed'), key: 'message-title-naming' })
+      window.toast.error(t('chat.topics.export.title_naming_failed'))
       logger.error('Failed to generate title using topic naming, downgraded to default logic', e as Error)
     }
   }
@@ -262,11 +257,7 @@ export function checkRateLimit(assistant: Assistant): boolean {
   if (timeDiff < rateLimitMs) {
     const waitTimeSeconds = Math.ceil((rateLimitMs - timeDiff) / 1000)
 
-    window.message.warning({
-      content: t('message.warning.rate.limit', { seconds: waitTimeSeconds }),
-      duration: 5,
-      key: 'rate-limit-message'
-    })
+    window.toast.warning(t('message.warning.rate.limit', { seconds: waitTimeSeconds }))
     return true
   }
 

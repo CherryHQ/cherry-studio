@@ -53,7 +53,7 @@ const SiyuanSettings: FC = () => {
   const handleCheckConnection = async () => {
     try {
       if (!siyuanApiUrl || !siyuanToken) {
-        window.message.error(t('settings.data.siyuan.check.empty_config'))
+        window.toast.error(t('settings.data.siyuan.check.empty_config'))
         return
       }
 
@@ -66,20 +66,20 @@ const SiyuanSettings: FC = () => {
       })
 
       if (!response.ok) {
-        window.message.error(t('settings.data.siyuan.check.fail'))
+        window.toast.error(t('settings.data.siyuan.check.fail'))
         return
       }
 
       const data = await response.json()
       if (data.code !== 0) {
-        window.message.error(t('settings.data.siyuan.check.fail'))
+        window.toast.error(t('settings.data.siyuan.check.fail'))
         return
       }
 
-      window.message.success(t('settings.data.siyuan.check.success'))
+      window.toast.success(t('settings.data.siyuan.check.success'))
     } catch (error) {
       logger.error('Check Siyuan connection failed:', error as Error)
-      window.message.error(t('settings.data.siyuan.check.error'))
+      window.toast.error(t('settings.data.siyuan.check.error'))
     }
   }
 

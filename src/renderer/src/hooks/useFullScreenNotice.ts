@@ -9,10 +9,9 @@ export function useFullScreenNotice() {
   useEffect(() => {
     const cleanup = window.electron.ipcRenderer.on(IpcChannel.FullscreenStatusChanged, (_, isFullscreen) => {
       if (isWin && isFullscreen) {
-        window.message.info({
-          content: t('common.fullscreen'),
-          duration: 3,
-          key: 'fullscreen-notification'
+        window.toast.info({
+          title: t('common.fullscreen'),
+          timeout: 3000
         })
       }
     })

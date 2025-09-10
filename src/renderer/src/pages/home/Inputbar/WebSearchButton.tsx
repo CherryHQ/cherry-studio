@@ -101,7 +101,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     const provider = getProviderByModel(model)
     if (!model) {
       logger.error('Model does not exist.')
-      window.message.error(t('error.model.not_exists'))
+      window.toast.error(t('error.model.not_exists'))
       return
     }
     if (
@@ -113,7 +113,7 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       assistant.mcpServers.length > 0
     ) {
       update.enableWebSearch = false
-      window.message.warning(t('chat.mcp.warning.gemini_web_search'))
+      window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
     }
     setTimeoutTimer('updateSelectedWebSearchBuiltin', () => updateAssistant(update), 200)
   }, [assistant, setTimeoutTimer, t, updateAssistant])
