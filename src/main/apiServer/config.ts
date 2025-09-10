@@ -6,44 +6,42 @@ import { reduxService } from '../services/ReduxService'
 
 const logger = loggerService.withContext('ApiServerConfig')
 
+const defaultHost = 'localhost'
+const defaultPort = 23333
+
 class ConfigManager {
   private _config: ApiServerConfig | null = null
+
+  private generateApiKey(): string {
+    return `cs-sk-${uuidv4()}`
+  }
 
   async load(): Promise<ApiServerConfig> {
     try {
       const settings = await reduxService.select('state.settings')
-
-      // Auto-generate API key if not set
-      if (!settings?.apiServer?.apiKey) {
-        const generatedKey = `cs-sk-${uuidv4()}`
+      const serverSettings = settings?.apiServer
+      let apiKey = serverSettings?.apiKey
+      if (!apiKey || apiKey.trim() === '') {
+        apiKey = this.generateApiKey()
         await reduxService.dispatch({
           type: 'settings/setApiServerApiKey',
-          payload: generatedKey
+          payload: apiKey
         })
-
-        this._config = {
-          enabled: settings?.apiServer?.enabled ?? false,
-          port: settings?.apiServer?.port ?? 23333,
-          host: 'localhost',
-          apiKey: generatedKey
-        }
-      } else {
-        this._config = {
-          enabled: settings?.apiServer?.enabled ?? false,
-          port: settings?.apiServer?.port ?? 23333,
-          host: 'localhost',
-          apiKey: settings.apiServer.apiKey
-        }
       }
-
+      this._config = {
+        enabled: serverSettings?.enabled ?? false,
+        port: serverSettings?.port ?? defaultPort,
+        host: defaultHost,
+        apiKey: apiKey
+      }
       return this._config
     } catch (error: any) {
       logger.warn('Failed to load config from Redux, using defaults:', error)
       this._config = {
         enabled: false,
-        port: 23333,
-        host: 'localhost',
-        apiKey: `cs-sk-${uuidv4()}`
+        port: defaultPort,
+        host: defaultHost,
+        apiKey: this.generateApiKey()
       }
       return this._config
     }

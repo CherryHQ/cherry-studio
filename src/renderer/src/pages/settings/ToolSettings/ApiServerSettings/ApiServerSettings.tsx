@@ -1,3 +1,4 @@
+// TODO: Refactor this component to use HeroUI
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import { RootState, useAppDispatch } from '@renderer/store'

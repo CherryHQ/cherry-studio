@@ -28,15 +28,6 @@ export async function getAvailableProviders(): Promise<Provider[]> {
 
     logger.info(`Filtered to ${openAIProviders.length} OpenAI providers from ${providers.length} total providers`)
 
-    // Log filtered out providers for debugging
-    const filteredOut = providers.filter((p: Provider) => p.enabled && p.type !== 'openai')
-    if (filteredOut.length > 0) {
-      logger.debug(
-        'Filtered out non-OpenAI providers:',
-        filteredOut.map((p) => `${p.id} (${p.type})`)
-      )
-    }
-
     return openAIProviders
   } catch (error: any) {
     logger.error('Failed to get providers from Redux store:', error)
@@ -47,7 +38,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
 export async function listAllAvailableModels(): Promise<Model[]> {
   try {
     const providers = await getAvailableProviders()
-    return providers.map((p: Provider) => p.models || []).flat() as Model[]
+    return providers.map((p: Provider) => p.models || []).flat()
   } catch (error: any) {
     logger.error('Failed to list available models:', error)
     return []
