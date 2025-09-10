@@ -1,6 +1,6 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
@@ -72,7 +72,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={markdownExportPath || ''}
@@ -88,7 +88,7 @@ const MarkdownExportSettings: FC = () => {
           <Button onClick={handleSelectFolder} icon={<FolderOpenOutlined />}>
             {t('settings.data.markdown_export.select')}
           </Button>
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>

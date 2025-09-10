@@ -1,6 +1,6 @@
 import { MessageOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
@@ -73,11 +73,11 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
           ))}
           {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           {!isEmpty && (
-            <HStack justifyContent="center">
+            <RowFlex justifyContent="center">
               <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>
                 {t('history.continue_chat')}
               </Button>
-            </HStack>
+            </RowFlex>
           )}
         </ContainerWrapper>
       </MessagesContainer>

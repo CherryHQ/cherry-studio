@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import EmojiPicker from '../EmojiPicker'
-import { Center, HStack, VStack } from '../Layout'
+import { Center, RowFlex, ColFlex } from '../Layout'
 import { TopView } from '../TopView'
 
 interface Props {
@@ -131,7 +131,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="animation-move-down"
       centered>
       <Center mt="30px">
-        <VStack alignItems="center" gap="10px">
+        <ColFlex alignItems="center" gap="10px">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -164,9 +164,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               )}
             </Popover>
           </Dropdown>
-        </VStack>
+        </ColFlex>
       </Center>
-      <HStack alignItems="center" gap="10px" p="20px">
+      <RowFlex alignItems="center" gap="10px" p="20px">
         <Input
           placeholder={t('settings.general.user_name.placeholder')}
           value={userName}
@@ -174,7 +174,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           style={{ flex: 1, textAlign: 'center', width: '100%' }}
           maxLength={30}
         />
-      </HStack>
+      </RowFlex>
     </Modal>
   )
 }

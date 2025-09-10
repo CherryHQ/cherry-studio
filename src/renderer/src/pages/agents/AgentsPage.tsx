@@ -1,6 +1,6 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -211,11 +211,11 @@ const AgentsPage: FC = () => {
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
-                    <HStack alignItems="center" justifyContent="center" style={{ minWidth: 40 }}>
+                    <RowFlex alignItems="center" justifyContent="center" style={{ minWidth: 40 }}>
                       <CustomTag color="#A0A0A0" size={8}>
                         {agentGroups[group].length}
                       </CustomTag>
-                    </HStack>
+                    </RowFlex>
                   }
                 </Flex>
               }

@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -104,9 +104,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </AnimatePresence>
         </NavbarLeft>
       )}
-      <HStack alignItems="center" gap={6}>
+      <RowFlex alignItems="center" gap={6}>
         <SelectModelButton assistant={assistant} />
-      </HStack>
+      </RowFlex>
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
@@ -115,7 +115,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           paddingRight: isWin || isLinux ? '144px' : '6px'
         }}
         className="home-navbar-right">
-        <HStack alignItems="center" gap={6}>
+        <RowFlex alignItems="center" gap={6}>
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
@@ -141,7 +141,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               </NavbarIcon>
             </Tooltip>
           )}
-        </HStack>
+        </RowFlex>
       </NavbarRight>
     </Navbar>
   )

@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
@@ -66,7 +66,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <NavbarHeader className="home-navbar">
-      <HStack alignItems="center">
+      <RowFlex alignItems="center">
         {showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={toggleShowAssistants}>
@@ -95,8 +95,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           )}
         </AnimatePresence>
         <SelectModelButton assistant={assistant} />
-      </HStack>
-      <HStack alignItems="center" gap={8}>
+      </RowFlex>
+      <RowFlex alignItems="center" gap={8}>
         <UpdateAppButton />
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
           <NarrowIcon onClick={handleNarrowModeToggle}>
@@ -122,7 +122,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </NavbarIcon>
           </Tooltip>
         )}
-      </HStack>
+      </RowFlex>
     </NavbarHeader>
   )
 }

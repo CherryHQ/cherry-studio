@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { HStack, VStack } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import MaxContextCount from '@renderer/components/MaxContextCount'
 import { Divider, Popover } from 'antd'
 import { ArrowUp, MenuIcon } from 'lucide-react'
@@ -24,44 +24,44 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
 
   const PopoverContent = () => {
     return (
-      <VStack w="185px" background="100%">
-        <HStack justifyContent="space-between" w="100%">
+      <ColFlex w="185px" background="100%">
+        <RowFlex justifyContent="space-between" w="100%">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            <HStack style={{ alignItems: 'center' }}>
+            <RowFlex style={{ alignItems: 'center' }}>
               {contextCount.current}
               <SlashSeparatorSpan>/</SlashSeparatorSpan>
               <MaxContextCount maxContext={contextCount.max} />
-            </HStack>
+            </RowFlex>
           </Text>
-        </HStack>
+        </RowFlex>
         <Divider style={{ margin: '5px 0' }} />
-        <HStack justifyContent="space-between" w="100%">
+        <RowFlex justifyContent="space-between" w="100%">
           <Text>{t('chat.input.estimated_tokens.tip')}</Text>
           <Text>{estimateTokenCount}</Text>
-        </HStack>
-      </VStack>
+        </RowFlex>
+      </ColFlex>
     )
   }
 
   return (
     <Container>
       <Popover content={PopoverContent} arrow={false}>
-        <HStack>
-          <HStack style={{ alignItems: 'center' }}>
+        <RowFlex>
+          <RowFlex style={{ alignItems: 'center' }}>
             <MenuIcon size={12} className="icon" />
             {contextCount.current}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             <MaxContextCount maxContext={contextCount.max} />
-          </HStack>
+          </RowFlex>
           <Divider type="vertical" style={{ marginTop: 3, marginLeft: 5, marginRight: 3 }} />
-          <HStack style={{ alignItems: 'center' }}>
+          <RowFlex style={{ alignItems: 'center' }}>
             <ArrowUp size={12} className="icon" />
             {inputTokenCount}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             {estimateTokenCount}
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
       </Popover>
     </Container>
   )

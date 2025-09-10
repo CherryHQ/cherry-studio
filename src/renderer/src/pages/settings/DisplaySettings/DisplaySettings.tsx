@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { ResetIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -192,8 +192,8 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <HStack gap="12px" alignItems="center">
-            <HStack gap="12px">
+          <RowFlex gap="12px" alignItems="center">
+            <RowFlex gap="12px">
               {THEME_COLOR_PRESETS.map((color) => (
                 <ColorCircleWrapper key={color}>
                   <ColorCircle
@@ -203,7 +203,7 @@ const DisplaySettings: FC = () => {
                   />
                 </ColorCircleWrapper>
               ))}
-            </HStack>
+            </RowFlex>
             <ColorPicker
               style={{ fontFamily: 'inherit' }}
               className="color-picker"
@@ -218,7 +218,7 @@ const DisplaySettings: FC = () => {
                 }
               ]}
             />
-          </HStack>
+          </RowFlex>
         </SettingRow>
         {isMac && (
           <>

@@ -1,5 +1,5 @@
 import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -144,7 +144,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       }}>
       <HistoryContainer>
         {/* Search Bar */}
-        <HStack style={{ padding: '0 12px', borderBottom: '1px solid var(--ant-color-split)' }}>
+        <RowFlex style={{ padding: '0 12px', borderBottom: '1px solid var(--ant-color-split)' }}>
           <Input
             prefix={
               <IconWrapper>
@@ -163,7 +163,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             variant="borderless"
             size="middle"
           />
-        </HStack>
+        </RowFlex>
 
         {/* Virtual List */}
         {deferredHistory.length > 0 ? (

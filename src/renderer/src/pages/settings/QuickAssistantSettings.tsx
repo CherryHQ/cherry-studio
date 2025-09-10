@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -95,17 +95,17 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <HStack alignItems="center" justifyContent="space-between">
-            <HStack alignItems="center" gap={10}>
+          <RowFlex alignItems="center" justifyContent="space-between">
+            <RowFlex alignItems="center" gap={10}>
               {t('settings.models.quick_assistant_model')}
               <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
                 <InfoCircleOutlined style={{ cursor: 'pointer' }} />
               </Tooltip>
               <Spacer />
-            </HStack>
-            <HStack alignItems="center" gap={10}>
+            </RowFlex>
+            <RowFlex alignItems="center" gap={10}>
               {!quickAssistantId ? null : (
-                <HStack alignItems="center">
+                <RowFlex alignItems="center">
                   <Select
                     value={quickAssistantId || defaultAssistant.id}
                     style={{ width: 300, height: 34 }}
@@ -131,9 +131,9 @@ const QuickAssistantSettings: FC = () => {
                         </Select.Option>
                       ))}
                   </Select>
-                </HStack>
+                </RowFlex>
               )}
-              <HStack alignItems="center" gap={0}>
+              <RowFlex alignItems="center" gap={0}>
                 <StyledButton
                   type={quickAssistantId ? 'primary' : 'default'}
                   onClick={() => {
@@ -148,9 +148,9 @@ const QuickAssistantSettings: FC = () => {
                   selected={!quickAssistantId}>
                   {t('settings.models.use_model')}
                 </StyledButton>
-              </HStack>
-            </HStack>
-          </HStack>
+              </RowFlex>
+            </RowFlex>
+          </RowFlex>
         </SettingGroup>
       )}
       {enableQuickAssistant && (

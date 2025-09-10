@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
@@ -78,7 +78,7 @@ const HistoryPage: FC = () => {
 
   return (
     <Container>
-      <HStack style={{ padding: '0 12px', marginTop: 8 }}>
+      <RowFlex style={{ padding: '0 12px', marginTop: 8 }}>
         <Input
           prefix={
             stack.length > 1 ? (
@@ -104,7 +104,7 @@ const HistoryPage: FC = () => {
           size="middle"
           onPressEnter={onSearch}
         />
-      </HStack>
+      </RowFlex>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       <TopicsHistory

@@ -1,6 +1,6 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { Input, Tooltip } from 'antd'
@@ -25,7 +25,7 @@ const TranslatePromptSettings = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle style={{ marginBottom: 12 }}>
-        <HStack alignItems="center" gap={10} height={30}>
+        <RowFlex alignItems="center" gap={10} height={30}>
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
             <Tooltip title={t('common.reset')}>
@@ -34,7 +34,7 @@ const TranslatePromptSettings = () => {
               </ResetButton>
             </Tooltip>
           )}
-        </HStack>
+        </RowFlex>
       </SettingTitle>
       <Input.TextArea
         value={localPrompt}

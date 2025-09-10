@@ -1,6 +1,6 @@
 import { Switch } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
@@ -78,7 +78,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <HStack alignItems="center" justifyContent="space-between">
+          <RowFlex alignItems="center" justifyContent="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
             <Switch
               isSelected={autoCopy}
@@ -87,7 +87,7 @@ const TranslateSettings: FC<{
                 updateSettings({ autoCopy: isSelected })
               }}
             />
-          </HStack>
+          </RowFlex>
         </div>
 
         <div>
@@ -104,7 +104,7 @@ const TranslateSettings: FC<{
           </Flex>
         </div>
 
-        <HStack style={{ justifyContent: 'space-between' }}>
+        <RowFlex style={{ justifyContent: 'space-between' }}>
           <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
             {t('translate.detect.method.label')}
             <Tooltip title={t('translate.detect.method.tip')}>
@@ -113,7 +113,7 @@ const TranslateSettings: FC<{
               </span>
             </Tooltip>
           </div>
-          <HStack alignItems="center" gap={5}>
+          <RowFlex alignItems="center" gap={5}>
             <Radio.Group
               defaultValue={'auto'}
               value={autoDetectionMethod}
@@ -132,20 +132,20 @@ const TranslateSettings: FC<{
                 <Radio.Button value="llm">LLM</Radio.Button>
               </Tooltip>
             </Radio.Group>
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
 
         <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>
-              <HStack alignItems="center" gap={5}>
+              <RowFlex alignItems="center" gap={5}>
                 {t('translate.settings.bidirectional')}
                 <Tooltip title={t('translate.settings.bidirectional_tip')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>
                     <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
                   </span>
                 </Tooltip>
-              </HStack>
+              </RowFlex>
             </div>
             <Switch
               isSelected={isBidirectional}

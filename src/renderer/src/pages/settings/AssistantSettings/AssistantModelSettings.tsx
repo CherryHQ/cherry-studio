@@ -2,7 +2,7 @@ import { QuestionCircleOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import Selector from '@renderer/components/Selector'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, MAX_CONTEXT_COUNT } from '@renderer/config/constant'
@@ -215,9 +215,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   return (
     <Container>
-      <HStack alignItems="center" justifyContent="space-between" style={{ marginBottom: 10 }}>
+      <RowFlex alignItems="center" justifyContent="space-between" style={{ marginBottom: 10 }}>
         <Label>{t('assistants.settings.default_model')}</Label>
-        <HStack alignItems="center" gap={5}>
+        <RowFlex alignItems="center" gap={5}>
           <ModelSelectButton
             icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
             onClick={onSelectModel}>
@@ -235,19 +235,19 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
               danger
             />
           )}
-        </HStack>
-      </HStack>
+        </RowFlex>
+      </RowFlex>
       <Divider style={{ margin: '10px 0' }} />
 
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <RowFlex alignItems="center">
           <Label>
             {t('chat.settings.temperature.label')}
             <Tooltip title={t('chat.settings.temperature.tip')}>
               <QuestionIcon />
             </Tooltip>
           </Label>
-        </HStack>
+        </RowFlex>
         <Switch
           checked={enableTemperature}
           onChange={(enabled) => {
@@ -290,12 +290,12 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
 
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <RowFlex alignItems="center">
           <Label>{t('chat.settings.top_p.label')}</Label>
           <Tooltip title={t('chat.settings.top_p.tip')}>
             <QuestionIcon />
           </Tooltip>
-        </HStack>
+        </RowFlex>
         <Switch
           checked={enableTopP}
           onChange={(enabled) => {
@@ -379,12 +379,12 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <HStack alignItems="center">
+        <RowFlex alignItems="center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
           </Tooltip>
-        </HStack>
+        </RowFlex>
         <Switch
           checked={enableMaxTokens}
           onChange={async (enabled) => {
@@ -491,11 +491,11 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Row>
       ))}
       <Divider style={{ margin: '15px 0' }} />
-      <HStack justifyContent="flex-end">
+      <RowFlex justifyContent="flex-end">
         <Button onClick={onReset} danger type="primary" icon={<ResetIcon size={16} />}>
           {t('chat.settings.reset')}
         </Button>
-      </HStack>
+      </RowFlex>
     </Container>
   )
 }

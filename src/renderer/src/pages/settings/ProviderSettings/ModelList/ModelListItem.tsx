@@ -1,6 +1,6 @@
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
@@ -35,7 +35,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   return (
     <ListItem ref={ref}>
-      <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
+      <RowFlex alignItems="center" gap={10} style={{ flex: 1 }}>
         <Avatar src={getModelLogo(model.id)} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
@@ -48,18 +48,18 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
           }}
         />
         <FreeTrialModelTag model={model} />
-      </HStack>
-      <HStack alignItems="center" gap={6}>
+      </RowFlex>
+      <RowFlex alignItems="center" gap={6}>
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
-        <HStack alignItems="center" gap={0}>
+        <RowFlex alignItems="center" gap={0}>
           <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
             <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Bolt size={14} />} />
           </Tooltip>
           <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
             <Button type="text" onClick={() => onRemove(model)} disabled={disabled} icon={<Minus size={14} />} />
           </Tooltip>
-        </HStack>
-      </HStack>
+        </RowFlex>
+      </RowFlex>
     </ListItem>
   )
 }

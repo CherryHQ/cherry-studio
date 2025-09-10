@@ -1,5 +1,5 @@
 import { ActionTool } from '@renderer/components/ActionTools'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { Tooltip } from 'antd'
 import { EllipsisVertical } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
@@ -61,7 +61,7 @@ const StickyWrapper = styled.div`
   z-index: 10;
 `
 
-const ToolbarWrapper = styled(HStack)`
+const ToolbarWrapper = styled(RowFlex)`
   position: absolute;
   align-items: center;
   bottom: 0.3rem;

@@ -1,6 +1,6 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -99,8 +99,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   return (
     <>
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
-          <HStack alignItems="center" gap={8}>
+        <RowFlex alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
+          <RowFlex alignItems="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {modelCount > 0 && (
               <CustomTag color="#8c8c8c" size={10}>
@@ -112,9 +112,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               placeholder={t('models.search.placeholder')}
               tooltip={t('models.search.tooltip')}
             />
-          </HStack>
+          </RowFlex>
           {editable && (
-            <HStack>
+            <RowFlex>
               <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
                 <Button
                   type="text"
@@ -122,9 +122,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                   icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
                 />
               </Tooltip>
-            </HStack>
+            </RowFlex>
           )}
-        </HStack>
+        </RowFlex>
       </SettingSubtitle>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (

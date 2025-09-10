@@ -6,7 +6,7 @@ import {
   NumberOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import type { Topic } from '@renderer/types'
@@ -101,7 +101,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
+      <RowFlex style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
@@ -132,7 +132,7 @@ const MessageGroupMenuBar: FC<Props> = ({
           />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
-      </HStack>
+      </RowFlex>
       {hasFailedMessages && (
         <Tooltip title={t('message.group.retry_failed')} mouseEnterDelay={0.6}>
           <Button

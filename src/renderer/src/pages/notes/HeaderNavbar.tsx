@@ -1,7 +1,7 @@
 import { BreadcrumbItem, Breadcrumbs } from '@heroui/react'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
@@ -161,7 +161,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
     <NavbarHeader
       className="home-navbar"
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
-      <HStack alignItems="center" flex="0 0 auto">
+      <RowFlex alignItems="center" flex="0 0 auto">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
@@ -176,7 +176,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
             </NavbarIcon>
           </Tooltip>
         )}
-      </HStack>
+      </RowFlex>
       <NavbarCenter style={{ flex: 1, minWidth: 0 }}>
         <BreadcrumbsContainer>
           <Breadcrumbs>

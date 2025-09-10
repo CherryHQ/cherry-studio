@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { Menu, Modal, ModalProps } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'
@@ -41,7 +41,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
         }
       }}
       {...rest}>
-      <HStack height="100%">
+      <RowFlex height="100%">
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={[selectedMenu]}
@@ -51,7 +51,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
           />
         </LeftMenu>
         <SettingsContentPanel>{activePanel}</SettingsContentPanel>
-      </HStack>
+      </RowFlex>
     </StyledModal>
   )
 }

@@ -1,5 +1,5 @@
 import { NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { Button } from 'antd'
@@ -15,7 +15,7 @@ export const McpSettingsNavbar = () => {
 
   return (
     <NavbarRight style={{ paddingRight: useFullscreen() ? '12px' : isWin ? 150 : isLinux ? 120 : 12 }}>
-      <HStack alignItems="center" gap={5}>
+      <RowFlex alignItems="center" gap={5}>
         <Button
           size="small"
           type="text"
@@ -26,7 +26,7 @@ export const McpSettingsNavbar = () => {
           {t('settings.mcp.searchNpx')}
         </Button>
         <InstallNpxUv mini />
-      </HStack>
+      </RowFlex>
     </NavbarRight>
   )
 }

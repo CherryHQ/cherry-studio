@@ -1,7 +1,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
@@ -150,7 +150,7 @@ const Chat: FC<Props> = (props) => {
           position="left"
         />
       )}
-      <HStack>
+      <RowFlex>
         <Main
           ref={mainRef}
           id="chat-main"
@@ -197,7 +197,7 @@ const Chat: FC<Props> = (props) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </HStack>
+      </RowFlex>
     </Container>
   )
 }

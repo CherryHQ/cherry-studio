@@ -1,6 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Button, Space, Tooltip } from 'antd'
@@ -76,7 +76,7 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Input
             type="text"
             value={yuqueUrl || ''}
@@ -84,7 +84,7 @@ const YuqueSettings: FC = () => {
             style={{ width: 315 }}
             placeholder={t('settings.data.yuque.repo_url_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
@@ -97,7 +97,7 @@ const YuqueSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex alignItems="center" gap="5px" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={yuqueToken || ''}
@@ -108,7 +108,7 @@ const YuqueSettings: FC = () => {
             />
             <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
           </Space.Compact>
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )
