@@ -2916,6 +2916,127 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@cropper/element-canvas@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-canvas@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/3d403cd6763b80ea8c073e441ec8fffbf998c4a4ef077e2f6f1502ac68a06380f7b450086e4f094b7677480a954da99ccfa2c098700ded2a22a741f482795abe
+  languageName: node
+  linkType: hard
+
+"@cropper/element-crosshair@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-crosshair@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/e720c3689af2a7a259f1b26f3f5daa93d42b4799542bd5779adc2d86331f3586ab8bb13ca8a4a0210ca92dee3d4fc4f15ed4b447c6060417b0486b758e15be8f
+  languageName: node
+  linkType: hard
+
+"@cropper/element-grid@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-grid@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/8a4c44af9d93e9ef0f5bc02f1c5ec45a814cfcf24f7b09a3b3f7c5ac430e056f5fff86008b85fdc8a446a333ba57b1155d6141c1ad155582fdfeef6ea06e46bb
+  languageName: node
+  linkType: hard
+
+"@cropper/element-handle@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-handle@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/715f6bb723d896eb7ade415d0f88ac2d2d543c39c9737e1621d34f42d70b3862501bd66c1031f52b74fba327bd0eabfb21d5c9d7ce487a1c43d2bdb304d8f8f0
+  languageName: node
+  linkType: hard
+
+"@cropper/element-image@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-image@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/element-canvas": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/1def7b3bc6059fae669abeaba393067d2338215429ea7942599a2f66e9e84e97f6e8daf3a9aa6fbc71c4863b768f8ea78abd80cd0c7d7ebf8e21f186656313b9
+  languageName: node
+  linkType: hard
+
+"@cropper/element-selection@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-selection@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/element-canvas": "npm:^2.0.1"
+    "@cropper/element-image": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/31be75688d6deecc5c48132b228f456df7185dfb6f5c5c5210d70cc8e8329f2156d6be4a01bc02fcc79296cd4e2818345c82b946e0f9ff5d8dae0b5b2e976081
+  languageName: node
+  linkType: hard
+
+"@cropper/element-shade@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-shade@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/element-canvas": "npm:^2.0.1"
+    "@cropper/element-selection": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/733b65d2fbe242501f2915f12411c44452aeb97b23b3c99b35502e0dfce8641f9bb38659b8c166af4bb3e333a3f368e5f7c3b2a94e2bc1554e2c00097cbba724
+  languageName: node
+  linkType: hard
+
+"@cropper/element-viewer@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element-viewer@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/element-canvas": "npm:^2.0.1"
+    "@cropper/element-image": "npm:^2.0.1"
+    "@cropper/element-selection": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/66f07718e831b2f45fc73b14a327522c359ec20efd87e6440df22bd8e6ca87b58eb2be055b6757084a75ce486103bc322af6340fb6f83e385878c2f8afae5809
+  languageName: node
+  linkType: hard
+
+"@cropper/element@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/element@npm:2.0.1"
+  dependencies:
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/23b1406255a91d4e0d1cffbb6de36db9f56e65063e49fc411e9cb3f86dfe37fe2e5e6390c7c1389099bc034cf5fb12cfbe19176db2a6de1ef26cdcefe3ea793b
+  languageName: node
+  linkType: hard
+
+"@cropper/elements@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/elements@npm:2.0.1"
+  dependencies:
+    "@cropper/element": "npm:^2.0.1"
+    "@cropper/element-canvas": "npm:^2.0.1"
+    "@cropper/element-crosshair": "npm:^2.0.1"
+    "@cropper/element-grid": "npm:^2.0.1"
+    "@cropper/element-handle": "npm:^2.0.1"
+    "@cropper/element-image": "npm:^2.0.1"
+    "@cropper/element-selection": "npm:^2.0.1"
+    "@cropper/element-shade": "npm:^2.0.1"
+    "@cropper/element-viewer": "npm:^2.0.1"
+  checksum: 10c0/8b56c59b754bd5b78316bd04636653770d9795b530b424d76fbb25781a22d815ddd449a6756699f9bd3ec49635533b86f95613a4132df5190e3a54227e330ba3
+  languageName: node
+  linkType: hard
+
+"@cropper/utils@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "@cropper/utils@npm:2.0.1"
+  checksum: 10c0/672ae16d4e9ec615ff98e9821b224435662d90d035c7af4ac052249604517f00b82fc139efe1e3fbd1a7640e3f01c5b58ec477faaff8e1ae466456cf80b15d47
+  languageName: node
+  linkType: hard
+
 "@csstools/color-helpers@npm:^5.0.2":
   version: 5.0.2
   resolution: "@csstools/color-helpers@npm:5.0.2"
@@ -12946,6 +13067,7 @@ __metadata:
     color: "npm:^5.0.0"
     concurrently: "npm:^9.2.1"
     country-flag-emoji-polyfill: "npm:0.1.8"
+    cropperjs: "npm:^2.0.1"
     dayjs: "npm:^1.11.11"
     dexie: "npm:^4.0.8"
     dexie-react-hooks: "npm:^1.1.7"
@@ -12953,8 +13075,9 @@ __metadata:
     docx: "npm:^9.0.2"
     dompurify: "npm:^3.2.6"
     dotenv-cli: "npm:^7.4.2"
-    electron: "npm:37.4.0"
+    electron: "npm:^38.0.0"
     electron-builder: "npm:26.0.15"
+    electron-debug: "npm:^4.1.0"
     electron-devtools-installer: "npm:^3.2.0"
     electron-store: "npm:^8.2.0"
     electron-updater: "npm:6.6.4"
@@ -12999,6 +13122,7 @@ __metadata:
     mime: "npm:^4.0.4"
     mime-types: "npm:^3.0.1"
     motion: "npm:^12.10.5"
+    node-gyp: "npm:^11.4.2"
     node-stream-zip: "npm:^1.15.0"
     notion-helper: "npm:^1.3.22"
     npx-scope-finder: "npm:^1.2.0"
@@ -13014,6 +13138,7 @@ __metadata:
     prettier-plugin-tailwindcss: "npm:^0.6.14"
     proxy-agent: "npm:^6.5.0"
     react: "npm:^19.0.0"
+    react-cropper: "npm:^2.3.3"
     react-dom: "npm:^19.0.0"
     react-error-boundary: "npm:^6.0.0"
     react-hotkeys-hook: "npm:^4.6.1"
@@ -15114,6 +15239,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cropperjs@npm:^1.5.13":
+  version: 1.6.2
+  resolution: "cropperjs@npm:1.6.2"
+  checksum: 10c0/5002e0cc3a491ceb8a104b2cb7a7c335a03e109fe590653f3aeefa27ca7115466edae62afc8ba21105bbaad4134583f5057ebbf5e8d843c7b2c1c1f0779630e9
+  languageName: node
+  linkType: hard
+
+"cropperjs@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "cropperjs@npm:2.0.1"
+  dependencies:
+    "@cropper/elements": "npm:^2.0.1"
+    "@cropper/utils": "npm:^2.0.1"
+  checksum: 10c0/12e126b725029b5506cab665a57fda451aed2278e98515f19657b735d8f1b4720a3eda82f74986dc8f112d139ec87e877d5bcbd7102e82d37eda3ae827725ade
+  languageName: node
+  linkType: hard
+
 "cross-fetch@npm:^3.1.5":
   version: 3.2.0
   resolution: "cross-fetch@npm:3.2.0"
@@ -15686,7 +15828,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"debug@npm:4, debug@npm:^4.0.0, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.3.4, debug@npm:^4.3.5, debug@npm:^4.3.6, debug@npm:^4.4.0, debug@npm:^4.4.1":
+"debug@npm:4, debug@npm:^4.0.0, debug@npm:^4.0.1, debug@npm:^4.1.0, debug@npm:^4.1.1, debug@npm:^4.3.1, debug@npm:^4.3.2, debug@npm:^4.3.3, debug@npm:^4.3.4, debug@npm:^4.3.5, debug@npm:^4.3.6, debug@npm:^4.4.0, debug@npm:^4.4.1":
   version: 4.4.1
   resolution: "debug@npm:4.4.1"
   dependencies:
@@ -16310,6 +16452,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"electron-debug@npm:^4.1.0":
+  version: 4.1.0
+  resolution: "electron-debug@npm:4.1.0"
+  dependencies:
+    electron-is-dev: "npm:^3.0.1"
+    electron-localshortcut: "npm:^3.2.1"
+  checksum: 10c0/b781a2138dbcc2a0ee87e2dd31810c61b855203e987661786004dbc13f0ecb25c34913b9464cb73ec887e5499e262a25c28d2480ade701d349375a50b4891314
+  languageName: node
+  linkType: hard
+
 "electron-devtools-installer@npm:^3.2.0":
   version: 3.2.1
   resolution: "electron-devtools-installer@npm:3.2.1"
@@ -16319,6 +16471,32 @@ __metadata:
     tslib: "npm:^2.1.0"
     unzip-crx-3: "npm:^0.2.0"
   checksum: 10c0/cbdaeef985497f881b3f50a8d443c4064af023347534ba0564da6e8a0d26b96a6f0e60213a3443f70dbccd4f0f226f691d77e46f83f6c53850b0c45c2404b14d
+  languageName: node
+  linkType: hard
+
+"electron-is-accelerator@npm:^0.1.0":
+  version: 0.1.2
+  resolution: "electron-is-accelerator@npm:0.1.2"
+  checksum: 10c0/120da55c3b581cbca5eccdd80c9099574a7aa0a8ea8b9fd4e5dcd906dcf83308c94587ad771b066cdd073e45e68dbe4c06256602998f16ccafbcfe1cab968718
+  languageName: node
+  linkType: hard
+
+"electron-is-dev@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "electron-is-dev@npm:3.0.1"
+  checksum: 10c0/80d37d61d44b8b7af0af90eab622b09e0f165afbc2560297c760356efa93fcb54dbbd13d4d6522da6474e261d630b76b804c86385564a1f3062d28fc59c340bd
+  languageName: node
+  linkType: hard
+
+"electron-localshortcut@npm:^3.2.1":
+  version: 3.2.1
+  resolution: "electron-localshortcut@npm:3.2.1"
+  dependencies:
+    debug: "npm:^4.0.1"
+    electron-is-accelerator: "npm:^0.1.0"
+    keyboardevent-from-electron-accelerator: "npm:^2.0.0"
+    keyboardevents-areequal: "npm:^0.2.1"
+  checksum: 10c0/6490a1dd0155926d5664500d45a5acb4771ba96e3ad4a878367e24ab96096c8824197cf3e2890a4f51b0307665afe680fe5f22dae2e4ba781cf32ddab9dcc335
   languageName: node
   linkType: hard
 
@@ -16403,16 +16581,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"electron@npm:37.4.0":
-  version: 37.4.0
-  resolution: "electron@npm:37.4.0"
+"electron@npm:^38.0.0":
+  version: 38.0.0
+  resolution: "electron@npm:38.0.0"
   dependencies:
     "@electron/get": "npm:^2.0.0"
     "@types/node": "npm:^22.7.7"
     extract-zip: "npm:^2.0.1"
   bin:
     electron: cli.js
-  checksum: 10c0/92a0c41190e234d302bc612af6cce9af08cd07f6699c1ff21a9365297e73dc9d88c6c4c25ddabf352447e3e555878d2ab0f2f31a14e210dda6de74d2787ff323
+  checksum: 10c0/df3e4eaead2b0de4612a1b593f46667dfd4aff4755727371b5630aada40094cddf82b3837ce0ba3babed8c503275da59187f11da9f4ab26cd20e1362dc103ea6
   languageName: node
   linkType: hard
 
@@ -19759,6 +19937,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"keyboardevent-from-electron-accelerator@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "keyboardevent-from-electron-accelerator@npm:2.0.0"
+  checksum: 10c0/94bd9da6eb80145b36f336adb3f0a55cc8fdf0138f0df3028feb30d790d0727f8de27f040278805a499cc61dba816c8fab012e7f76c2495033d2fd7c2762f309
+  languageName: node
+  linkType: hard
+
+"keyboardevents-areequal@npm:^0.2.1":
+  version: 0.2.2
+  resolution: "keyboardevents-areequal@npm:0.2.2"
+  checksum: 10c0/1612c2aa52001163b2517ef6c0ea9abf20117e206e6796ba15eb99c0ae331a8826ab60a18e7ddb8ed0e15272af64d3b14383d2ae832beaa2f68548c1c53e4fa6
+  languageName: node
+  linkType: hard
+
 "keyv@npm:^4.0.0, keyv@npm:^4.5.3, keyv@npm:^4.5.4":
   version: 4.5.4
   resolution: "keyv@npm:4.5.4"
@@ -22312,6 +22504,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-gyp@npm:^11.4.2":
+  version: 11.4.2
+  resolution: "node-gyp@npm:11.4.2"
+  dependencies:
+    env-paths: "npm:^2.2.0"
+    exponential-backoff: "npm:^3.1.1"
+    graceful-fs: "npm:^4.2.6"
+    make-fetch-happen: "npm:^14.0.3"
+    nopt: "npm:^8.0.0"
+    proc-log: "npm:^5.0.0"
+    semver: "npm:^7.3.5"
+    tar: "npm:^7.4.3"
+    tinyglobby: "npm:^0.2.12"
+    which: "npm:^5.0.0"
+  bin:
+    node-gyp: bin/node-gyp.js
+  checksum: 10c0/0bfd3e96770ed70f07798d881dd37b4267708966d868a0e585986baac487d9cf5831285579fd629a83dc4e434f53e6416ce301097f2ee464cb74d377e4d8bdbe
+  languageName: node
+  linkType: hard
+
 "node-gyp@npm:latest":
   version: 11.2.0
   resolution: "node-gyp@npm:11.2.0"
@@ -24557,6 +24769,17 @@ __metadata:
     lodash.flow: "npm:^3.3.0"
     pure-color: "npm:^1.2.0"
   checksum: 10c0/4887ac57b36fedc7e1ebc99ae431c5feb07d60a9150770d0ca3a59f4ae7059434ea8813ca4f915e7434d4d8d8529b9ba072ceb85041fd52ca1cd6289c57c9621
+  languageName: node
+  linkType: hard
+
+"react-cropper@npm:^2.3.3":
+  version: 2.3.3
+  resolution: "react-cropper@npm:2.3.3"
+  dependencies:
+    cropperjs: "npm:^1.5.13"
+  peerDependencies:
+    react: ">=17.0.2"
+  checksum: 10c0/86c09cf35705e853e7fec510b4e65b5030d3f90b537c0c8e0626db584e270a4ae4025e7ba4b5c6b07635c68904bd00b134c8586ce88658a421ced1bb054ab9ef
   languageName: node
   linkType: hard
 
