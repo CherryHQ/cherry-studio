@@ -199,6 +199,7 @@ export const Flex = ({
   justify: justifyContent,
   align: alignItems,
   flexDirection,
+  wrap,
   children,
   style,
   ...props
@@ -208,6 +209,7 @@ export const Flex = ({
     justifyContent,
     alignItems,
     flexDirection,
+    flexWrap: wrap,
     ...style
   } satisfies CSSProperties
 
