@@ -1,5 +1,5 @@
 import CodeEditor from '@renderer/components/CodeEditor'
-import { HSpaceBetweenStack } from '@renderer/components/Layout'
+import { SpaceBetweenRowFlex } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
@@ -91,7 +91,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           )}
         </RichEditorContainer>
         <BottomPanel>
-          <HSpaceBetweenStack width="100%" justifyContent="space-between" alignItems="center">
+          <SpaceBetweenRowFlex width="100%" justifyContent="space-between" alignItems="center">
             <TokenCount>
               {t('notes.characters')}: {tokenCount}
             </TokenCount>
@@ -113,7 +113,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 ]}
               />
             </div>
-          </HSpaceBetweenStack>
+          </SpaceBetweenRowFlex>
         </BottomPanel>
       </>
     )
