@@ -42,11 +42,11 @@ const JoplinSettings: FC = () => {
   const handleJoplinConnectionCheck = async () => {
     try {
       if (!joplinToken) {
-        window.message.error(t('settings.data.joplin.check.empty_token'))
+        window.toast.error(t('settings.data.joplin.check.empty_token'))
         return
       }
       if (!joplinUrl) {
-        window.message.error(t('settings.data.joplin.check.empty_url'))
+        window.toast.error(t('settings.data.joplin.check.empty_url'))
         return
       }
 
@@ -55,13 +55,13 @@ const JoplinSettings: FC = () => {
       const data = await response.json()
 
       if (!response.ok || data?.error) {
-        window.message.error(t('settings.data.joplin.check.fail'))
+        window.toast.error(t('settings.data.joplin.check.fail'))
         return
       }
 
-      window.message.success(t('settings.data.joplin.check.success'))
+      window.toast.success(t('settings.data.joplin.check.success'))
     } catch (e) {
-      window.message.error(t('settings.data.joplin.check.fail'))
+      window.toast.error(t('settings.data.joplin.check.fail'))
     }
   }
 

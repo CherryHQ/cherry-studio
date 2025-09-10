@@ -223,10 +223,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             try {
               if (!url || url.trim() === '') {
                 logger.error('图像URL为空，可能是提示词违禁')
-                window.message.warning({
-                  content: t('message.empty_url'),
-                  key: 'empty-url-warning'
-                })
+                window.toast.warning(t('message.empty_url'))
                 return null
               }
               return await window.api.file.download(url)
@@ -236,10 +233,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 error instanceof Error &&
                 (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
               ) {
-                window.message.warning({
-                  content: t('message.empty_url'),
-                  key: 'empty-url-warning'
-                })
+                window.toast.warning(t('message.empty_url'))
               }
               return null
             }

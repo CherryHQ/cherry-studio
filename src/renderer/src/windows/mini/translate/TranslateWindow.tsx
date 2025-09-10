@@ -65,7 +65,7 @@ const Translate: FC<Props> = ({ text }) => {
 
   useHotkeys('c', () => {
     navigator.clipboard.writeText(result)
-    window.message.success(t('message.copy.success'))
+    window.toast.success(t('message.copy.success'))
   })
 
   return (

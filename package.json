@@ -68,7 +68,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "claude": "dotenv -e .env -- claude"
   },
   "dependencies": {
     "@libsql/client": "0.14.0",

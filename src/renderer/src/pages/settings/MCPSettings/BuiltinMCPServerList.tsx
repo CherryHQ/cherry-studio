@@ -37,7 +37,7 @@ const BuiltinMCPServerList: FC = () => {
                       }
 
                       addMCPServer(server)
-                      window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-add-builtin-server' })
+                      window.toast.success(t('settings.mcp.addSuccess'))
                     }}
                     disabled={isInstalled}
                   />

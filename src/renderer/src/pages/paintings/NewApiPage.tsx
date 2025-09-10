@@ -198,10 +198,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         try {
           if (!url?.trim()) {
             logger.error('图像URL为空')
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
+            window.toast.warning(t('message.empty_url'))
             return null
           }
           return await window.api.file.download(url)
@@ -211,10 +208,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
           ) {
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
+            window.toast.warning(t('message.empty_url'))
           }
           return null
         }
@@ -283,7 +277,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       } else if (mode === 'openai_image_edit') {
         // -------- Edit Mode --------
         if (editImages.length === 0) {
-          window.message.warning({ content: t('paintings.image_file_required') })
+          window.toast.warning(t('paintings.image_file_required'))
           return
         }
 

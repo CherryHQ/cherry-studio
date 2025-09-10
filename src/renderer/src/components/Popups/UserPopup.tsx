@@ -49,7 +49,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       dispatch(setAvatar(emoji))
       setEmojiPickerOpen(false)
     } catch (error: any) {
-      window.message.error(error.message)
+      window.toast.error(error.message)
     }
   }
   const handleReset = async () => {
@@ -58,7 +58,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       dispatch(setAvatar(DefaultAvatar))
       setDropdownOpen(false)
     } catch (error: any) {
-      window.message.error(error.message)
+      window.toast.error(error.message)
     }
   }
   const items = [
@@ -83,7 +83,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 dispatch(setAvatar(await ImageStorage.get('avatar')))
                 setDropdownOpen(false)
               } catch (error: any) {
-                window.message.error(error.message)
+                window.toast.error(error.message)
               }
             }}>
             {t('settings.general.image_upload')}

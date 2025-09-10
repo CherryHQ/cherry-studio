@@ -302,11 +302,9 @@ async function getModelForCheck(provider: Provider, t: TFunction): Promise<Model
   const modelsToCheck = provider.models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
   if (isEmpty(modelsToCheck)) {
-    window.message.error({
-      key: 'no-models',
-      style: { marginTop: '3vh' },
-      duration: 5,
-      content: t('settings.provider.no_models_for_check')
+    window.toast.error({
+      title: t('settings.provider.no_models_for_check'),
+      timeout: 5000
     })
     return null
   }

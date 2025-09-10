@@ -23,9 +23,9 @@ vi.mock('html-to-image', () => ({
   )
 }))
 
-// mock window.message
+// mock window.toast
 beforeEach(() => {
-  window.message = {
+  window.toast = {
     error: vi.fn()
   } as any
 })
@@ -86,7 +86,7 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       await expect(captureScrollable(ref)).rejects.toBeUndefined()
-      expect(window.message.error).toHaveBeenCalled()
+      expect(window.toast.error).toHaveBeenCalled()
     })
   })
 

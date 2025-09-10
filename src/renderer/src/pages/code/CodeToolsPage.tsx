@@ -109,7 +109,7 @@ const CodeToolsPage: FC = () => {
       const bunExists = await window.api.isBinaryExist('bun')
       dispatch(setIsBunInstalled(bunExists))
     } catch (error) {
-      logger.error('检查 bun 安装状态失败:', error as Error)
+      logger.error('Failed to check bun installation status:', error as Error)
       dispatch(setIsBunInstalled(false))
     }
   }, [dispatch])
@@ -120,16 +120,10 @@ const CodeToolsPage: FC = () => {
       setIsInstallingBun(true)
       await window.api.installBunBinary()
       dispatch(setIsBunInstalled(true))
-      window.message.success({
-        content: t('settings.mcp.installSuccess'),
-        key: 'bun-install-message'
-      })
+      window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error: any) {
-      logger.error('安装 bun 失败:', error as Error)
-      window.message.error({
-        content: `${t('settings.mcp.installError')}: ${error.message}`,
-        key: 'bun-install-message'
-      })
+      logger.error('Failed to install bun:', error as Error)
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
     } finally {
       setIsInstallingBun(false)
       // 重新检查安装状态
@@ -180,7 +174,7 @@ const CodeToolsPage: FC = () => {
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
     window.api.codeTools.run(selectedCliTool, selectedModel?.id!, currentDirectory, env, { autoUpdateToLatest })
-    window.message.success({ content: t('code.launch.success'), key: 'code-launch-message' })
+    window.toast.success(t('code.launch.success'))
   }
 
   // 处理启动
@@ -188,7 +182,7 @@ const CodeToolsPage: FC = () => {
     const validation = validateLaunch()
 
     if (!validation.isValid) {
-      window.message.warning({ content: validation.message, key: 'code-launch-message' })
+      window.toast.warning(validation.message || t('code.launch.validation_error'))
       return
     }
 
@@ -197,14 +191,14 @@ const CodeToolsPage: FC = () => {
     try {
       const env = await prepareLaunchEnvironment()
       if (!env) {
-        window.message.error({ content: t('code.model_required'), key: 'code-launch-message' })
+        window.toast.error(t('code.model_required'))
         return
       }
 
       await executeLaunch(env)
     } catch (error) {
       logger.error('启动失败:', error as Error)
-      window.message.error({ content: t('code.launch.error'), key: 'code-launch-message' })
+      window.toast.error(t('code.launch.error'))
     } finally {
       setIsLaunching(false)
     }

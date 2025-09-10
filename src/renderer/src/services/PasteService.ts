@@ -81,10 +81,7 @@ export const handlePaste = async (
               }
             } else {
               if (t) {
-                window.message.info({
-                  key: 'file_not_supported',
-                  content: t('chat.input.file_not_supported')
-                })
+                window.toast.info(t('chat.input.file_not_supported'))
               }
             }
             continue
@@ -98,17 +95,14 @@ export const handlePaste = async (
             }
           } else {
             if (t) {
-              window.message.info({
-                key: 'file_not_supported',
-                content: t('chat.input.file_not_supported')
-              })
+              window.toast.info(t('chat.input.file_not_supported'))
             }
           }
         }
       } catch (error) {
         logger.error('onPaste:', error as Error)
         if (t) {
-          window.message.error(t('chat.input.file_error'))
+          window.toast.error(t('chat.input.file_error'))
         }
       }
       return true

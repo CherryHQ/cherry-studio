@@ -30,7 +30,7 @@ const OcrImageSettings = ({ setProvider }: Props) => {
     const provider = imageProviders.find((p) => p.id === id)
     if (!provider) {
       logger.error(`Failed to find image provider by id: ${id}`)
-      window.message.error(t('settings.tool.ocr.image.error.provider_not_found'))
+      window.toast.error(t('settings.tool.ocr.image.error.provider_not_found'))
       return
     }
 

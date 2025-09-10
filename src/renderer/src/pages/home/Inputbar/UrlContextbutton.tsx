@@ -36,7 +36,7 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
           isToolUseModeFunction(assistant)
         ) {
           update.enableUrlContext = false
-          window.message.warning(t('chat.mcp.warning.url_context'))
+          window.toast.warning(t('chat.mcp.warning.url_context'))
         } else {
           update.enableUrlContext = urlContentNewState
         }

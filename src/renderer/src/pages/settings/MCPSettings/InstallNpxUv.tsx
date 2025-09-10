@@ -54,7 +54,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       setIsInstallingUv(false)
       dispatch(setIsUvInstalled(true))
     } catch (error: any) {
-      window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingUv(false)
     }
     clearTimeout(checkBinariesTimerRef.current)
@@ -68,10 +68,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       setIsInstallingBun(false)
       dispatch(setIsBunInstalled(true))
     } catch (error: any) {
-      window.message.error({
-        content: `${t('settings.mcp.installError')}: ${error.message}`,
-        key: 'mcp-install-error'
-      })
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingBun(false)
     }
     clearTimeout(checkBinariesTimerRef.current)

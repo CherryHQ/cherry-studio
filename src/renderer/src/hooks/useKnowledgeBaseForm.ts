@@ -126,7 +126,7 @@ export const useKnowledgeBaseForm = (base?: KnowledgeBase) => {
       if (!value || (newBase.chunkSize && newBase.chunkSize > value)) {
         setNewBase((prev) => ({ ...prev, chunkOverlap: value || undefined }))
       } else {
-        window.message.error(t('message.error.chunk_overlap_too_large'))
+        window.toast.error(t('message.error.chunk_overlap_too_large'))
       }
     },
     [newBase.chunkSize, t]

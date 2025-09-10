@@ -126,7 +126,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
       .writeText(content)
       .then(() => {
         setCopied(true)
-        window.message.success(t('common.copied'))
+        window.toast.success(t('common.copied'))
       })
       .catch(() => {
         message.error(t('message.copy.failed'))

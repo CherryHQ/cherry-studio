@@ -32,10 +32,10 @@ const MessageImage: FC<Props> = ({ block }) => {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      window.message.success(t('message.download.success'))
+      window.toast.success(t('message.download.success'))
     } catch (error) {
       logger.error('下载图片失败:', error as Error)
-      window.message.error(t('message.download.failed'))
+      window.toast.error(t('message.download.failed'))
     }
   }
 
@@ -84,10 +84,10 @@ const MessageImage: FC<Props> = ({ block }) => {
           break
       }
 
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     } catch (error) {
       logger.error('复制图片失败:', error as Error)
-      window.message.error(t('message.copy.failed'))
+      window.toast.error(t('message.copy.failed'))
     }
   }
 

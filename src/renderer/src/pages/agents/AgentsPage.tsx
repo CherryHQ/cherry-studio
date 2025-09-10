@@ -170,10 +170,7 @@ const AgentsPage: FC = () => {
     try {
       await ImportAgentPopup.show()
     } catch (error) {
-      window.message.error({
-        content: error instanceof Error ? error.message : t('message.agents.import.error'),
-        key: 'agents-import-error'
-      })
+      window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     }
   }
 

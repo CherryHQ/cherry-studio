@@ -20,6 +20,7 @@ import {
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
@@ -96,7 +97,7 @@ const GeneralSettings: FC = () => {
 
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
-      window.message.error({ content: t('message.error.invalid.proxy.url'), key: 'proxy-error' })
+      window.toast.error(t('message.error.invalid.proxy.url'))
       return
     }
 
@@ -165,10 +166,7 @@ const GeneralSettings: FC = () => {
         try {
           setDisableHardwareAcceleration(checked)
         } catch (error) {
-          window.message.error({
-            content: (error as Error).message,
-            key: 'disable-hardware-acceleration-error'
-          })
+          window.toast.error(formatErrorMessage(error))
           return
         }
 

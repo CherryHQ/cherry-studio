@@ -153,11 +153,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
+      window.toast.error({
+        timeout: 5000,
+        title: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -165,7 +163,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     const model = await SelectProviderModelPopup.show({ provider })
 
     if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
+      window.toast.error(i18n.t('message.error.enter.model'))
       return
     }
 
@@ -173,11 +171,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: HealthStatus.NOT_CHECKED }))
       await checkApi({ ...provider, apiHost }, model)
 
-      window.message.success({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: 2,
-        content: i18n.t('message.api.connection.success')
+      window.toast.success({
+        timeout: 2000,
+        title: i18n.t('message.api.connection.success')
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
@@ -189,11 +185,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
         3000
       )
     } catch (error: any) {
-      window.message.error({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: 8,
-        content: i18n.t('message.api.connection.failed')
+      window.toast.error({
+        timeout: 8000,
+        title: i18n.t('message.api.connection.failed')
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))

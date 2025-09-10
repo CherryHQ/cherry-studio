@@ -35,7 +35,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
 
   const onOk = () => {
     if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
+      window.toast.error(i18n.t('message.error.enter.model'))
       return
     }
     setOpen(false)

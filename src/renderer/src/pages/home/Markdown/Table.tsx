@@ -32,7 +32,7 @@ const Table: React.FC<Props> = ({ children, node, blockId }) => {
         setCopied(true)
       })
       .catch((error) => {
-        window.message?.error({ content: `${t('message.copy.failed')}: ${error}`, key: 'copy-table-error' })
+        window.toast?.error(`${t('message.copy.failed')}: ${error}`)
       })
   }, [blockId, node?.position, setCopied, t])
 

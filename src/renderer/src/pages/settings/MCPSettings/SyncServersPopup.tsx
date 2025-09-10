@@ -152,18 +152,18 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
             updateMCPServer(server)
           }
         }
-        window.message.success(result.message)
+        window.toast.success(result.message)
         setOpen(false)
       } else {
         // Show message but keep dialog open
         if (result.success) {
-          window.message.info(result.message)
+          window.toast.info(result.message)
         } else {
-          window.message.error(result.message)
+          window.toast.error(result.message)
         }
       }
     } catch (error: any) {
-      window.message.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
     } finally {
       setIsSyncing(false)
     }

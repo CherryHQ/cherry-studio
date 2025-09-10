@@ -301,10 +301,7 @@ function getMenuItems({
         agent.id = uuid()
         agent.type = 'agent'
         addAgent(agent)
-        window.message.success({
-          content: t('assistants.save.success'),
-          key: 'save-to-agent'
-        })
+        window.toast.success(t('assistants.save.success'))
       }
     },
     {

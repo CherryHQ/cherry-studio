@@ -84,7 +84,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       try {
         deleteHistory(id)
       } catch (e) {
-        window.message.error(t('translate.history.error.delete'))
+        window.toast.error(t('translate.history.error.delete'))
       }
     },
     [t]

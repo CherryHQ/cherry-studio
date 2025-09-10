@@ -58,7 +58,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     try {
       if (!jsonConfig.trim()) {
         dispatch(setMCPServers([]))
-        window.message.success(t('settings.mcp.jsonSaveSuccess'))
+        window.toast.success(t('settings.mcp.jsonSaveSuccess'))
         setJsonError('')
         setJsonSaving(false)
         return
@@ -92,13 +92,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       dispatch(setMCPServers(serversArray))
 
-      window.message.success(t('settings.mcp.jsonSaveSuccess'))
+      window.toast.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')
       setOpen(false)
     } catch (error: any) {
       logger.error('Failed to save JSON config:', error)
       setJsonError(error.message || t('settings.mcp.jsonSaveError'))
-      window.message.error(t('settings.mcp.jsonSaveError'))
+      window.toast.error(t('settings.mcp.jsonSaveError'))
     } finally {
       setJsonSaving(false)
     }

@@ -19,11 +19,9 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
     const modelsToCheck = models.filter((model) => !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
+      window.toast.error({
+        timeout: 5000,
+        title: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -80,11 +78,9 @@ export const useHealthCheck = (provider: Provider, models: Model[]) => {
       }
     )
 
-    window.message.info({
-      key: 'health-check-summary',
-      style: { marginTop: '3vh' },
-      duration: 5,
-      content: summarizeHealthResults(checkResults, provider.name)
+    window.toast.info({
+      timeout: 5000,
+      title: summarizeHealthResults(checkResults, provider.name)
     })
 
     setIsChecking(false)

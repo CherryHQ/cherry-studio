@@ -40,9 +40,9 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
         updateProvider({ ...provider, extra_headers: headers })
       }
 
-      window.message.success({ content: t('message.save.success.title') })
+      window.toast.success(t('message.save.success.title'))
     } catch (error) {
-      window.message.error({ content: t('settings.provider.copilot.invalid_json') })
+      window.toast.error(t('settings.provider.copilot.invalid_json'))
     }
   }, [headerText, provider, t, updateDefaultHeaders, updateProvider])
 

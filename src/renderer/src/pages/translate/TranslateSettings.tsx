@@ -165,10 +165,7 @@ const TranslateSettings: FC<{
                   onChange={(value) => {
                     const newPair: [TranslateLanguage, TranslateLanguage] = [getLanguageByLangcode(value), localPair[1]]
                     if (newPair[0] === newPair[1]) {
-                      window.message.warning({
-                        content: t('translate.language.same'),
-                        key: 'translate-message'
-                      })
+                      window.toast.warning(t('translate.language.same'))
                       return
                     }
                     setLocalPair(newPair)
@@ -186,10 +183,7 @@ const TranslateSettings: FC<{
                   onChange={(value) => {
                     const newPair: [TranslateLanguage, TranslateLanguage] = [localPair[0], getLanguageByLangcode(value)]
                     if (newPair[0] === newPair[1]) {
-                      window.message.warning({
-                        content: t('translate.language.same'),
-                        key: 'translate-message'
-                      })
+                      window.toast.warning(t('translate.language.same'))
                       return
                     }
                     setLocalPair(newPair)

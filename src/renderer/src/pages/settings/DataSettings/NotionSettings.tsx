@@ -42,11 +42,11 @@ const NotionSettings: FC = () => {
 
   const handleNotionConnectionCheck = () => {
     if (notionApiKey === null) {
-      window.message.error(t('settings.data.notion.check.empty_api_key'))
+      window.toast.error(t('settings.data.notion.check.empty_api_key'))
       return
     }
     if (notionDatabaseID === null) {
-      window.message.error(t('settings.data.notion.check.empty_database_id'))
+      window.toast.error(t('settings.data.notion.check.empty_database_id'))
       return
     }
     const notion = new Client({ auth: notionApiKey })
@@ -56,13 +56,13 @@ const NotionSettings: FC = () => {
       })
       .then((result) => {
         if (result) {
-          window.message.success(t('settings.data.notion.check.success'))
+          window.toast.success(t('settings.data.notion.check.success'))
         } else {
-          window.message.error(t('settings.data.notion.check.fail'))
+          window.toast.error(t('settings.data.notion.check.fail'))
         }
       })
       .catch(() => {
-        window.message.error(t('settings.data.notion.check.error'))
+        window.toast.error(t('settings.data.notion.check.error'))
       })
   }
 

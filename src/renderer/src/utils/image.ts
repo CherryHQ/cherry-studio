@@ -98,10 +98,7 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
           el.scrollTop = originalScrollTop
         }, 0)
 
-        window.message.error({
-          content: i18n.t('message.error.dimension_too_large'),
-          key: 'export-error'
-        })
+        window.toast.error(i18n.t('message.error.dimension_too_large'))
         return Promise.reject()
       }
 
@@ -190,10 +187,10 @@ export async function captureScrollableIframe(
   // 禁用动画以确保捕获静态状态
   const disableAnimations = () => {
     const style = doc.createElement('style')
-    style.textContent = `*, *::before, *::after { 
-      animation: none !important; 
-      transition: none !important; 
-      // transform: none !important; 
+    style.textContent = `*, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+      // transform: none !important;
     }`
     doc.head.appendChild(style)
     return style

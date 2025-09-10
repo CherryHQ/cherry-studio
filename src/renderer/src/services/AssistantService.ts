@@ -203,10 +203,7 @@ export async function createAssistantFromAgent(agent: Agent) {
 
   store.dispatch(addAssistant(assistant))
 
-  window.message.success({
-    content: i18n.t('message.assistant.added.content'),
-    key: 'assistant-added'
-  })
+  window.toast.success(i18n.t('message.assistant.added.content'))
 
   return assistant
 }

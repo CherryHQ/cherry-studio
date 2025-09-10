@@ -22,7 +22,7 @@ const MigrationInfoTag: FC<{ base: KnowledgeBase }> = ({ base: _base }) => {
       await migrateBase(migratedBase, MigrationModeEnum.MigrationToLangChain)
     } catch (error) {
       logger.error('KnowledgeBase migration failed:', error as Error)
-      window.message.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
+      window.toast.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
     }
   }, [newBase, migrateBase, t])
 

@@ -34,7 +34,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           if (fileOrUrl.match(/^https?:\/\/.+\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i)) {
             onChange(propertyName, fileOrUrl)
           } else {
-            window.message?.error('Invalid image URL format')
+            window.toast?.error('Invalid image URL format')
           }
         } else {
           // Handle File case - convert to base64

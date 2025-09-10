@@ -10,8 +10,8 @@ const mockClipboard = {
   writeText: mockWriteText
 }
 
-// Mock window.message
-const mockMessage = {
+// Mock window.toast
+const mockedToast = {
   success: vi.fn(),
   error: vi.fn()
 }
@@ -33,7 +33,7 @@ describe('CopyButton', () => {
   beforeEach(() => {
     // Setup mocks
     Object.assign(navigator, { clipboard: mockClipboard })
-    Object.assign(window, { message: mockMessage })
+    Object.assign(window, { toast: mockedToast })
 
     // Clear all mocks
     vi.clearAllMocks()
@@ -103,8 +103,8 @@ describe('CopyButton', () => {
     const clickableElement = copyIcon?.parentElement
     await userEvent.click(clickableElement!)
 
-    expect(mockMessage.success).toHaveBeenCalledWith('复制成功')
-    expect(mockMessage.error).not.toHaveBeenCalled()
+    expect(mockedToast.success).toHaveBeenCalledWith('复制成功')
+    expect(mockedToast.error).not.toHaveBeenCalled()
   })
 
   it('should show error message when copy fails', async () => {
@@ -116,8 +116,8 @@ describe('CopyButton', () => {
     const clickableElement = copyIcon?.parentElement
     await userEvent.click(clickableElement!)
 
-    expect(mockMessage.error).toHaveBeenCalledWith('复制失败')
-    expect(mockMessage.success).not.toHaveBeenCalled()
+    expect(mockedToast.error).toHaveBeenCalledWith('复制失败')
+    expect(mockedToast.success).not.toHaveBeenCalled()
   })
 
   it('should apply custom size to icon and label', () => {

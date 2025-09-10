@@ -113,7 +113,7 @@ const ProviderList: FC = () => {
       }
 
       setSelectedProvider(updatedProvider)
-      window.message.success(t('settings.models.provider_key_added', { provider: displayName }))
+      window.toast.success(t('settings.models.provider_key_added', { provider: displayName }))
     }
 
     // 检查 URL 参数
@@ -125,14 +125,14 @@ const ProviderList: FC = () => {
     try {
       const { id, apiKey: newApiKey, baseUrl, type, name } = JSON.parse(addProviderData)
       if (!id || !newApiKey || !baseUrl) {
-        window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+        window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
         window.navigate('/settings/provider')
         return
       }
 
       handleProviderAddKey({ id, apiKey: newApiKey, baseUrl, type, name })
     } catch (error) {
-      window.message.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
+      window.toast.error(t('settings.models.provider_key_add_failed_by_invalid_data'))
       window.navigate('/settings/provider')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,7 +167,7 @@ const ProviderList: FC = () => {
         setProviderLogos(updatedLogos)
       } catch (error) {
         logger.error('Failed to save logo', error as Error)
-        window.message.error('保存Provider Logo失败')
+        window.toast.error('保存Provider Logo失败')
       }
     }
 
@@ -202,7 +202,7 @@ const ProviderList: FC = () => {
                 }))
               } catch (error) {
                 logger.error('Failed to save logo', error as Error)
-                window.message.error('更新Provider Logo失败')
+                window.toast.error('更新Provider Logo失败')
               }
             } else if (logo === undefined && logoFile === undefined) {
               try {
