@@ -16,7 +16,8 @@ exports[`TagFilterSection > rendering > should match snapshot 1`] = `
     class="c0"
   >
     <div
-      style="width: auto; height: auto; flex: 0 0 auto; left: auto; right: auto; bottom: auto; top: auto; gap: 4px; opacity: 1; border-radius: 0; box-sizing: border-box; display: flex; justify-content: flex-start; align-items: flex-start; flex-direction: row;"
+      style="width: auto; height: auto; flex: 0 0 auto; left: auto; right: auto; bottom: auto; top: auto; gap: 4px; opacity: 1; border-radius: 0; box-sizing: border-box; display: flex;"
+      wrap="wrap"
     >
       <span
         class="c1"
