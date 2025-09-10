@@ -1,7 +1,7 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { RowFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -54,7 +54,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
         {t('settings.models.topic_naming.label')}
       </SettingSubtitle>
-      <Flex vertical align="stretch" gap={8}>
+      <ColFlex align="stretch" gap={8}>
         <RowFlex style={{ gap: 16 }} align="center">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => setEnableTopicNaming(v)} />
@@ -76,7 +76,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             style={{ width: '100%' }}
           />
         </div>
-      </Flex>
+      </ColFlex>
     </Modal>
   )
 }

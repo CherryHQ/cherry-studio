@@ -91,7 +91,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           )}
         </RichEditorContainer>
         <BottomPanel>
-          <SpaceBetweenRowFlex width="100%" justifyContent="space-between" align="center">
+          <SpaceBetweenRowFlex width="100%" justify="space-between" align="center">
             <TokenCount>
               {t('notes.characters')}: {tokenCount}
             </TokenCount>
