@@ -1,8 +1,8 @@
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { Flex } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Flex } from '../Layout'
 import { HealthResult } from './types'
 
 interface UseHealthStatusProps {

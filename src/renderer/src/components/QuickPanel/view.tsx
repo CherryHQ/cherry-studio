@@ -4,7 +4,6 @@ import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
 import { t } from 'i18next'
 import { debounce } from 'lodash'
 import { Check } from 'lucide-react'
@@ -12,6 +11,7 @@ import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, 
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
+import { Flex } from '../Layout'
 import { QuickPanelContext } from './provider'
 import {
   QuickPanelCallBackOptions,

@@ -1,6 +1,6 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { RowFlex } from '@renderer/components/Layout'
+import { ColFlex, Flex, RowFlex } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -9,7 +9,7 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Empty, Flex, Input } from 'antd'
+import { Button, Empty, Input } from 'antd'
 import { omit } from 'lodash'
 import { Search } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -70,7 +70,7 @@ const AgentsPage: FC = () => {
       window.modal.confirm({
         title: agent.name,
         content: (
-          <Flex gap={16} vertical style={{ width: 'calc(100% + 12px)' }}>
+          <ColFlex gap={16} style={{ width: 'calc(100% + 12px)' }}>
             {agent.description && <AgentDescription>{agent.description}</AgentDescription>}
 
             {agent.prompt && (
@@ -78,7 +78,7 @@ const AgentsPage: FC = () => {
                 <ReactMarkdown>{agent.prompt}</ReactMarkdown>
               </AgentPrompt>
             )}
-          </Flex>
+          </ColFlex>
         ),
         width: 600,
         icon: null,
