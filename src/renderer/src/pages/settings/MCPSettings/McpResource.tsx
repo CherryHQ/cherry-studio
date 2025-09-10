@@ -1,5 +1,6 @@
+import { ColFlex, Flex } from '@renderer/components/Layout'
 import { MCPResource } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Flex, Tag, Typography } from 'antd'
+import { Collapse, Descriptions, Empty, Tag, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -61,7 +62,7 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
             <Collapse.Panel
               key={resource.uri}
               header={
-                <Flex vertical align="flex-start" style={{ width: '100%' }}>
+                <ColFlex align="flex-start" style={{ width: '100%' }}>
                   <Flex align="center" style={{ width: '100%' }}>
                     <Typography.Text strong>{`${resource.name} (${resource.uri})`}</Typography.Text>
                   </Flex>
@@ -72,7 +73,7 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
                         : resource.description}
                     </Typography.Text>
                   )}
-                </Flex>
+                </ColFlex>
               }>
               <SelectableContent>{renderResourceProperties(resource)}</SelectableContent>
             </Collapse.Panel>

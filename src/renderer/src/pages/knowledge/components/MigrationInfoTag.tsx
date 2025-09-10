@@ -1,10 +1,11 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
+import { ColFlex } from '@renderer/components/Layout'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { KnowledgeBase, MigrationModeEnum } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Flex, Tag } from 'antd'
+import { Tag } from 'antd'
 import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -30,9 +31,9 @@ const MigrationInfoTag: FC<{ base: KnowledgeBase }> = ({ base: _base }) => {
     window.modal.confirm({
       title: t('knowledge.migrate.confirm.title'),
       content: (
-        <Flex vertical align="self-start">
+        <ColFlex align="self-start">
           <span>{t('knowledge.migrate.migrate_to_langchain.content')}</span>
-        </Flex>
+        </ColFlex>
       ),
       okText: t('knowledge.migrate.confirm.ok'),
       centered: true,

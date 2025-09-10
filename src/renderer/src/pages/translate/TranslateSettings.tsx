@@ -1,10 +1,11 @@
 import { Switch } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { RowFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Flex, Modal, Radio, Space, Tooltip } from 'antd'
+import { Button, Modal, Radio, Space, Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -63,7 +64,7 @@ const TranslateSettings: FC<{
       footer={null}
       width={520}
       transitionName="animation-move-down">
-      <Flex vertical gap={16} style={{ marginTop: 16, paddingBottom: 20 }}>
+      <ColFlex gap={16} style={{ marginTop: 16, paddingBottom: 20 }}>
         <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
@@ -199,7 +200,7 @@ const TranslateSettings: FC<{
           )}
         </div>
         <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
-      </Flex>
+      </ColFlex>
     </Modal>
   )
 }

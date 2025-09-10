@@ -1,8 +1,9 @@
-import { Box } from '@renderer/components/Layout'
+import { Box, ColFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
-import { Flex, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
+import { InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'
 import { useCallback, useMemo, useReducer } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -135,7 +136,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
 
   const renderFooter = useMemo(() => {
     return (
-      <Flex vertical gap={10}>
+      <ColFlex gap={10}>
         <Flex align="center" justify="space-between" style={{ width: '100%' }}>
           <Typography.Text strong>{t('settings.models.check.use_all_keys')}:</Typography.Text>
           <Segmented
@@ -172,7 +173,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             addonAfter="s"
           />
         </Flex>
-      </Flex>
+      </ColFlex>
     )
   }, [isConcurrent, keyCheckMode, timeoutSeconds, t])
 

@@ -1,4 +1,4 @@
-import { RowFlex, ColFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import MaxContextCount from '@renderer/components/MaxContextCount'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Divider, Popover } from 'antd'

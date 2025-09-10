@@ -3,7 +3,7 @@ import 'emoji-picker-element'
 import { CloseCircleFilled } from '@ant-design/icons'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { Box, SpaceBetweenRowFlex, RowFlex } from '@renderer/components/Layout'
+import { Box, RowFlex, SpaceBetweenRowFlex } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
@@ -144,7 +144,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           )}
         </RichEditorContainer>
       </TextAreaContainer>
-      <SpaceBetweenRowFlex width="100%" justifyContent="flex-end" mt="10px">
+      <SpaceBetweenRowFlex width="100%" justify="flex-end" mt="10px">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
         <Button
           type="primary"

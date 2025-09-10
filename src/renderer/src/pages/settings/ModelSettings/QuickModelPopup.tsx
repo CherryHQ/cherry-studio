@@ -1,10 +1,11 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { ResetIcon } from '@renderer/components/Icons'
 import { RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
-import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
+import { Button, Divider, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,6 +1,7 @@
+import { ColFlex, Flex } from '@renderer/components/Layout'
 import { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -67,7 +68,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 )}
               </Flex>
             }>
-            <Flex vertical gap={4}>
+            <ColFlex gap={4}>
               <Flex align="center" gap={8}>
                 {prop.type && (
                   // <Typography.Text type="secondary">{prop.type} </Typography.Text>
@@ -94,7 +95,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                   </div>
                 </div>
               )}
-            </Flex>
+            </ColFlex>
           </Descriptions.Item>
         ))}
       </Descriptions>
@@ -113,7 +114,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       onFilter: (value, record) => record.name === value,
       filterSearch: true,
       render: (_, tool) => (
-        <Flex vertical align="flex-start" gap={4}>
+        <ColFlex align="flex-start" gap={4}>
           <Flex align="center" gap={4}>
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
@@ -130,7 +131,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               {tool.description}
             </Typography.Paragraph>
           )}
-        </Flex>
+        </ColFlex>
       )
     },
     {

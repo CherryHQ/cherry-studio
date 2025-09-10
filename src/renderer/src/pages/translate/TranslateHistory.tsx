@@ -1,11 +1,12 @@
 import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { RowFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { clearHistory, deleteHistory, updateTranslateHistory } from '@renderer/services/TranslateService'
 import { TranslateHistory, TranslateLanguage } from '@renderer/types'
-import { Button, Drawer, Empty, Flex, Input, Popconfirm } from 'antd'
+import { Button, Drawer, Empty, Input, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { isEmpty } from 'lodash'
@@ -173,7 +174,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 return (
                   <HistoryListItemContainer>
                     <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                      <Flex justify="space-between" vertical gap={4} style={{ width: '100%', height: '100%', flex: 1 }}>
+                      <ColFlex justify="space-between" gap={4} style={{ width: '100%', height: '100%', flex: 1 }}>
                         <Flex align="center" justify="space-between" style={{ height: 30 }}>
                           <Flex align="center" gap={6}>
                             <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
@@ -216,7 +217,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                           </HistoryListItemTitle>
                         </HistoryListItemTextContainer>
                         <HistoryListItemDate>{item.createdAt}</HistoryListItemDate>
-                      </Flex>
+                      </ColFlex>
                     </HistoryListItem>
                   </HistoryListItemContainer>
                 )
