@@ -18,7 +18,7 @@ async function handleListToolsRequest(request: any, extra: any): Promise<ListToo
     throw new Error(`Server not found: ${serverId}`)
   }
   const client = await mcpService.initClient(serverConfig)
-  return await client.listTools()
+  return client.listTools()
 }
 
 async function handleCallToolRequest(request: any, extra: any): Promise<any> {
