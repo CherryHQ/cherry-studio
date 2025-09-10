@@ -45,7 +45,6 @@ stats.html
 
 # Local
 local
-.codex/
 .aider*
 .cursorrules
 .cursor/*
