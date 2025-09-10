@@ -333,7 +333,7 @@ const ShortcutSettings: FC = () => {
 
         return (
           <RowFlex style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <RowFlex alignItems="center" style={{ position: 'relative' }}>
+            <RowFlex align="center" style={{ position: 'relative' }}>
               {isEditing ? (
                 <ShortcutInput
                   ref={(el) => {
@@ -413,7 +413,7 @@ const ShortcutSettings: FC = () => {
           showHeader={false}
         />
         <SettingDivider style={{ marginBottom: 0 }} />
-        <RowFlex justifyContent="flex-end" padding="16px 0">
+        <RowFlex justify="flex-end" padding="16px 0">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
         </RowFlex>
       </SettingGroup>

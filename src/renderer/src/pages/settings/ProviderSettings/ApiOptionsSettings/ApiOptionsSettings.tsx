@@ -106,8 +106,8 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   return (
     <Flex vertical gap="middle">
       {options.map((item) => (
-        <RowFlex key={item.key} justifyContent="space-between">
-          <RowFlex alignItems="center" gap={6}>
+        <RowFlex key={item.key} justify="space-between">
+          <RowFlex align="center" gap={6}>
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>

@@ -99,8 +99,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
   return (
     <>
       <SettingSubtitle style={{ marginBottom: 5 }}>
-        <RowFlex alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
-          <RowFlex alignItems="center" gap={8}>
+        <RowFlex align="center" justify="space-between" style={{ width: '100%' }}>
+          <RowFlex align="center" gap={8}>
             <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
             {modelCount > 0 && (
               <CustomTag color="#8c8c8c" size={10}>

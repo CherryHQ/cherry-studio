@@ -78,7 +78,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <RowFlex alignItems="center" justifyContent="space-between">
+          <RowFlex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
             <Switch
               isSelected={autoCopy}
@@ -113,7 +113,7 @@ const TranslateSettings: FC<{
               </span>
             </Tooltip>
           </div>
-          <RowFlex alignItems="center" gap={5}>
+          <RowFlex align="center" gap={5}>
             <Radio.Group
               defaultValue={'auto'}
               value={autoDetectionMethod}
@@ -138,7 +138,7 @@ const TranslateSettings: FC<{
         <div>
           <Flex align="center" justify="space-between">
             <div style={{ fontWeight: 500 }}>
-              <RowFlex alignItems="center" gap={5}>
+              <RowFlex align="center" gap={5}>
                 {t('translate.settings.bidirectional')}
                 <Tooltip title={t('translate.settings.bidirectional_tip')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>

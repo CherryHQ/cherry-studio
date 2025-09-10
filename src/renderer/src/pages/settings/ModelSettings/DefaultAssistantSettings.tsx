@@ -109,7 +109,7 @@ const AssistantSettings: FC = () => {
       style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 12 }}
       theme={theme}>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
-      <RowFlex gap={8} alignItems="center">
+      <RowFlex gap={8} align="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
@@ -161,7 +161,7 @@ const AssistantSettings: FC = () => {
         </Tooltip>
       </SettingSubtitle>
       <SettingRow>
-        <RowFlex alignItems="center">
+        <RowFlex align="center">
           <Label>{t('chat.settings.temperature.label')}</Label>
           <Tooltip title={t('chat.settings.temperature.tip')}>
             <QuestionIcon />
@@ -202,7 +202,7 @@ const AssistantSettings: FC = () => {
         </Row>
       )}
       <SettingRow>
-        <RowFlex alignItems="center">
+        <RowFlex align="center">
           <Label>{t('chat.settings.top_p.label')}</Label>
           <Tooltip title={t('chat.settings.top_p.tip')}>
             <QuestionIcon />
@@ -265,7 +265,7 @@ const AssistantSettings: FC = () => {
         </Col>
       </Row>
       <Flex justify="space-between" align="center">
-        <RowFlex alignItems="center">
+        <RowFlex align="center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />

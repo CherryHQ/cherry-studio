@@ -15,7 +15,7 @@ export const McpSettingsNavbar = () => {
 
   return (
     <NavbarRight style={{ paddingRight: useFullscreen() ? '12px' : isWin ? 150 : isLinux ? 120 : 12 }}>
-      <RowFlex alignItems="center" gap={5}>
+      <RowFlex align="center" gap={5}>
         <Button
           size="small"
           type="text"

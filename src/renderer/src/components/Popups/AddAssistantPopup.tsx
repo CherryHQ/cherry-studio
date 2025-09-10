@@ -199,7 +199,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             onClick={() => onCreateAssistant(agent)}
             className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
             onMouseEnter={() => setSelectedIndex(index)}>
-            <RowFlex alignItems="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
+            <RowFlex align="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
               <EmojiIcon emoji={agent.emoji || ''} />
               <span className="text-nowrap">{agent.name}</span>
             </RowFlex>
