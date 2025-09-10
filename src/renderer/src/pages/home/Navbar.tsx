@@ -86,26 +86,26 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         )}
       </AnimatePresence>
       {!showAssistants && (
-        <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
-          <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8, marginLeft: -12 }}>
-            <PanelRightClose size={18} />
-          </NavbarIcon>
-        </Tooltip>
-      )}
-      <AnimatePresence initial={false}>
-        {!showAssistants && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'auto', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden' }}>
-            <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
-              <Menu size={18} />
+        <NavbarLeft style={{ justifyContent: 'flex-start', borderRight: 'none', padding: '0 10px', minWidth: 'auto' }}>
+          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+            <NavbarIcon onClick={() => toggleShowAssistants()}>
+              <PanelRightClose size={18} />
             </NavbarIcon>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </Tooltip>
+          <AnimatePresence initial={false}>
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 'auto', opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              style={{ overflow: 'hidden' }}>
+              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
+                <Menu size={18} />
+              </NavbarIcon>
+            </motion.div>
+          </AnimatePresence>
+        </NavbarLeft>
+      )}
       <HStack alignItems="center" gap={6}>
         <SelectModelButton assistant={assistant} />
       </HStack>

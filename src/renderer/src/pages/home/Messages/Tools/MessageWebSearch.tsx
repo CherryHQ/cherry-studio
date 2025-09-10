@@ -26,7 +26,7 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: MCPT
     <MessageWebSearchToolTitleTextWrapper type="secondary">
       <Search size={16} style={{ color: 'unset' }} />
       {t('message.websearch.fetch_complete', {
-        count: toolOutput?.searchResults?.results?.length ?? 0
+        count: toolOutput?.results?.length ?? 0
       })}
     </MessageWebSearchToolTitleTextWrapper>
   )
@@ -36,7 +36,7 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: MCPT
 //   const toolOutput = toolResponse.response as WebSearchToolOutput
 
 //   return toolResponse.status === 'done'
-//     ? toolOutput?.searchResults?.map((result, index) => (
+//     ? toolOutput?.results?.map((result, index) => (
 //         <MessageWebSearchToolBodyUlWrapper key={result?.query ?? '' + index}>
 //           {result.results.map((item, index) => (
 //             <li key={item.url + index}>
