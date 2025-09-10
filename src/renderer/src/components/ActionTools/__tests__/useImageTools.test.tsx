@@ -43,8 +43,8 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
 // Mock navigator.clipboard
 const mockWrite = vi.fn()
 
-// Mock window.message
-const mockMessage = {
+// Mock window.toast
+const mockedToast = {
   success: vi.fn(),
   error: vi.fn()
 }
@@ -68,8 +68,8 @@ describe('useImageTools', () => {
       writable: true
     })
 
-    Object.defineProperty(global.window, 'message', {
-      value: mockMessage,
+    Object.defineProperty(global.window, 'toast', {
+      value: mockedToast,
       writable: true
     })
 
@@ -284,7 +284,7 @@ describe('useImageTools', () => {
 
       expect(mocks.svgToPngBlob).toHaveBeenCalledWith(mockSvg)
       expect(mockWrite).toHaveBeenCalled()
-      expect(mockMessage.success).toHaveBeenCalledWith('message.copy.success')
+      expect(mockedToast.success).toHaveBeenCalledWith('message.copy.success')
     })
 
     it('should download image as PNG and SVG', async () => {
@@ -364,13 +364,13 @@ describe('useImageTools', () => {
       await act(async () => {
         await result.current.copy()
       })
-      expect(mockMessage.error).toHaveBeenCalledWith('message.copy.failed')
+      expect(mockedToast.error).toHaveBeenCalledWith('message.copy.failed')
 
       // 下载失败
       await act(async () => {
         await result.current.download('png')
       })
-      expect(mockMessage.error).toHaveBeenCalledWith('message.download.failed')
+      expect(mockedToast.error).toHaveBeenCalledWith('message.download.failed')
     })
   })
 
@@ -420,7 +420,7 @@ describe('useImageTools', () => {
         await result.current.dialog()
       })
 
-      expect(mockMessage.error).toHaveBeenCalledWith('message.dialog.failed')
+      expect(mockedToast.error).toHaveBeenCalledWith('message.dialog.failed')
     })
 
     it('should do nothing when no element is found', async () => {

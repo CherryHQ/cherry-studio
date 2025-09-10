@@ -245,7 +245,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
       content = `---\ntitle: ${state.title}\ncreated: ${state.createdAt}\nsource: ${state.source}\ntags: ${state.tags}\n---\n${markdown}`
     }
     if (content === '') {
-      window.message.error(i18n.t('chat.topics.export.obsidian_export_failed'))
+      window.toast.error(i18n.t('chat.topics.export.obsidian_export_failed'))
       return
     }
     await navigator.clipboard.writeText(content)

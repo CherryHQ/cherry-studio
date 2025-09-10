@@ -53,7 +53,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
       resolve(migratedBase)
     } catch (error) {
       logger.error('KnowledgeBase migration failed:', error as Error)
-      window.message.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
+      window.toast.error(t('knowledge.migrate.error.failed') + ': ' + formatErrorMessage(error))
     }
   }, [newBase, migrateBase, resolve, t])
 
@@ -94,7 +94,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
         resolve(newBase)
       } catch (error) {
         logger.error('KnowledgeBase edit failed:', error as Error)
-        window.message.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
+        window.toast.error(t('knowledge.error.failed_to_edit') + formatErrorMessage(error))
       }
     }
   }

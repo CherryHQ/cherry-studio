@@ -74,19 +74,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         addAgent(newAgent)
       }
 
-      window.message.success({
-        content: t('message.agents.imported'),
-        key: 'agents-imported'
-      })
+      window.toast.success(t('message.agents.imported'))
 
       setTimeoutTimer('onFinish', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       setOpen(false)
       resolve(agents)
     } catch (error) {
-      window.message.error({
-        content: error instanceof Error ? error.message : t('message.agents.import.error'),
-        key: 'agents-import-error'
-      })
+      window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     } finally {
       setLoading(false)
     }

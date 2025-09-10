@@ -465,7 +465,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     if (lastMessage) {
       const content = getMainTextContent(lastMessage)
       navigator.clipboard.writeText(content)
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     }
   }, [currentTopic, t])
 

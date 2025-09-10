@@ -507,7 +507,7 @@ const NotesPage: FC = () => {
           }
           await sortAllLevels(sortType)
           if (renamedNode.name !== newName) {
-            window.message.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
+            window.toast.info(t('notes.rename_changed', { original: newName, final: renamedNode.name }))
           }
         }
       } catch (error) {
@@ -526,7 +526,7 @@ const NotesPage: FC = () => {
     async (files: File[]) => {
       try {
         if (!files || files.length === 0) {
-          window.message.warning(t('notes.no_file_selected'))
+          window.toast.warning(t('notes.no_file_selected'))
           return
         }
 
@@ -539,7 +539,7 @@ const NotesPage: FC = () => {
 
         // 检查上传结果
         if (result.fileCount === 0) {
-          window.message.warning(t('notes.no_valid_files'))
+          window.toast.warning(t('notes.no_valid_files'))
           return
         }
 
@@ -548,10 +548,10 @@ const NotesPage: FC = () => {
 
         const successMessage = t('notes.upload_success')
 
-        window.message.success(successMessage)
+        window.toast.success(successMessage)
       } catch (error) {
         logger.error('Failed to handle file upload:', error as Error)
-        window.message.error(t('notes.upload_failed'))
+        window.toast.error(t('notes.upload_failed'))
       }
     },
     [getTargetFolderPath, sortType, t]

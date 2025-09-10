@@ -1215,6 +1215,21 @@ export function strip<T, K extends keyof T>(obj: T, keys: K[]): Omit<T, K> {
   return result
 }
 
+/**
+ * Makes specified properties required while keeping others as is
+ * @template T - The object type to modify
+ * @template K - Keys of T that should be required
+ * @example
+ * type User = {
+ *   name?: string;
+ *   age?: number;
+ * }
+ *
+ * type UserWithName = RequireSome<User, 'name'>
+ * // Result: { name: string; age?: number; }
+ */
+export type RequireSome<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>
+
 export type HexColor = string
 
 /**

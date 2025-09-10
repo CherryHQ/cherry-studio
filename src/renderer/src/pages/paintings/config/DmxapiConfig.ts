@@ -95,9 +95,7 @@ export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
   } catch {
     /* empty */
   }
-  window.message.error({
-    content: t('paintings.req_error_model')
-  })
+  window.toast.error(t('paintings.req_error_model'))
 
   return {}
 }

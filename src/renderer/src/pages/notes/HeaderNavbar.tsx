@@ -37,13 +37,13 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       const content = getCurrentNoteContent?.()
       if (content) {
         await navigator.clipboard.writeText(content)
-        window.message.success(t('common.copied'))
+        window.toast.success(t('common.copied'))
       } else {
-        window.message.warning(t('notes.no_content_to_copy'))
+        window.toast.warning(t('notes.no_content_to_copy'))
       }
     } catch (error) {
       logger.error('Failed to copy content:', error as Error)
-      window.message.error(t('common.copy_failed'))
+      window.toast.error(t('common.copy_failed'))
     }
   }, [getCurrentNoteContent])
 

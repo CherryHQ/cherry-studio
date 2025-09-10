@@ -83,13 +83,12 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           }
         }
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
-
         // Handle citation block creation for web search results
-        if (toolResponse.tool.name === 'builtin_web_search' && toolResponse.response?.searchResults) {
+        if (toolResponse.tool.name === 'builtin_web_search' && toolResponse.response) {
           const citationBlock = createCitationBlock(
             assistantMsgId,
             {
-              response: { results: toolResponse.response.searchResults, source: WebSearchSource.WEBSEARCH }
+              response: { results: toolResponse.response, source: WebSearchSource.WEBSEARCH }
             },
             {
               status: MessageBlockStatus.SUCCESS
@@ -98,10 +97,10 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           citationBlockId = citationBlock.id
           blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
         }
-        if (toolResponse.tool.name === 'builtin_knowledge_search' && toolResponse.response?.knowledgeReferences) {
+        if (toolResponse.tool.name === 'builtin_knowledge_search' && toolResponse.response) {
           const citationBlock = createCitationBlock(
             assistantMsgId,
-            { knowledge: toolResponse.response.knowledgeReferences },
+            { knowledge: toolResponse.response },
             {
               status: MessageBlockStatus.SUCCESS
             }

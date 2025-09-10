@@ -76,7 +76,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           if (!urlItems.find((item) => item.content === url.trim())) {
             addUrl(url.trim())
           } else {
-            window.message.success(t('knowledge.url_added'))
+            window.toast.success(t('knowledge.url_added'))
           }
         } catch (e) {
           // Skip invalid URLs silently
@@ -154,7 +154,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           label: t('common.copy'),
                           onClick: () => {
                             navigator.clipboard.writeText(item.content as string)
-                            window.message.success(t('message.copied'))
+                            window.toast.success(t('message.copied'))
                           }
                         }
                       ]

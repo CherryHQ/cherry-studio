@@ -167,17 +167,17 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     async (note: NotesTreeNode) => {
       try {
         if (bases.length === 0) {
-          window.message.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
+          window.toast.warning(t('chat.save.knowledge.empty.no_knowledge_base'))
           return
         }
 
         const result = await SaveToKnowledgePopup.showForNote(note)
 
         if (result?.success) {
-          window.message.success(t('notes.export_success', { count: result.savedCount }))
+          window.toast.success(t('notes.export_success', { count: result.savedCount }))
         }
       } catch (error) {
-        window.message.error(t('notes.export_failed'))
+        window.toast.error(t('notes.export_failed'))
         logger.error(`Failed to export note to knowledge base: ${error}`)
       }
     },
