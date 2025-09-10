@@ -7,17 +7,17 @@ export interface BoxProps extends React.ComponentProps<'div'> {
   height?: PxValue
   w?: PxValue
   h?: PxValue
-  color?: string
-  background?: string
-  flex?: string | number
+  color?: CSSProperties['color']
+  background?: CSSProperties['background']
+  flex?: CSSProperties['flex']
   position?: CSSProperties['position']
   left?: PxValue
   top?: PxValue
   right?: PxValue
   bottom?: PxValue
-  opacity?: string | number
+  opacity?: CSSProperties['opacity']
   borderRadius?: PxValue
-  border?: string
+  border?: CSSProperties['border']
   gap?: PxValue
   mt?: PxValue
   marginTop?: PxValue
@@ -27,8 +27,8 @@ export interface BoxProps extends React.ComponentProps<'div'> {
   marginLeft?: PxValue
   mr?: PxValue
   marginRight?: PxValue
-  m?: string
-  margin?: string
+  m?: CSSProperties['margin']
+  margin?: CSSProperties['margin']
   pt?: PxValue
   paddingTop?: PxValue
   pb?: PxValue
@@ -37,8 +37,8 @@ export interface BoxProps extends React.ComponentProps<'div'> {
   paddingLeft?: PxValue
   pr?: PxValue
   paddingRight?: PxValue
-  p?: string
-  padding?: string
+  p?: CSSProperties['padding']
+  padding?: CSSProperties['padding']
 }
 
 // Not used anywhere for now.
@@ -74,9 +74,9 @@ export const Box = ({
   w,
   height,
   h,
-  color = 'default',
-  background = 'default',
-  flex = 'none',
+  color,
+  background,
+  flex,
   position,
   left = 'auto',
   right = 'auto',
