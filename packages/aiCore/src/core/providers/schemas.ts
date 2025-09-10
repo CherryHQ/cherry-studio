@@ -10,8 +10,8 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createXai } from '@ai-sdk/xai'
-import { customProvider, type Provider } from 'ai'
-import * as z from 'zod'
+import { customProvider, Provider } from 'ai'
+import { z } from 'zod'
 
 /**
  * 基础 Provider IDs
@@ -38,14 +38,12 @@ export const baseProviderIdSchema = z.enum(baseProviderIds)
  */
 export type BaseProviderId = z.infer<typeof baseProviderIdSchema>
 
-export const baseProviderSchema = z.object({
-  id: baseProviderIdSchema,
-  name: z.string(),
-  creator: z.function().args(z.any()).returns(z.any()) as z.ZodType<(options: any) => Provider>,
-  supportsImageGeneration: z.boolean()
-})
-
-export type BaseProvider = z.infer<typeof baseProviderSchema>
+type BaseProvider = {
+  id: BaseProviderId
+  name: string
+  creator: (options: any) => Provider
+  supportsImageGeneration: boolean
+}
 
 /**
  * 基础 Providers 定义
@@ -148,7 +146,12 @@ export const providerConfigSchema = z
   .object({
     id: customProviderIdSchema, // 只允许自定义ID
     name: z.string().min(1),
-    creator: z.function().optional(),
+    creator: z
+      .function({
+        input: z.any(),
+        output: z.any()
+      })
+      .optional(),
     import: z.function().optional(),
     creatorFunctionName: z.string().optional(),
     supportsImageGeneration: z.boolean().default(false),

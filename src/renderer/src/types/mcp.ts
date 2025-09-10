@@ -1,4 +1,4 @@
-import z from 'zod'
+import { z } from 'zod'
 
 import { isBuiltinMCPServerName } from '.'
 
@@ -17,6 +17,7 @@ export type MCPConfigSample = z.infer<typeof MCPConfigSampleSchema>
  */
 export const McpServerTypeSchema = z
   .string()
+  .default('stdio')
   .transform((type) => {
     if (type.includes('http')) {
       return 'streamableHttp'
@@ -24,9 +25,7 @@ export const McpServerTypeSchema = z
       return type
     }
   })
-  .pipe(
-    z.union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')]).default('stdio') // 大多数情况下默认使用 stdio
-  )
+  .pipe(z.union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')])) // 大多数情况下默认使用 stdio
 
 /**
  * 定义单个 MCP 服务器的配置。

@@ -1,0 +1,238 @@
+@import './container.css';
+
+/* Modal 关闭按钮不应该可拖拽，以确保点击正常 */
+.ant-modal-close {
+  -webkit-app-region: no-drag;
+}
+
+/* 普通 Drawer 内容不应该可拖拽 */
+.ant-drawer-content {
+  -webkit-app-region: no-drag;
+}
+
+/* minapp-drawer 有自己的拖拽规则 */
+
+/* 下拉菜单和弹出框内容不应该可拖拽 */
+.ant-dropdown,
+.ant-dropdown-menu,
+.ant-popover-content,
+.ant-tooltip-content,
+.ant-popconfirm {
+  -webkit-app-region: no-drag;
+}
+
+#inputbar {
+  resize: none;
+}
+
+.ant-image-preview-switch-left {
+  -webkit-app-region: no-drag;
+}
+
+.ant-btn:not(:disabled):focus-visible {
+  outline: none;
+}
+
+/* Align lucide icon in Button */
+.ant-btn .ant-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ant-tabs-tabpane:focus-visible {
+  outline: none;
+}
+
+.ant-tabs-tab-btn {
+  outline: none !important;
+}
+
+.ant-segmented-group {
+  gap: 4px;
+}
+
+.minapp-drawer .ant-drawer-content-wrapper {
+  box-shadow: none;
+}
+
+.minapp-drawer .ant-drawer-header {
+  position: absolute;
+  -webkit-app-region: drag;
+  min-height: calc(var(--navbar-height) + 0.5px);
+  margin-top: -0.5px;
+  border-bottom: none;
+}
+
+.minapp-drawer .ant-drawer-body {
+  padding: 0;
+  margin-top: var(--navbar-height);
+  overflow: hidden;
+  /* 手动展开 @extend #content-container 的内容 */
+  background-color: var(--color-background);
+}
+
+.minapp-drawer .minapp-mask {
+  background-color: transparent !important;
+}
+
+[navbar-position='left'] .minapp-drawer {
+  max-width: calc(100vw - var(--sidebar-width));
+}
+
+[navbar-position='left'] .minapp-drawer .ant-drawer-header {
+  width: calc(100vw - var(--sidebar-width));
+}
+
+[navbar-position='top'] .minapp-drawer {
+  max-width: 100vw;
+}
+
+[navbar-position='top'] .minapp-drawer .ant-drawer-header {
+  width: 100vw;
+}
+
+.ant-drawer-header {
+  /* 普通 drawer header 不应该可拖拽，除非被 minapp-drawer 覆盖 */
+  -webkit-app-region: no-drag;
+}
+
+.message-attachments .ant-upload-list-item:hover {
+  background-color: initial !important;
+}
+
+.ant-dropdown-menu .ant-dropdown-menu-sub {
+  max-height: 80vh;
+  width: max-content;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 0.5px solid var(--color-border);
+}
+
+.ant-dropdown {
+  background-color: var(--ant-color-bg-elevated);
+  overflow: hidden;
+  border-radius: var(--ant-border-radius-lg);
+  user-select: none;
+}
+
+.ant-dropdown .ant-dropdown-menu {
+  max-height: 80vh;
+  overflow-y: auto;
+  border: 0.5px solid var(--color-border);
+}
+
+/* Align lucide icon in dropdown menu item extra */
+.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-submenu-expand-icon,
+.ant-dropdown .ant-dropdown-menu .ant-dropdown-menu-item-extra {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ant-dropdown .ant-dropdown-arrow + .ant-dropdown-menu {
+  border: none;
+}
+
+.ant-select-dropdown {
+  border: 0.5px solid var(--color-border);
+}
+
+.ant-dropdown-menu-submenu {
+  background-color: var(--ant-color-bg-elevated);
+  overflow: hidden;
+  border-radius: var(--ant-border-radius-lg);
+}
+
+.ant-dropdown-menu-submenu .ant-dropdown-menu-submenu-title {
+  align-items: center;
+}
+
+.ant-popover .ant-popover-inner {
+  border: 0.5px solid var(--color-border);
+}
+
+.ant-popover .ant-popover-inner .ant-popover-inner-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.ant-popover .ant-popover-arrow + .ant-popover-content .ant-popover-inner {
+  border: none;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-confirm-body-has-title {
+  padding: 16px 0 0 0;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-content {
+  border-radius: 10px;
+  border: 0.5px solid var(--color-border);
+  padding: 0 0 8px 0;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-close {
+  margin-right: 2px;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-header {
+  padding: 16px 16px 0 16px;
+  border-radius: 10px;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-body {
+  /* 保持 body 在视口内，使用标准的最大高度 */
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 0 16px 0 16px;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-footer {
+  padding: 0 16px 8px 16px;
+}
+
+.ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-confirm-btns {
+  margin-bottom: 8px;
+}
+
+.ant-modal.ant-modal-confirm.ant-modal-confirm-confirm .ant-modal-content {
+  padding: 16px;
+}
+
+.ant-collapse:not(.ant-collapse-ghost) {
+  border: 1px solid var(--color-border);
+}
+
+.ant-color-picker .ant-collapse:not(.ant-collapse-ghost) {
+  border: none;
+}
+
+.ant-collapse:not(.ant-collapse-ghost) .ant-collapse-content {
+  border-top: 0.5px solid var(--color-border) !important;
+}
+
+.ant-color-picker .ant-collapse:not(.ant-collapse-ghost) .ant-collapse-content {
+  border-top: none !important;
+}
+
+.ant-slider .ant-slider-handle::after {
+  box-shadow: 0 1px 4px 0px rgb(128 128 128 / 50%) !important;
+}
+
+.ant-splitter-bar .ant-splitter-bar-dragger::before {
+  background-color: var(--color-border) !important;
+  transition:
+    background-color 0.15s ease,
+    width 0.15s ease;
+}
+
+.ant-splitter-bar .ant-splitter-bar-dragger:hover::before {
+  width: 4px !important;
+  background-color: var(--color-primary) !important;
+  transition-delay: 0.15s;
+}
+
+.ant-splitter-bar .ant-splitter-bar-dragger-active::before {
+  width: 4px !important;
+  background-color: var(--color-primary) !important;
+}

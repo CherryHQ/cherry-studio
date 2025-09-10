@@ -1,0 +1,27 @@
+/* xl, xxl, default style */
+:root {
+  --navbar-height: 44px;
+  --sidebar-width: 50px;
+  --status-bar-height: 40px;
+  --input-bar-height: 100px;
+
+  --assistants-width: 275px;
+  --topic-list-width: 275px;
+  --settings-width: 250px;
+
+  --scrollbar-width: 5px;
+}
+
+[navbar-position='left'] {
+  --navbar-height: 42px;
+  --list-item-border-radius: 20px;
+}
+
+/* lg */
+@media (max-width: 1080px) {
+  :root {
+    --assistants-width: 210px;
+    --topic-list-width: 210px;
+    --settings-width: 210px;
+  }
+}

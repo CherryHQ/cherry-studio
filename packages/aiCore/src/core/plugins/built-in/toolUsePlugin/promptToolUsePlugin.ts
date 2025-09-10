@@ -8,8 +8,18 @@ import type { TextStreamPart, ToolSet } from 'ai'
 import { definePlugin } from '../../index'
 import type { AiRequestContext } from '../../types'
 import { StreamEventManager } from './StreamEventManager'
+import { type TagConfig, TagExtractor } from './tagExtraction'
 import { ToolExecutor } from './ToolExecutor'
 import { PromptToolUseConfig, ToolUseResult } from './type'
+
+/**
+ * 工具使用标签配置
+ */
+const TOOL_USE_TAG_CONFIG: TagConfig = {
+  openingTag: '<tool_use>',
+  closingTag: '</tool_use>',
+  separator: '\n'
+}
 
 /**
  * 默认系统提示符模板（提取自 Cherry Studio）
@@ -249,13 +259,11 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
       }
 
       context.mcpTools = params.tools
-      console.log('tools stored in context', params.tools)
 
       // 构建系统提示符
       const userSystemPrompt = typeof params.system === 'string' ? params.system : ''
       const systemPrompt = buildSystemPrompt(userSystemPrompt, params.tools)
       let systemMessage: string | null = systemPrompt
-      console.log('config.context', context)
       if (config.createSystemMessage) {
         // 🎯 如果用户提供了自定义处理函数，使用它
         systemMessage = config.createSystemMessage(systemPrompt, params, context)
@@ -268,20 +276,40 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
         tools: undefined
       }
       context.originalParams = transformedParams
-      console.log('transformedParams', transformedParams)
       return transformedParams
     },
     transformStream: (_: any, context: AiRequestContext) => () => {
       let textBuffer = ''
-      let stepId = ''
+      // let stepId = ''
 
       if (!context.mcpTools) {
         throw new Error('No tools available')
       }
 
-      // 创建工具执行器和流事件管理器
+      // 从 context 中获取或初始化 usage 累加器
+      if (!context.accumulatedUsage) {
+        context.accumulatedUsage = {
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          reasoningTokens: 0,
+          cachedInputTokens: 0
+        }
+      }
+
+      // 创建工具执行器、流事件管理器和标签提取器
       const toolExecutor = new ToolExecutor()
       const streamEventManager = new StreamEventManager()
+      const tagExtractor = new TagExtractor(TOOL_USE_TAG_CONFIG)
+
+      // 在context中初始化工具执行状态，避免递归调用时状态丢失
+      if (!context.hasExecutedToolsInCurrentStep) {
+        context.hasExecutedToolsInCurrentStep = false
+      }
+
+      // 用于hold text-start事件，直到确认有非工具标签内容
+      let pendingTextStart: TextStreamPart<TOOLS> | null = null
+      let hasStartedText = false
 
       type TOOLS = NonNullable<typeof context.mcpTools>
       return new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
@@ -289,83 +317,106 @@ export const createPromptToolUsePlugin = (config: PromptToolUseConfig = {}) => {
           chunk: TextStreamPart<TOOLS>,
           controller: TransformStreamDefaultController<TextStreamPart<TOOLS>>
         ) {
-          // 收集文本内容
-          if (chunk.type === 'text-delta') {
-            textBuffer += chunk.text || ''
-            stepId = chunk.id || ''
-            controller.enqueue(chunk)
+          // Hold住text-start事件，直到确认有非工具标签内容
+          if ((chunk as any).type === 'text-start') {
+            pendingTextStart = chunk
             return
           }
 
-          if (chunk.type === 'text-end' || chunk.type === 'finish-step') {
-            const tools = context.mcpTools
-            if (!tools || Object.keys(tools).length === 0) {
-              controller.enqueue(chunk)
-              return
-            }
+          // text-delta阶段：收集文本内容并过滤工具标签
+          if (chunk.type === 'text-delta') {
+            textBuffer += chunk.text || ''
+            // stepId = chunk.id || ''
 
-            // 解析工具调用
-            const { results: parsedTools, content: parsedContent } = parseToolUse(textBuffer, tools)
-            const validToolUses = parsedTools.filter((t) => t.status === 'pending')
+            // 使用TagExtractor过滤工具标签，只传递非标签内容到UI层
+            const extractionResults = tagExtractor.processText(chunk.text || '')
 
-            // 如果没有有效的工具调用，直接传递原始事件
-            if (validToolUses.length === 0) {
-              controller.enqueue(chunk)
-              return
-            }
-
-            if (chunk.type === 'text-end') {
-              controller.enqueue({
-                type: 'text-end',
-                id: stepId,
-                providerMetadata: {
-                  text: {
-                    value: parsedContent
-                  }
+            for (const result of extractionResults) {
+              // 只传递非标签内容到UI层
+              if (!result.isTagContent && result.content) {
+                // 如果还没有发送text-start且有pending的text-start，先发送它
+                if (!hasStartedText && pendingTextStart) {
+                  controller.enqueue(pendingTextStart)
+                  hasStartedText = true
+                  pendingTextStart = null
                 }
-              })
-              return
+
+                const filteredChunk = {
+                  ...chunk,
+                  text: result.content
+                }
+                controller.enqueue(filteredChunk)
+              }
+            }
+            return
+          }
+
+          if (chunk.type === 'text-end') {
+            // 只有当已经发送了text-start时才发送text-end
+            if (hasStartedText) {
+              controller.enqueue(chunk)
+            }
+            return
+          }
+
+          if (chunk.type === 'finish-step') {
+            // 统一在finish-step阶段检查并执行工具调用
+            const tools = context.mcpTools
+            if (tools && Object.keys(tools).length > 0 && !context.hasExecutedToolsInCurrentStep) {
+              // 解析完整的textBuffer来检测工具调用
+              const { results: parsedTools } = parseToolUse(textBuffer, tools)
+              const validToolUses = parsedTools.filter((t) => t.status === 'pending')
+
+              if (validToolUses.length > 0) {
+                context.hasExecutedToolsInCurrentStep = true
+
+                // 执行工具调用（不需要手动发送 start-step，外部流已经处理）
+                const executedResults = await toolExecutor.executeTools(validToolUses, tools, controller)
+
+                // 发送步骤完成事件，使用 tool-calls 作为 finishReason
+                streamEventManager.sendStepFinishEvent(controller, chunk, context, 'tool-calls')
+
+                // 处理递归调用
+                const toolResultsText = toolExecutor.formatToolResults(executedResults)
+                const recursiveParams = streamEventManager.buildRecursiveParams(
+                  context,
+                  textBuffer,
+                  toolResultsText,
+                  tools
+                )
+
+                await streamEventManager.handleRecursiveCall(controller, recursiveParams, context)
+                return
+              }
             }
 
-            controller.enqueue({
-              ...chunk,
-              finishReason: 'tool-calls'
-            })
-
-            // 发送步骤开始事件
-            streamEventManager.sendStepStartEvent(controller)
-
-            // 执行工具调用
-            const executedResults = await toolExecutor.executeTools(validToolUses, tools, controller)
-
-            // 发送步骤完成事件
-            streamEventManager.sendStepFinishEvent(controller, chunk)
-
-            // 处理递归调用
-            if (validToolUses.length > 0) {
-              const toolResultsText = toolExecutor.formatToolResults(executedResults)
-              const recursiveParams = streamEventManager.buildRecursiveParams(
-                context,
-                textBuffer,
-                toolResultsText,
-                tools
-              )
-
-              await streamEventManager.handleRecursiveCall(controller, recursiveParams, context, stepId)
-            }
+            // 如果没有执行工具调用，直接传递原始finish-step事件
+            controller.enqueue(chunk)
 
             // 清理状态
             textBuffer = ''
             return
           }
 
-          // 对于其他类型的事件，直接传递
-          controller.enqueue(chunk)
+          // 处理 finish 类型，使用累加后的 totalUsage
+          if (chunk.type === 'finish') {
+            controller.enqueue({
+              ...chunk,
+              totalUsage: context.accumulatedUsage
+            })
+            return
+          }
+
+          // 对于其他类型的事件，直接传递（不包括text-start，已在上面处理）
+          if ((chunk as any).type !== 'text-start') {
+            controller.enqueue(chunk)
+          }
         },
 
         flush() {
-          // 流结束时的清理工作
-          console.log('[MCP Prompt] Stream ended, cleaning up...')
+          // 清理pending状态
+          pendingTextStart = null
+          hasStartedText = false
         }
       })
     }

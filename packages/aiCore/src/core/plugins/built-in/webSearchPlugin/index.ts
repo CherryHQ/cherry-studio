@@ -27,7 +27,7 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
         case 'openai': {
           if (config.openai) {
             if (!params.tools) params.tools = {}
-            params.tools.web_search_preview = openai.tools.webSearchPreview(config.openai)
+            params.tools.web_search = openai.tools.webSearch(config.openai)
           }
           break
         }

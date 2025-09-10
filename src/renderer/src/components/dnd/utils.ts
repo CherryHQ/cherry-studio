@@ -1,4 +1,4 @@
-import { defaultDropAnimationSideEffects, type DropAnimation, PointerSensor } from '@dnd-kit/core'
+import { PointerSensor } from '@dnd-kit/core'
 
 export const PORTAL_NO_DND_SELECTORS = [
   '.ant-dropdown',
@@ -7,20 +7,6 @@ export const PORTAL_NO_DND_SELECTORS = [
   '.ant-tooltip',
   '.ant-modal'
 ].join(',')
-
-/**
- * Default drop animation config.
- * The opacity is set so to match the drag overlay case.
- */
-export const dropAnimationConfig: DropAnimation = {
-  sideEffects: defaultDropAnimationSideEffects({
-    styles: {
-      active: {
-        opacity: '0.25'
-      }
-    }
-  })
-}
 
 /**
  * Prevent drag on elements with specific classes or data-no-dnd attribute

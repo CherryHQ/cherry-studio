@@ -28,6 +28,9 @@
     "source.organizeImports": "never"
   },
   "editor.formatOnSave": true,
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
   "files.eol": "\n",
   "i18n-ally.displayLanguage": "zh-cn",
   "i18n-ally.enabledFrameworks": ["react-i18next", "i18next"],

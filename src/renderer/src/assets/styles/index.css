@@ -1,11 +1,12 @@
-@use './color.scss';
-@use './font.scss';
-@use './markdown.scss';
-@use './ant.scss';
-@use './scrollbar.scss';
-@use './container.scss';
-@use './animation.scss';
-@use './richtext.scss';
+@import './color.css';
+@import './font.css';
+@import './markdown.css';
+@import './ant.css';
+@import './scrollbar.css';
+@import './container.css';
+@import './animation.css';
+@import './richtext.css';
+@import './responsive.css';
 @import '../fonts/icon-fonts/iconfont.css';
 @import '../fonts/ubuntu/ubuntu.css';
 @import '../fonts/country-flag-fonts/flag.css';
@@ -14,7 +15,7 @@
 *::before,
 *::after {
   box-sizing: border-box;
-  margin: 0;
+  /* margin: 0; */
   font-weight: normal;
 }
 
@@ -34,11 +35,11 @@ body,
   margin: 0;
 }
 
-#root {
+/* #root {
   display: flex;
   flex-direction: row;
   flex: 1;
-}
+} */
 
 body {
   display: flex;
@@ -50,6 +51,7 @@ body {
   font-family: var(--font-family);
   text-rendering: optimizeLegibility;
   transition: background-color 0.3s linear;
+  background-color: unset;
 
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -113,62 +115,62 @@ ul {
   word-wrap: break-word;
 }
 
-.bubble:not(.multi-select-mode) {
-  .block-wrapper {
-    display: flow-root;
-  }
+.bubble:not(.multi-select-mode) .block-wrapper {
+  display: flow-root;
+}
 
-  .block-wrapper:last-child > *:last-child {
-    margin-bottom: 0;
-  }
+.bubble:not(.multi-select-mode) .block-wrapper:last-child > *:last-child {
+  margin-bottom: 0;
+}
 
-  .message-content-container > *:last-child {
-    margin-bottom: 0;
-  }
+.bubble:not(.multi-select-mode) .message-content-container > *:last-child {
+  margin-bottom: 0;
+}
 
-  .message-thought-container {
-    margin-top: 8px;
-  }
+.bubble:not(.multi-select-mode) .message-thought-container {
+  margin-top: 8px;
+}
 
-  .message-user {
-    .message-header {
-      flex-direction: row-reverse;
-      text-align: right;
-      .message-header-info-wrap {
-        flex-direction: row-reverse;
-        text-align: right;
-      }
-    }
-    .message-content-container {
-      border-radius: 10px;
-      padding: 10px 16px 10px 16px;
-      background-color: var(--chat-background-user);
-      align-self: self-end;
-    }
-    .MessageFooter {
-      margin-top: 2px;
-      align-self: self-end;
-    }
-  }
+.bubble:not(.multi-select-mode) .message-user .message-header {
+  flex-direction: row-reverse;
+  text-align: right;
+}
 
-  .message-assistant {
-    .message-content-container {
-      padding-left: 0;
-    }
-    .MessageFooter {
-      margin-left: 0;
-    }
-  }
+.bubble:not(.multi-select-mode) .message-user .message-header .message-header-info-wrap {
+  flex-direction: row-reverse;
+  text-align: right;
+}
 
-  code {
-    color: var(--color-text);
-  }
-  .markdown {
-    display: flow-root;
-    *:last-child {
-      margin-bottom: 0;
-    }
-  }
+.bubble:not(.multi-select-mode) .message-user .message-content-container {
+  border-radius: 10px;
+  padding: 10px 16px 10px 16px;
+  background-color: var(--chat-background-user);
+  align-self: self-end;
+}
+
+.bubble:not(.multi-select-mode) .message-user .MessageFooter {
+  margin-top: 2px;
+  align-self: self-end;
+}
+
+.bubble:not(.multi-select-mode) .message-assistant .message-content-container {
+  padding-left: 0;
+}
+
+.bubble:not(.multi-select-mode) .message-assistant .MessageFooter {
+  margin-left: 0;
+}
+
+.bubble:not(.multi-select-mode) code {
+  color: var(--color-text);
+}
+
+.bubble:not(.multi-select-mode) .markdown {
+  display: flow-root;
+}
+
+.bubble:not(.multi-select-mode) .markdown *:last-child {
+  margin-bottom: 0;
 }
 
 .lucide:not(.lucide-custom) {
@@ -184,8 +186,6 @@ ul {
   background-color: var(--color-background-highlight-accent);
 }
 
-textarea {
-  &::-webkit-resizer {
-    display: none;
-  }
+textarea::-webkit-resizer {
+  display: none;
 }

@@ -1,5 +1,5 @@
 import { AiPlugin } from '@cherrystudio/ai-core'
-import { createPromptToolUsePlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { createPromptToolUsePlugin, googleToolsPlugin, webSearchPlugin } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { Assistant } from '@renderer/types'
@@ -35,7 +35,7 @@ export function buildPlugins(
     plugins.push(webSearchPlugin())
   }
   // 2. 支持工具调用时添加搜索插件
-  if (middlewareConfig.isSupportedToolUse) {
+  if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {
     plugins.push(searchOrchestrationPlugin(middlewareConfig.assistant, middlewareConfig.topicId || ''))
   }
 
@@ -45,12 +45,13 @@ export function buildPlugins(
   }
 
   // 4. 启用Prompt工具调用时添加工具插件
-  if (middlewareConfig.isPromptToolUse && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
+  if (middlewareConfig.isPromptToolUse) {
     plugins.push(
       createPromptToolUsePlugin({
         enabled: true,
         createSystemMessage: (systemPrompt, params, context) => {
-          if (context.modelId.includes('o1-mini') || context.modelId.includes('o1-preview')) {
+          const modelId = typeof context.model === 'string' ? context.model : context.model.modelId
+          if (modelId.includes('o1-mini') || modelId.includes('o1-preview')) {
             if (context.isRecursiveCall) {
               return null
             }
@@ -69,10 +70,11 @@ export function buildPlugins(
     )
   }
 
-  // if (!middlewareConfig.enableTool && middlewareConfig.mcpTools && middlewareConfig.mcpTools.length > 0) {
-  //   plugins.push(createNativeToolUsePlugin())
-  // }
-  logger.info(
+  if (middlewareConfig.enableUrlContext) {
+    plugins.push(googleToolsPlugin({ urlContext: true }))
+  }
+
+  logger.debug(
     'Final plugin list:',
     plugins.map((p) => p.name)
   )

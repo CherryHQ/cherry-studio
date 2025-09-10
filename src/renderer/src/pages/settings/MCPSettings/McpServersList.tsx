@@ -116,7 +116,7 @@ const McpServersList: FC = () => {
     }
     addMCPServer(newServer)
     navigate(`/settings/mcp/settings/${encodeURIComponent(newServer.id)}`)
-    window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-list' })
+    window.toast.success(t('settings.mcp.addSuccess'))
   }, [addMCPServer, navigate, t])
 
   const onDeleteMcpServer = useCallback(
@@ -129,14 +129,11 @@ const McpServersList: FC = () => {
           onOk: async () => {
             await window.api.mcp.removeServer(server)
             deleteMCPServer(server.id)
-            window.message.success({ content: t('settings.mcp.deleteSuccess'), key: 'mcp-list' })
+            window.toast.success(t('settings.mcp.deleteSuccess'))
           }
         })
       } catch (error: any) {
-        window.message.error({
-          content: `${t('settings.mcp.deleteError')}: ${error.message}`,
-          key: 'mcp-list'
-        })
+        window.toast.error(`${t('settings.mcp.deleteError')}: ${error.message}`)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -151,7 +148,7 @@ const McpServersList: FC = () => {
     async (server: MCPServer) => {
       addMCPServer(server)
       setIsAddModalVisible(false)
-      window.message.success({ content: t('settings.mcp.addSuccess'), key: 'mcp-quick-add' })
+      window.toast.success(t('settings.mcp.addSuccess'))
       // Optionally navigate to the new server's settings page
       // navigate(`/settings/mcp/settings/${encodeURIComponent(server.id)}`)
     },
@@ -253,7 +250,8 @@ const McpServersList: FC = () => {
         itemKey="id"
         onSortEnd={onSortEnd}
         layout="grid"
-        gap={'12px'}
+        gap="12px"
+        restrictions={{ scrollableAncestor: true }}
         useDragOverlay
         showGhost
         renderItem={(server) => (

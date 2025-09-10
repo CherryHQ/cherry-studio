@@ -1,6 +1,6 @@
 import { exec } from 'child_process'
 import * as fs from 'fs/promises'
-import linguistLanguages from 'linguist-languages'
+import * as linguistLanguages from 'linguist-languages'
 import * as path from 'path'
 import { promisify } from 'util'
 

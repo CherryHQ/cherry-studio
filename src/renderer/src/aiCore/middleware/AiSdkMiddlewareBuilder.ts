@@ -22,6 +22,7 @@ export interface AiSdkMiddlewareConfig {
   isImageGenerationEndpoint: boolean
   enableWebSearch: boolean
   enableGenerateImage: boolean
+  enableUrlContext: boolean
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
 }
@@ -132,7 +133,6 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
     })
   }
 
-  logger.info('builder.build()', builder.buildNamed())
   return builder.build()
 }
 

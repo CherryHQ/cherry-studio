@@ -10,60 +10,14 @@ import {
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { uuid } from '@renderer/utils'
 import { readyToAbort } from '@renderer/utils/abortController'
-import { formatErrorMessage, isAbortError } from '@renderer/utils/error'
+import { isAbortError } from '@renderer/utils/error'
+import { NoOutputGeneratedError } from 'ai'
 import { t } from 'i18next'
 
 import { fetchChatCompletion } from './ApiService'
 import { getDefaultTranslateAssistant } from './AssistantService'
 
 const logger = loggerService.withContext('TranslateService')
-
-// async function fetchTranslate({ assistant, onResponse, abortKey }: FetchTranslateProps) {
-//   const model = assistant.model
-
-//   const provider = getProviderByModel(model)
-
-//   if (!hasApiKey(provider)) {
-//     throw new Error(t('error.no_api_key'))
-//   }
-
-//   const isSupportedStreamOutput = () => {
-//     if (!onResponse) {
-//       return false
-//     }
-//     return true
-//   }
-
-//   const stream = isSupportedStreamOutput()
-//   const enableReasoning =
-//     ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-//       assistant.settings?.reasoning_effort !== undefined) ||
-//     (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-
-//   // abort control
-//   const controller = new AbortController()
-//   const signal = controller.signal
-
-//   // 使用 transformParameters 模块构建参数
-//   const { params, modelId, capabilities } = await buildStreamTextParams(undefined, assistant, provider, {
-//     requestOptions: {
-//       signal
-//     }
-//   })
-
-//   const options: ModernAiProviderConfig = {
-//     assistant,
-//     streamOutput: stream,
-//     enableReasoning,
-//     model: assistant.model,
-//     provider: provider
-//   }
-
-//   const AI = new ModernAiProvider(model, provider)
-
-//   const result = (await AI.completions(modelId, params, options)).getText().trim()
-//   return result
-// }
 
 /**
  * 翻译文本到目标语言
@@ -81,58 +35,55 @@ export const translateText = async (
   abortKey?: string
 ) => {
   let abortError
-  try {
-    const assistant = getDefaultTranslateAssistant(targetLanguage, text)
+  const assistant = getDefaultTranslateAssistant(targetLanguage, text)
 
-    const signal = abortKey ? readyToAbort(abortKey) : undefined
+  const signal = abortKey ? readyToAbort(abortKey) : undefined
 
-    let translatedText = ''
-    let completed = false
-    const onChunk = (chunk: Chunk) => {
-      if (chunk.type === ChunkType.TEXT_DELTA) {
-        translatedText = chunk.text
-      } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
+  let translatedText = ''
+  let completed = false
+  const onChunk = (chunk: Chunk) => {
+    if (chunk.type === ChunkType.TEXT_DELTA) {
+      translatedText = chunk.text
+    } else if (chunk.type === ChunkType.TEXT_COMPLETE) {
+      completed = true
+    } else if (chunk.type === ChunkType.ERROR) {
+      if (isAbortError(chunk.error)) {
+        abortError = chunk.error
         completed = true
-      } else if (chunk.type === ChunkType.ERROR) {
-        if (isAbortError(chunk.error)) {
-          abortError = chunk.error
-          completed = true
-        }
       }
-      onResponse?.(translatedText, completed)
     }
+    onResponse?.(translatedText, completed)
+  }
 
-    const options = {
-      signal
-    } satisfies FetchChatCompletionOptions
+  const options = {
+    signal
+  } satisfies FetchChatCompletionOptions
 
+  try {
     await fetchChatCompletion({
       prompt: assistant.content,
       assistant,
       options,
       onChunkReceived: onChunk
     })
-
-    const trimmedText = translatedText.trim()
-
-    if (!trimmedText) {
-      return Promise.reject(new Error(t('translate.error.empty')))
-    }
-
-    return trimmedText
   } catch (e) {
-    if (isAbortError(e)) {
-      window.message.info(t('translate.info.aborted'))
-      throw e
-    } else if (isAbortError(abortError)) {
-      window.message.info(t('translate.info.aborted'))
-      throw abortError
-    } else {
-      logger.error('Failed to translate', e as Error)
-      window.message.error(t('translate.error.failed' + ': ' + formatErrorMessage(e)))
+    // dismiss no output generated error. it will be thrown when aborted.
+    if (!NoOutputGeneratedError.isInstance(e)) {
       throw e
     }
   }
+
+  if (abortError) {
+    throw abortError
+  }
+
+  const trimmedText = translatedText.trim()
+
+  if (!trimmedText) {
+    return Promise.reject(new Error(t('translate.error.empty')))
+  }
+
+  return trimmedText
 }
 
 /**

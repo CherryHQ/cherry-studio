@@ -1,6 +1,6 @@
-name: English Translator
+name: Claude Translator
 concurrency:
-  group: translator-${{ github.event.issue.number }}
+  group: translator-${{ github.event.comment.id || github.event.issue.number }}
   cancel-in-progress: false
 
 on:
@@ -12,8 +12,10 @@ on:
 jobs:
   translate:
     if: |
-      (github.event_name == 'issues' && github.event.issue.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue/comment was translated by Claude.')) ||
-      (github.event_name == 'issue_comment' && github.event.comment.author_association == 'COLLABORATOR' && !contains(github.event.issue.body, 'This issue/comment was translated by Claude.'))
+      (github.event_name == 'issues') ||
+      (github.event_name == 'issue_comment' && github.event.sender.type != 'Bot') &&
+      ((github.event_name == 'issue_comment' && github.event.action == 'created' && !contains(github.event.comment.body, 'This issue was translated by Claude')) ||
+      (github.event_name == 'issue_comment' && github.event.action == 'edited'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,11 +30,12 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude for translation
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@main
         id: claude
         with:
+          github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: '--allowed-tools mcp__github_comment__update_claude_comment,Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
+          claude_args: '--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
           prompt: |
             你是一个多语言翻译助手。请完成以下任务：
 
@@ -50,7 +53,7 @@ jobs:
 
                  ---
                  <details>
-                 <summary>**Original Content:**</summary>
+                 <summary>Original Content</summary>
                  [原始内容]
                  </details>
 

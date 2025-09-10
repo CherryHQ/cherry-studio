@@ -538,6 +538,10 @@
         "tip": "The run button will be displayed in the toolbar of executable code blocks, please do not execute dangerous code!",
         "title": "Code Execution"
       },
+      "code_fancy_block": {
+        "label": "Fancy code block",
+        "tip": "Enable fancy style for code block, e.g., html card"
+      },
       "code_image_tools": {
         "label": "Enable preview tools",
         "tip": "Enable preview tools for images rendered from code blocks such as mermaid"
@@ -943,6 +947,9 @@
     "image": "Image",
     "name": "Name",
     "open": "Open",
+    "preview": {
+      "error": "Failed to open file"
+    },
     "size": "Size",
     "text": "Text",
     "title": "Files",
@@ -1739,8 +1746,15 @@
         "compress_content": "Content Compression",
         "compress_content_description": "When enabled, it will limit the number of characters per line, reducing the content displayed on the screen, but making longer paragraphs more readable.",
         "default_font": "Default font",
+        "font_size": "Font Size",
+        "font_size_description": "Adjust the font size for better reading experience (10-30px)",
+        "font_size_large": "Large",
+        "font_size_medium": "Medium",
+        "font_size_small": "Small",
         "font_title": "Font settings",
         "serif_font": "Serif font",
+        "show_table_of_contents": "Show Table of Contents",
+        "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
         "title": "Display Settings"
       },
       "editor": {
@@ -4297,6 +4311,7 @@
     },
     "processing": "Translation in progress...",
     "settings": {
+      "autoCopy": "Copy after translation ",
       "bidirectional": "Bidirectional Translation Settings",
       "bidirectional_tip": "When enabled, only bidirectional translation between source and target languages is supported",
       "model": "Model Settings",

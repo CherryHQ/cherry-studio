@@ -538,6 +538,10 @@
         "tip": "可執行的程式碼塊工具欄中會顯示運行按鈕，注意不要執行危險程式碼！",
         "title": "程式碼執行"
       },
+      "code_fancy_block": {
+        "label": "花式程式碼區塊",
+        "tip": "使用更美觀的程式碼區塊樣式，例如 HTML 卡片"
+      },
       "code_image_tools": {
         "label": "啟用預覽工具",
         "tip": "為 mermaid 等程式碼區塊渲染後的圖像啟用預覽工具"
@@ -943,6 +947,9 @@
     "image": "圖片",
     "name": "名稱",
     "open": "開啟",
+    "preview": {
+      "error": "開啟檔案失敗"
+    },
     "size": "大小",
     "text": "文字",
     "title": "檔案",
@@ -1739,8 +1746,15 @@
         "compress_content": "縮減欄寬",
         "compress_content_description": "開啟後將限制每行字數，使屏幕顯示的內容減少",
         "default_font": "默認字體",
+        "font_size": "字體大小",
+        "font_size_description": "調整字體大小以獲得更好的閱讀體驗 (10-30px)",
+        "font_size_large": "大",
+        "font_size_medium": "中",
+        "font_size_small": "小",
         "font_title": "字體設置",
         "serif_font": "襯線字體",
+        "show_table_of_contents": "顯示目錄大綱",
+        "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便文檔內導航",
         "title": "顯示"
       },
       "editor": {
@@ -4297,6 +4311,7 @@
     },
     "processing": "翻譯中...",
     "settings": {
+      "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
       "model": "模型設定",

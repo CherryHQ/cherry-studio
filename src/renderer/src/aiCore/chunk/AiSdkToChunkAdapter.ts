@@ -89,7 +89,7 @@ export class AiSdkToChunkAdapter {
     chunk: TextStreamPart<any>,
     final: { text: string; reasoningContent: string; webSearchResults: any[]; reasoningId: string }
   ) {
-    logger.info(`AI SDK chunk type: ${chunk.type}`, chunk)
+    logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
       // === 文本相关事件 ===
       case 'text-start':
@@ -152,12 +152,14 @@ export class AiSdkToChunkAdapter {
       //   this.toolCallHandler.handleToolCallCreated(chunk)
       //   break
       case 'tool-call':
-        // 原始的工具调用（未被中间件处理）
         this.toolCallHandler.handleToolCall(chunk)
         break
 
+      case 'tool-error':
+        this.toolCallHandler.handleToolError(chunk)
+        break
+
       case 'tool-result':
-        // 原始的工具调用结果（未被中间件处理）
         this.toolCallHandler.handleToolResult(chunk)
         break
 
@@ -167,7 +169,6 @@ export class AiSdkToChunkAdapter {
       //     type: ChunkType.LLM_RESPONSE_CREATED
       //   })
       //   break
-      // TODO: 需要区分接口开始和步骤开始
       // case 'start-step':
       //   this.onChunk({
       //     type: ChunkType.BLOCK_CREATED
@@ -305,8 +306,6 @@ export class AiSdkToChunkAdapter {
         break
 
       default:
-      // 其他类型的 chunk 可以忽略或记录日志
-      // console.log('Unhandled AI SDK chunk type:', chunk.type, chunk)
     }
   }
 }

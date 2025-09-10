@@ -6,6 +6,8 @@ import { NotesSortType } from '@renderer/types/note'
 export interface NotesSettings {
   isFullWidth: boolean
   fontFamily: 'default' | 'serif'
+  fontSize: number
+  showTableOfContents: boolean
   defaultViewMode: 'edit' | 'read'
   defaultEditMode: Omit<EditorView, 'read'>
   showTabStatus: boolean
@@ -26,6 +28,8 @@ export const initialState: NoteState = {
   settings: {
     isFullWidth: true,
     fontFamily: 'default',
+    fontSize: 16,
+    showTableOfContents: true,
     defaultViewMode: 'edit',
     defaultEditMode: 'preview',
     showTabStatus: true,

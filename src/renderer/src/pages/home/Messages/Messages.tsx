@@ -10,7 +10,7 @@ import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { autoRenameTopic, getTopic } from '@renderer/hooks/useTopic'
+import { autoRenameTopic } from '@renderer/hooks/useTopic'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -61,7 +61,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
 
-  const { updateTopic, addTopic } = useAssistant(assistant.id)
+  const { addTopic } = useAssistant(assistant.id)
   const { showPrompt, messageNavigation } = useSettings()
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
@@ -105,22 +105,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   const clearTopic = useCallback(
     async (data: Topic) => {
-      const defaultTopic = getDefaultTopic(assistant.id)
-
       if (data && data.id !== topic.id) {
         await clearTopicMessages(data.id)
-        updateTopic({ ...data, name: defaultTopic.name } as Topic)
         return
       }
 
       await clearTopicMessages()
-
       setDisplayMessages([])
-
-      const _topic = getTopic(assistant, topic.id)
-      _topic && updateTopic({ ..._topic, name: defaultTopic.name } as Topic)
     },
-    [assistant, clearTopicMessages, topic.id, updateTopic]
+    [clearTopicMessages, topic.id]
   )
 
   useEffect(() => {
@@ -201,7 +194,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           // You might want to remove the added topic if cloning fails
           // removeTopic(newTopic.id); // Assuming you have a removeTopic function
           logger.error(`[NEW_BRANCH] Failed to create topic branch for topic ${newTopic.id}`)
-          window.message.error(t('message.branch.error')) // Example error message
+          window.toast.error(t('message.branch.error')) // Example error message
         }
       }),
       EventEmitter.on(
@@ -224,19 +217,19 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
               dispatch(updateOneBlock({ id: msgBlockId, changes: { content: updatedRaw } }))
               await dispatch(updateMessageAndBlocksThunk(topic.id, null, [updatedBlock]))
 
-              window.message.success({ content: t('code_block.edit.save.success'), key: 'save-code' })
+              window.toast.success(t('code_block.edit.save.success'))
             } catch (error) {
               logger.error(
                 `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}:`,
                 error as Error
               )
-              window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
+              window.toast.error(t('code_block.edit.save.failed.label'))
             }
           } else {
             logger.error(
               `Failed to save code block ${codeBlockId} content to message block ${msgBlockId}: no such message block or the block doesn't have a content field`
             )
-            window.message.error({ content: t('code_block.edit.save.failed.label'), key: 'save-code-failed' })
+            window.toast.error(t('code_block.edit.save.failed.label'))
           }
         }
       )
@@ -277,7 +270,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     const lastMessage = last(messages)
     if (lastMessage) {
       navigator.clipboard.writeText(getMainTextContent(lastMessage))
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     }
   })
 

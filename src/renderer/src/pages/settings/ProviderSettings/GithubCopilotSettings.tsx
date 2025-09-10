@@ -67,13 +67,13 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       // 自动复制授权码到剪贴板
       try {
         await navigator.clipboard.writeText(user_code)
-        window.message.success(t('settings.provider.copilot.code_copied'))
+        window.toast.success(t('settings.provider.copilot.code_copied'))
       } catch (error) {
         logger.error('Failed to copy to clipboard:', error as Error)
       }
     } catch (error) {
       logger.error('Failed to get device code:', error as Error)
-      window.message.error(t('settings.provider.copilot.code_failed'))
+      window.toast.error(t('settings.provider.copilot.code_failed'))
       setCurrentStep(0)
     } finally {
       setLoading(false)
@@ -95,11 +95,11 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
         setAuthStatus(AuthStatus.AUTHENTICATED)
         updateState({ username: login, avatar: avatar })
         updateProvider({ ...provider, apiKey: token, isAuthed: true })
-        window.message.success(t('settings.provider.copilot.auth_success'))
+        window.toast.success(t('settings.provider.copilot.auth_success'))
       }
     } catch (error) {
       logger.error('Failed to get token:', error as Error)
-      window.message.error(t('settings.provider.copilot.auth_failed'))
+      window.toast.error(t('settings.provider.copilot.auth_failed'))
       setCurrentStep(2)
     } finally {
       setLoading(false)
@@ -125,10 +125,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       setVerificationPageOpened(false)
       setCurrentStep(0)
 
-      window.message.success(t('settings.provider.copilot.logout_success'))
+      window.toast.success(t('settings.provider.copilot.logout_success'))
     } catch (error) {
       logger.error('Failed to logout:', error as Error)
-      window.message.error(t('settings.provider.copilot.logout_failed'))
+      window.toast.error(t('settings.provider.copilot.logout_failed'))
       // 如果登出失败，重置登出状态
       updateProvider({ ...provider, apiKey: '', isAuthed: false })
     } finally {
@@ -140,10 +140,10 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   const handleCopyUserCode = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(userCode)
-      window.message.success(t('common.copied'))
+      window.toast.success(t('common.copied'))
     } catch (error) {
       logger.error('Failed to copy to clipboard:', error as Error)
-      window.message.error(t('common.copy_failed'))
+      window.toast.error(t('common.copy_failed'))
     }
   }, [userCode, t])
 

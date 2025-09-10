@@ -1,7 +1,7 @@
 import { Embeddings, type EmbeddingsParams } from '@langchain/core/embeddings'
 import { chunkArray } from '@langchain/core/utils/chunk_array'
 import { getEnvironmentVariable } from '@langchain/core/utils/env'
-import z from 'zod/v4'
+import { z } from 'zod'
 
 const jinaModelSchema = z.union([
   z.literal('jina-clip-v2'),

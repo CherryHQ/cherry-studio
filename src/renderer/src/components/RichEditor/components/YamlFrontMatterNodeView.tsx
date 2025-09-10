@@ -15,7 +15,7 @@ interface ParsedProperty {
   type: 'string' | 'array' | 'date' | 'number' | 'boolean'
 }
 
-const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttributes }) => {
+const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttributes, editor }) => {
   const { t } = useTranslation()
   const [editingProperty, setEditingProperty] = useState<string | null>(null)
   const [newPropertyName, setNewPropertyName] = useState('')
@@ -408,6 +408,11 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
     )
   }
 
+  // Check if there's content in the entire editor (excluding YAML front matter)
+  const hasContent = useMemo(() => {
+    return editor.getText().trim().length > 0
+  }, [editor])
+
   return (
     <NodeViewWrapper
       className="yaml-front-matter-wrapper"
@@ -418,6 +423,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
         }
       }}>
       <PropertiesContainer
+        hasContent={hasContent}
         onClick={(e) => {
           // Prevent node selection when clicking inside properties
           e.stopPropagation()
@@ -485,7 +491,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
             />
           </PropertyRow>
         ) : (
-          <AddPropertyRow onClick={() => setShowAddProperty(true)}>
+          <AddPropertyRow hasContent={hasContent} onClick={() => setShowAddProperty(true)}>
             <PropertyIcon>
               <Plus size={16} />
             </PropertyIcon>
@@ -497,7 +503,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
   )
 }
 
-const PropertiesContainer = styled.div`
+const PropertiesContainer = styled.div<{ hasContent?: boolean }>`
   margin: 16px 0;
   padding: 0;
   display: flex;
@@ -705,7 +711,7 @@ const ArrayInput = styled(Input)`
   }
 `
 
-const AddPropertyRow = styled.button`
+const AddPropertyRow = styled.button<{ hasContent?: boolean }>`
   display: flex;
   align-items: center;
   padding: 6px 8px;
@@ -716,16 +722,22 @@ const AddPropertyRow = styled.button`
   cursor: pointer;
   border-radius: 6px;
   width: 100%;
+  opacity: ${({ hasContent }) => (hasContent ? 0 : 1)};
+  transition: opacity 0.2s;
 
   &:hover {
     background-color: var(--color-hover);
+  }
+
+  ${PropertiesContainer}:hover & {
+    opacity: 1;
   }
 `
 
 const AddPropertyText = styled.div`
   font-size: 14px;
   font-family: var(--font-family);
-  color: var(--color-text);
+  color: var(--color-text-secondary);
 `
 
 const PropertyActions = styled.div`

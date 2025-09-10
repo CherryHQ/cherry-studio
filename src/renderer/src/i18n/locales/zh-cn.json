@@ -538,6 +538,10 @@
         "tip": "可执行的代码块工具栏中会显示运行按钮，注意不要执行危险代码！",
         "title": "代码执行"
       },
+      "code_fancy_block": {
+        "label": "花式代码块",
+        "tip": "使用更美观的代码块样式，例如 HTML 卡片"
+      },
       "code_image_tools": {
         "label": "启用预览工具",
         "tip": "为 mermaid 等代码块渲染后的图像启用预览工具"
@@ -943,6 +947,9 @@
     "image": "图片",
     "name": "文件名",
     "open": "打开",
+    "preview": {
+      "error": "打开文件失败"
+    },
     "size": "大小",
     "text": "文本",
     "title": "文件",
@@ -1739,8 +1746,15 @@
         "compress_content": "缩减栏宽",
         "compress_content_description": "开启后将限制每行字数，使屏幕显示的内容减少",
         "default_font": "默认字体",
+        "font_size": "字体大小",
+        "font_size_description": "调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "大",
+        "font_size_medium": "中",
+        "font_size_small": "小",
         "font_title": "字体设置",
         "serif_font": "衬线字体",
+        "show_table_of_contents": "显示目录大纲",
+        "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
         "title": "显示设置"
       },
       "editor": {
@@ -4297,6 +4311,7 @@
     },
     "processing": "翻译中...",
     "settings": {
+      "autoCopy": "翻译完成后自动复制",
       "bidirectional": "双向翻译设置",
       "bidirectional_tip": "开启后，仅支持在源语言和目标语言之间进行双向翻译",
       "model": "模型设置",

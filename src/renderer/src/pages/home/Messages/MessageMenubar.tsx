@@ -151,7 +151,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
       navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
 
-      window.message.success({ content: t('message.copied'), key: 'copy-message' })
+      window.toast.success(t('message.copied'))
       setCopied(true)
     },
     [message, setCopied, t] // message is needed for message.id and as a fallback. t is for translation.
@@ -159,7 +159,7 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onNewBranch = useCallback(async () => {
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
-    window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
+    window.toast.success(t('chat.message.new.branch.created'))
   }, [index, t])
 
   const handleResendUserMessage = useCallback(
@@ -186,8 +186,7 @@ const MessageMenubar: FC<Props> = (props) => {
       try {
         await translateText(mainTextContent, language, translationUpdater)
       } catch (error) {
-        // console.error('Translation failed:', error)
-        window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
+        window.toast.error(t('translate.error.failed'))
         // 理应只有一个
         const translationBlocks = findTranslationBlocksById(message.id)
         logger.silly(`there are ${translationBlocks.length} translation blocks`)
@@ -569,9 +568,9 @@ const MessageMenubar: FC<Props> = (props) => {
 
                             if (translationContent) {
                               navigator.clipboard.writeText(translationContent)
-                              window.message.success({ content: t('translate.copied'), key: 'translate-copy' })
+                              window.toast.success(t('translate.copied'))
                             } else {
-                              window.message.warning({ content: t('translate.empty'), key: 'translate-copy' })
+                              window.toast.warning(t('translate.empty'))
                             }
                           }
                         }
@@ -589,7 +588,7 @@ const MessageMenubar: FC<Props> = (props) => {
                             translationBlocks.forEach((blockId) => {
                               if (blockId) removeMessageBlock(message.id, blockId)
                             })
-                            window.message.success({ content: t('translate.closed'), key: 'translate-close' })
+                            window.toast.success(t('translate.closed'))
                           }
                         }
                       }

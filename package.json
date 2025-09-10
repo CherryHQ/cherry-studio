@@ -68,7 +68,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
-    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky"
+    "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
+    "claude": "dotenv -e .env -- claude"
   },
   "dependencies": {
     "@libsql/client": "0.14.0",
@@ -81,7 +82,7 @@
     "node-stream-zip": "^1.15.0",
     "officeparser": "^4.2.0",
     "os-proxy-config": "^1.1.2",
-    "selection-hook": "^1.0.11",
+    "selection-hook": "^1.0.12",
     "sharp": "^0.34.3",
     "tesseract.js": "patch:tesseract.js@npm%3A6.0.1#~/.yarn/patches/tesseract.js-npm-6.0.1-2562a7e46d.patch",
     "turndown": "7.2.0"
@@ -91,7 +92,7 @@
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^3.0.0",
-    "@ai-sdk/google-vertex": "^3.0.0",
+    "@ai-sdk/google-vertex": "^3.0.25",
     "@ai-sdk/mistral": "^2.0.0",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
     "@anthropic-ai/sdk": "^0.41.0",
@@ -128,6 +129,7 @@
     "@eslint/js": "^9.22.0",
     "@google/genai": "patch:@google/genai@npm%3A1.0.1#~/.yarn/patches/@google-genai-npm-1.0.1-e26f0f9af7.patch",
     "@hello-pangea/dnd": "^18.0.1",
+    "@heroui/react": "^2.8.3",
     "@kangfenmao/keyv-storage": "^0.1.0",
     "@langchain/community": "^0.3.50",
     "@langchain/core": "^0.3.68",
@@ -148,6 +150,7 @@
     "@reduxjs/toolkit": "^2.2.5",
     "@shikijs/markdown-it": "^3.12.0",
     "@swc/plugin-styled-components": "^8.0.4",
+    "@tailwindcss/vite": "^4.1.13",
     "@tanstack/react-query": "^5.85.5",
     "@tanstack/react-virtual": "^3.13.12",
     "@testing-library/dom": "^10.4.0",
@@ -200,7 +203,7 @@
     "@viz-js/lang-dot": "^1.0.5",
     "@viz-js/viz": "^3.14.0",
     "@xyflow/react": "^12.4.4",
-    "ai": "^5.0.29",
+    "ai": "^5.0.38",
     "antd": "patch:antd@npm%3A5.27.0#~/.yarn/patches/antd-npm-5.27.0-aa91c36546.patch",
     "archiver": "^7.0.1",
     "async-mutex": "^0.5.0",
@@ -210,6 +213,7 @@
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.3",
     "cli-progress": "^3.12.0",
+    "clsx": "^2.1.1",
     "code-inspector-plugin": "^0.20.14",
     "color": "^5.0.0",
     "concurrently": "^9.2.1",
@@ -238,6 +242,7 @@
     "fast-diff": "^1.3.0",
     "fast-xml-parser": "^5.2.0",
     "fetch-socks": "1.3.2",
+    "framer-motion": "^12.23.12",
     "franc-min": "^6.2.0",
     "fs-extra": "^11.2.0",
     "google-auth-library": "^9.15.1",
@@ -272,6 +277,7 @@
     "playwright": "^1.52.0",
     "prettier": "^3.5.3",
     "prettier-plugin-sort-json": "^4.1.1",
+    "prettier-plugin-tailwindcss": "^0.6.14",
     "proxy-agent": "^6.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -301,17 +307,18 @@
     "remark-math": "^6.0.0",
     "remove-markdown": "^0.6.2",
     "rollup-plugin-visualizer": "^5.12.0",
-    "sass": "^1.88.0",
     "shiki": "^3.12.0",
     "strict-url-sanitise": "^0.0.1",
     "string-width": "^7.2.0",
     "striptags": "^3.2.0",
     "styled-components": "^6.1.11",
+    "tailwindcss": "^4.1.13",
     "tar": "^7.4.3",
     "tiny-pinyin": "^1.3.2",
     "tokenx": "^1.1.0",
     "tsx": "^4.20.3",
     "turndown-plugin-gfm": "^1.0.2",
+    "tw-animate-css": "^1.3.8",
     "typescript": "^5.6.2",
     "undici": "6.21.2",
     "unified": "^11.0.5",
@@ -327,7 +334,7 @@
     "yjs": "^13.6.27",
     "youtubei.js": "^15.0.1",
     "zipread": "^1.3.3",
-    "zod": "^3.25.74"
+    "zod": "^4.1.5"
   },
   "resolutions": {
     "@codemirror/language": "6.11.3",
@@ -356,7 +363,7 @@
       "prettier --write",
       "eslint --fix"
     ],
-    "*.{json,yml,yaml,css,scss,html}": [
+    "*.{json,yml,yaml,css,html}": [
       "prettier --write"
     ]
   }

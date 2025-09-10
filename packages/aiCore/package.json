@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-core",
-  "version": "1.0.0-alpha.11",
+  "version": "1.0.0-alpha.14",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -39,13 +39,13 @@
     "@ai-sdk/anthropic": "^2.0.5",
     "@ai-sdk/azure": "^2.0.16",
     "@ai-sdk/deepseek": "^1.0.9",
-    "@ai-sdk/google": "^2.0.7",
-    "@ai-sdk/openai": "^2.0.19",
+    "@ai-sdk/google": "^2.0.13",
+    "@ai-sdk/openai": "^2.0.26",
     "@ai-sdk/openai-compatible": "^1.0.9",
     "@ai-sdk/provider": "^2.0.0",
     "@ai-sdk/provider-utils": "^3.0.4",
     "@ai-sdk/xai": "^2.0.9",
-    "zod": "^3.25.0"
+    "zod": "^4.1.5"
   },
   "devDependencies": {
     "tsdown": "^0.12.9",

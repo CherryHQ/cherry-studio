@@ -735,10 +735,7 @@ export const regenerateAssistantResponseThunk =
         )
 
         // Show error popup instead of creating error message block
-        window.message.error({
-          content: t('error.missing_user_message'),
-          key: 'missing-user-message-error'
-        })
+        window.toast.error(t('error.missing_user_message'))
 
         return
       }
@@ -958,10 +955,7 @@ export const appendAssistantResponseThunk =
         )
 
         // Show error popup instead of creating error message block
-        window.message.error({
-          content: t('error.missing_user_message'),
-          key: 'missing-user-message-error'
-        })
+        window.toast.error(t('error.missing_user_message'))
 
         return
       }

@@ -19,7 +19,7 @@
   --color-background-soft: var(--color-black-soft);
   --color-background-mute: var(--color-black-mute);
   --color-background-opacity: rgba(34, 34, 34, 0.7);
-  --inner-glow-opacity: 0.3; // For the glassmorphism effect in the dropdown menu
+  --inner-glow-opacity: 0.3; /* For the glassmorphism effect in the dropdown menu */
 
   --color-primary: #00b96b;
   --color-primary-soft: #00b96b99;
@@ -57,16 +57,6 @@
 
   --navbar-background-mac: rgba(20, 20, 20, 0.55);
   --navbar-background: #1f1f1f;
-
-  --navbar-height: 44px;
-  --sidebar-width: 50px;
-  --status-bar-height: 40px;
-  --input-bar-height: 100px;
-
-  --assistants-width: 275px;
-  --topic-list-width: 275px;
-  --settings-width: 250px;
-  --scrollbar-width: 5px;
 
   --chat-background: transparent;
   --chat-background-user: rgba(255, 255, 255, 0.08);
@@ -144,11 +134,6 @@
   --chat-background-user: rgba(0, 0, 0, 0.045);
   --chat-background-assistant: transparent;
   --chat-text-user: var(--color-text);
-}
-
-[navbar-position='left'] {
-  --navbar-height: 42px;
-  --list-item-border-radius: 20px;
 }
 
 [navbar-position='left'][theme-mode='light'] {
