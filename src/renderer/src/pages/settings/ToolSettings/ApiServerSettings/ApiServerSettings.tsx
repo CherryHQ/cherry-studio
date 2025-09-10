@@ -3,6 +3,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerEnabled, setApiServerPort } from '@renderer/store/settings'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Input, InputNumber, Tooltip, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
@@ -63,7 +64,7 @@ const ApiServerSettings: FC = () => {
         }
       }
     } catch (error) {
-      window.message.error(t('apiServer.messages.operationFailed') + (error as Error).message)
+      window.message.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
     } finally {
       dispatch(setApiServerEnabled(enabled))
       setApiServerLoading(false)

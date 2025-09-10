@@ -47,7 +47,7 @@ export class ApiServerService {
   }
 
   async getCurrentConfig(): Promise<ApiServerConfig> {
-    return await config.get()
+    return config.get()
   }
 
   registerIpcHandlers(): void {
@@ -96,7 +96,7 @@ export class ApiServerService {
 
     ipcMain.handle(IpcChannel.ApiServer_GetConfig, async () => {
       try {
-        return await this.getCurrentConfig()
+        return this.getCurrentConfig()
       } catch (error: any) {
         return null
       }
