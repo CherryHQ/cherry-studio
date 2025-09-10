@@ -41,7 +41,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setTitle(options.title)
     setList(options.list)
     setDefaultIndex(options.defaultIndex ?? 0)
-    setPageSize(options.pageSize ?? 7)
+    // 仅当显式传入时才更新行数，否则沿用用户最近一次调整值
+    if (typeof options.pageSize === 'number') {
+      setPageSize(options.pageSize)
+    }
     setMultiple(options.multiple ?? false)
     setSymbol(options.symbol)
     setTriggerInfo(options.triggerInfo)
@@ -85,6 +88,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       open,
       close,
       updateItemSelection,
+      setPageSize,
 
       isVisible,
       symbol,
@@ -103,6 +107,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       open,
       close,
       updateItemSelection,
+      setPageSize,
       isVisible,
       symbol,
       list,

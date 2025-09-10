@@ -467,6 +467,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     }
 
     const handleClickOutside = (e: MouseEvent) => {
+      if (isResizingRef.current) return
       const target = e.target as HTMLElement
       if (target.closest('#inputbar')) return
       if (bodyRef.current && !bodyRef.current.contains(target)) {
@@ -511,14 +512,69 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   }, [ctx.isVisible])
 
   const listHeight = useMemo(() => {
-    return Math.min(ctx.pageSize, list.length) * ITEM_HEIGHT
-  }, [ctx.pageSize, list.length])
+    // 高度直接由可视行数决定，保证拖拽时即时反馈
+    return ctx.pageSize * ITEM_HEIGHT
+  }, [ctx.pageSize])
   const hasSearchText = useMemo(() => searchText.replace(/^[/@]/, '').length > 0, [searchText])
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = hasSearchText && visibleNonPinnedCount === 0
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
+
+  // 拖拽调整高度（行数）
+  const [isResizing, setIsResizing] = useState(false)
+  const isResizingRef = useRef(false)
+  const startYRef = useRef(0)
+  const startRowsRef = useRef(0)
+  const MIN_ROWS = 3
+  const MAX_ROWS = 16
+
+  const onResizeMouseMove = useCallback(
+    (e: MouseEvent) => {
+      const deltaY = e.clientY - startYRef.current
+      // 顶部手柄：向上拖动增加高度（行数）
+      const deltaRows = Math.round(deltaY / ITEM_HEIGHT)
+      const next = Math.max(MIN_ROWS, Math.min(MAX_ROWS, startRowsRef.current - deltaRows))
+      if (next !== ctx.pageSize) {
+        ctx.setPageSize(next)
+      }
+    },
+    [ctx]
+  )
+
+  const onResizeMouseUp = useCallback(() => {
+    // 延迟一个tick再结束，避免触发外部点击关闭
+    setTimeout(() => {
+      setIsResizing(false)
+      isResizingRef.current = false
+    }, 0)
+    window.removeEventListener('mousemove', onResizeMouseMove)
+    window.removeEventListener('mouseup', onResizeMouseUp)
+    document.body.style.cursor = ''
+  }, [onResizeMouseMove])
+
+  const onResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      startYRef.current = e.clientY
+      startRowsRef.current = ctx.pageSize
+      setIsResizing(true)
+      isResizingRef.current = true
+      document.body.style.cursor = 'ns-resize'
+      window.addEventListener('mousemove', onResizeMouseMove)
+      window.addEventListener('mouseup', onResizeMouseUp)
+    },
+    [ctx.pageSize, onResizeMouseMove, onResizeMouseUp]
+  )
+
+  // 行数变化时尽量保持当前焦点项可见
+  useEffect(() => {
+    if (!listRef.current || index < 0) return
+    listRef.current.scrollToIndex(index, { align: 'auto' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ctx.pageSize])
 
   const rowRenderer = useCallback(
     (item: QuickPanelListItem, itemIndex: number) => {
@@ -575,6 +631,16 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             return prev ? prev : true
           })
         }>
+        {/* Resize handle at top */}
+        {!collapsed && (
+          <ResizeHandle
+            role="separator"
+            aria-label="Resize QuickPanel"
+            aria-orientation="vertical"
+            data-testid="quickpanel-resize"
+            onMouseDown={onResizeMouseDown}
+          />
+        )}
         {!collapsed && (
           <DynamicVirtualList
             ref={listRef}
@@ -583,7 +649,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             estimateSize={estimateSize}
             overscan={5}
             scrollerStyle={{
-              pointerEvents: isMouseOver ? 'auto' : 'none'
+              pointerEvents: isMouseOver && !isResizing ? 'auto' : 'none'
             }}>
             {rowRenderer}
           </DynamicVirtualList>
@@ -692,6 +758,31 @@ const QuickPanelFooter = styled.div`
   align-items: center;
   gap: 16px;
   padding: 8px 12px 5px;
+`
+
+const ResizeHandle = styled.div`
+  height: 8px;
+  margin: 2px 6px;
+  border-radius: 4px;
+  cursor: ns-resize;
+  position: relative;
+  background: transparent;
+  &:before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--color-border);
+    opacity: 0.7;
+  }
+  &:hover:before {
+    background: var(--color-text-3);
+    opacity: 1;
+  }
 `
 
 const QuickPanelFooterTips = styled.div<{ $footerWidth: number }>`
