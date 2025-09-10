@@ -1,8 +1,8 @@
-import { CSSProperties } from 'react'
+import React, { CSSProperties } from 'react'
 
 type PxValue = number | string
 
-export interface BoxProps {
+export interface BoxProps extends React.ComponentProps<'div'> {
   width?: PxValue
   height?: PxValue
   w?: PxValue
