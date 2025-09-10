@@ -117,9 +117,9 @@ export const Box = ({
   pr,
   paddingRight,
   children,
-  ...rest
-}: BoxProps & { children?: React.ReactNode }) => {
-  const style = {
+  style
+}: BoxProps & { children?: React.ReactNode; style?: CSSProperties }) => {
+  const _style = {
     width: width || w ? getElementValue(width ?? w) : 'auto',
     height: height || h ? getElementValue(height ?? h) : 'auto',
     color,
@@ -144,27 +144,38 @@ export const Box = ({
     paddingTop: pt || paddingTop ? getElementValue(pt ?? paddingTop) : 'auto',
     paddingBottom: pb || paddingBottom ? getElementValue(pb ?? paddingBottom) : 'auto',
     paddingLeft: pl || paddingLeft ? getElementValue(pl ?? paddingLeft) : 'auto',
-    paddingRight: pr || paddingRight ? getElementValue(pr ?? paddingRight) : 'auto'
+    paddingRight: pr || paddingRight ? getElementValue(pr ?? paddingRight) : 'auto',
+    ...style
   } satisfies CSSProperties
 
-  return (
-    <div style={style} {...rest}>
-      {children}
-    </div>
-  )
+  return <div style={_style}>{children}</div>
 }
 
-export const Stack = styled(Box)<StackProps>`
-  display: flex;
-  justify-content: ${(props) => props.justifyContent ?? 'flex-start'};
-  align-items: ${(props) => props.alignItems ?? 'flex-start'};
-  flex-direction: ${(props) => props.flexDirection ?? 'row'};
-`
+export const Stack = ({
+  justifyContent = 'flex-start',
+  alignItems = 'flex-start',
+  flexDirection = 'row',
+  children
+}: StackProps & { children?: React.ReactNode }) => {
+  const style = {
+    display: 'flex',
+    justifyContent,
+    alignItems,
+    flexDirection
+  }
 
-export const Center = styled(Stack)<StackProps>`
-  justify-content: center;
-  align-items: center;
-`
+  return <Box style={style}>{children}</Box>
+}
+
+export const Center = ({
+  children
+}: Omit<StackProps, 'justifyContent' | 'alignItems'> & { children?: React.ReactNode }) => {
+  return (
+    <Stack justifyContent="center" alignItems="center">
+      {children}
+    </Stack>
+  )
+}
 
 export const RowFlex = styled(Stack)<StackProps>`
   flex-direction: row;
