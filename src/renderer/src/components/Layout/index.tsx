@@ -154,9 +154,9 @@ export interface FlexProps extends BoxProps {
 }
 
 export const Flex = ({
-  justify: justifyContent = 'flex-start',
-  align: alignItems = 'flex-start',
-  flexDirection = 'row',
+  justify: justifyContent,
+  align: alignItems,
+  flexDirection,
   children,
   style,
   ...props
