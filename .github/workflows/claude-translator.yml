@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: read
       issues: write # 编辑issues/comments
-      pull-requests: read
+      pull-requests: write
       id-token: write
 
     steps:
@@ -33,7 +33,11 @@ jobs:
         uses: anthropics/claude-code-action@main
         id: claude
         with:
+          # Warning: Permissions should have been controlled by workflow permission.
+          # Now `contents: read` is safe for files, but we could make a fine-grained token to control it.
+          # See: https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
           github_token: ${{ secrets.TOKEN_GITHUB_WRITE }}
+          allowed_non_write_users: '*'
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--allowed-tools Bash(gh issue:*),Bash(gh api:repos/*/issues:*)'
           prompt: |
