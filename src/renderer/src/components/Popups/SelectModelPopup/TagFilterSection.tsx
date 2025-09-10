@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { Flex } from '@renderer/components/Layout'
 import {
   EmbeddingTag,
   FreeTag,
@@ -9,7 +10,6 @@ import {
   WebSearchTag
 } from '@renderer/components/Tags/Model'
 import { ModelTag } from '@renderer/types'
-import { Flex } from 'antd'
 import React, { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
