@@ -50,21 +50,21 @@ const ApiServerSettings: FC = () => {
         const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Start)
         if (result.success) {
           setApiServerRunning(true)
-          window.message.success(t('apiServer.messages.startSuccess'))
+          window.toast.success(t('apiServer.messages.startSuccess'))
         } else {
-          window.message.error(t('apiServer.messages.startError') + result.error)
+          window.toast.error(t('apiServer.messages.startError') + result.error)
         }
       } else {
         const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Stop)
         if (result.success) {
           setApiServerRunning(false)
-          window.message.success(t('apiServer.messages.stopSuccess'))
+          window.toast.success(t('apiServer.messages.stopSuccess'))
         } else {
-          window.message.error(t('apiServer.messages.stopError') + result.error)
+          window.toast.error(t('apiServer.messages.stopError') + result.error)
         }
       }
     } catch (error) {
-      window.message.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
+      window.toast.error(t('apiServer.messages.operationFailed') + formatErrorMessage(error))
     } finally {
       dispatch(setApiServerEnabled(enabled))
       setApiServerLoading(false)
@@ -77,12 +77,12 @@ const ApiServerSettings: FC = () => {
       const result = await window.electron.ipcRenderer.invoke(IpcChannel.ApiServer_Restart)
       if (result.success) {
         await checkApiServerStatus()
-        window.message.success(t('apiServer.messages.restartSuccess'))
+        window.toast.success(t('apiServer.messages.restartSuccess'))
       } else {
-        window.message.error(t('apiServer.messages.restartError') + result.error)
+        window.toast.error(t('apiServer.messages.restartError') + result.error)
       }
     } catch (error) {
-      window.message.error(t('apiServer.messages.restartFailed') + (error as Error).message)
+      window.toast.error(t('apiServer.messages.restartFailed') + (error as Error).message)
     } finally {
       setApiServerLoading(false)
     }
@@ -90,13 +90,13 @@ const ApiServerSettings: FC = () => {
 
   const copyApiKey = () => {
     navigator.clipboard.writeText(apiServerConfig.apiKey)
-    window.message.success(t('apiServer.messages.apiKeyCopied'))
+    window.toast.success(t('apiServer.messages.apiKeyCopied'))
   }
 
   const regenerateApiKey = () => {
     const newApiKey = `cs-sk-${uuidv4()}`
     dispatch(setApiServerApiKey(newApiKey))
-    window.message.success(t('apiServer.messages.apiKeyRegenerated'))
+    window.toast.success(t('apiServer.messages.apiKeyRegenerated'))
   }
 
   const handlePortChange = (value: string) => {
