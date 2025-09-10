@@ -181,7 +181,7 @@ export const RowFlex = styled(Stack)<StackProps>`
   flex-direction: row;
 `
 
-export const HSpaceBetweenStack = styled(RowFlex)<StackProps>`
+export const SpaceBetweenRowFlex = styled(RowFlex)<StackProps>`
   justify-content: space-between;
 `
 
