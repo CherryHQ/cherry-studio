@@ -1,11 +1,12 @@
 // import { loggerService } from '@logger'
+import { Flex } from '@renderer/components/Layout'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { BuiltinOcrProviderIds, isOcrSystemProvider, TranslateLanguageCode } from '@renderer/types'
-import { Flex, Select } from 'antd'
+import { Select } from 'antd'
 import { startTransition, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

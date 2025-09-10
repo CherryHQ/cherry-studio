@@ -1,5 +1,6 @@
+import { Flex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
+import { Button, Form, FormProps, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

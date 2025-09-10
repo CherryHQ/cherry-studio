@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import EmojiPicker from '../EmojiPicker'
-import { Center, RowFlex, ColFlex } from '../Layout'
+import { Center, ColFlex, RowFlex } from '../Layout'
 import { TopView } from '../TopView'
 
 interface Props {

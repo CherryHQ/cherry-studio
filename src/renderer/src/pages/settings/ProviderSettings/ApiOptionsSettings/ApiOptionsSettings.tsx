@@ -1,8 +1,8 @@
-import { RowFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
-import { Flex, Switch } from 'antd'
+import { Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -104,7 +104,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
 
   return (
-    <Flex vertical gap="middle">
+    <ColFlex gap="middle">
       {options.map((item) => (
         <RowFlex key={item.key} justify="space-between">
           <RowFlex align="center" gap={6}>
@@ -116,7 +116,7 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
           <Switch id={item.key} checked={item.checked} onChange={item.onChange} />
         </RowFlex>
       ))}
-    </Flex>
+    </ColFlex>
   )
 }
 

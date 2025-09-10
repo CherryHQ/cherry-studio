@@ -48,7 +48,7 @@ const ImagePreviewLayout = ({
 
   return (
     <Spin spinning={loading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-      <PreviewContainer vertical className={`image-preview-layout ${className ?? ''}`}>
+      <PreviewContainer flexDirection="column" className={`image-preview-layout ${className ?? ''}`}>
         {error && <PreviewError>{error}</PreviewError>}
         {children}
         {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} />}

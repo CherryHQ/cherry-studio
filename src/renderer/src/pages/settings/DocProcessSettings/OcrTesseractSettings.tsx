@@ -1,11 +1,12 @@
 // import { loggerService } from '@logger'
+import { Flex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { BuiltinOcrProviderIds, isOcrTesseractProvider, TesseractLangCode } from '@renderer/types'
-import { Flex, Select } from 'antd'
+import { Select } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

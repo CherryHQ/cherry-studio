@@ -1,10 +1,11 @@
+import { Flex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { endpointTypeOptions } from '@renderer/config/endpointTypes'
 import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { EndpointType, Model, Provider } from '@renderer/types'
-import { Button, Flex, Form, FormProps, Modal, Select } from 'antd'
+import { Button, Form, FormProps, Modal, Select } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
