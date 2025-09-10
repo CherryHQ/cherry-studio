@@ -41,20 +41,15 @@ export interface BoxProps {
   padding?: string
 }
 
-export interface FlexProps extends BoxProps {
-  justifyContent?: CSSProperties['justifyContent']
-  alignItems?: CSSProperties['alignItems']
-  flexDirection?: CSSProperties['flexDirection']
-}
-
-export interface ButtonProps extends FlexProps {
-  color?: string
-  isDisabled?: boolean
-  isLoading?: boolean
-  background?: string
-  border?: string
-  fontSize?: string
-}
+// Now used anywhere for now.
+// export interface ButtonProps extends FlexProps {
+//   color?: string
+//   isDisabled?: boolean
+//   isLoading?: boolean
+//   background?: string
+//   border?: string
+//   fontSize?: string
+// }
 
 const cssRegex = /(px|vw|vh|%|auto)$/g
 
@@ -144,6 +139,12 @@ export const Box = ({
   } satisfies CSSProperties
 
   return <div style={_style}>{children}</div>
+}
+
+export interface FlexProps extends BoxProps {
+  justifyContent?: CSSProperties['justifyContent']
+  alignItems?: CSSProperties['alignItems']
+  flexDirection?: CSSProperties['flexDirection']
 }
 
 export const Flex = ({
