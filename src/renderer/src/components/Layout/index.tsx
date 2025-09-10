@@ -145,6 +145,7 @@ export interface FlexProps extends BoxProps {
   justify?: CSSProperties['justifyContent']
   align?: CSSProperties['alignItems']
   flexDirection?: CSSProperties['flexDirection']
+  wrap?: CSSProperties['flexWrap']
 }
 
 export const Flex = ({
