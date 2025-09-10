@@ -51,7 +51,11 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   const checkScrollability = () => {
     const scrollElement = scrollRef.current
     if (scrollElement) {
-      setCanScroll(scrollElement.scrollWidth > scrollElement.clientWidth)
+      const parentElement = scrollElement.parentElement
+      const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
+
+      // 确保容器不会超出可用宽度
+      setCanScroll(scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth))
     }
   }
 
@@ -92,6 +96,7 @@ const Container = styled.div<{ $expandable?: boolean }>`
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
   position: relative;
   cursor: ${(props) => (props.$expandable ? 'pointer' : 'default')};
 
