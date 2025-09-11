@@ -114,7 +114,7 @@ const TranslateSettings: FC<{
               </span>
             </Tooltip>
           </div>
-          <RowFlex className="items-center gap-5">
+          <RowFlex className="items-center gap-[5px]">
             <Radio.Group
               defaultValue={'auto'}
               value={autoDetectionMethod}
@@ -139,7 +139,7 @@ const TranslateSettings: FC<{
         <div>
           <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>
-              <RowFlex className="items-center gap-5">
+              <RowFlex className="items-center gap-[5px]">
                 {t('translate.settings.bidirectional')}
                 <Tooltip title={t('translate.settings.bidirectional_tip')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>

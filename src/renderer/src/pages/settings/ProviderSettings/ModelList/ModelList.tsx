@@ -99,10 +99,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle style={{ marginBottom: 5 }}>
-        <RowFlex className="items-center justify-between" style={{ width: '100%' }}>
+      <SettingSubtitle className="mb-[5px]">
+        <RowFlex className="w-full items-center justify-between">
           <RowFlex className="items-center gap-2">
-            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
+            <SettingSubtitle className="mt-0">{t('common.models')}</SettingSubtitle>
             {modelCount > 0 && (
               <CustomTag color="#8c8c8c" size={10}>
                 {modelCount}
@@ -165,11 +165,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         ) : (
-          <div style={{ height: 5 }} />
+          <div className="h-[5px]" />
         )}
       </Flex>
       {editable && (
-        <Flex className="gap-2.5" style={{ marginTop: 12 }}>
+        <Flex className="mt-3 gap-2.5">
           <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
             {t('button.manage')}
           </Button>

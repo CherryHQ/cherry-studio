@@ -35,7 +35,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   return (
     <ListItem ref={ref}>
-      <RowFlex className="items-center" style={{ flex: 1 }}>
+      <RowFlex className="flex-1 items-center">
         <Avatar src={getModelLogo(model.id)} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>

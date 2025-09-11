@@ -94,7 +94,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="left"
         colon={false}
-        style={{ marginTop: 25 }}
+        className="mt-[25px]"
         onFinish={onFinish}>
         <Form.Item
           name="id"
@@ -123,8 +123,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
           tooltip={t('settings.models.add.group_name.tooltip')}>
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex className="items-center justify-end" style={{ position: 'relative' }}>
+        <Form.Item className="mb-2 text-center">
+          <Flex className="relative items-center justify-end">
             <Button type="primary" htmlType="submit" size="middle">
               {t('settings.models.add.add_model')}
             </Button>

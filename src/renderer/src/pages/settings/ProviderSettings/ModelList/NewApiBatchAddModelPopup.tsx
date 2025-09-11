@@ -76,7 +76,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
         labelAlign="left"
         colon={false}
-        style={{ marginTop: 25 }}
+        className="mt-[25px]"
         onFinish={onFinish}
         initialValues={{
           endpointType: 'openai'
@@ -94,8 +94,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
             ))}
           </Select>
         </Form.Item>
-        <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex className="items-center justify-end" style={{ position: 'relative' }}>
+        <Form.Item className="mb-2 text-center">
+          <Flex className="relative items-center justify-end">
             <Button type="primary" htmlType="submit" size="middle">
               {t('settings.models.add.add_model')}
             </Button>

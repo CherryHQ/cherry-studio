@@ -148,14 +148,14 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           return (
             <GroupHeaderContainer isCollapsed={isCollapsed}>
               <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
-                <Flex className="items-center" style={{ flex: 1 }}>
+                <Flex className="flex-1 items-center">
                   <ChevronRight
                     size={16}
                     color="var(--color-text-3)"
                     strokeWidth={1.5}
-                    style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
+                    className={isCollapsed ? '' : 'rotate-90'}
                   />
-                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
+                  <span className="text-sm font-bold">{row.groupName}</span>
                   <CustomTag color="#02B96B" size={10}>
                     {row.models.length}
                   </CustomTag>
