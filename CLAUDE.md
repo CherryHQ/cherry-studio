@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Tools
+
+- Use `ast-grep` to search code patterns if available.
+
 ## Development Commands
 
 ### Environment Setup
