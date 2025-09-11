@@ -145,6 +145,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                   <Spinner />
                 ) : !isConnected && qrCodeValue ? (
                   <QRCodeSVG
+                    marginSize={2}
                     value={qrCodeValue}
                     level="Q"
                     size={160}
