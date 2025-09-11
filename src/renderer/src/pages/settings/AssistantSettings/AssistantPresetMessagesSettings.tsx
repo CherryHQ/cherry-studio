@@ -4,6 +4,7 @@ import {
   EditOutlined,
   ExclamationCircleOutlined,
   HistoryOutlined,
+  InfoCircleOutlined,
   PlusOutlined,
   RobotOutlined,
   UploadOutlined,
@@ -12,7 +13,7 @@ import {
 import { DraggableList } from '@renderer/components/DraggableList'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Assistant, AssistantMessage } from '@renderer/types'
-import { Button, Flex, Input, message, Modal, Popconfirm, Select, Space, Switch } from 'antd'
+import { Button, Flex, Input, message, Modal, Popconfirm, Radio, Space, Switch } from 'antd'
 import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -333,7 +334,7 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
                       ) : message.role === 'assistant' ? (
                         <RobotOutlined style={{ color: 'var(--color-success)' }} />
                       ) : (
-                        <HistoryOutlined style={{ color: 'var(--color-warning)' }} />
+                        <InfoCircleOutlined style={{ color: 'var(--color-warning)' }} />
                       ),
                     actions: (
                       <Flex gap={8} align="center">
@@ -382,7 +383,7 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
         open={isModalOpen}
         onOk={handleModalOk}
         onCancel={() => setIsModalOpen(false)}
-        width={520}
+        width={800}
         transitionName="animation-move-down"
         centered
         okButtonProps={{ style: { borderRadius: '4px' } }}
@@ -391,28 +392,18 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <Label>{t('assistants.settings.preset_messages.roleLabel', 'Role')}</Label>
-            <Select
+            <Radio.Group
               value={formData.role}
-              onChange={(value) => setFormData({ ...formData, role: value })}
-              style={{ width: '100%', borderRadius: '6px' }}
-              options={[
-                {
-                  value: 'user',
-                  label: t('assistants.settings.preset_messages.roleUser', 'User'),
-                  style: { color: 'var(--color-info)' }
-                },
-                {
-                  value: 'assistant',
-                  label: t('assistants.settings.preset_messages.roleAssistant', 'Assistant'),
-                  style: { color: 'var(--color-success)' }
-                },
-                {
-                  value: 'system',
-                  label: t('assistants.settings.preset_messages.roleSystem', 'System'),
-                  style: { color: 'var(--color-warning)' }
-                }
-              ]}
-            />
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              buttonStyle="solid">
+              <Radio.Button value="user">{t('assistants.settings.preset_messages.roleUser', 'User')}</Radio.Button>
+              <Radio.Button value="assistant">
+                {t('assistants.settings.preset_messages.roleAssistant', 'Assistant')}
+              </Radio.Button>
+              <Radio.Button value="system">
+                {t('assistants.settings.preset_messages.roleSystem', 'System')}
+              </Radio.Button>
+            </Radio.Group>
           </div>
           <div>
             <Label>{t('assistants.settings.preset_messages.contentLabel', 'Content')}</Label>
@@ -420,7 +411,7 @@ const AssistantPresetMessagesSettings: FC<AssistantPresetMessagesSettingsProps> 
               placeholder={t('assistants.settings.preset_messages.contentPlaceholder', 'Enter content')}
               value={formData.content}
               onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-              rows={6}
+              rows={16}
               style={{
                 resize: 'none',
                 borderRadius: '6px',
