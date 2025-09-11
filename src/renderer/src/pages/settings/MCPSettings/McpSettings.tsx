@@ -422,7 +422,7 @@ const McpSettings: React.FC = () => {
         setServerVersion(null)
       }
       updateMCPServer({ ...server, isActive: active })
-    } catch (error: unknown) {
+    } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
         content: formatMcpError(error as McpError),

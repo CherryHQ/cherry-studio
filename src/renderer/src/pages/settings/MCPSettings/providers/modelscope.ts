@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import { getMcpServerType, type MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('ModelScopeSyncUtils')
@@ -109,7 +109,7 @@ export const syncModelScopeServers = async (
           id: `@modelscope/${server.id}`,
           name: server.chinese_name || server.name || `ModelScope Server ${nanoid()}`,
           description: server.description || '',
-          type: url.endsWith('/mcp') ? 'streamableHttp' : 'sse',
+          type: getMcpServerType(url),
           baseUrl: url,
           command: '',
           args: [],

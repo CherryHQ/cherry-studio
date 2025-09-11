@@ -631,7 +631,6 @@ class McpService {
     } catch (error: unknown) {
       getServerLogger(server).error(`Failed to list tools`, error as Error)
       throw error
-      return []
     }
   }
 
