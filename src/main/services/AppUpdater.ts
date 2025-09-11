@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { getIpCountry } from '@main/utils/ipService'
 import { locales } from '@main/utils/locales'
-import { generateUserAgent } from '@main/utils/systemInfo'
+import { generateClientTelemetryHeader, generateUserAgent } from '@main/utils/systemInfo'
 import { FeedUrl, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { CancellationToken, UpdateInfo } from 'builder-util-runtime'
@@ -30,7 +30,8 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
-      'User-Agent': generateUserAgent()
+      'User-Agent': generateUserAgent(),
+      'X-Client-Id': configManager.getClientId()
     }
 
     autoUpdater.on('error', (error) => {
