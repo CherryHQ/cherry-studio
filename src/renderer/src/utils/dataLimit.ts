@@ -35,7 +35,11 @@ async function checkAppStorageQuota() {
 
 async function checkAppDataDiskQuota(appDataPath: string) {
   try {
-    const { free } = await window.api.getDiskInfo(appDataPath)
+    const diskInfo = await window.api.getDiskInfo(appDataPath)
+    if (!diskInfo) {
+      return false
+    }
+    const { free } = diskInfo
     logger.info(`App data disk quota: Free ${free} GB`)
     // if free is less than 1GB, return true
     return free < 1 * GB
