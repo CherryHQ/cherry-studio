@@ -461,14 +461,58 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   )
 
   const handleDropFiles = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault()
       setIsDragOverSidebar(false)
 
-      const files = Array.from(e.dataTransfer.files)
+      // 处理文件夹拖拽：从 dataTransfer.items 获取完整的文件路径信息
+      const items = Array.from(e.dataTransfer.items)
+      const files: File[] = []
 
-      if (files.length > 0) {
-        onUploadFiles(files)
+      const processEntry = async (entry: FileSystemEntry, path: string = '') => {
+        if (entry.isFile) {
+          const fileEntry = entry as FileSystemFileEntry
+          return new Promise<void>((resolve) => {
+            fileEntry.file((file) => {
+              // 手动设置 webkitRelativePath 以保持文件夹结构
+              Object.defineProperty(file, 'webkitRelativePath', {
+                value: path + file.name,
+                writable: false
+              })
+              files.push(file)
+              resolve()
+            })
+          })
+        } else if (entry.isDirectory) {
+          const dirEntry = entry as FileSystemDirectoryEntry
+          const reader = dirEntry.createReader()
+          return new Promise<void>((resolve) => {
+            reader.readEntries(async (entries) => {
+              const promises = entries.map((subEntry) => processEntry(subEntry, path + entry.name + '/'))
+              await Promise.all(promises)
+              resolve()
+            })
+          })
+        }
+      }
+
+      // 如果支持 DataTransferItem API（文件夹拖拽）
+      if (items.length > 0 && items[0].webkitGetAsEntry()) {
+        const promises = items.map((item) => {
+          const entry = item.webkitGetAsEntry()
+          return entry ? processEntry(entry) : Promise.resolve()
+        })
+
+        await Promise.all(promises)
+
+        if (files.length > 0) {
+          onUploadFiles(files)
+        }
+      } else {
+        const regularFiles = Array.from(e.dataTransfer.files)
+        if (regularFiles.length > 0) {
+          onUploadFiles(regularFiles)
+        }
       }
     },
     [onUploadFiles]

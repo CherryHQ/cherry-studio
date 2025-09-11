@@ -12,7 +12,7 @@ import {
   moveNode,
   renameNode,
   sortAllLevels,
-  uploadNote
+  uploadFiles
 } from '@renderer/services/NotesService'
 import { getNotesTree, isParentNode, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
@@ -525,38 +525,36 @@ const NotesPage: FC = () => {
   const handleUploadFiles = useCallback(
     async (files: File[]) => {
       try {
-        const fileToUpload = files[0]
-
-        if (!fileToUpload) {
+        if (!files || files.length === 0) {
           window.toast.warning(t('notes.no_file_selected'))
           return
         }
-        // 暂时这么处理
-        if (files.length > 1) {
-          window.toast.warning(t('notes.only_one_file_allowed'))
+
+        const targetFolderPath = getTargetFolderPath()
+        if (!targetFolderPath) {
+          throw new Error('No folder path selected')
         }
 
-        if (!fileToUpload.name.toLowerCase().endsWith('.md')) {
-          window.toast.warning(t('notes.only_markdown'))
+        const result = await uploadFiles(files, targetFolderPath)
+
+        // 检查上传结果
+        if (result.fileCount === 0) {
+          window.toast.warning(t('notes.no_valid_files'))
           return
         }
 
-        try {
-          if (!notesPath) {
-            throw new Error('No folder path selected')
-          }
-          await uploadNote(fileToUpload, notesPath)
-          window.toast.success(t('notes.upload_success', { count: 1 }))
-        } catch (error) {
-          logger.error(`Failed to upload note file ${fileToUpload.name}:`, error as Error)
-          window.toast.error(t('notes.upload_failed', { name: fileToUpload.name }))
-        }
+        // 排序并显示成功信息
+        await sortAllLevels(sortType)
+
+        const successMessage = t('notes.upload_success')
+
+        window.toast.success(successMessage)
       } catch (error) {
         logger.error('Failed to handle file upload:', error as Error)
         window.toast.error(t('notes.upload_failed'))
       }
     },
-    [notesPath, t]
+    [getTargetFolderPath, sortType, t]
   )
 
   // 处理节点移动
