@@ -10,7 +10,7 @@ type Props = {
   show: boolean
 }
 
-const IMAGE_HEIGHT = 144
+const IMAGE_HEIGHT = '9rem' // equals h-36
 
 export const OGCard = ({ link, show }: Props) => {
   const openGraph = ['og:title', 'og:description', 'og:image', 'og:imageAlt'] as const
@@ -122,8 +122,8 @@ const PreviewContainer = styled.div<{ hasImage?: boolean }>`
 
 const PreviewImageContainer = styled.div`
   width: 100%;
-  height: ${IMAGE_HEIGHT}px;
-  min-height: ${IMAGE_HEIGHT}px;
+  height: ${IMAGE_HEIGHT};
+  min-height: ${IMAGE_HEIGHT};
   overflow: hidden;
 `
 
@@ -137,7 +137,7 @@ const PreviewContent = styled.div`
 
 const PreviewImage = styled.img`
   width: 100%;
-  height: ${IMAGE_HEIGHT}px;
+  height: ${IMAGE_HEIGHT};
   object-fit: cover;
 `
 
