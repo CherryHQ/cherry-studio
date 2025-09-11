@@ -169,10 +169,6 @@ ul {
   display: flow-root;
 }
 
-.bubble:not(.multi-select-mode) .markdown *:last-child {
-  margin-bottom: 0;
-}
-
 .lucide:not(.lucide-custom) {
   color: var(--color-icon);
 }

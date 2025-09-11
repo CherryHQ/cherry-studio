@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { Flex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -425,7 +426,7 @@ const McpSettings: React.FC = () => {
     } catch (error: any) {
       window.modal.error({
         title: t('settings.mcp.startError'),
-        content: formatMcpError(error),
+        content: formatMcpError(error as McpError),
         centered: true
       })
       updateMCPServer({ ...server, isActive: oldActiveState })

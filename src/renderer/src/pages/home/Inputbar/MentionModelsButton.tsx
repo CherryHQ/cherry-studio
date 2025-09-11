@@ -294,6 +294,14 @@ const MentionModelsButton: FC<Props> = ({
     }
   }, [files, quickPanel])
 
+  // 监听 mentionedModels 变化，动态更新已打开的 QuickPanel 列表状态
+  useEffect(() => {
+    if (quickPanel.isVisible && quickPanel.symbol === '@') {
+      // 直接使用重新计算的 modelItems，因为它已经包含了最新的 isSelected 状态
+      quickPanel.updateList(modelItems)
+    }
+  }, [mentionedModels, quickPanel, modelItems])
+
   useImperativeHandle(ref, () => ({
     openQuickPanel
   }))
