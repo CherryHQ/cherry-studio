@@ -132,7 +132,6 @@
     },
     "title": "API Сервер"
   },
-
   "assistants": {
     "abbr": "Ассистент",
     "clear": {
@@ -538,6 +537,10 @@
         },
         "tip": "Выполнение кода в блоке кода возможно, но не рекомендуется выполнять опасный код!",
         "title": "Выполнение кода"
+      },
+      "code_fancy_block": {
+        "label": "[to be translated]:花式代码块",
+        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
       },
       "code_image_tools": {
         "label": "Включить инструменты предпросмотра",
@@ -1743,8 +1746,15 @@
         "compress_content": "Уменьшить ширину стержня",
         "compress_content_description": "При включении он ограничит количество слов на строку, уменьшая содержимое, отображаемое на экране.",
         "default_font": "По умолчанию шрифт",
+        "font_size": "[to be translated]:字体大小",
+        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "[to be translated]:大",
+        "font_size_medium": "[to be translated]:中",
+        "font_size_small": "[to be translated]:小",
         "font_title": "Настройки шрифта",
         "serif_font": "Serif Font",
+        "show_table_of_contents": "[to be translated]:显示目录大纲",
+        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
         "title": "показывать"
       },
       "editor": {

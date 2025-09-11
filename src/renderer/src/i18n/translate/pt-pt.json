@@ -538,6 +538,10 @@
         "tip": "A barra de ferramentas de blocos de código executáveis exibirá um botão de execução; atenção para não executar códigos perigosos!",
         "title": "Execução de Código"
       },
+      "code_fancy_block": {
+        "label": "[to be translated]:花式代码块",
+        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+      },
       "code_image_tools": {
         "label": "Habilitar ferramenta de visualização",
         "tip": "Ativar ferramentas de visualização para imagens renderizadas de blocos de código como mermaid"
@@ -1742,8 +1746,15 @@
         "compress_content": "reduzir a largura da coluna",
         "compress_content_description": "Ativando isso limitará o número de caracteres por linha, reduzindo o conteúdo exibido na tela.",
         "default_font": "fonte padrão",
+        "font_size": "[to be translated]:字体大小",
+        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "[to be translated]:大",
+        "font_size_medium": "[to be translated]:中",
+        "font_size_small": "[to be translated]:小",
         "font_title": "configuração de fonte",
         "serif_font": "fonte com serifa",
+        "show_table_of_contents": "[to be translated]:显示目录大纲",
+        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
         "title": "configurações de exibição"
       },
       "editor": {
@@ -2639,6 +2650,9 @@
         "token_placeholder": "Insira o token de autorização do Joplin",
         "url": "URL para o qual o serviço de recorte do Joplin está escutando",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "[to be translated]:数据目录空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间"
       },
       "local": {
         "autoSync": {
