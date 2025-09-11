@@ -228,7 +228,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
   const ModalHeader = () => {
     return (
-      <Flex className="flex">
+      <Flex>
         <ModelHeaderTitle>
           {getFancyProviderName(provider)}
           {i18n.language.startsWith('zh') ? '' : ' '}

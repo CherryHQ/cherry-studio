@@ -217,7 +217,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
     <Container>
       <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
-        <RowFlex className="items-center">
+        <RowFlex className="items-center gap-[5px]">
           <ModelSelectButton
             icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
             onClick={onSelectModel}>
