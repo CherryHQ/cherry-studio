@@ -2643,7 +2643,6 @@
         "yuque": "Export to Yuque"
       },
       "export_to_phone": "Export to phone",
-      "export_to_phone_button": "Back up data to phone",
       "export_to_phone_use_lan_button": "LAN transmission",
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",

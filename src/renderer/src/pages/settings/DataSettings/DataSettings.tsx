@@ -3,7 +3,6 @@ import {
   CloudSyncOutlined,
   FileSearchOutlined,
   LoadingOutlined,
-  SaveOutlined,
   WifiOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
@@ -15,7 +14,6 @@ import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import ExportToPhoneLanPopup from '@renderer/components/Popups/ExportToPhoneLanPopup'
-import ExportToPhonePopup from '@renderer/components/Popups/ExportToPhonePopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useKnowledgeFiles } from '@renderer/hooks/useKnowledgeFiles'
@@ -636,9 +634,6 @@ const DataSettings: FC = () => {
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.export_to_phone')}</SettingRowTitle>
                 <HStack gap="5px" justifyContent="space-between">
-                  <Button variant="ghost" size="sm" onPress={ExportToPhonePopup.show} startContent={<SaveOutlined />}>
-                    {t('settings.data.export_to_phone_button')}
-                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

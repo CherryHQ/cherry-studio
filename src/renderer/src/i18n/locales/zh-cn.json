@@ -2642,8 +2642,7 @@
         "title": "导出菜单设置",
         "yuque": "导出到语雀"
       },
-      "export_to_phone": "导出到手机",
-      "export_to_phone_button": "备份数据到手机",
+      "export_to_phone": "迁移数据到手机",
       "export_to_phone_use_lan_button": "局域网传输",
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",

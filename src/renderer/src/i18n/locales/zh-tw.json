@@ -2643,7 +2643,6 @@
         "yuque": "匯出到語雀"
       },
       "export_to_phone": "匯出到手機",
-      "export_to_phone_button": "備份資料到手機",
       "export_to_phone_use_lan_button": "區域網路傳輸",
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",

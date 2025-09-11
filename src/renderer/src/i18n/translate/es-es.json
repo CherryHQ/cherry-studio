@@ -538,6 +538,10 @@
         "tip": "En la barra de herramientas de bloques de código ejecutables se mostrará un botón de ejecución. ¡Tenga cuidado en no ejecutar código peligroso!",
         "title": "Ejecución de Código"
       },
+      "code_fancy_block": {
+        "label": "[to be translated]:花式代码块",
+        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+      },
       "code_image_tools": {
         "label": "Habilitar herramienta de vista previa",
         "tip": "Habilitar herramientas de vista previa para imágenes renderizadas de bloques de código como mermaid"
@@ -923,7 +927,9 @@
     "user": "Usuario"
   },
   "exportToPhone": {
-    "confirm.button": "[to be translated]:Select Backup File",
+    "confirm": {
+      "button": "[to be translated]:选择备份文件"
+    },
     "content": "[to be translated]:Export some data, including chat history, settings. Please note that the backup process may take some time, thank you for your patience.",
     "lan": {
       "content": "[to be translated]:Using LAN transmission, please ensure the computer and phone are on the same network. Please Open Cherry Studio App to Scan this QR Code.",
@@ -1752,8 +1758,15 @@
         "compress_content": "reducir el ancho de la columna",
         "compress_content_description": "Al activarlo, se limitará el número de caracteres por línea, reduciendo el contenido mostrado en pantalla.",
         "default_font": "fuente predeterminada",
+        "font_size": "[to be translated]:字体大小",
+        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "[to be translated]:大",
+        "font_size_medium": "[to be translated]:中",
+        "font_size_small": "[to be translated]:小",
         "font_title": "Configuración de fuente",
         "serif_font": "fuente serif",
+        "show_table_of_contents": "[to be translated]:显示目录大纲",
+        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
         "title": "configuración de visualización"
       },
       "editor": {
@@ -2630,8 +2643,7 @@
         "yuque": "Exportar a Yuque"
       },
       "export_to_phone": "[to be translated]:导出到手机",
-      "export_to_phone.button": "[to be translated]:备份数据到手机",
-      "export_to_phone_use_lan.button": "[to be translated]:局域网传输",
+      "export_to_phone_use_lan_button": "[to be translated]:局域网传输",
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
       "joplin": {
