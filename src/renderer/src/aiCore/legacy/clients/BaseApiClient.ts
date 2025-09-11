@@ -46,6 +46,7 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
+import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
 import { CompletionsContext } from '../middleware/types'
@@ -179,8 +180,7 @@ export abstract class BaseApiClient<
 
   public defaultHeaders() {
     return {
-      'HTTP-Referer': 'https://cherry-ai.com',
-      'X-Title': 'Cherry Studio',
+      ...defaultAppHeaders(),
       'X-Api-Key': this.apiKey
     }
   }

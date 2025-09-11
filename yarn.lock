@@ -6605,9 +6605,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@modelcontextprotocol/sdk@npm:^1.17.0":
-  version: 1.17.0
-  resolution: "@modelcontextprotocol/sdk@npm:1.17.0"
+"@modelcontextprotocol/sdk@npm:^1.17.5":
+  version: 1.17.5
+  resolution: "@modelcontextprotocol/sdk@npm:1.17.5"
   dependencies:
     ajv: "npm:^6.12.6"
     content-type: "npm:^1.0.5"
@@ -6621,7 +6621,7 @@ __metadata:
     raw-body: "npm:^3.0.0"
     zod: "npm:^3.23.8"
     zod-to-json-schema: "npm:^3.24.1"
-  checksum: 10c0/ac497edeb05a434bf8092475e4354ec602644b0197735d3bcd809ee1922f2078ab71e7d8d9dbe1c42765978fa3f2f807df01a2a3ad421c986f0b2207c3a40a68
+  checksum: 10c0/182b92b5e7c07da428fd23c6de22021c4f9a91f799c02a8ef15def07e4f9361d0fc22303548658fec2a700623535fd44a9dc4d010fb5d803a8f80e3c6c64a45e
   languageName: node
   linkType: hard
 
@@ -12862,7 +12862,7 @@ __metadata:
     "@libsql/client": "npm:0.14.0"
     "@libsql/win32-x64-msvc": "npm:^0.4.7"
     "@mistralai/mistralai": "npm:^1.7.5"
-    "@modelcontextprotocol/sdk": "npm:^1.17.0"
+    "@modelcontextprotocol/sdk": "npm:^1.17.5"
     "@mozilla/readability": "npm:^0.6.0"
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch"
     "@notionhq/client": "npm:^2.2.15"

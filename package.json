@@ -136,7 +136,7 @@
     "@langchain/ollama": "^0.2.1",
     "@langchain/openai": "^0.6.7",
     "@mistralai/mistralai": "^1.7.5",
-    "@modelcontextprotocol/sdk": "^1.17.0",
+    "@modelcontextprotocol/sdk": "^1.17.5",
     "@mozilla/readability": "^0.6.0",
     "@notionhq/client": "^2.2.15",
     "@openrouter/ai-sdk-provider": "^1.1.2",
