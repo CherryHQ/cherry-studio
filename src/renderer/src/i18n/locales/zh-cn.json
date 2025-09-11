@@ -2653,7 +2653,8 @@
         "url_placeholder": "http://127.0.0.1:41184/"
       },
       "limit": {
-        "appDataDiskQuota": "数据目录空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间"
+        "appDataDiskQuota": "磁盘空间警告",
+        "appDataDiskQuotaDescription": "数据目录空间即将用尽, 请清理磁盘空间, 否则会丢失数据"
       },
       "local": {
         "autoSync": {

@@ -2652,7 +2652,8 @@
         "url_placeholder": "http://127.0.0.1:41184/"
       },
       "limit": {
-        "appDataDiskQuota": "[to be translated]:数据目录空间即将用尽，可能导致无法保存新数据。请先备份数据，再清理磁盘空间"
+        "appDataDiskQuota": "Advertencia de espacio en disco",
+        "appDataDiskQuotaDescription": "El espacio de almacenamiento de datos está casi lleno, por favor, limpie el espacio en disco, de lo contrario, se perderán los datos"
       },
       "local": {
         "autoSync": {

@@ -2652,7 +2652,8 @@
         "url_placeholder": "http://127.0.0.1:41184/"
       },
       "limit": {
-        "appDataDiskQuota": "Data directory space is almost full, which may prevent saving new data. Please back up your data first, then clear disk space."
+        "appDataDiskQuota": "Disk Space Warning",
+        "appDataDiskQuotaDescription": "Data directory space is almost full, please clear disk space, otherwise data will be lost"
       },
       "local": {
         "autoSync": {

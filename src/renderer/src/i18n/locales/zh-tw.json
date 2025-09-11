@@ -2652,7 +2652,8 @@
         "url_placeholder": "http://127.0.0.1:41184/"
       },
       "limit": {
-        "appDataDiskQuota": "資料目錄空間即將用盡，可能導致無法儲存新資料。請先備份資料，再清理磁碟空間。"
+        "appDataDiskQuota": "磁碟空間警告",
+        "appDataDiskQuotaDescription": "資料目錄空間即將用盡, 請清理磁碟空間, 否則會丟失數據"
       },
       "local": {
         "autoSync": {
