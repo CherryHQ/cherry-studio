@@ -34,7 +34,7 @@ const AgentsSubscribeUrlSettings: FC = () => {
             type="text"
             value={agentssubscribeUrl || ''}
             onChange={handleAgentChange}
-            style={{ width: 315 }}
+            className="w-[315px]"
             placeholder={t('settings.tool.websearch.subscribe_name.placeholder')}
           />
         </RowFlex>

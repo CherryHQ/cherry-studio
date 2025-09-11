@@ -84,13 +84,12 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={notionDatabaseID || ''}
             onChange={handleNotionDatabaseIdChange}
             onBlur={handleNotionDatabaseIdChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
         </RowFlex>
@@ -98,13 +97,12 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={notionPageNameKey || ''}
             onChange={handleNotionPageNameKeyChange}
             onBlur={handleNotionPageNameKeyChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.notion.page_name_key_placeholder')}
           />
         </RowFlex>
@@ -112,7 +110,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={notionApiKey || ''}

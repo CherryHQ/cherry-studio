@@ -76,12 +76,11 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={yuqueUrl || ''}
             onChange={handleYuqueRepoUrlChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.yuque.repo_url_placeholder')}
           />
         </RowFlex>
@@ -97,7 +96,7 @@ const YuqueSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={yuqueToken || ''}

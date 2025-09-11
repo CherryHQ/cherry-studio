@@ -69,9 +69,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
 
   return (
     <Container>
-      <Box className="mb-2" style={{ fontWeight: 'bold' }}>
-        {t('common.name')}
-      </Box>
+      <Box className="mb-2 font-bold">{t('common.name')}</Box>
       <RowFlex className="items-center gap-2">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
           <EmojiButtonWrapper>
