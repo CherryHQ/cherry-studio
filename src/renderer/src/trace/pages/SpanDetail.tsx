@@ -85,7 +85,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
 
   return (
     <Box padding={5}>
-      <Box padding={0} className="mb-4">
+      <Box className="mb-4">
         <a
           onClick={(e) => {
             e.preventDefault()
