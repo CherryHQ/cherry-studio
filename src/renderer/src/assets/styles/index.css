@@ -11,16 +11,18 @@
 @import '../fonts/ubuntu/ubuntu.css';
 @import '../fonts/country-flag-fonts/flag.css';
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  /* margin: 0; */
-  font-weight: normal;
-}
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    /* margin: 0; */
+    font-weight: normal;
+  }
 
-*:focus {
-  outline: none;
+  *:focus {
+    outline: none;
+  }
 }
 
 * {
