@@ -215,9 +215,9 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   return (
     <Container>
-      <RowFlex align="center" justify="space-between" style={{ marginBottom: 10 }}>
+      <RowFlex className="items-center justify-between" style={{ marginBottom: 10 }}>
         <Label>{t('assistants.settings.default_model')}</Label>
-        <RowFlex align="center" gap={5}>
+        <RowFlex className="items-center">
           <ModelSelectButton
             icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
             onClick={onSelectModel}>
@@ -240,7 +240,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
 
       <SettingRow style={{ minHeight: 30 }}>
-        <RowFlex align="center">
+        <RowFlex className="items-center">
           <Label>
             {t('chat.settings.temperature.label')}
             <Tooltip title={t('chat.settings.temperature.tip')}>
@@ -290,7 +290,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <Divider style={{ margin: '10px 0' }} />
 
       <SettingRow style={{ minHeight: 30 }}>
-        <RowFlex align="center">
+        <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
           <Tooltip title={t('chat.settings.top_p.tip')}>
             <QuestionIcon />
@@ -379,7 +379,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       </Row>
       <Divider style={{ margin: '10px 0' }} />
       <SettingRow style={{ minHeight: 30 }}>
-        <RowFlex align="center">
+        <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <Tooltip title={t('chat.settings.max_tokens.tip')}>
             <QuestionIcon />
@@ -491,7 +491,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         </Row>
       ))}
       <Divider style={{ margin: '15px 0' }} />
-      <RowFlex justify="flex-end">
+      <RowFlex className="justify-end">
         <Button onClick={onReset} danger type="primary" icon={<ResetIcon size={16} />}>
           {t('chat.settings.reset')}
         </Button>

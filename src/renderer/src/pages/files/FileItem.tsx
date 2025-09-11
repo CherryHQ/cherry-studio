@@ -88,7 +88,7 @@ const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {
     <FileItemCard style={style}>
       <CardContent>
         <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
-        <ColFlex justify="center" gap={0} flex={1} style={{ width: '0px' }}>
+        <ColFlex className="w-0 flex-1 justify-center gap-0">
           <FileName>{name}</FileName>
           {extra && <FileInfo>{extra}</FileInfo>}
         </ColFlex>

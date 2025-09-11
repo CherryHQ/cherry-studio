@@ -46,10 +46,10 @@ const PopupContainer: React.FC = () => {
           <DraggableList list={agents} onUpdate={updateAgents}>
             {(item) => (
               <AgentItem>
-                <Box mr={8}>
+                <Box className="mr-8">
                   {item.emoji} {item.name}
                 </Box>
-                <RowFlex gap="15px">
+                <RowFlex className="gap-[15px]">
                   <MenuOutlined style={{ cursor: 'move' }} />
                 </RowFlex>
               </AgentItem>

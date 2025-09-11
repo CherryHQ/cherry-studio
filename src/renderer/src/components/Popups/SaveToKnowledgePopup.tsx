@@ -322,14 +322,13 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 ? 'chat.save.topic.knowledge.select.content.label'
                 : 'chat.save.knowledge.select.content.title'
             )}>
-            <ColFlex gap={8}>
+            <ColFlex className="gap-2">
               {contentTypeOptions.map((option) => (
                 <ContentTypeItem
                   key={option.type}
-                  align="center"
-                  justify="space-between"
+                  className="items-center justify-between"
                   onClick={() => handleContentTypeToggle(option.type)}>
-                  <Flex align="center" gap={8}>
+                  <Flex className="items-center gap-2">
                     <CustomTag
                       color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
                       size={12}>

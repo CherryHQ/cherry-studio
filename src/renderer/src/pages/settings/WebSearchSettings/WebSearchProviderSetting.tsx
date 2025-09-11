@@ -155,7 +155,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
@@ -222,7 +222,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}

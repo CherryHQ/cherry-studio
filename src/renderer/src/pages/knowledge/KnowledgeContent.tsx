@@ -165,7 +165,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             {base.framework !== 'langchain' && <MigrationInfoTag base={base} />}
           </div>
         </ModelInfo>
-        <RowFlex gap={8} align="center">
+        <RowFlex className="items-center gap-2">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
@@ -181,7 +181,7 @@ export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ 
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
-    <RowFlex align="center" gap={10}>
+    <RowFlex className="items-center">
       <label style={{ fontWeight: 600 }}>{label}</label>
     </RowFlex>
   )

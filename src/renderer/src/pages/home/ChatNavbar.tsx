@@ -66,7 +66,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <NavbarHeader className="home-navbar">
-      <RowFlex align="center">
+      <RowFlex className="items-center">
         {showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={toggleShowAssistants}>
@@ -96,7 +96,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </AnimatePresence>
         <SelectModelButton assistant={assistant} />
       </RowFlex>
-      <RowFlex align="center" gap={8}>
+      <RowFlex className="items-center gap-2">
         <UpdateAppButton />
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
           <NarrowIcon onClick={handleNarrowModeToggle}>

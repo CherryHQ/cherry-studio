@@ -104,7 +104,7 @@ const NpxSearch: FC = () => {
     <Container>
       <Center>
         <Space direction="vertical" style={{ marginBottom: 25, width: 500 }}>
-          <Center style={{ marginBottom: 15 }}>
+          <Center className="mb-[15px]">
             <img src={logo} alt="npm" width={120} />
           </Center>
           <Space.Compact style={{ width: '100%' }}>
@@ -117,7 +117,7 @@ const NpxSearch: FC = () => {
               styles={{ input: { borderRadius: 100 } }}
             />
           </Space.Compact>
-          <RowFlex align="center" justify="center">
+          <RowFlex className="items-center justify-center">
             {npmScopes.map((scope) => (
               <Tag
                 key={scope}

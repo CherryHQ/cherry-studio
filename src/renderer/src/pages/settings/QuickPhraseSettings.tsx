@@ -96,7 +96,7 @@ const QuickPhraseSettings: FC = () => {
                     ext: '.txt',
                     extra: phrase.content,
                     actions: (
-                      <Flex gap={4} style={{ opacity: 0.6 }}>
+                      <Flex className="gap-1 opacity-60">
                         <Button
                           key="edit"
                           type="text"

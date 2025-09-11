@@ -24,8 +24,8 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
 
   const PopoverContent = () => {
     return (
-      <ColFlex w="185px" background="100%">
-        <RowFlex justify="space-between" w="100%">
+      <ColFlex className="w-full" style={{ width: '185px', background: '100%' }}>
+        <RowFlex className="w-full justify-between">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
             <RowFlex style={{ alignItems: 'center' }}>
@@ -36,7 +36,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
           </Text>
         </RowFlex>
         <Divider style={{ margin: '5px 0' }} />
-        <RowFlex justify="space-between" w="100%">
+        <RowFlex className="w-full justify-between">
           <Text>{t('chat.input.estimated_tokens.tip')}</Text>
           <Text>{estimateTokenCount}</Text>
         </RowFlex>

@@ -332,8 +332,8 @@ const ShortcutSettings: FC = () => {
         const isEditable = shortcutConfig?.editable !== false
 
         return (
-          <RowFlex style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <RowFlex align="center" style={{ position: 'relative' }}>
+          <RowFlex className="items-center justify-end gap-2">
+            <RowFlex className="relative items-center">
               {isEditing ? (
                 <ShortcutInput
                   ref={(el) => {
@@ -367,7 +367,7 @@ const ShortcutSettings: FC = () => {
       align: 'right',
       width: '70px',
       render: (record: Shortcut) => (
-        <RowFlex style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <RowFlex className="items-center justify-end gap-2">
           <Tooltip title={t('settings.shortcuts.reset_to_default')}>
             <Button
               icon={<UndoOutlined />}
@@ -413,7 +413,7 @@ const ShortcutSettings: FC = () => {
           showHeader={false}
         />
         <SettingDivider style={{ marginBottom: 0 }} />
-        <RowFlex justify="flex-end" padding="16px 0">
+        <RowFlex className="justify-end p-4">
           <Button onClick={handleResetAllShortcuts}>{t('settings.shortcuts.reset_defaults')}</Button>
         </RowFlex>
       </SettingGroup>

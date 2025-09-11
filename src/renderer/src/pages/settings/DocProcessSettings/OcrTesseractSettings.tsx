@@ -63,7 +63,7 @@ export const OcrTesseractSettings = () => {
     <>
       <SettingRow>
         <SettingRowTitle>
-          <Flex align="center" gap={4}>
+          <Flex className="items-center gap-1">
             {t('settings.tool.ocr.common.langs')}
             <InfoTooltip title={t('settings.tool.ocr.tesseract.langs_tooltip')} />
           </Flex>

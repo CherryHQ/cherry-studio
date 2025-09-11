@@ -64,9 +64,9 @@ const TranslateSettings: FC<{
       footer={null}
       width={520}
       transitionName="animation-move-down">
-      <ColFlex gap={16} style={{ marginTop: 16, paddingBottom: 20 }}>
+      <ColFlex className="mt-4 gap-16 pb-5">
         <div>
-          <Flex align="center" justify="space-between">
+          <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
             <Switch
               isSelected={enableMarkdown}
@@ -79,7 +79,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <RowFlex align="center" justify="space-between">
+          <RowFlex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
             <Switch
               isSelected={autoCopy}
@@ -92,7 +92,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <Flex align="center" justify="space-between">
+          <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.scroll_sync')}</div>
             <Switch
               isSelected={isScrollSyncEnabled}
@@ -105,7 +105,7 @@ const TranslateSettings: FC<{
           </Flex>
         </div>
 
-        <RowFlex style={{ justifyContent: 'space-between' }}>
+        <RowFlex className="justify-between">
           <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
             {t('translate.detect.method.label')}
             <Tooltip title={t('translate.detect.method.tip')}>
@@ -114,7 +114,7 @@ const TranslateSettings: FC<{
               </span>
             </Tooltip>
           </div>
-          <RowFlex align="center" gap={5}>
+          <RowFlex className="items-center gap-5">
             <Radio.Group
               defaultValue={'auto'}
               value={autoDetectionMethod}
@@ -137,9 +137,9 @@ const TranslateSettings: FC<{
         </RowFlex>
 
         <div>
-          <Flex align="center" justify="space-between">
+          <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>
-              <RowFlex align="center" gap={5}>
+              <RowFlex className="items-center gap-5">
                 {t('translate.settings.bidirectional')}
                 <Tooltip title={t('translate.settings.bidirectional_tip')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>
@@ -159,7 +159,7 @@ const TranslateSettings: FC<{
           </Flex>
           {isBidirectional && (
             <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-              <Flex align="center" justify="space-between" gap={10}>
+              <Flex className="items-center justify-between gap-10">
                 <LanguageSelect
                   style={{ flex: 1 }}
                   value={localPair[0].langCode}

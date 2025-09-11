@@ -874,7 +874,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               return modelImageSizes.map((size) => {
                 return (
                   <Select.Option key={size.value} value={size.value}>
-                    <RowFlex style={{ alignItems: 'center', gap: 8 }}>
+                    <RowFlex className="items-center gap-2">
                       <span>{size.label}</span>
                     </RowFlex>
                   </Select.Option>
@@ -884,7 +884,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             {/* 检查当前模型是否支持自定义尺寸 */}
             {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
               <Select.Option value="custom" key="custom">
-                <RowFlex style={{ alignItems: 'center', gap: 8 }}>
+                <RowFlex className="items-center gap-2">
                   <span>{t('paintings.custom_size')}</span>
                 </RowFlex>
               </Select.Option>
@@ -894,7 +894,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
             <div style={{ marginTop: 10 }}>
-              <RowFlex style={{ gap: 8, alignItems: 'center' }}>
+              <RowFlex className="items-center gap-2">
                 <InputNumber
                   placeholder="W"
                   value={customWidth}

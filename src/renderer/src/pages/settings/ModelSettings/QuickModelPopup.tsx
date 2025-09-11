@@ -56,14 +56,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
         {t('settings.models.topic_naming.label')}
       </SettingSubtitle>
-      <ColFlex align="stretch" gap={8}>
-        <RowFlex style={{ gap: 16 }} align="center">
+      <ColFlex className="items-stretch gap-2">
+        <RowFlex className="items-center gap-4">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
         </RowFlex>
         <Divider style={{ margin: 0 }} />
         <div>
-          <Flex align="center" gap={4} style={{ marginBottom: 4, height: 30 }}>
+          <Flex className="mb-1 h-[30px] items-center gap-1">
             <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />

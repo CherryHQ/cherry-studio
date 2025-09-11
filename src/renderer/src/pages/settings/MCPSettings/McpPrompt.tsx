@@ -23,7 +23,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
             <Descriptions.Item
               key={index}
               label={
-                <Flex gap={4}>
+                <Flex className="gap-1">
                   <Typography.Text strong>{arg.name}</Typography.Text>
                   {arg.required && (
                     <Tooltip title="Required field">
@@ -32,7 +32,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                   )}
                 </Flex>
               }>
-              <ColFlex gap={4}>
+              <ColFlex className="gap-1">
                 {arg.description && (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
                     {arg.description}
@@ -55,8 +55,8 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
             <Collapse.Panel
               key={prompt.id || prompt.name}
               header={
-                <ColFlex align="flex-start">
-                  <Flex align="center" style={{ width: '100%' }}>
+                <ColFlex className="items-start">
+                  <Flex className="w-full items-center">
                     <Typography.Text strong>{prompt.name}</Typography.Text>
                   </Flex>
                   {prompt.description && (

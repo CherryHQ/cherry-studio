@@ -101,7 +101,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
       }}
       fresh
       title={
-        <ColFlex gap={2} align="center">
+        <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
             <Image
               style={{ width: 80, maxHeight: 200 }}

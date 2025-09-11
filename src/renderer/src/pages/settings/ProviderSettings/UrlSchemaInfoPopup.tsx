@@ -109,7 +109,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           <Descriptions.Item label={t('settings.models.provider_id')}>{baseProvider.id}</Descriptions.Item>
           {baseUrl && <Descriptions.Item label={t('settings.models.base_url')}>{baseUrl}</Descriptions.Item>}
           <Descriptions.Item label={t('settings.models.api_key')}>
-            <Flex justify="space-between">
+            <Flex className="justify-between">
               {showFullKey ? newApiKey : maskApiKey(newApiKey)}
               <Button
                 type="link"

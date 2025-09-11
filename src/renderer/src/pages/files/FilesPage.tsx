@@ -111,7 +111,7 @@ const FilesPage: FC = () => {
       created_at: dayjs(file.created_at).format('MM-DD HH:mm'),
       created_at_unix: dayjs(file.created_at).unix(),
       actions: (
-        <Flex align="center" gap={0} style={{ opacity: 0.7 }}>
+        <Flex className="items-center gap-0 opacity-70">
           <Button type="text" icon={<EditIcon size={14} />} onClick={() => handleRename(file.id)} />
           <Popconfirm
             title={t('files.delete.title')}
@@ -161,7 +161,7 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            <Flex gap={8} align="center">
+            <Flex className="items-center gap-8">
               {(['created_at', 'size', 'name'] as const).map((field) => (
                 <SortButton
                   key={field}

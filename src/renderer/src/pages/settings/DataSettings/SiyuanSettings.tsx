@@ -89,7 +89,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Input
             type="text"
             value={siyuanApiUrl || ''}
@@ -110,7 +110,7 @@ const SiyuanSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={siyuanToken || ''}
@@ -126,7 +126,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Input
             type="text"
             value={siyuanBoxId || ''}
@@ -139,7 +139,7 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Input
             type="text"
             value={siyuanRootPath || ''}

@@ -423,7 +423,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 自定义尺寸输入框 */}
           {isCustomSize && (
             <div style={{ marginTop: 10 }}>
-              <RowFlex style={{ gap: 8, alignItems: 'center' }}>
+              <RowFlex className="items-center gap-2">
                 <InputNumber
                   placeholder="W"
                   value={customWidth}

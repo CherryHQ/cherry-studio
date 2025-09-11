@@ -92,7 +92,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionDatabaseID || ''}
@@ -106,7 +106,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Input
             type="text"
             value={notionPageNameKey || ''}
@@ -120,7 +120,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={notionApiKey || ''}

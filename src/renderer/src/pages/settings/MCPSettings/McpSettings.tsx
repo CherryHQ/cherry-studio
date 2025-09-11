@@ -731,8 +731,8 @@ const McpSettings: React.FC = () => {
     <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
       <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
         <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <Flex align="center" gap={8}>
+          <Flex className="mr-2.5 items-center justify-between gap-5">
+            <Flex className="items-center gap-8">
               <ServerName className="text-nowrap">{server?.name}</ServerName>
               {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
             </Flex>
@@ -743,7 +743,7 @@ const McpSettings: React.FC = () => {
               onClick={() => onDeleteMcpServer(server)}
             />
           </Flex>
-          <Flex align="center" gap={16}>
+          <Flex className="items-center gap-16">
             <Switch
               value={server.isActive}
               key={server.id}

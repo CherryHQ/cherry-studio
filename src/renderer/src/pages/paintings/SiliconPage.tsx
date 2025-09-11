@@ -392,7 +392,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             style={{ display: 'flex' }}>
             {IMAGE_SIZES.map((size) => (
               <RadioButton value={size.value} key={size.value}>
-                <ColFlex align="center">
+                <ColFlex className="items-center">
                   <ImageSizeImage src={size.icon} theme={theme} />
                   <span>{size.label}</span>
                 </ColFlex>

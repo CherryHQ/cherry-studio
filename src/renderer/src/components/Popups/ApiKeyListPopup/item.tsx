@@ -103,7 +103,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             spellCheck={false}
             disabled={disabled}
           />
-          <Flex gap={0} align="center">
+          <Flex className="items-center gap-0">
             <Tooltip title={t('common.save')}>
               <Button
                 type={hasUnsavedChanges ? 'primary' : 'text'}
@@ -132,10 +132,10 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
           </Tooltip>
 
-          <Flex gap={10} align="center">
+          <Flex className="items-center gap-10">
             <HealthStatusIndicator results={healthResults} loading={false} />
 
-            <Flex gap={0} align="center">
+            <Flex className="items-center gap-0">
               {showHealthCheck && (
                 <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
                   <Button

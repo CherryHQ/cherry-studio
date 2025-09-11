@@ -41,7 +41,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
         }
       }}
       {...rest}>
-      <RowFlex height="100%">
+      <RowFlex className="h-full">
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={[selectedMenu]}

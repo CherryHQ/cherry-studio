@@ -38,7 +38,7 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   if (isEmpty(filteredTopics)) {
     return (
       <ListContainer {...props}>
-        <ColFlex align="center">
+        <ColFlex className="items-center">
           <Empty description={t('history.search.topics.empty')} />
           <Button style={{ width: 200, marginTop: 20 }} type="primary" onClick={onSearch} icon={<SearchOutlined />}>
             {t('history.search.messages')}

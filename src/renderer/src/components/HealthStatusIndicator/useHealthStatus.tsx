@@ -77,7 +77,7 @@ export const useHealthStatus = ({ results, showLatency = false }: UseHealthStatu
 
         return (
           <li key={idx} style={{ marginBottom: idx === results.length - 1 ? 0 : '10px' }}>
-            <Flex align="center" justify="space-between">
+            <Flex className="items-center justify-between">
               <strong style={{ color: statusColor }}>{statusText}</strong>
               {result.label}
             </Flex>

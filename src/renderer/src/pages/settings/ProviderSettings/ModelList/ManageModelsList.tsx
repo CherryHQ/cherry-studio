@@ -148,7 +148,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           return (
             <GroupHeaderContainer isCollapsed={isCollapsed}>
               <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
-                <Flex align="center" gap={10} style={{ flex: 1 }}>
+                <Flex className="items-center" style={{ flex: 1 }}>
                   <ChevronRight
                     size={16}
                     color="var(--color-text-3)"
