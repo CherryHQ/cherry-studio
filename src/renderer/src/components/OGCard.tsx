@@ -1,8 +1,7 @@
-import CherryLogo from '@renderer/assets/images/banner.png'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
 import { Skeleton, Typography } from 'antd'
-import { useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import styled from 'styled-components'
 const { Title, Paragraph } = Typography
 
@@ -10,6 +9,8 @@ type Props = {
   link: string
   show: boolean
 }
+
+const IMAGE_HEIGHT = 144
 
 export const OGCard = ({ link, show }: Props) => {
   const openGraph = ['og:title', 'og:description', 'og:image', 'og:imageAlt'] as const
@@ -32,6 +33,14 @@ export const OGCard = ({ link, show }: Props) => {
     }
   }, [parseMetadata, isLoading, show])
 
+  const GeneratedGraph = useCallback(() => {
+    return (
+      <div className="flex h-36 items-center justify-center bg-accent p-4">
+        <h2 className="text-2xl font-bold">{metadata['og:title'] || hostname}</h2>
+      </div>
+    )
+  }, [hostname, metadata])
+
   if (isLoading) {
     return <CardSkeleton />
   }
@@ -45,7 +54,7 @@ export const OGCard = ({ link, show }: Props) => {
       )}
       {!hasImage && (
         <PreviewImageContainer>
-          <PreviewImage src={CherryLogo} alt={'no image'} />
+          <GeneratedGraph />
         </PreviewImageContainer>
       )}
 
@@ -113,8 +122,8 @@ const PreviewContainer = styled.div<{ hasImage?: boolean }>`
 
 const PreviewImageContainer = styled.div`
   width: 100%;
-  height: 140px;
-  min-height: 140px;
+  height: ${IMAGE_HEIGHT}px;
+  min-height: ${IMAGE_HEIGHT}px;
   overflow: hidden;
 `
 
@@ -128,7 +137,7 @@ const PreviewContent = styled.div`
 
 const PreviewImage = styled.img`
   width: 100%;
-  height: 140px;
+  height: ${IMAGE_HEIGHT}px;
   object-fit: cover;
 `
 
