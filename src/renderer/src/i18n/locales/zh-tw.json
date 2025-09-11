@@ -2650,6 +2650,10 @@
         "url": "Joplin 剪輯服務 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
       },
+      "limit": {
+        "appDataDiskQuota": "磁碟空間警告",
+        "appDataDiskQuotaDescription": "資料目錄空間即將用盡, 請清理磁碟空間, 否則會丟失數據"
+      },
       "local": {
         "autoSync": {
           "label": "自動備份",

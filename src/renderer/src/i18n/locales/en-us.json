@@ -2650,6 +2650,10 @@
         "url": "Joplin Web Clipper Service URL",
         "url_placeholder": "http://127.0.0.1:41184/"
       },
+      "limit": {
+        "appDataDiskQuota": "Disk Space Warning",
+        "appDataDiskQuotaDescription": "Data directory space is almost full, please clear disk space, otherwise data will be lost"
+      },
       "local": {
         "autoSync": {
           "label": "Auto Backup",

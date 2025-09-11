@@ -12,6 +12,7 @@ import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
 import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
+import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -159,4 +160,8 @@ export function useAppInit() {
       logger.error('Failed to update memory config:', error)
     })
   }, [memoryConfig])
+
+  useEffect(() => {
+    checkDataLimit()
+  }, [])
 }

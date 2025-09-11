@@ -220,6 +220,7 @@
     "axios": "^1.7.3",
     "browser-image-compression": "^2.0.2",
     "chardet": "^2.1.0",
+    "check-disk-space": "3.4.0",
     "cheerio": "^1.1.2",
     "chokidar": "^4.0.3",
     "cli-progress": "^3.12.0",
