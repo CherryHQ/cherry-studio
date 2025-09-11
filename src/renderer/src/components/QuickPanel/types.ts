@@ -8,13 +8,10 @@ export type QuickPanelTriggerInfo = {
 }
 
 export type QuickPanelCallBackOptions = {
-  symbol: string
+  context: QuickPanelContextType
   action: QuickPanelCloseAction
   item: QuickPanelListItem
   searchText?: string
-  /** 是否处于多选状态 */
-  multiple?: boolean
-  triggerInfo?: QuickPanelTriggerInfo
 }
 
 export type QuickPanelOpenOptions = {

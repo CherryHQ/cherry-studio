@@ -202,7 +202,7 @@ const MentionModelsButton: FC<Props> = ({
       icon: <CircleX />,
       alwaysVisible: true,
       isSelected: false,
-      action: () => {
+      action: ({ context: ctx }) => {
         onClearMentionModels()
 
         // 只有输入触发时才需要删除 @ 与搜索文本（未知搜索词，按光标就近删除）
@@ -214,7 +214,7 @@ const MentionModelsButton: FC<Props> = ({
           })
         }
 
-        quickPanel.close()
+        ctx.close()
       }
     })
 
@@ -227,7 +227,6 @@ const MentionModelsButton: FC<Props> = ({
     mentionedModels,
     onMentionModel,
     navigate,
-    quickPanel,
     onClearMentionModels,
     setText,
     removeAtSymbolAndText
@@ -249,20 +248,20 @@ const MentionModelsButton: FC<Props> = ({
         afterAction({ item }) {
           item.isSelected = !item.isSelected
         },
-        onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
+        onClose({ action, searchText, context: ctx }) {
           // ESC关闭时的处理：删除 @ 和搜索文本
           if (action === 'esc') {
             // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
             if (
               hasModelActionRef.current &&
-              closeTriggerInfo?.type === 'input' &&
-              closeTriggerInfo?.position !== undefined
+              ctx.triggerInfo?.type === 'input' &&
+              ctx.triggerInfo?.position !== undefined
             ) {
               // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
               setText((currentText) => {
                 const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
                 const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
+                return removeAtSymbolAndText(currentText, caret, searchText || '', ctx.triggerInfo?.position!)
               })
             }
           }
