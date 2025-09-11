@@ -1,307 +1,54 @@
-import React, { CSSProperties, useMemo } from 'react'
+import { classNames } from '@renderer/utils/style'
+import React from 'react'
 
-type PxValue = number | string
+export interface BoxProps extends React.ComponentProps<'div'> {}
 
-export interface BoxProps extends React.ComponentProps<'div'> {
-  width?: PxValue
-  height?: PxValue
-  w?: PxValue
-  h?: PxValue
-  color?: CSSProperties['color']
-  background?: CSSProperties['background']
-  flex?: CSSProperties['flex']
-  position?: CSSProperties['position']
-  left?: PxValue
-  top?: PxValue
-  right?: PxValue
-  bottom?: PxValue
-  opacity?: CSSProperties['opacity']
-  borderRadius?: PxValue
-  border?: CSSProperties['border']
-  gap?: PxValue
-  mt?: PxValue
-  marginTop?: PxValue
-  mb?: PxValue
-  marginBottom?: PxValue
-  ml?: PxValue
-  marginLeft?: PxValue
-  mr?: PxValue
-  marginRight?: PxValue
-  m?: CSSProperties['margin']
-  margin?: CSSProperties['margin']
-  pt?: PxValue
-  paddingTop?: PxValue
-  pb?: PxValue
-  paddingBottom?: PxValue
-  pl?: PxValue
-  paddingLeft?: PxValue
-  pr?: PxValue
-  paddingRight?: PxValue
-  p?: CSSProperties['padding']
-  padding?: CSSProperties['padding']
-}
-
-// Not used anywhere for now.
-// export interface ButtonProps extends FlexProps {
-//   color?: string
-//   isDisabled?: boolean
-//   isLoading?: boolean
-//   background?: string
-//   border?: string
-//   fontSize?: string
-// }
-
-const cssRegex = /(px|vw|vh|%|auto)$/g
-
-const getElementValue = (value?: PxValue) => {
-  if (!value) {
-    return value
-  }
-
-  if (typeof value === 'number') {
-    return value + 'px'
-  }
-
-  if (value.match(cssRegex)) {
-    return value
-  }
-
-  return value + 'px'
-}
-
-export const Box = ({
-  width,
-  w,
-  height,
-  h,
-  color,
-  background,
-  flex,
-  position,
-  left = 'auto',
-  right = 'auto',
-  bottom = 'auto',
-  top = 'auto',
-  gap = 0,
-  opacity = 1,
-  borderRadius = 0,
-  border = 'none',
-  m,
-  margin = 'none',
-  mt,
-  marginTop,
-  mb,
-  marginBottom,
-  ml,
-  marginLeft,
-  mr,
-  marginRight,
-  p,
-  padding = 'none',
-  pt,
-  paddingTop,
-  pb,
-  paddingBottom,
-  pl,
-  paddingLeft,
-  pr,
-  paddingRight,
-  children,
-  style,
-  ...props
-}: BoxProps & { children?: React.ReactNode; style?: CSSProperties }) => {
-  const _style = useMemo(
-    () =>
-      ({
-        width: width || w ? getElementValue(width ?? w) : 'auto',
-        height: height || h ? getElementValue(height ?? h) : 'auto',
-        color,
-        background,
-        flex,
-        position,
-        left: getElementValue(left),
-        right: getElementValue(right),
-        bottom: getElementValue(bottom),
-        top: getElementValue(top),
-        gap: gap ? getElementValue(gap) : 0,
-        opacity,
-        borderRadius: getElementValue(borderRadius),
-        boxSizing: 'border-box' as const,
-        border,
-        margin: m || margin,
-        marginTop: mt || marginTop ? getElementValue(mt ?? marginTop) : 'default',
-        marginBottom: mb || marginBottom ? getElementValue(mb ?? marginBottom) : 'default',
-        marginLeft: ml || marginLeft ? getElementValue(ml ?? marginLeft) : 'default',
-        marginRight: mr || marginRight ? getElementValue(mr ?? marginRight) : 'default',
-        padding: p || padding,
-        paddingTop: pt || paddingTop ? getElementValue(pt ?? paddingTop) : 'auto',
-        paddingBottom: pb || paddingBottom ? getElementValue(pb ?? paddingBottom) : 'auto',
-        paddingLeft: pl || paddingLeft ? getElementValue(pl ?? paddingLeft) : 'auto',
-        paddingRight: pr || paddingRight ? getElementValue(pr ?? paddingRight) : 'auto',
-        ...style
-      }) satisfies CSSProperties,
-    [
-      background,
-      border,
-      borderRadius,
-      bottom,
-      color,
-      flex,
-      gap,
-      h,
-      height,
-      left,
-      m,
-      margin,
-      marginBottom,
-      marginLeft,
-      marginRight,
-      marginTop,
-      mb,
-      ml,
-      mr,
-      mt,
-      opacity,
-      p,
-      padding,
-      paddingBottom,
-      paddingLeft,
-      paddingRight,
-      paddingTop,
-      pb,
-      pl,
-      position,
-      pr,
-      pt,
-      right,
-      style,
-      top,
-      w,
-      width
-    ]
-  )
-
+export const Box = ({ children, className, ...props }: BoxProps & { children?: React.ReactNode }) => {
   return (
-    <div style={_style} {...props}>
+    <div className={classNames('box-border', className)} {...props}>
       {children}
     </div>
   )
 }
 
-export interface FlexProps extends BoxProps {
-  justify?: CSSProperties['justifyContent']
-  align?: CSSProperties['alignItems']
-  flexDirection?: CSSProperties['flexDirection']
-  wrap?: CSSProperties['flexWrap']
-}
+export interface FlexProps extends BoxProps {}
 
-export const Flex = ({
-  justify: justifyContent,
-  align: alignItems,
-  flexDirection,
-  wrap,
-  children,
-  style,
-  ...props
-}: FlexProps & { children?: React.ReactNode }) => {
-  const _style = {
-    display: 'flex',
-    justifyContent,
-    alignItems,
-    flexDirection,
-    flexWrap: wrap,
-    ...style
-  } satisfies CSSProperties
-
+export const Flex = ({ children, className, ...props }: FlexProps & { children?: React.ReactNode }) => {
   return (
-    <Box style={_style} {...props}>
+    <Box className={classNames('flex', className)} {...props}>
       {children}
     </Box>
   )
 }
 
-export const Center = ({
-  children,
-  ...props
-}: Omit<FlexProps, 'justifyContent' | 'alignItems'> & { children?: React.ReactNode }) => {
+export const Center = ({ children, className, ...props }: FlexProps & { children?: React.ReactNode }) => {
   return (
-    <Flex justify="center" align="center" {...props}>
+    <Flex className={classNames('items-center justify-center', className)} {...props}>
       {children}
     </Flex>
   )
 }
 
-export const RowFlex = ({ children, ...props }: Omit<FlexProps, 'flexDirection'> & { children?: React.ReactNode }) => {
+export const RowFlex = ({ children, className, ...props }: FlexProps & { children?: React.ReactNode }) => {
   return (
-    <Flex {...props} flexDirection="row">
+    <Flex className={classNames('flex-row', className)} {...props}>
       {children}
     </Flex>
   )
 }
 
-export const SpaceBetweenRowFlex = ({
-  children,
-  ...props
-}: Omit<FlexProps, 'justifyContent'> & { children?: React.ReactNode }) => {
+export const SpaceBetweenRowFlex = ({ children, className, ...props }: FlexProps & { children?: React.ReactNode }) => {
   return (
-    <RowFlex justify="space-between" {...props}>
+    <RowFlex className={classNames('justify-between', className)} {...props}>
       {children}
     </RowFlex>
   )
 }
 
-export const ColFlex = ({ children, ...props }: Omit<FlexProps, 'flexDirection'> & { children?: React.ReactNode }) => {
+export const ColFlex = ({ children, className, ...props }: FlexProps & { children?: React.ReactNode }) => {
   return (
-    <Flex {...props} flexDirection="column">
+    <Flex className={classNames('flex-col', className)} {...props}>
       {children}
     </Flex>
   )
 }
-
-// Not used anywhere for now.
-// interface BaseTypographyProps extends BoxProps {
-//   fontSize?: number
-//   lineHeight?: string
-//   fontWeigth?: number | string
-//   color?: string
-//   textAlign?: CSSProperties['textAlign']
-//   children?: React.ReactNode
-// }
-
-// export const BaseTypography = ({
-//   fontSize = 16,
-//   lineHeight = 'normal',
-//   fontWeigth = 'normal',
-//   color = '#fff',
-//   textAlign = 'left',
-//   children,
-//   ...props
-// }: BaseTypographyProps) => {
-//   const style = {
-//     fontSize: getElementValue(fontSize),
-//     lineHeight: getElementValue(lineHeight),
-//     fontWeight: fontWeigth,
-//     color,
-//     textAlign
-//   } satisfies CSSProperties
-
-//   return (
-//     <Box style={style} {...props}>
-//       {children}
-//     </Box>
-//   )
-// }
-
-// Not used anywhere for now.
-// interface ContainerProps {
-//   padding?: string
-// }
-
-// export const Container = styled.main<ContainerProps>`
-//   display: flex;
-//   flex-direction: column;
-//   width: 100%;
-//   box-sizing: border-box;
-//   flex: 1;
-//   padding: ${(p) => p.padding ?? '0 18px'};
-// `
