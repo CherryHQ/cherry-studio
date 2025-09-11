@@ -2630,6 +2630,21 @@
         "title": "导出菜单设置",
         "yuque": "导出到语雀"
       },
+      "export_to_phone": {
+        "confirm": {
+          "button": "选择备份文件"
+        },
+        "content": "导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "lan": {
+          "content": "请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "noZipSelected": "未选择压缩文件",
+          "selectZip": "选择压缩文件",
+          "sendZip": "开始恢复数据",
+          "title": "局域网传输"
+        },
+        "title": "导出至手机"
+      },
+
       "hour_interval_one": "{{count}} 小时",
       "hour_interval_other": "{{count}} 小时",
       "joplin": {

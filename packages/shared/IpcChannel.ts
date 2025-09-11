@@ -324,5 +324,11 @@ export enum IpcChannel {
   OCR_ocr = 'ocr:ocr',
 
   // Cherryin
-  Cherryin_GetSignature = 'cherryin:get-signature'
+  Cherryin_GetSignature = 'cherryin:get-signature',
+
+  // WebSocket
+  WebSocket_Start = 'webSocket:start',
+  WebSocket_Stop = 'webSocket:stop',
+  WebSocket_Status = 'webSocket:status',
+  WebSocket_SendFile = 'webSocket:send-file'
 }
