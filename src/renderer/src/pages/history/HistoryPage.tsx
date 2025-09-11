@@ -78,7 +78,7 @@ const HistoryPage: FC = () => {
 
   return (
     <Container>
-      <RowFlex style={{ padding: '0 12px', marginTop: 8 }}>
+      <RowFlex className="mt-2 px-3">
         <Input
           prefix={
             stack.length > 1 ? (

@@ -70,7 +70,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderLogo shape="square" src={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
 
           <ProviderName> {preprocessProvider.name}</ProviderName>
@@ -97,7 +97,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
               placeholder={
@@ -124,7 +124,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex>
+          <Flex className="flex">
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}

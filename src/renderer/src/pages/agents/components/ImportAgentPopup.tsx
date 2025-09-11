@@ -99,7 +99,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       maskClosable={false}
       footer={
-        <Flex justify="end" gap={8}>
+        <Flex className="justify-end gap-8">
           <Button onClick={onCancel}>{t('common.cancel')}</Button>
           <Button type="primary" onClick={() => form.submit()} loading={loading}>
             {t('agents.import.button')}

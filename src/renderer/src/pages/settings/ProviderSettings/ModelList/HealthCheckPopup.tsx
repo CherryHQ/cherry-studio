@@ -136,8 +136,8 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
 
   const renderFooter = useMemo(() => {
     return (
-      <ColFlex gap={10}>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+      <ColFlex className="gap-2.5">
+        <Flex className="items-center justify-between" style={{ width: '100%' }}>
           <Typography.Text strong>{t('settings.models.check.use_all_keys')}:</Typography.Text>
           <Segmented
             value={keyCheckMode}
@@ -149,7 +149,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             ]}
           />
         </Flex>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+        <Flex className="items-center justify-between" style={{ width: '100%' }}>
           <Typography.Text strong>{t('settings.models.check.enable_concurrent')}:</Typography.Text>
           <Segmented
             value={isConcurrent ? 'enabled' : 'disabled'}
@@ -161,7 +161,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             ]}
           />
         </Flex>
-        <Flex align="center" justify="space-between" style={{ width: '100%' }}>
+        <Flex className="items-center justify-between" style={{ width: '100%' }}>
           <Typography.Text strong>{t('settings.models.check.timeout')}:</Typography.Text>
           <InputNumber
             value={timeoutSeconds}
@@ -193,9 +193,9 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
       footer={(_, { OkBtn, CancelBtn }) => (
         <>
           {renderFooter}
-          <Flex justify="space-between" style={{ marginTop: 16 }}>
+          <Flex className="justify-between" style={{ marginTop: 16 }}>
             <div /> {/* Empty div for spacing */}
-            <Flex gap={8}>
+            <Flex className="gap-2">
               <CancelBtn />
               <OkBtn />
             </Flex>

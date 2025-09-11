@@ -67,7 +67,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ base: _base, resolve })
       window.modal.confirm({
         title: t('knowledge.migrate.confirm.title'),
         content: (
-          <ColFlex align="self-start">
+          <ColFlex className="items-start">
             <span>{t('knowledge.migrate.confirm.content')}</span>
             <span>{t('knowledge.embedding_model')}:</span>
             <span style={{ paddingLeft: '1em' }}>{`${t('knowledge.migrate.source_model')}: ${base.model.name}`}</span>

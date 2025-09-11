@@ -133,7 +133,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
 
   return (
     <div>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+      <Flex className="items-center justify-between" style={{ marginBottom: 8 }}>
         <Checkbox.Group
           value={selectedTypes}
           onChange={handleTypeChange}

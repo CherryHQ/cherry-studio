@@ -112,7 +112,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
         </>
       )}
       <UserWrap>
-        <RowFlex align="center">
+        <RowFlex className="items-center">
           <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
             {username}
           </UserName>

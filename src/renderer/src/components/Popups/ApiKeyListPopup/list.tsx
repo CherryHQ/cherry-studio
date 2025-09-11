@@ -125,7 +125,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
         )}
       </Card>
 
-      <Flex dir="row" align="center" justify="space-between" style={{ marginTop: 15 }}>
+      <Flex className="mt-[15px] flex-row items-center justify-between">
         {/* 帮助文本 */}
         <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
 

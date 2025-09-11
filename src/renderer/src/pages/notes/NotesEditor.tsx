@@ -64,7 +64,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
-                height="100%"
+                className="h-full"
                 expanded={false}
                 style={{
                   height: '100%',
@@ -84,14 +84,14 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
               className="notes-rich-editor"
-              isFullWidth={settings.isFullWidth}
+              isFullWidth
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
             />
           )}
         </RichEditorContainer>
         <BottomPanel>
-          <SpaceBetweenRowFlex width="100%" justify="space-between" align="center">
+          <SpaceBetweenRowFlex className="items-center">
             <TokenCount>
               {t('notes.characters')}: {tokenCount}
             </TokenCount>

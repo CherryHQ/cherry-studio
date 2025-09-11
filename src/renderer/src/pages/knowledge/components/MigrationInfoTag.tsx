@@ -31,7 +31,7 @@ const MigrationInfoTag: FC<{ base: KnowledgeBase }> = ({ base: _base }) => {
     window.modal.confirm({
       title: t('knowledge.migrate.confirm.title'),
       content: (
-        <ColFlex align="self-start">
+        <ColFlex className="items-start">
           <span>{t('knowledge.migrate.migrate_to_langchain.content')}</span>
         </ColFlex>
       ),

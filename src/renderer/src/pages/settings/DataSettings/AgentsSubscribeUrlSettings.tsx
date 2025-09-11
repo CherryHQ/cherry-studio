@@ -29,7 +29,7 @@ const AgentsSubscribeUrlSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.tool.websearch.subscribe_url')}</SettingRowTitle>
-        <RowFlex align="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="items-center" style={{ width: 315 }}>
           <Input
             type="text"
             value={agentssubscribeUrl || ''}

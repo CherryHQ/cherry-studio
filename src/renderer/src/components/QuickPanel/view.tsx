@@ -591,13 +591,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           <QuickPanelFooterTips $footerWidth={footerWidth}>
             <span>ESC {t('settings.quickPanel.close')}</span>
 
-            <Flex align="center" gap={4}>
-              ▲▼ {t('settings.quickPanel.select')}
-            </Flex>
+            <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
 
             {footerWidth >= 500 && (
               <>
-                <Flex align="center" gap={4}>
+                <Flex className="items-center gap-1">
                   <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                     {ASSISTIVE_KEY}
                   </span>
@@ -605,7 +603,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 </Flex>
 
                 {canForwardAndBackward && (
-                  <Flex align="center" gap={4}>
+                  <Flex className="items-center gap-1">
                     <span style={{ color: isAssistiveKeyPressed ? 'var(--color-primary)' : 'var(--color-text-3)' }}>
                       {ASSISTIVE_KEY}
                     </span>
@@ -615,9 +613,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
               </>
             )}
 
-            <Flex align="center" gap={4}>
-              ↩︎ {t('settings.quickPanel.confirm')}
-            </Flex>
+            <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
           </QuickPanelFooterTips>
         </QuickPanelFooter>
       </QuickPanelBody>

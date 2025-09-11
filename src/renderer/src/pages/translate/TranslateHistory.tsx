@@ -97,7 +97,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
 
   const Title = () => {
     return (
-      <Flex align="center">
+      <Flex className="items-center">
         {t('translate.history.title')}
         <Button
           icon={showStared ? <StarFilled /> : <StarOutlined />}
@@ -145,7 +145,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
       }}>
       <HistoryContainer>
         {/* Search Bar */}
-        <RowFlex style={{ padding: '0 12px', borderBottom: '1px solid var(--ant-color-split)' }}>
+        <RowFlex className="px-3" style={{ borderBottom: '1px solid var(--ant-color-split)' }}>
           <Input
             prefix={
               <IconWrapper>
@@ -174,14 +174,14 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                 return (
                   <HistoryListItemContainer>
                     <HistoryListItem onClick={() => onHistoryItemClick(item)}>
-                      <ColFlex justify="space-between" gap={4} style={{ width: '100%', height: '100%', flex: 1 }}>
-                        <Flex align="center" justify="space-between" style={{ height: 30 }}>
-                          <Flex align="center" gap={6}>
+                      <ColFlex className="h-full w-full flex-1 justify-between gap-1">
+                        <Flex className="h-[30px] items-center justify-between">
+                          <Flex className="items-center gap-1.5">
                             <HistoryListItemLanguage>{item._sourceLanguage.label()} →</HistoryListItemLanguage>
                             <HistoryListItemLanguage>{item._targetLanguage.label()}</HistoryListItemLanguage>
                           </Flex>
                           {/* tool bar */}
-                          <Flex align="center" justify="flex-end">
+                          <Flex className="items-center justify-end">
                             <Button
                               icon={item.star ? <StarFilled /> : <StarOutlined />}
                               color="yellow"
@@ -225,7 +225,7 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
             </DynamicVirtualList>
           </HistoryList>
         ) : (
-          <Flex justify="center" align="center" style={{ flex: 1 }}>
+          <Flex className="items-center justify-center" style={{ flex: 1 }}>
             <Empty description={t('translate.history.empty')} />
           </Flex>
         )}

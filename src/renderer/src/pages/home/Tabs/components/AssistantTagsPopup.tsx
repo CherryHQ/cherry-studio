@@ -91,7 +91,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     <Draggable key={tag} draggableId={tag} index={index}>
                       {(provided) => (
                         <TagItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                          <Box mr={8}>{tag}</Box>
+                          <Box className="mr-2">{tag}</Box>
                           <Button
                             type="text"
                             icon={<DeleteIcon size={16} className="lucide-custom" />}

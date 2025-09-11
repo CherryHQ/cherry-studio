@@ -228,7 +228,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
 
   const ModalHeader = () => {
     return (
-      <Flex>
+      <Flex className="flex">
         <ModelHeaderTitle>
           {getFancyProviderName(provider)}
           {i18n.language.startsWith('zh') ? '' : ' '}
@@ -242,7 +242,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
 
     return (
-      <RowFlex gap={8}>
+      <RowFlex className="gap-2">
         <Tooltip
           title={
             isAllFilteredInProvider

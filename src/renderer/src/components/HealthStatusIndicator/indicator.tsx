@@ -49,7 +49,7 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   }
 
   return (
-    <Flex align="center" gap={6}>
+    <Flex className="items-center gap-6">
       {latencyText && <LatencyText type="secondary">{latencyText}</LatencyText>}
       <Tooltip title={tooltip} styles={{ body: { userSelect: 'text' } }}>
         <IndicatorWrapper $type={overallStatus}>{icon}</IndicatorWrapper>

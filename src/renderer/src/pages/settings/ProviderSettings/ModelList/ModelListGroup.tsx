@@ -51,7 +51,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         defaultActiveKey={defaultOpen ? ['1'] : []}
         onChange={handleCollapseChange}
         label={
-          <Flex align="center" gap={10}>
+          <Flex className="items-center gap-[10px]">
             <span style={{ fontWeight: 'bold' }}>{groupName}</span>
           </Flex>
         }

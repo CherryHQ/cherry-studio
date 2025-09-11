@@ -62,8 +62,8 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
             <Collapse.Panel
               key={resource.uri}
               header={
-                <ColFlex align="flex-start" style={{ width: '100%' }}>
-                  <Flex align="center" style={{ width: '100%' }}>
+                <ColFlex className="w-full items-start">
+                  <Flex className="w-full items-center">
                     <Typography.Text strong>{`${resource.name} (${resource.uri})`}</Typography.Text>
                   </Flex>
                   {resource.description && (

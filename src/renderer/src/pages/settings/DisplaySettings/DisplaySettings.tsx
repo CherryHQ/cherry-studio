@@ -192,8 +192,8 @@ const DisplaySettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <RowFlex gap="12px" align="center">
-            <RowFlex gap="12px">
+          <RowFlex className="items-center gap-3">
+            <RowFlex className="gap-3">
               {THEME_COLOR_PRESETS.map((color) => (
                 <ColorCircleWrapper key={color}>
                   <ColorCircle

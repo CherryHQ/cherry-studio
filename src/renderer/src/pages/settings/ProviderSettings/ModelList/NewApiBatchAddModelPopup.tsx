@@ -95,7 +95,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           </Select>
         </Form.Item>
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex justify="end" align="center" style={{ position: 'relative' }}>
+          <Flex className="items-center justify-end" style={{ position: 'relative' }}>
             <Button type="primary" htmlType="submit" size="middle">
               {t('settings.models.add.add_model')}
             </Button>

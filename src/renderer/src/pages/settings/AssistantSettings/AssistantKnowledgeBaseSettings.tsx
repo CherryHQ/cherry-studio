@@ -30,7 +30,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
 
   return (
     <Container>
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
+      <Box className="mb-2" style={{ fontWeight: 'bold' }}>
         {t('common.knowledge_base')}
       </Box>
       <Select

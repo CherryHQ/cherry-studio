@@ -104,10 +104,10 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
 
   return (
-    <ColFlex gap="middle">
+    <ColFlex className="gap-4">
       {options.map((item) => (
-        <RowFlex key={item.key} justify="space-between">
-          <RowFlex align="center" gap={6}>
+        <RowFlex key={item.key} className="justify-between">
+          <RowFlex className="items-center gap-1.5">
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>

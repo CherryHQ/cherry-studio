@@ -50,7 +50,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (
-        <RowFlex gap={10}>
+        <RowFlex className="gap-2.5">
           <Button shape="round" icon={<CircleDollarSign size={16} />} onClick={() => providerCharge(provider.id)}>
             {t('settings.provider.charge')}
           </Button>

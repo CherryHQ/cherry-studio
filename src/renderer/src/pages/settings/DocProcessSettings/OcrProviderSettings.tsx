@@ -47,7 +47,7 @@ const OcrProviderSettings = ({ provider }: Props) => {
   return (
     <SettingGroup theme={themeMode}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <OcrProviderLogo provider={provider} />
           <ProviderName> {getOcrProviderName(provider)}</ProviderName>
         </Flex>

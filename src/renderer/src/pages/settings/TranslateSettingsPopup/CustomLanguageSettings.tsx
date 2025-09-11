@@ -118,7 +118,7 @@ const CustomLanguageSettings = () => {
   return (
     <>
       <CustomLanguageSettingsContainer>
-        <RowFlex justify="space-between" style={{ padding: '4px 0' }}>
+        <RowFlex className="justify-between py-1">
           <SettingRowTitle>{t('translate.custom.label')}</SettingRowTitle>
           <Button
             type="primary"

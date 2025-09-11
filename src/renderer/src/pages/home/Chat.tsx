@@ -153,8 +153,7 @@ const Chat: FC<Props> = (props) => {
         <Main
           ref={mainRef}
           id="chat-main"
-          flex={1}
-          justify="space-between"
+          className="flex-1 justify-between"
           style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
           <Messages
             key={props.activeTopic.id}

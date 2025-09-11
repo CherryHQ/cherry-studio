@@ -70,7 +70,7 @@ const AgentsPage: FC = () => {
       window.modal.confirm({
         title: agent.name,
         content: (
-          <ColFlex gap={16} style={{ width: 'calc(100% + 12px)' }}>
+          <ColFlex className="gap-16" style={{ width: 'calc(100% + 12px)' }}>
             {agent.description && <AgentDescription>{agent.description}</AgentDescription>}
 
             {agent.prompt && (
@@ -205,13 +205,13 @@ const AgentsPage: FC = () => {
               active={activeGroup === group && !search.trim()}
               key={group}
               title={
-                <Flex gap={16} align="center" justify="space-between">
-                  <Flex gap={10} align="center">
+                <Flex className="items-center justify-between gap-16">
+                  <Flex className="items-center gap-10">
                     <AgentGroupIcon groupName={group} />
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
-                    <RowFlex align="center" justify="center" style={{ minWidth: 40 }}>
+                    <RowFlex className="min-w-10 items-center justify-center">
                       <CustomTag color="#A0A0A0" size={8}>
                         {agentGroups[group].length}
                       </CustomTag>
@@ -245,7 +245,7 @@ const AgentsPage: FC = () => {
                 </CustomTag>
               }
             </AgentsListTitle>
-            <Flex gap={8}>
+            <Flex className="gap-8">
               {isSearchExpanded ? (
                 <Input
                   placeholder={t('common.search')}

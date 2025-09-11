@@ -59,7 +59,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           <Descriptions.Item
             key={key}
             label={
-              <Flex gap={4}>
+              <Flex className="gap-1">
                 <Typography.Text strong>{key}</Typography.Text>
                 {tool.inputSchema.required?.includes(key) && (
                   <Tooltip title="Required field">
@@ -68,8 +68,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 )}
               </Flex>
             }>
-            <ColFlex gap={4}>
-              <Flex align="center" gap={8}>
+            <ColFlex className="gap-1">
+              <Flex className="items-center gap-2">
                 {prop.type && (
                   // <Typography.Text type="secondary">{prop.type} </Typography.Text>
                   <Badge
@@ -114,8 +114,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       onFilter: (value, record) => record.name === value,
       filterSearch: true,
       render: (_, tool) => (
-        <ColFlex align="flex-start" gap={4}>
-          <Flex align="center" gap={4}>
+        <ColFlex className="gap-1">
+          <Flex className="items-center gap-1">
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
@@ -136,7 +136,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     },
     {
       title: (
-        <Flex align="center" justify="center" gap={4}>
+        <Flex className="items-center justify-center gap-1">
           <Hammer size={14} color="orange" />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
@@ -150,7 +150,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     },
     {
       title: (
-        <Flex align="center" justify="center" gap={4}>
+        <Flex className="items-center justify-center gap-1">
           <Zap size={14} color="red" />
           <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
         </Flex>

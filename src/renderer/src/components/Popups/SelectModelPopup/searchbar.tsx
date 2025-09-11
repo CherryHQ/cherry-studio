@@ -33,7 +33,7 @@ const SelectModelSearchBar: React.FC<SelectModelSearchBarProps> = ({ onSearch })
   }, [])
 
   return (
-    <RowFlex style={{ padding: '0 12px', marginTop: 5 }}>
+    <RowFlex className="mt-1.5 px-3">
       <Input
         prefix={
           <SearchIcon>

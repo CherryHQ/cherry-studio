@@ -48,7 +48,7 @@ const TagFilterSection: React.FC<TagFilterSectionProps> = ({ availableTags, tagS
 
   return (
     <FilterContainer>
-      <Flex wrap="wrap" gap={4}>
+      <Flex className="flex-wrap gap-1">
         <FilterText>{t('models.filter.by_tag')}</FilterText>
         {availableTags.map((tag) => {
           const TagElement = tagComponents[tag]

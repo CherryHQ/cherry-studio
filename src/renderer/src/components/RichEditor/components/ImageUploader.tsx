@@ -165,7 +165,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       ),
       children: (
         <TabContent>
-          <Flex gap={12} justify="center">
+          <Flex className="justify-center gap-3">
             <UrlInput
               placeholder={t('richEditor.imageUploader.urlPlaceholder')}
               value={urlInput}

@@ -185,7 +185,7 @@ const GeneralSettings: FC = () => {
             onChange={onSelectLanguage}
             options={languagesOptions.map((lang) => ({
               label: (
-                <Flex align="center" gap={8}>
+                <Flex className="items-center gap-8">
                   <span role="img" aria-label={lang.flag}>
                     {lang.flag}
                   </span>
@@ -236,7 +236,7 @@ const GeneralSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
-          <RowFlex justify="space-between" align="center" style={{ flex: 1, marginRight: 16 }}>
+          <RowFlex className="mr-4 flex-1 items-center justify-between">
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && (
               <Selector<string>
@@ -248,7 +248,7 @@ const GeneralSettings: FC = () => {
                 options={spellCheckLanguageOptions.map((lang) => ({
                   value: lang.value,
                   label: (
-                    <Flex align="center" gap={8}>
+                    <Flex className="items-center gap-8">
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
@@ -334,7 +334,7 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <Flex align="center" gap={4}>
+          <Flex className="items-center gap-4">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip title={t('settings.developer.help')} />
           </Flex>

@@ -35,7 +35,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   return (
     <ListItem ref={ref}>
-      <RowFlex align="center" gap={10} style={{ flex: 1 }}>
+      <RowFlex className="items-center" style={{ flex: 1 }}>
         <Avatar src={getModelLogo(model.id)} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
@@ -49,9 +49,9 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
         />
         <FreeTrialModelTag model={model} />
       </RowFlex>
-      <RowFlex align="center" gap={6}>
+      <RowFlex className="items-center gap-1.5">
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
-        <RowFlex align="center" gap={0}>
+        <RowFlex className="items-center">
           <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
             <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Bolt size={14} />} />
           </Tooltip>

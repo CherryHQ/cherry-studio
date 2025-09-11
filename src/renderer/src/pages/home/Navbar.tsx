@@ -104,7 +104,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </AnimatePresence>
         </NavbarLeft>
       )}
-      <RowFlex align="center" gap={6}>
+      <RowFlex className="items-center gap-1.5">
         <SelectModelButton assistant={assistant} />
       </RowFlex>
       <NavbarRight
@@ -115,7 +115,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           paddingRight: isWin || isLinux ? '144px' : '6px'
         }}
         className="home-navbar-right">
-        <RowFlex align="center" gap={6}>
+        <RowFlex className="items-center gap-1.5">
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />

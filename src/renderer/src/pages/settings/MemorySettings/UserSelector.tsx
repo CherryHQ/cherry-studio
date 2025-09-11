@@ -23,7 +23,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   const renderLabel = useCallback(
     (userId: string, userName: string) => {
       return (
-        <RowFlex align="center" gap={10}>
+        <RowFlex className="items-center">
           <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
             {getUserAvatar(userId)}
           </Avatar>

@@ -73,7 +73,7 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
           ))}
           {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           {!isEmpty && (
-            <RowFlex justify="center">
+            <RowFlex className="justify-center">
               <Button onClick={() => onContinueChat(topic)} icon={<MessageOutlined />}>
                 {t('history.continue_chat')}
               </Button>
