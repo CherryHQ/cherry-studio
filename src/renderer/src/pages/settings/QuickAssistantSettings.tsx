@@ -96,14 +96,14 @@ const QuickAssistantSettings: FC = () => {
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
           <RowFlex className="items-center justify-between">
-            <RowFlex className="items-center gap-2">
+            <RowFlex className="items-center gap-2.5">
               {t('settings.models.quick_assistant_model')}
               <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
                 <InfoCircleOutlined style={{ cursor: 'pointer' }} />
               </Tooltip>
               <Spacer />
             </RowFlex>
-            <RowFlex className="items-center gap-2">
+            <RowFlex className="items-center gap-2.5">
               {!quickAssistantId ? null : (
                 <RowFlex className="items-center">
                   <Select

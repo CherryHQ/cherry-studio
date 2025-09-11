@@ -29,7 +29,7 @@ const TranslatePromptSettings = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle style={{ marginBottom: 12 }}>
-        <RowFlex className="items-center">
+        <RowFlex className="h-[30px] items-center gap-2.5">
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
             <Tooltip title={t('common.reset')}>

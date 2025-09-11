@@ -124,7 +124,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex className="flex">
+          <Flex>
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}

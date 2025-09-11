@@ -59,7 +59,7 @@ const ModelSettings: FC = () => {
     <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex className="items-center">
+          <RowFlex className="items-center gap-2.5">
             <MessageSquareMore size={18} color="var(--color-text)" />
             {t('settings.models.default_assistant_model')}
           </RowFlex>
@@ -80,7 +80,7 @@ const ModelSettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex className="items-center">
+          <RowFlex className="items-center gap-2.5">
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
             <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
@@ -102,7 +102,7 @@ const ModelSettings: FC = () => {
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle style={{ marginBottom: 12 }}>
-          <RowFlex className="items-center">
+          <RowFlex className="items-center gap-2.5">
             <Languages size={18} color="var(--color-text)" />
             {t('settings.models.translate_model')}
           </RowFlex>

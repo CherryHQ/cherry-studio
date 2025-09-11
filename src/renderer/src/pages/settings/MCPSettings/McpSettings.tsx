@@ -731,7 +731,7 @@ const McpSettings: React.FC = () => {
     <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
       <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
         <SettingTitle>
-          <Flex className="mr-2.5 items-center justify-between gap-5">
+          <Flex className="mr-2.5 items-center justify-between gap-[5px]">
             <Flex className="items-center gap-2">
               <ServerName className="text-nowrap">{server?.name}</ServerName>
               {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
