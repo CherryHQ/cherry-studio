@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ImageToolButton > should match snapshot 1`] = `
+<DocumentFragment>
+  <div
+    title="Test tooltip"
+  >
+    <button
+      aria-label="Test tooltip"
+      data-testid="custom-button"
+      icon="[object Object]"
+      role="button"
+      shape="circle"
+      type="button"
+    />
+  </div>
+</DocumentFragment>
+`;

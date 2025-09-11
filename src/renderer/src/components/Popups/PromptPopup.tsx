@@ -1,6 +1,6 @@
 import { Input, Modal } from 'antd'
 import { TextAreaProps } from 'antd/es/input'
-import { useRef, useState } from 'react'
+import { ReactNode, useRef, useState } from 'react'
 
 import { Box } from '../Layout'
 import { TopView } from '../TopView'
@@ -11,6 +11,7 @@ interface PromptPopupShowParams {
   defaultValue?: string
   inputPlaceholder?: string
   inputProps?: TextAreaProps
+  extraNode?: ReactNode
 }
 
 interface Props extends PromptPopupShowParams {
@@ -23,6 +24,7 @@ const PromptPopupContainer: React.FC<Props> = ({
   defaultValue = '',
   inputPlaceholder = '',
   inputProps = {},
+  extraNode = null,
   resolve
 }) => {
   const [value, setValue] = useState(defaultValue)
@@ -88,6 +90,7 @@ const PromptPopupContainer: React.FC<Props> = ({
         rows={1}
         {...inputProps}
       />
+      {extraNode}
     </Modal>
   )
 }

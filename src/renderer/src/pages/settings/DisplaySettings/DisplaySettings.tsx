@@ -3,13 +3,13 @@ import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { useAppDispatch } from '@renderer/store'
 import {
   AssistantIconType,
-  DEFAULT_SIDEBAR_ICONS,
   setAssistantIconType,
   setClickAssistantToShowTopic,
   setCustomCss,
@@ -338,9 +338,9 @@ const DisplaySettings: FC = () => {
           placeholder={t('settings.display.custom.css.placeholder')}
           onChange={(value) => dispatch(setCustomCss(value))}
           height="60vh"
+          expanded={false}
+          wrapped
           options={{
-            collapsible: false,
-            wrappable: true,
             autocompletion: true,
             lineNumbers: true,
             foldGutter: true,

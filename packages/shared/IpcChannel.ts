@@ -36,6 +36,8 @@ export enum IpcChannel {
   App_LogToMain = 'app:log-to-main',
   App_SaveData = 'app:save-data',
   App_GetDiskInfo = 'app:get-disk-info',
+  App_SetFullScreen = 'app:set-full-screen',
+  App_IsFullScreen = 'app:is-full-screen',
 
   App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
@@ -82,7 +84,7 @@ export enum IpcChannel {
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
-
+  Mcp_Progress = 'mcp:progress',
   // Python
   Python_Execute = 'python:execute',
 
@@ -120,6 +122,14 @@ export enum IpcChannel {
 
   Windows_ResetMinimumSize = 'window:reset-minimum-size',
   Windows_SetMinimumSize = 'window:set-minimum-size',
+  Windows_Resize = 'window:resize',
+  Windows_GetSize = 'window:get-size',
+  Windows_Minimize = 'window:minimize',
+  Windows_Maximize = 'window:maximize',
+  Windows_Unmaximize = 'window:unmaximize',
+  Windows_Close = 'window:close',
+  Windows_IsMaximized = 'window:is-maximized',
+  Windows_MaximizedChanged = 'window:maximized-changed',
 
   KnowledgeBase_Create = 'knowledge-base:create',
   KnowledgeBase_Reset = 'knowledge-base:reset',
@@ -138,23 +148,39 @@ export enum IpcChannel {
   File_Upload = 'file:upload',
   File_Clear = 'file:clear',
   File_Read = 'file:read',
+  File_ReadExternal = 'file:readExternal',
   File_Delete = 'file:delete',
   File_DeleteDir = 'file:deleteDir',
+  File_DeleteExternalFile = 'file:deleteExternalFile',
+  File_DeleteExternalDir = 'file:deleteExternalDir',
+  File_Move = 'file:move',
+  File_MoveDir = 'file:moveDir',
+  File_Rename = 'file:rename',
+  File_RenameDir = 'file:renameDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
   File_CreateTempFile = 'file:createTempFile',
+  File_Mkdir = 'file:mkdir',
   File_Write = 'file:write',
   File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
   File_Base64Image = 'file:base64Image',
   File_SaveBase64Image = 'file:saveBase64Image',
+  File_SavePastedImage = 'file:savePastedImage',
   File_Download = 'file:download',
   File_Copy = 'file:copy',
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
+  Fs_ReadText = 'fs:readText',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
+  File_IsTextFile = 'file:isTextFile',
+  File_GetDirectoryStructure = 'file:getDirectoryStructure',
+  File_CheckFileName = 'file:checkFileName',
+  File_ValidateNotesDirectory = 'file:validateNotesDirectory',
+  File_StartWatcher = 'file:startWatcher',
+  File_StopWatcher = 'file:stopWatcher',
 
   // file service
   FileService_Upload = 'file-service:upload',
@@ -275,5 +301,29 @@ export enum IpcChannel {
   TRACE_SET_TITLE = 'trace:setTitle',
   TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage'
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+
+  // API Server
+  ApiServer_Start = 'api-server:start',
+  ApiServer_Stop = 'api-server:stop',
+  ApiServer_Restart = 'api-server:restart',
+  ApiServer_GetStatus = 'api-server:get-status',
+  ApiServer_GetConfig = 'api-server:get-config',
+
+  // Anthropic OAuth
+  Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',
+  Anthropic_CompleteOAuthWithCode = 'anthropic:complete-oauth-with-code',
+  Anthropic_CancelOAuthFlow = 'anthropic:cancel-oauth-flow',
+  Anthropic_GetAccessToken = 'anthropic:get-access-token',
+  Anthropic_HasCredentials = 'anthropic:has-credentials',
+  Anthropic_ClearCredentials = 'anthropic:clear-credentials',
+
+  // CodeTools
+  CodeTools_Run = 'code-tools:run',
+
+  // OCR
+  OCR_ocr = 'ocr:ocr',
+
+  // Cherryin
+  Cherryin_GetSignature = 'cherryin:get-signature'
 }

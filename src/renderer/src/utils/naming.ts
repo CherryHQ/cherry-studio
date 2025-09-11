@@ -1,5 +1,5 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Provider } from '@renderer/types'
+import { isSystemProvider, Provider } from '@renderer/types'
 
 /**
  * 从模型 ID 中提取默认组名。
@@ -73,7 +73,12 @@ export const getBaseModelName = (id: string, delimiter: string = '/'): string =>
  * @returns {string} 小写的基础名称
  */
 export const getLowerBaseModelName = (id: string, delimiter: string = '/'): string => {
-  return getBaseModelName(id, delimiter).toLowerCase()
+  const baseModelName = getBaseModelName(id, delimiter).toLowerCase()
+  // for openrouter
+  if (baseModelName.endsWith(':free')) {
+    return baseModelName.replace(':free', '')
+  }
+  return baseModelName
 }
 
 /**
@@ -82,8 +87,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  * @returns 描述性的名字
  */
 export const getFancyProviderName = (provider: Provider) => {
-  // FIXME: 无法在这里使用 isSystemProvider，但我不清楚为什么
-  return provider.isSystem ? getProviderLabel(provider.id) : provider.name
+  return isSystemProvider(provider) ? getProviderLabel(provider.id) : provider.name
 }
 
 /**
@@ -142,34 +146,6 @@ export function isEmoji(str: string): boolean {
  */
 export function removeSpecialCharactersForTopicName(str: string): string {
   return str.replace(/["'\r\n]+/g, ' ').trim()
-}
-
-/**
- * 根据字符生成颜色代码，用于 avatar。
- * @param {string} char 输入字符
- * @returns {string} 十六进制颜色字符串
- */
-export function generateColorFromChar(char: string): string {
-  // 使用字符的Unicode值作为随机种子
-  const seed = char.charCodeAt(0)
-
-  // 使用简单的线性同余生成器创建伪随机数
-  const a = 1664525
-  const c = 1013904223
-  const m = Math.pow(2, 32)
-
-  // 生成三个伪随机数作为RGB值
-  let r = (a * seed + c) % m
-  let g = (a * r + c) % m
-  let b = (a * g + c) % m
-
-  // 将伪随机数转换为0-255范围内的整数
-  r = Math.floor((r / m) * 256)
-  g = Math.floor((g / m) * 256)
-  b = Math.floor((b / m) * 256)
-
-  // 返回十六进制颜色字符串
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
 /**

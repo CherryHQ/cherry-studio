@@ -27,6 +27,7 @@ import HuggingChatLogo from '@renderer/assets/images/apps/huggingchat.svg?url'
 import KimiAppLogo from '@renderer/assets/images/apps/kimi.webp?url'
 import LambdaChatLogo from '@renderer/assets/images/apps/lambdachat.webp?url'
 import LeChatLogo from '@renderer/assets/images/apps/lechat.png?url'
+import LongCatAppLogo from '@renderer/assets/images/apps/longcat.svg?url'
 import MetasoAppLogo from '@renderer/assets/images/apps/metaso.webp?url'
 import MonicaLogo from '@renderer/assets/images/apps/monica.webp?url'
 import n8nLogo from '@renderer/assets/images/apps/n8n.svg?url'
@@ -35,7 +36,6 @@ import NamiAiSearchLogo from '@renderer/assets/images/apps/nm-search.webp?url'
 import NotebookLMAppLogo from '@renderer/assets/images/apps/notebooklm.svg?url'
 import PerplexityAppLogo from '@renderer/assets/images/apps/perplexity.webp?url'
 import PoeAppLogo from '@renderer/assets/images/apps/poe.webp?url'
-import ZhipuProviderLogo from '@renderer/assets/images/apps/qingyan.png?url'
 import QwenlmAppLogo from '@renderer/assets/images/apps/qwenlm.webp?url'
 import SensetimeAppLogo from '@renderer/assets/images/apps/sensetime.png?url'
 import SparkDeskAppLogo from '@renderer/assets/images/apps/sparkdesk.webp?url'
@@ -56,6 +56,8 @@ import DeepSeekProviderLogo from '@renderer/assets/images/providers/deepseek.png
 import GroqProviderLogo from '@renderer/assets/images/providers/groq.png?url'
 import OpenAiProviderLogo from '@renderer/assets/images/providers/openai.png?url'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png?url'
+import ZhipuProviderLogo from '@renderer/assets/images/providers/zhipu.png?url'
+import i18n from '@renderer/i18n'
 import { MinAppType } from '@renderer/types'
 
 const logger = loggerService.withContext('Config:minapps')
@@ -116,16 +118,17 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'yi',
-    name: '万知',
+    name: i18n.t('minapps.wanzhi'),
     url: 'https://www.wanzhi.com/',
     logo: WanZhiAppLogo,
     bodered: true
   },
   {
     id: 'zhipu',
-    name: '智谱清言',
+    name: i18n.t('minapps.chatglm'),
     url: 'https://chatglm.cn/main/alltoolsdetail',
-    logo: ZhipuProviderLogo
+    logo: ZhipuProviderLogo,
+    bodered: true
   },
   {
     id: 'moonshot',
@@ -135,26 +138,26 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baichuan',
-    name: '百小应',
+    name: i18n.t('minapps.baichuan'),
     url: 'https://ying.baichuan-ai.com/chat',
     logo: BaicuanAppLogo
   },
   {
     id: 'dashscope',
-    name: '通义千问',
+    name: i18n.t('minapps.qwen'),
     url: 'https://tongyi.aliyun.com/qianwen/',
     logo: QwenModelLogo
   },
   {
     id: 'stepfun',
-    name: '跃问',
+    name: i18n.t('minapps.yuewen'),
     url: 'https://yuewen.cn/chats/new',
     logo: YuewenAppLogo,
     bodered: true
   },
   {
     id: 'doubao',
-    name: '豆包',
+    name: i18n.t('minapps.doubao'),
     url: 'https://www.doubao.com/chat/',
     logo: DoubaoAppLogo
   },
@@ -166,7 +169,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'minimax',
-    name: '海螺',
+    name: i18n.t('minapps.hailuo'),
     url: 'https://chat.minimaxi.com/',
     logo: HailuoModelLogo,
     bodered: true
@@ -195,13 +198,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'baidu-ai-chat',
-    name: '文心一言',
+    name: i18n.t('minapps.wenxin'),
     logo: BaiduAiAppLogo,
     url: 'https://yiyan.baidu.com/'
   },
   {
     id: 'baidu-ai-search',
-    name: '百度AI搜索',
+    name: i18n.t('minapps.baidu-ai-search'),
     logo: BaiduAiSearchLogo,
     url: 'https://chat.baidu.com/',
     bodered: true,
@@ -211,14 +214,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tencent-yuanbao',
-    name: '腾讯元宝',
+    name: i18n.t('minapps.tencent-yuanbao'),
     logo: TencentYuanbaoAppLogo,
     url: 'https://yuanbao.tencent.com/chat',
     bodered: true
   },
   {
     id: 'sensetime-chat',
-    name: '商量',
+    name: i18n.t('minapps.sensechat'),
     logo: SensetimeAppLogo,
     url: 'https://chat.sensetime.com/wb/chat',
     bodered: true
@@ -231,7 +234,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'metaso',
-    name: '秘塔AI搜索',
+    name: i18n.t('minapps.metaso'),
     logo: MetasoAppLogo,
     url: 'https://metaso.cn/'
   },
@@ -255,7 +258,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'tiangong-ai',
-    name: '天工AI',
+    name: i18n.t('minapps.tiangong-ai'),
     logo: TiangongAiLogo,
     url: 'https://www.tiangong.cn/',
     bodered: true
@@ -289,14 +292,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'nm',
-    name: '纳米AI',
+    name: i18n.t('minapps.nami-ai'),
     logo: NamiAiLogo,
     url: 'https://bot.n.cn/',
     bodered: true
   },
   {
     id: 'nm-search',
-    name: '纳米AI搜索',
+    name: i18n.t('minapps.nami-ai-search'),
     logo: NamiAiSearchLogo,
     url: 'https://www.n.cn/',
     bodered: true
@@ -372,7 +375,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'xiaoyi',
-    name: '小艺',
+    name: i18n.t('minapps.xiaoyi'),
     logo: XiaoYiAppLogo,
     url: 'https://xiaoyi.huawei.com/chat/',
     bodered: true
@@ -402,7 +405,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'wpslingxi',
-    name: 'WPS灵犀',
+    name: i18n.t('minapps.wps-copilot'),
     logo: WPSLingXiLogo,
     url: 'https://copilot.wps.cn/',
     bodered: true
@@ -443,14 +446,14 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
   },
   {
     id: 'zhihu',
-    name: '知乎直答',
+    name: i18n.t('minapps.zhihu'),
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
     bodered: true
   },
   {
     id: 'dangbei',
-    name: '当贝AI',
+    name: i18n.t('minapps.dangbei'),
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
     bodered: true
@@ -474,6 +477,13 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     style: {
       padding: 5
     }
+  },
+  {
+    id: 'longcat',
+    name: 'LongCat',
+    logo: LongCatAppLogo,
+    url: 'https://longcat.chat/',
+    bodered: true
   }
 ]
 

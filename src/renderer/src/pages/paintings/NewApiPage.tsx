@@ -40,12 +40,21 @@ import styled from 'styled-components'
 import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { checkProviderEnabled } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
-  const { addPainting, removePainting, updatePainting, newApiPaintings } = usePaintings()
+  const { addPainting, removePainting, updatePainting, openai_image_generate, openai_image_edit } = usePaintings()
+
+  const newApiPaintings = useMemo(() => {
+    return {
+      openai_image_generate,
+      openai_image_edit
+    }
+  }, [openai_image_generate, openai_image_edit])
+
   const filteredPaintings = useMemo(() => newApiPaintings[mode] || [], [newApiPaintings, mode])
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -189,10 +198,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         try {
           if (!url?.trim()) {
             logger.error('图像URL为空')
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
+            window.toast.warning(t('message.empty_url'))
             return null
           }
           return await window.api.file.download(url)
@@ -202,10 +208,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             error instanceof Error &&
             (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
           ) {
-            window.message.warning({
-              content: t('message.empty_url'),
-              key: 'empty-url-warning'
-            })
+            window.toast.warning(t('message.empty_url'))
           }
           return null
         }
@@ -216,6 +219,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(newApiProvider, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -228,14 +233,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
     updatePaintingState({ prompt })
-
-    if (!newApiProvider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
 
     const AI = new AiProvider(newApiProvider)
 
@@ -280,12 +277,13 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       } else if (mode === 'openai_image_edit') {
         // -------- Edit Mode --------
         if (editImages.length === 0) {
-          window.message.warning({ content: t('paintings.image_file_required') })
+          window.toast.warning(t('paintings.image_file_required'))
           return
         }
 
         const formData = new FormData()
         formData.append('prompt', prompt)
+        formData.append('model', painting.model)
         if (painting.background && painting.background !== 'auto') {
           formData.append('background', painting.background)
         }

@@ -26,7 +26,7 @@ const ModelIdWithTags = ({
             maxWidth: '500px'
           }
         }}
-        destroyTooltipOnHide
+        destroyOnHidden
         title={
           <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
             {model.id}

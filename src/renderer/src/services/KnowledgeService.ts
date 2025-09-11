@@ -1,4 +1,3 @@
-import type { ExtractChunkData } from '@cherrystudio/embedjs-interfaces'
 import { loggerService } from '@logger'
 import { Span } from '@opentelemetry/api'
 import AiProvider from '@renderer/aiCore'
@@ -6,7 +5,14 @@ import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { FileMetadata, KnowledgeBase, KnowledgeBaseParams, KnowledgeReference } from '@renderer/types'
+import {
+  FileMetadata,
+  KnowledgeBase,
+  KnowledgeBaseParams,
+  KnowledgeReference,
+  KnowledgeSearchResult
+} from '@renderer/types'
+import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
@@ -20,6 +26,17 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
   const rerankProvider = getProviderByModel(base.rerankModel)
   const aiProvider = new AiProvider(provider)
   const rerankAiProvider = new AiProvider(rerankProvider)
+
+  // get preprocess provider from store instead of base.preprocessProvider
+  const preprocessProvider = store
+    .getState()
+    .preprocess.providers.find((p) => p.id === base.preprocessProvider?.provider.id)
+  const updatedPreprocessProvider = preprocessProvider
+    ? {
+        type: 'preprocess' as const,
+        provider: preprocessProvider
+      }
+    : base.preprocessProvider
 
   let host = aiProvider.getBaseURL()
   const rerankHost = rerankAiProvider.getBaseURL()
@@ -57,8 +74,10 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       apiKey: rerankAiProvider.getApiKey() || 'secret',
       baseURL: rerankHost
     },
-    preprocessProvider: base.preprocessProvider,
-    documentCount: base.documentCount
+    documentCount: base.documentCount,
+    preprocessProvider: updatedPreprocessProvider,
+    framework: base.framework,
+    retriever: base.retriever || { mode: 'hybrid' }
   }
 }
 
@@ -89,7 +108,7 @@ export const getFileFromUrl = async (url: string): Promise<FileMetadata | null> 
   return null
 }
 
-export const getKnowledgeSourceUrl = async (item: ExtractChunkData & { file: FileMetadata | null }) => {
+export const getKnowledgeSourceUrl = async (item: KnowledgeSearchResult & { file: FileMetadata | null }) => {
   if (item.metadata.source.startsWith('http')) {
     return item.metadata.source
   }
@@ -108,7 +127,7 @@ export const searchKnowledgeBase = async (
   topicId?: string,
   parentSpanId?: string,
   modelName?: string
-): Promise<Array<ExtractChunkData & { file: FileMetadata | null }>> => {
+): Promise<Array<KnowledgeSearchResult & { file: FileMetadata | null }>> => {
   let currentSpan: Span | undefined = undefined
   try {
     const baseParams = getKnowledgeBaseParams(base)
@@ -130,8 +149,7 @@ export const searchKnowledgeBase = async (
       })
     }
 
-    // 执行搜索
-    const searchResults = await window.api.knowledgeBase.search(
+    const searchResults: KnowledgeSearchResult[] = await window.api.knowledgeBase.search(
       {
         search: rewrite || query,
         base: baseParams
@@ -250,6 +268,7 @@ export const processKnowledgeSearch = async (
             id: index + 1,
             content: item.pageContent,
             sourceUrl: await getKnowledgeSourceUrl(item),
+            metadata: item.metadata,
             type: 'file'
           }) as KnowledgeReference
       )
@@ -260,7 +279,6 @@ export const processKnowledgeSearch = async (
   // 汇总所有知识库的结果
   const resultsPerBase = await Promise.all(baseSearchPromises)
   const allReferencesRaw = resultsPerBase.flat().filter((ref): ref is KnowledgeReference => !!ref)
-
   endSpan({
     topicId,
     outputs: resultsPerBase,
@@ -273,4 +291,39 @@ export const processKnowledgeSearch = async (
     ...ref,
     id: index + 1
   }))
+}
+
+/**
+ * 处理知识库搜索结果中的引用
+ * @param references 知识库引用
+ * @param onChunkReceived Chunk接收回调
+ */
+export function processKnowledgeReferences(
+  references: KnowledgeReference[] | undefined,
+  onChunkReceived: (chunk: Chunk) => void
+) {
+  if (!references || references.length === 0) {
+    return
+  }
+
+  for (const ref of references) {
+    const { metadata } = ref
+    if (!metadata?.source) {
+      continue
+    }
+
+    switch (metadata.type) {
+      case 'video': {
+        onChunkReceived({
+          type: ChunkType.VIDEO_SEARCHED,
+          video: {
+            type: 'path',
+            content: metadata.source
+          },
+          metadata
+        })
+        break
+      }
+    }
+  }
 }

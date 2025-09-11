@@ -21,6 +21,7 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
+  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -40,7 +41,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
     selectedBase.id || ''
   )
 
-  const providerName = getProviderName(base?.model.provider || '')
+  const providerName = getProviderName(base?.model)
   const disabled = !base?.version || !providerName
 
   const reversedItems = useMemo(() => [...urlItems].reverse(), [urlItems])
@@ -75,7 +76,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           if (!urlItems.find((item) => item.content === url.trim())) {
             addUrl(url.trim())
           } else {
-            window.message.success(t('knowledge.url_added'))
+            window.toast.success(t('knowledge.url_added'))
           }
         } catch (e) {
           // Skip invalid URLs silently
@@ -113,7 +114,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <Button
+        <ResponsiveButton
           type="primary"
           icon={<PlusIcon size={16} />}
           onClick={(e) => {
@@ -122,7 +123,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           }}
           disabled={disabled}>
           {t('knowledge.add_url')}
-        </Button>
+        </ResponsiveButton>
       </ItemHeader>
       <ItemFlexColumn>
         {urlItems.length === 0 && <KnowledgeEmptyView />}
@@ -153,7 +154,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                           label: t('common.copy'),
                           onClick: () => {
                             navigator.clipboard.writeText(item.content as string)
-                            window.message.success(t('message.copied'))
+                            window.toast.success(t('message.copied'))
                           }
                         }
                       ]

@@ -1,6 +1,7 @@
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
+import TabsService from '@renderer/services/TabsService'
 import { useAppDispatch } from '@renderer/store'
 import {
   setCurrentMinappId,
@@ -9,6 +10,7 @@ import {
   setOpenedOneOffMinapp
 } from '@renderer/store/runtime'
 import { MinAppType } from '@renderer/types'
+import { clearWebviewState } from '@renderer/utils/webviewStateManager'
 import { LRUCache } from 'lru-cache'
 import { useCallback } from 'react'
 
@@ -35,8 +37,19 @@ export const useMinappPopup = () => {
 
   const createLRUCache = useCallback(() => {
     return new LRUCache<string, MinAppType>({
-      max: maxKeepAliveMinapps,
-      disposeAfter: () => {
+      max: maxKeepAliveMinapps ?? 10,
+      disposeAfter: (_value, key) => {
+        // Clean up WebView state when app is disposed from cache
+        clearWebviewState(key)
+
+        // Close corresponding tab if it exists
+        const tabs = TabsService.getTabs()
+        const tabToClose = tabs.find((tab) => tab.path === `/apps/${key}`)
+        if (tabToClose) {
+          TabsService.closeTab(tabToClose.id)
+        }
+
+        // Update Redux state
         dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
       },
       onInsert: () => {
@@ -158,6 +171,8 @@ export const useMinappPopup = () => {
     openMinappById,
     closeMinapp,
     hideMinappPopup,
-    closeAllMinapps
+    closeAllMinapps,
+    // Expose cache instance for TabsService integration
+    minAppsCache
   }
 }

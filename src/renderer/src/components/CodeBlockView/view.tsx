@@ -1,21 +1,31 @@
 import { loggerService } from '@logger'
-import CodeEditor from '@renderer/components/CodeEditor'
-import { CodeTool, CodeToolbar, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
-import { LoadingIcon } from '@renderer/components/Icons'
+import { ActionTool } from '@renderer/components/ActionTools'
+import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import {
+  CodeToolbar,
+  useCopyTool,
+  useDownloadTool,
+  useExpandTool,
+  useRunTool,
+  useSaveTool,
+  useSplitViewTool,
+  useViewSourceTool,
+  useWrapTool
+} from '@renderer/components/CodeToolbar'
+import CodeViewer from '@renderer/components/CodeViewer'
+import ImageViewer from '@renderer/components/ImageViewer'
+import { BasicPreviewHandles } from '@renderer/components/Preview'
+import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { pyodideService } from '@renderer/services/PyodideService'
-import { extractTitle } from '@renderer/utils/formats'
-import { getExtensionByLanguage, isHtmlCode, isValidPlantUML } from '@renderer/utils/markdown'
+import { getExtensionByLanguage } from '@renderer/utils/code-language'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
 import dayjs from 'dayjs'
-import { CirclePlay, CodeXml, Copy, Download, Eye, Square, SquarePen, SquareSplitHorizontal } from 'lucide-react'
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 
-import ImageViewer from '../ImageViewer'
-import CodePreview from './CodePreview'
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
-import HtmlArtifactsCard from './HtmlArtifactsCard'
 import StatusBar from './StatusBar'
 import { ViewMode } from './types'
 
@@ -45,18 +55,43 @@ interface Props {
  */
 export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
-  const { codeEditor, codeExecution } = useSettings()
+  const { codeEditor, codeExecution, codeImageTools, codeCollapsible, codeWrappable } = useSettings()
 
-  const [viewMode, setViewMode] = useState<ViewMode>('special')
+  const [viewState, setViewState] = useState({
+    mode: 'special' as ViewMode,
+    previousMode: 'special' as ViewMode
+  })
+  const { mode: viewMode } = viewState
+
+  const setViewMode = useCallback((newMode: ViewMode) => {
+    setViewState((current) => ({
+      mode: newMode,
+      // 当新模式不是 'split' 时才更新
+      previousMode: newMode !== 'split' ? newMode : current.previousMode
+    }))
+  }, [])
+
+  const toggleSplitView = useCallback(() => {
+    setViewState((current) => {
+      // 如果当前是 split 模式，恢复到上一个模式
+      if (current.mode === 'split') {
+        return { ...current, mode: current.previousMode }
+      }
+      return { mode: 'split', previousMode: current.mode }
+    })
+  }, [])
+
   const [isRunning, setIsRunning] = useState(false)
   const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
-  const [tools, setTools] = useState<CodeTool[]>([])
-  const { registerTool, removeTool } = useCodeTool(setTools)
+  const [tools, setTools] = useState<ActionTool[]>([])
 
   const isExecutable = useMemo(() => {
     return codeExecution.enabled && language === 'python'
   }, [codeExecution.enabled, language])
+
+  const sourceViewRef = useRef<CodeEditorHandles>(null)
+  const specialViewRef = useRef<BasicPreviewHandles>(null)
 
   const hasSpecialView = useMemo(() => SPECIAL_VIEWS.includes(language), [language])
 
@@ -64,17 +99,44 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     return hasSpecialView && viewMode === 'special'
   }, [hasSpecialView, viewMode])
 
+  const [expandOverride, setExpandOverride] = useState(!codeCollapsible)
+  const [wrapOverride, setWrapOverride] = useState(codeWrappable)
+
+  // 重置用户操作
+  useEffect(() => {
+    setExpandOverride(!codeCollapsible)
+  }, [codeCollapsible])
+
+  // 重置用户操作
+  useEffect(() => {
+    setWrapOverride(codeWrappable)
+  }, [codeWrappable])
+
+  const shouldExpand = useMemo(() => !codeCollapsible || expandOverride, [codeCollapsible, expandOverride])
+  const shouldWrap = useMemo(() => codeWrappable && wrapOverride, [codeWrappable, wrapOverride])
+
+  const [sourceScrollHeight, setSourceScrollHeight] = useState(0)
+  const expandable = useMemo(() => {
+    return codeCollapsible && sourceScrollHeight > MAX_COLLAPSED_CODE_HEIGHT
+  }, [codeCollapsible, sourceScrollHeight])
+
+  const handleHeightChange = useCallback((height: number) => {
+    startTransition(() => {
+      setSourceScrollHeight((prev) => (prev === height ? prev : height))
+    })
+  }, [])
+
   const handleCopySource = useCallback(() => {
     navigator.clipboard.writeText(children)
-    window.message.success({ content: t('code_block.copy.success'), key: 'copy-code' })
+    window.toast.success(t('code_block.copy.success'))
   }, [children, t])
 
-  const handleDownloadSource = useCallback(async () => {
+  const handleDownloadSource = useCallback(() => {
     let fileName = ''
 
     // 尝试提取 HTML 标题
-    if (language === 'html' && children.includes('</html>')) {
-      fileName = extractTitle(children) || ''
+    if (language === 'html') {
+      fileName = getFileNameFromHtmlTitle(extractHtmlTitle(children)) || ''
     }
 
     // 默认使用日期格式命名
@@ -82,7 +144,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       fileName = `${dayjs().format('YYYYMMDDHHmm')}`
     }
 
-    const ext = await getExtensionByLanguage(language)
+    const ext = getExtensionByLanguage(language)
     window.api.file.save(`${fileName}${ext}`, children)
   }, [children, language])
 
@@ -106,101 +168,105 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       })
   }, [children, codeExecution.timeoutMinutes])
 
-  useEffect(() => {
-    // 复制按钮
-    registerTool({
-      ...TOOL_SPECS.copy,
-      icon: <Copy className="icon" />,
-      tooltip: t('code_block.copy.source'),
-      onClick: handleCopySource
-    })
+  const showPreviewTools = useMemo(() => {
+    return viewMode !== 'source' && hasSpecialView
+  }, [hasSpecialView, viewMode])
 
-    // 下载按钮
-    registerTool({
-      ...TOOL_SPECS.download,
-      icon: <Download className="icon" />,
-      tooltip: t('code_block.download.source'),
-      onClick: handleDownloadSource
-    })
-    return () => {
-      removeTool(TOOL_SPECS.copy.id)
-      removeTool(TOOL_SPECS.download.id)
-    }
-  }, [handleCopySource, handleDownloadSource, registerTool, removeTool, t])
+  // 复制按钮
+  useCopyTool({
+    showPreviewTools,
+    previewRef: specialViewRef,
+    onCopySource: handleCopySource,
+    setTools
+  })
 
-  // 特殊视图的编辑按钮，在分屏模式下不可用
-  useEffect(() => {
-    if (!hasSpecialView || viewMode === 'split') return
+  // 下载按钮
+  useDownloadTool({
+    showPreviewTools,
+    previewRef: specialViewRef,
+    onDownloadSource: handleDownloadSource,
+    setTools
+  })
 
-    const viewSourceToolSpec = codeEditor.enabled ? TOOL_SPECS.edit : TOOL_SPECS['view-source']
+  // 特殊视图的编辑/查看源码按钮，在分屏模式下不可用
+  useViewSourceTool({
+    enabled: hasSpecialView,
+    editable: codeEditor.enabled,
+    viewMode,
+    onViewModeChange: setViewMode,
+    setTools
+  })
 
-    if (codeEditor.enabled) {
-      registerTool({
-        ...viewSourceToolSpec,
-        icon: viewMode === 'source' ? <Eye className="icon" /> : <SquarePen className="icon" />,
-        tooltip: viewMode === 'source' ? t('code_block.preview.label') : t('code_block.edit.label'),
-        onClick: () => setViewMode(viewMode === 'source' ? 'special' : 'source')
-      })
-    } else {
-      registerTool({
-        ...viewSourceToolSpec,
-        icon: viewMode === 'source' ? <Eye className="icon" /> : <CodeXml className="icon" />,
-        tooltip: viewMode === 'source' ? t('code_block.preview.label') : t('code_block.preview.source'),
-        onClick: () => setViewMode(viewMode === 'source' ? 'special' : 'source')
-      })
-    }
-
-    return () => removeTool(viewSourceToolSpec.id)
-  }, [codeEditor.enabled, hasSpecialView, viewMode, registerTool, removeTool, t])
-
-  // 特殊视图的分屏按钮
-  useEffect(() => {
-    if (!hasSpecialView) return
-
-    registerTool({
-      ...TOOL_SPECS['split-view'],
-      icon: viewMode === 'split' ? <Square className="icon" /> : <SquareSplitHorizontal className="icon" />,
-      tooltip: viewMode === 'split' ? t('code_block.split.restore') : t('code_block.split.label'),
-      onClick: () => setViewMode(viewMode === 'split' ? 'special' : 'split')
-    })
-
-    return () => removeTool(TOOL_SPECS['split-view'].id)
-  }, [hasSpecialView, viewMode, registerTool, removeTool, t])
+  // 特殊视图存在时的分屏按钮
+  useSplitViewTool({
+    enabled: hasSpecialView,
+    viewMode,
+    onToggleSplitView: toggleSplitView,
+    setTools
+  })
 
   // 运行按钮
-  useEffect(() => {
-    if (!isExecutable) return
+  useRunTool({
+    enabled: isExecutable,
+    isRunning,
+    onRun: handleRunScript,
+    setTools
+  })
 
-    registerTool({
-      ...TOOL_SPECS.run,
-      icon: isRunning ? <LoadingIcon /> : <CirclePlay className="icon" />,
-      tooltip: t('code_block.run'),
-      onClick: () => !isRunning && handleRunScript()
-    })
+  // 源代码视图的展开/折叠按钮
+  useExpandTool({
+    enabled: !isInSpecialView,
+    expanded: shouldExpand,
+    expandable,
+    toggle: useCallback(() => setExpandOverride((prev) => !prev), []),
+    setTools
+  })
 
-    return () => isExecutable && removeTool(TOOL_SPECS.run.id)
-  }, [isExecutable, isRunning, handleRunScript, registerTool, removeTool, t])
+  // 源代码视图的自动换行按钮
+  useWrapTool({
+    enabled: !isInSpecialView,
+    wrapped: shouldWrap,
+    wrappable: codeWrappable,
+    toggle: useCallback(() => setWrapOverride((prev) => !prev), []),
+    setTools
+  })
+
+  // 代码编辑器的保存按钮
+  useSaveTool({
+    enabled: codeEditor.enabled && !isInSpecialView,
+    sourceViewRef,
+    setTools
+  })
 
   // 源代码视图组件
-  const sourceView = useMemo(() => {
-    if (codeEditor.enabled) {
-      return (
+  const sourceView = useMemo(
+    () =>
+      codeEditor.enabled ? (
         <CodeEditor
+          className="source-view"
+          ref={sourceViewRef}
           value={children}
           language={language}
           onSave={onSave}
+          onHeightChange={handleHeightChange}
+          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
           options={{ stream: true }}
-          setTools={setTools}
+          expanded={shouldExpand}
+          wrapped={shouldWrap}
         />
-      )
-    } else {
-      return (
-        <CodePreview language={language} setTools={setTools}>
-          {children}
-        </CodePreview>
-      )
-    }
-  }, [children, codeEditor.enabled, language, onSave, setTools])
+      ) : (
+        <CodeViewer
+          className="source-view"
+          value={children}
+          language={language}
+          onHeightChange={handleHeightChange}
+          expanded={shouldExpand}
+          wrapped={shouldWrap}
+          maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
+        />
+      ),
+    [children, codeEditor.enabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+  )
 
   // 特殊视图组件映射
   const specialView = useMemo(() => {
@@ -208,13 +274,12 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
     if (!SpecialView) return null
 
-    // PlantUML 语法验证
-    if (language === 'plantuml' && !isValidPlantUML(children)) {
-      return null
-    }
-
-    return <SpecialView setTools={setTools}>{children}</SpecialView>
-  }, [children, language])
+    return (
+      <SpecialView ref={specialViewRef} enableToolbar={codeImageTools}>
+        {children}
+      </SpecialView>
+    )
+  }, [children, codeImageTools, language])
 
   const renderHeader = useMemo(() => {
     const langTag = '<' + language.toUpperCase() + '>'
@@ -223,21 +288,19 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 根据视图模式和语言选择组件，优先展示特殊视图，fallback是源代码视图
   const renderContent = useMemo(() => {
-    const showSpecialView = specialView && ['special', 'split'].includes(viewMode)
+    const showSpecialView = !!specialView && ['special', 'split'].includes(viewMode)
     const showSourceView = !specialView || viewMode !== 'special'
 
     return (
-      <SplitViewWrapper className="split-view-wrapper">
+      <SplitViewWrapper
+        className="split-view-wrapper"
+        $isSpecialView={showSpecialView && !showSourceView}
+        $isSplitView={showSpecialView && showSourceView}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
       </SplitViewWrapper>
     )
   }, [specialView, sourceView, viewMode])
-
-  // HTML 代码块特殊处理 - 在所有 hooks 调用之后
-  if (language === 'html' && isHtmlCode(children)) {
-    return <HtmlArtifactsCard html={children} />
-  }
 
   return (
     <CodeBlockWrapper className="code-block" $isInSpecialView={isInSpecialView}>
@@ -260,7 +323,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   position: relative;
   width: 100%;
   /* FIXME: 最小宽度用于解决两个问题。
-   * 一是 CodePreview 在气泡样式下的用户消息中无法撑开气泡，
+   * 一是 CodeViewer 在气泡样式下的用户消息中无法撑开气泡，
    * 二是 代码块内容过少时 toolbar 会和 title 重叠。
    */
   min-width: 45ch;
@@ -283,7 +346,7 @@ const CodeBlockWrapper = styled.div<{ $isInSpecialView: boolean }>`
   }
 `
 
-const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
+const CodeHeader = styled.div<{ $isInSpecialView?: boolean }>`
   display: flex;
   align-items: center;
   color: var(--color-text);
@@ -295,9 +358,10 @@ const CodeHeader = styled.div<{ $isInSpecialView: boolean }>`
   border-top-right-radius: 8px;
   margin-top: ${(props) => (props.$isInSpecialView ? '6px' : '0')};
   height: ${(props) => (props.$isInSpecialView ? '16px' : '34px')};
+  background-color: ${(props) => (props.$isInSpecialView ? 'transparent' : 'var(--color-background-mute)')};
 `
 
-const SplitViewWrapper = styled.div`
+const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boolean }>`
   display: flex;
 
   > * {
@@ -306,7 +370,31 @@ const SplitViewWrapper = styled.div`
   }
 
   &:not(:has(+ [class*='Container'])) {
-    border-radius: 0 0 8px 8px;
-    overflow: hidden;
+    // 特殊视图的 header 会隐藏，所以全都使用圆角
+    border-radius: ${(props) => (props.$isSpecialView ? '8px' : '0 0 8px 8px')};
+    // FIXME: 滚动条边缘会溢出，可以考虑增加 padding，但是要保证代码主题颜色铺满容器。
+    // overflow: hidden;
+    .code-viewer {
+      border-radius: inherit;
+    }
   }
+
+  // 在 split 模式下添加中间分隔线
+  ${(props) =>
+    props.$isSplitView &&
+    css`
+      position: relative;
+
+      &:before {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 1px;
+        background-color: var(--color-background-mute);
+        transform: translateX(-50%);
+        z-index: 1;
+      }
+    `}
 `

@@ -53,8 +53,8 @@ export function escapeDollarNumber(text: string) {
   return escapedText
 }
 
-export function extractTitle(html: string): string | null {
-  if (!html) return null
+export function extractHtmlTitle(html: string): string {
+  if (!html) return ''
 
   // 处理标准闭合的标题标签
   const titleRegex = /<title>(.*?)<\/title>/i
@@ -72,7 +72,17 @@ export function extractTitle(html: string): string | null {
     return malformedMatch[1] ? malformedMatch[1].trim() : ''
   }
 
-  return null
+  return ''
+}
+
+/**
+ * 从 HTML 标题中提取文件名（不包含扩展名）
+ * @param title HTML 标题
+ * @returns 文件名
+ */
+export function getFileNameFromHtmlTitle(title: string): string {
+  if (!title) return ''
+  return title.replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, '-')
 }
 
 export function removeSvgEmptyLines(text: string): string {

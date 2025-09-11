@@ -7,3 +7,6 @@ tsconfig.*.json
 CHANGELOG*.md
 agents.json
 src/renderer/src/integration/nutstore/sso/lib
+AGENT.md
+src/main/integration/
+.yarn/releases/

@@ -1,6 +1,12 @@
 import { getProviderLabel } from '@renderer/i18n/label'
 import { Provider } from '@renderer/types'
-import { oauthWithAihubmix, oauthWithPPIO, oauthWithSiliconFlow, oauthWithTokenFlux } from '@renderer/utils/oauth'
+import {
+  oauthWith302AI,
+  oauthWithAihubmix,
+  oauthWithPPIO,
+  oauthWithSiliconFlow,
+  oauthWithTokenFlux
+} from '@renderer/utils/oauth'
 import { Button, ButtonProps } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,7 +23,7 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
     const handleSuccess = (key: string) => {
       if (key.trim()) {
         onSuccess?.(key)
-        window.message.success({ content: t('auth.get_key_success'), key: 'auth-success' })
+        window.toast.success(t('auth.get_key_success'))
       }
     }
 
@@ -35,6 +41,10 @@ const OAuthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
 
     if (provider.id === 'tokenflux') {
       oauthWithTokenFlux()
+    }
+
+    if (provider.id === '302ai') {
+      oauthWith302AI(handleSuccess)
     }
   }
 

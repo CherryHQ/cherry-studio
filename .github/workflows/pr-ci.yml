@@ -1,5 +1,8 @@
 name: Pull Request CI
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   pull_request:
@@ -15,7 +18,7 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -42,8 +45,17 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
-      - name: Build Check
-        run: yarn build:check
+      - name: Format Check
+        run: yarn format:check
 
       - name: Lint Check
         run: yarn test:lint
+
+      - name: Type Check
+        run: yarn typecheck
+
+      - name: i18n Check
+        run: yarn check:i18n
+
+      - name: Test
+        run: yarn test

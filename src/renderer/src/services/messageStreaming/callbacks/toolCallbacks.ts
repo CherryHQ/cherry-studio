@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import type { MCPToolResponse } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
 import { MessageBlockStatus, MessageBlockType, ToolMessageBlock } from '@renderer/types/newMessage'
-import { createToolBlock } from '@renderer/utils/messageUtils/create'
+import { createCitationBlock, createToolBlock } from '@renderer/utils/messageUtils/create'
 
 import { BlockManager } from '../BlockManager'
 
@@ -18,9 +19,12 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
   // 内部维护的状态
   const toolCallIdToBlockIdMap = new Map<string, string>()
   let toolBlockId: string | null = null
+  let citationBlockId: string | null = null
 
   return {
     onToolCallPending: (toolResponse: MCPToolResponse) => {
+      logger.debug('onToolCallPending', toolResponse)
+
       if (blockManager.hasInitialPlaceholder) {
         const changes = {
           type: MessageBlockType.TOOL,
@@ -43,28 +47,6 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       } else {
         logger.warn(
           `[onToolCallPending] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
-        )
-      }
-    },
-
-    onToolCallInProgress: (toolResponse: MCPToolResponse) => {
-      // 根据 toolResponse.id 查找对应的块ID
-      const targetBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
-
-      if (targetBlockId && toolResponse.status === 'invoking') {
-        const changes = {
-          status: MessageBlockStatus.PROCESSING,
-          metadata: { rawMcpToolResponse: toolResponse }
-        }
-        blockManager.smartBlockUpdate(targetBlockId, changes, MessageBlockType.TOOL)
-      } else if (!targetBlockId) {
-        logger.warn(
-          `[onToolCallInProgress] No block ID found for tool ID: ${toolResponse.id}. Available mappings:`,
-          Array.from(toolCallIdToBlockIdMap.entries())
-        )
-      } else {
-        logger.warn(
-          `[onToolCallInProgress] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
         )
       }
     },
@@ -93,10 +75,39 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         }
 
         if (finalStatus === MessageBlockStatus.ERROR) {
-          changes.error = { message: `Tool execution failed/error`, details: toolResponse.response }
+          changes.error = {
+            message: `Tool execution failed/error`,
+            details: toolResponse.response,
+            name: null,
+            stack: null
+          }
         }
-
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
+        // Handle citation block creation for web search results
+        if (toolResponse.tool.name === 'builtin_web_search' && toolResponse.response) {
+          const citationBlock = createCitationBlock(
+            assistantMsgId,
+            {
+              response: { results: toolResponse.response, source: WebSearchSource.WEBSEARCH }
+            },
+            {
+              status: MessageBlockStatus.SUCCESS
+            }
+          )
+          citationBlockId = citationBlock.id
+          blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        }
+        if (toolResponse.tool.name === 'builtin_knowledge_search' && toolResponse.response) {
+          const citationBlock = createCitationBlock(
+            assistantMsgId,
+            { knowledge: toolResponse.response },
+            {
+              status: MessageBlockStatus.SUCCESS
+            }
+          )
+          citationBlockId = citationBlock.id
+          blockManager.handleBlockTransition(citationBlock, MessageBlockType.CITATION)
+        }
       } else {
         logger.warn(
           `[onToolCallComplete] Received unhandled tool status: ${toolResponse.status} for ID: ${toolResponse.id}`
@@ -104,6 +115,9 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       }
 
       toolBlockId = null
-    }
+    },
+
+    // 暴露给 textCallbacks 使用的方法
+    getCitationBlockId: () => citationBlockId
   }
 }

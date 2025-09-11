@@ -83,7 +83,7 @@ export const MODEOPTIONS = [
 // 获取模型分组数据
 export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
   try {
-    const response = await fetch('https://dmxapi.cn/cherry_painting_models.json')
+    const response = await fetch('https://dmxapi.cn/cherry_painting_models_v2.json')
 
     if (response.ok) {
       const data = await response.json()
@@ -95,9 +95,7 @@ export const GetModelGroup = async (): Promise<DMXApiModelGroups> => {
   } catch {
     /* empty */
   }
-  window.message.error({
-    content: t('paintings.req_error_model')
-  })
+  window.toast.error(t('paintings.req_error_model'))
 
   return {}
 }

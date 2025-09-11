@@ -11,6 +11,7 @@ export interface NutstoreState {
   nutstoreSyncInterval: number
   nutstoreSyncState: NutstoreSyncState
   nutstoreSkipBackupFile: boolean
+  nutstoreMaxBackups: number
 }
 
 const initialState: NutstoreState = {
@@ -23,7 +24,8 @@ const initialState: NutstoreState = {
     syncing: false,
     lastSyncError: null
   },
-  nutstoreSkipBackupFile: false
+  nutstoreSkipBackupFile: false,
+  nutstoreMaxBackups: 0
 }
 
 const nutstoreSlice = createSlice({
@@ -47,6 +49,9 @@ const nutstoreSlice = createSlice({
     },
     setNutstoreSkipBackupFile: (state, action: PayloadAction<boolean>) => {
       state.nutstoreSkipBackupFile = action.payload
+    },
+    setNutstoreMaxBackups: (state, action: PayloadAction<number>) => {
+      state.nutstoreMaxBackups = action.payload
     }
   }
 })
@@ -57,7 +62,8 @@ export const {
   setNutstoreAutoSync,
   setNutstoreSyncInterval,
   setNutstoreSyncState,
-  setNutstoreSkipBackupFile
+  setNutstoreSkipBackupFile,
+  setNutstoreMaxBackups
 } = nutstoreSlice.actions
 
 export default nutstoreSlice.reducer

@@ -1,12 +1,15 @@
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const zlib = require('zlib')
+const tar = require('tar')
+const { pipeline } = require('stream/promises')
 
-function downloadNpmPackage(packageName, url) {
+async function downloadNpmPackage(packageName, url) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'npm-download-'))
-
   const targetDir = path.join('./node_modules/', packageName)
-  const filename = packageName.replace('/', '-') + '.tgz'
+  const filename = path.join(tempDir, packageName.replace('/', '-') + '.tgz')
+  const extractDir = path.join(tempDir, 'extract')
 
   // Skip if directory already exists
   if (fs.existsSync(targetDir)) {
@@ -16,23 +19,44 @@ function downloadNpmPackage(packageName, url) {
 
   try {
     console.log(`Downloading ${packageName}...`, url)
-    const { execSync } = require('child_process')
-    execSync(`curl --fail -o ${filename} ${url}`)
+
+    // Download file using fetch API
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    const fileStream = fs.createWriteStream(filename)
+    await pipeline(response.body, fileStream)
 
     console.log(`Extracting ${filename}...`)
-    execSync(`tar -xvf ${filename}`)
-    execSync(`rm -rf ${filename}`)
-    execSync(`mkdir -p ${targetDir}`)
-    execSync(`mv package/* ${targetDir}/`)
+
+    // Create extraction directory
+    fs.mkdirSync(extractDir, { recursive: true })
+
+    // Extract tar.gz file using Node.js streams
+    await pipeline(fs.createReadStream(filename), zlib.createGunzip(), tar.extract({ cwd: extractDir }))
+
+    // Remove the downloaded file
+    fs.rmSync(filename, { force: true })
+
+    // Create target directory
+    fs.mkdirSync(targetDir, { recursive: true })
+
+    // Move extracted package contents to target directory
+    const packageDir = path.join(extractDir, 'package')
+    if (fs.existsSync(packageDir)) {
+      fs.cpSync(packageDir, targetDir, { recursive: true })
+    }
   } catch (error) {
     console.error(`Error processing ${packageName}: ${error.message}`)
-    if (fs.existsSync(filename)) {
-      fs.unlinkSync(filename)
-    }
     throw error
+  } finally {
+    // Clean up temp directory
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   }
-
-  fs.rmSync(tempDir, { recursive: true, force: true })
 }
 
 module.exports = {

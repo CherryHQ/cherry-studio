@@ -3,6 +3,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
+import { KnowledgeBase } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,20 +38,21 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
 
   const onOk = async () => {
     if (!newBase.name?.trim()) {
-      window.message.error(t('knowledge.name_required'))
+      window.toast.error(t('knowledge.name_required'))
       return
     }
 
     if (!newBase.model) {
-      window.message.error(t('knowledge.embedding_model_required'))
+      window.toast.error(t('knowledge.embedding_model_required'))
       return
     }
 
     try {
-      const _newBase = {
+      const _newBase: KnowledgeBase = {
         ...newBase,
         created_at: Date.now(),
-        updated_at: Date.now()
+        updated_at: Date.now(),
+        framework: 'langchain'
       }
 
       await window.api.knowledgeBase.create(getKnowledgeBaseParams(_newBase))
@@ -60,7 +62,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({ title, resolve }) => {
       resolve(_newBase)
     } catch (error) {
       logger.error('KnowledgeBase creation failed:', error as Error)
-      window.message.error(t('knowledge.error.failed_to_create') + formatErrorMessage(error))
+      window.toast.error(t('knowledge.error.failed_to_create') + formatErrorMessage(error))
     }
   }
 

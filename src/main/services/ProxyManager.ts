@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { defaultByPassRules } from '@shared/config/constant'
 import axios from 'axios'
 import { app, ProxyConfig, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
@@ -10,12 +9,44 @@ import { ProxyAgent } from 'proxy-agent'
 import { Dispatcher, EnvHttpProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
 
 const logger = loggerService.withContext('ProxyManager')
-let byPassRules = defaultByPassRules.split(',')
+let byPassRules: string[] = []
 
-const isByPass = (hostname: string) => {
-  return byPassRules.includes(hostname)
+const isByPass = (url: string) => {
+  if (byPassRules.length === 0) {
+    return false
+  }
+
+  try {
+    const subjectUrlTokens = new URL(url)
+    for (const rule of byPassRules) {
+      const ruleMatch = rule.replace(/^(?<leadingDot>\.)/, '*').match(/^(?<hostname>.+?)(?::(?<port>\d+))?$/)
+
+      if (!ruleMatch || !ruleMatch.groups) {
+        logger.warn('Failed to parse bypass rule:', { rule })
+        continue
+      }
+
+      if (!ruleMatch.groups.hostname) {
+        continue
+      }
+
+      const hostnameIsMatch = subjectUrlTokens.hostname === ruleMatch.groups.hostname
+
+      if (
+        hostnameIsMatch &&
+        (!ruleMatch.groups ||
+          !ruleMatch.groups.port ||
+          (subjectUrlTokens.port && subjectUrlTokens.port === ruleMatch.groups.port))
+      ) {
+        return true
+      }
+    }
+    return false
+  } catch (error) {
+    logger.error('Failed to check bypass:', error as Error)
+    return false
+  }
 }
-
 class SelectiveDispatcher extends Dispatcher {
   private proxyDispatcher: Dispatcher
   private directDispatcher: Dispatcher
@@ -28,9 +59,7 @@ class SelectiveDispatcher extends Dispatcher {
 
   dispatch(opts: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandlers) {
     if (opts.origin) {
-      const url = new URL(opts.origin)
-      // 检查是否为 localhost 或本地地址
-      if (isByPass(url.hostname)) {
+      if (isByPass(opts.origin.toString())) {
         return this.directDispatcher.dispatch(opts, handler)
       }
     }
@@ -72,6 +101,8 @@ export class ProxyManager {
   private originalHttpsGet: typeof https.get
   private originalHttpsRequest: typeof https.request
 
+  private originalAxiosAdapter
+
   constructor() {
     this.originalGlobalDispatcher = getGlobalDispatcher()
     this.originalSocksDispatcher = global[Symbol.for('undici.globalDispatcher.1')]
@@ -79,6 +110,7 @@ export class ProxyManager {
     this.originalHttpRequest = http.request
     this.originalHttpsGet = https.get
     this.originalHttpsRequest = https.request
+    this.originalAxiosAdapter = axios.defaults.adapter
   }
 
   private async monitorSystemProxy(): Promise<void> {
@@ -87,14 +119,20 @@ export class ProxyManager {
     // Set new interval
     this.systemProxyInterval = setInterval(async () => {
       const currentProxy = await getSystemProxy()
-      if (currentProxy && currentProxy.proxyUrl.toLowerCase() === this.config?.proxyRules) {
+      if (
+        currentProxy?.proxyUrl.toLowerCase() === this.config?.proxyRules &&
+        currentProxy?.noProxy.join(',').toLowerCase() === this.config?.proxyBypassRules?.toLowerCase()
+      ) {
         return
       }
 
+      logger.info(
+        `system proxy changed: ${currentProxy?.proxyUrl}, this.config.proxyRules: ${this.config.proxyRules}, this.config.proxyBypassRules: ${this.config.proxyBypassRules}`
+      )
       await this.configureProxy({
         mode: 'system',
         proxyRules: currentProxy?.proxyUrl.toLowerCase(),
-        proxyBypassRules: this.config.proxyBypassRules
+        proxyBypassRules: currentProxy?.noProxy.join(',')
       })
     }, 1000 * 60)
   }
@@ -127,7 +165,7 @@ export class ProxyManager {
         this.monitorSystemProxy()
       }
 
-      byPassRules = config.proxyBypassRules?.split(',') || defaultByPassRules.split(',')
+      byPassRules = config.proxyBypassRules?.split(',') || []
       this.setGlobalProxy(this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
@@ -144,6 +182,7 @@ export class ProxyManager {
       delete process.env.grpc_proxy
       delete process.env.http_proxy
       delete process.env.https_proxy
+      delete process.env.no_proxy
 
       delete process.env.SOCKS_PROXY
       delete process.env.ALL_PROXY
@@ -155,6 +194,7 @@ export class ProxyManager {
     process.env.HTTPS_PROXY = url
     process.env.http_proxy = url
     process.env.https_proxy = url
+    process.env.no_proxy = byPassRules.join(',')
 
     if (url.startsWith('socks')) {
       process.env.SOCKS_PROXY = url
@@ -222,8 +262,7 @@ export class ProxyManager {
 
       // filter localhost
       if (url) {
-        const hostname = typeof url === 'string' ? new URL(url).hostname : url.hostname
-        if (isByPass(hostname)) {
+        if (isByPass(url.toString())) {
           return originalMethod(url, options, callback)
         }
       }
@@ -245,9 +284,9 @@ export class ProxyManager {
     if (config.mode === 'direct' || !proxyUrl) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       global[Symbol.for('undici.globalDispatcher.1')] = this.originalSocksDispatcher
-      axios.defaults.adapter = 'http'
       this.proxyDispatcher?.close()
       this.proxyDispatcher = null
+      axios.defaults.adapter = this.originalAxiosAdapter
       return
     }
 

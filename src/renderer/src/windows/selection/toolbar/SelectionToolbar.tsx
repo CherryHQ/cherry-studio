@@ -1,9 +1,10 @@
-import '@renderer/assets/styles/selection-toolbar.scss'
+import '@renderer/assets/styles/selection-toolbar.css'
 
 import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
@@ -103,7 +104,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const [animateKey, setAnimateKey] = useState(0)
   const [copyIconStatus, setCopyIconStatus] = useState<'normal' | 'success' | 'fail'>('normal')
   const [copyIconAnimation, setCopyIconAnimation] = useState<'none' | 'enter' | 'exit'>('none')
-  const copyIconTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
   const realActionItems = useMemo(() => {
     return actionItems?.filter((item) => item.enabled)
@@ -113,18 +114,31 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   // [macOS] only macOS has the fullscreen mode
   const isFullScreen = useRef(false)
 
+  const onHideCleanUp = useCallback(() => {
+    setCopyIconStatus('normal')
+    setCopyIconAnimation('none')
+    clearTimeoutTimer('textSelection')
+    clearTimeoutTimer('copyIcon')
+  }, [clearTimeoutTimer])
+
   // listen to selectionService events
   useEffect(() => {
+    const cleanups: (() => void)[] = []
     // TextSelection
     const textSelectionListenRemover = window.electron?.ipcRenderer.on(
       IpcChannel.Selection_TextSelected,
       (_, selectionData: TextSelectionData) => {
         selectedText.current = selectionData.text
         isFullScreen.current = selectionData.isFullscreen ?? false
-        setTimeout(() => {
-          //make sure the animation is active
-          setAnimateKey((prev) => prev + 1)
-        }, 400)
+        const cleanup = setTimeoutTimer(
+          'textSelection',
+          () => {
+            //make sure the animation is active
+            setAnimateKey((prev) => prev + 1)
+          },
+          400
+        )
+        cleanups.push(cleanup)
       }
     )
 
@@ -142,8 +156,9 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     return () => {
       textSelectionListenRemover()
       toolbarVisibilityChangeListenRemover()
+      cleanups.forEach((cleanup) => cleanup())
     }
-  }, [demo])
+  }, [demo, onHideCleanUp, setTimeoutTimer])
 
   //make sure the toolbar size is updated when the compact mode/actionItems is changed
   useEffect(() => {
@@ -172,11 +187,22 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
   }, [customCss, demo])
 
-  const onHideCleanUp = () => {
-    setCopyIconStatus('normal')
-    setCopyIconAnimation('none')
-    clearTimeout(copyIconTimeoutRef.current)
-  }
+  // copy selected text to clipboard
+  const handleCopy = useCallback(async () => {
+    if (selectedText.current) {
+      const result = await window.api?.selection.writeToClipboard(selectedText.current)
+
+      setCopyIconStatus(result ? 'success' : 'fail')
+      setCopyIconAnimation('enter')
+      setTimeoutTimer(
+        'copyIcon',
+        () => {
+          setCopyIconAnimation('exit')
+        },
+        2000
+      )
+    }
+  }, [setTimeoutTimer])
 
   const handleAction = useCallback(
     (action: ActionItem) => {
@@ -200,21 +226,8 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
           break
       }
     },
-    [demo]
+    [demo, handleCopy]
   )
-
-  // copy selected text to clipboard
-  const handleCopy = async () => {
-    if (selectedText.current) {
-      const result = await window.api?.selection.writeToClipboard(selectedText.current)
-
-      setCopyIconStatus(result ? 'success' : 'fail')
-      setCopyIconAnimation('enter')
-      copyIconTimeoutRef.current = setTimeout(() => {
-        setCopyIconAnimation('exit')
-      }, 2000)
-    }
-  }
 
   const handleSearch = (action: ActionItem) => {
     if (!action.searchEngine) return
@@ -361,10 +374,10 @@ const ActionButton = styled.div`
   }
   &:hover {
     .btn-icon {
-      color: var(--selection-toolbar-button-icon-color-hover);
+      color: var(--color-primary);
     }
     .btn-title {
-      color: var(--selection-toolbar-button-text-color-hover);
+      color: var(--color-primary);
     }
     background-color: var(--selection-toolbar-button-bgcolor-hover);
   }

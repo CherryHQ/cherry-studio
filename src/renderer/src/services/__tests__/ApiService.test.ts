@@ -9,13 +9,14 @@ import {
 import { FinishReason, MediaModality } from '@google/genai'
 import { FunctionCall } from '@google/genai'
 import AiProvider from '@renderer/aiCore'
-import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/clients'
-import { AnthropicAPIClient } from '@renderer/aiCore/clients/anthropic/AnthropicAPIClient'
-import { ApiClientFactory } from '@renderer/aiCore/clients/ApiClientFactory'
-import { GeminiAPIClient } from '@renderer/aiCore/clients/gemini/GeminiAPIClient'
-import { OpenAIResponseAPIClient } from '@renderer/aiCore/clients/openai/OpenAIResponseAPIClient'
-import { GenericChunk } from '@renderer/aiCore/middleware/schemas'
+import { BaseApiClient, OpenAIAPIClient, ResponseChunkTransformerContext } from '@renderer/aiCore/legacy/clients'
+import { AnthropicAPIClient } from '@renderer/aiCore/legacy/clients/anthropic/AnthropicAPIClient'
+import { ApiClientFactory } from '@renderer/aiCore/legacy/clients/ApiClientFactory'
+import { GeminiAPIClient } from '@renderer/aiCore/legacy/clients/gemini/GeminiAPIClient'
+import { OpenAIResponseAPIClient } from '@renderer/aiCore/legacy/clients/openai/OpenAIResponseAPIClient'
+import { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
 import { isVisionModel } from '@renderer/config/models'
+import { LlmState } from '@renderer/store/llm'
 import { Assistant, MCPCallToolResponse, MCPToolResponse, Model, Provider, WebSearchSource } from '@renderer/types'
 import {
   Chunk,
@@ -41,31 +42,36 @@ import OpenAI from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Mock the ApiClientFactory
-vi.mock('@renderer/aiCore/clients/ApiClientFactory', () => ({
+vi.mock('@renderer/aiCore/legacy/clients/ApiClientFactory', () => ({
   ApiClientFactory: {
     create: vi.fn()
   }
 }))
 
 // Mock the models config
-vi.mock('@renderer/config/models', () => ({
-  isDedicatedImageGenerationModel: vi.fn(() => false),
-  isTextToImageModel: vi.fn(() => false),
-  isEmbeddingModel: vi.fn(() => false),
-  isRerankModel: vi.fn(() => false),
-  isVisionModel: vi.fn(() => false),
-  isReasoningModel: vi.fn(() => false),
-  isWebSearchModel: vi.fn(() => false),
-  isOpenAIModel: vi.fn(() => false),
-  isFunctionCallingModel: vi.fn(() => true),
-  models: {
-    gemini: {
-      id: 'gemini-2.5-pro',
-      name: 'Gemini 2.5 Pro'
-    }
-  },
-  isAnthropicModel: vi.fn(() => false)
-}))
+vi.mock('@renderer/config/models', async () => {
+  const origin = await vi.importActual('@renderer/config/models')
+
+  return {
+    ...origin,
+    isDedicatedImageGenerationModel: vi.fn(() => false),
+    isTextToImageModel: vi.fn(() => false),
+    isEmbeddingModel: vi.fn(() => false),
+    isRerankModel: vi.fn(() => false),
+    isVisionModel: vi.fn(() => false),
+    isReasoningModel: vi.fn(() => false),
+    isWebSearchModel: vi.fn(() => false),
+    isOpenAIModel: vi.fn(() => false),
+    isFunctionCallingModel: vi.fn(() => true),
+    models: {
+      gemini: {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro'
+      }
+    },
+    isAnthropicModel: vi.fn(() => false)
+  }
+})
 
 // Mock uuid
 vi.mock('uuid', () => ({
@@ -97,8 +103,8 @@ vi.mock('@renderer/config/prompts', () => ({
 }))
 
 vi.mock('@renderer/config/systemModels', () => ({
-  GENERATE_IMAGE_MODELS: [],
-  SUPPORTED_DISABLE_GENERATION_MODELS: []
+  OPENAI_IMAGE_GENERATION_MODELS: [],
+  GENERATE_IMAGE_MODELS: []
 }))
 
 vi.mock('@renderer/config/tools', () => ({
@@ -173,7 +179,8 @@ vi.mock('@renderer/store/llm.ts', () => {
             id: 'gemini-2.5-pro',
             name: 'Gemini 2.5 Pro',
             provider: 'gemini',
-            supported_text_delta: true
+            supported_text_delta: true,
+            group: ''
           }
         ],
         isSystem: true,
@@ -184,19 +191,29 @@ vi.mock('@renderer/store/llm.ts', () => {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',
-      supported_text_delta: true
+      supported_text_delta: true,
+      group: ''
     },
     topicNamingModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',
-      supported_text_delta: true
+      supported_text_delta: true,
+      group: ''
+    },
+    quickModel: {
+      id: 'gemini-2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      provider: 'gemini',
+      supported_text_delta: true,
+      group: ''
     },
     translateModel: {
       id: 'gemini-2.5-pro',
       name: 'Gemini 2.5 Pro',
       provider: 'gemini',
-      supported_text_delta: true
+      supported_text_delta: true,
+      group: ''
     },
     quickAssistantId: '',
     settings: {
@@ -210,9 +227,14 @@ vi.mock('@renderer/store/llm.ts', () => {
         },
         projectId: '',
         location: ''
+      },
+      awsBedrock: {
+        accessKeyId: '',
+        secretAccessKey: '',
+        region: ''
       }
     }
-  }
+  } satisfies LlmState
 
   const mockReducer = (state = mockInitialState) => {
     return state
@@ -1217,7 +1239,9 @@ const mockOpenaiApiClient = {
                       type: 'function'
                     }
                   } else if (fun?.arguments) {
-                    toolCalls[index].function.arguments += fun.arguments
+                    if (toolCalls[index] && toolCalls[index].type === 'function' && 'function' in toolCalls[index]) {
+                      toolCalls[index].function.arguments += fun.arguments
+                    }
                   }
                 } else {
                   toolCalls.push(toolCall)
@@ -2399,7 +2423,8 @@ describe('ApiService', () => {
             },
             description: 'print the name and age',
             required: ['name', 'age']
-          }
+          },
+          type: 'mcp'
         }
       ],
       onChunk,
@@ -2490,7 +2515,8 @@ describe('ApiService', () => {
                 },
                 description: 'print the name and age',
                 required: ['name', 'age']
-              }
+              },
+              type: 'mcp'
             },
             toolUseId: 'mcp-tool-1',
             arguments: {
@@ -2522,7 +2548,8 @@ describe('ApiService', () => {
                 },
                 description: 'print the name and age',
                 required: ['name', 'age']
-              }
+              },
+              type: 'mcp'
             },
             toolUseId: 'mcp-tool-1',
             arguments: {
@@ -2553,7 +2580,8 @@ describe('ApiService', () => {
                 },
                 description: 'print the name and age',
                 required: ['name', 'age']
-              }
+              },
+              type: 'mcp'
             },
             response: {
               content: [

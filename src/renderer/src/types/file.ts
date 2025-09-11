@@ -1,17 +1,27 @@
 import type { File } from '@google/genai'
 import type { FileSchema } from '@mistralai/mistralai/models/components'
+import type OpenAI from 'openai'
 
-export interface RemoteFile {
-  type: 'gemini' | 'mistral'
-  file: File | FileSchema
-}
+export type RemoteFile =
+  | {
+      type: 'gemini'
+      file: File
+    }
+  | {
+      type: 'mistral'
+      file: FileSchema
+    }
+  | {
+      type: 'openai'
+      file: OpenAI.Files.FileObject
+    }
 
 /**
  * Type guard to check if a RemoteFile is a Gemini file
  * @param file - The RemoteFile to check
  * @returns True if the file is a Gemini file (file property is of type File)
  */
-export const isGeminiFile = (file: RemoteFile): file is RemoteFile & { type: 'gemini'; file: File } => {
+export const isGeminiFile = (file: RemoteFile): file is { type: 'gemini'; file: File } => {
   return file.type === 'gemini'
 }
 
@@ -20,8 +30,16 @@ export const isGeminiFile = (file: RemoteFile): file is RemoteFile & { type: 'ge
  * @param file - The RemoteFile to check
  * @returns True if the file is a Mistral file (file property is of type FileSchema)
  */
-export const isMistralFile = (file: RemoteFile): file is RemoteFile & { type: 'mistral'; file: FileSchema } => {
+export const isMistralFile = (file: RemoteFile): file is { type: 'mistral'; file: FileSchema } => {
   return file.type === 'mistral'
+}
+
+/** Type guard to check if a RemoteFile is an OpenAI file
+ * @param file - The RemoteFile to check
+ * @returns True if the file is an OpenAI file (file property is of type OpenAI.Files.FileObject)
+ */
+export const isOpenAIFile = (file: RemoteFile): file is { type: 'openai'; file: OpenAI.Files.FileObject } => {
+  return file.type === 'openai'
 }
 
 export type FileStatus = 'success' | 'processing' | 'failed' | 'unknown'
@@ -88,6 +106,10 @@ export interface FileMetadata {
    * 该文件预计的token大小 (可选)
    */
   tokens?: number
+  /**
+   * 该文件的用途
+   */
+  purpose?: OpenAI.FilePurpose
 }
 
 export interface FileType extends FileMetadata {}
@@ -99,4 +121,21 @@ export enum FileTypes {
   TEXT = 'text',
   DOCUMENT = 'document',
   OTHER = 'other'
+}
+
+export type ImageFileMetadata = FileMetadata & {
+  type: FileTypes.IMAGE
+}
+
+export type PdfFileMetadata = FileMetadata & {
+  ext: '.pdf'
+}
+
+/**
+ * 类型守卫函数，用于检查一个 FileMetadata 是否为图片文件元数据
+ * @param file - 要检查的文件元数据
+ * @returns 如果文件是图片类型则返回 true
+ */
+export const isImageFileMetadata = (file: FileMetadata): file is ImageFileMetadata => {
+  return file.type === FileTypes.IMAGE
 }

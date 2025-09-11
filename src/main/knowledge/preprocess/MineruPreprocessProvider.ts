@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
-import axios from 'axios'
+import { net } from 'electron'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
@@ -63,8 +64,9 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     file: FileMetadata
   ): Promise<{ processedFile: FileMetadata; quota: number }> {
     try {
-      logger.info(`MinerU preprocess processing started: ${file.path}`)
-      await this.validateFile(file.path)
+      const filePath = fileStorage.getFilePathById(file)
+      logger.info(`MinerU preprocess processing started: ${filePath}`)
+      await this.validateFile(filePath)
 
       // 1. 获取上传URL并上传文件
       const batchId = await this.uploadFile(file)
@@ -86,14 +88,14 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
         quota
       }
     } catch (error: any) {
-      logger.error(`MinerU preprocess processing failed for ${file.path}: ${error.message}`)
+      logger.error(`MinerU preprocess processing failed for:`, error as Error)
       throw new Error(error.message)
     }
   }
 
   public async checkQuota() {
     try {
-      const quota = await fetch(`${this.provider.apiHost}/api/v4/quota`, {
+      const quota = await net.fetch(`${this.provider.apiHost}/api/v4/quota`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -177,8 +179,12 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
 
     try {
       // 下载ZIP文件
-      const response = await axios.get(zipUrl, { responseType: 'arraybuffer' })
-      fs.writeFileSync(zipPath, Buffer.from(response.data))
+      const response = await net.fetch(zipUrl, { method: 'GET' })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      const arrayBuffer = await response.arrayBuffer()
+      fs.writeFileSync(zipPath, Buffer.from(arrayBuffer))
       logger.info(`Downloaded ZIP file: ${zipPath}`)
 
       // 确保提取目录存在
@@ -205,16 +211,14 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       // 步骤1: 获取上传URL
       const { batchId, fileUrls } = await this.getBatchUploadUrls(file)
-      logger.debug(`Got upload URLs for batch: ${batchId}`)
-
-      logger.debug(`batchId: ${batchId}, fileurls: ${fileUrls}`)
       // 步骤2: 上传文件到获取的URL
-      await this.putFileToUrl(file.path, fileUrls[0])
-      logger.info(`File uploaded successfully: ${file.path}`)
+      const filePath = fileStorage.getFilePathById(file)
+      await this.putFileToUrl(filePath, fileUrls[0])
+      logger.info(`File uploaded successfully: ${filePath}`, { batchId, fileUrls })
 
       return batchId
     } catch (error: any) {
-      logger.error(`Failed to upload file ${file.path}: ${error.message}`)
+      logger.error(`Failed to upload file:`, error as Error)
       throw new Error(error.message)
     }
   }
@@ -236,7 +240,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     }
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await net.fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -271,7 +275,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     try {
       const fileBuffer = await fs.promises.readFile(filePath)
 
-      const response = await fetch(uploadUrl, {
+      const response = await net.fetch(uploadUrl, {
         method: 'PUT',
         body: fileBuffer,
         headers: {
@@ -316,7 +320,7 @@ export default class MineruPreprocessProvider extends BasePreprocessProvider {
     const endpoint = `${this.provider.apiHost}/api/v4/extract-results/batch/${batchId}`
 
     try {
-      const response = await fetch(endpoint, {
+      const response = await net.fetch(endpoint, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

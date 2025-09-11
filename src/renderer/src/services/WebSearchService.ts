@@ -55,7 +55,7 @@ class WebSearchService {
     dispose: (requestState: RequestState, requestId: string) => {
       if (!requestState.searchBase) return
       window.api.knowledgeBase
-        .delete(requestState.searchBase.id)
+        .delete(getKnowledgeBaseParams(requestState.searchBase), requestState.searchBase.id)
         .catch((error) => logger.warn(`Failed to cleanup search base for ${requestId}:`, error))
     }
   })
@@ -150,6 +150,7 @@ class WebSearchService {
    */
   public getWebSearchProvider(providerId?: string): WebSearchProvider | undefined {
     const { providers } = this.getWebSearchState()
+    logger.debug('providers', providers)
     const provider = providers.find((provider) => provider.id === providerId)
 
     return provider
@@ -177,12 +178,7 @@ class WebSearchService {
       formattedQuery = `today is ${dayjs().format('YYYY-MM-DD')} \r\n ${query}`
     }
 
-    // try {
     return await webSearchEngine.search(formattedQuery, websearch, httpOptions)
-    // } catch (error) {
-    //   console.error('Search failed:', error)
-    //   throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    // }
   }
 
   /**
@@ -230,7 +226,7 @@ class WebSearchService {
 
     // 清理旧的知识库
     if (state.searchBase) {
-      await window.api.knowledgeBase.delete(state.searchBase.id)
+      await window.api.knowledgeBase.delete(getKnowledgeBaseParams(state.searchBase), state.searchBase.id)
     }
 
     if (!config.embeddingModel) {
@@ -248,7 +244,8 @@ class WebSearchService {
       items: [],
       created_at: Date.now(),
       updated_at: Date.now(),
-      version: 1
+      version: 1,
+      framework: 'langchain'
     }
 
     // 更新LRU cache
@@ -539,10 +536,9 @@ class WebSearchService {
         )
       } catch (error) {
         logger.warn('RAG compression failed, will return empty results:', error as Error)
-        window.message.error({
-          key: 'websearch-rag-failed',
-          duration: 10,
-          content: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
+        window.toast.error({
+          timeout: 10000,
+          title: `${i18n.t('settings.tool.websearch.compression.error.rag_failed')}: ${formatErrorMessage(error)}`
         })
 
         finalResults = []

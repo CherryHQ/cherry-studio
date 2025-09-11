@@ -10,6 +10,13 @@ export function initSessionUserAgent() {
   const newUA = originUA.replace(/CherryStudio\/\S+\s/, '').replace(/Electron\/\S+\s/, '')
 
   wvSession.setUserAgent(newUA)
+  wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+    const headers = {
+      ...details.requestHeaders,
+      'User-Agent': details.url.includes('google.com') ? originUA : newUA
+    }
+    cb({ requestHeaders: headers })
+  })
 }
 
 /**

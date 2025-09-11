@@ -1,3 +1,4 @@
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
@@ -5,6 +6,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { Assistant, Topic } from '@renderer/types'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import { AnimatePresence, motion } from 'motion/react'
 import { FC, startTransition, useCallback, useEffect, useState } from 'react'
 import { useDispatch } from 'react-redux'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -79,7 +82,7 @@ const HomePage: FC = () => {
 
   useEffect(() => {
     const canMinimize = topicPosition == 'left' ? !showAssistants : !showAssistants && !showTopics
-    window.api.window.setMinimumSize(canMinimize ? 520 : 1080, 600)
+    window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
     return () => {
       window.api.window.resetMinimumSize()
@@ -98,21 +101,34 @@ const HomePage: FC = () => {
         />
       )}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
-        {showAssistants && (
-          <HomeTabs
-            activeAssistant={activeAssistant}
+        <AnimatePresence initial={false}>
+          {showAssistants && (
+            <ErrorBoundary>
+              <motion.div
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 'var(--assistants-width)', opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                style={{ overflow: 'hidden' }}>
+                <HomeTabs
+                  activeAssistant={activeAssistant}
+                  activeTopic={activeTopic}
+                  setActiveAssistant={setActiveAssistant}
+                  setActiveTopic={setActiveTopic}
+                  position="left"
+                />
+              </motion.div>
+            </ErrorBoundary>
+          )}
+        </AnimatePresence>
+        <ErrorBoundary>
+          <Chat
+            assistant={activeAssistant}
             activeTopic={activeTopic}
-            setActiveAssistant={setActiveAssistant}
             setActiveTopic={setActiveTopic}
-            position="left"
+            setActiveAssistant={setActiveAssistant}
           />
-        )}
-        <Chat
-          assistant={activeAssistant}
-          activeTopic={activeTopic}
-          setActiveTopic={setActiveTopic}
-          setActiveAssistant={setActiveAssistant}
-        />
+        </ErrorBoundary>
       </ContentContainer>
     </Container>
   )

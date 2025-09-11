@@ -21,15 +21,13 @@ import {
 import { dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
 
-import FileStorage from './FileStorage'
+import { fileStorage } from './FileStorage'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
-  private fileManager: FileStorage
   private md: MarkdownIt
 
-  constructor(fileManager: FileStorage) {
-    this.fileManager = fileManager
+  constructor() {
     this.md = new MarkdownIt()
   }
 
@@ -399,7 +397,7 @@ export class ExportService {
       })
 
       if (filePath) {
-        await this.fileManager.writeFile(_, filePath, buffer)
+        await fileStorage.writeFile(_, filePath, buffer)
         logger.debug('Document exported successfully')
       }
     } catch (error) {

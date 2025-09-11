@@ -6,6 +6,7 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
 import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
 import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
 import { Plus } from 'lucide-react'
@@ -15,19 +16,18 @@ import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiProviderKind, ApiProviderUnion } from './types'
+import { ApiProvider, UpdateApiProviderFunc } from './types'
 
 interface ApiKeyListProps {
-  provider: ApiProviderUnion
-  updateProvider: (provider: Partial<ApiProviderUnion>) => void
-  providerKind: ApiProviderKind
+  provider: ApiProvider
+  updateProvider: UpdateApiProviderFunc
   showHealthCheck?: boolean
 }
 
 /**
  * Api key 列表，管理 CRUD 操作、连接检查
  */
-export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, providerKind, showHealthCheck = true }) => {
+export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, showHealthCheck = true }) => {
   const { t } = useTranslation()
 
   // 临时新项状态
@@ -42,7 +42,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
     checkKeyConnectivity,
     checkAllKeysConnectivity,
     isChecking
-  } = useApiKeys({ provider, updateProvider, providerKind: providerKind })
+  } = useApiKeys({ provider, updateProvider })
 
   // 创建一个临时新项
   const handleAddNew = () => {
@@ -73,7 +73,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
 
   const shouldAutoFocus = () => {
     if (provider.apiKey) return false
-    return isLlmProvider(provider, providerKind) && provider.enabled && !isProviderSupportAuth(provider)
+    return isLlmProvider(provider) && provider.enabled && !isProviderSupportAuth(provider)
   }
 
   // 合并真实 keys 和临时新项
@@ -179,55 +179,33 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, prov
 
 interface SpecificApiKeyListProps {
   providerId: string
-  providerKind: ApiProviderKind
   showHealthCheck?: boolean
 }
 
-export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, providerKind, showHealthCheck = true }) => {
+type WebSearchApiKeyList = SpecificApiKeyListProps & {
+  providerId: WebSearchProviderId
+}
+
+type DocPreprocessApiKeyListProps = SpecificApiKeyListProps & {
+  providerId: PreprocessProviderId
+}
+
+export const LlmApiKeyList: FC<SpecificApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
   const { provider, updateProvider } = useProvider(providerId)
 
-  return (
-    <ApiKeyList
-      provider={provider}
-      updateProvider={updateProvider}
-      providerKind={providerKind}
-      showHealthCheck={showHealthCheck}
-    />
-  )
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
 }
 
-export const WebSearchApiKeyList: FC<SpecificApiKeyListProps> = ({
-  providerId,
-  providerKind,
-  showHealthCheck = true
-}) => {
+export const WebSearchApiKeyList: FC<WebSearchApiKeyList> = ({ providerId, showHealthCheck = true }) => {
   const { provider, updateProvider } = useWebSearchProvider(providerId)
 
-  return (
-    <ApiKeyList
-      provider={provider}
-      updateProvider={updateProvider}
-      providerKind={providerKind}
-      showHealthCheck={showHealthCheck}
-    />
-  )
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
 }
 
-export const DocPreprocessApiKeyList: FC<SpecificApiKeyListProps> = ({
-  providerId,
-  providerKind,
-  showHealthCheck = true
-}) => {
+export const DocPreprocessApiKeyList: FC<DocPreprocessApiKeyListProps> = ({ providerId, showHealthCheck = true }) => {
   const { provider, updateProvider } = usePreprocessProvider(providerId)
 
-  return (
-    <ApiKeyList
-      provider={provider}
-      updateProvider={updateProvider}
-      providerKind={providerKind}
-      showHealthCheck={showHealthCheck}
-    />
-  )
+  return <ApiKeyList provider={provider} updateProvider={updateProvider} showHealthCheck={showHealthCheck} />
 }
 
 const ListContainer = styled.div`

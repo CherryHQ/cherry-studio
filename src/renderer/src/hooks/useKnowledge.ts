@@ -15,9 +15,19 @@ import {
   updateItemProcessingStatus,
   updateNotes
 } from '@renderer/store/knowledge'
-import { addFilesThunk, addItemThunk, addNoteThunk } from '@renderer/store/thunk/knowledgeThunk'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
-import { runAsyncFunction } from '@renderer/utils'
+import { addFilesThunk, addItemThunk, addNoteThunk, addVedioThunk } from '@renderer/store/thunk/knowledgeThunk'
+import {
+  FileMetadata,
+  isKnowledgeFileItem,
+  isKnowledgeNoteItem,
+  isKnowledgeVideoItem,
+  KnowledgeBase,
+  KnowledgeItem,
+  KnowledgeNoteItem,
+  MigrationModeEnum,
+  ProcessingStatus
+} from '@renderer/types'
+import { runAsyncFunction, uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 import { cloneDeep } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
@@ -25,10 +35,12 @@ import { useDispatch, useSelector } from 'react-redux'
 
 import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
+import { useTimer } from './useTimer'
 
 export const useKnowledge = (baseId: string) => {
   const dispatch = useAppDispatch()
   const base = useSelector((state: RootState) => state.knowledge.bases.find((b) => b.id === baseId))
+  const { setTimeoutTimer } = useTimer()
 
   // 重命名知识库
   const renameKnowledgeBase = (name: string) => {
@@ -40,35 +52,49 @@ export const useKnowledge = (baseId: string) => {
     dispatch(updateBase(base))
   }
 
+  // 检查知识库
+  const checkAllBases = () => {
+    // 这个也许也会多任务？
+    const id = uuid()
+    setTimeoutTimer(id, () => KnowledgeQueue.checkAllBases(), 0)
+  }
+
   // 批量添加文件
   const addFiles = (files: FileMetadata[]) => {
     dispatch(addFilesThunk(baseId, files))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 添加笔记
   const addNote = async (content: string) => {
     await dispatch(addNoteThunk(baseId, content))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 添加URL
   const addUrl = (url: string) => {
     dispatch(addItemThunk(baseId, 'url', url))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // 添加 Sitemap
   const addSitemap = (url: string) => {
     dispatch(addItemThunk(baseId, 'sitemap', url))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   // Add directory support
   const addDirectory = (path: string) => {
     dispatch(addItemThunk(baseId, 'directory', path))
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
+
+  // add video support
+  const addVideo = (files: FileMetadata[]) => {
+    dispatch(addVedioThunk(baseId, 'video', files))
+    checkAllBases()
+  }
+
   // 更新笔记内容
   const updateNoteContent = async (noteId: string, content: string) => {
     const note = await db.knowledge_notes.get(noteId)
@@ -97,18 +123,28 @@ export const useKnowledge = (baseId: string) => {
   // 移除项目
   const removeItem = async (item: KnowledgeItem) => {
     dispatch(removeItemAction({ baseId, item }))
-    if (base) {
-      if (item?.uniqueId && item?.uniqueIds) {
-        await window.api.knowledgeBase.remove({
-          uniqueId: item.uniqueId,
-          uniqueIds: item.uniqueIds,
-          base: getKnowledgeBaseParams(base)
-        })
-      }
+    if (!base || !item?.uniqueId || !item?.uniqueIds) {
+      return
     }
-    if (item.type === 'file' && typeof item.content === 'object') {
+
+    const removalParams = {
+      uniqueId: item.uniqueId,
+      uniqueIds: item.uniqueIds,
+      base: getKnowledgeBaseParams(base)
+    }
+
+    await window.api.knowledgeBase.remove(removalParams)
+
+    if (isKnowledgeFileItem(item) && typeof item.content === 'object' && !Array.isArray(item.content)) {
+      const file = item.content
       // name: eg. text.pdf
-      await window.api.file.delete(item.content.name)
+      await window.api.file.delete(file.name)
+    } else if (isKnowledgeVideoItem(item)) {
+      // video item has srt and video files
+      const files = item.content
+      const deletePromises = files.map((file) => window.api.file.delete(file.name))
+
+      await Promise.allSettled(deletePromises)
     }
   }
   // 刷新项目
@@ -119,6 +155,9 @@ export const useKnowledge = (baseId: string) => {
       return
     }
 
+    if (!base || !item?.uniqueId || !item?.uniqueIds) {
+      return
+    }
     if (base && item.uniqueId && item.uniqueIds) {
       await window.api.knowledgeBase.remove({
         uniqueId: item.uniqueId,
@@ -133,8 +172,26 @@ export const useKnowledge = (baseId: string) => {
         uniqueId: undefined,
         updated_at: Date.now()
       })
-      setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+      checkAllBases()
     }
+
+    const removalParams = {
+      uniqueId: item.uniqueId,
+      uniqueIds: item.uniqueIds,
+      base: getKnowledgeBaseParams(base)
+    }
+
+    await window.api.knowledgeBase.remove(removalParams)
+
+    updateItem({
+      ...item,
+      processingStatus: 'pending',
+      processingProgress: 0,
+      processingError: '',
+      uniqueId: undefined,
+      updated_at: Date.now()
+    })
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
   }
 
   // 更新处理状态
@@ -174,7 +231,7 @@ export const useKnowledge = (baseId: string) => {
   }
 
   // 迁移知识库（保留原知识库）
-  const migrateBase = async (newBase: KnowledgeBase) => {
+  const migrateBase = async (newBase: KnowledgeBase, mode: MigrationModeEnum) => {
     if (!base) return
 
     const timestamp = dayjs().format('YYMMDDHHmmss')
@@ -187,8 +244,13 @@ export const useKnowledge = (baseId: string) => {
       name: newName,
       created_at: Date.now(),
       updated_at: Date.now(),
-      items: []
-    } as KnowledgeBase
+      items: [],
+      framework: mode === MigrationModeEnum.MigrationToLangChain ? 'langchain' : base.framework
+    } satisfies KnowledgeBase
+
+    if (mode === MigrationModeEnum.MigrationToLangChain) {
+      await window.api.knowledgeBase.create(getKnowledgeBaseParams(migratedBase))
+    }
 
     dispatch(addBase(migratedBase))
 
@@ -199,23 +261,27 @@ export const useKnowledge = (baseId: string) => {
       switch (item.type) {
         case 'file':
           if (typeof item.content === 'object' && item.content !== null && 'path' in item.content) {
-            files.push(item.content as FileMetadata)
+            files.push(item.content)
           }
           break
         case 'note':
           try {
             const note = await db.knowledge_notes.get(item.id)
-            const content = (note?.content || '') as string
+            const content = note?.content || ''
             await dispatch(addNoteThunk(newBase.id, content))
           } catch (error) {
             throw new Error(`Failed to migrate note item ${item.id}: ${error}`)
           }
           break
         default:
-          try {
-            dispatch(addItemThunk(newBase.id, item.type, item.content as string))
-          } catch (error) {
-            throw new Error(`Failed to migrate item ${item.id}: ${error}`)
+          if (typeof item.content === 'string') {
+            try {
+              dispatch(addItemThunk(newBase.id, item.type, item.content))
+            } catch (error) {
+              throw new Error(`Failed to migrate item ${item.id}: ${error}`)
+            }
+          } else {
+            throw new Error(`Not a valid item: ${JSON.stringify(item)}`)
           }
           break
       }
@@ -229,7 +295,7 @@ export const useKnowledge = (baseId: string) => {
       throw new Error(`Failed to migrate files ${files}: ${error}`)
     }
 
-    setTimeout(() => KnowledgeQueue.checkAllBases(), 0)
+    checkAllBases()
   }
 
   const fileItems = base?.items.filter((item) => item.type === 'file') || []
@@ -237,17 +303,18 @@ export const useKnowledge = (baseId: string) => {
   const urlItems = base?.items.filter((item) => item.type === 'url') || []
   const sitemapItems = base?.items.filter((item) => item.type === 'sitemap') || []
   const [noteItems, setNoteItems] = useState<KnowledgeItem[]>([])
+  const videoItems = base?.items.filter((item) => item.type === 'video') || []
 
   useEffect(() => {
-    const notes = base?.items.filter((item) => item.type === 'note') || []
+    const notes = base?.items.filter(isKnowledgeNoteItem) ?? []
     runAsyncFunction(async () => {
       const newNoteItems = await Promise.all(
         notes.map(async (item) => {
           const note = await db.knowledge_notes.get(item.id)
-          return { ...item, content: note?.content || '' }
+          return { ...item, content: note?.content ?? '' } satisfies KnowledgeNoteItem
         })
       )
-      setNoteItems(newNoteItems.filter((note) => note !== undefined) as KnowledgeItem[])
+      setNoteItems(newNoteItems)
     })
   }, [base?.items])
 
@@ -257,6 +324,7 @@ export const useKnowledge = (baseId: string) => {
     urlItems,
     sitemapItems,
     noteItems,
+    videoItems,
     renameKnowledgeBase,
     updateKnowledgeBase,
     migrateBase,
@@ -264,6 +332,7 @@ export const useKnowledge = (baseId: string) => {
     addUrl,
     addSitemap,
     addNote,
+    addVideo,
     updateNoteContent,
     getNoteContent,
     updateItem,
@@ -294,7 +363,9 @@ export const useKnowledgeBases = () => {
   }
 
   const deleteKnowledgeBase = (baseId: string) => {
-    dispatch(deleteBase({ baseId }))
+    const base = bases.find((b) => b.id === baseId)
+    if (!base) return
+    dispatch(deleteBase({ baseId, baseParams: getKnowledgeBaseParams(base) }))
 
     // remove assistant knowledge_base
     const _assistants = assistants.map((assistant) => {

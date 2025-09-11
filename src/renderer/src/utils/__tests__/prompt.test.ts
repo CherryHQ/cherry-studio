@@ -49,7 +49,8 @@ const createMockTool = (id: string, description: string, inputSchema: any = {}):
     title: `${id}-schema`,
     properties: {},
     ...inputSchema
-  }
+  },
+  type: 'mcp'
 })
 
 // Helper to create a mock Assistant
@@ -133,7 +134,15 @@ describe('prompt', () => {
       const result = await replacePromptVariables(userPrompt, assistant.model?.name)
       const expectedPrompt = `
 以下是一些辅助信息:
-  - 日期和时间: ${mockDate.toLocaleString()};
+  - 日期和时间: ${mockDate.toLocaleString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric'
+  })};
   - 操作系统: macOS;
   - 中央处理器架构: darwin64;
   - 语言: zh-CN;
@@ -176,7 +185,12 @@ describe('prompt', () => {
       basePrompt = await replacePromptVariables(initialPrompt, assistant.model?.name)
       expectedBasePrompt = `
         System Information:
-        - Date: ${mockDate.toLocaleDateString()}
+        - Date: ${mockDate.toLocaleDateString(undefined, {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric'
+        })}
         - User: MockUser
 
         Instructions: Be helpful.
@@ -239,7 +253,12 @@ describe('prompt', () => {
       const basePrompt = await replacePromptVariables(initialPrompt, assistant.model?.name)
       const expectedBasePrompt = `
         System Information:
-        - Date: ${mockDate.toLocaleDateString()}
+        - Date: ${mockDate.toLocaleDateString(undefined, {
+          weekday: 'short',
+          year: 'numeric',
+          month: 'numeric',
+          day: 'numeric'
+        })}
         - User: MockUser
 
         Instructions: Be helpful.

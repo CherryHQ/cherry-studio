@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Link > should match snapshot 1`] = `
+<div>
+  <div
+    data-href="https://example.com"
+    data-testid="hyperlink"
+  >
+    <a
+      href="https://example.com"
+      rel="noreferrer"
+      target="_blank"
+    >
+      Example
+    </a>
+  </div>
+</div>
+`;

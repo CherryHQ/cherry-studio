@@ -1,6 +1,8 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { isGenerateImageModel } from '@renderer/config/models'
+import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
+import { isSupportUrlContextProvider } from '@renderer/config/providers'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
@@ -13,9 +15,9 @@ import {
   CircleChevronRight,
   FileSearch,
   Globe,
+  Hammer,
   Languages,
   Link,
-  LucideSquareTerminal,
   Maximize,
   MessageSquareDiff,
   Minimize,
@@ -49,7 +51,7 @@ export interface InputbarToolsRef {
     openSelectFileMenu: () => void
     translate: () => void
   }) => QuickPanelListItem[]
-  openMentionModelsPanel: () => void
+  openMentionModelsPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
   openAttachmentQuickPanel: () => void
 }
 
@@ -61,17 +63,19 @@ export interface InputbarToolsProps {
   extensions: string[]
   showThinkingButton: boolean
   showKnowledgeIcon: boolean
+  showMcpTools: boolean
   selectedKnowledgeBases: KnowledgeBase[]
   handleKnowledgeBaseSelect: (bases?: KnowledgeBase[]) => void
   setText: Dispatch<SetStateAction<string>>
   resizeTextArea: () => void
   mentionModels: Model[]
   onMentionModel: (model: Model) => void
+  onClearMentionModels: () => void
   couldMentionNotVisionModel: boolean
   couldAddImageFile: boolean
   onEnableGenerateImage: () => void
-  isExpended: boolean
-  onToggleExpended: () => void
+  isExpanded: boolean
+  onToggleExpanded: () => void
 
   addNewTopic: () => void
   clearTopic: () => void
@@ -102,17 +106,19 @@ const InputbarTools = ({
   setFiles,
   showThinkingButton,
   showKnowledgeIcon,
+  showMcpTools,
   selectedKnowledgeBases,
   handleKnowledgeBaseSelect,
   setText,
   resizeTextArea,
   mentionModels,
   onMentionModel,
+  onClearMentionModels,
   couldMentionNotVisionModel,
   couldAddImageFile,
   onEnableGenerateImage,
-  isExpended,
-  onToggleExpended,
+  isExpanded: isExpended,
+  onToggleExpanded: onToggleExpended,
   addNewTopic,
   clearTopic,
   onNewContext,
@@ -200,7 +206,7 @@ const InputbarTools = ({
       {
         label: t('settings.mcp.title'),
         description: t('settings.mcp.not_support'),
-        icon: <LucideSquareTerminal />,
+        icon: <Hammer />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openQuickPanel()
@@ -209,7 +215,7 @@ const InputbarTools = ({
       {
         label: `MCP ${t('settings.mcp.tabs.prompts')}`,
         description: '',
-        icon: <LucideSquareTerminal />,
+        icon: <Hammer />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openPromptList()
@@ -218,7 +224,7 @@ const InputbarTools = ({
       {
         label: `MCP ${t('settings.mcp.tabs.resources')}`,
         description: '',
-        icon: <LucideSquareTerminal />,
+        icon: <Hammer />,
         isMenu: true,
         action: () => {
           mcpToolsButtonRef.current?.openResourcesList()
@@ -292,7 +298,7 @@ const InputbarTools = ({
 
   useImperativeHandle(ref, () => ({
     getQuickPanelMenu: getQuickPanelMenuImpl,
-    openMentionModelsPanel: () => mentionModelsButtonRef.current?.openQuickPanel(),
+    openMentionModelsPanel: (triggerInfo) => mentionModelsButtonRef.current?.openQuickPanel(triggerInfo),
     openAttachmentQuickPanel: () => attachmentButtonRef.current?.openQuickPanel()
   }))
 
@@ -338,13 +344,14 @@ const InputbarTools = ({
       {
         key: 'web_search',
         label: t('chat.input.web_search.label'),
-        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />
+        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        condition: !isMandatoryWebSearchModel(model)
       },
       {
         key: 'url_context',
         label: t('chat.input.url_context'),
         component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
-        condition: model.id.toLowerCase().includes('gemini')
+        condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
         key: 'knowledge_base',
@@ -371,7 +378,8 @@ const InputbarTools = ({
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
           />
-        )
+        ),
+        condition: showMcpTools
       },
       {
         key: 'generate_image',
@@ -394,9 +402,11 @@ const InputbarTools = ({
             ref={mentionModelsButtonRef}
             mentionedModels={mentionModels}
             onMentionModel={onMentionModel}
+            onClearMentionModels={onClearMentionModels}
             ToolbarButton={ToolbarButton}
             couldMentionNotVisionModel={couldMentionNotVisionModel}
             files={files}
+            setText={setText}
           />
         )
       },
@@ -463,6 +473,7 @@ const InputbarTools = ({
     mentionModels,
     model,
     newTopicShortcut,
+    onClearMentionModels,
     onEnableGenerateImage,
     onMentionModel,
     onNewContext,
@@ -472,6 +483,7 @@ const InputbarTools = ({
     setFiles,
     setText,
     showKnowledgeIcon,
+    showMcpTools,
     showThinkingButton,
     t
   ])

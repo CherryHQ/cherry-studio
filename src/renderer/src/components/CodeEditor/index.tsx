@@ -1,86 +1,127 @@
-import { CodeTool, TOOL_SPECS, useCodeTool } from '@renderer/components/CodeToolbar'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import CodeMirror, { Annotation, BasicSetupOptions, EditorView, Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
-import {
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Save as SaveIcon,
-  Text as UnWrapIcon,
-  WrapText as WrapIcon
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { memo } from 'react'
-import { useTranslation } from 'react-i18next'
 
-import { useBlurHandler, useLanguageExtensions, useSaveKeymap } from './hooks'
+import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
 
 // 标记非用户编辑的变更
 const External = Annotation.define<boolean>()
 
-interface Props {
+export interface CodeEditorHandles {
+  save?: () => void
+}
+
+export interface CodeEditorProps {
+  ref?: React.RefObject<CodeEditorHandles | null>
+  /** Value used in controlled mode, e.g., code blocks. */
   value: string
+  /** Placeholder when the editor content is empty. */
   placeholder?: string | HTMLElement
+  /**
+   * Code language string.
+   * - Case-insensitive.
+   * - Supports common names: javascript, json, python, etc.
+   * - Supports aliases: c#/csharp, objective-c++/obj-c++/objc++, etc.
+   * - Supports file extensions: .cpp/cpp, .js/js, .py/py, etc.
+   */
   language: string
+  /** Fired when ref.save() is called or the save shortcut is triggered. */
   onSave?: (newContent: string) => void
+  /** Fired when the editor content changes. */
   onChange?: (newContent: string) => void
+  /** Fired when the editor loses focus. */
   onBlur?: (newContent: string) => void
-  setTools?: (value: React.SetStateAction<CodeTool[]>) => void
+  /** Fired when the editor height changes. */
+  onHeightChange?: (scrollHeight: number) => void
+  /**
+   * Fixed editor height, not exceeding maxHeight.
+   * Only works when expanded is false.
+   */
   height?: string
-  minHeight?: string
+  /**
+   * Maximum editor height.
+   * Only works when expanded is false.
+   */
   maxHeight?: string
-  fontSize?: string
-  /** 用于覆写编辑器的某些设置 */
+  /** Minimum editor height. */
+  minHeight?: string
+  /** Editor options that extend BasicSetupOptions. */
   options?: {
-    stream?: boolean // 用于流式响应场景，默认 false
+    /**
+     * Whether to enable special treatment for stream response.
+     * @default false
+     */
+    stream?: boolean
+    /**
+     * Whether to enable linting.
+     * @default false
+     */
     lint?: boolean
-    collapsible?: boolean
-    wrappable?: boolean
+    /**
+     * Whether to enable keymap.
+     * @default false
+     */
     keymap?: boolean
   } & BasicSetupOptions
-  /** 用于追加 extensions */
+  /** Additional extensions for CodeMirror. */
   extensions?: Extension[]
-  /** 用于覆写编辑器的样式，会直接传给 CodeMirror 的 style 属性 */
+  /** Font size that overrides the app setting. */
+  fontSize?: number
+  /** Style overrides for the editor, passed directly to CodeMirror's style property. */
   style?: React.CSSProperties
+  /** CSS class name appended to the default `code-editor` class. */
+  className?: string
+  /**
+   * Whether the editor is editable.
+   * @default true
+   */
   editable?: boolean
+  /**
+   * Whether the editor is expanded.
+   * If true, the height and maxHeight props are ignored.
+   * @default true
+   */
+  expanded?: boolean
+  /**
+   * Whether the code lines are wrapped.
+   * @default true
+   */
+  wrapped?: boolean
 }
 
 /**
- * 源代码编辑器，基于 CodeMirror，封装了 ReactCodeMirror。
- *
- * 目前必须和 CodeToolbar 配合使用。
+ * A code editor component based on CodeMirror.
+ * This is a wrapper of ReactCodeMirror.
  */
 const CodeEditor = ({
+  ref,
   value,
   placeholder,
   language,
   onSave,
   onChange,
   onBlur,
-  setTools,
+  onHeightChange,
   height,
-  minHeight,
   maxHeight,
-  fontSize,
+  minHeight,
   options,
   extensions,
+  fontSize: customFontSize,
   style,
-  editable = true
-}: Props) => {
-  const {
-    fontSize: _fontSize,
-    codeShowLineNumbers: _lineNumbers,
-    codeCollapsible: _collapsible,
-    codeWrappable: _wrappable,
-    codeEditor
-  } = useSettings()
-  const collapsible = useMemo(() => options?.collapsible ?? _collapsible, [options?.collapsible, _collapsible])
-  const wrappable = useMemo(() => options?.wrappable ?? _wrappable, [options?.wrappable, _wrappable])
+  className,
+  editable = true,
+  expanded = true,
+  wrapped = true
+}: CodeEditorProps) => {
+  const { fontSize: _fontSize, codeShowLineNumbers: _lineNumbers, codeEditor } = useSettings()
   const enableKeymap = useMemo(() => options?.keymap ?? codeEditor.keymap, [options?.keymap, codeEditor.keymap])
 
   // 合并 codeEditor 和 options 的 basicSetup，options 优先
-  const customBasicSetup = useMemo(() => {
+  const basicSetup = useMemo(() => {
     return {
       lineNumbers: _lineNumbers,
       ...(codeEditor as BasicSetupOptions),
@@ -88,65 +129,18 @@ const CodeEditor = ({
     }
   }, [codeEditor, _lineNumbers, options])
 
-  const customFontSize = useMemo(() => fontSize ?? `${_fontSize - 1}px`, [fontSize, _fontSize])
+  const fontSize = useMemo(() => customFontSize ?? _fontSize - 1, [customFontSize, _fontSize])
 
   const { activeCmTheme } = useCodeStyle()
-  const [isExpanded, setIsExpanded] = useState(!collapsible)
-  const [isUnwrapped, setIsUnwrapped] = useState(!wrappable)
   const initialContent = useRef(options?.stream ? (value ?? '').trimEnd() : (value ?? ''))
-  const [editorReady, setEditorReady] = useState(false)
   const editorViewRef = useRef<EditorView | null>(null)
-  const { t } = useTranslation()
 
   const langExtensions = useLanguageExtensions(language, options?.lint)
-
-  const { registerTool, removeTool } = useCodeTool(setTools)
-
-  // 展开/折叠工具
-  useEffect(() => {
-    registerTool({
-      ...TOOL_SPECS.expand,
-      icon: isExpanded ? <ChevronsDownUp className="icon" /> : <ChevronsUpDown className="icon" />,
-      tooltip: isExpanded ? t('code_block.collapse') : t('code_block.expand'),
-      visible: () => {
-        const scrollHeight = editorViewRef?.current?.scrollDOM?.scrollHeight
-        return collapsible && (scrollHeight ?? 0) > 350
-      },
-      onClick: () => setIsExpanded((prev) => !prev)
-    })
-
-    return () => removeTool(TOOL_SPECS.expand.id)
-  }, [collapsible, isExpanded, registerTool, removeTool, t, editorReady])
-
-  // 自动换行工具
-  useEffect(() => {
-    registerTool({
-      ...TOOL_SPECS.wrap,
-      icon: isUnwrapped ? <WrapIcon className="icon" /> : <UnWrapIcon className="icon" />,
-      tooltip: isUnwrapped ? t('code_block.wrap.on') : t('code_block.wrap.off'),
-      visible: () => wrappable,
-      onClick: () => setIsUnwrapped((prev) => !prev)
-    })
-
-    return () => removeTool(TOOL_SPECS.wrap.id)
-  }, [wrappable, isUnwrapped, registerTool, removeTool, t])
 
   const handleSave = useCallback(() => {
     const currentDoc = editorViewRef.current?.state.doc.toString() ?? ''
     onSave?.(currentDoc)
   }, [onSave])
-
-  // 保存按钮
-  useEffect(() => {
-    registerTool({
-      ...TOOL_SPECS.save,
-      icon: <SaveIcon className="icon" />,
-      tooltip: t('code_block.edit.save.label'),
-      onClick: handleSave
-    })
-
-    return () => removeTool(TOOL_SPECS.save.id)
-  }, [handleSave, registerTool, removeTool, t])
 
   // 流式响应过程中计算 changes 来更新 EditorView
   // 无法处理用户在流式响应过程中编辑代码的情况（应该也不必处理）
@@ -166,26 +160,24 @@ const CodeEditor = ({
     }
   }, [options?.stream, value])
 
-  useEffect(() => {
-    setIsExpanded(!collapsible)
-  }, [collapsible])
-
-  useEffect(() => {
-    setIsUnwrapped(!wrappable)
-  }, [wrappable])
-
   const saveKeymapExtension = useSaveKeymap({ onSave, enabled: enableKeymap })
   const blurExtension = useBlurHandler({ onBlur })
+  const heightListenerExtension = useHeightListener({ onHeightChange })
 
   const customExtensions = useMemo(() => {
     return [
       ...(extensions ?? []),
       ...langExtensions,
-      ...(isUnwrapped ? [] : [EditorView.lineWrapping]),
+      ...(wrapped ? [EditorView.lineWrapping] : []),
       saveKeymapExtension,
-      blurExtension
+      blurExtension,
+      heightListenerExtension
     ].flat()
-  }, [extensions, langExtensions, isUnwrapped, saveKeymapExtension, blurExtension])
+  }, [extensions, langExtensions, wrapped, saveKeymapExtension, blurExtension, heightListenerExtension])
+
+  useImperativeHandle(ref, () => ({
+    save: handleSave
+  }))
 
   return (
     <CodeMirror
@@ -193,16 +185,16 @@ const CodeEditor = ({
       value={initialContent.current}
       placeholder={placeholder}
       width="100%"
-      height={height}
+      height={expanded ? undefined : height}
+      maxHeight={expanded ? undefined : maxHeight}
       minHeight={minHeight}
-      maxHeight={collapsible && !isExpanded ? (maxHeight ?? '350px') : 'none'}
       editable={editable}
       // @ts-ignore 强制使用，见 react-codemirror 的 Example.tsx
       theme={activeCmTheme}
       extensions={customExtensions}
       onCreateEditor={(view: EditorView) => {
         editorViewRef.current = view
-        setEditorReady(true)
+        onHeightChange?.(view.scrollDOM?.scrollHeight ?? 0)
       }}
       onChange={(value, viewUpdate) => {
         if (onChange && viewUpdate.docChanged) onChange(value)
@@ -222,14 +214,15 @@ const CodeEditor = ({
         foldKeymap: enableKeymap,
         completionKeymap: enableKeymap,
         lintKeymap: enableKeymap,
-        ...customBasicSetup // override basicSetup
+        ...basicSetup // override basicSetup
       }}
       style={{
-        fontSize: customFontSize,
+        fontSize,
         marginTop: 0,
         borderRadius: 'inherit',
         ...style
       }}
+      className={`code-editor ${className ?? ''}`}
     />
   )
 }

@@ -1,665 +1,157 @@
+/**
+ * 职责：提供原子化的、无状态的API调用函数
+ */
 import { loggerService } from '@logger'
-import { CompletionsParams } from '@renderer/aiCore/middleware/schemas'
-import { SYSTEM_PROMPT_THRESHOLD } from '@renderer/config/constant'
-import {
-  isEmbeddingModel,
-  isGenerateImageModel,
-  isOpenRouterBuiltInWebSearchModel,
-  isReasoningModel,
-  isSupportedDisableGenerationModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
-  isWebSearchModel
-} from '@renderer/config/models'
-import {
-  SEARCH_SUMMARY_PROMPT,
-  SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY,
-  SEARCH_SUMMARY_PROMPT_WEB_ONLY
-} from '@renderer/config/prompts'
-import { getModel } from '@renderer/hooks/useModel'
+import AiProvider from '@renderer/aiCore'
+import { CompletionsParams } from '@renderer/aiCore/legacy/middleware/schemas'
+import { AiSdkMiddlewareConfig } from '@renderer/aiCore/middleware/AiSdkMiddlewareBuilder'
+import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
+import { isDedicatedImageGenerationModel, isEmbeddingModel } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import { currentSpan, withSpanResult } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
-import {
-  Assistant,
-  ExternalToolResult,
-  KnowledgeReference,
-  MCPTool,
-  MemoryItem,
-  Model,
-  Provider,
-  TranslateAssistant,
-  WebSearchResponse,
-  WebSearchSource
-} from '@renderer/types'
+import type { FetchChatCompletionParams } from '@renderer/types'
+import { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
 import { Message } from '@renderer/types/newMessage'
 import { SdkModel } from '@renderer/types/sdk'
 import { removeSpecialCharactersForTopicName, uuid } from '@renderer/utils'
-import {
-  abortCompletion,
-  addAbortController,
-  createAbortPromise,
-  removeAbortController
-} from '@renderer/utils/abortController'
+import { abortCompletion, readyToAbort } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
-import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import { purifyMarkdownImages } from '@renderer/utils/markdown'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
-import {
-  buildSystemPromptWithThinkTool,
-  buildSystemPromptWithTools,
-  containsSupportedVariables,
-  replacePromptVariables
-} from '@renderer/utils/prompt'
-import { findLast, isEmpty, takeRight } from 'lodash'
+import { containsSupportedVariables, replacePromptVariables } from '@renderer/utils/prompt'
+import { isEmpty, takeRight } from 'lodash'
 
-import AiProvider from '../aiCore'
+import AiProviderNew, { ModernAiProviderConfig } from '../aiCore/index_new'
 import {
-  getAssistantProvider,
-  getAssistantSettings,
+  // getAssistantProvider,
+  // getAssistantSettings,
   getDefaultAssistant,
   getDefaultModel,
   getProviderByModel,
-  getTopNamingModel,
-  getTranslateModel
+  getQuickModel
 } from './AssistantService'
-import { processKnowledgeSearch } from './KnowledgeService'
-import { MemoryProcessor } from './MemoryProcessor'
-import {
-  filterContextMessages,
-  filterEmptyMessages,
-  filterUsefulMessages,
-  filterUserRoleStartMessages
-} from './MessagesService'
-import WebSearchService from './WebSearchService'
+// import { processKnowledgeSearch } from './KnowledgeService'
+// import {
+//   filterContextMessages,
+//   filterEmptyMessages,
+//   filterUsefulMessages,
+//   filterUserRoleStartMessages
+// } from './MessagesService'
+// import WebSearchService from './WebSearchService'
 
 const logger = loggerService.withContext('ApiService')
 
-// TODO：考虑拆开
-async function fetchExternalTool(
-  lastUserMessage: Message,
-  assistant: Assistant,
-  onChunkReceived: (chunk: Chunk) => void,
-  lastAnswer?: Message
-): Promise<ExternalToolResult> {
-  // 可能会有重复？
-  const knowledgeBaseIds = assistant.knowledge_bases?.map((base) => base.id)
-  const hasKnowledgeBase = !isEmpty(knowledgeBaseIds)
-  const knowledgeRecognition = assistant.knowledgeRecognition || 'on'
-  const webSearchProvider = WebSearchService.getWebSearchProvider(assistant.webSearchProviderId)
+export async function fetchMcpTools(assistant: Assistant) {
+  // Get MCP tools (Fix duplicate declaration)
+  let mcpTools: MCPTool[] = [] // Initialize as empty array
+  const allMcpServers = store.getState().mcp.servers || []
+  const activedMcpServers = allMcpServers.filter((s) => s.isActive)
+  const assistantMcpServers = assistant.mcpServers || []
 
-  // 使用外部搜索工具
-  const shouldWebSearch = !!assistant.webSearchProviderId && webSearchProvider !== null
-  const shouldKnowledgeSearch = hasKnowledgeBase
-  const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
-  const shouldSearchMemory = globalMemoryEnabled && assistant.enableMemory
+  const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
 
-  // 在工具链开始时发送进度通知
-  const willUseTools = shouldWebSearch || shouldKnowledgeSearch
-  if (willUseTools) {
-    onChunkReceived({ type: ChunkType.EXTERNEL_TOOL_IN_PROGRESS })
-  }
-
-  // --- Keyword/Question Extraction Function ---
-  const extract = async (): Promise<ExtractResults | undefined> => {
-    if (!lastUserMessage) return undefined
-
-    // 根据配置决定是否需要提取
-    const needWebExtract = shouldWebSearch
-    const needKnowledgeExtract = hasKnowledgeBase && knowledgeRecognition === 'on'
-
-    if (!needWebExtract && !needKnowledgeExtract) return undefined
-
-    let prompt: string
-    if (needWebExtract && !needKnowledgeExtract) {
-      prompt = SEARCH_SUMMARY_PROMPT_WEB_ONLY
-    } else if (!needWebExtract && needKnowledgeExtract) {
-      prompt = SEARCH_SUMMARY_PROMPT_KNOWLEDGE_ONLY
-    } else {
-      prompt = SEARCH_SUMMARY_PROMPT
-    }
-
-    const summaryAssistant = getDefaultAssistant()
-    summaryAssistant.model = assistant.model || getDefaultModel()
-    summaryAssistant.prompt = prompt
-
-    const callSearchSummary = async (params: { messages: Message[]; assistant: Assistant }) => {
-      return await fetchSearchSummary(params)
-    }
-
-    const traceParams = {
-      name: `${summaryAssistant.model?.name}.Summary`,
-      tag: 'LLM',
-      topicId: lastUserMessage.topicId,
-      modelName: summaryAssistant.model.name
-    }
-
-    const searchSummaryParams = {
-      messages: lastAnswer ? [lastAnswer, lastUserMessage] : [lastUserMessage],
-      assistant: summaryAssistant
-    }
-
+  if (enabledMCPs && enabledMCPs.length > 0) {
     try {
-      const result = await withSpanResult(callSearchSummary, traceParams, searchSummaryParams)
-
-      if (!result) return getFallbackResult()
-
-      const extracted = extractInfoFromXML(result.getText())
-      // 根据需求过滤结果
-      return {
-        websearch: needWebExtract ? extracted?.websearch : undefined,
-        knowledge: needKnowledgeExtract ? extracted?.knowledge : undefined
-      }
-    } catch (e: any) {
-      logger.error('extract error', e)
-      if (isAbortError(e)) throw e
-      return getFallbackResult()
-    }
-  }
-
-  const getFallbackResult = (): ExtractResults => {
-    const fallbackContent = getMainTextContent(lastUserMessage)
-    return {
-      websearch: shouldWebSearch ? { question: [fallbackContent || 'search'] } : undefined,
-      knowledge: shouldKnowledgeSearch
-        ? {
-            question: [fallbackContent || 'search'],
-            rewrite: fallbackContent
-          }
-        : undefined
-    }
-  }
-
-  // --- Web Search Function ---
-  const searchTheWeb = async (
-    extractResults: ExtractResults | undefined,
-    parentSpanId?: string
-  ): Promise<WebSearchResponse | undefined> => {
-    if (!shouldWebSearch) return
-
-    // Add check for extractResults existence early
-    if (!extractResults?.websearch) {
-      logger.warn('searchTheWeb called without valid extractResults.websearch')
-      return
-    }
-
-    if (extractResults.websearch.question[0] === 'not_needed') return
-
-    // Add check for assistant.model before using it
-    if (!assistant.model) {
-      logger.warn('searchTheWeb called without assistant.model')
-      return undefined
-    }
-
-    try {
-      // Use the consolidated processWebsearch function
-      WebSearchService.createAbortSignal(lastUserMessage.id)
-      let safeWebSearchProvider = webSearchProvider
-      if (webSearchProvider) {
-        safeWebSearchProvider = {
-          ...webSearchProvider,
-          topicId: lastUserMessage.topicId,
-          parentSpanId,
-          modelName: assistant.model.name
-        }
-      }
-      const webSearchResponse = await WebSearchService.processWebsearch(
-        safeWebSearchProvider!,
-        extractResults,
-        lastUserMessage.id
-      )
-      return {
-        results: webSearchResponse,
-        source: WebSearchSource.WEBSEARCH
-      }
-    } catch (error) {
-      if (isAbortError(error)) throw error
-      logger.error('Web search failed:', error as Error)
-      return
-    }
-  }
-
-  const searchMemory = async (): Promise<MemoryItem[] | undefined> => {
-    if (!shouldSearchMemory) return []
-    try {
-      const memoryConfig = selectMemoryConfig(store.getState())
-      const content = getMainTextContent(lastUserMessage)
-      if (!content) {
-        logger.warn('searchMemory called without valid content in lastUserMessage')
-        return []
-      }
-
-      if (memoryConfig.llmApiClient && memoryConfig.embedderApiClient) {
-        const currentUserId = selectCurrentUserId(store.getState())
-        // Search for relevant memories
-        const processorConfig = MemoryProcessor.getProcessorConfig(memoryConfig, assistant.id, currentUserId)
-        logger.info(`Searching for relevant memories with content: ${content}`)
-        const memoryProcessor = new MemoryProcessor()
-        const relevantMemories = await memoryProcessor.searchRelevantMemories(
-          content,
-          processorConfig,
-          5 // Limit to top 5 most relevant memories
-        )
-
-        if (relevantMemories?.length > 0) {
-          logger.info('Found relevant memories:', relevantMemories)
-
-          return relevantMemories
-        }
-        return []
-      } else {
-        logger.warn('Memory is enabled but embedding or LLM model is not configured')
-        return []
-      }
-    } catch (error) {
-      logger.error('Error processing memory search:', error as Error)
-      // Continue with conversation even if memory processing fails
-      return []
-    }
-  }
-
-  // --- Knowledge Base Search Function ---
-  const searchKnowledgeBase = async (
-    extractResults: ExtractResults | undefined,
-    parentSpanId?: string,
-    modelName?: string
-  ): Promise<KnowledgeReference[] | undefined> => {
-    if (!hasKnowledgeBase) return
-
-    // 知识库搜索条件
-    let searchCriteria: { question: string[]; rewrite: string }
-    if (knowledgeRecognition === 'off') {
-      const directContent = getMainTextContent(lastUserMessage)
-      searchCriteria = { question: [directContent || 'search'], rewrite: directContent }
-    } else {
-      // auto mode
-      if (!extractResults?.knowledge) {
-        logger.warn('searchKnowledgeBase: No valid search criteria in auto mode')
-        return
-      }
-      searchCriteria = extractResults.knowledge
-    }
-
-    if (searchCriteria.question[0] === 'not_needed') return
-
-    try {
-      const tempExtractResults: ExtractResults = {
-        websearch: undefined,
-        knowledge: searchCriteria
-      }
-      // Attempt to get knowledgeBaseIds from the main text block
-      // NOTE: This assumes knowledgeBaseIds are ONLY on the main text block
-      // NOTE: processKnowledgeSearch needs to handle undefined ids gracefully
-      // const mainTextBlock = mainTextBlocks
-      //   ?.map((blockId) => store.getState().messageBlocks.entities[blockId])
-      //   .find((block) => block?.type === MessageBlockType.MAIN_TEXT) as MainTextMessageBlock | undefined
-      return await processKnowledgeSearch(
-        tempExtractResults,
-        knowledgeBaseIds,
-        lastUserMessage.topicId,
-        parentSpanId,
-        modelName
-      )
-    } catch (error) {
-      logger.error('Knowledge base search failed:', error as Error)
-      return
-    }
-  }
-
-  // --- Execute Extraction and Searches ---
-  let extractResults: ExtractResults | undefined
-
-  try {
-    // 根据配置决定是否需要提取
-    if (shouldWebSearch || hasKnowledgeBase) {
-      extractResults = await extract()
-      logger.info('[fetchExternalTool] Extraction results:', extractResults)
-    }
-
-    let webSearchResponseFromSearch: WebSearchResponse | undefined
-    let knowledgeReferencesFromSearch: KnowledgeReference[] | undefined
-    let memorySearchReferences: MemoryItem[] | undefined
-
-    const parentSpanId = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext().spanId
-    if (shouldWebSearch) {
-      webSearchResponseFromSearch = await searchTheWeb(extractResults, parentSpanId)
-    }
-
-    if (shouldKnowledgeSearch) {
-      knowledgeReferencesFromSearch = await searchKnowledgeBase(extractResults, parentSpanId, assistant.model?.name)
-    }
-
-    if (shouldSearchMemory) {
-      memorySearchReferences = await searchMemory()
-    }
-
-    if (lastUserMessage) {
-      if (webSearchResponseFromSearch) {
-        window.keyv.set(`web-search-${lastUserMessage.id}`, webSearchResponseFromSearch)
-      }
-      if (knowledgeReferencesFromSearch) {
-        window.keyv.set(`knowledge-search-${lastUserMessage.id}`, knowledgeReferencesFromSearch)
-      }
-      if (memorySearchReferences) {
-        window.keyv.set(`memory-search-${lastUserMessage.id}`, memorySearchReferences)
-      }
-    }
-
-    // 发送工具执行完成通知
-    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
-    if (wasAnyToolEnabled) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: webSearchResponseFromSearch,
-          knowledge: knowledgeReferencesFromSearch,
-          memories: memorySearchReferences
+      const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
+        try {
+          const tools = await window.api.mcp.listTools(mcpServer)
+          return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
+        } catch (error) {
+          logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
+          return []
         }
       })
+      const results = await Promise.allSettled(toolPromises)
+      mcpTools = results
+        .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+        .map((result) => result.value)
+        .flat()
+    } catch (toolError) {
+      logger.error('Error fetching MCP tools:', toolError as Error)
     }
-
-    // Get MCP tools (Fix duplicate declaration)
-    let mcpTools: MCPTool[] = []
-    const allMcpServers = store.getState().mcp.servers || []
-    const activedMcpServers = allMcpServers.filter((s) => s.isActive)
-    const assistantMcpServers = assistant.mcpServers || []
-
-    const enabledMCPs = activedMcpServers.filter((server) => assistantMcpServers.some((s) => s.id === server.id))
-
-    if (enabledMCPs && enabledMCPs.length > 0) {
-      try {
-        const spanContext = currentSpan(lastUserMessage.topicId, assistant.model?.name)?.spanContext()
-        const toolPromises = enabledMCPs.map<Promise<MCPTool[]>>(async (mcpServer) => {
-          try {
-            const tools = await window.api.mcp.listTools(mcpServer, spanContext)
-            return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
-          } catch (error) {
-            logger.error(`Error fetching tools from MCP server ${mcpServer.name}:`, error as Error)
-            return []
-          }
-        })
-        const results = await Promise.allSettled(toolPromises)
-        mcpTools = results
-          .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
-          .map((result) => result.value)
-          .flat()
-        // 添加内置工具
-        // const { BUILT_IN_TOOLS } = await import('../tools')
-        // mcpTools.push(...BUILT_IN_TOOLS)
-
-        // 根据toolUseMode决定如何构建系统提示词
-        const basePrompt = assistant.prompt
-        if (assistant.settings?.toolUseMode === 'prompt' || mcpTools.length > SYSTEM_PROMPT_THRESHOLD) {
-          // 提示词模式：需要完整的工具定义，思考工具返回会打乱提示词的返回（先去掉）
-          assistant.prompt = buildSystemPromptWithTools(basePrompt, mcpTools)
-        } else {
-          // 原生函数调用模式：仅需要注入思考指令
-          assistant.prompt = buildSystemPromptWithThinkTool(basePrompt)
-        }
-      } catch (toolError) {
-        logger.error('Error fetching MCP tools:', toolError as Error)
-      }
-    }
-
-    return { mcpTools }
-  } catch (error) {
-    if (isAbortError(error)) throw error
-    logger.error('Tool execution failed:', error as Error)
-
-    // 发送错误状态
-    const wasAnyToolEnabled = shouldWebSearch || shouldKnowledgeSearch || shouldSearchMemory
-    if (wasAnyToolEnabled) {
-      onChunkReceived({
-        type: ChunkType.EXTERNEL_TOOL_COMPLETE,
-        external_tool: {
-          webSearch: undefined,
-          knowledge: undefined
-        }
-      })
-    }
-
-    return { mcpTools: [] }
   }
+  return mcpTools
 }
 
 export async function fetchChatCompletion({
   messages,
+  prompt,
   assistant,
-  onChunkReceived
-}: {
-  messages: Message[]
-  assistant: Assistant
-  onChunkReceived: (chunk: Chunk) => void
-  // TODO
-  // onChunkStatus: (status: 'searching' | 'processing' | 'success' | 'error') => void
-}) {
-  logger.debug('fetchChatCompletion', messages, assistant)
+  options,
+  onChunkReceived,
+  topicId,
+  uiMessages
+}: FetchChatCompletionParams) {
+  logger.info('fetchChatCompletion called with detailed context', {
+    messageCount: messages?.length || 0,
+    prompt: prompt,
+    assistantId: assistant.id,
+    topicId,
+    hasTopicId: !!topicId,
+    modelId: assistant.model?.id,
+    modelName: assistant.model?.name
+  })
+  const AI = new AiProviderNew(assistant.model || getDefaultModel())
+  const provider = AI.getActualProvider()
 
-  if (assistant.prompt && containsSupportedVariables(assistant.prompt)) {
-    assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
-  }
-
-  const provider = getAssistantProvider(assistant)
-  const AI = new AiProvider(provider)
-
-  // Make sure that 'Clear Context' works for all scenarios including external tool and normal chat.
-  messages = filterContextMessages(messages)
-
-  const lastUserMessage = findLast(messages, (m) => m.role === 'user')
-  const lastAnswer = findLast(messages, (m) => m.role === 'assistant')
-  if (!lastUserMessage) {
-    logger.error('fetchChatCompletion returning early: Missing lastUserMessage or lastAnswer')
-    return
-  }
-  // try {
-  // NOTE: The search results are NOT added to the messages sent to the AI here.
-  // They will be retrieved and used by the messageThunk later to create CitationBlocks.
-  const { mcpTools } = await fetchExternalTool(lastUserMessage, assistant, onChunkReceived, lastAnswer)
-  const model = assistant.model || getDefaultModel()
-
-  const { maxTokens, contextCount } = getAssistantSettings(assistant)
-
-  const filteredMessages = filterUsefulMessages(messages)
-
-  const _messages = filterUserRoleStartMessages(
-    filterEmptyMessages(filterContextMessages(takeRight(filteredMessages, contextCount + 2))) // 取原来几个provider的最大值
-  )
-
-  // FIXME: qwen3即使关闭思考仍然会导致enableReasoning的结果为true
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-
-  const enableWebSearch =
-    (assistant.enableWebSearch && isWebSearchModel(model)) ||
-    isOpenRouterBuiltInWebSearchModel(model) ||
-    model.id.includes('sonar') ||
-    false
-
-  const enableUrlContext = assistant.enableUrlContext || false
-
-  const enableGenerateImage =
-    isGenerateImageModel(model) && (isSupportedDisableGenerationModel(model) ? assistant.enableGenerateImage : true)
-
-  // --- Call AI Completions ---
+  const mcpTools: MCPTool[] = []
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
-  const completionsParams: CompletionsParams = {
-    callType: 'chat',
-    messages: _messages,
-    assistant,
-    onChunk: onChunkReceived,
-    mcpTools: mcpTools,
-    maxTokens,
-    streamOutput: assistant.settings?.streamOutput || false,
-    enableReasoning,
-    enableWebSearch,
-    enableUrlContext,
-    enableGenerateImage,
-    topicId: lastUserMessage.topicId
+  if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
+    mcpTools.push(...(await fetchMcpTools(assistant)))
   }
-
-  const requestOptions = {
-    streamOutput: assistant.settings?.streamOutput || false
-  }
-
-  // Post-conversation memory processing
-  const globalMemoryEnabled = selectGlobalMemoryEnabled(store.getState())
-  if (globalMemoryEnabled && assistant.enableMemory) {
-    processConversationMemory(messages, assistant)
-  }
-
-  return await AI.completionsForTrace(completionsParams, requestOptions)
-}
-
-/**
- * Process conversation for memory extraction and storage
- */
-async function processConversationMemory(messages: Message[], assistant: Assistant) {
-  try {
-    const memoryConfig = selectMemoryConfig(store.getState())
-
-    // Use assistant's model as fallback for memory processing if not configured
-    const llmModel =
-      getModel(memoryConfig.llmApiClient?.model, memoryConfig.llmApiClient?.provider) ||
-      assistant.model ||
-      getDefaultModel()
-    const embedderModel =
-      getModel(memoryConfig.embedderApiClient?.model, memoryConfig.embedderApiClient?.provider) ||
-      getFirstEmbeddingModel()
-
-    if (!embedderModel) {
-      logger.warn(
-        'Memory processing skipped: no embedding model available. Please configure an embedding model in memory settings.'
-      )
-      return
-    }
-
-    if (!llmModel) {
-      logger.warn('Memory processing skipped: LLM model not available')
-      return
-    }
-
-    // Convert messages to the format expected by memory processor
-    const conversationMessages = messages
-      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
-      .map((msg) => ({
-        role: msg.role as 'user' | 'assistant',
-        content: getMainTextContent(msg) || ''
-      }))
-      .filter((msg) => msg.content.trim().length > 0)
-
-    // if (conversationMessages.length < 2) {
-    // Need at least a user message and assistant response
-    // return
-    // }
-
-    const currentUserId = selectCurrentUserId(store.getState())
-
-    // Create updated memory config with resolved models
-    const updatedMemoryConfig = {
-      ...memoryConfig,
-      llmApiClient: {
-        model: llmModel.id,
-        provider: llmModel.provider,
-        apiKey: getProviderByModel(llmModel).apiKey,
-        baseURL: new AiProvider(getProviderByModel(llmModel)).getBaseURL(),
-        apiVersion: getProviderByModel(llmModel).apiVersion
-      },
-      embedderApiClient: {
-        model: embedderModel.id,
-        provider: embedderModel.provider,
-        apiKey: getProviderByModel(embedderModel).apiKey,
-        baseURL: new AiProvider(getProviderByModel(embedderModel)).getBaseURL(),
-        apiVersion: getProviderByModel(embedderModel).apiVersion
+  if (prompt) {
+    messages = [
+      {
+        role: 'user',
+        content: prompt
       }
-    }
-
-    const lastUserMessage = findLast(messages, (m) => m.role === 'user')
-    const processorConfig = MemoryProcessor.getProcessorConfig(
-      updatedMemoryConfig,
-      assistant.id,
-      currentUserId,
-      lastUserMessage?.id
-    )
-
-    // Process the conversation in the background (don't await to avoid blocking UI)
-    const memoryProcessor = new MemoryProcessor()
-    memoryProcessor
-      .processConversation(conversationMessages, processorConfig)
-      .then((result) => {
-        logger.debug('Memory processing completed:', result)
-        if (result.facts.length > 0) {
-          logger.debug('Extracted facts from conversation:', result.facts)
-          logger.debug('Memory operations performed:', result.operations)
-        } else {
-          logger.debug('No facts extracted from conversation')
-        }
-      })
-      .catch((error) => {
-        logger.error('Background memory processing failed:', error as Error)
-      })
-  } catch (error) {
-    logger.error('Error in post-conversation memory processing:', error as Error)
-  }
-}
-
-interface FetchTranslateProps {
-  content: string
-  assistant: TranslateAssistant
-  onResponse?: (text: string, isComplete: boolean) => void
-}
-
-export async function fetchTranslate({ content, assistant, onResponse }: FetchTranslateProps) {
-  const model = getTranslateModel() || assistant.model || getDefaultModel()
-
-  if (!model) {
-    throw new Error(i18n.t('error.provider_disabled'))
+    ]
   }
 
-  const provider = getProviderByModel(model)
+  // 使用 transformParameters 模块构建参数
+  const {
+    params: aiSdkParams,
+    modelId,
+    capabilities
+  } = await buildStreamTextParams(messages, assistant, provider, {
+    mcpTools: mcpTools,
+    webSearchProviderId: assistant.webSearchProviderId,
+    requestOptions: options
+  })
 
-  if (!hasApiKey(provider)) {
-    throw new Error(i18n.t('error.no_api_key'))
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: assistant.settings?.streamOutput ?? true,
+    onChunk: onChunkReceived,
+    model: assistant.model,
+    enableReasoning: capabilities.enableReasoning,
+    isPromptToolUse: isPromptToolUse(assistant),
+    isSupportedToolUse: isSupportedToolUse(assistant),
+    isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
+    enableWebSearch: capabilities.enableWebSearch,
+    enableGenerateImage: capabilities.enableGenerateImage,
+    enableUrlContext: capabilities.enableUrlContext,
+    mcpTools,
+    uiMessages
   }
 
-  const isSupportedStreamOutput = () => {
-    if (!onResponse) {
-      return false
-    }
-    return true
-  }
-
-  const stream = isSupportedStreamOutput()
-  const enableReasoning =
-    ((isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) &&
-      assistant.settings?.reasoning_effort !== undefined) ||
-    (isReasoningModel(model) && (!isSupportedThinkingTokenModel(model) || !isSupportedReasoningEffortModel(model)))
-
-  const params: CompletionsParams = {
-    callType: 'translate',
-    messages: content,
-    assistant: { ...assistant, model },
-    streamOutput: stream,
-    enableReasoning,
-    onResponse
-  }
-
-  const AI = new AiProvider(provider)
-
-  try {
-    return (await AI.completions(params)).getText() || ''
-  } catch (error: any) {
-    return ''
-  }
+  // --- Call AI Completions ---
+  await AI.completions(modelId, aiSdkParams, {
+    ...middlewareConfig,
+    assistant,
+    topicId,
+    callType: 'chat',
+    uiMessages
+  })
 }
 
 export async function fetchMessagesSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
   let prompt = (getStoreSetting('topicNamingPrompt') as string) || i18n.t('prompts.title')
-  const model = getTopNamingModel() || assistant.model || getDefaultModel()
+  const model = getQuickModel() || assistant.model || getDefaultModel()
 
   if (prompt && containsSupportedVariables(prompt)) {
     prompt = await replacePromptVariables(prompt, model.name)
@@ -667,22 +159,21 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
 
   // 总结上下文总是取最后5条消息
   const contextMessages = takeRight(messages, 5)
-
   const provider = getProviderByModel(model)
 
   if (!hasApiKey(provider)) {
     return null
   }
 
-  const AI = new AiProvider(provider)
+  const AI = new AiProviderNew(model)
 
-  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+  const topicId = messages?.find((message) => message.topicId)?.topicId || ''
 
   // LLM对多条消息的总结有问题，用单条结构化的消息表示会话内容会更好
   const structredMessages = contextMessages.map((message) => {
     const structredMessage = {
       role: message.role,
-      mainText: getMainTextContent(message)
+      mainText: purifyMarkdownImages(getMainTextContent(message))
     }
 
     // 让LLM知道消息中包含的文件，但只提供文件名
@@ -699,28 +190,58 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   })
   const conversation = JSON.stringify(structredMessages)
 
-  // 复制 assistant 对象，并强制关闭思考预算
+  // // 复制 assistant 对象，并强制关闭思考预算
+  // const summaryAssistant = {
+  //   ...assistant,
+  //   settings: {
+  //     ...assistant.settings,
+  //     reasoning_effort: undefined,
+  //     qwenThinkMode: false
+  //   }
+  // }
   const summaryAssistant = {
     ...assistant,
     settings: {
       ...assistant.settings,
       reasoning_effort: undefined,
       qwenThinkMode: false
-    }
+    },
+    prompt,
+    model
   }
 
-  const params: CompletionsParams = {
-    callType: 'summary',
-    messages: conversation,
-    assistant: { ...summaryAssistant, prompt, model },
-    maxTokens: 1000,
+  const llmMessages = {
+    system: prompt,
+    prompt: conversation
+  }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
     streamOutput: false,
-    topicId,
-    enableReasoning: false
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false,
+    mcpTools: []
   }
-
   try {
-    const { getText } = await AI.completionsForTrace(params)
+    // 从 messages 中找到有 traceId 的助手消息，用于绑定现有 trace
+    const messageWithTrace = messages.find((m) => m.role === 'assistant' && m.traceId)
+
+    if (messageWithTrace && messageWithTrace.traceId) {
+      // 导入并调用 appendTrace 来绑定现有 trace，传入summary使用的模型名
+      const { appendTrace } = await import('@renderer/services/SpanManagerService')
+      await appendTrace({ topicId, traceId: messageWithTrace.traceId, model })
+    }
+
+    const { getText } = await AI.completions(model.id, llmMessages, {
+      ...middlewareConfig,
+      assistant: summaryAssistant,
+      topicId,
+      callType: 'summary'
+    })
     const text = getText()
     return removeSpecialCharactersForTopicName(text) || null
   } catch (error: any) {
@@ -728,28 +249,28 @@ export async function fetchMessagesSummary({ messages, assistant }: { messages: 
   }
 }
 
-export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
-  const model = assistant.model || getDefaultModel()
-  const provider = getProviderByModel(model)
+// export async function fetchSearchSummary({ messages, assistant }: { messages: Message[]; assistant: Assistant }) {
+//   const model = getQuickModel() || assistant.model || getDefaultModel()
+//   const provider = getProviderByModel(model)
 
-  if (!hasApiKey(provider)) {
-    return null
-  }
+//   if (!hasApiKey(provider)) {
+//     return null
+//   }
 
-  const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
+//   const topicId = messages?.find((message) => message.topicId)?.topicId || undefined
 
-  const AI = new AiProvider(provider)
+//   const AI = new AiProvider(provider)
 
-  const params: CompletionsParams = {
-    callType: 'search',
-    messages: messages,
-    assistant,
-    streamOutput: false,
-    topicId
-  }
+//   const params: CompletionsParams = {
+//     callType: 'search',
+//     messages: messages,
+//     assistant,
+//     streamOutput: false,
+//     topicId
+//   }
 
-  return await AI.completionsForTrace(params)
-}
+//   return await AI.completionsForTrace(params)
+// }
 
 export async function fetchGenerate({
   prompt,
@@ -769,51 +290,73 @@ export async function fetchGenerate({
     return ''
   }
 
-  const AI = new AiProvider(provider)
+  const AI = new AiProviderNew(model)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
   assistant.prompt = prompt
 
-  const params: CompletionsParams = {
-    callType: 'generate',
-    messages: content,
-    assistant,
-    streamOutput: false
+  // const params: CompletionsParams = {
+  //   callType: 'generate',
+  //   messages: content,
+  //   assistant,
+  //   streamOutput: false
+  // }
+
+  const middlewareConfig: AiSdkMiddlewareConfig = {
+    streamOutput: assistant.settings?.streamOutput ?? false,
+    enableReasoning: false,
+    isPromptToolUse: false,
+    isSupportedToolUse: false,
+    isImageGenerationEndpoint: false,
+    enableWebSearch: false,
+    enableGenerateImage: false,
+    enableUrlContext: false
   }
 
   try {
-    const result = await AI.completions(params)
+    const result = await AI.completions(
+      model.id,
+      {
+        system: prompt,
+        prompt: content
+      },
+      {
+        ...middlewareConfig,
+        assistant,
+        callType: 'generate'
+      }
+    )
     return result.getText() || ''
   } catch (error: any) {
     return ''
   }
 }
 
-function hasApiKey(provider: Provider) {
+export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (provider.id === 'ollama' || provider.id === 'lmstudio' || provider.type === 'vertexai') return true
+  if (['ollama', 'lmstudio', 'vertexai', 'cherryin'].includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 
 /**
  * Get the first available embedding model from enabled providers
  */
-function getFirstEmbeddingModel() {
-  const providers = store.getState().llm.providers.filter((p) => p.enabled)
+// function getFirstEmbeddingModel() {
+//   const providers = store.getState().llm.providers.filter((p) => p.enabled)
 
-  for (const provider of providers) {
-    const embeddingModel = provider.models.find((model) => isEmbeddingModel(model))
-    if (embeddingModel) {
-      return embeddingModel
-    }
-  }
+//   for (const provider of providers) {
+//     const embeddingModel = provider.models.find((model) => isEmbeddingModel(model))
+//     if (embeddingModel) {
+//       return embeddingModel
+//     }
+//   }
 
-  return undefined
-}
+//   return undefined
+// }
 
 export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
-  const AI = new AiProvider(provider)
+  const AI = new AiProviderNew(provider)
 
   try {
     return await AI.models()
@@ -823,9 +366,6 @@ export async function fetchModels(provider: Provider): Promise<SdkModel[]> {
 }
 
 export function checkApiProvider(provider: Provider): void {
-  const key = 'api-check'
-  const style = { marginTop: '3vh' }
-
   if (
     provider.id !== 'ollama' &&
     provider.id !== 'lmstudio' &&
@@ -833,18 +373,18 @@ export function checkApiProvider(provider: Provider): void {
     provider.id !== 'copilot'
   ) {
     if (!provider.apiKey) {
-      window.message.error({ content: i18n.t('message.error.enter.api.label'), key, style })
+      window.toast.error(i18n.t('message.error.enter.api.label'))
       throw new Error(i18n.t('message.error.enter.api.label'))
     }
   }
 
   if (!provider.apiHost && provider.type !== 'vertexai') {
-    window.message.error({ content: i18n.t('message.error.enter.api.host'), key, style })
+    window.toast.error(i18n.t('message.error.enter.api.host'))
     throw new Error(i18n.t('message.error.enter.api.host'))
   }
 
   if (isEmpty(provider.models)) {
-    window.message.error({ content: i18n.t('message.error.enter.model'), key, style })
+    window.toast.error(i18n.t('message.error.enter.model'))
     throw new Error(i18n.t('message.error.enter.model'))
   }
 }
@@ -852,15 +392,11 @@ export function checkApiProvider(provider: Provider): void {
 export async function checkApi(provider: Provider, model: Model, timeout = 15000): Promise<void> {
   checkApiProvider(provider)
 
-  const controller = new AbortController()
-  const abortFn = () => controller.abort()
-  const taskId = uuid()
-  addAbortController(taskId, abortFn)
-
-  const ai = new AiProvider(provider)
+  const ai = new AiProviderNew(model)
 
   const assistant = getDefaultAssistant()
   assistant.model = model
+  assistant.prompt = 'test' // 避免部分 provider 空系统提示词会报错
   try {
     if (isEmbeddingModel(model)) {
       // race 超时 15s
@@ -868,49 +404,46 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
       const timerPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
       await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
     } else {
-      // 通过该状态判断abort原因
-      let streamError: Error | undefined = undefined
-
-      // 15s超时
-      const timer = setTimeout(() => {
-        abortCompletion(taskId)
-        streamError = new Error('Timeout')
-      }, timeout)
-
-      const params: CompletionsParams = {
-        callType: 'check',
-        messages: 'hi',
-        assistant,
+      const abortId = uuid()
+      const signal = readyToAbort(abortId)
+      let chunkError
+      const params: StreamTextParams = {
+        system: assistant.prompt,
+        prompt: 'hi',
+        abortSignal: signal
+      }
+      const config: ModernAiProviderConfig = {
         streamOutput: true,
         enableReasoning: false,
-        onChunk: () => {
-          // 接收到任意chunk都直接abort
-          abortCompletion(taskId)
-        },
-        onError: (e) => {
-          // 捕获stream error
-          streamError = e
-          abortCompletion(taskId)
+        isSupportedToolUse: false,
+        isImageGenerationEndpoint: false,
+        enableWebSearch: false,
+        enableGenerateImage: false,
+        isPromptToolUse: false,
+        enableUrlContext: false,
+        assistant,
+        callType: 'check',
+        onChunk: (chunk: Chunk) => {
+          if (chunk.type === ChunkType.ERROR) {
+            chunkError = chunk.error
+          } else {
+            abortCompletion(abortId)
+          }
         }
       }
 
       // Try streaming check first
       try {
-        await createAbortPromise(controller.signal, ai.completions(params))
-      } catch (e: any) {
-        if (isAbortError(e)) {
-          if (streamError) {
-            throw streamError
-          }
-        } else {
+        await ai.completions(model.id, params, config)
+      } catch (e) {
+        if (!isAbortError(e) && !isAbortError(chunkError)) {
           throw e
         }
-      } finally {
-        clearTimeout(timer)
       }
     }
   } catch (error: any) {
-    // FIXME: 这种判断方法无法严格保证错误是流式引起的
+    // 失败回退legacy
+    const legacyAi = new AiProvider(provider)
     if (error.message.includes('stream')) {
       const params: CompletionsParams = {
         callType: 'check',
@@ -919,14 +452,16 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
         streamOutput: false,
         shouldThrow: true
       }
-      // 超时判断
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject('Timeout'), timeout))
-      await Promise.race([ai.completions(params), timeoutPromise])
+      const result = await legacyAi.completions(params)
+      if (!result.getText()) {
+        throw new Error('No response received')
+      }
     } else {
       throw error
     }
-  } finally {
-    removeAbortController(taskId, abortFn)
+    // } finally {
+    //   removeAbortController(taskId, abortFn)
+    // }
   }
 }
 

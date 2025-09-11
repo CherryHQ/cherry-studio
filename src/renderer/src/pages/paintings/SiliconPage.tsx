@@ -12,7 +12,6 @@ import { HStack, VStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
-import { TEXT_TO_IMAGES_MODELS } from '@renderer/config/models'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -40,6 +39,16 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingsList from './components/PaintingsList'
+import { checkProviderEnabled } from './utils'
+
+export const TEXT_TO_IMAGES_MODELS = [
+  {
+    id: 'Kwai-Kolors/Kolors',
+    provider: 'silicon',
+    name: 'Kolors',
+    group: 'Kwai-Kolors'
+  }
+]
 
 const logger = loggerService.withContext('SiliconPage')
 
@@ -95,8 +104,8 @@ const DEFAULT_PAINTING: Painting = {
 
 const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { t } = useTranslation()
-  const { paintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<Painting>(paintings[0] || DEFAULT_PAINTING)
+  const { siliconflow_paintings, addPainting, removePainting, updatePainting } = usePaintings()
+  const [painting, setPainting] = useState<Painting>(siliconflow_paintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
   const providers = useAllProviders()
   const providerOptions = Options.map((option) => {
@@ -113,6 +122,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
+
+  const siliconflowProvider = providers.find((p) => p.id === 'silicon')
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const [isLoading, setIsLoading] = useState(false)
@@ -141,7 +152,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const updatePaintingState = (updates: Partial<Painting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
-    updatePainting('paintings', updatedPainting)
+    updatePainting('siliconflow_paintings', updatedPainting)
   }
 
   const onSelectModel = (modelId: string) => {
@@ -152,6 +163,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
+    await checkProviderEnabled(siliconflowProvider!, t)
+
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({
         content: t('paintings.regenerate.confirm'),
@@ -171,14 +184,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     const model = TEXT_TO_IMAGES_MODELS.find((m) => m.id === painting.model)
     const provider = getProviderByModel(model)
-
-    if (!provider.enabled) {
-      window.modal.error({
-        content: t('error.provider_disabled'),
-        centered: true
-      })
-      return
-    }
 
     if (!provider.apiKey) {
       window.modal.error({
@@ -218,10 +223,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             try {
               if (!url || url.trim() === '') {
                 logger.error('图像URL为空，可能是提示词违禁')
-                window.message.warning({
-                  content: t('message.empty_url'),
-                  key: 'empty-url-warning'
-                })
+                window.toast.warning(t('message.empty_url'))
                 return null
               }
               return await window.api.file.download(url)
@@ -231,10 +233,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 error instanceof Error &&
                 (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
               ) {
-                window.message.warning({
-                  content: t('message.empty_url'),
-                  key: 'empty-url-warning'
-                })
+                window.toast.warning(t('message.empty_url'))
               }
               return null
             }
@@ -280,16 +279,16 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onDeletePainting = (paintingToDelete: Painting) => {
     if (paintingToDelete.id === painting.id) {
-      const currentIndex = paintings.findIndex((p) => p.id === paintingToDelete.id)
+      const currentIndex = siliconflow_paintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
-        setPainting(paintings[currentIndex - 1])
-      } else if (paintings.length > 1) {
-        setPainting(paintings[1])
+        setPainting(siliconflow_paintings[currentIndex - 1])
+      } else if (siliconflow_paintings.length > 1) {
+        setPainting(siliconflow_paintings[1])
       }
     }
 
-    removePainting('paintings', paintingToDelete)
+    removePainting('siliconflow_paintings', paintingToDelete)
   }
 
   const onSelectPainting = (newPainting: Painting) => {
@@ -351,9 +350,9 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   useEffect(() => {
-    if (paintings.length === 0) {
+    if (siliconflow_paintings.length === 0) {
       const newPainting = getNewPainting()
-      addPainting('paintings', newPainting)
+      addPainting('siliconflow_paintings', newPainting)
       setPainting(newPainting)
     }
 
@@ -362,7 +361,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         clearTimeout(spaceClickTimer.current)
       }
     }
-  }, [paintings.length, addPainting])
+  }, [siliconflow_paintings.length, addPainting])
 
   return (
     <Container>
@@ -374,7 +373,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               size="small"
               className="nodrag"
               icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting('paintings', getNewPainting()))}>
+              onClick={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -383,7 +382,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       <ContentContainer id="content-container">
         <LeftContainer>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-          <Select value={providerOptions[1].value} onChange={handleProviderChange} options={providerOptions} />
+          <Select value={providerOptions[2].value} onChange={handleProviderChange} options={providerOptions} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
@@ -529,12 +528,12 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </InputContainer>
         </MainContainer>
         <PaintingsList
-          namespace="paintings"
-          paintings={paintings}
+          namespace="siliconflow_paintings"
+          paintings={siliconflow_paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting('paintings', getNewPainting()))}
+          onNewPainting={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}
         />
       </ContentContainer>
     </Container>

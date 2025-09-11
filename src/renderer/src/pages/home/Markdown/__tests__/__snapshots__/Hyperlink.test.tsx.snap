@@ -1,0 +1,43 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Hyperlink > should match snapshot for normal url 1`] = `
+<div>
+  <div
+    data-arrow="false"
+    data-placement="top"
+    data-styles="{"body":{"padding":0,"borderRadius":"8px","overflow":"hidden"}}"
+    data-testid="popover"
+  >
+    <div
+      data-testid="popover-content"
+    >
+      <div
+        data-testid="og-card"
+      >
+        <img
+          alt="https://example.com/path with space"
+          data-hostname="example.com"
+          data-testid="favicon"
+        />
+        <div
+          data-testid="title"
+        >
+          example.com
+        </div>
+        <div
+          data-testid="text"
+        >
+          https://example.com/path with space
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="popover-children"
+    >
+      <span>
+        Child
+      </span>
+    </div>
+  </div>
+</div>
+`;

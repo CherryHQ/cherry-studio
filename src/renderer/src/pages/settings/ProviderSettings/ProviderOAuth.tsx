@@ -1,10 +1,11 @@
+import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
@@ -20,6 +21,7 @@ interface Props {
 }
 
 const PROVIDER_LOGO_MAP = {
+  '302ai': AI302ProviderLogo,
   silicon: SiliconFlowProviderLogo,
   aihubmix: AiHubMixProviderLogo,
   ppio: PPIOProviderLogo,
@@ -35,7 +37,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
   }
 
   let providerWebsite =
-    PROVIDER_CONFIG[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
+    PROVIDER_URLS[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
   if (provider.id === 'ppio') {
     providerWebsite = 'ppio.com'
   }
@@ -62,7 +64,7 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           i18nKey="settings.provider.oauth.description"
           components={{
             website: (
-              <OfficialWebsite href={PROVIDER_CONFIG[provider.id].websites.official} target="_blank" rel="noreferrer" />
+              <OfficialWebsite href={PROVIDER_URLS[provider.id].websites.official} target="_blank" rel="noreferrer" />
             )
           }}
           values={{ provider: providerWebsite }}

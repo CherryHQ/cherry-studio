@@ -2,7 +2,8 @@
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import * as z from 'zod/v4'
+import { net } from 'electron'
+import { z } from 'zod'
 
 const logger = loggerService.withContext('DifyKnowledgeServer')
 
@@ -134,7 +135,7 @@ class DifyKnowledgeServer {
   private async performListKnowledges(difyKey: string, apiHost: string): Promise<McpResponse> {
     try {
       const url = `${apiHost.replace(/\/$/, '')}/datasets`
-      const response = await fetch(url, {
+      const response = await net.fetch(url, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${difyKey}`
@@ -186,7 +187,7 @@ class DifyKnowledgeServer {
     try {
       const url = `${apiHost.replace(/\/$/, '')}/datasets/${id}/retrieve`
 
-      const response = await fetch(url, {
+      const response = await net.fetch(url, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${difyKey}`,

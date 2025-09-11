@@ -6,106 +6,12 @@ import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown, Tooltip } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { DraggableList } from '../DraggableList'
 import MinAppIcon from '../Icons/MinAppIcon'
-
-/** Tabs of opened minapps in top navbar */
-export const TopNavbarOpenedMinappTabs: FC = () => {
-  const { minappShow, openedKeepAliveMinapps, currentMinappId } = useRuntime()
-  const { openMinappKeepAlive, hideMinappPopup, closeMinapp, closeAllMinapps } = useMinappPopup()
-  const { showOpenedMinappsInSidebar } = useSettings()
-  const { theme } = useTheme()
-  const { t } = useTranslation()
-  const [keepAliveMinapps, setKeepAliveMinapps] = useState(openedKeepAliveMinapps)
-
-  useEffect(() => {
-    const timer = setTimeout(() => setKeepAliveMinapps(openedKeepAliveMinapps), 300)
-    return () => clearTimeout(timer)
-  }, [openedKeepAliveMinapps])
-
-  // animation for minapp switch indicator
-  useEffect(() => {
-    const iconDefaultWidth = 30 // 22px icon + 8px gap
-    const iconDefaultOffset = 10 // initial offset
-    const container = document.querySelector('.TopNavContainer') as HTMLElement
-    const activeIcon = document.querySelector('.TopNavContainer .opened-active') as HTMLElement
-
-    let indicatorLeft = 0,
-      indicatorBottom = 0
-    if (minappShow && activeIcon && container) {
-      indicatorLeft = activeIcon.offsetLeft + activeIcon.offsetWidth / 2 - 4 // 4 is half of the indicator's width (8px)
-      indicatorBottom = 0
-    } else {
-      indicatorLeft =
-        ((keepAliveMinapps.length > 0 ? keepAliveMinapps.length : 1) / 2) * iconDefaultWidth + iconDefaultOffset - 4
-      indicatorBottom = -50
-    }
-    container?.style.setProperty('--indicator-left', `${indicatorLeft}px`)
-    container?.style.setProperty('--indicator-bottom', `${indicatorBottom}px`)
-  }, [currentMinappId, keepAliveMinapps, minappShow])
-
-  const handleOnClick = (app: MinAppType) => {
-    if (minappShow && currentMinappId === app.id) {
-      hideMinappPopup()
-    } else {
-      openMinappKeepAlive(app)
-    }
-  }
-
-  // 检查是否需要显示已打开小程序组件
-  const isShowOpened = showOpenedMinappsInSidebar && keepAliveMinapps.length > 0
-
-  // 如果不需要显示，返回空容器
-  if (!isShowOpened) return null
-
-  return (
-    <TopNavContainer
-      className="TopNavContainer"
-      style={{ backgroundColor: keepAliveMinapps.length > 0 ? 'var(--color-list-item)' : 'transparent' }}>
-      <TopNavMenus>
-        {keepAliveMinapps.map((app) => {
-          const menuItems: MenuProps['items'] = [
-            {
-              key: 'closeApp',
-              label: t('minapp.sidebar.close.title'),
-              onClick: () => {
-                closeMinapp(app.id)
-              }
-            },
-            {
-              key: 'closeAllApp',
-              label: t('minapp.sidebar.closeall.title'),
-              onClick: () => {
-                closeAllMinapps()
-              }
-            }
-          ]
-
-          const isActive = minappShow && currentMinappId === app.id
-
-          return (
-            <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="bottom">
-              <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
-                <TopNavItemContainer
-                  onClick={() => handleOnClick(app)}
-                  theme={theme}
-                  className={`${isActive ? 'opened-active' : ''}`}>
-                  <TopNavIcon theme={theme}>
-                    <MinAppIcon size={22} app={app} style={{ border: 'none', padding: 0 }} />
-                  </TopNavIcon>
-                </TopNavItemContainer>
-              </Dropdown>
-            </Tooltip>
-          )
-        })}
-      </TopNavMenus>
-    </TopNavContainer>
-  )
-}
 
 /** Tabs of opened minapps in sidebar */
 export const SidebarOpenedMinappTabs: FC = () => {
@@ -116,7 +22,7 @@ export const SidebarOpenedMinappTabs: FC = () => {
   const { t } = useTranslation()
   const { isLeftNavbar } = useNavbarPosition()
 
-  const handleOnClick = (app) => {
+  const handleOnClick = (app: MinAppType) => {
     if (minappShow && currentMinappId === app.id) {
       hideMinappPopup()
     } else {
@@ -328,51 +234,4 @@ const TabsWrapper = styled.div`
   background-color: rgba(128, 128, 128, 0.1);
   border-radius: 20px;
   overflow: hidden;
-`
-
-const TopNavContainer = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 2px;
-  gap: 4px;
-  background-color: var(--color-list-item);
-  border-radius: 20px;
-  margin: 0 5px;
-  position: relative;
-  overflow: hidden;
-
-  &::after {
-    content: '';
-    position: absolute;
-    left: var(--indicator-left, 0);
-    bottom: var(--indicator-bottom, 0);
-    width: 8px;
-    height: 4px;
-    background-color: var(--color-primary);
-    transition:
-      left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-      bottom 0.3s ease-in-out;
-    border-radius: 2px;
-  }
-`
-
-const TopNavMenus = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 100%;
-`
-
-const TopNavIcon = styled(Icon)`
-  width: 22px;
-  height: 22px;
-`
-
-const TopNavItemContainer = styled.div`
-  display: flex;
-  transition: border 0.2s ease;
-  border-radius: 18px;
-  cursor: pointer;
-  border-radius: 50%;
-  padding: 2px;
 `

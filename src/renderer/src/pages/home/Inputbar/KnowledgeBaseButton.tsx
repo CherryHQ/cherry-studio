@@ -2,7 +2,7 @@ import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPan
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FileSearch, Plus } from 'lucide-react'
+import { CircleX, FileSearch, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -44,28 +44,41 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   )
 
   const baseItems = useMemo<QuickPanelListItem[]>(() => {
-    const newList: QuickPanelListItem[] = knowledgeState.bases.map((base) => ({
+    const items: QuickPanelListItem[] = knowledgeState.bases.map((base) => ({
       label: base.name,
       description: `${base.items.length} ${t('files.count')}`,
       icon: <FileSearch />,
       action: () => handleBaseSelect(base),
       isSelected: selectedBases?.some((selected) => selected.id === base.id)
     }))
-    newList.push({
+
+    items.push({
       label: t('knowledge.add.title') + '...',
       icon: <Plus />,
       action: () => navigate('/knowledge'),
       isSelected: false
     })
-    return newList
-  }, [knowledgeState.bases, handleBaseSelect, selectedBases, t, navigate])
+
+    items.unshift({
+      label: t('settings.input.clear.all'),
+      description: t('settings.input.clear.knowledge_base'),
+      icon: <CircleX />,
+      isSelected: false,
+      action: () => {
+        onSelect([])
+        quickPanel.close()
+      }
+    })
+
+    return items
+  }, [knowledgeState.bases, t, selectedBases, handleBaseSelect, navigate, onSelect, quickPanel])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({
       title: t('chat.input.knowledge_base'),
       list: baseItems,
       symbol: '#',
-      multiple: false,
+      multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
       }
@@ -87,7 +100,10 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
-        <FileSearch size={18} />
+        <FileSearch
+          size={18}
+          color={selectedBases && selectedBases.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
+        />
       </ToolbarButton>
     </Tooltip>
   )

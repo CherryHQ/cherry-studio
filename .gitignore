@@ -53,11 +53,15 @@ local
 .qwen/*
 .trae/*
 .claude-code-router/*
+CLAUDE.local.md
 
 # vitest
 coverage
 .vitest-cache
 vitest.config.*.timestamp-*
+
+# TypeScript incremental build
+.tsbuildinfo
 
 # playwright
 playwright-report

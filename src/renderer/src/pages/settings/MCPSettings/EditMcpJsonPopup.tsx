@@ -3,7 +3,9 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
-import { MCPServer } from '@renderer/types'
+import { MCPServer, safeValidateMcpConfig } from '@renderer/types'
+import { parseJSON } from '@renderer/utils'
+import { formatZodError } from '@renderer/utils/error'
 import { Modal, Spin, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,21 +58,25 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     try {
       if (!jsonConfig.trim()) {
         dispatch(setMCPServers([]))
-        window.message.success(t('settings.mcp.jsonSaveSuccess'))
+        window.toast.success(t('settings.mcp.jsonSaveSuccess'))
         setJsonError('')
         setJsonSaving(false)
         return
       }
 
-      const parsedConfig = JSON.parse(jsonConfig)
-
-      if (!parsedConfig.mcpServers || typeof parsedConfig.mcpServers !== 'object') {
+      const parsedJson = parseJSON(jsonConfig)
+      if (parseJSON === null) {
         throw new Error(t('settings.mcp.addServer.importFrom.invalid'))
+      }
+
+      const { data: parsedServers, error } = safeValidateMcpConfig(parsedJson)
+      if (error) {
+        throw new Error(formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')))
       }
 
       const serversArray: MCPServer[] = []
 
-      for (const [id, serverConfig] of Object.entries(parsedConfig.mcpServers)) {
+      for (const [id, serverConfig] of Object.entries(parsedServers.mcpServers)) {
         const server: MCPServer = {
           id,
           isActive: false,
@@ -86,13 +92,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       dispatch(setMCPServers(serversArray))
 
-      window.message.success(t('settings.mcp.jsonSaveSuccess'))
+      window.toast.success(t('settings.mcp.jsonSaveSuccess'))
       setJsonError('')
       setOpen(false)
     } catch (error: any) {
       logger.error('Failed to save JSON config:', error)
       setJsonError(error.message || t('settings.mcp.jsonSaveError'))
-      window.message.error(t('settings.mcp.jsonSaveError'))
+      window.toast.error(t('settings.mcp.jsonSaveError'))
     } finally {
       setJsonSaving(false)
     }
@@ -117,13 +123,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       maskClosable={false}
       width={800}
-      height="80vh"
       loading={jsonSaving}
       transitionName="animation-move-down"
       centered>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Text type="secondary">
-          {jsonError ? <span style={{ color: 'red' }}>{jsonError}</span> : ''}
+        <Typography.Text style={{ width: '100%' }} type="danger">
+          {jsonError ? <pre>{jsonError}</pre> : ''}
         </Typography.Text>
       </div>
       {isLoading ? (
@@ -134,10 +139,10 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           language="json"
           onChange={(value) => setJsonConfig(value)}
           height="60vh"
+          expanded={false}
+          wrapped
           options={{
             lint: true,
-            collapsible: false,
-            wrappable: true,
             lineNumbers: true,
             foldGutter: true,
             highlightActiveLine: true,

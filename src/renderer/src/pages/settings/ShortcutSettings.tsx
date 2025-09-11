@@ -3,6 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { getShortcutLabel } from '@renderer/i18n/label'
 import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
@@ -22,6 +23,7 @@ const ShortcutSettings: FC = () => {
   const { shortcuts: originalShortcuts } = useShortcuts()
   const inputRefs = useRef<Record<string, InputRef>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
+  const { setTimeoutTimer } = useTimer()
 
   //if shortcut is not available on all the platforms, block the shortcut here
   let shortcuts = originalShortcuts
@@ -42,9 +44,13 @@ const ShortcutSettings: FC = () => {
 
   const handleAddShortcut = (record: Shortcut) => {
     setEditingKey(record.key)
-    setTimeout(() => {
-      inputRefs.current[record.key]?.focus()
-    }, 0)
+    setTimeoutTimer(
+      'handleAddShortcut',
+      () => {
+        inputRefs.current[record.key]?.focus()
+      },
+      0
+    )
   }
 
   const isShortcutModified = (record: Shortcut) => {

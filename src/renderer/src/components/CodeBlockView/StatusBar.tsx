@@ -18,6 +18,7 @@ const Container = styled(Flex)`
   gap: 8px;
   overflow-y: auto;
   text-wrap: wrap;
+  border-radius: 0 0 8px 8px;
 `
 
 export default memo(StatusBar)

@@ -1,8 +1,10 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useEnableDeveloperMode, useSettings } from '@renderer/hooks/useSettings'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { RootState, useAppDispatch } from '@renderer/store'
 import {
@@ -18,6 +20,7 @@ import {
 import { LanguageVarious } from '@renderer/types'
 import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
+import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import { Flex, Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
@@ -47,6 +50,7 @@ const GeneralSettings: FC = () => {
   const [proxyBypassRules, setProxyBypassRules] = useState<string | undefined>(storeProxyBypassRules)
   const { theme } = useTheme()
   const { enableDeveloperMode, setEnableDeveloperMode } = useEnableDeveloperMode()
+  const { setTimeoutTimer } = useTimer()
 
   const updateTray = (isShowTray: boolean) => {
     setTray(isShowTray)
@@ -93,7 +97,7 @@ const GeneralSettings: FC = () => {
 
   const onSetProxyUrl = () => {
     if (proxyUrl && !isValidProxyUrl(proxyUrl)) {
-      window.message.error({ content: t('message.error.invalid.proxy.url'), key: 'proxy-error' })
+      window.toast.error(t('message.error.invalid.proxy.url'))
       return
     }
 
@@ -112,12 +116,6 @@ const GeneralSettings: FC = () => {
 
   const onProxyModeChange = (mode: 'system' | 'custom' | 'none') => {
     dispatch(setProxyMode(mode))
-    if (mode === 'system') {
-      dispatch(_setProxyUrl(undefined))
-    } else if (mode === 'none') {
-      dispatch(_setProxyUrl(undefined))
-      dispatch(_setProxyBypassRules(undefined))
-    }
   }
 
   const languagesOptions: { value: LanguageVarious; label: string; flag: string }[] = [
@@ -168,17 +166,18 @@ const GeneralSettings: FC = () => {
         try {
           setDisableHardwareAcceleration(checked)
         } catch (error) {
-          window.message.error({
-            content: (error as Error).message,
-            key: 'disable-hardware-acceleration-error'
-          })
+          window.toast.error(formatErrorMessage(error))
           return
         }
 
         // 重启应用
-        setTimeout(() => {
-          window.api.relaunchApp()
-        }, 500)
+        setTimeoutTimer(
+          'handleHardwareAccelerationChange',
+          () => {
+            window.api.relaunchApp()
+          },
+          500
+        )
       }
     })
   }
@@ -229,7 +228,7 @@ const GeneralSettings: FC = () => {
             </SettingRow>
           </>
         )}
-        {(storeProxyMode === 'custom' || storeProxyMode === 'system') && (
+        {storeProxyMode === 'custom' && (
           <>
             <SettingDivider />
             <SettingRow>
@@ -345,7 +344,10 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+          <Flex align="center" gap={4}>
+            <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
+            <InfoTooltip title={t('settings.developer.help')} />
+          </Flex>
           <Switch checked={enableDeveloperMode} onChange={setEnableDeveloperMode} />
         </SettingRow>
       </SettingGroup>

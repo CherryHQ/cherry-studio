@@ -1,9 +1,13 @@
-import CodeEditor from '@renderer/components/CodeEditor'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
+import { isMac } from '@renderer/config/constant'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
-import { Button, Modal } from 'antd'
-import { Code, Maximize2, Minimize2, Monitor, MonitorSpeaker, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
+import { captureScrollableIframeAsBlob, captureScrollableIframeAsDataURL } from '@renderer/utils/image'
+import { Button, Dropdown, Modal, Splitter, Tooltip, Typography } from 'antd'
+import { Camera, Check, Code, Eye, Maximize2, Minimize2, SaveIcon, SquareSplitHorizontal, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -11,56 +15,21 @@ interface HtmlArtifactsPopupProps {
   open: boolean
   title: string
   html: string
+  onSave?: (html: string) => void
   onClose: () => void
 }
 
 type ViewMode = 'split' | 'code' | 'preview'
 
-const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onClose }) => {
+const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
-  const [currentHtml, setCurrentHtml] = useState(html)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [saved, setSaved] = useTemporaryValue(false, 2000)
+  const codeEditorRef = useRef<CodeEditorHandles>(null)
+  const previewFrameRef = useRef<HTMLIFrameElement>(null)
 
-  // 预览刷新相关状态
-  const [previewHtml, setPreviewHtml] = useState(html)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
-  const latestHtmlRef = useRef(html)
-
-  // 当外部html更新时，同步更新内部状态
-  useEffect(() => {
-    setCurrentHtml(html)
-    latestHtmlRef.current = html
-  }, [html])
-
-  // 当内部编辑的html更新时，更新引用
-  useEffect(() => {
-    latestHtmlRef.current = currentHtml
-  }, [currentHtml])
-
-  // 2秒定时检查并刷新预览（仅在内容变化时）
-  useEffect(() => {
-    if (!open) return
-
-    // 立即设置初始预览内容
-    setPreviewHtml(currentHtml)
-
-    // 设置定时器，每2秒检查一次内容是否有变化
-    intervalRef.current = setInterval(() => {
-      if (latestHtmlRef.current !== previewHtml) {
-        setPreviewHtml(latestHtmlRef.current)
-      }
-    }, 2000)
-
-    // 清理函数
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [currentHtml, open, previewHtml])
-
-  // 全屏时防止 body 滚动
+  // Prevent body scroll when fullscreen
   useEffect(() => {
     if (!open || !isFullscreen) return
 
@@ -73,21 +42,46 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     }
   }, [isFullscreen, open])
 
-  const showCode = viewMode === 'split' || viewMode === 'code'
-  const showPreview = viewMode === 'split' || viewMode === 'preview'
+  const handleSave = () => {
+    codeEditorRef.current?.save?.()
+    setSaved(true)
+  }
+
+  const handleCapture = useCallback(
+    async (to: 'file' | 'clipboard') => {
+      const title = extractHtmlTitle(html)
+      const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
+
+      if (to === 'file') {
+        const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
+        if (dataUrl) {
+          window.api.file.saveImage(fileName, dataUrl)
+        }
+      }
+      if (to === 'clipboard') {
+        await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
+          if (blob) {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+            window.toast.success(t('message.copy.success'))
+          }
+        })
+      }
+    },
+    [html, t]
+  )
 
   const renderHeader = () => (
     <ModalHeader onDoubleClick={() => setIsFullscreen(!isFullscreen)} className={classNames({ drag: isFullscreen })}>
       <HeaderLeft $isFullscreen={isFullscreen}>
-        <TitleText>{title}</TitleText>
+        <TitleText ellipsis={{ tooltip: true }}>{title}</TitleText>
       </HeaderLeft>
 
       <HeaderCenter>
-        <ViewControls>
+        <ViewControls onDoubleClick={(e) => e.stopPropagation()}>
           <ViewButton
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
-            icon={<MonitorSpeaker size={14} />}
+            icon={<SquareSplitHorizontal size={14} />}
             onClick={() => setViewMode('split')}>
             {t('html_artifacts.split')}
           </ViewButton>
@@ -101,14 +95,36 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           <ViewButton
             size="small"
             type={viewMode === 'preview' ? 'primary' : 'default'}
-            icon={<Monitor size={14} />}
+            icon={<Eye size={14} />}
             onClick={() => setViewMode('preview')}>
             {t('html_artifacts.preview')}
           </ViewButton>
         </ViewControls>
       </HeaderCenter>
 
-      <HeaderRight $isFullscreen={isFullscreen}>
+      <HeaderRight onDoubleClick={(e) => e.stopPropagation()}>
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            items: [
+              {
+                label: t('html_artifacts.capture.to_file'),
+                key: 'capture_to_file',
+                icon: <FilePngIcon size={14} className="lucide-custom" />,
+                onClick: () => handleCapture('file')
+              },
+              {
+                label: t('html_artifacts.capture.to_clipboard'),
+                key: 'capture_to_clipboard',
+                icon: <CopyIcon size={14} className="lucide-custom" />,
+                onClick: () => handleCapture('clipboard')
+              }
+            ]
+          }}>
+          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
+            <Button type="text" icon={<Camera size={16} />} className="nodrag" />
+          </Tooltip>
+        </Dropdown>
         <Button
           onClick={() => setIsFullscreen(!isFullscreen)}
           type="text"
@@ -120,6 +136,83 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
     </ModalHeader>
   )
 
+  const renderContent = () => {
+    const codePanel = (
+      <CodeSection>
+        <CodeEditor
+          ref={codeEditorRef}
+          value={html}
+          language="html"
+          editable={true}
+          onSave={onSave}
+          height="100%"
+          expanded={false}
+          wrapped
+          style={{ minHeight: 0 }}
+          options={{
+            stream: true, // FIXME: 避免多余空行
+            lineNumbers: true,
+            keymap: true
+          }}
+        />
+        <ToolbarWrapper>
+          <Tooltip title={t('code_block.edit.save.label')} mouseLeaveDelay={0}>
+            <ToolbarButton
+              shape="circle"
+              size="large"
+              icon={
+                saved ? (
+                  <Check size={16} color="var(--color-status-success)" />
+                ) : (
+                  <SaveIcon size={16} className="custom-lucide" />
+                )
+              }
+              onClick={handleSave}
+            />
+          </Tooltip>
+        </ToolbarWrapper>
+      </CodeSection>
+    )
+
+    const previewPanel = (
+      <PreviewSection>
+        {html.trim() ? (
+          <PreviewFrame
+            ref={previewFrameRef}
+            key={html} // Force recreate iframe when preview content changes
+            srcDoc={html}
+            title="HTML Preview"
+            sandbox="allow-scripts allow-same-origin allow-forms"
+          />
+        ) : (
+          <EmptyPreview>
+            <p>{t('html_artifacts.empty_preview', 'No content to preview')}</p>
+          </EmptyPreview>
+        )}
+      </PreviewSection>
+    )
+
+    switch (viewMode) {
+      case 'split':
+        return (
+          <Splitter>
+            <Splitter.Panel defaultSize="50%" min="25%">
+              {codePanel}
+            </Splitter.Panel>
+            <Splitter.Panel defaultSize="50%" min="25%">
+              {previewPanel}
+            </Splitter.Panel>
+          </Splitter>
+        )
+      case 'code':
+        return codePanel
+      case 'preview':
+        return previewPanel
+      default:
+        return null
+    }
+  }
+
   return (
     <StyledModal
       $isFullscreen={isFullscreen}
@@ -127,7 +220,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       open={open}
       afterClose={onClose}
       centered={!isFullscreen}
-      destroyOnClose
+      destroyOnHidden
       mask={!isFullscreen}
       maskClosable={false}
       width={isFullscreen ? '100vw' : '90vw'}
@@ -138,45 +231,11 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       zIndex={isFullscreen ? 10000 : 1000}
       footer={null}
       closable={false}>
-      <Container>
-        {showCode && (
-          <CodeSection>
-            <CodeEditor
-              value={currentHtml}
-              language="html"
-              editable={true}
-              onSave={setCurrentHtml}
-              style={{ height: '100%' }}
-              options={{
-                stream: false,
-                collapsible: false
-              }}
-            />
-          </CodeSection>
-        )}
-
-        {showPreview && (
-          <PreviewSection>
-            {previewHtml.trim() ? (
-              <PreviewFrame
-                key={previewHtml} // 强制重新创建iframe当预览内容变化时
-                srcDoc={previewHtml}
-                title="HTML Preview"
-                sandbox="allow-scripts allow-same-origin allow-forms"
-              />
-            ) : (
-              <EmptyPreview>
-                <p>{t('html_artifacts.empty_preview', 'No content to preview')}</p>
-              </EmptyPreview>
-            )}
-          </PreviewSection>
-        )}
-      </Container>
+      <Container>{renderContent()}</Container>
     </StyledModal>
   )
 }
 
-// 简化的样式组件
 const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
   ${(props) =>
     props.$isFullscreen
@@ -207,7 +266,6 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
       : `
     .ant-modal-body {
       height: 80vh !important;
-      min-height: 600px !important;
     }
   `}
 
@@ -232,6 +290,10 @@ const StyledModal = styled(Modal)<{ $isFullscreen?: boolean }>`
     margin-bottom: 0 !important;
     border-radius: 0 !important;
   }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
 `
 
 const ModalHeader = styled.div`
@@ -255,22 +317,22 @@ const HeaderCenter = styled.div`
   transform: translate(-50%, -50%);
 `
 
-const HeaderRight = styled.div<{ $isFullscreen?: boolean }>`
+const HeaderRight = styled.div`
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? (isWin ? '136px' : isLinux ? '120px' : '12px') : '12px')};
+  padding-right: 12px;
 `
 
-const TitleText = styled.span`
+const TitleText = styled(Typography.Text)`
   font-size: 16px;
-  font-weight: 600;
+  font-weight: bold;
   color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  width: 50%;
 `
 
 const ViewControls = styled.div`
@@ -309,24 +371,31 @@ const Container = styled.div`
   width: 100%;
   flex: 1;
   background: var(--color-background);
-`
-
-const CodeSection = styled.div`
-  flex: 1;
-  min-width: 300px;
-  border-right: 1px solid var(--color-border);
   overflow: hidden;
 
-  .monaco-editor,
-  .cm-editor,
-  .cm-scroller {
-    height: 100% !important;
+  .ant-splitter {
+    width: 100%;
+    height: 100%;
+    border: none;
+
+    .ant-splitter-pane {
+      overflow: hidden;
+    }
   }
 `
 
+const CodeSection = styled.div`
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+`
+
 const PreviewSection = styled.div`
-  flex: 1;
-  min-width: 300px;
+  height: 100%;
+  width: 100%;
   background: white;
   overflow: hidden;
 `
@@ -347,6 +416,25 @@ const EmptyPreview = styled.div`
   background: var(--color-background-soft);
   color: var(--color-text-secondary);
   font-size: 14px;
+`
+
+const ToolbarWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  gap: 4px;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1;
+`
+
+const ToolbarButton = styled(Button)`
+  border: none;
+  box-shadow:
+    0 6px 16px 0 rgba(0, 0, 0, 0.08),
+    0 3px 6px -4px rgba(0, 0, 0, 0.12),
+    0 9px 28px 8px rgba(0, 0, 0, 0.05);
 `
 
 export default HtmlArtifactsPopup

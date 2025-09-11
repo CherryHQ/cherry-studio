@@ -1,17 +1,10 @@
-import type { Model, Provider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import type { Model, Provider, SystemProvider } from '@renderer/types'
+import { describe, expect, it } from 'vitest'
 
 import { includeKeywords, matchKeywordsInModel, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
-// mock i18n for getFancyProviderName
-vi.mock('@renderer/i18n', () => ({
-  default: {
-    t: (key: string) => `i18n:${key}`
-  }
-}))
-
 describe('match', () => {
-  const provider: Provider = {
+  const provider = {
     id: '12345',
     type: 'openai',
     name: 'OpenAI',
@@ -19,13 +12,14 @@ describe('match', () => {
     apiHost: '',
     models: [],
     isSystem: false
-  }
-  const sysProvider: Provider = {
+  } as const satisfies Provider
+
+  const sysProvider: SystemProvider = {
     ...provider,
-    id: 'sys',
-    name: 'SystemProvider',
+    id: 'dashscope',
+    name: 'doesnt matter',
     isSystem: true
-  }
+  } as const
 
   describe('includeKeywords', () => {
     it('should return true if keywords is empty or blank', () => {
@@ -83,8 +77,10 @@ describe('match', () => {
     })
 
     it('should match i18n name for system provider', () => {
-      expect(matchKeywordsInProvider('sys', sysProvider)).toBe(true)
-      expect(matchKeywordsInProvider('SystemProvider', sysProvider)).toBe(false)
+      // system provider 不应该通过 name 字段匹配
+      expect(matchKeywordsInProvider('dashscope', sysProvider)).toBe(true)
+      expect(matchKeywordsInProvider('Alibaba', sysProvider)).toBe(true)
+      expect(matchKeywordsInProvider('doesnt matter', sysProvider)).toBe(false)
     })
   })
 
@@ -108,9 +104,11 @@ describe('match', () => {
     })
 
     it('should match model name and i18n provider name for system provider', () => {
-      expect(matchKeywordsInModel('gpt-4.1 sys', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('sys', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('SystemProvider', model, sysProvider)).toBe(false)
+      expect(matchKeywordsInModel('gpt-4.1 dashscope', model, sysProvider)).toBe(true)
+      expect(matchKeywordsInModel('dashscope', model, sysProvider)).toBe(true)
+      // system provider 不会直接用 name 检索
+      expect(matchKeywordsInModel('doesnt matter', model, sysProvider)).toBe(false)
+      expect(matchKeywordsInModel('Alibaba', model, sysProvider)).toBe(true)
     })
 
     it('should match model by id when name is customized', () => {

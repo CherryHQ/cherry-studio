@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
-import CustomTag from '../CustomTag'
+import CustomTag from '../Tags/CustomTag'
 
 const COLOR = '#ff0000'
 
@@ -40,5 +40,16 @@ describe('CustomTag', () => {
     // 不应有 tooltip 相关内容
     expect(document.querySelector('.ant-tooltip')).toBeNull()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('should not allow click when disabled', async () => {
+    render(
+      <CustomTag color={COLOR} disabled>
+        custom-tag
+      </CustomTag>
+    )
+    const tag = screen.getByText('custom-tag')
+    expect(tag).toBeInTheDocument()
+    expect(tag).toHaveStyle({ cursor: 'not-allowed' })
   })
 })

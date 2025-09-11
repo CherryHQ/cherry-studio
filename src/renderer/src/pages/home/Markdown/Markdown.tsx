@@ -7,14 +7,11 @@ import ImageViewer from '@renderer/components/ImageViewer'
 import MarkdownShadowDOMRenderer from '@renderer/components/MarkdownShadowDOMRenderer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useSmoothStream } from '@renderer/hooks/useSmoothStream'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
-import { parseJSON } from '@renderer/utils'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
-import { findCitationInChildren, getCodeBlockId, processLatexBrackets } from '@renderer/utils/markdown'
+import { processLatexBrackets } from '@renderer/utils/markdown'
 import { isEmpty } from 'lodash'
-import { type FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
-import { useRef } from 'react'
+import { type FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown, { type Components, defaultUrlTransform } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
@@ -29,12 +26,15 @@ import { Pluggable } from 'unified'
 
 import CodeBlock from './CodeBlock'
 import Link from './Link'
+import MarkdownSvgRenderer from './MarkdownSvgRenderer'
+import rehypeHeadingIds from './plugins/rehypeHeadingIds'
+import rehypeScalableSvg from './plugins/rehypeScalableSvg'
 import remarkDisableConstructs from './plugins/remarkDisableConstructs'
 import Table from './Table'
 
 const ALLOWED_ELEMENTS =
-  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup)/i
-const DISALLOWED_ELEMENTS = ['iframe']
+  /<(style|p|div|span|b|i|strong|em|ul|ol|li|table|tr|td|th|thead|tbody|h[1-6]|blockquote|pre|code|br|hr|svg|path|circle|rect|line|polyline|polygon|text|g|defs|title|desc|tspan|sub|sup|details|summary)/i
+const DISALLOWED_ELEMENTS = ['iframe', 'script']
 
 interface Props {
   // message: Message & { content: string }
@@ -45,7 +45,7 @@ interface Props {
 
 const Markdown: FC<Props> = ({ block, postProcess }) => {
   const { t } = useTranslation()
-  const { mathEngine } = useSettings()
+  const { mathEngine, mathEnableSingleDollar } = useSettings()
 
   const isTrulyDone = 'status' in block && block.status === 'success'
   const [displayedContent, setDisplayedContent] = useState(postProcess ? postProcess(block.content) : block.content)
@@ -97,10 +97,10 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
       remarkDisableConstructs(['codeIndented'])
     ]
     if (mathEngine !== 'none') {
-      plugins.push(remarkMath)
+      plugins.push([remarkMath, { singleDollarTextMath: mathEnableSingleDollar }])
     }
     return plugins
-  }, [mathEngine])
+  }, [mathEngine, mathEnableSingleDollar])
 
   const messageContent = useMemo(() => {
     if ('status' in block && block.status === 'paused' && isEmpty(block.content)) {
@@ -110,35 +110,23 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
   }, [block, displayedContent, t])
 
   const rehypePlugins = useMemo(() => {
-    const plugins: any[] = []
+    const plugins: Pluggable[] = []
     if (ALLOWED_ELEMENTS.test(messageContent)) {
-      plugins.push(rehypeRaw)
+      plugins.push(rehypeRaw, rehypeScalableSvg)
     }
+    plugins.push([rehypeHeadingIds, { prefix: `heading-${block.id}` }])
     if (mathEngine === 'KaTeX') {
-      plugins.push(rehypeKatex as any)
+      plugins.push(rehypeKatex)
     } else if (mathEngine === 'MathJax') {
-      plugins.push(rehypeMathjax as any)
+      plugins.push(rehypeMathjax)
     }
     return plugins
-  }, [mathEngine, messageContent])
-
-  const onSaveCodeBlock = useCallback(
-    (id: string, newContent: string) => {
-      EventEmitter.emit(EVENT_NAMES.EDIT_CODE_BLOCK, {
-        msgBlockId: block.id,
-        codeBlockId: id,
-        newContent
-      })
-    },
-    [block.id]
-  )
+  }, [mathEngine, messageContent, block.id])
 
   const components = useMemo(() => {
     return {
-      a: (props: any) => <Link {...props} citationData={parseJSON(findCitationInChildren(props.children))} />,
-      code: (props: any) => (
-        <CodeBlock {...props} id={getCodeBlockId(props?.node?.position?.start)} onSave={onSaveCodeBlock} />
-      ),
+      a: (props: any) => <Link {...props} />,
+      code: (props: any) => <CodeBlock {...props} blockId={block.id} />,
       table: (props: any) => <Table {...props} blockId={block.id} />,
       img: (props: any) => <ImageViewer style={{ maxWidth: 500, maxHeight: 500 }} {...props} />,
       pre: (props: any) => <pre style={{ overflow: 'visible' }} {...props} />,
@@ -146,11 +134,12 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
         const hasImage = props?.node?.children?.some((child: any) => child.tagName === 'img')
         if (hasImage) return <div {...props} />
         return <p {...props} />
-      }
+      },
+      svg: MarkdownSvgRenderer
     } as Partial<Components>
-  }, [onSaveCodeBlock, block.id])
+  }, [block.id])
 
-  if (messageContent.includes('<style>')) {
+  if (/<style\b[^>]*>/i.test(messageContent)) {
     components.style = MarkdownShadowDOMRenderer as any
   }
 

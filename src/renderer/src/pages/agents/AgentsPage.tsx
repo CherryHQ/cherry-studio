@@ -1,9 +1,9 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import CustomTag from '@renderer/components/CustomTag'
 import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
@@ -170,10 +170,7 @@ const AgentsPage: FC = () => {
     try {
       await ImportAgentPopup.show()
     } catch (error) {
-      window.message.error({
-        content: error instanceof Error ? error.message : t('message.agents.import.error'),
-        key: 'agents-import-error'
-      })
+      window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     }
   }
 

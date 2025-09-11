@@ -1,0 +1,74 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TagFilterSection > rendering > should match snapshot 1`] = `
+.c0 {
+  padding: 8px;
+  padding-left: 18px;
+}
+
+.c1 {
+  color: var(--color-text-3);
+  font-size: 12px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <span
+      class="c1"
+    >
+      models.filter.by_tag
+    </span>
+    <button
+      aria-label="tag-vision"
+      data-inactive="false"
+      type="button"
+    >
+      vision
+    </button>
+    <button
+      aria-label="tag-embedding"
+      data-inactive="false"
+      type="button"
+    >
+      embedding
+    </button>
+    <button
+      aria-label="tag-reasoning"
+      data-inactive="false"
+      type="button"
+    >
+      reasoning
+    </button>
+    <button
+      aria-label="tag-function_calling"
+      data-inactive="false"
+      type="button"
+    >
+      function_calling
+    </button>
+    <button
+      aria-label="tag-web_search"
+      data-inactive="false"
+      type="button"
+    >
+      web_search
+    </button>
+    <button
+      aria-label="tag-rerank"
+      data-inactive="false"
+      type="button"
+    >
+      rerank
+    </button>
+    <button
+      aria-label="tag-free"
+      data-inactive="false"
+      type="button"
+    >
+      free
+    </button>
+  </div>
+</div>
+`;

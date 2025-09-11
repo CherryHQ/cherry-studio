@@ -11,6 +11,10 @@ interface WebdavModalProps {
   backuping: boolean
   customFileName: string
   setCustomFileName: (value: string) => void
+  customLabels?: {
+    modalTitle?: string
+    filenamePlaceholder?: string
+  }
 }
 
 export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof backupToWebdav } = {}) {
@@ -59,13 +63,14 @@ export function WebdavBackupModal({
   handleCancel,
   backuping,
   customFileName,
-  setCustomFileName
+  setCustomFileName,
+  customLabels
 }: WebdavModalProps) {
   const { t } = useTranslation()
 
   return (
     <Modal
-      title={t('settings.data.webdav.backup.modal.title')}
+      title={customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}
       open={isModalVisible}
       onOk={handleBackup}
       onCancel={handleCancel}
@@ -75,7 +80,7 @@ export function WebdavBackupModal({
       <Input
         value={customFileName}
         onChange={(e) => setCustomFileName(e.target.value)}
-        placeholder={t('settings.data.webdav.backup.modal.filename.placeholder')}
+        placeholder={customLabels?.filenamePlaceholder || t('settings.data.webdav.backup.modal.filename.placeholder')}
       />
     </Modal>
   )

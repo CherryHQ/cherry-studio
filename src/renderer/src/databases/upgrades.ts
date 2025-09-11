@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { LanguagesEnum } from '@renderer/config/translate'
-import type { LanguageCode, LegacyMessage as OldMessage, Topic } from '@renderer/types'
+import type { LegacyMessage as OldMessage, Topic, TranslateLanguageCode } from '@renderer/types'
 import { FileTypes, WebSearchSource } from '@renderer/types' // Import FileTypes enum
 import type {
   BaseMessageBlock,
@@ -136,7 +136,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
             content: mcpTool.response,
             error:
               mcpTool.status !== 'done'
-                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status }
+                ? { message: 'MCP Tool did not complete', originalStatus: mcpTool.status, name: null, stack: null }
                 : undefined,
             createdAt: oldMessage.createdAt,
             metadata: { rawMcpToolResponse: mcpTool }
@@ -263,10 +263,18 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
       // 10. Error Block (Status is ERROR)
       if (oldMessage.error && typeof oldMessage.error === 'object' && Object.keys(oldMessage.error).length > 0) {
         if (isEmpty(oldMessage.content)) {
-          const block = createErrorBlock(oldMessage.id, oldMessage.error, {
-            createdAt: oldMessage.createdAt,
-            status: MessageBlockStatus.ERROR // Error block status is ERROR
-          })
+          const block = createErrorBlock(
+            oldMessage.id,
+            {
+              message: oldMessage.error?.message ?? null,
+              name: oldMessage.error?.name ?? null,
+              stack: oldMessage.error?.stack ?? null
+            },
+            {
+              createdAt: oldMessage.createdAt,
+              status: MessageBlockStatus.ERROR // Error block status is ERROR
+            }
+          )
           blocksToCreate.push(block)
           messageBlockIds.push(block.id)
         }
@@ -314,7 +322,7 @@ export async function upgradeToV7(tx: Transaction): Promise<void> {
 export async function upgradeToV8(tx: Transaction): Promise<void> {
   logger.info('DB migration to version 8 started')
 
-  const langMap: Record<string, LanguageCode> = {
+  const langMap: Record<string, TranslateLanguageCode> = {
     english: 'en-us',
     chinese: 'zh-cn',
     'chinese-traditional': 'zh-tw',
@@ -337,7 +345,10 @@ export async function upgradeToV8(tx: Transaction): Promise<void> {
   }
 
   const settingsTable = tx.table('settings')
-  const defaultPair: [LanguageCode, LanguageCode] = [LanguagesEnum.enUS.langCode, LanguagesEnum.zhCN.langCode]
+  const defaultPair: [TranslateLanguageCode, TranslateLanguageCode] = [
+    LanguagesEnum.enUS.langCode,
+    LanguagesEnum.zhCN.langCode
+  ]
   const originSource = (await settingsTable.get('translate:source:language'))?.value
   const originTarget = (await settingsTable.get('translate:target:language'))?.value
   const originPair = (await settingsTable.get('translate:bidirectional:pair'))?.value

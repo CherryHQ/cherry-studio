@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatErrorMessage, formatMessageError, getErrorDetails, getErrorMessage, isAbortError } from '../error'
+import { formatErrorMessage, getErrorDetails, isAbortError } from '../error'
 
 describe('error', () => {
   describe('getErrorDetails', () => {
@@ -56,7 +56,6 @@ describe('error', () => {
       const error = new Error('Test error')
       const result = formatErrorMessage(error)
 
-      expect(console.error).toHaveBeenCalled()
       expect(result).toContain('Error Details:')
       expect(result).toContain('  {')
       expect(result).toContain('    "message": "Test error"')
@@ -121,79 +120,6 @@ describe('error', () => {
       const result = formatErrorMessage(nonSerializableError)
       expect(result).toContain('Error Details:')
       expect(result).toContain('"toString": "<Unable to access property>"')
-    })
-  })
-
-  describe('formatMessageError', () => {
-    it('should return error details as an object', () => {
-      const error = new Error('Test error')
-      const result = formatMessageError(error)
-
-      expect(result.message).toBe('Test error')
-      expect(result.stack).toBeUndefined()
-      expect(result.headers).toBeUndefined()
-      expect(result.request_id).toBeUndefined()
-    })
-
-    it('should handle string errors', () => {
-      const result = formatMessageError('String error')
-      expect(typeof result).toBe('string')
-      expect(result).toBe('String error')
-    })
-
-    it('should handle formatting errors', () => {
-      const problematicError = {
-        get message() {
-          throw new Error('Cannot access')
-        },
-        toString: () => 'Error object'
-      }
-
-      const result = formatMessageError(problematicError)
-      expect(result).toBeTruthy()
-    })
-
-    it('should handle completely invalid errors', () => {
-      let invalidError: any
-      try {
-        invalidError = Object.create(null)
-        Object.defineProperty(invalidError, 'toString', {
-          get: () => {
-            throw new Error()
-          }
-        })
-      } catch (e) {
-        invalidError = {
-          toString() {
-            throw new Error()
-          }
-        }
-      }
-
-      const result = formatMessageError(invalidError)
-      expect(result).toBeTruthy()
-    })
-  })
-
-  describe('getErrorMessage', () => {
-    it('should extract message from Error objects', () => {
-      const error = new Error('Test message')
-      expect(getErrorMessage(error)).toBe('Test message')
-    })
-
-    it('should handle objects with message property', () => {
-      const errorObj = { message: 'Object message' }
-      expect(getErrorMessage(errorObj)).toBe('Object message')
-    })
-
-    it('should convert non-Error objects to string', () => {
-      const obj = { toString: () => 'Custom toString' }
-      expect(getErrorMessage(obj)).toBe('Custom toString')
-    })
-
-    it('should return empty string for undefined or null', () => {
-      expect(getErrorMessage(undefined)).toBe('')
-      expect(getErrorMessage(null)).toBe('')
     })
   })
 

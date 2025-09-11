@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CodeBlock > rendering > should render a snapshot 1`] = `
+<div>
+  <div>
+    <code>
+      console.log("hello world")
+    </code>
+    <button
+      type="button"
+    >
+      Save
+    </button>
+  </div>
+</div>
+`;

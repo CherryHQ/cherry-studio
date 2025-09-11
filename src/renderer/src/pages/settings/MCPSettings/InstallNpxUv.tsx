@@ -3,7 +3,7 @@ import { Center, VStack } from '@renderer/components/Layout'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
 import { Alert, Button } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -26,6 +26,15 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
   const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const checkBinariesTimerRef = useRef<NodeJS.Timeout>(undefined)
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      clearTimeout(checkBinariesTimerRef.current)
+    }
+  }, [])
+
   const checkBinaries = useCallback(async () => {
     const uvExists = await window.api.isBinaryExist('uv')
     const bunExists = await window.api.isBinaryExist('bun')
@@ -45,10 +54,11 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       setIsInstallingUv(false)
       dispatch(setIsUvInstalled(true))
     } catch (error: any) {
-      window.message.error({ content: `${t('settings.mcp.installError')}: ${error.message}`, key: 'mcp-install-error' })
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingUv(false)
     }
-    setTimeout(checkBinaries, 1000)
+    clearTimeout(checkBinariesTimerRef.current)
+    checkBinariesTimerRef.current = setTimeout(checkBinaries, 1000)
   }
 
   const installBun = async () => {
@@ -58,13 +68,11 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
       setIsInstallingBun(false)
       dispatch(setIsBunInstalled(true))
     } catch (error: any) {
-      window.message.error({
-        content: `${t('settings.mcp.installError')}: ${error.message}`,
-        key: 'mcp-install-error'
-      })
+      window.toast.error(`${t('settings.mcp.installError')}: ${error.message}`)
       setIsInstallingBun(false)
     }
-    setTimeout(checkBinaries, 1000)
+    clearTimeout(checkBinariesTimerRef.current)
+    checkBinariesTimerRef.current = setTimeout(checkBinaries, 1000)
   }
 
   useEffect(() => {

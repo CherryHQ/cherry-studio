@@ -188,6 +188,7 @@
         "label": "思維鏈長度",
         "low": "稍微思考",
         "medium": "正常思考",
+        "minimal": "最少思考",
         "off": "關閉"
       },
       "regular_phrases": {
@@ -240,6 +241,7 @@
       "compressing": "壓縮檔案...",
       "copying_files": "複製檔案... {{progress}}%",
       "preparing": "準備備份...",
+      "preparing_compression": "準備壓縮...",
       "title": "備份進度",
       "writing_data": "寫入資料..."
     },
@@ -322,6 +324,7 @@
       "expand": "展開",
       "file_error": "檔案處理錯誤",
       "file_not_supported": "模型不支援此檔案類型",
+      "file_not_supported_count": "{{count}} 個檔案不被支援",
       "generate_image": "生成圖片",
       "generate_image_not_supported": "模型不支援生成圖片",
       "knowledge_base": "知識庫",
@@ -389,8 +392,10 @@
         "parse_tool_call": "無法轉換為有效的工具呼叫格式：{{toolCall}}"
       },
       "warning": {
+        "gemini_web_search": "Gemini 不支援同時使用原生網路搜尋工具與函數呼叫",
         "multiple_tools": "存在多個匹配的MCP工具，已選擇 {{tool}}",
-        "no_tool": "未匹配到所需的MCP工具 {{tool}}"
+        "no_tool": "未匹配到所需的MCP工具 {{tool}}",
+        "url_context": "Gemini 不支援同時使用網頁內容與函數呼叫"
       }
     },
     "message": {
@@ -405,7 +410,10 @@
       "regenerate": {
         "model": "切換模型"
       },
-      "useful": "有用"
+      "useful": {
+        "label": "設置為上下文",
+        "tip": "在這組訊息中，該訊息將被選擇加入上下文"
+      }
     },
     "multiple": {
       "select": {
@@ -484,7 +492,32 @@
         },
         "title": "儲存到知識庫"
       },
-      "label": "儲存"
+      "label": "保存",
+      "topic": {
+        "knowledge": {
+          "content": {
+            "maintext": {
+              "description": "包含話題標題及所有訊息的主要文字內容"
+            }
+          },
+          "empty": {
+            "no_content": "此話題沒有可保存的內容"
+          },
+          "error": {
+            "save_failed": "保存話題失敗，請檢查知識庫設定"
+          },
+          "loading": "正在分析話題內容...",
+          "select": {
+            "content": {
+              "label": "選擇要保存的內容類型",
+              "selected_tip": "已選擇 {{count}} 項內容，來自 {{messages}} 條訊息",
+              "tip": "話題將以包含完整對話上下文的形式保存到知識庫"
+            }
+          },
+          "success": "話題已成功保存到知識庫（{{count}} 項內容）",
+          "title": "保存話題到知識庫"
+        }
+      }
     },
     "settings": {
       "code": {
@@ -505,6 +538,14 @@
         },
         "tip": "可執行的程式碼塊工具欄中會顯示運行按鈕，注意不要執行危險程式碼！",
         "title": "程式碼執行"
+      },
+      "code_fancy_block": {
+        "label": "花式程式碼區塊",
+        "tip": "使用更美觀的程式碼區塊樣式，例如 HTML 卡片"
+      },
+      "code_image_tools": {
+        "label": "啟用預覽工具",
+        "tip": "為 mermaid 等程式碼區塊渲染後的圖像啟用預覽工具"
       },
       "code_wrappable": "程式碼區塊可自動換行",
       "context_count": {
@@ -554,7 +595,8 @@
       },
       "edit": {
         "placeholder": "輸入新名稱",
-        "title": "編輯名稱"
+        "title": "編輯名稱",
+        "title_tip": "提示：雙擊話題名可以直接就地重新命名"
       },
       "export": {
         "image": "匯出為圖片",
@@ -563,6 +605,7 @@
           "label": "匯出為 Markdown",
           "reason": "匯出為 Markdown (包含思考)"
         },
+        "notes": "導出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "obsidian_atributes": "配置筆記屬性",
@@ -619,6 +662,34 @@
     },
     "translate": "翻譯"
   },
+  "code": {
+    "auto_update_to_latest": "檢查更新並安裝最新版本",
+    "bun_required_message": "運行 CLI 工具需要安裝 Bun 環境",
+    "cli_tool": "CLI 工具",
+    "cli_tool_placeholder": "選擇要使用的 CLI 工具",
+    "description": "快速啟動多個程式碼 CLI 工具，提高開發效率",
+    "env_vars_help": "輸入自定義環境變數（每行一個，格式：KEY=value）",
+    "environment_variables": "環境變數",
+    "folder_placeholder": "選擇工作目錄",
+    "install_bun": "安裝 Bun",
+    "installing_bun": "安裝中...",
+    "launch": {
+      "bun_required": "請先安裝 Bun 環境再啟動 CLI 工具",
+      "error": "啟動失敗，請重試",
+      "label": "啟動",
+      "success": "啟動成功",
+      "validation_error": "請完成所有必填項目：CLI 工具、模型和工作目錄"
+    },
+    "launching": "啟動中...",
+    "model": "模型",
+    "model_placeholder": "選擇要使用的模型",
+    "model_required": "請選擇模型",
+    "select_folder": "選擇資料夾",
+    "supported_providers": "支援的供應商",
+    "title": "程式碼工具",
+    "update_options": "更新選項",
+    "working_directory": "工作目錄"
+  },
   "code_block": {
     "collapse": "折疊",
     "copy": {
@@ -649,15 +720,6 @@
     },
     "expand": "展開",
     "more": "更多",
-    "preview": {
-      "copy": {
-        "image": "複製為圖片"
-      },
-      "label": "預覽",
-      "source": "查看源碼",
-      "zoom_in": "放大",
-      "zoom_out": "縮小"
-    },
     "run": "運行代碼",
     "split": {
       "label": "分割視圖",
@@ -690,6 +752,7 @@
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
     "description": "描述",
+    "detail": "詳情",
     "disabled": "已停用",
     "docs": "文件",
     "download": "下載",
@@ -698,9 +761,13 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "expand": "展開",
+    "file": {
+      "not_supported": "不支持的文件類型 {{type}}"
+    },
     "footnote": "引用內容",
     "footnotes": "引用",
     "fullscreen": "已進入全螢幕模式，按 F11 結束",
+    "go_to_settings": "前往設定",
     "i_know": "我知道了",
     "inspect": "檢查",
     "knowledge_base": "知識庫",
@@ -711,6 +778,7 @@
     "more": "更多",
     "name": "名稱",
     "no_results": "沒有結果",
+    "none": "無",
     "open": "開啟",
     "paste": "貼上",
     "preview": "預覽",
@@ -735,9 +803,11 @@
         "label": "按拼音排序"
       }
     },
+    "stop": "停止",
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "upload_files": "上傳檔案",
     "warning": "警告",
     "you": "您"
   },
@@ -753,12 +823,39 @@
     "openai-response": "OpenAI-Response"
   },
   "error": {
+    "availableProviders": "可用提供商",
+    "availableTools": "可用工具",
     "backup": {
       "file_format": "備份檔案格式錯誤"
     },
+    "boundary": {
+      "default": {
+        "devtools": "打開除錯面板",
+        "message": "似乎出現了一些問題...",
+        "reload": "重新載入"
+      },
+      "details": "詳細信息",
+      "mcp": {
+        "invalid": "無效的MCP伺服器"
+      }
+    },
+    "cause": "錯誤原因",
     "chat": {
+      "chunk": {
+        "non_json": "返回了無效的資料格式"
+      },
+      "insufficient_balance": "請前往 <provider>{{provider}}</provider> 充值",
+      "no_api_key": "您未配置 API 密钥，请前往 <provider>{{provider}}</provider> 获取API密钥",
+      "quota_exceeded": "您今日{{quota}}免费配额已用尽，请前往 <provider>{{provider}}</provider> 获取API密钥，配置API密钥后继续使用",
       "response": "出現錯誤。如果尚未設定 API 金鑰，請前往設定 > 模型提供者中設定金鑰"
     },
+    "content": "內容",
+    "data": "数据",
+    "detail": "錯誤詳情",
+    "details": "詳細信息",
+    "errors": "錯誤",
+    "finishReason": "結束原因",
+    "functionality": "功能",
     "http": {
       "400": "請求錯誤，請檢查請求參數是否正確。如果修改了模型設定，請重設到預設設定",
       "401": "身份驗證失敗，請檢查 API 金鑰是否正確",
@@ -770,19 +867,51 @@
       "503": "服務無法使用，請稍後再試",
       "504": "閘道器超時，請稍後再試"
     },
+    "lastError": "最後錯誤",
+    "maxEmbeddingsPerCall": "每次調用的最大嵌入",
+    "message": "錯誤訊息",
     "missing_user_message": "無法切換模型回應：原始用戶訊息已被刪除。請發送新訊息以獲得此模型回應。",
     "model": {
-      "exists": "模型已存在"
+      "exists": "模型已存在",
+      "not_exists": "模型不存在"
     },
+    "modelId": "模型 ID",
+    "modelType": "模型類型",
+    "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
+    "originalError": "原錯誤",
+    "originalMessage": "原消息",
+    "parameter": "參數",
     "pause_placeholder": "回應已暫停",
+    "prompt": "提示詞",
+    "provider": "提供商",
+    "providerId": "提供者 ID",
     "provider_disabled": "模型供應商未啟用",
+    "reason": "原因",
     "render": {
       "description": "消息內容渲染失敗，請檢查消息內容格式是否正確",
       "title": "渲染錯誤"
     },
+    "requestBody": "請求內容",
+    "requestBodyValues": "请求体",
+    "requestUrl": "請求路徑",
+    "response": "響應",
+    "responseBody": "响应内容",
+    "responseHeaders": "响应首部",
+    "responses": "響應",
+    "role": "角色",
+    "stack": "堆棧信息",
+    "status": "狀態碼",
+    "statusCode": "狀態碼",
+    "statusText": "狀態文本",
+    "text": "文本",
+    "toolInput": "工具輸入",
+    "toolName": "工具名",
     "unknown": "未知錯誤",
-    "user_message_not_found": "無法找到原始用戶訊息"
+    "usage": "用量",
+    "user_message_not_found": "無法找到原始用戶訊息",
+    "value": "值",
+    "values": "值"
   },
   "export": {
     "assistant": "助手",
@@ -792,11 +921,16 @@
     "created": "建立時間",
     "last_updated": "最後更新",
     "messages": "訊息數",
+    "notion": {
+      "reasoning_truncated": "思維鏈無法分塊，已截斷"
+    },
     "user": "使用者"
   },
   "files": {
     "actions": "操作",
     "all": "所有檔案",
+    "batch_delete": "批次刪除",
+    "batch_operation": "全選",
     "count": "個檔案",
     "created_at": "建立時間",
     "delete": {
@@ -814,6 +948,9 @@
     "image": "圖片",
     "name": "名稱",
     "open": "開啟",
+    "preview": {
+      "error": "開啟檔案失敗"
+    },
     "size": "大小",
     "text": "文字",
     "title": "檔案",
@@ -829,6 +966,9 @@
   },
   "history": {
     "continue_chat": "繼續聊天",
+    "error": {
+      "topic_not_found": "話題不存在"
+    },
     "locate": {
       "message": "定位到訊息"
     },
@@ -842,6 +982,11 @@
     "title": "搜尋話題"
   },
   "html_artifacts": {
+    "capture": {
+      "label": "捕獲頁面",
+      "to_clipboard": "複製到剪貼簿",
+      "to_file": "保存為圖片"
+    },
     "code": "程式碼",
     "empty_preview": "無內容可展示",
     "generating": "生成中",
@@ -854,9 +999,11 @@
     },
     "add_directory": "新增目錄",
     "add_file": "新增檔案",
+    "add_image": "新增圖片",
     "add_note": "新增筆記",
     "add_sitemap": "網站地圖",
     "add_url": "新增網址",
+    "add_video": "新增影片",
     "cancel_index": "取消索引",
     "chunk_overlap": "重疊大小",
     "chunk_overlap_placeholder": "預設值（不建議修改）",
@@ -883,6 +1030,7 @@
     "document_count_default": "預設",
     "document_count_help": "請求文件片段數量越多，附帶的資訊越多，但需要消耗的 Token 也越多",
     "drag_file": "拖拽檔案到這裡",
+    "drag_image": "拖曳圖片到這裡",
     "edit_remark": "修改備註",
     "edit_remark_placeholder": "請輸入備註內容",
     "embedding_model": "嵌入模型",
@@ -891,9 +1039,15 @@
     "error": {
       "failed_to_create": "知識庫創建失敗",
       "failed_to_edit": "知識庫編輯失敗",
-      "model_invalid": "未選擇模型"
+      "model_invalid": "未選擇模型",
+      "video": {
+        "local_file_missing": "影片檔案不存在",
+        "youtube_url_missing": "YouTube 影片連結不存在"
+      }
     },
     "file_hint": "支援 {{file_types}} 格式",
+    "image_hint": "支援 {{image_types}} 格式",
+    "images": "圖片",
     "index_all": "索引全部",
     "index_cancelled": "索引已取消",
     "index_started": "索引開始",
@@ -909,6 +1063,10 @@
       },
       "error": {
         "failed": "遷移失敗"
+      },
+      "migrate_to_langchain": {
+        "content": "知識庫遷移不會刪除舊知識庫，而是建立一個副本後重新處理所有知識庫條目，可能消耗大量 tokens，請謹慎操作。",
+        "info": "知識庫架構已更新，點擊遷移到新架構"
       },
       "source_dimensions": "源維度",
       "source_model": "源模型",
@@ -928,6 +1086,20 @@
     "quota": "{{name}} 剩餘配額：{{quota}}",
     "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
+    "retriever": "搜尋模式",
+    "retriever_bm25": "全文搜尋",
+    "retriever_bm25_desc": "根據關鍵字的相關性和頻率查找文件。",
+    "retriever_hybrid": "混合搜尋（推薦）",
+    "retriever_hybrid_desc": "結合關鍵字搜索和語義搜索，以實現最佳檢索準確性。",
+    "retriever_hybrid_weight": {
+      "bm25": "全文",
+      "recommended": "推薦",
+      "title": "混合搜尋權重調整 (全文/向量)",
+      "vector": "向量"
+    },
+    "retriever_tooltip": "使用不同的檢索方式檢索知識庫",
+    "retriever_vector": "向量搜尋",
+    "retriever_vector_desc": "根據語意相似性和含義查找文件。",
     "search": "搜尋知識庫",
     "search_placeholder": "輸入查詢內容",
     "settings": {
@@ -949,6 +1121,7 @@
     "status_preprocess_completed": "預處理完成",
     "status_preprocess_failed": "預處理失敗",
     "status_processing": "處理中",
+    "subtitle_file": "字幕檔案",
     "threshold": "匹配度閾值",
     "threshold_placeholder": "未設定",
     "threshold_too_large_or_small": "閾值不能大於 1 或小於 0",
@@ -960,7 +1133,9 @@
     "topN_tooltip": "返回的匹配結果數量，數值越大，匹配結果越多，但消耗的 Token 也越多",
     "url_added": "網址已新增",
     "url_placeholder": "請輸入網址，多個網址用換行符號分隔",
-    "urls": "網址"
+    "urls": "網址",
+    "videos": "影片",
+    "videos_file": "影片檔案"
   },
   "languages": {
     "arabic": "阿拉伯文",
@@ -1160,6 +1335,9 @@
       "failed": "刪除失敗",
       "success": "刪除成功"
     },
+    "dialog": {
+      "failed": "預覽失敗"
+    },
     "download": {
       "failed": "下載失敗",
       "success": "下載成功"
@@ -1204,9 +1382,13 @@
           "specified": "導出 Markdown 文件失敗"
         }
       },
+      "notes": {
+        "export": "導出筆記失敗"
+      },
       "notion": {
         "export": "匯出 Notion 錯誤，請檢查連接狀態並對照文件檢查設定",
-        "no_api_key": "未設定 Notion API Key 或 Notion Database ID"
+        "no_api_key": "未設定 Notion API Key 或 Notion Database ID",
+        "no_content": "沒有可匯出至 Notion 的內容"
       },
       "siyuan": {
         "export": "導出思源筆記失敗，請檢查連接狀態並對照文檔檢查配置",
@@ -1222,7 +1404,8 @@
       "delete": {
         "content": "刪除分組訊息會刪除使用者提問和所有助手的回答",
         "title": "刪除分組訊息"
-      }
+      },
+      "retry_failed": "重試出錯的訊息"
     },
     "ignore": {
       "knowledge": {
@@ -1259,6 +1442,13 @@
         "bubble": "氣泡",
         "label": "訊息樣式",
         "plain": "簡潔"
+      },
+      "video": {
+        "error": {
+          "local_file_missing": "本地視頻檔案路徑不存在",
+          "unsupported_type": "不支援的視頻類型",
+          "youtube_url_missing": "YouTube 視頻連結不存在"
+        }
       }
     },
     "processing": "正在處理...",
@@ -1296,6 +1486,9 @@
           "specified": "成功導出 Markdown 文件"
         }
       },
+      "notes": {
+        "export": "成功導出到筆記"
+      },
       "notion": {
         "export": "成功匯出到 Notion"
       },
@@ -1332,14 +1525,8 @@
       }
     },
     "warn": {
-      "notion": {
-        "exporting": "正在匯出到 Notion，請勿重複請求匯出！"
-      },
-      "siyuan": {
-        "exporting": "正在導出到思源筆記，請勿重複請求導出！"
-      },
-      "yuque": {
-        "exporting": "正在導出語雀，請勿重複請求導出！"
+      "export": {
+        "exporting": "正在進行其他匯出，請等待上一次匯出完成後再試"
       }
     },
     "warning": {
@@ -1349,7 +1536,7 @@
     },
     "websearch": {
       "cutoff": "正在截斷搜尋內容...",
-      "fetch_complete": "已完成 {{count}} 次搜尋...",
+      "fetch_complete": "{{count}} 個搜尋結果",
       "rag": "正在執行 RAG...",
       "rag_complete": "保留 {{countBefore}} 個結果中的 {{countAfter}} 個...",
       "rag_failed": "RAG 失敗，返回空結果..."
@@ -1387,6 +1574,27 @@
       }
     },
     "title": "小工具"
+  },
+  "minapps": {
+    "baichuan": "百小應",
+    "baidu-ai-search": "百度AI搜索",
+    "chatglm": "智譜清言",
+    "dangbei": "當貝AI",
+    "doubao": "豆包",
+    "hailuo": "海螺",
+    "metaso": "秘塔AI搜索",
+    "nami-ai": "納米AI",
+    "nami-ai-search": "納米AI搜索",
+    "qwen": "通義千問",
+    "sensechat": "商量",
+    "tencent-yuanbao": "騰訊元寶",
+    "tiangong-ai": "天工AI",
+    "wanzhi": "萬知",
+    "wenxin": "文心一言",
+    "wps-copilot": "WPS靈犀",
+    "xiaoyi": "小藝",
+    "yuewen": "躍問",
+    "zhihu": "知乎直答"
   },
   "miniwindow": {
     "alert": {
@@ -1430,7 +1638,12 @@
     "embedding_model": "嵌入模型",
     "embedding_model_tooltip": "在設定 -> 模型服務中點選管理按鈕新增",
     "enable_tool_use": "工具調用",
+    "filter": {
+      "by_tag": "按標籤篩選",
+      "selected": "已選標籤"
+    },
     "function_calling": "函數調用",
+    "invalid_model": "無效模型",
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
     "parameter_type": {
@@ -1456,7 +1669,10 @@
     "rerank_model_not_support_provider": "目前，重新排序模型不支援此提供者（{{provider}}）",
     "rerank_model_support_provider": "目前重排序模型僅支持部分服務商 ({{provider}})",
     "rerank_model_tooltip": "在設定 -> 模型服務中點擊管理按鈕添加",
-    "search": "搜尋模型...",
+    "search": {
+      "placeholder": "搜尋模型...",
+      "tooltip": "搜尋模型"
+    },
     "stream_output": "串流輸出",
     "type": {
       "embedding": "嵌入",
@@ -1473,7 +1689,109 @@
   "navbar": {
     "expand": "伸縮對話框",
     "hide_sidebar": "隱藏側邊欄",
-    "show_sidebar": "顯示側邊欄"
+    "show_sidebar": "顯示側邊欄",
+    "window": {
+      "close": "關閉",
+      "maximize": "最大化",
+      "minimize": "最小化",
+      "restore": "還原"
+    }
+  },
+  "navigate": {
+    "provider_settings": "跳轉到服務商設置界面"
+  },
+  "notes": {
+    "characters": "字符",
+    "collapse": "收起",
+    "content_placeholder": "請輸入筆記內容...",
+    "copyContent": "複製內容",
+    "delete": "删除",
+    "delete_confirm": "確定要刪除此 {{type}} 嗎？",
+    "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
+    "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
+    "drop_markdown_hint": "拖拽 Markdown 文件到此處導入",
+    "empty": "暫無筆記",
+    "expand": "展開",
+    "export_failed": "匯出至知識庫失敗",
+    "export_knowledge": "匯出筆記至知識庫",
+    "export_success": "成功匯出至知識庫",
+    "folder": "文件夹",
+    "new_folder": "新建文件夾",
+    "new_note": "新建筆記",
+    "no_content_to_copy": "沒有內容可複制",
+    "no_file_selected": "請選擇要上傳的文件",
+    "only_markdown": "僅支援 Markdown 格式",
+    "only_one_file_allowed": "只能上傳一個文件",
+    "open_folder": "打開外部文件夾",
+    "open_outside": "從外部打開",
+    "rename": "重命名",
+    "rename_changed": "由於安全策略，文件名已從 {{original}} 更改為 {{final}}",
+    "save": "儲存到筆記",
+    "settings": {
+      "data": {
+        "apply": "應用",
+        "apply_path_failed": "應用路徑失敗",
+        "current_work_directory": "當前工作目錄",
+        "invalid_directory": "選擇的目錄無效或無權限",
+        "path_required": "請選擇工作目錄",
+        "path_updated": "工作目錄更新成功",
+        "reset_failed": "重置失敗",
+        "reset_to_default": "重置為默認",
+        "select": "選擇",
+        "select_directory_failed": "選擇目錄失敗",
+        "title": "數據設置",
+        "work_directory_description": "工作目錄是存儲所有筆記文件的位置。\n更改工作目錄不會移動現有文件，請手動遷移文件。",
+        "work_directory_placeholder": "選擇筆記工作目錄"
+      },
+      "display": {
+        "compress_content": "縮減欄寬",
+        "compress_content_description": "開啟後將限制每行字數，使屏幕顯示的內容減少",
+        "default_font": "默認字體",
+        "font_size": "字體大小",
+        "font_size_description": "調整字體大小以獲得更好的閱讀體驗 (10-30px)",
+        "font_size_large": "大",
+        "font_size_medium": "中",
+        "font_size_small": "小",
+        "font_title": "字體設置",
+        "serif_font": "襯線字體",
+        "show_table_of_contents": "顯示目錄大綱",
+        "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便文檔內導航",
+        "title": "顯示"
+      },
+      "editor": {
+        "edit_mode": {
+          "description": "在編輯視圖下，新筆記默認採用的編輯模式",
+          "preview_mode": "實時預覽",
+          "source_mode": "源碼模式",
+          "title": "默認編輯視圖"
+        },
+        "title": "編輯器設置",
+        "view_mode": {
+          "description": "新筆記默認的視圖模式",
+          "edit_mode": "編輯模式",
+          "read_mode": "閱讀模式",
+          "title": "默認視圖"
+        },
+        "view_mode_description": "設置新標籤頁的默認視圖模式。"
+      },
+      "title": "更多選項"
+    },
+    "show_starred": "顯示收藏的筆記",
+    "sort_a2z": "文件名（A-Z）",
+    "sort_created_asc": "建立時間（從舊到新）",
+    "sort_created_desc": "建立時間（從新到舊）",
+    "sort_updated_asc": "更新時間（從舊到新）",
+    "sort_updated_desc": "更新時間（從新到舊）",
+    "sort_z2a": "文件名（Z-A）",
+    "star": "收藏",
+    "starred_notes": "收藏的筆記",
+    "title": "筆記",
+    "unsaved_changes": "你有未儲存的內容，確定要離開嗎？",
+    "unstar": "取消收藏",
+    "untitled_folder": "新資料夾",
+    "untitled_note": "無標題筆記",
+    "upload_failed": "筆記上傳失敗",
+    "upload_success": "筆記上傳成功"
   },
   "notification": {
     "assistant": "助手回應",
@@ -1482,6 +1800,29 @@
       "success": "成功將 {{type}} 新增至知識庫"
     },
     "tip": "如果回應成功，則只針對超過30秒的訊息發出提醒"
+  },
+  "ocr": {
+    "builtin": {
+      "system": "系统 OCR"
+    },
+    "error": {
+      "provider": {
+        "cannot_remove_builtin": "不能刪除內建提供者",
+        "existing": "提供商已存在",
+        "not_found": "OCR 提供商不存在",
+        "update_failed": "更新配置失敗"
+      },
+      "unknown": "OCR過程發生錯誤"
+    },
+    "file": {
+      "not_supported": "不支持的文件類型 {{type}}"
+    },
+    "processing": "OCR 處理中...",
+    "warning": {
+      "provider": {
+        "fallback": "已回退到 {{name}}，這可能導致問題"
+      }
+    }
   },
   "ollama": {
     "keep_alive_time": {
@@ -1528,6 +1869,7 @@
       "style_type_tip": "編輯後的圖像風格，僅適用於 V_2 及以上版本"
     },
     "generate": {
+      "height": "高度",
       "magic_prompt_option_tip": "智能優化生成效果的提示詞",
       "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
       "negative_prompt_tip": "描述不想在圖像中出現的內容",
@@ -1535,8 +1877,11 @@
       "person_generation": "人物生成",
       "person_generation_tip": "允許模型生成人物圖像",
       "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
+      "safety_tolerance": "安全耐性",
+      "safety_tolerance_tip": "控制圖像生成的安全耐性，僅適用於 FLUX.1-Kontext-pro 版本",
       "seed_tip": "控制圖像生成的隨機性，以重現相同的生成結果",
-      "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本"
+      "style_type_tip": "圖像生成風格，僅適用於 V_2 及以上版本",
+      "width": "寬度"
     },
     "generated_image": "生成圖片",
     "go_to_settings": "去設置",
@@ -1591,7 +1936,7 @@
     "prompt_enhancement_tip": "開啟後將提示重寫為詳細的、適合模型的版本",
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文本繪製用 ' 雙引號 ' 包裹",
-    "prompt_placeholder_en": "輸入英文圖片描述，目前 Imagen 僅支持英文提示詞",
+    "prompt_placeholder_en": "輸入英文圖片描述，目前僅支持英文提示詞",
     "proxy_required": "打開代理並開啟”TUN 模式 “查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -1655,6 +2000,22 @@
       "seed_tip": "控制放大結果的隨機性"
     }
   },
+  "preview": {
+    "copy": {
+      "image": "複製為圖片"
+    },
+    "dialog": "開啟預覽窗口",
+    "label": "預覽",
+    "pan": "移動",
+    "pan_down": "下移",
+    "pan_left": "左移",
+    "pan_right": "右移",
+    "pan_up": "上移",
+    "reset": "重置",
+    "source": "查看源碼",
+    "zoom_in": "放大",
+    "zoom_out": "縮小"
+  },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",
     "summarize": "幫我總結一下這段話",
@@ -1671,6 +2032,7 @@
     "baidu-cloud": "百度雲千帆",
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
+    "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "阿里雲百鍊",
     "deepseek": "深度求索",
@@ -1702,6 +2064,7 @@
     "openrouter": "OpenRouter",
     "perplexity": "Perplexity",
     "ph8": "PH8 大模型開放平台",
+    "poe": "Poe",
     "ppio": "PPIO 派歐雲",
     "qiniu": "七牛雲 AI 推理",
     "qwenlm": "QwenLM",
@@ -1715,7 +2078,7 @@
     "xirang": "天翼雲息壤",
     "yi": "零一萬物",
     "zhinao": "360 智腦",
-    "zhipu": "智譜 AI"
+    "zhipu": "智譜開放平台"
   },
   "restore": {
     "confirm": {
@@ -1733,6 +2096,221 @@
       "title": "復原進度"
     },
     "title": "資料復原"
+  },
+  "richEditor": {
+    "action": {
+      "table": {
+        "deleteColumn": "刪除列",
+        "deleteRow": "刪除行",
+        "insertColumnAfter": "在右側插入",
+        "insertColumnBefore": "在左側插入",
+        "insertRowAfter": "在下方插入",
+        "insertRowBefore": "在上方插入"
+      }
+    },
+    "commands": {
+      "blockMath": {
+        "description": "插入數學公式",
+        "title": "數學公式"
+      },
+      "blockquote": {
+        "description": "插入引用文字",
+        "title": "引用"
+      },
+      "bold": {
+        "description": "標記為粗體",
+        "title": "粗體"
+      },
+      "bulletList": {
+        "description": "建立簡單的項目符號清單",
+        "title": "無序清單"
+      },
+      "calloutInfo": {
+        "description": "添加資訊提示框",
+        "title": "資訊提示框"
+      },
+      "calloutWarning": {
+        "description": "添加警告提示框",
+        "title": "警告提示框"
+      },
+      "code": {
+        "description": "插入代碼片段",
+        "title": "代碼"
+      },
+      "codeBlock": {
+        "description": "插入程式碼片段",
+        "title": "程式碼區塊"
+      },
+      "columns": {
+        "description": "建立分欄版面",
+        "title": "分欄"
+      },
+      "date": {
+        "description": "插入當前日期",
+        "title": "日期"
+      },
+      "divider": {
+        "description": "添加水平分隔線",
+        "title": "分隔線"
+      },
+      "hardBreak": {
+        "description": "插入換行符",
+        "title": "換行符"
+      },
+      "heading1": {
+        "description": "大段落標題",
+        "title": "一級標題"
+      },
+      "heading2": {
+        "description": "中段落標題",
+        "title": "二級標題"
+      },
+      "heading3": {
+        "description": "小段落標題",
+        "title": "三級標題"
+      },
+      "heading4": {
+        "description": "較小的段落標題",
+        "title": "四級標題"
+      },
+      "heading5": {
+        "description": "更小的段落標題",
+        "title": "五級標題"
+      },
+      "heading6": {
+        "description": "最小的段落標題",
+        "title": "六級標題"
+      },
+      "image": {
+        "description": "插入圖片",
+        "title": "圖片"
+      },
+      "inlineCode": {
+        "description": "添加行內程式碼",
+        "title": "行內程式碼"
+      },
+      "inlineMath": {
+        "description": "插入行內數學公式",
+        "title": "行內數學公式"
+      },
+      "italic": {
+        "description": "標記為斜體",
+        "title": "斜體"
+      },
+      "link": {
+        "description": "添加連結",
+        "title": "連結"
+      },
+      "noCommandsFound": "未找到命令",
+      "orderedList": {
+        "description": "建立帶編號的清單",
+        "title": "有序清單"
+      },
+      "paragraph": {
+        "description": "開始編寫普通文字",
+        "title": "內文"
+      },
+      "redo": {
+        "description": "重做上一步操作",
+        "title": "重做"
+      },
+      "strike": {
+        "description": "標記為刪除線",
+        "title": "刪除線"
+      },
+      "table": {
+        "description": "插入表格",
+        "title": "表格"
+      },
+      "taskList": {
+        "description": "建立待辦事項清單",
+        "title": "任務清單"
+      },
+      "underline": {
+        "description": "標記為下劃線",
+        "title": "下劃線"
+      },
+      "undo": {
+        "description": "撤銷上一步操作",
+        "title": "撤銷"
+      }
+    },
+    "dragHandle": "拖拽塊",
+    "frontMatter": {
+      "addProperty": "新增屬性",
+      "addTag": "新增標籤",
+      "changeToBoolean": "核取方塊",
+      "changeToDate": "日期",
+      "changeToNumber": "數字",
+      "changeToTags": "標籤",
+      "changeToText": "文字",
+      "changeType": "更改類型",
+      "deleteProperty": "刪除屬性",
+      "editValue": "編輯值",
+      "empty": "空",
+      "moreActions": "更多操作",
+      "propertyName": "屬性名稱"
+    },
+    "image": {
+      "placeholder": "添加圖片"
+    },
+    "imageUploader": {
+      "embedImage": "嵌入圖片",
+      "embedLink": "嵌入連結",
+      "embedSuccess": "圖片嵌入成功",
+      "invalidType": "請選擇圖片檔案",
+      "invalidUrl": "無效的圖片連結",
+      "processing": "正在處理圖片...",
+      "title": "添加圖片",
+      "tooLarge": "圖片大小不能超過 10MB",
+      "upload": "上傳",
+      "uploadError": "圖片上傳失敗",
+      "uploadFile": "上傳檔案",
+      "uploadHint": "支援 JPG、PNG、GIF 等格式，最大 10MB",
+      "uploadSuccess": "圖片上傳成功",
+      "uploadText": "點擊或拖拽圖片到此處上傳",
+      "uploading": "正在上傳圖片",
+      "urlPlaceholder": "貼上圖片連結地址",
+      "urlRequired": "請輸入圖片連結地址"
+    },
+    "link": {
+      "remove": "移除鏈接",
+      "text": "鏈接標題",
+      "textPlaceholder": "請輸入鏈接標題",
+      "url": "鏈接地址"
+    },
+    "math": {
+      "placeholder": "輸入 LaTeX 公式"
+    },
+    "placeholder": "輸入'/'調用命令",
+    "plusButton": "點擊在下方添加",
+    "toolbar": {
+      "blockMath": "數學公式塊",
+      "blockquote": "引用",
+      "bold": "粗體",
+      "bulletList": "無序清單",
+      "clearMarks": "清除格式",
+      "code": "行內程式碼",
+      "codeBlock": "程式碼區塊",
+      "heading1": "一級標題",
+      "heading2": "二級標題",
+      "heading3": "三級標題",
+      "heading4": "四級標題",
+      "heading5": "五級標題",
+      "heading6": "六級標題",
+      "image": "圖片",
+      "inlineMath": "行內數學公式",
+      "italic": "斜體",
+      "link": "連結",
+      "orderedList": "有序清單",
+      "paragraph": "內文",
+      "redo": "重做",
+      "strike": "刪除線",
+      "table": "表格",
+      "taskList": "任務清單",
+      "underline": "底線",
+      "undo": "復原"
+    }
   },
   "selection": {
     "action": {
@@ -2045,6 +2623,7 @@
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",
         "markdown_reason": "匯出為 Markdown（包含思考）",
+        "notes": "導出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "plain_text": "複製為純文本",
@@ -2185,8 +2764,8 @@
       },
       "message_title": {
         "use_topic_naming": {
-          "help": "此設定會影響所有通過 Markdown 導出的方式，如 Notion、語雀等",
-          "title": "使用話題命名模型為導出的消息創建標題"
+          "help": "開啟後，使用快速模型為導出的消息命名標題。該項也會影響所有透過 Markdown 導出的方式",
+          "title": "使用快速模型為導出的消息命名標題"
         }
       },
       "minute_interval_one": "{{count}} 分鐘",
@@ -2215,7 +2794,13 @@
       },
       "nutstore": {
         "backup": {
-          "button": "備份到堅果雲"
+          "button": "備份到堅果雲",
+          "modal": {
+            "filename": {
+              "placeholder": "請輸入備份檔案名"
+            },
+            "title": "備份到堅果雲"
+          }
         },
         "checkConnection": {
           "fail": "堅果雲連接失敗",
@@ -2249,7 +2834,11 @@
           "title": "堅果雲存儲路徑"
         },
         "restore": {
-          "button": "從堅果雲恢復"
+          "button": "從堅果雲恢復",
+          "confirm": {
+            "content": "從堅果雲恢復將覆蓋目前資料，是否繼續？",
+            "title": "從堅果雲恢復"
+          }
         },
         "title": "堅果雲設定",
         "username": "堅果雲用戶名"
@@ -2514,6 +3103,7 @@
     },
     "developer": {
       "enable_developer_mode": "啟用開發者模式",
+      "help": "啟用開發者模式後，將可以使用調用鏈功能查看模型調用過程的數據流。",
       "title": "開發者模式"
     },
     "display": {
@@ -2575,6 +3165,7 @@
         "title": "自動更新"
       },
       "avatar": {
+        "builtin": "內置頭像",
         "reset": "重設頭像"
       },
       "backup": {
@@ -2624,6 +3215,11 @@
     },
     "input": {
       "auto_translate_with_space": "快速敲擊 3 次空格翻譯",
+      "clear": {
+        "all": "清除",
+        "knowledge_base": "清除選中的知識庫",
+        "models": "清除@的所有模型"
+      },
       "show_translate_confirm": "顯示翻譯確認對話框",
       "target_language": {
         "chinese": "簡體中文",
@@ -2638,6 +3234,17 @@
       "onboot": "開機自動啟動",
       "title": "啟動",
       "totray": "啟動時最小化到系统匣"
+    },
+    "math": {
+      "engine": {
+        "label": "數學公式引擎",
+        "none": "無"
+      },
+      "single_dollar": {
+        "label": "啟用 $...$",
+        "tip": "渲染單個美元符號 $...$ 包裹的數學公式，默認啟用。"
+      },
+      "title": "數學公式設定"
     },
     "mcp": {
       "actions": "操作",
@@ -2732,7 +3339,8 @@
         "modelscope": "魔搭社區 MCP 伺服器",
         "official": "官方 MCP 伺服器集合",
         "pulsemcp": "Pulse MCP 伺服器",
-        "smithery": "Smithery MCP 工具"
+        "smithery": "Smithery MCP 工具",
+        "zhipu": "精選MCP，極速接入"
       },
       "name": "名稱",
       "newServer": "MCP 伺服器",
@@ -2778,6 +3386,10 @@
         "text": "文字",
         "uri": "URI"
       },
+      "search": {
+        "placeholder": "搜索 MCP 伺服器...",
+        "tooltip": "搜索 MCP 伺服器"
+      },
       "searchNpx": "搜索 MCP",
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
@@ -2813,7 +3425,7 @@
       "tagsPlaceholder": "輸入標籤",
       "timeout": "超時",
       "timeoutTooltip": "對該伺服器請求的超時時間（秒），預設為 60 秒",
-      "title": "MCP 設定",
+      "title": "MCP",
       "tools": {
         "autoApprove": {
           "label": "自動批准",
@@ -2860,7 +3472,8 @@
         "label": "網格詳細資訊觸發"
       },
       "input": {
-        "enable_delete_model": "啟用刪除鍵刪除模型 / 附件",
+        "confirm_delete_message": "刪除訊息前確認",
+        "confirm_regenerate_message": "重新生成訊息前確認",
         "enable_quick_triggers": "啟用 / 和 @ 觸發快捷選單",
         "paste_long_text_as_file": "將長文字貼上為檔案",
         "paste_long_text_threshold": "長文字長度",
@@ -2869,10 +3482,6 @@
         "title": "輸入設定"
       },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
-      "math_engine": {
-        "label": "數學公式引擎",
-        "none": "無"
-      },
       "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
       "model": {
         "title": "模型設定"
@@ -2884,6 +3493,7 @@
         "none": "不顯示"
       },
       "prompt": "提示詞顯示",
+      "show_message_outline": "顯示消息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
     },
@@ -3001,7 +3611,6 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
-      "enable_topic_naming": "話題自動重新命名",
       "manage": {
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
@@ -3018,19 +3627,26 @@
       "provider_key_add_failed_by_empty_data": "添加提供者 API 密鑰失敗，數據為空",
       "provider_key_add_failed_by_invalid_data": "添加提供者 API 密鑰失敗，數據格式錯誤",
       "provider_key_added": "成功為 {{provider}} 添加 API 密鑰",
-      "provider_key_already_exists": "{{provider}} 已存在相同API 密鑰, 不會重複添加",
+      "provider_key_already_exists": "{{provider}} 已存在相同API 密鑰，不會重複添加",
       "provider_key_confirm_title": "為{{provider}}添加 API 密鑰",
       "provider_key_no_change": "{{provider}} 的 API 密鑰沒有變化",
       "provider_key_overridden": "成功更新 {{provider}} 的 API 密鑰",
-      "provider_key_override_confirm": "{{provider}} 已存在相同 API 金鑰, 是否覆蓋？",
+      "provider_key_override_confirm": "{{provider}} 已存在相同 API 金鑰，是否覆蓋？",
       "provider_name": "提供者名稱",
       "quick_assistant_default_tag": "預設",
       "quick_assistant_model": "快捷助手模型",
       "quick_assistant_selection": "選擇助手",
-      "topic_naming_model": "話題命名模型",
-      "topic_naming_model_description": "自動命名新話題時使用的模型",
-      "topic_naming_model_setting_title": "話題命名模型設定",
-      "topic_naming_prompt": "話題命名提示詞",
+      "quick_model": {
+        "description": "用於執行話題命名、搜尋關鍵字提煉等簡單任務的模型",
+        "label": "快速模型",
+        "setting_title": "快速模型設定",
+        "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
+      },
+      "topic_naming": {
+        "auto": "話題自動重新命名",
+        "label": "話題命名",
+        "prompt": "話題命名提示詞"
+      },
       "translate_model": "翻譯模型",
       "translate_model_description": "翻譯服務使用的模型",
       "translate_model_prompt_message": "請輸入翻譯模型提示詞",
@@ -3058,6 +3674,9 @@
         "auto": "自動",
         "default": "預設",
         "flex": "彈性",
+        "on_demand": "按需",
+        "performance": "效能",
+        "priority": "優先",
         "tip": "指定用於處理請求的延遲層級",
         "title": "服務層級"
       },
@@ -3069,7 +3688,14 @@
         "tip": "模型所執行的推理摘要",
         "title": "摘要模式"
       },
-      "title": "OpenAI 設定"
+      "title": "OpenAI 設定",
+      "verbosity": {
+        "high": "高",
+        "low": "低",
+        "medium": "中",
+        "tip": "控制模型輸出的詳細程度",
+        "title": "詳細程度"
+      }
     },
     "privacy": {
       "enable_privacy_mode": "匿名發送錯誤報告和資料統計",
@@ -3083,6 +3709,27 @@
         },
         "title": "新增提供者",
         "type": "供應商類型"
+      },
+      "anthropic": {
+        "apikey": "API 密鑰",
+        "auth_failed": "Anthropic 身份驗證失敗",
+        "auth_method": "认证方式",
+        "auth_success": "Anthropic OAuth 認證成功",
+        "authenticated": "已認證",
+        "authenticating": "正在認證",
+        "cancel": "取消",
+        "code_error": "無效的授權碼，請重試",
+        "code_placeholder": "請輸入瀏覽器中顯示的授權碼",
+        "code_required": "授權碼不能為空",
+        "description": "OAuth 身份認證",
+        "description_detail": "您需要訂閱 Claude Pro 或更高版本才能使用此認證方式",
+        "enter_auth_code": "授權碼",
+        "logout": "登出",
+        "logout_failed": "登出失敗，請重試",
+        "logout_success": "成功登出 Anthropic",
+        "oauth": "網頁 OAuth",
+        "start_auth": "開始授權",
+        "submit_code": "完成登錄"
       },
       "api": {
         "key": {
@@ -3110,7 +3757,15 @@
             "help": "該提供商是否支援 role: \"developer\" 的訊息",
             "label": "支援開發人員訊息"
           },
+          "enable_thinking": {
+            "help": "該提供商是否支援透過 enable_thinking 參數控制 Qwen3 等模型的思考",
+            "label": "支援 enable_thinking"
+          },
           "label": "API 設定",
+          "service_tier": {
+            "help": "該提供商是否支援設定 service_tier 參數。啟用後，可在對話頁面的服務層級設定中調整此參數。（僅限 OpenAI 模型）",
+            "label": "支援 service_tier"
+          },
           "stream_options": {
             "help": "該提供商是否支援 stream_options 參數",
             "label": "支援 stream_options"
@@ -3147,7 +3802,7 @@
         "label": "HTTP 認證",
         "password": {
           "label": "密碼",
-          "tip": ""
+          "tip": "輸入密碼"
         },
         "tip": "適用於透過伺服器部署的實例（請參閱文檔）。目前僅支援 Basic 方案（RFC7617）",
         "user_name": {
@@ -3298,12 +3953,14 @@
       "clear_shortcut": "清除快捷鍵",
       "clear_topic": "清除所有訊息",
       "copy_last_message": "複製上一則訊息",
+      "edit_last_user_message": "編輯最後一則使用者訊息",
       "enabled": "啟用",
       "exit_fullscreen": "退出螢幕",
       "label": "按鍵",
       "mini_window": "快捷助手",
       "new_topic": "新增話題",
       "press_shortcut": "按下快捷鍵",
+      "rename_topic": "重新命名話題",
       "reset_defaults": "重設預設快捷鍵",
       "reset_defaults_confirm": "確定要重設所有快捷鍵嗎？",
       "reset_to_default": "重設為預設",
@@ -3337,11 +3994,45 @@
     },
     "title": "設定",
     "tool": {
+      "ocr": {
+        "common": {
+          "langs": "支援的語言"
+        },
+        "error": {
+          "not_system": "系統 OCR 僅支援 Windows 與 MacOS"
+        },
+        "image": {
+          "error": {
+            "provider_not_found": "該提供商不存在"
+          },
+          "system": {
+            "no_need_configure": "MacOS 無需配置"
+          },
+          "title": "圖片"
+        },
+        "image_provider": "OCR 服務提供商",
+        "paddleocr": {
+          "aistudio_access_token": "星河社群存取權杖",
+          "aistudio_url_label": "星河社群",
+          "api_url": "API 網址",
+          "serving_doc_url_label": "PaddleOCR 服務化部署文件",
+          "tip": "您可以參考 PaddleOCR 官方文件來部署本機服務，或是在飛槳星河社群部署雲端服務。對於後者，請提供星河社群的存取權杖。"
+        },
+        "system": {
+          "win": {
+            "langs_tooltip": "依賴 Windows 提供服務，您需要在系統中下載語言包來支援相關語言。"
+          }
+        },
+        "tesseract": {
+          "langs_tooltip": "閱讀文件以了解哪些自訂語言受支援"
+        },
+        "title": "OCR 服務"
+      },
       "preprocess": {
-        "provider": "前置處理供應商",
-        "provider_placeholder": "選擇一個預處理供應商",
-        "title": "前置處理",
-        "tooltip": "在「設定」->「工具」中設定文件預處理服務供應商。文件預處理可有效提升複雜格式文件及掃描文件的檢索效能"
+        "provider": "文件處理供應商",
+        "provider_placeholder": "選擇一個文件處理供應商",
+        "title": "文件處理",
+        "tooltip": "在「設定」->「工具」中設定文件處理服務供應商。文件處理可有效提升複雜格式文件及掃描文件的檢索效能"
       },
       "title": "其他設定",
       "websearch": {
@@ -3434,6 +4125,51 @@
         "time": "顯示話題時間"
       }
     },
+    "translate": {
+      "custom": {
+        "delete": {
+          "description": "確定要刪除嗎？",
+          "title": "刪除自訂語言"
+        },
+        "error": {
+          "add": "添加失敗",
+          "delete": "删除失败",
+          "langCode": {
+            "builtin": "該語言已內建支援",
+            "empty": "語言代碼為空",
+            "exists": "該語言已存在",
+            "invalid": "無效的語言代碼"
+          },
+          "update": "更新失敗",
+          "value": {
+            "empty": "語言名不能為空",
+            "too_long": "語言名過長"
+          }
+        },
+        "langCode": {
+          "help": "[語言+區域]的格式，[2~3位小寫字母]-[2~3位小寫字母]",
+          "label": "語言代碼",
+          "placeholder": "zh-tw"
+        },
+        "success": {
+          "add": "添加成功",
+          "delete": "刪除成功",
+          "update": "更新成功"
+        },
+        "table": {
+          "action": {
+            "title": "操作"
+          }
+        },
+        "value": {
+          "help": "1~32個字元",
+          "label": "语言名称",
+          "placeholder": "繁體中文"
+        }
+      },
+      "prompt": "翻译提示词",
+      "title": "翻译设置"
+    },
     "tray": {
       "onclose": "關閉時最小化到系统匣",
       "show": "顯示系统匣圖示",
@@ -3447,12 +4183,14 @@
   "title": {
     "agents": "智能體",
     "apps": "小程序",
+    "code": "Code",
     "files": "文件",
     "home": "主頁",
     "knowledge": "知識庫",
     "launchpad": "啟動台",
     "mcp-servers": "MCP 伺服器",
     "memories": "記憶",
+    "notes": "筆記",
     "paintings": "繪畫",
     "settings": "設定",
     "translate": "翻譯"
@@ -3490,27 +4228,77 @@
       "title": "翻譯確認"
     },
     "copied": "翻譯內容已複製",
+    "custom": {
+      "label": "自定義語言"
+    },
+    "detect": {
+      "method": {
+        "algo": {
+          "label": "演算法",
+          "tip": "使用franc進行語言檢測"
+        },
+        "auto": {
+          "label": "自動",
+          "tip": "自動選擇合適的檢測方法"
+        },
+        "label": "自動檢測方法",
+        "llm": {
+          "tip": "使用快速模型進行語言檢測，消耗少量token。"
+        },
+        "placeholder": "選擇自動偵測方法",
+        "tip": "自動檢測輸入語言時使用的方法"
+      }
+    },
     "detected": {
       "language": "自動檢測"
     },
     "empty": "翻譯內容為空",
     "error": {
+      "chat_qwen_mt": "Qwen MT 模型不可在对话中使用，請轉至翻譯頁面",
+      "detect": {
+        "qwen_mt": "QwenMT模型不能用於語言檢測",
+        "unknown": "檢測到未知語言",
+        "update_setting": "設定失敗"
+      },
+      "empty": "翻译结果为空内容",
       "failed": "翻譯失敗",
+      "invalid_source": "無效的源語言",
       "not_configured": "翻譯模型未設定",
+      "not_supported": "不支援的語言 {{language}}",
       "unknown": "翻譯過程中遇到未知錯誤"
+    },
+    "exchange": {
+      "label": "交換源語言與目標語言"
+    },
+    "files": {
+      "drag_text": "拖放到此处",
+      "error": {
+        "check_type": "檢查檔案類型時發生錯誤",
+        "multiple": "不允许上传多个文件",
+        "too_large": "文件過大",
+        "unknown": "读取文件内容失败"
+      },
+      "reading": "讀取檔案內容中..."
     },
     "history": {
       "clear": "清空歷史",
       "clear_description": "清空歷史將刪除所有翻譯歷史記錄，是否繼續？",
-      "delete": "刪除",
+      "delete": "刪除翻譯歷史",
       "empty": "翻譯歷史為空",
       "error": {
+        "delete": "删除失败",
         "save": "保存翻譯歷史失敗"
+      },
+      "search": {
+        "placeholder": "搜索翻譯歷史"
       },
       "title": "翻譯歷史"
     },
+    "info": {
+      "aborted": "翻譯中止"
+    },
     "input": {
-      "placeholder": "輸入文字進行翻譯"
+      "placeholder": "可粘貼或拖入文字、文字檔案、圖片（支援OCR）"
     },
     "language": {
       "not_pair": "源語言與設定的語言不同",
@@ -3527,6 +4315,7 @@
     },
     "processing": "翻譯中...",
     "settings": {
+      "autoCopy": "翻譯完成後自動複製",
       "bidirectional": "雙向翻譯設定",
       "bidirectional_tip": "開啟後，僅支援在源語言和目標語言之間進行雙向翻譯",
       "model": "模型設定",
@@ -3536,6 +4325,12 @@
       "preview": "Markdown 預覽",
       "scroll_sync": "滾動同步設定",
       "title": "翻譯設定"
+    },
+    "success": {
+      "custom": {
+        "delete": "刪除成功",
+        "update": "更新成功"
+      }
     },
     "target_language": "目標語言",
     "title": "翻譯",
@@ -3554,6 +4349,9 @@
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
     "title": "更新提示"
+  },
+  "warning": {
+    "missing_provider": "供應商不存在，已回退到預設供應商 {{provider}}。這可能導致問題。"
   },
   "words": {
     "knowledgeGraph": "知識圖譜",

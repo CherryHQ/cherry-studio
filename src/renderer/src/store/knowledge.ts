@@ -1,7 +1,14 @@
 import { loggerService } from '@logger'
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import FileManager from '@renderer/services/FileManager'
-import { FileMetadata, KnowledgeBase, KnowledgeItem, ProcessingStatus } from '@renderer/types'
+import {
+  FileMetadata,
+  KnowledgeBase,
+  KnowledgeBaseParams,
+  KnowledgeItem,
+  PreprocessProvider,
+  ProcessingStatus
+} from '@renderer/types'
 
 const logger = loggerService.withContext('Store:Knowledge')
 
@@ -21,13 +28,13 @@ const knowledgeSlice = createSlice({
       state.bases.push(action.payload)
     },
 
-    deleteBase(state, action: PayloadAction<{ baseId: string }>) {
+    deleteBase(state, action: PayloadAction<{ baseId: string; baseParams: KnowledgeBaseParams }>) {
       const base = state.bases.find((b) => b.id === action.payload.baseId)
       if (base) {
         state.bases = state.bases.filter((b) => b.id !== action.payload.baseId)
         const files = base.items.filter((item) => item.type === 'file')
         FileManager.deleteFiles(files.map((item) => item.content) as FileMetadata[])
-        window.api.knowledgeBase.delete(action.payload.baseId)
+        window.api.knowledgeBase.delete(action.payload.baseParams, action.payload.baseId)
       }
     },
 
@@ -77,6 +84,9 @@ const knowledgeSlice = createSlice({
           }
         }
         if (action.payload.item.type === 'note') {
+          base.items.push(action.payload.item)
+        }
+        if (action.payload.item.type === 'video') {
           base.items.push(action.payload.item)
         }
         base.updated_at = Date.now()
@@ -174,6 +184,18 @@ const knowledgeSlice = createSlice({
       }
     },
 
+    syncPreprocessProvider(state, action: PayloadAction<Partial<PreprocessProvider>>) {
+      const updatedProvider = action.payload
+      state.bases.forEach((base) => {
+        if (base.preprocessProvider && base.preprocessProvider.provider.id === updatedProvider.id) {
+          base.preprocessProvider.provider = {
+            ...base.preprocessProvider.provider,
+            ...updatedProvider
+          }
+        }
+      })
+    },
+
     updateBaseItemUniqueId(
       state,
       action: PayloadAction<{ baseId: string; itemId: string; uniqueId: string; uniqueIds: string[] }>
@@ -221,7 +243,8 @@ export const {
   clearCompletedProcessing,
   clearAllProcessing,
   updateBaseItemUniqueId,
-  updateBaseItemIsPreprocessed
+  updateBaseItemIsPreprocessed,
+  syncPreprocessProvider
 } = knowledgeSlice.actions
 
 export default knowledgeSlice.reducer

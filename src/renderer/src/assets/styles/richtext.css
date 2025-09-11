@@ -1,0 +1,523 @@
+.tiptap {
+  /* 预留5px给scrollbar */
+  padding: 12px 55px 12px 60px;
+  outline: none;
+  min-height: 120px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: var(--editor-font-size, 16px);
+}
+
+.tiptap:focus {
+  outline: none;
+}
+
+.tiptap :first-child {
+  margin-top: 0;
+}
+
+.tiptap h1:first-child,
+.tiptap h2:first-child,
+.tiptap h3:first-child,
+.tiptap h4:first-child,
+.tiptap h5:first-child,
+.tiptap h6:first-child {
+  margin-top: 0;
+}
+
+.tiptap h1,
+.tiptap h2,
+.tiptap h3,
+.tiptap h4,
+.tiptap h5,
+.tiptap h6 {
+  margin: 1.5rem 0 1rem 0;
+  line-height: 1.1;
+  text-wrap: pretty;
+  font-weight: 600;
+}
+
+.tiptap h1 code,
+.tiptap h2 code,
+.tiptap h3 code,
+.tiptap h4 code,
+.tiptap h5 code,
+.tiptap h6 code {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.tiptap h1 {
+  margin-top: 0;
+  font-size: 2rem;
+}
+
+.tiptap h2 {
+  font-size: 1.5rem;
+}
+
+.tiptap h3 {
+  font-size: 1.2rem;
+}
+
+.tiptap h4,
+.tiptap h5,
+.tiptap h6 {
+  font-size: 1rem;
+}
+
+.tiptap p {
+  margin: 1.1rem 0 0.5rem 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  width: 100%;
+  line-height: 1.6;
+  hyphens: auto;
+}
+
+.tiptap p:has(+ ul) {
+  margin-bottom: 0;
+}
+
+.tiptap a {
+  color: var(--color-link);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tiptap a:hover {
+  text-decoration: underline;
+}
+
+.tiptap blockquote {
+  border-left: 4px solid var(--color-primary);
+  margin: 1.5rem 0;
+  padding-left: 1rem;
+}
+
+.tiptap code {
+  background-color: var(--color-inline-code-background);
+  border-radius: 0.4rem;
+  color: var(--color-inline-code-text);
+  font-size: 0.85rem;
+  padding: 0.25em 0.3em;
+  font-family: var(--code-font-family);
+}
+
+.tiptap pre {
+  background: var(--color-code-background);
+  border-radius: 0.5rem;
+  color: var(--color-text);
+  font-family: var(--code-font-family);
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border-soft);
+}
+
+.tiptap pre code {
+  background: none;
+  color: inherit;
+  font-size: 0.8rem;
+  padding: 0;
+  border: none;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid var(--color-gray-2);
+  margin: 2rem 0;
+}
+
+.tiptap em {
+  font-style: italic;
+}
+
+.tiptap u {
+  text-decoration: underline;
+}
+
+.tiptap strong,
+.tiptap strong * {
+  font-weight: 600;
+}
+
+.tiptap .placeholder {
+  position: relative;
+}
+
+.tiptap .placeholder:before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: var(--color-text-secondary);
+  opacity: 0.6;
+  pointer-events: none;
+  font-style: italic;
+  left: 0;
+  right: 0;
+}
+
+/* Ensure drag handles and plus buttons remain interactive */
+.tiptap .placeholder .drag-handle,
+.tiptap .placeholder .plus-button {
+  pointer-events: auto;
+}
+
+/* Show placeholder only when focused or when it's the only empty node */
+.tiptap .placeholder.has-focus:before {
+  opacity: 0.8;
+}
+
+.tiptap img {
+  max-width: 800px;
+  width: 100%;
+  height: auto;
+}
+
+.tiptap table {
+  border-collapse: collapse;
+  margin: 0;
+  /* Allow action endpoints (rendered as decorations) to slightly overflow table edges */
+  overflow: visible;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.tiptap td,
+.tiptap th {
+  border: 1px solid var(--color-border-soft);
+  box-sizing: border-box;
+  display: table-cell;
+  min-width: 120px;
+  padding: 6px 8px;
+  position: relative;
+  vertical-align: top;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tiptap td > *,
+.tiptap th > * {
+  margin-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tiptap th,
+.tiptap th * {
+  background-color: var(--color-gray-3);
+  font-weight: bold;
+  text-align: left;
+}
+
+.tiptap .selectedCell {
+  position: relative; /* 确保伪元素定位 */
+}
+
+.tiptap .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 0 solid var(--color-primary);
+  border-radius: 0;
+}
+
+.tiptap .selectedCell.selection-top::after {
+  border-top-width: 2px;
+}
+
+.tiptap .selectedCell.selection-bottom::after {
+  border-bottom-width: 2px;
+}
+
+.tiptap .selectedCell.selection-left::after {
+  border-left-width: 2px;
+}
+
+.tiptap .selectedCell.selection-right::after {
+  border-right-width: 2px;
+}
+
+.tiptap .column-resize-handle {
+  background-color: var(--color-primary);
+  bottom: -2px;
+  pointer-events: none;
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 4px;
+}
+
+.tiptap table:has(.selectedCell) {
+  caret-color: transparent !important;
+  user-select: none !important;
+}
+
+.tiptap table:has(.selectedCell) *::selection {
+  background: transparent !important;
+}
+
+.tiptap table:has(.selectedCell) .column-resize-handle {
+  display: none;
+}
+
+/* Position row action buttons relative to first column cells */
+.tiptap table tbody tr td:first-child,
+.tiptap table tbody tr th:first-child {
+  position: relative;
+}
+
+/* Position column action buttons relative to first row cells */
+.tiptap table tbody tr:first-child td,
+.tiptap table tbody tr:first-child th {
+  position: relative;
+}
+
+.tiptap .tableWrapper {
+  position: relative;
+  margin: 1rem 0;
+  display: grid;
+  grid-template-columns: 1fr 25px;
+  grid-template-rows: 1fr 25px;
+  grid-template-areas:
+    'table column-btn'
+    'row-btn corner';
+  gap: 5px;
+}
+
+.tiptap .tableWrapper .table-container {
+  grid-area: table;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.tiptap .tableWrapper .table-container::-webkit-scrollbar {
+  cursor: default;
+}
+
+.tiptap .tableWrapper .table-container::-webkit-scrollbar:horizontal {
+  cursor: default;
+}
+
+.tiptap .tableWrapper .table-container::-webkit-scrollbar-thumb {
+  cursor: default;
+}
+
+.tiptap .tableWrapper .table-container::-webkit-scrollbar-track {
+  cursor: default;
+}
+
+.tiptap .tableWrapper .table-container table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.tiptap .tableWrapper .add-row-button,
+.tiptap .tableWrapper .add-column-button {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-base);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  z-index: 20;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
+}
+
+.tiptap .tableWrapper .add-row-button:hover,
+.tiptap .tableWrapper .add-column-button:hover {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tiptap .tableWrapper .add-row-button:active,
+.tiptap .tableWrapper .add-column-button:active {
+  transform: scale(0.98);
+}
+
+.tiptap .tableWrapper .add-row-button::before,
+.tiptap .tableWrapper .add-column-button::before {
+  content: '+';
+  font-weight: bold;
+}
+
+.tiptap .tableWrapper .add-row-button {
+  grid-area: row-btn;
+}
+
+.tiptap .tableWrapper .add-column-button {
+  grid-area: column-btn;
+}
+
+.tiptap .tableWrapper:hover .add-row-button,
+.tiptap .tableWrapper:has(.add-row-button:hover) .add-row-button,
+.tiptap .tableWrapper:has(.add-column-button:hover) .add-row-button,
+.tiptap .tableWrapper:hover .add-column-button,
+.tiptap .tableWrapper:has(.add-row-button:hover) .add-column-button,
+.tiptap .tableWrapper:has(.add-column-button:hover) .add-column-button {
+  display: flex;
+}
+
+/* Do not show in readonly even on hover */
+.tiptap .tableWrapper.is-readonly .add-row-button,
+.tiptap .tableWrapper.is-readonly:hover .add-row-button,
+.tiptap .tableWrapper.is-readonly .add-column-button,
+.tiptap .tableWrapper.is-readonly:hover .add-column-button {
+  display: none !important;
+}
+
+.tiptap .tableWrapper .add-row-button:hover,
+.tiptap .tableWrapper .add-column-button:hover {
+  display: flex !important;
+}
+
+/* Row/Column action triggers (visible on cell selection) */
+.tiptap .tableWrapper .row-action-trigger,
+.tiptap .tableWrapper .column-action-trigger {
+  position: absolute;
+  height: 20px;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  border: 1px solid var(--color-primary);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  z-index: 30;
+  pointer-events: auto;
+}
+
+.tiptap .tableWrapper .row-action-trigger::before,
+.tiptap .tableWrapper .column-action-trigger::before {
+  content: '•••';
+}
+
+.tiptap.resize-cursor {
+  cursor: ew-resize;
+  cursor: col-resize;
+}
+
+.tiptap ul,
+.tiptap ol {
+  padding: 0 1rem;
+  margin: 1.25rem 1rem 1.25rem 0.4rem;
+}
+
+.tiptap ul li p,
+.tiptap ol li p {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+/* Reduce spacing for nested lists */
+.tiptap ul ul,
+.tiptap ul ol,
+.tiptap ol ul,
+.tiptap ol ol {
+  margin: 0.5rem 0.5rem 0.5rem 0.2rem;
+}
+
+.tiptap ul {
+  list-style: disc;
+}
+
+.tiptap ol {
+  list-style: decimal;
+}
+
+.tiptap ul[data-type='taskList'] {
+  list-style: none;
+  margin-left: 0;
+  padding: 0;
+}
+
+.tiptap ul[data-type='taskList'] li {
+  align-items: center;
+  display: flex;
+}
+
+.tiptap ul[data-type='taskList'] li > label {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
+.tiptap ul[data-type='taskList'] li > div {
+  flex: 1 1 auto;
+}
+
+.tiptap ul[data-type='taskList'] li > div p {
+  margin: 0;
+}
+
+/* Checked task item appearance */
+.tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+  color: var(--color-text-2);
+  text-decoration: line-through;
+}
+
+.tiptap ul[data-type='taskList'] input[type='checkbox'] {
+  cursor: pointer;
+}
+
+/* Use primary color for checked checkbox */
+.tiptap ul[data-type='taskList'] input[type='checkbox']:checked {
+  accent-color: var(--color-primary);
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.tiptap ul[data-type='taskList'] ul[data-type='taskList'] {
+  margin: 0;
+}
+
+/* Math block */
+.tiptap .block-math-inner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.2rem;
+}
+
+/* Bottom spacer to create viewport padding */
+.tiptap::after {
+  content: '';
+  display: block;
+  height: 50px;
+  pointer-events: none;
+}
+
+/* Code block wrapper and header styles */
+.code-block-wrapper {
+  position: relative;
+}
+
+.code-block-wrapper .code-block-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.code-block-wrapper:hover .code-block-header {
+  opacity: 1;
+}

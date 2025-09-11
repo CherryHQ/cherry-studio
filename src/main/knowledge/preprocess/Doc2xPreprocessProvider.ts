@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { fileStorage } from '@main/services/FileStorage'
 import { FileMetadata, PreprocessProvider } from '@types'
 import AdmZip from 'adm-zip'
-import axios, { AxiosRequestConfig } from 'axios'
+import { net } from 'electron'
 
 import BasePreprocessProvider from './BasePreprocessProvider'
 
@@ -37,37 +38,43 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
   }
 
   private async validateFile(filePath: string): Promise<void> {
-    const pdfBuffer = await fs.promises.readFile(filePath)
+    // 首先检查文件大小，避免读取大文件到内存
+    const stats = await fs.promises.stat(filePath)
+    const fileSizeBytes = stats.size
 
+    // 文件大小小于300MB
+    if (fileSizeBytes >= 300 * 1024 * 1024) {
+      const fileSizeMB = Math.round(fileSizeBytes / (1024 * 1024))
+      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 300MB`)
+    }
+
+    // 只有在文件大小合理的情况下才读取文件内容检查页数
+    const pdfBuffer = await fs.promises.readFile(filePath)
     const doc = await this.readPdf(pdfBuffer)
 
     // 文件页数小于1000页
     if (doc.numPages >= 1000) {
       throw new Error(`PDF page count (${doc.numPages}) exceeds the limit of 1000 pages`)
     }
-    // 文件大小小于300MB
-    if (pdfBuffer.length >= 300 * 1024 * 1024) {
-      const fileSizeMB = Math.round(pdfBuffer.length / (1024 * 1024))
-      throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of 300MB`)
-    }
   }
 
   public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
-      logger.info(`Preprocess processing started: ${file.path}`)
+      const filePath = fileStorage.getFilePathById(file)
+      logger.info(`Preprocess processing started: ${filePath}`)
 
       // 步骤1: 准备上传
       const { uid, url } = await this.preupload()
       logger.info(`Preprocess preupload completed: uid=${uid}`)
 
-      await this.validateFile(file.path)
+      await this.validateFile(filePath)
 
       // 步骤2: 上传文件
-      await this.putFile(file.path, url)
+      await this.putFile(filePath, url)
 
       // 步骤3: 等待处理完成
       await this.waitForProcessing(sourceId, uid)
-      logger.info(`Preprocess parsing completed successfully for: ${file.path}`)
+      logger.info(`Preprocess parsing completed successfully for: ${filePath}`)
 
       // 步骤4: 导出文件
       const { path: outputPath } = await this.exportFile(file, uid)
@@ -77,9 +84,7 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
         processedFile: this.createProcessedFileInfo(file, outputPath)
       }
     } catch (error) {
-      logger.error(
-        `Preprocess processing failed for ${file.path}: ${error instanceof Error ? error.message : String(error)}`
-      )
+      logger.error(`Preprocess processing failed for:`, error as Error)
       throw error
     }
   }
@@ -102,11 +107,12 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    * @returns 导出文件的路径
    */
   public async exportFile(file: FileMetadata, uid: string): Promise<{ path: string }> {
-    logger.info(`Exporting file: ${file.path}`)
+    const filePath = fileStorage.getFilePathById(file)
+    logger.info(`Exporting file: ${filePath}`)
 
     // 步骤1: 转换文件
-    await this.convertFile(uid, file.path)
-    logger.info(`File conversion completed for: ${file.path}`)
+    await this.convertFile(uid, filePath)
+    logger.info(`File conversion completed for: ${filePath}`)
 
     // 步骤2: 等待导出并获取URL
     const exportUrl = await this.waitForExport(uid)
@@ -159,11 +165,23 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    * @returns 预上传响应的url和uid
    */
   private async preupload(): Promise<PreuploadResponse> {
-    const config = this.createAuthConfig()
     const endpoint = `${this.provider.apiHost}/api/v2/parse/preupload`
 
     try {
-      const { data } = await axios.post<ApiResponse<PreuploadResponse>>(endpoint, null, config)
+      const response = await net.fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.provider.apiKey}`
+        },
+        body: null
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = (await response.json()) as ApiResponse<PreuploadResponse>
 
       if (data.code === 'success' && data.data) {
         return data.data
@@ -177,17 +195,23 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
   }
 
   /**
-   * 上传文件
+   * 上传文件（使用流式上传）
    * @param filePath 文件路径
    * @param url 预上传响应的url
    */
   private async putFile(filePath: string, url: string): Promise<void> {
     try {
+      // 创建可读流
       const fileStream = fs.createReadStream(filePath)
-      const response = await axios.put(url, fileStream)
 
-      if (response.status !== 200) {
-        throw new Error(`HTTP status ${response.status}: ${response.statusText}`)
+      const response = await net.fetch(url, {
+        method: 'PUT',
+        body: fileStream as any, // TypeScript 类型转换，net.fetch 支持 ReadableStream
+        duplex: 'half'
+      } as any) // TypeScript 类型转换，net.fetch 需要 duplex 选项
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
       logger.error(`Failed to upload file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
@@ -196,16 +220,25 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
   }
 
   private async getStatus(uid: string): Promise<StatusResponse> {
-    const config = this.createAuthConfig()
     const endpoint = `${this.provider.apiHost}/api/v2/parse/status?uid=${uid}`
 
     try {
-      const response = await axios.get<ApiResponse<StatusResponse>>(endpoint, config)
+      const response = await net.fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.provider.apiKey}`
+        }
+      })
 
-      if (response.data.code === 'success' && response.data.data) {
-        return response.data.data
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = (await response.json()) as ApiResponse<StatusResponse>
+      if (data.code === 'success' && data.data) {
+        return data.data
       } else {
-        throw new Error(`API returned error: ${response.data.message || JSON.stringify(response.data)}`)
+        throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
       }
     } catch (error) {
       logger.error(`Failed to get status for uid ${uid}: ${error instanceof Error ? error.message : String(error)}`)
@@ -220,13 +253,6 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    */
   private async convertFile(uid: string, filePath: string): Promise<void> {
     const fileName = path.parse(filePath).name
-    const config = {
-      ...this.createAuthConfig(),
-      headers: {
-        ...this.createAuthConfig().headers,
-        'Content-Type': 'application/json'
-      }
-    }
 
     const payload = {
       uid,
@@ -238,10 +264,22 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
     const endpoint = `${this.provider.apiHost}/api/v2/convert/parse`
 
     try {
-      const response = await axios.post<ApiResponse<any>>(endpoint, payload, config)
+      const response = await net.fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.provider.apiKey}`
+        },
+        body: JSON.stringify(payload)
+      })
 
-      if (response.data.code !== 'success') {
-        throw new Error(`API returned error: ${response.data.message || JSON.stringify(response.data)}`)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = (await response.json()) as ApiResponse<any>
+      if (data.code !== 'success') {
+        throw new Error(`API returned error: ${data.message || JSON.stringify(data)}`)
       }
     } catch (error) {
       logger.error(`Failed to convert file ${filePath}: ${error instanceof Error ? error.message : String(error)}`)
@@ -255,16 +293,25 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
    * @returns 解析后的文件信息
    */
   private async getParsedFile(uid: string): Promise<ParsedFileResponse> {
-    const config = this.createAuthConfig()
     const endpoint = `${this.provider.apiHost}/api/v2/convert/parse/result?uid=${uid}`
 
     try {
-      const response = await axios.get<ApiResponse<ParsedFileResponse>>(endpoint, config)
+      const response = await net.fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.provider.apiKey}`
+        }
+      })
 
-      if (response.status === 200 && response.data.data) {
-        return response.data.data
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = (await response.json()) as ApiResponse<ParsedFileResponse>
+      if (data.data) {
+        return data.data
       } else {
-        throw new Error(`HTTP status ${response.status}: ${response.statusText}`)
+        throw new Error(`No data in response`)
       }
     } catch (error) {
       logger.error(
@@ -294,8 +341,12 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
 
     try {
       // 下载文件
-      const response = await axios.get(url, { responseType: 'arraybuffer' })
-      fs.writeFileSync(zipPath, response.data)
+      const response = await net.fetch(url, { method: 'GET' })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      const arrayBuffer = await response.arrayBuffer()
+      fs.writeFileSync(zipPath, Buffer.from(arrayBuffer))
 
       // 确保提取目录存在
       if (!fs.existsSync(extractPath)) {
@@ -314,14 +365,6 @@ export default class Doc2xPreprocessProvider extends BasePreprocessProvider {
     } catch (error) {
       logger.error(`Failed to download and extract file: ${error instanceof Error ? error.message : String(error)}`)
       throw new Error('Failed to download and extract file')
-    }
-  }
-
-  private createAuthConfig(): AxiosRequestConfig {
-    return {
-      headers: {
-        Authorization: `Bearer ${this.provider.apiKey}`
-      }
     }
   }
 

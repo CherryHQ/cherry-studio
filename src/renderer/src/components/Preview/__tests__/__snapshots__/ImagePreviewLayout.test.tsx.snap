@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ImagePreviewLayout > should match snapshot 1`] = `
+<div>
+  <div
+    data-testid="spin"
+  >
+    <div
+      data-testid="preview-container"
+      data-vertical="true"
+    >
+      <div>
+        Test Content
+      </div>
+    </div>
+  </div>
+</div>
+`;

@@ -39,7 +39,7 @@ export function useAppInit() {
     enableDataCollection
   } = useSettings()
   const { minappShow } = useRuntime()
-  const { setDefaultModel, setTopicNamingModel, setTranslateModel } = useDefaultModel()
+  const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
   const memoryConfig = useAppSelector(selectMemoryConfig)
@@ -87,11 +87,12 @@ export function useAppInit() {
 
   useEffect(() => {
     if (proxyMode === 'system') {
-      window.api.setProxy('system', proxyBypassRules)
+      window.api.setProxy('system', undefined)
     } else if (proxyMode === 'custom') {
       proxyUrl && window.api.setProxy(proxyUrl, proxyBypassRules)
     } else {
-      window.api.setProxy('')
+      // set proxy to none for direct mode
+      window.api.setProxy('', undefined)
     }
   }, [proxyUrl, proxyMode, proxyBypassRules])
 
@@ -115,7 +116,7 @@ export function useAppInit() {
     if (isLocalAi) {
       const model = JSON.parse(import.meta.env.VITE_RENDERER_INTEGRATED_MODEL)
       setDefaultModel(model)
-      setTopicNamingModel(model)
+      setQuickModel(model)
       setTranslateModel(model)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

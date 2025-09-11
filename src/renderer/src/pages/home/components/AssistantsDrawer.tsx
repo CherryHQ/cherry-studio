@@ -1,5 +1,6 @@
 import { TopView } from '@renderer/components/TopView'
 import { isMac } from '@renderer/config/constant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant, Topic } from '@renderer/types'
 import { Drawer } from 'antd'
 import { useState } from 'react'
@@ -25,10 +26,11 @@ const PopupContainer: React.FC<Props> = ({
   resolve
 }) => {
   const [open, setOpen] = useState(true)
+  const { setTimeoutTimer } = useTimer()
 
   const onClose = () => {
     setOpen(false)
-    setTimeout(resolve, 300)
+    setTimeoutTimer('onClose', resolve, 300)
   }
 
   AssistantsDrawer.hide = onClose

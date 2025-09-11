@@ -1,5 +1,5 @@
-import CustomTag from '@renderer/components/CustomTag'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'

@@ -1,6 +1,12 @@
 import React from 'react'
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
+export type QuickPanelTriggerInfo = {
+  type: 'input' | 'button'
+  position?: number
+  originalText?: string
+}
+
 export type QuickPanelCallBackOptions = {
   symbol: string
   action: QuickPanelCloseAction
@@ -8,6 +14,7 @@ export type QuickPanelCallBackOptions = {
   searchText?: string
   /** 是否处于多选状态 */
   multiple?: boolean
+  triggerInfo?: QuickPanelTriggerInfo
 }
 
 export type QuickPanelOpenOptions = {
@@ -26,6 +33,8 @@ export type QuickPanelOpenOptions = {
    * 可以是/@#符号，也可以是其他字符串
    */
   symbol: string
+  /** 触发信息，记录面板是如何被打开的 */
+  triggerInfo?: QuickPanelTriggerInfo
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
@@ -45,13 +54,19 @@ export type QuickPanelListItem = {
   isSelected?: boolean
   isMenu?: boolean
   disabled?: boolean
+  /**
+   * 固定显示项：不参与过滤，始终出现在列表顶部。
+   * 例如“清除”按钮可设置为 alwaysVisible，从而在有匹配项时始终可见；
+   * 折叠判定依然仅依据非固定项数量，从而在无匹配时整体折叠隐藏。
+   */
+  alwaysVisible?: boolean
   action?: (options: QuickPanelCallBackOptions) => void
 }
 
 // 定义上下文类型
 export interface QuickPanelContextType {
   readonly open: (options: QuickPanelOpenOptions) => void
-  readonly close: (action?: QuickPanelCloseAction) => void
+  readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void
   readonly updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void
   readonly isVisible: boolean
   readonly symbol: string
@@ -60,6 +75,7 @@ export interface QuickPanelContextType {
   readonly defaultIndex: number
   readonly pageSize: number
   readonly multiple: boolean
+  readonly triggerInfo?: QuickPanelTriggerInfo
 
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void

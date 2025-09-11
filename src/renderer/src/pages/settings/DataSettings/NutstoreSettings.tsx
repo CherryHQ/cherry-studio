@@ -6,6 +6,7 @@ import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNutstoreSSO } from '@renderer/hooks/useNutstoreSSO'
+import { useTimer } from '@renderer/hooks/useTimer'
 import {
   backupToNutstore,
   checkConnection,
@@ -17,6 +18,7 @@ import {
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import {
   setNutstoreAutoSync,
+  setNutstoreMaxBackups,
   setNutstorePath,
   setNutstoreSkipBackupFile,
   setNutstoreSyncInterval,
@@ -41,7 +43,8 @@ const NutstoreSettings: FC = () => {
     nutstoreSyncInterval,
     nutstoreAutoSync,
     nutstoreSyncState,
-    nutstoreSkipBackupFile
+    nutstoreSkipBackupFile,
+    nutstoreMaxBackups
   } = useAppSelector((state) => state.nutstore)
 
   const dispatch = useAppDispatch()
@@ -49,17 +52,14 @@ const NutstoreSettings: FC = () => {
   const [nutstoreUsername, setNutstoreUsername] = useState<string | undefined>(undefined)
   const [nutstorePass, setNutstorePass] = useState<string | undefined>(undefined)
   const [storagePath, setStoragePath] = useState<string | undefined>(nutstorePath)
-
   const [checkConnectionLoading, setCheckConnectionLoading] = useState(false)
   const [nsConnected, setNsConnected] = useState<boolean>(false)
-
   const [syncInterval, setSyncInterval] = useState<number>(nutstoreSyncInterval)
-
   const [nutSkipBackupFile, setNutSkipBackupFile] = useState<boolean>(nutstoreSkipBackupFile)
+  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const nutstoreSSOHandler = useNutstoreSSO()
-
-  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
+  const { setTimeoutTimer } = useTimer()
 
   const handleClickNutstoreSSO = useCallback(async () => {
     const ssoUrl = await window.api.nutstore.getSSOUrl()
@@ -106,11 +106,9 @@ const NutstoreSettings: FC = () => {
     setCheckConnectionLoading(true)
     const isConnectedToNutstore = await checkConnection()
 
-    window.message[isConnectedToNutstore ? 'success' : 'error']({
-      key: 'api-check',
-      style: { marginTop: '3vh' },
-      duration: 2,
-      content: isConnectedToNutstore
+    window.toast[isConnectedToNutstore ? 'success' : 'error']({
+      timeout: 2000,
+      title: isConnectedToNutstore
         ? t('settings.data.nutstore.checkConnection.success')
         : t('settings.data.nutstore.checkConnection.fail')
     })
@@ -118,7 +116,7 @@ const NutstoreSettings: FC = () => {
     setNsConnected(isConnectedToNutstore)
     setCheckConnectionLoading(false)
 
-    setTimeout(() => setNsConnected(false), 3000)
+    setTimeoutTimer('handleCheckConnection', () => setNsConnected(false), 3000)
   }
 
   const { isModalVisible, handleBackup, handleCancel, backuping, customFileName, setCustomFileName, showBackupModal } =
@@ -141,6 +139,10 @@ const NutstoreSettings: FC = () => {
   const onSkipBackupFilesChange = (value: boolean) => {
     setNutSkipBackupFile(value)
     dispatch(setNutstoreSkipBackupFile(value))
+  }
+
+  const onMaxBackupsChange = (value: number) => {
+    dispatch(setNutstoreMaxBackups(value))
   }
 
   const handleClickPathChange = async () => {
@@ -309,6 +311,25 @@ const NutstoreSettings: FC = () => {
           )}
           <SettingDivider />
           <SettingRow>
+            <SettingRowTitle>{t('settings.data.webdav.maxBackups')}</SettingRowTitle>
+            <Selector
+              size={14}
+              value={nutstoreMaxBackups}
+              onChange={onMaxBackupsChange}
+              disabled={!nutstoreToken}
+              options={[
+                { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
+                { label: '1', value: 1 },
+                { label: '3', value: 3 },
+                { label: '5', value: 5 },
+                { label: '10', value: 10 },
+                { label: '20', value: 20 },
+                { label: '50', value: 50 }
+              ]}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
             <Switch checked={nutSkipBackupFile} onChange={onSkipBackupFilesChange} />
           </SettingRow>
@@ -325,6 +346,10 @@ const NutstoreSettings: FC = () => {
           backuping={backuping}
           customFileName={customFileName}
           setCustomFileName={setCustomFileName}
+          customLabels={{
+            modalTitle: t('settings.data.nutstore.backup.modal.title'),
+            filenamePlaceholder: t('settings.data.nutstore.backup.modal.filename.placeholder')
+          }}
         />
 
         <WebdavBackupManager
@@ -337,6 +362,11 @@ const NutstoreSettings: FC = () => {
             webdavPath: storagePath
           }}
           restoreMethod={restoreFromNutstore}
+          customLabels={{
+            restoreConfirmTitle: t('settings.data.nutstore.restore.confirm.title'),
+            restoreConfirmContent: t('settings.data.nutstore.restore.confirm.content'),
+            invalidConfigMessage: t('message.error.invalid.nutstore')
+          }}
         />
       </>
     </SettingGroup>

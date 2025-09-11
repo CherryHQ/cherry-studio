@@ -1,7 +1,6 @@
 import {
   CopyOutlined,
   DownloadOutlined,
-  FileImageOutlined,
   RotateLeftOutlined,
   RotateRightOutlined,
   SwapOutlined,
@@ -13,10 +12,13 @@ import { loggerService } from '@logger'
 import { download } from '@renderer/utils/download'
 import { Dropdown, Image as AntImage, ImageProps as AntImageProps, Space } from 'antd'
 import { Base64 } from 'js-base64'
+import { DownloadIcon, ImageIcon } from 'lucide-react'
 import mime from 'mime'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+
+import { CopyIcon } from './Icons'
 
 interface ImageViewerProps extends AntImageProps {
   src: string
@@ -33,7 +35,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       if (src.startsWith('data:')) {
         // 处理 base64 格式的图片
         const match = src.match(/^data:(image\/\w+);base64,(.+)$/)
-        if (!match) throw new Error('无效的 base64 图片格式')
+        if (!match) throw new Error('Invalid base64 image format')
         const mimeType = match[1]
         const byteArray = Base64.toUint8Array(match[2])
         const blob = new Blob([byteArray], { type: mimeType })
@@ -60,34 +62,34 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
         ])
       }
 
-      window.message.success(t('message.copy.success'))
+      window.toast.success(t('message.copy.success'))
     } catch (error) {
-      logger.error('复制图片失败:', error as Error)
-      window.message.error(t('message.copy.failed'))
+      logger.error('Failed to copy image:', error as Error)
+      window.toast.error(t('message.copy.failed'))
     }
   }
 
-  const getContextMenuItems = (src: string) => {
+  const getContextMenuItems = (src: string, size: number = 14) => {
     return [
       {
         key: 'copy-url',
         label: t('common.copy'),
-        icon: <CopyOutlined />,
+        icon: <CopyIcon size={size} />,
         onClick: () => {
           navigator.clipboard.writeText(src)
-          window.message.success(t('message.copy.success'))
+          window.toast.success(t('message.copy.success'))
         }
       },
       {
         key: 'download',
         label: t('common.download'),
-        icon: <DownloadOutlined />,
+        icon: <DownloadIcon size={size} />,
         onClick: () => download(src)
       },
       {
         key: 'copy-image',
-        label: t('code_block.preview.copy.image'),
-        icon: <FileImageOutlined />,
+        label: t('preview.copy.image'),
+        icon: <ImageIcon size={size} />,
         onClick: () => handleCopyImage(src)
       }
     ]
@@ -98,9 +100,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ src, style, ...props }) => {
       <AntImage
         src={src}
         style={style}
+        onContextMenu={(e) => e.stopPropagation()}
         {...props}
         preview={{
           mask: typeof props.preview === 'object' ? props.preview.mask : false,
+          ...(typeof props.preview === 'object' ? props.preview : {}),
           toolbarRender: (
             _,
             {

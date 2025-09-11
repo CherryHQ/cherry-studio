@@ -61,10 +61,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
   const handleSave = () => {
     const result = onUpdate(editValue)
     if (!result.isValid) {
-      window.message.warning({
-        key: 'api-key-error',
-        content: result.error
-      })
+      window.toast.warning(result.error)
       return
     }
 
@@ -130,7 +127,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             mouseEnterDelay={0.5}
             placement="top"
             // 确保不留下明文
-            destroyTooltipOnHide>
+            destroyOnHidden>
             <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
           </Tooltip>
 

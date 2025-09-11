@@ -41,7 +41,7 @@ const SelectModelSearchBar: React.FC<SelectModelSearchBarProps> = ({ onSearch })
           </SearchIcon>
         }
         ref={inputRef}
-        placeholder={t('models.search')}
+        placeholder={t('models.search.placeholder')}
         value={searchText}
         onChange={(e) => handleTextChange(e.target.value)}
         onClear={handleClear}

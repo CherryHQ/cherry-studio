@@ -1,5 +1,6 @@
 import { Model } from '@renderer/types'
-import { ChatCompletionContentPart, ChatCompletionContentPartText, ChatCompletionMessageParam } from 'openai/resources'
+import { findLast } from 'lodash'
+import { ChatCompletionContentPart, ChatCompletionMessageParam } from 'openai/resources'
 
 export function processReqMessages(
   model: Model,
@@ -43,59 +44,44 @@ function interleaveUserAndAssistantMessages(messages: ChatCompletionMessageParam
 
 // Process postsuffix for Qwen3 model
 export function processPostsuffixQwen3Model(
-  // content 類型：string | ChatCompletionContentPart[] | null
-  content: string | ChatCompletionContentPart[] | null,
-  postsuffix: string,
+  // content 類型：string | ChatCompletionContentPart[]
+  content: string | ChatCompletionContentPart[],
   qwenThinkModeEnabled: boolean
-): string | ChatCompletionContentPart[] | null {
+): string | ChatCompletionContentPart[] {
+  const noThinkSuffix = '/no_think'
+  const thinkSuffix = '/think'
   if (typeof content === 'string') {
     if (qwenThinkModeEnabled) {
-      // 思考模式启用，移除 postsuffix
-      if (content.endsWith(postsuffix)) {
-        return content.substring(0, content.length - postsuffix.length).trimEnd()
+      if (!content.endsWith(thinkSuffix)) {
+        return content + ' ' + thinkSuffix
       }
     } else {
-      // 思考模式未启用，添加 postsuffix
-      if (!content.endsWith(postsuffix)) {
-        return content + ' ' + postsuffix
+      if (!content.endsWith(noThinkSuffix)) {
+        return content + ' ' + noThinkSuffix
       }
     }
   } else if (Array.isArray(content)) {
-    let lastTextPartIndex = -1
-    for (let i = content.length - 1; i >= 0; i--) {
-      if (content[i].type === 'text') {
-        lastTextPartIndex = i
-        break
-      }
-    }
+    const lastTextPart = findLast(content, (part) => part.type === 'text')
 
-    if (lastTextPartIndex !== -1) {
-      const textPart = content[lastTextPartIndex] as ChatCompletionContentPartText
+    if (lastTextPart) {
       if (qwenThinkModeEnabled) {
-        // 思考模式启用，移除 postsuffix
-        if (textPart.text.endsWith(postsuffix)) {
-          textPart.text = textPart.text.substring(0, textPart.text.length - postsuffix.length).trimEnd()
-          // 可選：如果 textPart.text 變為空，可以考慮是否移除該 part
+        if (!lastTextPart.text.endsWith(thinkSuffix)) {
+          lastTextPart.text += thinkSuffix
         }
       } else {
-        // 思考模式未启用，添加 postsuffix
-        if (!textPart.text.endsWith(postsuffix)) {
-          textPart.text += postsuffix
+        if (!lastTextPart.text.endsWith(noThinkSuffix)) {
+          lastTextPart.text += noThinkSuffix
         }
       }
     } else {
       // 數組中沒有文本部分
-      if (!qwenThinkModeEnabled) {
+      if (qwenThinkModeEnabled) {
         // 思考模式未啓用，需要添加 postsuffix
         // 如果沒有文本部分，則添加一個新的文本部分
-        content.push({ type: 'text', text: postsuffix })
+        content.push({ type: 'text', text: thinkSuffix })
+      } else {
+        content.push({ type: 'text', text: noThinkSuffix })
       }
-    }
-  } else {
-    // currentContent 是 null
-    if (!qwenThinkModeEnabled) {
-      // 思考模式未启用，需要添加 postsuffix
-      return content
     }
   }
   return content

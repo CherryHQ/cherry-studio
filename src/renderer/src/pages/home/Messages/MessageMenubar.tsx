@@ -1,39 +1,60 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
+// import { InfoCircleOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { CopyIcon, DeleteIcon, EditIcon, RefreshIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
-import { isVisionModel } from '@renderer/config/models'
-import { translateLanguageOptions } from '@renderer/config/translate'
+import { isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import { useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
-import { useEnableDeveloperMode, useMessageStyle } from '@renderer/hooks/useSettings'
+import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
+import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { useEnableDeveloperMode, useMessageStyle, useSettings } from '@renderer/hooks/useSettings'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
+import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
-import store, { RootState } from '@renderer/store'
-import { messageBlocksSelectors } from '@renderer/store/messageBlock'
+import store, { RootState, useAppDispatch } from '@renderer/store'
+import { messageBlocksSelectors, removeOneBlock } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { TraceIcon } from '@renderer/trace/pages/Component'
-import type { Assistant, Language, Model, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
-import { captureScrollableDivAsBlob, captureScrollableDivAsDataURL, classNames } from '@renderer/utils'
+import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
   exportMessageAsMarkdown,
+  exportMessageToNotes,
   exportMessageToNotion,
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
-import { findMainTextBlocks, findTranslationBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
+import {
+  findMainTextBlocks,
+  findTranslationBlocks,
+  findTranslationBlocksById,
+  getMainTextContent
+} from '@renderer/utils/messageUtils/find'
 import { Dropdown, Popconfirm, Tooltip } from 'antd'
 import dayjs from 'dayjs'
-import { AtSign, Check, FilePenLine, Languages, ListChecks, Menu, Save, Split, ThumbsUp, Upload } from 'lucide-react'
+import {
+  AtSign,
+  Check,
+  FilePenLine,
+  Languages,
+  ListChecks,
+  Menu,
+  NotebookPen,
+  Save,
+  Split,
+  ThumbsUp,
+  Upload
+} from 'lucide-react'
 import { FC, memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -52,20 +73,34 @@ interface Props {
   isAssistantMessage: boolean
   messageContainerRef: React.RefObject<HTMLDivElement>
   setModel: (model: Model) => void
+  onUpdateUseful?: (msgId: string) => void
 }
 
+const logger = loggerService.withContext('MessageMenubar')
+
 const MessageMenubar: FC<Props> = (props) => {
-  const { message, index, isGrouped, isLastMessage, isAssistantMessage, assistant, topic, model, messageContainerRef } =
-    props
+  const {
+    message,
+    index,
+    isGrouped,
+    isLastMessage,
+    isAssistantMessage,
+    assistant,
+    topic,
+    model,
+    messageContainerRef,
+    onUpdateUseful
+  } = props
   const { t } = useTranslation()
+  const { notesPath } = useNotesSettings()
   const { toggleMultiSelectMode } = useChatContext(props.topic)
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [isTranslating, setIsTranslating] = useState(false)
-  const [showRegenerateTooltip, setShowRegenerateTooltip] = useState(false)
+  // remove confirm for regenerate; tooltip stays simple
   const [showDeleteTooltip, setShowDeleteTooltip] = useState(false)
+  const { translateLanguages } = useTranslate()
   // const assistantModel = assistant?.model
   const {
-    editMessage,
     deleteMessage,
     resendMessage,
     regenerateAssistantMessage,
@@ -76,12 +111,14 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const { isBubbleStyle } = useMessageStyle()
   const { enableDeveloperMode } = useEnableDeveloperMode()
+  const { confirmDeleteMessage, confirmRegenerateMessage } = useSettings()
 
-  const loading = useTopicLoading(topic)
+  // const loading = useTopicLoading(topic)
 
   const isUserMessage = message.role === 'user'
 
   const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const dispatch = useAppDispatch()
 
   // const processedMessage = useMemo(() => {
   //   if (message.role === 'assistant' && message.model && isReasoningModel(message.model)) {
@@ -114,29 +151,22 @@ const MessageMenubar: FC<Props> = (props) => {
 
       navigator.clipboard.writeText(removeTrailingDoubleSpaces(contentToCopy.trimStart()))
 
-      window.message.success({ content: t('message.copied'), key: 'copy-message' })
+      window.toast.success(t('message.copied'))
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
     },
-    [message, t] // message is needed for message.id and as a fallback. t is for translation.
+    [message, setCopied, t] // message is needed for message.id and as a fallback. t is for translation.
   )
 
   const onNewBranch = useCallback(async () => {
-    if (loading) return
     EventEmitter.emit(EVENT_NAMES.NEW_BRANCH, index)
-    window.message.success({ content: t('chat.message.new.branch.created'), key: 'new-branch' })
-  }, [index, t, loading])
+    window.toast.success(t('chat.message.new.branch.created'))
+  }, [index, t])
 
   const handleResendUserMessage = useCallback(
     async (messageUpdate?: Message) => {
-      if (!loading) {
-        const assistantWithTopicPrompt = topic.prompt
-          ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-          : assistant
-        await resendMessage(messageUpdate ?? message, assistantWithTopicPrompt)
-      }
+      await resendMessage(messageUpdate ?? message, assistant)
     },
-    [assistant, loading, message, resendMessage, topic.prompt]
+    [assistant, message, resendMessage]
   )
 
   const { startEditing } = useMessageEditing()
@@ -146,7 +176,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [message.id, startEditing])
 
   const handleTranslate = useCallback(
-    async (language: Language) => {
+    async (language: TranslateLanguage) => {
       if (isTranslating) return
 
       setIsTranslating(true)
@@ -156,15 +186,24 @@ const MessageMenubar: FC<Props> = (props) => {
       try {
         await translateText(mainTextContent, language, translationUpdater)
       } catch (error) {
-        // console.error('Translation failed:', error)
-        // window.message.error({ content: t('translate.error.failed'), key: 'translate-message' })
-        // editMessage(message.id, { translatedContent: undefined })
+        window.toast.error(t('translate.error.failed'))
+        // 理应只有一个
+        const translationBlocks = findTranslationBlocksById(message.id)
+        logger.silly(`there are ${translationBlocks.length} translation blocks`)
+        if (translationBlocks.length > 0) {
+          const block = translationBlocks[0]
+          logger.silly(`block`, block)
+          if (!block.content) {
+            dispatch(removeOneBlock(block.id))
+          }
+        }
+
         // clearStreamMessage(message.id)
       } finally {
         setIsTranslating(false)
       }
     },
-    [isTranslating, message, getTranslationUpdater, mainTextContent]
+    [isTranslating, message, getTranslationUpdater, mainTextContent, t, dispatch]
   )
 
   const handleTraceUserMessage = useCallback(async () => {
@@ -225,7 +264,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.save.knowledge.title'),
             key: 'knowledge',
             onClick: () => {
-              SaveToKnowledgePopup.show({ message })
+              SaveToKnowledgePopup.showForMessage(message)
             }
           }
         ]
@@ -244,7 +283,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.copy.image'),
             key: 'img',
             onClick: async () => {
-              await captureScrollableDivAsBlob(messageContainerRef, async (blob) => {
+              await captureScrollableAsBlob(messageContainerRef, async (blob) => {
                 if (blob) {
                   await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
                 }
@@ -255,7 +294,7 @@ const MessageMenubar: FC<Props> = (props) => {
             label: t('chat.topics.export.image'),
             key: 'image',
             onClick: async () => {
-              const imageData = await captureScrollableDivAsDataURL(messageContainerRef)
+              const imageData = await captureScrollableAsDataURL(messageContainerRef)
               const title = await getMessageTitle(message)
               if (title && imageData) {
                 window.api.file.saveImage(title, imageData)
@@ -328,14 +367,23 @@ const MessageMenubar: FC<Props> = (props) => {
       }
     ],
     [
-      t,
       isEditable,
+      t,
       onEdit,
       onNewBranch,
-      exportMenuOptions,
+      exportMenuOptions.plain_text,
+      exportMenuOptions.image,
+      exportMenuOptions.markdown,
+      exportMenuOptions.markdown_reason,
+      exportMenuOptions.docx,
+      exportMenuOptions.notion,
+      exportMenuOptions.yuque,
+      exportMenuOptions.obsidian,
+      exportMenuOptions.joplin,
+      exportMenuOptions.siyuan,
+      toggleMultiSelectMode,
       message,
       mainTextContent,
-      toggleMultiSelectMode,
       messageContainerRef,
       topic.name
     ]
@@ -343,24 +391,21 @@ const MessageMenubar: FC<Props> = (props) => {
 
   const onRegenerate = async (e: React.MouseEvent | undefined) => {
     e?.stopPropagation?.()
-    if (loading) return
     // No need to reset or edit the message anymore
     // const selectedModel = isGrouped ? model : assistantModel
     // const _message = resetAssistantMessage(message, selectedModel)
     // editMessage(message.id, { ..._message }) // REMOVED
 
-    const assistantWithTopicPrompt = topic.prompt
-      ? { ...assistant, prompt: `${assistant.prompt}\n${topic.prompt}` }
-      : assistant
-
     // Call the function from the hook
-    regenerateAssistantMessage(message, assistantWithTopicPrompt)
+    regenerateAssistantMessage(message, assistant)
   }
 
   // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
   const mentionModelFilter = useMemo(() => {
+    const defaultFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
+
     if (!isAssistantMessage) {
-      return () => true
+      return defaultFilter
     }
     const state = store.getState()
     const topicMessages: Message[] = selectMessagesForTopic(state, topic.id)
@@ -370,7 +415,7 @@ const MessageMenubar: FC<Props> = (props) => {
     })
     // 无关联用户消息时，默认返回所有模型
     if (!relatedUserMessage) {
-      return () => true
+      return defaultFilter
     }
 
     const relatedUserMessageBlocks = relatedUserMessage.blocks.map((msgBlockId) =>
@@ -378,33 +423,32 @@ const MessageMenubar: FC<Props> = (props) => {
     )
 
     if (!relatedUserMessageBlocks) {
-      return () => true
+      return defaultFilter
     }
 
     if (relatedUserMessageBlocks.some((block) => block && block.type === MessageBlockType.IMAGE)) {
-      return (m: Model) => isVisionModel(m)
+      return (m: Model) => isVisionModel(m) && defaultFilter(m)
     } else {
-      return () => true
+      return defaultFilter
     }
   }, [isAssistantMessage, message.askId, topic.id])
 
   const onMentionModel = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (loading) return
-      const selectedModel = await SelectModelPopup.show({ model, modelFilter: mentionModelFilter })
+      const selectedModel = await SelectModelPopup.show({ model, filter: mentionModelFilter })
       if (!selectedModel) return
       appendAssistantResponse(message, selectedModel, { ...assistant, model: selectedModel })
     },
-    [appendAssistantResponse, assistant, loading, mentionModelFilter, message, model]
+    [appendAssistantResponse, assistant, mentionModelFilter, message, model]
   )
 
   const onUseful = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      editMessage(message.id, { useful: !message.useful })
+      onUpdateUseful?.(message.id)
     },
-    [message, editMessage]
+    [message.id, onUpdateUseful]
   )
 
   const blockEntities = useSelector(messageBlocksSelectors.selectEntities)
@@ -422,16 +466,32 @@ const MessageMenubar: FC<Props> = (props) => {
       {showMessageTokens && <MessageTokens message={message} />}
       <MenusBar
         className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
-        {message.role === 'user' && (
-          <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
-            <ActionButton
-              className="message-action-button"
-              onClick={() => handleResendUserMessage()}
-              $softHoverBg={isBubbleStyle}>
-              <RefreshIcon size={15} />
-            </ActionButton>
-          </Tooltip>
-        )}
+        {message.role === 'user' &&
+          (confirmRegenerateMessage ? (
+            <Popconfirm
+              title={t('message.regenerate.confirm')}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => handleResendUserMessage()}
+              onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+              <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+                <ActionButton
+                  className="message-action-button"
+                  onClick={(e) => e.stopPropagation()}
+                  $softHoverBg={isBubbleStyle}>
+                  <RefreshIcon size={15} />
+                </ActionButton>
+              </Tooltip>
+            </Popconfirm>
+          ) : (
+            <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+              <ActionButton
+                className="message-action-button"
+                onClick={() => handleResendUserMessage()}
+                $softHoverBg={isBubbleStyle}>
+                <RefreshIcon size={15} />
+              </ActionButton>
+            </Tooltip>
+          ))}
         {message.role === 'user' && (
           <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
@@ -445,24 +505,29 @@ const MessageMenubar: FC<Props> = (props) => {
             {copied && <Check size={15} color="var(--color-primary)" />}
           </ActionButton>
         </Tooltip>
-        {isAssistantMessage && (
-          <Popconfirm
-            title={t('message.regenerate.confirm')}
-            okButtonProps={{ danger: true }}
-            icon={<InfoCircleOutlined style={{ color: 'red' }} />}
-            onConfirm={onRegenerate}
-            onOpenChange={(open) => open && setShowRegenerateTooltip(false)}>
-            <Tooltip
-              title={t('common.regenerate')}
-              mouseEnterDelay={0.8}
-              open={showRegenerateTooltip}
-              onOpenChange={setShowRegenerateTooltip}>
-              <ActionButton className="message-action-button" $softHoverBg={softHoverBg}>
+        {isAssistantMessage &&
+          (confirmRegenerateMessage ? (
+            <Popconfirm
+              title={t('message.regenerate.confirm')}
+              okButtonProps={{ danger: true }}
+              onConfirm={onRegenerate}
+              onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+              <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+                <ActionButton
+                  className="message-action-button"
+                  onClick={(e) => e.stopPropagation()}
+                  $softHoverBg={softHoverBg}>
+                  <RefreshIcon size={15} />
+                </ActionButton>
+              </Tooltip>
+            </Popconfirm>
+          ) : (
+            <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+              <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
                 <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
-          </Popconfirm>
-        )}
+          ))}
         {isAssistantMessage && (
           <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
@@ -479,7 +544,7 @@ const MessageMenubar: FC<Props> = (props) => {
                 backgroundClip: 'border-box'
               },
               items: [
-                ...translateLanguageOptions.map((item) => ({
+                ...translateLanguages.map((item) => ({
                   label: item.emoji + ' ' + item.label(),
                   key: item.langCode,
                   onClick: () => handleTranslate(item)
@@ -503,9 +568,9 @@ const MessageMenubar: FC<Props> = (props) => {
 
                             if (translationContent) {
                               navigator.clipboard.writeText(translationContent)
-                              window.message.success({ content: t('translate.copied'), key: 'translate-copy' })
+                              window.toast.success(t('translate.copied'))
                             } else {
-                              window.message.warning({ content: t('translate.empty'), key: 'translate-copy' })
+                              window.toast.warning(t('translate.empty'))
                             }
                           }
                         }
@@ -523,7 +588,7 @@ const MessageMenubar: FC<Props> = (props) => {
                             translationBlocks.forEach((blockId) => {
                               if (blockId) removeMessageBlock(message.id, blockId)
                             })
-                            window.message.success({ content: t('translate.closed'), key: 'translate-close' })
+                            window.toast.success(t('translate.closed'))
                           }
                         }
                       }
@@ -546,7 +611,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Dropdown>
         )}
         {isAssistantMessage && isGrouped && (
-          <Tooltip title={t('chat.message.useful')} mouseEnterDelay={0.8}>
+          <Tooltip title={t('chat.message.useful.label')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
@@ -556,15 +621,47 @@ const MessageMenubar: FC<Props> = (props) => {
             </ActionButton>
           </Tooltip>
         )}
-        <Popconfirm
-          title={t('message.message.delete.content')}
-          okButtonProps={{ danger: true }}
-          icon={<InfoCircleOutlined style={{ color: 'red' }} />}
-          onOpenChange={(open) => open && setShowDeleteTooltip(false)}
-          onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}>
+        {isAssistantMessage && (
+          <Tooltip title={t('notes.save')} mouseEnterDelay={0.8}>
+            <ActionButton
+              className="message-action-button"
+              onClick={async (e) => {
+                e.stopPropagation()
+                const title = await getMessageTitle(message)
+                const markdown = messageToMarkdown(message)
+                exportMessageToNotes(title, markdown, notesPath)
+              }}
+              $softHoverBg={softHoverBg}>
+              <NotebookPen size={15} />
+            </ActionButton>
+          </Tooltip>
+        )}
+        {confirmDeleteMessage ? (
+          <Popconfirm
+            title={t('message.message.delete.content')}
+            okButtonProps={{ danger: true }}
+            onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}
+            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+            <ActionButton
+              className="message-action-button"
+              onClick={(e) => e.stopPropagation()}
+              $softHoverBg={softHoverBg}>
+              <Tooltip
+                title={t('common.delete')}
+                mouseEnterDelay={1}
+                open={showDeleteTooltip}
+                onOpenChange={setShowDeleteTooltip}>
+                <DeleteIcon size={15} />
+              </Tooltip>
+            </ActionButton>
+          </Popconfirm>
+        ) : (
           <ActionButton
             className="message-action-button"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              deleteMessage(message.id, message.traceId, message.model?.name)
+            }}
             $softHoverBg={softHoverBg}>
             <Tooltip
               title={t('common.delete')}
@@ -574,7 +671,7 @@ const MessageMenubar: FC<Props> = (props) => {
               <DeleteIcon size={15} />
             </Tooltip>
           </ActionButton>
-        </Popconfirm>
+        )}
         {enableDeveloperMode && message.traceId && (
           <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
             <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>

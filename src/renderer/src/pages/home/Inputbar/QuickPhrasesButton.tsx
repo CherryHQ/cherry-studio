@@ -1,6 +1,7 @@
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useTimer } from '@renderer/hooks/useTimer'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { useAppSelector } from '@renderer/store'
 import { QuickPhrase } from '@renderer/types'
@@ -34,6 +35,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
       state.assistants.assistants.find((a) => a.id === assistantObj.id)?.id || state.assistants.defaultAssistant.id
   )
   const { assistant, updateAssistant } = useAssistant(activeAssistantId)
+  const { setTimeoutTimer } = useTimer()
 
   const loadQuickListPhrases = useCallback(
     async (regularPhrases: QuickPhrase[] = []) => {
@@ -54,24 +56,32 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
 
   const handlePhraseSelect = useCallback(
     (phrase: QuickPhrase) => {
-      setTimeout(() => {
-        setInputValue((prev) => {
-          const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
-          const cursorPosition = textArea.selectionStart
-          const selectionStart = cursorPosition
-          const selectionEndPosition = cursorPosition + phrase.content.length
-          const newText = prev.slice(0, cursorPosition) + phrase.content + prev.slice(cursorPosition)
+      setTimeoutTimer(
+        'handlePhraseSelect_1',
+        () => {
+          setInputValue((prev) => {
+            const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement
+            const cursorPosition = textArea.selectionStart
+            const selectionStart = cursorPosition
+            const selectionEndPosition = cursorPosition + phrase.content.length
+            const newText = prev.slice(0, cursorPosition) + phrase.content + prev.slice(cursorPosition)
 
-          setTimeout(() => {
-            textArea.focus()
-            textArea.setSelectionRange(selectionStart, selectionEndPosition)
-            resizeTextArea()
-          }, 10)
-          return newText
-        })
-      }, 10)
+            setTimeoutTimer(
+              'handlePhraseSelect_2',
+              () => {
+                textArea.focus()
+                textArea.setSelectionRange(selectionStart, selectionEndPosition)
+                resizeTextArea()
+              },
+              10
+            )
+            return newText
+          })
+        },
+        10
+      )
     },
-    [setInputValue, resizeTextArea]
+    [setTimeoutTimer, setInputValue, resizeTextArea]
   )
 
   const handleModalOk = async () => {

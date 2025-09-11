@@ -204,7 +204,7 @@ export function registerShortcuts(window: BrowserWindow) {
             selectionAssistantSelectTextAccelerator = formatShortcutKey(shortcut.shortcut)
             break
 
-          //the following ZOOMs will register shortcuts seperately, so will return
+          //the following ZOOMs will register shortcuts separately, so will return
           case 'zoom_in':
             globalShortcut.register('CommandOrControl+=', () => handler(window))
             globalShortcut.register('CommandOrControl+numadd', () => handler(window))

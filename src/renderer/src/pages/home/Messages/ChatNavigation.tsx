@@ -39,7 +39,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const { t } = useTranslation()
   const [isVisible, setIsVisible] = useState(false)
   const [isNearButtons, setIsNearButtons] = useState(false)
-  const [hideTimer, setHideTimer] = useState<NodeJS.Timeout | null>(null)
+  const hideTimerRef = useRef<NodeJS.Timeout>(undefined)
   const [showChatHistory, setShowChatHistory] = useState(false)
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
@@ -49,20 +49,16 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
 
   // Reset hide timer and make buttons visible
   const resetHideTimer = useCallback(() => {
-    if (hideTimer) {
-      clearTimeout(hideTimer)
-    }
-
     setIsVisible(true)
 
     // Only set a hide timer if cursor is not near the buttons
     if (!isNearButtons) {
-      const timer = setTimeout(() => {
+      clearTimeout(hideTimerRef.current)
+      hideTimerRef.current = setTimeout(() => {
         setIsVisible(false)
       }, 1500)
-      setHideTimer(timer)
     }
-  }, [hideTimer, isNearButtons])
+  }, [isNearButtons])
 
   // Handle mouse entering button area
   const handleMouseEnter = useCallback(() => {
@@ -74,21 +70,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     setIsVisible(true)
 
     // Clear any existing hide timer
-    if (hideTimer) {
-      clearTimeout(hideTimer)
-      setHideTimer(null)
-    }
-  }, [hideTimer, manuallyClosedUntil])
+    clearTimeout(hideTimerRef.current)
+  }, [manuallyClosedUntil])
 
   // Handle mouse leaving button area
   const handleMouseLeave = useCallback(() => {
     setIsNearButtons(false)
 
     // Set a timer to hide the buttons
-    const timer = setTimeout(() => {
+    hideTimerRef.current = setTimeout(() => {
       setIsVisible(false)
     }, 500)
-    setHideTimer(timer)
+
+    return () => {
+      clearTimeout(hideTimerRef.current)
+    }
   }, [])
 
   const handleChatHistoryClick = () => {
@@ -197,21 +193,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     const assistantMessages = findAssistantMessages()
 
     if (userMessages.length === 0 && assistantMessages.length === 0) {
-      // window.message.info({ content: t('chat.navigation.last'), key: 'navigation-info' })
+      // window.toast.info(t('chat.navigation.last'))
       return scrollToBottom()
     }
 
     const visibleIndex = getCurrentVisibleIndex('down')
 
     if (visibleIndex === -1) {
-      // window.message.info({ content: t('chat.navigation.last'), key: 'navigation-info' })
+      // window.toast.info(t('chat.navigation.last'))
       return scrollToBottom()
     }
 
     const targetIndex = visibleIndex - 1
 
     if (targetIndex < 0) {
-      // window.message.info({ content: t('chat.navigation.last'), key: 'navigation-info' })
+      // window.toast.info(t('chat.navigation.last'))
       return scrollToBottom()
     }
 
@@ -223,21 +219,21 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     const userMessages = findUserMessages()
     const assistantMessages = findAssistantMessages()
     if (userMessages.length === 0 && assistantMessages.length === 0) {
-      // window.message.info({ content: t('chat.navigation.first'), key: 'navigation-info' })
+      // window.toast.info(t('chat.navigation.first'))
       return scrollToTop()
     }
 
     const visibleIndex = getCurrentVisibleIndex('up')
 
     if (visibleIndex === -1) {
-      // window.message.info({ content: t('chat.navigation.first'), key: 'navigation-info' })
+      // window.toast.info(t('chat.navigation.first'))
       return scrollToTop()
     }
 
     const targetIndex = visibleIndex + 1
 
     if (targetIndex >= userMessages.length) {
-      // window.message.info({ content: t('chat.navigation.first'), key: 'navigation-info' })
+      // window.toast.info(t('chat.navigation.first'))
       return scrollToTop()
     }
 
@@ -322,13 +318,10 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
       } else {
         window.removeEventListener('mousemove', handleMouseMove)
       }
-      if (hideTimer) {
-        clearTimeout(hideTimer)
-      }
+      clearTimeout(hideTimerRef.current)
     }
   }, [
     containerId,
-    hideTimer,
     resetHideTimer,
     isNearButtons,
     handleMouseEnter,
@@ -403,7 +396,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         onClose={handleDrawerClose}
         open={showChatHistory}
         width={680}
-        destroyOnClose
+        destroyOnHidden
         styles={{
           header: { border: 'none' },
           body: {

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { createSelector } from '@reduxjs/toolkit'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { appendTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
+import { appendMessageTrace, pauseTrace, restartTrace } from '@renderer/services/SpanManagerService'
 import { estimateUserPromptUsage } from '@renderer/services/TokenService'
 import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
 import { updateOneBlock } from '@renderer/store/messageBlock'
@@ -20,7 +20,7 @@ import {
   updateMessageAndBlocksThunk,
   updateTranslationBlockThunk
 } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, LanguageCode, Model, Topic } from '@renderer/types'
+import type { Assistant, Model, Topic, TranslateLanguageCode } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { abortCompletion } from '@renderer/utils/abortController'
@@ -178,7 +178,7 @@ export function useMessageOperations(topic: Topic) {
    */
   const appendAssistantResponse = useCallback(
     async (existingAssistantMessage: Message, newModel: Model, assistant: Assistant) => {
-      await appendTrace(existingAssistantMessage, newModel)
+      await appendMessageTrace(existingAssistantMessage, newModel)
       if (existingAssistantMessage.role !== 'assistant') {
         logger.error('appendAssistantResponse should only be called for an existing assistant message.')
         return
@@ -211,9 +211,9 @@ export function useMessageOperations(topic: Topic) {
   const getTranslationUpdater = useCallback(
     async (
       messageId: string,
-      targetLanguage: LanguageCode,
+      targetLanguage: TranslateLanguageCode,
       sourceBlockId?: string,
-      sourceLanguage?: LanguageCode
+      sourceLanguage?: TranslateLanguageCode
     ): Promise<((accumulatedText: string, isComplete?: boolean) => void) | null> => {
       if (!topic.id) return null
 

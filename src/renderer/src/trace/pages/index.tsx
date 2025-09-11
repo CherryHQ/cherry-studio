@@ -156,7 +156,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         <SimpleGrid columns={1} templateColumns="1fr">
           <Box padding={0} className="scroll-container">
             {showList ? (
-              <VStack grap={1} align="start">
+              <VStack gap={1} align="start">
                 {spans.length === 0 ? (
                   <Text>没有找到Trace信息</Text>
                 ) : (

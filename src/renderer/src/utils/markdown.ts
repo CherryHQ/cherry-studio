@@ -1,8 +1,8 @@
-import { languages } from '@shared/config/languages'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
 import { unified } from 'unified'
+import type { Point, Position } from 'unist'
 import { visit } from 'unist-util-visit'
 
 /**
@@ -186,45 +186,11 @@ export function removeTrailingDoubleSpaces(markdown: string): string {
 }
 
 /**
- * 根据语言名称获取文件扩展名
- * - 先精确匹配，再忽略大小写，最后匹配别名
- * - 返回第一个扩展名
- * @param language 语言名称
- * @returns 文件扩展名
- */
-export function getExtensionByLanguage(language: string): string {
-  const lowerLanguage = language.toLowerCase()
-
-  // 精确匹配语言名称
-  const directMatch = languages[language]
-  if (directMatch?.extensions?.[0]) {
-    return directMatch.extensions[0]
-  }
-
-  // 大小写不敏感的语言名称匹配
-  for (const [langName, data] of Object.entries(languages)) {
-    if (langName.toLowerCase() === lowerLanguage && data.extensions?.[0]) {
-      return data.extensions[0]
-    }
-  }
-
-  // 通过别名匹配
-  for (const [, data] of Object.entries(languages)) {
-    if (data.aliases?.some((alias) => alias.toLowerCase() === lowerLanguage)) {
-      return data.extensions?.[0] || `.${language}`
-    }
-  }
-
-  // 回退到语言名称
-  return `.${language}`
-}
-
-/**
  * 根据代码块节点的起始位置生成 ID
  * @param start 代码块节点的起始位置
  * @returns 代码块在 Markdown 字符串中的 ID
  */
-export function getCodeBlockId(start: any): string | null {
+export function getCodeBlockId(start?: Point): string | null {
   return start ? `${start.line}:${start.column}:${start.offset}` : null
 }
 
@@ -254,17 +220,25 @@ export function updateCodeBlock(raw: string, id: string, newContent: string): st
 }
 
 /**
- * 检查是否为有效的 PlantUML 图表
- * @param code 输入的 PlantUML 图表字符串
- * @returns 有效 true，无效 false
+ * 检查代码块是否包含 open fence。
+ * 限制：
+ * - 语言名不能包含空格，因为 remark-math 无法处理，会导致 end.offset 过长。
+ *
+ * 这个算法基于 remark/micromark 解析代码块的原理，所有参数实际上都可以从 node 中获取。
+ * 一个代码块的 node.position 包含 fences，而 children 不包含 fences，通过它们之间的
+ * 差值就可以判断有没有 closed fence。
+ *
+ * @param codeLength 代码长度（不包含语言信息）
+ * @param metaLength 元数据长度（```之后的语言信息）
+ * @param position 位置（unist 节点位置）
+ * @returns 是否为 open fence 代码块
  */
-export function isValidPlantUML(code: string | null): boolean {
-  if (!code || !code.trim().startsWith('@start')) {
-    return false
-  }
-  const diagramType = code.match(/@start(\w+)/)?.[1]
-
-  return diagramType !== undefined && code.search(`@end${diagramType}`) !== -1
+export function isOpenFenceBlock(codeLength?: number, metaLength?: number, position?: Position): boolean {
+  const contentLength = (codeLength ?? 0) + (metaLength ?? 0)
+  const start = position?.start?.offset ?? 0
+  const end = position?.end?.offset ?? 0
+  // 余量至少是 fence (3) + newlines (2)
+  return end - start <= contentLength + 5
 }
 
 /**
@@ -277,31 +251,49 @@ export function isHtmlCode(code: string | null): boolean {
     return false
   }
 
-  const trimmedCode = code.trim()
+  const trimmedCode = code.trim().toLowerCase()
 
-  // 检查是否包含HTML文档类型声明
-  if (trimmedCode.includes('<!DOCTYPE html>') || trimmedCode.includes('<!doctype html>')) {
+  // 1. 检查是否包含完整的HTML文档结构
+  if (
+    trimmedCode.includes('<!doctype html>') ||
+    trimmedCode.includes('<html') ||
+    trimmedCode.includes('</html>') ||
+    trimmedCode.includes('<head') ||
+    trimmedCode.includes('</head>') ||
+    trimmedCode.includes('<body') ||
+    trimmedCode.includes('</body>')
+  ) {
     return true
   }
 
-  // 检查是否包含html标签
-  if (trimmedCode.includes('<html') || trimmedCode.includes('</html>')) {
+  // 2. 检查是否包含常见的HTML/SVG标签
+  const commonTags = [
+    '<div',
+    '<span',
+    '<p',
+    '<a',
+    '<img',
+    '<svg',
+    '<table',
+    '<ul',
+    '<ol',
+    '<section',
+    '<header',
+    '<footer',
+    '<nav',
+    '<article',
+    '<button',
+    '<form',
+    '<input'
+  ]
+  if (commonTags.some((tag) => trimmedCode.includes(tag))) {
     return true
   }
 
-  // 检查是否包含head标签
-  if (trimmedCode.includes('<head>') || trimmedCode.includes('</head>')) {
-    return true
-  }
-
-  // 检查是否包含body标签
-  if (trimmedCode.includes('<body') || trimmedCode.includes('</body>')) {
-    return true
-  }
-
-  // 检查是否以HTML标签开头和结尾的完整HTML结构
-  const htmlTagPattern = /^\s*<html[^>]*>[\s\S]*<\/html>\s*$/i
-  if (htmlTagPattern.test(trimmedCode)) {
+  // 3. 检查是否存在至少一个闭合的HTML标签
+  // 这个正则表达式查找 <tag>...</tag> 或 <tag .../> 结构
+  const pairedTagPattern = /<([a-z0-9]+)([^>]*?)>(.*?)<\/\1>|<([a-z0-9]+)([^>]*?)\/>/
+  if (pairedTagPattern.test(trimmedCode)) {
     return true
   }
 
@@ -319,4 +311,22 @@ export const markdownToPlainText = (markdown: string): string => {
   }
   // 直接用 remove-markdown 库，使用默认的 removeMarkdown 参数
   return removeMarkdown(markdown)
+}
+
+/**
+ * 清理 Markdown 中的 base64 图片链接
+ *
+ * 将 Markdown 中的 base64 格式图片链接替换为普通链接格式。
+ *
+ * @param {string} markdown - 包含图片链接的 Markdown 文本
+ * @returns {string} 处理后的 Markdown 文本，所有 base64 图片链接都被替换为普通链接
+ * @example
+ * - 输入: `![image](data:image/png;base64,iVBORw0...)`
+ * - 输出: `![image](image_url)`
+ */
+export const purifyMarkdownImages = (markdown: string): string => {
+  return markdown.replace(
+    /(!\[[^\]]*\]\()\s*data:image\/[\w+.-]+;base64\s*,[\w+/=]+(?:\s*[\w+/=]+)*\s*\)/gi,
+    '$1image_url)'
+  )
 }

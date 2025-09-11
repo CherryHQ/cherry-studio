@@ -3,20 +3,25 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
-import { PROVIDER_CONFIG } from '@renderer/config/providers'
+import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAllProviders, useProvider, useProviders } from '@renderer/hooks/useProvider'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
+import AnthropicSettings from '@renderer/pages/settings/ProviderSettings/AnthropicSettings'
 import { ModelList } from '@renderer/pages/settings/ProviderSettings/ModelList'
 import { checkApi } from '@renderer/services/ApiService'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
+import { useAppDispatch } from '@renderer/store'
+import { updateWebSearchProvider } from '@renderer/store/websearch'
+import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Flex, Input, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Flex, Input, Select, Space, Switch, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
-import { Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
+import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,7 +34,7 @@ import {
   SettingSubtitle,
   SettingTitle
 } from '..'
-import ApiOptionsSettings from './ApiOptionsSettings'
+import ApiOptionsSettingsPopup from './ApiOptionsSettings/ApiOptionsSettingsPopup'
 import AwsBedrockSettings from './AwsBedrockSettings'
 import CustomHeaderPopup from './CustomHeaderPopup'
 import DMXAPISettings from './DMXAPISettings'
@@ -52,12 +57,14 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const [apiVersion, setApiVersion] = useState(provider.apiVersion)
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const { setTimeoutTimer } = useTimer()
+  const dispatch = useAppDispatch()
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
-
   const isDmxapi = provider.id === 'dmxapi'
+  const hideApiInput = ['vertexai', 'aws-bedrock', 'cherryin'].includes(provider.id)
 
-  const providerConfig = PROVIDER_CONFIG[provider.id]
+  const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official
   const apiKeyWebsite = providerConfig?.websites?.apiKey
   const configedApiHost = providerConfig?.api?.url
@@ -70,10 +77,15 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     checking: false
   })
 
+  const updateWebSearchProviderKey = ({ apiKey }: { apiKey: string }) => {
+    provider.id === 'zhipu' && dispatch(updateWebSearchProvider({ id: 'zhipu', apiKey: apiKey.split(',')[0] }))
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedUpdateApiKey = useCallback(
     debounce((value) => {
       updateProvider({ apiKey: formatApiKeys(value) })
+      updateWebSearchProviderKey({ apiKey: formatApiKeys(value) })
     }, 150),
     []
   )
@@ -127,7 +139,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
   const openApiKeyList = async () => {
     await ApiKeyListPopup.show({
       providerId: provider.id,
-      providerKind: 'llm',
       title: `${fancyProviderName} ${t('settings.provider.api.key.list.title')}`
     })
   }
@@ -142,11 +153,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     const modelsToCheck = models.filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
 
     if (isEmpty(modelsToCheck)) {
-      window.message.error({
-        key: 'no-models',
-        style: { marginTop: '3vh' },
-        duration: 5,
-        content: t('settings.provider.no_models_for_check')
+      window.toast.error({
+        timeout: 5000,
+        title: t('settings.provider.no_models_for_check')
       })
       return
     }
@@ -154,7 +163,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     const model = await SelectProviderModelPopup.show({ provider })
 
     if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
+      window.toast.error(i18n.t('message.error.enter.model'))
       return
     }
 
@@ -162,23 +171,23 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       setApiKeyConnectivity((prev) => ({ ...prev, checking: true, status: HealthStatus.NOT_CHECKED }))
       await checkApi({ ...provider, apiHost }, model)
 
-      window.message.success({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: 2,
-        content: i18n.t('message.api.connection.success')
+      window.toast.success({
+        timeout: 2000,
+        title: i18n.t('message.api.connection.success')
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.SUCCESS }))
-      setTimeout(() => {
-        setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
-      }, 3000)
+      setTimeoutTimer(
+        'onCheckApi',
+        () => {
+          setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.NOT_CHECKED }))
+        },
+        3000
+      )
     } catch (error: any) {
-      window.message.error({
-        key: 'api-check',
-        style: { marginTop: '3vh' },
-        duration: 8,
-        content: i18n.t('message.api.connection.failed')
+      window.toast.error({
+        timeout: 8000,
+        title: i18n.t('message.api.connection.failed')
       })
 
       setApiKeyConnectivity((prev) => ({ ...prev, status: HealthStatus.FAILED, error: formatErrorMessage(error) }))
@@ -226,15 +235,27 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     setApiHost(provider.apiHost)
   }, [provider.apiHost, provider.id])
 
+  const isAnthropicOAuth = () => provider.id === 'anthropic' && provider.authType === 'oauth'
+
   return (
     <SettingContainer theme={theme} style={{ background: 'var(--color-background)' }}>
       <SettingTitle>
-        <Flex align="center" gap={5}>
+        <Flex align="center" gap={8}>
           <ProviderName>{fancyProviderName}</ProviderName>
           {officialWebsite && (
             <Link target="_blank" href={providerConfig.websites.official} style={{ display: 'flex' }}>
               <Button type="text" size="small" icon={<SquareArrowOutUpRight size={14} />} />
             </Link>
+          )}
+          {!isSystemProvider(provider) && (
+            <Tooltip title={t('settings.provider.api.options.label')}>
+              <Button
+                type="text"
+                icon={<Bolt size={14} />}
+                size="small"
+                onClick={() => ApiOptionsSettingsPopup.show({ providerId: provider.id })}
+              />
+            </Tooltip>
           )}
         </Flex>
         <Switch
@@ -252,7 +273,22 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {isProviderSupportAuth(provider) && <ProviderOAuth providerId={provider.id} />}
       {provider.id === 'openai' && <OpenAIAlert />}
       {isDmxapi && <DMXAPISettings providerId={provider.id} />}
-      {provider.id !== 'vertexai' && provider.id !== 'aws-bedrock' && (
+      {provider.id === 'anthropic' && (
+        <>
+          <SettingSubtitle style={{ marginTop: 5 }}>{t('settings.provider.anthropic.auth_method')}</SettingSubtitle>
+          <Select
+            style={{ width: '40%', marginTop: 5, marginBottom: 10 }}
+            value={provider.authType || 'apiKey'}
+            onChange={(value) => updateProvider({ authType: value })}
+            options={[
+              { value: 'apiKey', label: t('settings.provider.anthropic.apikey') },
+              { value: 'oauth', label: t('settings.provider.anthropic.oauth') }
+            ]}
+          />
+          {provider.authType === 'oauth' && <AnthropicSettings />}
+        </>
+      )}
+      {!hideApiInput && !isAnthropicOAuth() && (
         <>
           <SettingSubtitle
             style={{
@@ -276,8 +312,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               spellCheck={false}
               autoFocus={provider.enabled && provider.apiKey === '' && !isProviderSupportAuth(provider)}
               disabled={provider.id === 'copilot'}
-              // FIXME：暂时用 prefix。因为 suffix 会被覆盖，实际上不起作用。
-              prefix={renderStatusIndicator()}
+              suffix={renderStatusIndicator()}
             />
             <Button
               type={isApiKeyConnectable ? 'primary' : 'default'}
@@ -305,7 +340,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           )}
-          {!isDmxapi && (
+          {!isDmxapi && !isAnthropicOAuth() && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 {t('settings.provider.api_host')}
@@ -366,7 +401,6 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
       {provider.id === 'copilot' && <GithubCopilotSettings providerId={provider.id} />}
       {provider.id === 'aws-bedrock' && <AwsBedrockSettings />}
       {provider.id === 'vertexai' && <VertexAISettings providerId={provider.id} />}
-      <ApiOptionsSettings providerId={provider.id} />
       <ModelList providerId={provider.id} />
     </SettingContainer>
   )

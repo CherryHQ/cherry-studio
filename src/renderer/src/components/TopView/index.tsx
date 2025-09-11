@@ -1,9 +1,12 @@
+// import { loggerService } from '@logger'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
-import { message, Modal } from 'antd'
+import { useShortcuts } from '@renderer/hooks/useShortcuts'
+import { Modal } from 'antd'
 import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react'
 
 import { Box } from '../Layout'
+import { getToastUtilities } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {
@@ -24,20 +27,23 @@ type ElementItem = {
   element: React.FC | React.ReactNode
 }
 
+// const logger = loggerService.withContext('TopView')
+
 const TopViewContainer: React.FC<Props> = ({ children }) => {
   const [elements, setElements] = useState<ElementItem[]>([])
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [messageApi, messageContextHolder] = message.useMessage()
   const [modal, modalContextHolder] = Modal.useModal()
+  const { shortcuts } = useShortcuts()
+  const enableQuitFullScreen = shortcuts.find((item) => item.key === 'exit_fullscreen')?.enabled
 
   useAppInit()
 
   useEffect(() => {
-    window.message = messageApi
     window.modal = modal
-  }, [messageApi, modal])
+    window.toast = getToastUtilities()
+  }, [modal])
 
   onPop = () => {
     const views = [...elementsRef.current]
@@ -72,10 +78,24 @@ const TopViewContainer: React.FC<Props> = ({ children }) => {
     )
   }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // logger.debug('keydown', e)
+      if (!enableQuitFullScreen) return
+
+      if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        window.api.setFullScreen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  })
+
   return (
     <>
       {children}
-      {messageContextHolder}
       {modalContextHolder}
       <TopViewMinappContainer />
       {elements.map(({ element: Element, id }) => (

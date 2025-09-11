@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import { AxiosRequestConfig } from 'axios'
-import axios from 'axios'
-import { app, safeStorage } from 'electron'
-import fs from 'fs/promises'
+import { app, net, safeStorage } from 'electron'
+import fs from 'fs'
 import path from 'path'
+
+import { getConfigDir } from '../utils/file'
 
 const logger = loggerService.withContext('CopilotService')
 
@@ -29,7 +29,8 @@ const CONFIG = {
     GITHUB_DEVICE_CODE: 'https://github.com/login/device/code',
     GITHUB_ACCESS_TOKEN: 'https://github.com/login/oauth/access_token',
     COPILOT_TOKEN: 'https://api.github.com/copilot_internal/v2/token'
-  }
+  },
+  TOKEN_FILE_NAME: '.copilot_token'
 }
 
 // 接口定义移到顶部，便于查阅
@@ -68,8 +69,20 @@ class CopilotService {
   private headers: Record<string, string>
 
   constructor() {
-    this.tokenFilePath = path.join(app.getPath('userData'), '.copilot_token')
-    this.headers = { ...CONFIG.DEFAULT_HEADERS }
+    this.tokenFilePath = this.getTokenFilePath()
+    this.headers = {
+      ...CONFIG.DEFAULT_HEADERS,
+      accept: 'application/json',
+      'user-agent': 'Visual Studio Code (desktop)'
+    }
+  }
+
+  private getTokenFilePath = (): string => {
+    const oldTokenFilePath = path.join(app.getPath('userData'), CONFIG.TOKEN_FILE_NAME)
+    if (fs.existsSync(oldTokenFilePath)) {
+      return oldTokenFilePath
+    }
+    return path.join(getConfigDir(), CONFIG.TOKEN_FILE_NAME)
   }
 
   /**
@@ -86,21 +99,27 @@ class CopilotService {
    */
   public getUser = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<UserResponse> => {
     try {
-      const config: AxiosRequestConfig = {
+      const response = await net.fetch(CONFIG.API_URLS.GITHUB_USER, {
+        method: 'GET',
         headers: {
           Connection: 'keep-alive',
           'user-agent': 'Visual Studio Code (desktop)',
           'Sec-Fetch-Site': 'none',
           'Sec-Fetch-Mode': 'no-cors',
           'Sec-Fetch-Dest': 'empty',
+          accept: 'application/json',
           authorization: `token ${token}`
         }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const response = await axios.get(CONFIG.API_URLS.GITHUB_USER, config)
+      const data = await response.json()
       return {
-        login: response.data.login,
-        avatar: response.data.avatar_url
+        login: data.login,
+        avatar: data.avatar_url
       }
     } catch (error) {
       logger.error('Failed to get user information:', error as Error)
@@ -118,16 +137,23 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const response = await axios.post<AuthResponse>(
-        CONFIG.API_URLS.GITHUB_DEVICE_CODE,
-        {
+      const response = await net.fetch(CONFIG.API_URLS.GITHUB_DEVICE_CODE, {
+        method: 'POST',
+        headers: {
+          ...this.headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
           client_id: CONFIG.GITHUB_CLIENT_ID,
           scope: 'read:user'
-        },
-        { headers: this.headers }
-      )
+        })
+      })
 
-      return response.data
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      return (await response.json()) as AuthResponse
     } catch (error) {
       logger.error('Failed to get auth message:', error as Error)
       throw new CopilotServiceError('无法获取GitHub授权信息', error)
@@ -150,17 +176,25 @@ class CopilotService {
       await this.delay(currentDelay)
 
       try {
-        const response = await axios.post<TokenResponse>(
-          CONFIG.API_URLS.GITHUB_ACCESS_TOKEN,
-          {
+        const response = await net.fetch(CONFIG.API_URLS.GITHUB_ACCESS_TOKEN, {
+          method: 'POST',
+          headers: {
+            ...this.headers,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
             client_id: CONFIG.GITHUB_CLIENT_ID,
             device_code,
             grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
-          },
-          { headers: this.headers }
-        )
+          })
+        })
 
-        const { access_token } = response.data
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        const data = (await response.json()) as TokenResponse
+        const { access_token } = data
         if (access_token) {
           return { access_token }
         }
@@ -185,7 +219,13 @@ class CopilotService {
   public saveCopilotToken = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<void> => {
     try {
       const encryptedToken = safeStorage.encryptString(token)
-      await fs.writeFile(this.tokenFilePath, encryptedToken)
+      // 确保目录存在
+      const dir = path.dirname(this.tokenFilePath)
+      if (!fs.existsSync(dir)) {
+        await fs.promises.mkdir(dir, { recursive: true })
+      }
+
+      await fs.promises.writeFile(this.tokenFilePath, encryptedToken)
     } catch (error) {
       logger.error('Failed to save token:', error as Error)
       throw new CopilotServiceError('无法保存访问令牌', error)
@@ -202,19 +242,22 @@ class CopilotService {
     try {
       this.updateHeaders(headers)
 
-      const encryptedToken = await fs.readFile(this.tokenFilePath)
+      const encryptedToken = await fs.promises.readFile(this.tokenFilePath)
       const access_token = safeStorage.decryptString(Buffer.from(encryptedToken))
 
-      const config: AxiosRequestConfig = {
+      const response = await net.fetch(CONFIG.API_URLS.COPILOT_TOKEN, {
+        method: 'GET',
         headers: {
           ...this.headers,
           authorization: `token ${access_token}`
         }
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const response = await axios.get<CopilotTokenResponse>(CONFIG.API_URLS.COPILOT_TOKEN, config)
-
-      return response.data
+      return (await response.json()) as CopilotTokenResponse
     } catch (error) {
       logger.error('Failed to get Copilot token:', error as Error)
       throw new CopilotServiceError('无法获取Copilot令牌，请重新授权', error)
@@ -227,8 +270,8 @@ class CopilotService {
   public logout = async (): Promise<void> => {
     try {
       try {
-        await fs.access(this.tokenFilePath)
-        await fs.unlink(this.tokenFilePath)
+        await fs.promises.access(this.tokenFilePath)
+        await fs.promises.unlink(this.tokenFilePath)
         logger.debug('Successfully logged out from Copilot')
       } catch (error) {
         // 文件不存在不是错误，只是记录一下

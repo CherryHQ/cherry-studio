@@ -1,12 +1,12 @@
-import InfoTooltip from '@renderer/components/InfoTooltip'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import { Input, Select, SelectProps, Slider } from 'antd'
+import { Input, Segmented, Select, SelectProps, Slider } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
@@ -44,6 +44,21 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           placeholder={t('common.name')}
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
+        />
+      </SettingsItem>
+
+      <SettingsItem>
+        <div className="settings-label">
+          {t('settings.tool.preprocess.title')}
+          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
+        </div>
+        <Select
+          value={selectedDocPreprocessProvider?.id}
+          style={{ width: '100%' }}
+          onChange={handleDocPreprocessChange}
+          placeholder={t('settings.tool.preprocess.provider_placeholder')}
+          options={docPreprocessSelectOptions}
+          allowClear
         />
       </SettingsItem>
 
@@ -91,20 +106,54 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
         />
       </SettingsItem>
 
-      <SettingsItem>
-        <div className="settings-label">
-          {t('settings.tool.preprocess.title')}
-          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
-        </div>
-        <Select
-          value={selectedDocPreprocessProvider?.id}
-          style={{ width: '100%' }}
-          onChange={handleDocPreprocessChange}
-          placeholder={t('settings.tool.preprocess.provider_placeholder')}
-          options={docPreprocessSelectOptions}
-          allowClear
-        />
-      </SettingsItem>
+      {newBase.framework !== 'embedjs' && (
+        <>
+          <SettingsItem>
+            <div className="settings-label">
+              {t('knowledge.retriever')}
+              <InfoTooltip title={t('knowledge.retriever_tooltip')} placement="right" />
+            </div>
+            <Segmented
+              value={newBase.retriever?.mode || 'hybrid'}
+              onChange={(value) =>
+                setNewBase({ ...newBase, retriever: { mode: value as 'vector' | 'bm25' | 'hybrid' } })
+              }
+              options={[
+                { label: t('knowledge.retriever_hybrid'), value: 'hybrid' },
+                { label: t('knowledge.retriever_vector'), value: 'vector' },
+                { label: t('knowledge.retriever_bm25'), value: 'bm25' }
+              ]}
+            />
+          </SettingsItem>
+          {newBase.retriever?.mode === 'hybrid' && (
+            <SettingsItem>
+              <div className="settings-label">{t('knowledge.retriever_hybrid_weight.title')}</div>
+              <Slider
+                style={{ width: '100%' }}
+                min={0}
+                max={1}
+                step={0.1}
+                value={newBase.retriever?.weight || 0.5}
+                marks={{
+                  0: t('knowledge.retriever_hybrid_weight.bm25'),
+                  0.5: t('knowledge.retriever_hybrid_weight.recommended'),
+                  1: t('knowledge.retriever_hybrid_weight.vector')
+                }}
+                onChange={(value) =>
+                  setNewBase({
+                    ...newBase,
+                    retriever: {
+                      ...newBase.retriever,
+                      mode: 'hybrid',
+                      weight: value
+                    }
+                  })
+                }
+              />
+            </SettingsItem>
+          )}
+        </>
+      )}
 
       <SettingsItem>
         <div className="settings-label">

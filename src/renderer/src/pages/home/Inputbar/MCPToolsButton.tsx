@@ -1,10 +1,15 @@
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { isGeminiModel } from '@renderer/config/models'
+import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import { useTimer } from '@renderer/hooks/useTimer'
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Form, Input, Tooltip } from 'antd'
-import { CircleX, Plus, SquareTerminal } from 'lucide-react'
+import { CircleX, Hammer, Plus } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -116,6 +121,8 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   const [form] = Form.useForm()
 
   const { updateAssistant, assistant } = useAssistant(props.assistant.id)
+  const model = assistant.model
+  const { setTimeoutTimer } = useTimer()
 
   // 使用 useRef 存储不需要触发重渲染的值
   const isMountedRef = useRef(true)
@@ -133,13 +140,33 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   )
   const handleMcpServerSelect = useCallback(
     (server: MCPServer) => {
+      const update = { ...assistant }
       if (assistantMcpServers.some((s) => s.id === server.id)) {
-        updateAssistant({ ...assistant, mcpServers: mcpServers?.filter((s) => s.id !== server.id) })
+        update.mcpServers = mcpServers.filter((s) => s.id !== server.id)
       } else {
-        updateAssistant({ ...assistant, mcpServers: [...mcpServers, server] })
+        update.mcpServers = [...mcpServers, server]
       }
+
+      // only for gemini
+      if (update.mcpServers.length > 0 && isGeminiModel(model) && isToolUseModeFunction(assistant)) {
+        const provider = getProviderByModel(model)
+        if (isSupportUrlContextProvider(provider) && assistant.enableUrlContext) {
+          window.toast.warning(t('chat.mcp.warning.url_context'))
+          update.enableUrlContext = false
+        }
+        if (
+          // 非官方 API (openrouter etc.) 可能支持同时启用内置搜索和函数调用
+          // 这里先假设 gemini type 和 vertexai type 不支持
+          isGeminiWebSearchProvider(provider) &&
+          assistant.enableWebSearch
+        ) {
+          window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
+          update.enableWebSearch = false
+        }
+      }
+      updateAssistant(update)
     },
-    [assistant, assistantMcpServers, mcpServers, updateAssistant]
+    [assistant, assistantMcpServers, mcpServers, model, t, updateAssistant]
   )
 
   // 使用 useRef 缓存事件处理函数
@@ -154,21 +181,25 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
   const updateMcpEnabled = useCallback(
     (enabled: boolean) => {
-      setTimeout(() => {
-        updateAssistant({
-          ...assistant,
-          mcpServers: enabled ? assistant.mcpServers || [] : []
-        })
-      }, 200)
+      setTimeoutTimer(
+        'updateMcpEnabled',
+        () => {
+          updateAssistant({
+            ...assistant,
+            mcpServers: enabled ? assistant.mcpServers || [] : []
+          })
+        },
+        200
+      )
     },
-    [assistant, updateAssistant]
+    [assistant, setTimeoutTimer, updateAssistant]
   )
 
   const menuItems = useMemo(() => {
     const newList: QuickPanelListItem[] = activedMcpServers.map((server) => ({
       label: server.name,
       description: server.description || server.baseUrl,
-      icon: <SquareTerminal />,
+      icon: <Hammer />,
       action: () => EventEmitter.emit('mcp-server-select', server),
       isSelected: assistantMcpServers.some((s) => s.id === server.id)
     }))
@@ -180,7 +211,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     })
 
     newList.unshift({
-      label: t('common.close'),
+      label: t('settings.input.clear.all'),
       description: t('settings.mcp.disable.description'),
       icon: <CircleX />,
       isSelected: false,
@@ -335,7 +366,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     return prompts.map((prompt) => ({
       label: prompt.name,
       description: prompt.description,
-      icon: <SquareTerminal />,
+      icon: <Hammer />,
       action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
     }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -415,7 +446,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           resources.map((resource) => ({
             label: resource.name,
             description: resource.description,
-            icon: <SquareTerminal />,
+            icon: <Hammer />,
             action: () => handleResourceSelect(resource)
           }))
         )
@@ -456,7 +487,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <SquareTerminal
+        <Hammer
           size={18}
           color={assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
         />

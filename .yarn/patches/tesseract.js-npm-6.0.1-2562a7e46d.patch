@@ -1,0 +1,348 @@
+diff --git a/src/constants/languages.d.ts b/src/constants/languages.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..6a2ba5086187622b8ca8887bcc7406018fba8a89
+--- /dev/null
++++ b/src/constants/languages.d.ts
+@@ -0,0 +1,43 @@
++/**
++ * Languages with existing tesseract traineddata
++ * https://tesseract-ocr.github.io/tessdoc/Data-Files#data-files-for-version-400-november-29-2016
++ */
++
++// Define the language codes as string literals
++type LanguageCode =
++  | 'afr' | 'amh' | 'ara' | 'asm' | 'aze' | 'aze_cyrl' | 'bel' | 'ben' | 'bod' | 'bos'
++  | 'bul' | 'cat' | 'ceb' | 'ces' | 'chi_sim' | 'chi_tra' | 'chr' | 'cym' | 'dan' | 'deu'
++  | 'dzo' | 'ell' | 'eng' | 'enm' | 'epo' | 'est' | 'eus' | 'fas' | 'fin' | 'fra'
++  | 'frk' | 'frm' | 'gle' | 'glg' | 'grc' | 'guj' | 'hat' | 'heb' | 'hin' | 'hrv'
++  | 'hun' | 'iku' | 'ind' | 'isl' | 'ita' | 'ita_old' | 'jav' | 'jpn' | 'kan' | 'kat'
++  | 'kat_old' | 'kaz' | 'khm' | 'kir' | 'kor' | 'kur' | 'lao' | 'lat' | 'lav' | 'lit'
++  | 'mal' | 'mar' | 'mkd' | 'mlt' | 'msa' | 'mya' | 'nep' | 'nld' | 'nor' | 'ori'
++  | 'pan' | 'pol' | 'por' | 'pus' | 'ron' | 'rus' | 'san' | 'sin' | 'slk' | 'slv'
++  | 'spa' | 'spa_old' | 'sqi' | 'srp' | 'srp_latn' | 'swa' | 'swe' | 'syr' | 'tam' | 'tel'
++  | 'tgk' | 'tgl' | 'tha' | 'tir' | 'tur' | 'uig' | 'ukr' | 'urd' | 'uzb' | 'uzb_cyrl'
++  | 'vie' | 'yid';
++
++// Define the language keys as string literals
++type LanguageKey =
++  | 'AFR' | 'AMH' | 'ARA' | 'ASM' | 'AZE' | 'AZE_CYRL' | 'BEL' | 'BEN' | 'BOD' | 'BOS'
++  | 'BUL' | 'CAT' | 'CEB' | 'CES' | 'CHI_SIM' | 'CHI_TRA' | 'CHR' | 'CYM' | 'DAN' | 'DEU'
++  | 'DZO' | 'ELL' | 'ENG' | 'ENM' | 'EPO' | 'EST' | 'EUS' | 'FAS' | 'FIN' | 'FRA'
++  | 'FRK' | 'FRM' | 'GLE' | 'GLG' | 'GRC' | 'GUJ' | 'HAT' | 'HEB' | 'HIN' | 'HRV'
++  | 'HUN' | 'IKU' | 'IND' | 'ISL' | 'ITA' | 'ITA_OLD' | 'JAV' | 'JPN' | 'KAN' | 'KAT'
++  | 'KAT_OLD' | 'KAZ' | 'KHM' | 'KIR' | 'KOR' | 'KUR' | 'LAO' | 'LAT' | 'LAV' | 'LIT'
++  | 'MAL' | 'MAR' | 'MKD' | 'MLT' | 'MSA' | 'MYA' | 'NEP' | 'NLD' | 'NOR' | 'ORI'
++  | 'PAN' | 'POL' | 'POR' | 'PUS' | 'RON' | 'RUS' | 'SAN' | 'SIN' | 'SLK' | 'SLV'
++  | 'SPA' | 'SPA_OLD' | 'SQI' | 'SRP' | 'SRP_LATN' | 'SWA' | 'SWE' | 'SYR' | 'TAM' | 'TEL'
++  | 'TGK' | 'TGL' | 'THA' | 'TIR' | 'TUR' | 'UIG' | 'UKR' | 'URD' | 'UZB' | 'UZB_CYRL'
++  | 'VIE' | 'YID';
++
++// Create a mapped type to ensure each key maps to its specific value
++type LanguagesMap = {
++  [K in LanguageKey]: LanguageCode;
++};
++
++// Declare the exported constant with the specific type
++export const LANGUAGES: LanguagesMap;
++
++// Export the individual types for use in other modules
++export type { LanguageCode, LanguageKey, LanguagesMap };
+\ No newline at end of file
+diff --git a/src/index.d.ts b/src/index.d.ts
+index 1f5a9c8094fe4de7983467f9efb43bdb4de535f2..16dc95cf68663673e37e189b719cb74897b7735f 100644
+--- a/src/index.d.ts
++++ b/src/index.d.ts
+@@ -1,31 +1,74 @@
++// Import the languages types
++import { LanguagesMap } from "./constants/languages";
++
++/// <reference types="node" />
++
+ declare namespace Tesseract {
+-  function createScheduler(): Scheduler
+-  function createWorker(langs?: string | string[] | Lang[], oem?: OEM, options?: Partial<WorkerOptions>, config?: string | Partial<InitOptions>): Promise<Worker>
+-  function setLogging(logging: boolean): void
+-  function recognize(image: ImageLike, langs?: string, options?: Partial<WorkerOptions>): Promise<RecognizeResult>
+-  function detect(image: ImageLike, options?: Partial<WorkerOptions>): any
++  function createScheduler(): Scheduler;
++  function createWorker(
++    langs?: LanguageCode | LanguageCode[] | Lang[],
++    oem?: OEM,
++    options?: Partial<WorkerOptions>,
++    config?: string | Partial<InitOptions>
++  ): Promise<Worker>;
++  function setLogging(logging: boolean): void;
++  function recognize(
++    image: ImageLike,
++    langs?: LanguageCode,
++    options?: Partial<WorkerOptions>
++  ): Promise<RecognizeResult>;
++  function detect(image: ImageLike, options?: Partial<WorkerOptions>): any;
++
++  // Export languages constant
++  const languages: LanguagesMap;
++
++  type LanguageCode = import("./constants/languages").LanguageCode;
++  type LanguageKey = import("./constants/languages").LanguageKey;
+ 
+   interface Scheduler {
+-    addWorker(worker: Worker): string
+-    addJob(action: 'recognize', ...args: Parameters<Worker['recognize']>): Promise<RecognizeResult>
+-    addJob(action: 'detect', ...args: Parameters<Worker['detect']>): Promise<DetectResult>
+-    terminate(): Promise<any>
+-    getQueueLen(): number
+-    getNumWorkers(): number
++    addWorker(worker: Worker): string;
++    addJob(
++      action: "recognize",
++      ...args: Parameters<Worker["recognize"]>
++    ): Promise<RecognizeResult>;
++    addJob(
++      action: "detect",
++      ...args: Parameters<Worker["detect"]>
++    ): Promise<DetectResult>;
++    terminate(): Promise<any>;
++    getQueueLen(): number;
++    getNumWorkers(): number;
+   }
+ 
+   interface Worker {
+-    load(jobId?: string): Promise<ConfigResult>
+-    writeText(path: string, text: string, jobId?: string): Promise<ConfigResult>
+-    readText(path: string, jobId?: string): Promise<ConfigResult>
+-    removeText(path: string, jobId?: string): Promise<ConfigResult>
+-    FS(method: string, args: any[], jobId?: string): Promise<ConfigResult>
+-    reinitialize(langs?: string | Lang[], oem?: OEM, config?: string | Partial<InitOptions>, jobId?: string): Promise<ConfigResult>
+-    setParameters(params: Partial<WorkerParams>, jobId?: string): Promise<ConfigResult>
+-    getImage(type: imageType): string
+-    recognize(image: ImageLike, options?: Partial<RecognizeOptions>, output?: Partial<OutputFormats>, jobId?: string): Promise<RecognizeResult>
+-    detect(image: ImageLike, jobId?: string): Promise<DetectResult>
+-    terminate(jobId?: string): Promise<ConfigResult>
++    load(jobId?: string): Promise<ConfigResult>;
++    writeText(
++      path: string,
++      text: string,
++      jobId?: string
++    ): Promise<ConfigResult>;
++    readText(path: string, jobId?: string): Promise<ConfigResult>;
++    removeText(path: string, jobId?: string): Promise<ConfigResult>;
++    FS(method: string, args: any[], jobId?: string): Promise<ConfigResult>;
++    reinitialize(
++      langs?: string | Lang[],
++      oem?: OEM,
++      config?: string | Partial<InitOptions>,
++      jobId?: string
++    ): Promise<ConfigResult>;
++    setParameters(
++      params: Partial<WorkerParams>,
++      jobId?: string
++    ): Promise<ConfigResult>;
++    getImage(type: imageType): string;
++    recognize(
++      image: ImageLike,
++      options?: Partial<RecognizeOptions>,
++      output?: Partial<OutputFormats>,
++      jobId?: string
++    ): Promise<RecognizeResult>;
++    detect(image: ImageLike, jobId?: string): Promise<DetectResult>;
++    terminate(jobId?: string): Promise<ConfigResult>;
+   }
+ 
+   interface Lang {
+@@ -34,43 +77,43 @@ declare namespace Tesseract {
+   }
+ 
+   interface InitOptions {
+-    load_system_dawg: string
+-    load_freq_dawg: string
+-    load_unambig_dawg: string
+-    load_punc_dawg: string
+-    load_number_dawg: string
+-    load_bigram_dawg: string
+-  }
+-  
+-  type LoggerMessage = {
+-    jobId: string
+-    progress: number
+-    status: string
+-    userJobId: string
+-    workerId: string
++    load_system_dawg: string;
++    load_freq_dawg: string;
++    load_unambig_dawg: string;
++    load_punc_dawg: string;
++    load_number_dawg: string;
++    load_bigram_dawg: string;
+   }
+-  
++
++  type LoggerMessage = {
++    jobId: string;
++    progress: number;
++    status: string;
++    userJobId: string;
++    workerId: string;
++  };
++
+   interface WorkerOptions {
+-    corePath: string
+-    langPath: string
+-    cachePath: string
+-    dataPath: string
+-    workerPath: string
+-    cacheMethod: string
+-    workerBlobURL: boolean
+-    gzip: boolean
+-    legacyLang: boolean
+-    legacyCore: boolean
+-    logger: (arg: LoggerMessage) => void,
+-    errorHandler: (arg: any) => void
++    corePath: string;
++    langPath: string;
++    cachePath: string;
++    dataPath: string;
++    workerPath: string;
++    cacheMethod: string;
++    workerBlobURL: boolean;
++    gzip: boolean;
++    legacyLang: boolean;
++    legacyCore: boolean;
++    logger: (arg: LoggerMessage) => void;
++    errorHandler: (arg: any) => void;
+   }
+   interface WorkerParams {
+-    tessedit_pageseg_mode: PSM
+-    tessedit_char_whitelist: string
+-    tessedit_char_blacklist: string
+-    preserve_interword_spaces: string
+-    user_defined_dpi: string
+-    [propName: string]: any
++    tessedit_pageseg_mode: PSM;
++    tessedit_char_whitelist: string;
++    tessedit_char_blacklist: string;
++    preserve_interword_spaces: string;
++    user_defined_dpi: string;
++    [propName: string]: any;
+   }
+   interface OutputFormats {
+     text: boolean;
+@@ -88,36 +131,36 @@ declare namespace Tesseract {
+     debug: boolean;
+   }
+   interface RecognizeOptions {
+-    rectangle: Rectangle
+-    pdfTitle: string
+-    pdfTextOnly: boolean
+-    rotateAuto: boolean
+-    rotateRadians: number
++    rectangle: Rectangle;
++    pdfTitle: string;
++    pdfTextOnly: boolean;
++    rotateAuto: boolean;
++    rotateRadians: number;
+   }
+   interface ConfigResult {
+-    jobId: string
+-    data: any
++    jobId: string;
++    data: any;
+   }
+   interface RecognizeResult {
+-    jobId: string
+-    data: Page
++    jobId: string;
++    data: Page;
+   }
+   interface DetectResult {
+-    jobId: string
+-    data: DetectData
++    jobId: string;
++    data: DetectData;
+   }
+   interface DetectData {
+-    tesseract_script_id: number | null
+-    script: string | null
+-    script_confidence: number | null
+-    orientation_degrees: number | null
+-    orientation_confidence: number | null
++    tesseract_script_id: number | null;
++    script: string | null;
++    script_confidence: number | null;
++    orientation_degrees: number | null;
++    orientation_confidence: number | null;
+   }
+   interface Rectangle {
+-    left: number
+-    top: number
+-    width: number
+-    height: number
++    left: number;
++    top: number;
++    width: number;
++    height: number;
+   }
+   enum OEM {
+     TESSERACT_ONLY,
+@@ -126,28 +169,36 @@ declare namespace Tesseract {
+     DEFAULT,
+   }
+   enum PSM {
+-    OSD_ONLY = '0',
+-    AUTO_OSD = '1',
+-    AUTO_ONLY = '2',
+-    AUTO = '3',
+-    SINGLE_COLUMN = '4',
+-    SINGLE_BLOCK_VERT_TEXT = '5',
+-    SINGLE_BLOCK = '6',
+-    SINGLE_LINE = '7',
+-    SINGLE_WORD = '8',
+-    CIRCLE_WORD = '9',
+-    SINGLE_CHAR = '10',
+-    SPARSE_TEXT = '11',
+-    SPARSE_TEXT_OSD = '12',
+-    RAW_LINE = '13'
++    OSD_ONLY = "0",
++    AUTO_OSD = "1",
++    AUTO_ONLY = "2",
++    AUTO = "3",
++    SINGLE_COLUMN = "4",
++    SINGLE_BLOCK_VERT_TEXT = "5",
++    SINGLE_BLOCK = "6",
++    SINGLE_LINE = "7",
++    SINGLE_WORD = "8",
++    CIRCLE_WORD = "9",
++    SINGLE_CHAR = "10",
++    SPARSE_TEXT = "11",
++    SPARSE_TEXT_OSD = "12",
++    RAW_LINE = "13",
+   }
+   const enum imageType {
+     COLOR = 0,
+     GREY = 1,
+-    BINARY = 2
++    BINARY = 2,
+   }
+-  type ImageLike = string | HTMLImageElement | HTMLCanvasElement | HTMLVideoElement
+-    | CanvasRenderingContext2D | File | Blob | Buffer | OffscreenCanvas;
++  type ImageLike =
++    | string
++    | HTMLImageElement
++    | HTMLCanvasElement
++    | HTMLVideoElement
++    | CanvasRenderingContext2D
++    | File
++    | Blob
++    | (typeof Buffer extends undefined ? never : Buffer)
++    | OffscreenCanvas;
+   interface Block {
+     paragraphs: Paragraph[];
+     text: string;
+@@ -179,7 +230,7 @@ declare namespace Tesseract {
+     text: string;
+     confidence: number;
+     baseline: Baseline;
+-    rowAttributes: RowAttributes
++    rowAttributes: RowAttributes;
+     bbox: Bbox;
+   }
+   interface Paragraph {

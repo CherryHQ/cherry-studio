@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './providers/302ai'
+import { getBailianToken, saveBailianToken, syncBailianServers } from './providers/bailian'
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './providers/lanyun'
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './providers/modelscope'
 import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './providers/tokenflux'
@@ -61,14 +62,25 @@ const providers: ProviderConfig[] = [
   },
   {
     key: '302ai',
-    name: '302AI',
-    description: '302AI 平台 MCP 服务',
+    name: '302.AI',
+    description: '302.AI 平台 MCP 服务',
     discoverUrl: 'https://302.ai',
     apiKeyUrl: 'https://dash.302.ai/apis/list',
     tokenFieldName: 'token302aiToken',
     getToken: getAI302Token,
     saveToken: saveAI302Token,
     syncServers: syncAi302Servers
+  },
+  {
+    key: 'bailian',
+    name: '阿里云百炼',
+    description: '百炼平台服务',
+    discoverUrl: `https://bailian.console.aliyun.com/?tab=mcp#/mcp-market`,
+    apiKeyUrl: `https://bailian.console.aliyun.com/?tab=app#/api-key`,
+    tokenFieldName: 'bailianToken',
+    getToken: getBailianToken,
+    saveToken: saveBailianToken,
+    syncServers: syncBailianServers
   }
 ]
 
@@ -140,18 +152,18 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
             updateMCPServer(server)
           }
         }
-        window.message.success(result.message)
+        window.toast.success(result.message)
         setOpen(false)
       } else {
         // Show message but keep dialog open
         if (result.success) {
-          window.message.info(result.message)
+          window.toast.info(result.message)
         } else {
-          window.message.error(result.message)
+          window.toast.error(result.message)
         }
       }
     } catch (error: any) {
-      window.message.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
+      window.toast.error(`${t('settings.mcp.sync.error')}: ${error.message}`)
     } finally {
       setIsSyncing(false)
     }

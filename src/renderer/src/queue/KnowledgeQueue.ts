@@ -136,13 +136,19 @@ class KnowledgeQueue {
         case 'note':
           note = await db.knowledge_notes.get(item.id)
           if (note) {
-            content = note.content as string
+            content = note.content
+            logger.info('{ ...sourceItem, content }', { ...sourceItem, content })
             result = await window.api.knowledgeBase.add({ base: baseParams, item: { ...sourceItem, content } })
           }
           break
-        default:
-          result = await window.api.knowledgeBase.add({ base: baseParams, item: sourceItem, userId: userId as string })
+        default: {
+          result = await window.api.knowledgeBase.add({
+            base: baseParams,
+            item: sourceItem,
+            userId: userId
+          })
           break
+        }
       }
 
       if (!result) {
@@ -209,7 +215,7 @@ class KnowledgeQueue {
         type: 'error',
         title: t('common.knowledge_base'),
         message: t('notification.knowledge.error', {
-          error: error instanceof Error ? error.message : 'Unkown error'
+          error: error instanceof Error ? error.message : 'Unknown error'
         }),
         silent: false,
         timestamp: Date.now(),

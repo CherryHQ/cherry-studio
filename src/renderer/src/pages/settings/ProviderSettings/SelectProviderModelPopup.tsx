@@ -1,6 +1,7 @@
 import ModelSelector from '@renderer/components/ModelSelector'
 import { TopView } from '@renderer/components/TopView'
 import { isRerankModel } from '@renderer/config/models'
+import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, Provider } from '@renderer/types'
@@ -19,6 +20,7 @@ interface Props extends ShowParams {
 
 const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
   const [open, setOpen] = useState(true)
+  const { setTimeoutTimer } = useTimer()
 
   // Keep the natural order of models
   const models = useMemo(() => provider.models.filter((m) => !isRerankModel(m)), [provider])
@@ -33,7 +35,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
 
   const onOk = () => {
     if (!model) {
-      window.message.error({ content: i18n.t('message.error.enter.model'), key: 'api-check' })
+      window.toast.error(i18n.t('message.error.enter.model'))
       return
     }
     setOpen(false)
@@ -42,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
 
   const onCancel = () => {
     setOpen(false)
-    setTimeout(reject, 300)
+    setTimeoutTimer('onCancel', reject, 300)
   }
 
   const onClose = () => {
