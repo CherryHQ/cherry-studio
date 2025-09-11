@@ -89,7 +89,7 @@ const JoplinSettings: FC = () => {
             value={joplinUrl || ''}
             onChange={handleJoplinUrlChange}
             onBlur={handleJoplinUrlBlur}
-            style={{ width: 315 }}
+            className="w-[315px]"
             placeholder={t('settings.data.joplin.url_placeholder')}
           />
         </RowFlex>

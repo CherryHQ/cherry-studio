@@ -89,12 +89,11 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={siyuanApiUrl || ''}
             onChange={handleApiUrlChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.api_url_placeholder')}
           />
         </RowFlex>
@@ -110,7 +109,7 @@ const SiyuanSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={siyuanToken || ''}
@@ -126,12 +125,11 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={siyuanBoxId || ''}
             onChange={handleBoxIdChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.box_id_placeholder')}
           />
         </RowFlex>
@@ -139,12 +137,11 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <RowFlex className="items-center gap-[5px]" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={siyuanRootPath || ''}
             onChange={handleRootPathChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.siyuan.root_path_placeholder')}
           />
         </RowFlex>

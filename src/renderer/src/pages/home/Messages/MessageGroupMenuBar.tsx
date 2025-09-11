@@ -101,7 +101,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <RowFlex style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
+      <RowFlex className="flex-1 items-center overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
