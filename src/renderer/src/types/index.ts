@@ -2,7 +2,6 @@ import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
 import type { CSSProperties } from 'react'
-import { z } from 'zod'
 
 export * from './file'
 export * from './note'
@@ -835,20 +834,6 @@ export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
 export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
   return BuiltinMCPServerNamesArray.some((n) => n === name)
 }
-
-export interface MCPToolInputSchema {
-  type: string
-  title: string
-  description?: string
-  required?: string[]
-  properties: Record<string, object>
-}
-
-export const MCPToolOutputSchema = z.object({
-  type: z.literal('object'),
-  properties: z.record(z.string(), z.unknown()),
-  required: z.array(z.string())
-})
 
 export interface MCPPromptArguments {
   name: string
