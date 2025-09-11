@@ -28,7 +28,7 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
         <RowFlex className="w-full justify-between">
           <Text>{t('chat.input.context_count.tip')}</Text>
           <Text>
-            <RowFlex style={{ alignItems: 'center' }}>
+            <RowFlex className="items-center">
               {contextCount.current}
               <SlashSeparatorSpan>/</SlashSeparatorSpan>
               <MaxContextCount maxContext={contextCount.max} />
