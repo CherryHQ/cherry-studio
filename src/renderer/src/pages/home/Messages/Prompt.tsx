@@ -73,7 +73,7 @@ const Container = styled.div<{ $isDark: boolean }>`
   border-radius: 10px;
   cursor: pointer;
   border: 0.5px solid var(--color-border);
-  margin: 15px 24px;
+  margin: 15px 20px;
   margin-bottom: 0;
 `
 
