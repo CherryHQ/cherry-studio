@@ -215,7 +215,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
 
   return (
     <Container>
-      <RowFlex className="items-center justify-between" style={{ marginBottom: 10 }}>
+      <RowFlex className="mb-2.5 items-center justify-between">
         <Label>{t('assistants.settings.default_model')}</Label>
         <RowFlex className="items-center">
           <ModelSelectButton

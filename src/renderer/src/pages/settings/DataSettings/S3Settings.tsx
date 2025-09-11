@@ -70,7 +70,7 @@ const S3Settings: FC = () => {
     }
 
     return (
-      <RowFlex className="items-center">
+      <RowFlex className="items-center gap-[5px]">
         {s3Sync?.syncing && <SyncOutlined spin />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <Tooltip title={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}>
@@ -176,7 +176,7 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
-        <RowFlex className="justify-between">
+        <RowFlex className="justify-between gap-[5px]">
           <Button
             onClick={showBackupModal}
             icon={<SaveOutlined />}

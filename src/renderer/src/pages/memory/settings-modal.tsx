@@ -167,7 +167,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
             return (
               <Form.Item
                 label={
-                  <Flex className="items-center gap-4">
+                  <Flex className="items-center gap-1">
                     {t('memory.embedding_dimensions')}
                     <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} />
                   </Flex>

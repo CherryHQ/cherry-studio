@@ -151,7 +151,7 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     return (
-      <RowFlex className="items-center">
+      <RowFlex className="items-center gap-[5px]">
         {localBackupSync.syncing && <SyncOutlined spin />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <Tooltip title={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}>
@@ -184,7 +184,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
-        <RowFlex>
+        <RowFlex className="gap-[5px]">
           <Input
             value={localBackupDir}
             onChange={(e) => setLocalBackupDir(e.target.value)}
@@ -203,7 +203,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex className="justify-between">
+        <RowFlex className="justify-between gap-[5px]">
           <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping} disabled={!localBackupDir}>
             {t('settings.data.local.backup.button')}
           </Button>

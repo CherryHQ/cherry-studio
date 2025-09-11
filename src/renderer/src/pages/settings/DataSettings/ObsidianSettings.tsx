@@ -61,7 +61,7 @@ const ObsidianSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
-        <RowFlex>
+        <RowFlex className="gap-[5px]">
           <Spin spinning={loading} size="small">
             {vaults.length > 0 ? (
               <Select

@@ -104,7 +104,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                   ext: '.txt',
                   extra: prompt.content,
                   actions: (
-                    <Flex className="gap-1" style={{ opacity: 0.6 }}>
+                    <Flex className="gap-1 opacity-60">
                       <Button key="edit" type="text" icon={<EditIcon size={14} />} onClick={() => handleEdit(prompt)} />
                       <Popconfirm
                         title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
