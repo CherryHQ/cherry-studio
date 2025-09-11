@@ -28,6 +28,7 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import process from 'node:process'
 import { apiServerService } from './services/ApiServerService'
+import { agentService } from './services/agents/AgentService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -146,6 +147,14 @@ if (!app.requestSingleInstanceLock()) {
 
     //start selection assistant service
     initSelectionService()
+
+    // Initialize Agent Service
+    try {
+      await agentService.initialize()
+      logger.info('Agent service initialized successfully')
+    } catch (error: any) {
+      logger.error('Failed to initialize Agent service:', error)
+    }
 
     // Start API server if enabled
     try {

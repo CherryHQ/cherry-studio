@@ -6,9 +6,12 @@ import { v4 as uuidv4 } from 'uuid'
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
+import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
 import { modelsRoutes } from './routes/models'
+import { sessionLogsRoutes } from './routes/session-logs'
+import { sessionsRoutes } from './routes/sessions'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -104,7 +107,10 @@ app.get('/', (_req, res) => {
       health: 'GET /health',
       models: 'GET /v1/models',
       chat: 'POST /v1/chat/completions',
-      mcp: 'GET /v1/mcps'
+      mcp: 'GET /v1/mcps',
+      agents: 'GET /v1/agents',
+      sessions: 'GET /v1/sessions',
+      logs: 'GET /v1/sessions/{sessionId}/logs'
     }
   })
 })
@@ -117,6 +123,9 @@ apiRouter.use(express.json())
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/models', modelsRoutes)
+apiRouter.use('/agents', agentsRoutes)
+apiRouter.use('/sessions', sessionsRoutes)
+apiRouter.use('/', sessionLogsRoutes) // This handles /sessions/:sessionId/logs and /session-logs/:logId
 app.use('/v1', apiRouter)
 
 // Setup OpenAPI documentation
