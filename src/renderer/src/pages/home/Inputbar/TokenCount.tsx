@@ -48,14 +48,14 @@ const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCou
     <Container>
       <Popover content={PopoverContent} arrow={false}>
         <RowFlex>
-          <RowFlex style={{ alignItems: 'center' }}>
+          <RowFlex className="items-center">
             <MenuIcon size={12} className="icon" />
             {contextCount.current}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>
             <MaxContextCount maxContext={contextCount.max} />
           </RowFlex>
           <Divider type="vertical" style={{ marginTop: 3, marginLeft: 5, marginRight: 3 }} />
-          <RowFlex style={{ alignItems: 'center' }}>
+          <RowFlex className="items-center">
             <ArrowUp size={12} className="icon" />
             {inputTokenCount}
             <SlashSeparatorSpan>/</SlashSeparatorSpan>

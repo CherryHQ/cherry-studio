@@ -181,7 +181,7 @@ export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ 
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
-    <RowFlex className="items-center">
+    <RowFlex className="items-center gap-2.5">
       <label style={{ fontWeight: 600 }}>{label}</label>
     </RowFlex>
   )

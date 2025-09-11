@@ -131,7 +131,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="animation-move-down"
       centered>
       <Center className="mt-[30px]">
-        <ColFlex className="items-center gap-2">
+        <ColFlex className="items-center gap-2.5">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -166,7 +166,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Dropdown>
         </ColFlex>
       </Center>
-      <RowFlex className="items-center gap-2 p-5">
+      <RowFlex className="items-center gap-2.5 p-5">
         <Input
           placeholder={t('settings.general.user_name.placeholder')}
           value={userName}

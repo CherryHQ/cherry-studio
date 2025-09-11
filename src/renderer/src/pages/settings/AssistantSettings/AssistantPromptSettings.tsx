@@ -144,7 +144,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
           )}
         </RichEditorContainer>
       </TextAreaContainer>
-      <SpaceBetweenRowFlex className="mt-2.5">
+      <SpaceBetweenRowFlex className="mt-2.5 w-full justify-end">
         <TokenCount>Tokens: {tokenCount}</TokenCount>
         <Button
           type="primary"

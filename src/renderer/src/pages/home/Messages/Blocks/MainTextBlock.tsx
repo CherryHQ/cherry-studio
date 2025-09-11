@@ -44,7 +44,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     <>
       {/* Render mentions associated with the message */}
       {mentions && mentions.length > 0 && (
-        <Flex className="flex-wrap gap-2" style={{ marginBottom: 10 }}>
+        <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
             <MentionTag key={getModelUniqId(m)}>{'@' + m.name}</MentionTag>
           ))}

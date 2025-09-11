@@ -258,9 +258,7 @@ describe('MainTextBlock', () => {
       const container = mentionElement.closest('.gap-2')
       expect(container).toHaveClass('gap-2')
       expect(container).toHaveClass('flex-wrap')
-      expect(container).toHaveStyle({
-        marginBottom: '10px'
-      })
+      expect(container).toHaveClass('mb-2.5')
     })
   })
 

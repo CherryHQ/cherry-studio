@@ -184,7 +184,7 @@ const NutstoreSettings: FC = () => {
     }
 
     return (
-      <RowFlex className="items-center">
+      <RowFlex className="items-center gap-[5px]">
         {nutstoreSyncState.syncing && <SyncOutlined spin />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <Tooltip title={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}>
@@ -219,7 +219,7 @@ const NutstoreSettings: FC = () => {
           {isLogin ? t('settings.data.nutstore.isLogin') : t('settings.data.nutstore.notLogin')}
         </SettingRowTitle>
         {isLogin ? (
-          <RowFlex className="items-center justify-between">
+          <RowFlex className="items-center justify-between gap-[5px]">
             <Button
               type={nsConnected ? 'primary' : 'default'}
               ghost={nsConnected}
@@ -270,7 +270,7 @@ const NutstoreSettings: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between">
+            <RowFlex className="justify-between gap-[5px]">
               <Button onClick={showBackupModal} loading={backuping}>
                 {t('settings.data.nutstore.backup.button')}
               </Button>

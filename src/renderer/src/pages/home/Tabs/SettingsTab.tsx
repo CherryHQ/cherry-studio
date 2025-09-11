@@ -185,7 +185,7 @@ const SettingsTab: FC<Props> = (props) => {
         title={t('assistants.settings.title')}
         defaultExpanded={true}
         extra={
-          <RowFlex className="items-center">
+          <RowFlex className="items-center gap-0.5">
             <Button
               type="text"
               size="small"

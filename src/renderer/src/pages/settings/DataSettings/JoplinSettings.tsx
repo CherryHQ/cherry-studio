@@ -83,7 +83,7 @@ const JoplinSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.joplin.url')}</SettingRowTitle>
-        <RowFlex className="items-center" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={joplinUrl || ''}
@@ -105,7 +105,7 @@ const JoplinSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <RowFlex className="items-center" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={joplinToken || ''}
