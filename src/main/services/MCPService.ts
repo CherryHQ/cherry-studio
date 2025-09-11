@@ -202,8 +202,8 @@ class McpService {
 
     const prepareHeaders = () => {
       return {
-        ...server.headers,
-        ...defaultAppHeaders()
+        ...defaultAppHeaders(),
+        ...server.headers
       }
     }
 
