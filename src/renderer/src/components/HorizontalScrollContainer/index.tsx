@@ -32,6 +32,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null)
   const [canScroll, setCanScroll] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isScrolledToEnd, setIsScrolledToEnd] = useState(false)
 
   const handleScrollRight = (event: React.MouseEvent) => {
     scrollRef.current?.scrollBy({ left: scrollDistance, behavior: 'smooth' })
@@ -55,7 +56,16 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       const availableWidth = parentElement ? parentElement.clientWidth : scrollElement.clientWidth
 
       // 确保容器不会超出可用宽度
-      setCanScroll(scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth))
+      const canScrollValue = scrollElement.scrollWidth > Math.min(availableWidth, scrollElement.clientWidth)
+      setCanScroll(canScrollValue)
+
+      // 检查是否滚动到最右侧
+      if (canScrollValue) {
+        const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
+        setIsScrolledToEnd(isAtEnd)
+      } else {
+        setIsScrolledToEnd(false)
+      }
     }
   }
 
@@ -65,24 +75,34 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
     checkScrollability()
 
+    const handleScroll = () => {
+      checkScrollability()
+    }
+
     const resizeObserver = new ResizeObserver(checkScrollability)
     resizeObserver.observe(scrollElement)
 
+    scrollElement.addEventListener('scroll', handleScroll)
     window.addEventListener('resize', checkScrollability)
 
     return () => {
       resizeObserver.disconnect()
+      scrollElement.removeEventListener('scroll', handleScroll)
       window.removeEventListener('resize', checkScrollability)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies)
 
   return (
-    <Container className={className} $expandable={expandable} onClick={expandable ? handleContainerClick : undefined}>
+    <Container
+      className={className}
+      $expandable={expandable}
+      $disableHoverButton={isScrolledToEnd}
+      onClick={expandable ? handleContainerClick : undefined}>
       <ScrollContent ref={scrollRef} $gap={gap} $isExpanded={isExpanded} $expandable={expandable}>
         {children}
       </ScrollContent>
-      {canScroll && !isExpanded && (
+      {canScroll && !isExpanded && !isScrolledToEnd && (
         <ScrollButton onClick={handleScrollRight} className="scroll-right-button">
           <ChevronRight size={14} />
         </ScrollButton>
@@ -91,7 +111,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   )
 }
 
-const Container = styled.div<{ $expandable?: boolean }>`
+const Container = styled.div<{ $expandable?: boolean; $disableHoverButton?: boolean }>`
   display: flex;
   align-items: center;
   flex: 1 1 auto;
@@ -100,11 +120,15 @@ const Container = styled.div<{ $expandable?: boolean }>`
   position: relative;
   cursor: ${(props) => (props.$expandable ? 'pointer' : 'default')};
 
-  &:hover {
-    .scroll-right-button {
-      opacity: 1;
+  ${(props) =>
+    !props.$disableHoverButton &&
+    `
+    &:hover {
+      .scroll-right-button {
+        opacity: 1;
+      }
     }
-  }
+  `}
 `
 
 const ScrollContent = styled(Scrollbar)<{
