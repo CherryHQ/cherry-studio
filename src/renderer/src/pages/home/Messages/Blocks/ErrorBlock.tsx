@@ -266,6 +266,7 @@ const Alert = styled(AntdAlert)`
   margin: 0.5rem 0 !important;
   padding: 10px;
   font-size: 12px;
+  align-items: center;
   & .ant-alert-close-icon {
     margin: 5px;
   }
