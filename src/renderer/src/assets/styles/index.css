@@ -23,167 +23,166 @@
   *:focus {
     outline: none;
   }
-}
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
 
-* {
-  -webkit-tap-highlight-color: transparent;
-}
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+  }
 
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-}
+  /* #root {
+    display: flex;
+    flex-direction: row;
+    flex: 1;
+  } */
 
-/* #root {
-  display: flex;
-  flex-direction: row;
-  flex: 1;
-} */
+  body {
+    display: flex;
+    min-height: 100vh;
+    color: var(--color-text);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow: hidden;
+    font-family: var(--font-family);
+    text-rendering: optimizeLegibility;
+    transition: background-color 0.3s linear;
+    background-color: unset;
 
-body {
-  display: flex;
-  min-height: 100vh;
-  color: var(--color-text);
-  font-size: 14px;
-  line-height: 1.6;
-  overflow: hidden;
-  font-family: var(--font-family);
-  text-rendering: optimizeLegibility;
-  transition: background-color 0.3s linear;
-  background-color: unset;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
 
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
+  input,
+  textarea,
+  [contenteditable='true'],
+  .markdown,
+  #messages,
+  .selectable,
+  pre,
+  code {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+  }
 
-input,
-textarea,
-[contenteditable='true'],
-.markdown,
-#messages,
-.selectable,
-pre,
-code {
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
-  user-select: text !important;
-}
+  a {
+    -webkit-user-drag: none;
+  }
 
-a {
-  -webkit-user-drag: none;
-}
+  ul {
+    list-style: none;
+  }
 
-ul {
-  list-style: none;
-}
+  .loader {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #000;
+    box-shadow:
+      32px 0 #000,
+      -32px 0 #000;
+    position: relative;
+    animation: flash 0.5s ease-out infinite alternate;
+  }
 
-.loader {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background-color: #000;
-  box-shadow:
-    32px 0 #000,
-    -32px 0 #000;
-  position: relative;
-  animation: flash 0.5s ease-out infinite alternate;
-}
+  .drag {
+    -webkit-app-region: drag;
+  }
 
-.drag {
-  -webkit-app-region: drag;
-}
+  .nodrag {
+    -webkit-app-region: no-drag;
+  }
 
-.nodrag {
-  -webkit-app-region: no-drag;
-}
+  .text-nowrap {
+    display: -webkit-box !important;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    line-clamp: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-wrap: break-word;
+  }
 
-.text-nowrap {
-  display: -webkit-box !important;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  line-clamp: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: normal;
-  word-wrap: break-word;
-}
+  .bubble:not(.multi-select-mode) .block-wrapper {
+    display: flow-root;
+  }
 
-.bubble:not(.multi-select-mode) .block-wrapper {
-  display: flow-root;
-}
+  .bubble:not(.multi-select-mode) .block-wrapper:last-child > *:last-child {
+    margin-bottom: 0;
+  }
 
-.bubble:not(.multi-select-mode) .block-wrapper:last-child > *:last-child {
-  margin-bottom: 0;
-}
+  .bubble:not(.multi-select-mode) .message-content-container > *:last-child {
+    margin-bottom: 0;
+  }
 
-.bubble:not(.multi-select-mode) .message-content-container > *:last-child {
-  margin-bottom: 0;
-}
+  .bubble:not(.multi-select-mode) .message-thought-container {
+    margin-top: 8px;
+  }
 
-.bubble:not(.multi-select-mode) .message-thought-container {
-  margin-top: 8px;
-}
+  .bubble:not(.multi-select-mode) .message-user .message-header {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
 
-.bubble:not(.multi-select-mode) .message-user .message-header {
-  flex-direction: row-reverse;
-  text-align: right;
-}
+  .bubble:not(.multi-select-mode) .message-user .message-header .message-header-info-wrap {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
 
-.bubble:not(.multi-select-mode) .message-user .message-header .message-header-info-wrap {
-  flex-direction: row-reverse;
-  text-align: right;
-}
+  .bubble:not(.multi-select-mode) .message-user .message-content-container {
+    border-radius: 10px;
+    padding: 10px 16px 10px 16px;
+    background-color: var(--chat-background-user);
+    align-self: self-end;
+  }
 
-.bubble:not(.multi-select-mode) .message-user .message-content-container {
-  border-radius: 10px;
-  padding: 10px 16px 10px 16px;
-  background-color: var(--chat-background-user);
-  align-self: self-end;
-}
+  .bubble:not(.multi-select-mode) .message-user .MessageFooter {
+    margin-top: 2px;
+    align-self: self-end;
+  }
 
-.bubble:not(.multi-select-mode) .message-user .MessageFooter {
-  margin-top: 2px;
-  align-self: self-end;
-}
+  .bubble:not(.multi-select-mode) .message-assistant .message-content-container {
+    padding-left: 0;
+  }
 
-.bubble:not(.multi-select-mode) .message-assistant .message-content-container {
-  padding-left: 0;
-}
+  .bubble:not(.multi-select-mode) .message-assistant .MessageFooter {
+    margin-left: 0;
+  }
 
-.bubble:not(.multi-select-mode) .message-assistant .MessageFooter {
-  margin-left: 0;
-}
+  .bubble:not(.multi-select-mode) code {
+    color: var(--color-text);
+  }
 
-.bubble:not(.multi-select-mode) code {
-  color: var(--color-text);
-}
+  .bubble:not(.multi-select-mode) .markdown {
+    display: flow-root;
+  }
 
-.bubble:not(.multi-select-mode) .markdown {
-  display: flow-root;
-}
+  .lucide:not(.lucide-custom) {
+    color: var(--color-icon);
+  }
 
-.lucide:not(.lucide-custom) {
-  color: var(--color-icon);
-}
+  ::highlight(search-matches) {
+    background-color: var(--color-background-highlight);
+    color: var(--color-highlight);
+  }
 
-::highlight(search-matches) {
-  background-color: var(--color-background-highlight);
-  color: var(--color-highlight);
-}
+  ::highlight(current-match) {
+    background-color: var(--color-background-highlight-accent);
+  }
 
-::highlight(current-match) {
-  background-color: var(--color-background-highlight-accent);
-}
-
-textarea::-webkit-resizer {
-  display: none;
+  textarea::-webkit-resizer {
+    display: none;
+  }
 }
