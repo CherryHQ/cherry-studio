@@ -64,7 +64,7 @@ const TranslateSettings: FC<{
       footer={null}
       width={520}
       transitionName="animation-move-down">
-      <ColFlex className="mt-4 gap-16 pb-5">
+      <ColFlex className="mt-4 gap-4 pb-5">
         <div>
           <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
@@ -159,7 +159,7 @@ const TranslateSettings: FC<{
           </Flex>
           {isBidirectional && (
             <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-              <Flex className="items-center justify-between gap-10">
+              <Flex className="items-center justify-between gap-2.5">
                 <LanguageSelect
                   style={{ flex: 1 }}
                   value={localPair[0].langCode}

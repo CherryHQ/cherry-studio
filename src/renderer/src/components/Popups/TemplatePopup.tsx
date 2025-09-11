@@ -37,7 +37,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       centered>
-      <Box className="mb-8">Name</Box>
+      <Box className="mb-2">Name</Box>
     </Modal>
   )
 }

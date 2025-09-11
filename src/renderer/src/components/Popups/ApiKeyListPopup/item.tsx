@@ -132,7 +132,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
           </Tooltip>
 
-          <Flex className="items-center gap-10">
+          <Flex className="items-center gap-2.5">
             <HealthStatusIndicator results={healthResults} loading={false} />
 
             <Flex className="items-center gap-0">

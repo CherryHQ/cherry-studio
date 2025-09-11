@@ -185,7 +185,7 @@ const GeneralSettings: FC = () => {
             onChange={onSelectLanguage}
             options={languagesOptions.map((lang) => ({
               label: (
-                <Flex className="items-center gap-8">
+                <Flex className="items-center gap-2">
                   <span role="img" aria-label={lang.flag}>
                     {lang.flag}
                   </span>
@@ -248,7 +248,7 @@ const GeneralSettings: FC = () => {
                 options={spellCheckLanguageOptions.map((lang) => ({
                   value: lang.value,
                   label: (
-                    <Flex className="items-center gap-8">
+                    <Flex className="items-center gap-2">
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
