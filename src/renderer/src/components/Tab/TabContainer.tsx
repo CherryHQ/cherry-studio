@@ -17,6 +17,7 @@ import { classNames } from '@renderer/utils'
 import { Button, Tooltip } from 'antd'
 import {
   ChevronRight,
+  Code,
   FileSearch,
   Folder,
   Hammer,
@@ -78,6 +79,8 @@ const getTabIcon = (tabId: string, minapps: any[]): React.ReactNode | undefined 
     case 'settings':
       return <Settings size={14} />
     case 'code':
+      return <Code size={14} />
+    case 'terminal':
       return <Terminal size={14} />
     default:
       return null
