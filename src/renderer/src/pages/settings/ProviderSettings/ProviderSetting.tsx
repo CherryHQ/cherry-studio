@@ -328,18 +328,16 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               )}
             </Button>
           </Space.Compact>
-          {apiKeyWebsite && (
-            <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
-              <HStack>
-                {!isDmxapi && (
-                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                )}
-              </HStack>
-              <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-            </SettingHelpTextRow>
-          )}
+          <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
+            <HStack>
+              {apiKeyWebsite && !isDmxapi && (
+                <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
+              )}
+            </HStack>
+            <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+          </SettingHelpTextRow>
           {!isDmxapi && !isAnthropicOAuth() && (
             <>
               <SettingSubtitle style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

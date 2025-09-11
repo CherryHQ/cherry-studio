@@ -5,6 +5,7 @@ import ExaLogo from '@renderer/assets/images/search/exa.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
+import { HStack } from '@renderer/components/Layout'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -205,9 +206,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             </Button>
           </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-              {t('settings.provider.api_key.tip')}
-            </SettingHelpLink>
+            <HStack>
+              {apiKeyWebsite && (
+                <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                  {t('settings.provider.get_api_key')}
+                </SettingHelpLink>
+              )}
+            </HStack>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
         </>
