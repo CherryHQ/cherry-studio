@@ -2630,6 +2630,20 @@
         "title": "Export Menu Settings",
         "yuque": "Export to Yuque"
       },
+      "export_to_phone": {
+        "confirm": {
+          "button": "Select backup file"
+        },
+        "content": "Export some data, including chat logs and settings. Please note that the backup process may take some time. Thank you for your patience.",
+        "lan": {
+          "content": "Please ensure your computer and phone are on the same network for LAN transfer. Open the Cherry Studio App to scan this QR code.",
+          "noZipSelected": "No compressed file selected",
+          "selectZip": "Select a compressed file",
+          "sendZip": "Begin data recovery",
+          "title": "LAN transmission"
+        },
+        "title": "Export to phone"
+      },
       "hour_interval_one": "{{count}} hour",
       "hour_interval_other": "{{count}} hours",
       "joplin": {

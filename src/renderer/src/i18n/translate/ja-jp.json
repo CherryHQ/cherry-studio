@@ -538,6 +538,10 @@
         "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
         "title": "コード実行"
       },
+      "code_fancy_block": {
+        "label": "[to be translated]:花式代码块",
+        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+      },
       "code_image_tools": {
         "label": "プレビューツールを有効にする",
         "tip": "mermaid などのコードブロックから生成された画像に対してプレビューツールを有効にする"
@@ -1742,8 +1746,15 @@
         "compress_content": "バーの幅を減らします",
         "compress_content_description": "有効にすると、1行あたりの単語数が制限され、画面に表示されるコンテンツが減少します。",
         "default_font": "デフォルトフォント",
+        "font_size": "[to be translated]:字体大小",
+        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "[to be translated]:大",
+        "font_size_medium": "[to be translated]:中",
+        "font_size_small": "[to be translated]:小",
         "font_title": "フォント設定",
         "serif_font": "セリフフォント",
+        "show_table_of_contents": "[to be translated]:显示目录大纲",
+        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
         "title": "見せる"
       },
       "editor": {
@@ -2618,6 +2629,20 @@
         "siyuan": "思源ノートにエクスポート",
         "title": "エクスポートメニュー設定",
         "yuque": "語雀にエクスポート"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "[to be translated]:选择备份文件"
+        },
+        "content": "[to be translated]:导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "lan": {
+          "content": "[to be translated]:请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "noZipSelected": "[to be translated]:未选择压缩文件",
+          "selectZip": "[to be translated]:选择压缩文件",
+          "sendZip": "[to be translated]:开始恢复数据",
+          "title": "[to be translated]:局域网传输"
+        },
+        "title": "[to be translated]:导出至手机"
       },
       "hour_interval_one": "{{count}} 時間",
       "hour_interval_other": "{{count}} 時間",

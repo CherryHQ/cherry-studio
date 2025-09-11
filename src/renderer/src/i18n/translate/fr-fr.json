@@ -538,6 +538,10 @@
         "tip": "Une bouton d'exécution s'affichera dans la barre d'outils des blocs de code exécutables. Attention à ne pas exécuter de code dangereux !",
         "title": "Exécution de code"
       },
+      "code_fancy_block": {
+        "label": "[to be translated]:花式代码块",
+        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+      },
       "code_image_tools": {
         "label": "Activer l'outil d'aperçu",
         "tip": "Activer les outils de prévisualisation pour les images rendues des blocs de code tels que mermaid"
@@ -1742,8 +1746,15 @@
         "compress_content": "réduire la largeur des colonnes",
         "compress_content_description": "L'activation limitera le nombre de caractères par ligne, réduisant ainsi le contenu affiché à l'écran.",
         "default_font": "police par défaut",
+        "font_size": "[to be translated]:字体大小",
+        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
+        "font_size_large": "[to be translated]:大",
+        "font_size_medium": "[to be translated]:中",
+        "font_size_small": "[to be translated]:小",
         "font_title": "paramétrage des polices",
         "serif_font": "police à empattements",
+        "show_table_of_contents": "[to be translated]:显示目录大纲",
+        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
         "title": "Paramètres d'affichage"
       },
       "editor": {
@@ -2618,6 +2629,20 @@
         "siyuan": "Exporter vers Siyuan Notes",
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
+      },
+      "export_to_phone": {
+        "confirm": {
+          "button": "[to be translated]:选择备份文件"
+        },
+        "content": "[to be translated]:导出部分数据，包括聊天记录、设置。请注意，备份过程可能需要一些时间，感谢您的耐心等待。",
+        "lan": {
+          "content": "[to be translated]:请确保电脑和手机处于同一网络以使用局域网传输。请打开 Cherry Studio App 扫描此二维码。",
+          "noZipSelected": "[to be translated]:未选择压缩文件",
+          "selectZip": "[to be translated]:选择压缩文件",
+          "sendZip": "[to be translated]:开始恢复数据",
+          "title": "[to be translated]:局域网传输"
+        },
+        "title": "[to be translated]:导出至手机"
       },
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",

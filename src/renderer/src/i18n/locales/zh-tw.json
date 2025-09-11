@@ -2630,6 +2630,20 @@
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
       },
+      "export_to_phone": {
+        "confirm": {
+          "button": "選擇備份檔案"
+        },
+        "content": "匯出部分數據，包括聊天記錄、設定。請注意，備份過程可能需要一些時間，感謝您的耐心等候。",
+        "lan": {
+          "content": "請確保電腦和手機處於同一網路以使用區域網路傳輸。請打開 Cherry Studio App 掃描此 QR 碼。",
+          "noZipSelected": "未選取壓縮檔案",
+          "selectZip": "選擇壓縮檔案",
+          "sendZip": "開始恢復資料",
+          "title": "區域網路傳輸"
+        },
+        "title": "匯出手機"
+      },
       "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
       "joplin": {
