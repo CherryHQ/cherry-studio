@@ -684,10 +684,15 @@ async function uploadSingleFile(
   const nameWithoutExt = fileName.replace(MARKDOWN_EXT, '')
 
   let actualDirPath = originalDirPath
-  let parentNode: NotesTreeNode | null
+  let parentNode: NotesTreeNode | null = null
+
   if (originalDirPath === targetFolderPath) {
     parentNode =
       tree.find((node) => node.externalPath === targetFolderPath) || findNodeByExternalPath(tree, targetFolderPath)
+
+    if (!parentNode) {
+      logger.debug(`Uploading file ${fileName} to root directory: ${targetFolderPath}`)
+    }
   } else {
     parentNode = createdFolders.get(originalDirPath) || null
     if (!parentNode) {
@@ -696,22 +701,21 @@ async function uploadSingleFile(
         parentNode = findNodeByExternalPath(tree, originalDirPath)
       }
     }
-  }
 
-  // 如果找不到父节点，尝试通过 createdFolders 找到实际路径
-  if (!parentNode && originalDirPath !== targetFolderPath) {
-    for (const [originalPath, createdNode] of createdFolders.entries()) {
-      if (originalPath === originalDirPath) {
-        parentNode = createdNode
-        actualDirPath = createdNode.externalPath
-        break
+    if (!parentNode) {
+      for (const [originalPath, createdNode] of createdFolders.entries()) {
+        if (originalPath === originalDirPath) {
+          parentNode = createdNode
+          actualDirPath = createdNode.externalPath
+          break
+        }
       }
     }
-  }
 
-  if (!parentNode) {
-    logger.error(`Cannot upload file ${fileName}: parent node not found for path ${originalDirPath}`)
-    return null
+    if (!parentNode) {
+      logger.error(`Cannot upload file ${fileName}: parent node not found for path ${originalDirPath}`)
+      return null
+    }
   }
 
   const { safeName, exists } = await window.api.file.checkFileName(actualDirPath, nameWithoutExt, true)
