@@ -780,6 +780,7 @@
     "none": "无",
     "open": "打开",
     "paste": "粘贴",
+    "pasteAsPlainText": "粘贴为纯文本",
     "preview": "预览",
     "prompt": "提示词",
     "provider": "提供商",

@@ -780,6 +780,7 @@
     "none": "None",
     "open": "Open",
     "paste": "Paste",
+    "pasteAsPlainText": "Paste as Plain Text",
     "preview": "Preview",
     "prompt": "Prompt",
     "provider": "Provider",

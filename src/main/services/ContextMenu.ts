@@ -1,4 +1,5 @@
 import { Menu, MenuItemConstructorOptions } from 'electron'
+import { platform } from 'os'
 
 import { locales } from '../utils/locales'
 import { configManager } from './ConfigManager'
@@ -29,10 +30,12 @@ class ContextMenu {
   private createInspectMenuItems(w: Electron.WebContents): MenuItemConstructorOptions[] {
     const locale = locales[configManager.getLanguage()]
     const { common } = locale.translation
+    const isMac = platform() === 'darwin'
     const template: MenuItemConstructorOptions[] = [
       {
         id: 'inspect',
         label: common.inspect,
+        accelerator: isMac ? 'Cmd+Option+I' : 'Ctrl+Shift+I',
         click: () => {
           w.toggleDevTools()
         },
@@ -48,12 +51,15 @@ class ContextMenu {
     const { common } = locale.translation
     const hasText = properties.selectionText.trim().length > 0
     const can = (type: string) => properties.editFlags[`can${type}`] && hasText
+    const isMac = platform() === 'darwin'
+    const isWindows = platform() === 'win32'
 
     const template: MenuItemConstructorOptions[] = [
       {
         id: 'copy',
         label: common.copy,
         role: 'copy',
+        accelerator: isMac ? 'Cmd+C' : 'Ctrl+C',
         enabled: can('Copy'),
         visible: properties.isEditable || hasText
       },
@@ -61,13 +67,27 @@ class ContextMenu {
         id: 'paste',
         label: common.paste,
         role: 'paste',
+        accelerator: isMac ? 'Cmd+V' : 'Ctrl+V',
         enabled: properties.editFlags.canPaste,
         visible: properties.isEditable
+      },
+      {
+        id: 'pasteAsPlainText',
+        label: common.pasteAsPlainText || 'Paste as Plain Text',
+        accelerator: isMac ? 'Cmd+Shift+V' : isWindows ? 'Ctrl+Shift+V' : 'Ctrl+Shift+V',
+        enabled: properties.editFlags.canPaste,
+        visible: properties.isEditable,
+        click: (_menuItem, browserWindow) => {
+          if (browserWindow && 'webContents' in browserWindow) {
+            ;(browserWindow as Electron.BrowserWindow).webContents.pasteAndMatchStyle()
+          }
+        }
       },
       {
         id: 'cut',
         label: common.cut,
         role: 'cut',
+        accelerator: isMac ? 'Cmd+X' : 'Ctrl+X',
         enabled: can('Cut'),
         visible: properties.isEditable
       }
