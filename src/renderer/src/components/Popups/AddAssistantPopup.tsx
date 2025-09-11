@@ -173,7 +173,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }}
       closeIcon={null}
       footer={null}>
-      <RowFlex className="mt-1.5 px-3">
+      <RowFlex className="mt-[5px] px-3">
         <Input
           prefix={
             <SearchIcon>
@@ -199,7 +199,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             onClick={() => onCreateAssistant(agent)}
             className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
             onMouseEnter={() => setSelectedIndex(index)}>
-            <RowFlex className="max-w-full items-center gap-1 overflow-hidden">
+            <RowFlex className="max-w-full items-center gap-[5px] overflow-hidden">
               <EmojiIcon emoji={agent.emoji || ''} />
               <span className="text-nowrap">{agent.name}</span>
             </RowFlex>

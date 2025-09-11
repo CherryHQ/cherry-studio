@@ -130,7 +130,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       centered>
-      <Center className="mt-8">
+      <Center className="mt-[30px]">
         <ColFlex className="items-center gap-2">
           <Dropdown
             menu={{ items }}

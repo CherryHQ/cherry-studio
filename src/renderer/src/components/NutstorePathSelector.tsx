@@ -234,13 +234,13 @@ export function NustorePathSelectorFooter(props: FooterProps) {
   const { t } = useTranslation()
   return (
     <FooterContainer className="justify-between">
-      <RowFlex className="items-center gap-8">
+      <RowFlex className="items-center gap-2">
         <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
         <Button size="small" type="link" onClick={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
       </RowFlex>
-      <RowFlex className="items-center gap-8">
+      <RowFlex className="items-center gap-2">
         <Button type="default" onClick={props.cancel}>
           {t('settings.data.nutstore.new_folder.button.cancel')}
         </Button>

@@ -161,7 +161,7 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            <Flex className="items-center gap-8">
+            <Flex className="items-center gap-2">
               {(['created_at', 'size', 'name'] as const).map((field) => (
                 <SortButton
                   key={field}
