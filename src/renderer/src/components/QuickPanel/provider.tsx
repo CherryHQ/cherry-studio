@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import db from '@renderer/databases'
 
 import {
   QuickPanelCallBackOptions,
@@ -41,7 +42,10 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setTitle(options.title)
     setList(options.list)
     setDefaultIndex(options.defaultIndex ?? 0)
-    setPageSize(options.pageSize ?? 7)
+    // 仅当显式传入时才更新行数，否则沿用用户最近一次调整值
+    if (typeof options.pageSize === 'number') {
+      setPageSize(options.pageSize)
+    }
     setMultiple(options.multiple ?? false)
     setSymbol(options.symbol)
     setTriggerInfo(options.triggerInfo)
@@ -51,6 +55,23 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setAfterAction(() => options.afterAction)
 
     setIsVisible(true)
+  }, [])
+
+  // Load persisted rows (pageSize) on mount
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const setting = await db.settings.get('ui:quickpanel:rows')
+        const rows = typeof setting?.value === 'number' ? setting.value : undefined
+        if (!cancelled && typeof rows === 'number') {
+          setPageSize(rows)
+        }
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const close = useCallback(
@@ -85,6 +106,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       open,
       close,
       updateItemSelection,
+      setPageSize,
 
       isVisible,
       symbol,
@@ -103,6 +125,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       open,
       close,
       updateItemSelection,
+      setPageSize,
       isVisible,
       symbol,
       list,

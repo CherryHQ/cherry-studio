@@ -68,6 +68,8 @@ export interface QuickPanelContextType {
   readonly open: (options: QuickPanelOpenOptions) => void
   readonly close: (action?: QuickPanelCloseAction, searchText?: string) => void
   readonly updateItemSelection: (targetItem: QuickPanelListItem, isSelected: boolean) => void
+  /** 更新可视行数（原 pageSize） */
+  readonly setPageSize: (size: number) => void
   readonly isVisible: boolean
   readonly symbol: string
   readonly list: QuickPanelListItem[]
