@@ -18,7 +18,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
-import { checkDataLimit } from './useDataLimit'
+import { checkDataLimit } from '@renderer/utils'
 import useFullScreenNotice from './useFullScreenNotice'
 import { useRuntime } from './useRuntime'
 import { useNavbarPosition, useSettings } from './useSettings'

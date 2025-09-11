@@ -98,14 +98,3 @@ export async function checkDataLimit() {
     currentInterval = setInterval(check, CHECK_INTERVAL_NORMAL)
   }
 }
-
-export function stopDataLimitCheck() {
-  if (currentInterval) {
-    clearInterval(currentInterval)
-    currentInterval = null
-  }
-  if (currentToastId) {
-    window.toast.closeToast(currentToastId)
-    currentToastId = null
-  }
-}
