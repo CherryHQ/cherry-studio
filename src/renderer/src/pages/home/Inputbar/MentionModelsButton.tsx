@@ -532,19 +532,20 @@ const MentionModelsButton: FC<Props> = ({
         afterAction({ item }) {
           item.isSelected = !item.isSelected
         },
-        onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
-          // ESC close: delete '@' and the search text
+        onClose({ action, searchText, context: ctx }) {
+          // ESC关闭时的处理：删除 @ 和搜索文本
           if (action === 'esc') {
             // Only do this for input trigger and when a selection occurred
             if (
               hasModelActionRef.current &&
-              closeTriggerInfo?.type === 'input' &&
-              closeTriggerInfo?.position !== undefined
+              ctx.triggerInfo?.type === 'input' &&
+              ctx.triggerInfo?.position !== undefined
             ) {
-              // Use saved position to avoid DOM queries
+              // Use current caret with graceful fallback
               setText((currentText) => {
-                const caret = closeTriggerInfo.position!
-                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
+                const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+                const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+                return removeAtSymbolAndText(currentText, caret, searchText || '', ctx.triggerInfo?.position!)
               })
             }
           }
@@ -574,6 +575,13 @@ const MentionModelsButton: FC<Props> = ({
       filesRef.current = files
     }
   }, [files, quickPanel])
+
+  // 动态更新已打开的 QuickPanel 列表的选中状态
+  useEffect(() => {
+    if (quickPanel.isVisible && quickPanel.symbol === '@') {
+      quickPanel.updateList(modelItems)
+    }
+  }, [mentionedModels, quickPanel, modelItems])
 
   // Cleanup lingering refs on unmount
   useEffect(() => {
