@@ -123,7 +123,6 @@ export class AiSdkToChunkAdapter {
         // Only apply link conversion if web search is enabled
         if (this.enableWebSearch) {
           const result = convertLinks(processedText, this.isFirstChunk)
-          logger.silly('smartLinkConverter result:', { result: result.text })
 
           if (this.isFirstChunk) {
             this.isFirstChunk = false
