@@ -1,6 +1,7 @@
 import React from 'react'
 
 export enum QuickPanelReservedSymbol {
+  Root = '/',
   File = 'file',
   KnowledgeBase = '#',
   MentionModels = '@',

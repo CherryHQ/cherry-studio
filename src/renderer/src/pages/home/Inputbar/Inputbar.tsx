@@ -498,11 +498,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const lastSymbol = newText[cursorPosition - 1]
 
       // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === '/') {
-        if (quickPanel.isVisible && quickPanel.symbol !== '/') {
+      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root) {
+        if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           quickPanel.close('switch-symbol')
         }
-        if (!quickPanel.isVisible || quickPanel.symbol !== '/') {
+        if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           const quickPanelMenu =
             inputbarToolsRef.current?.getQuickPanelMenu({
               t,
@@ -516,17 +516,17 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           quickPanel.open({
             title: t('settings.quickPanel.title'),
             list: quickPanelMenu,
-            symbol: '/'
+            symbol: QuickPanelReservedSymbol.Root
           })
         }
       }
 
       // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === '@') {
-        if (quickPanel.isVisible && quickPanel.symbol !== '@') {
+      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.MentionModels) {
+        if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
           quickPanel.close('switch-symbol')
         }
-        if (!quickPanel.isVisible || quickPanel.symbol !== '@') {
+        if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
           inputbarToolsRef.current?.openMentionModelsPanel({
             type: 'input',
             position: cursorPosition - 1,
