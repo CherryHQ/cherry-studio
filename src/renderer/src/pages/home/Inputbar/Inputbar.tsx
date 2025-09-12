@@ -7,8 +7,6 @@ import {
   isGenerateImageModel,
   isGenerateImageModels,
   isMandatoryWebSearchModel,
-  isSupportedReasoningEffortModel,
-  isSupportedThinkingTokenModel,
   isVisionModel,
   isVisionModels,
   isWebSearchModel
@@ -19,7 +17,7 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
@@ -27,7 +25,6 @@ import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
 import { checkRateLimit, getUserMessage } from '@renderer/services/MessagesService'
-import { getModelUniqId } from '@renderer/services/ModelService'
 import PasteService from '@renderer/services/PasteService'
 import { spanManagerService } from '@renderer/services/SpanManagerService'
 import { estimateTextTokens as estimateTxtTokens, estimateUserPromptUsage } from '@renderer/services/TokenService'
@@ -36,7 +33,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, FileTypes, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
@@ -46,7 +43,6 @@ import {
   getTextFromDropEvent,
   isSendMessageKeyPressed
 } from '@renderer/utils/input'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
@@ -134,11 +130,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [mentionedModels, isGenerateImageAssistant]
   )
 
-  // 仅允许在不含图片文件时mention非视觉模型
-  const couldMentionNotVisionModel = useMemo(() => {
-    return !files.some((file) => file.type === FileTypes.IMAGE)
-  }, [files])
-
   // 允许在支持视觉或生成图片时添加图片文件
   const couldAddImageFile = useMemo(() => {
     return isVisionSupported || isGenerateImageSupported
@@ -185,8 +176,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
-  const newTopicShortcut = useShortcutDisplay('new_topic')
-  const cleanTopicShortcut = useShortcutDisplay('clear_topic')
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
@@ -762,11 +751,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
   }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
 
-  const handleKnowledgeBaseSelect = (bases?: KnowledgeBase[]) => {
-    updateAssistant({ ...assistant, knowledge_bases: bases })
-    setSelectedKnowledgeBases(bases ?? [])
-  }
-
   const handleRemoveModel = (model: Model) => {
     setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
   }
@@ -778,10 +762,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       knowledge_bases: newKnowledgeBases
     })
     setSelectedKnowledgeBases(newKnowledgeBases ?? [])
-  }
-
-  const onEnableGenerateImage = () => {
-    updateAssistant({ ...assistant, enableGenerateImage: !assistant.enableGenerateImage })
   }
 
   useEffect(() => {
@@ -802,24 +782,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       updateAssistant({ ...assistant, enableGenerateImage: false })
     }
   }, [assistant, model, updateAssistant])
-
-  const onMentionModel = useCallback(
-    (model: Model) => {
-      // 我想应该没有模型是只支持视觉而不支持文本的？
-      if (isVisionModel(model) || couldMentionNotVisionModel) {
-        setMentionedModels((prev) => {
-          const modelId = getModelUniqId(model)
-          const exists = prev.some((m) => getModelUniqId(m) === modelId)
-          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
-        })
-      } else {
-        logger.error('Cannot add non-vision model when images are uploaded')
-      }
-    },
-    [couldMentionNotVisionModel]
-  )
-
-  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
 
   const onToggleExpanded = () => {
     const currentlyExpanded = expanded || !!textareaHeight
@@ -845,8 +807,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   }
 
   const isExpanded = expanded || !!textareaHeight
-  const showThinkingButton = isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)
-  const showMcpTools = isSupportedToolUse(assistant) || isPromptToolUse(assistant)
 
   if (isMultiSelectMode) {
     return null
@@ -918,31 +878,23 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           <Toolbar>
             <InputbarTools
               ref={inputbarToolsRef}
-              assistant={assistant}
+              assistantId={assistant.id}
               model={model}
               files={files}
               extensions={supportedExts}
               setFiles={setFiles}
-              showThinkingButton={showThinkingButton}
-              showKnowledgeIcon={showKnowledgeIcon && showMcpTools}
-              showMcpTools={showMcpTools}
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              handleKnowledgeBaseSelect={handleKnowledgeBaseSelect}
               setText={setText}
               resizeTextArea={resizeTextArea}
-              mentionModels={mentionedModels}
-              onMentionModel={onMentionModel}
-              onClearMentionModels={onClearMentionModels}
-              couldMentionNotVisionModel={couldMentionNotVisionModel}
+              selectedKnowledgeBases={selectedKnowledgeBases}
+              setSelectedKnowledgeBases={setSelectedKnowledgeBases}
+              mentionedModels={mentionedModels}
+              setMentionedModels={setMentionedModels}
               couldAddImageFile={couldAddImageFile}
-              onEnableGenerateImage={onEnableGenerateImage}
               isExpanded={isExpanded}
               onToggleExpanded={onToggleExpanded}
               addNewTopic={addNewTopic}
               clearTopic={clearTopic}
               onNewContext={onNewContext}
-              newTopicShortcut={newTopicShortcut}
-              cleanTopicShortcut={cleanTopicShortcut}
             />
             <ToolbarMenu>
               <TokenCount
