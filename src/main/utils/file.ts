@@ -398,11 +398,15 @@ export function validateFileName(fileName: string, platform = process.platform):
  * @returns 合法的文件名
  */
 export function checkName(fileName: string): string {
-  const validation = validateFileName(fileName)
+  const baseName = path.basename(fileName)
+  const validation = validateFileName(baseName)
   if (!validation.valid) {
-    throw new Error(`Invalid file name: ${fileName}. ${validation.error}`)
+    // 自动清理非法字符，而不是抛出错误
+    const sanitized = sanitizeFilename(baseName)
+    logger.warn(`File name contains invalid characters, auto-sanitized: "${baseName}" -> "${sanitized}"`)
+    return sanitized
   }
-  return fileName
+  return baseName
 }
 
 /**

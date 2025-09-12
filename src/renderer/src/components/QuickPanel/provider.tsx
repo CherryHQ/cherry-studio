@@ -32,6 +32,11 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     setList((prevList) => prevList.map((item) => (item === targetItem ? { ...item, isSelected } : item)))
   }, [])
 
+  // 添加更新整个列表的方法
+  const updateList = useCallback((newList: QuickPanelListItem[]) => {
+    setList(newList)
+  }, [])
+
   const open = useCallback((options: QuickPanelOpenOptions) => {
     if (clearTimer.current) {
       clearTimeout(clearTimer.current)
@@ -56,7 +61,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const close = useCallback(
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
-      onClose?.({ symbol, action, triggerInfo, searchText, item: {} as QuickPanelListItem, multiple: false })
+      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
       clearTimer.current = setTimeout(() => {
         setList([])
@@ -68,7 +73,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setTriggerInfo(undefined)
       }, 200)
     },
-    [onClose, symbol, triggerInfo]
+    [onClose]
   )
 
   useEffect(() => {
@@ -85,6 +90,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       open,
       close,
       updateItemSelection,
+      updateList,
 
       isVisible,
       symbol,
@@ -103,6 +109,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       open,
       close,
       updateItemSelection,
+      updateList,
       isVisible,
       symbol,
       list,

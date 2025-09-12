@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod'
 
 import { isBuiltinMCPServerName } from '.'
 
@@ -187,18 +187,13 @@ export const McpServerConfigSchema = z
     // 显式传入的type会覆盖掉从url推断的逻辑
     if (!schema.type) {
       const url = schema.baseUrl ?? schema.url ?? null
+      // NOTE: url 暗示了服务器的类型为 streamableHttp 或 sse，未来可能会扩展其他类型
       if (url !== null) {
-        if (url.endsWith('/mcp')) {
-          return {
-            ...schema,
-            type: 'streamableHttp'
-          } as const
-        } else if (url.endsWith('/sse')) {
-          return {
-            ...schema,
-            type: 'sse'
-          } as const
-        }
+        const type = getMcpServerType(url)
+        return {
+          ...schema,
+          type
+        } as const
       }
     }
     return schema
@@ -253,4 +248,15 @@ export function safeValidateMcpConfig(config: unknown) {
  */
 export function safeValidateMcpServerConfig(config: unknown) {
   return McpServerConfigSchema.safeParse(config)
+}
+
+/**
+ * 根据给定的URL判断MCP服务器的类型。
+ * 如果URL以 "/mcp" 结尾，则类型为 "streamableHttp"，否则为 "sse"。
+ *
+ * @param url - 服务器的URL地址
+ * @returns MCP服务器类型（'streamableHttp' 或 'sse'）
+ */
+export function getMcpServerType(url: string): McpServerType {
+  return url.endsWith('/mcp') ? 'streamableHttp' : 'sse'
 }

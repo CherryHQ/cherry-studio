@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import { getMcpServerType, type MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('ModelScopeSyncUtils')
@@ -104,13 +104,13 @@ export const syncModelScopeServers = async (
 
         // Check if server already exists
         const existingServer = existingServers.find((s) => s.id === `@modelscope/${server.id}`)
-
+        const url = server.operational_urls[0].url
         const mcpServer: MCPServer = {
           id: `@modelscope/${server.id}`,
           name: server.chinese_name || server.name || `ModelScope Server ${nanoid()}`,
           description: server.description || '',
-          type: 'sse',
-          baseUrl: server.operational_urls[0].url,
+          type: getMcpServerType(url),
+          baseUrl: url,
           command: '',
           args: [],
           env: {},

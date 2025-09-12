@@ -461,18 +461,81 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
   )
 
   const handleDropFiles = useCallback(
-    (e: React.DragEvent) => {
+    async (e: React.DragEvent) => {
       e.preventDefault()
       setIsDragOverSidebar(false)
 
-      const files = Array.from(e.dataTransfer.files)
+      // 处理文件夹拖拽：从 dataTransfer.items 获取完整的文件路径信息
+      const items = Array.from(e.dataTransfer.items)
+      const files: File[] = []
 
-      if (files.length > 0) {
-        onUploadFiles(files)
+      const processEntry = async (entry: FileSystemEntry, path: string = '') => {
+        if (entry.isFile) {
+          const fileEntry = entry as FileSystemFileEntry
+          return new Promise<void>((resolve) => {
+            fileEntry.file((file) => {
+              // 手动设置 webkitRelativePath 以保持文件夹结构
+              Object.defineProperty(file, 'webkitRelativePath', {
+                value: path + file.name,
+                writable: false
+              })
+              files.push(file)
+              resolve()
+            })
+          })
+        } else if (entry.isDirectory) {
+          const dirEntry = entry as FileSystemDirectoryEntry
+          const reader = dirEntry.createReader()
+          return new Promise<void>((resolve) => {
+            reader.readEntries(async (entries) => {
+              const promises = entries.map((subEntry) => processEntry(subEntry, path + entry.name + '/'))
+              await Promise.all(promises)
+              resolve()
+            })
+          })
+        }
+      }
+
+      // 如果支持 DataTransferItem API（文件夹拖拽）
+      if (items.length > 0 && items[0].webkitGetAsEntry()) {
+        const promises = items.map((item) => {
+          const entry = item.webkitGetAsEntry()
+          return entry ? processEntry(entry) : Promise.resolve()
+        })
+
+        await Promise.all(promises)
+
+        if (files.length > 0) {
+          onUploadFiles(files)
+        }
+      } else {
+        const regularFiles = Array.from(e.dataTransfer.files)
+        if (regularFiles.length > 0) {
+          onUploadFiles(regularFiles)
+        }
       }
     },
     [onUploadFiles]
   )
+
+  const handleClickToSelectFiles = useCallback(() => {
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.multiple = true
+    fileInput.accept = '.md,.markdown'
+    fileInput.webkitdirectory = false
+
+    fileInput.onchange = (e) => {
+      const target = e.target as HTMLInputElement
+      if (target.files && target.files.length > 0) {
+        const selectedFiles = Array.from(target.files)
+        onUploadFiles(selectedFiles)
+      }
+      fileInput.remove()
+    }
+
+    fileInput.click()
+  }, [onUploadFiles])
 
   return (
     <SidebarContainer
@@ -512,7 +575,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                     <NodeIcon>
                       <FilePlus size={16} />
                     </NodeIcon>
-                    <DropHintText>{t('notes.drop_markdown_hint')}</DropHintText>
+                    <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
                   </TreeNodeContent>
                 </TreeNodeContainer>
               </DropHintNode>
@@ -674,12 +737,6 @@ const NodeName = styled.div`
 const EditInput = styled(Input)`
   flex: 1;
   font-size: 13px;
-
-  .ant-input {
-    font-size: 13px;
-    padding: 2px 6px;
-    border: 0.5px solid var(--color-primary);
-  }
 `
 
 const DragOverIndicator = styled.div`
