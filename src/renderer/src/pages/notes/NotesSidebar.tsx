@@ -518,6 +518,25 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     [onUploadFiles]
   )
 
+  const handleClickToSelectFiles = useCallback(() => {
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.multiple = true
+    fileInput.accept = '.md,.markdown'
+    fileInput.webkitdirectory = false
+
+    fileInput.onchange = (e) => {
+      const target = e.target as HTMLInputElement
+      if (target.files && target.files.length > 0) {
+        const selectedFiles = Array.from(target.files)
+        onUploadFiles(selectedFiles)
+      }
+      fileInput.remove()
+    }
+
+    fileInput.click()
+  }, [onUploadFiles])
+
   return (
     <SidebarContainer
       onDragOver={(e) => {
@@ -556,7 +575,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                     <NodeIcon>
                       <FilePlus size={16} />
                     </NodeIcon>
-                    <DropHintText>{t('notes.drop_markdown_hint')}</DropHintText>
+                    <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
                   </TreeNodeContent>
                 </TreeNodeContainer>
               </DropHintNode>
@@ -718,12 +737,6 @@ const NodeName = styled.div`
 const EditInput = styled(Input)`
   flex: 1;
   font-size: 13px;
-
-  .ant-input {
-    font-size: 13px;
-    padding: 2px 6px;
-    border: 0.5px solid var(--color-primary);
-  }
 `
 
 const DragOverIndicator = styled.div`
