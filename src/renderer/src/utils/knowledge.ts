@@ -14,6 +14,7 @@ import type {
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
+import { isValidUrl } from '@renderer/utils/fetch'
 
 import { findAllBlocks } from './messageUtils/find'
 
