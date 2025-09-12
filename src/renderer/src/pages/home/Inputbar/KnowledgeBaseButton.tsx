@@ -64,14 +64,14 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
       description: t('settings.input.clear.knowledge_base'),
       icon: <CircleX />,
       isSelected: false,
-      action: () => {
+      action: ({ context: ctx }) => {
         onSelect([])
-        quickPanel.close()
+        ctx.close()
       }
     })
 
     return items
-  }, [knowledgeState.bases, t, selectedBases, handleBaseSelect, navigate, onSelect, quickPanel])
+  }, [knowledgeState.bases, t, selectedBases, handleBaseSelect, navigate, onSelect])
 
   const openQuickPanel = useCallback(() => {
     quickPanel.open({

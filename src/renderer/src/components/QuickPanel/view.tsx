@@ -222,11 +222,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         // 创建更新后的item对象用于回调
         const updatedItem = { ...item, isSelected: newSelectedState }
         const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
-          symbol: ctx.symbol,
+          context: ctx,
           action,
           item: updatedItem,
-          searchText: searchText,
-          multiple: ctx.multiple
+          searchText: searchText
         }
 
         ctx.beforeAction?.(quickPanelCallBackOptions)
@@ -236,11 +235,10 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       }
 
       const quickPanelCallBackOptions: QuickPanelCallBackOptions = {
-        symbol: ctx.symbol,
+        context: ctx,
         action,
         item,
-        searchText: searchText,
-        multiple: ctx.multiple
+        searchText: searchText
       }
 
       ctx.beforeAction?.(quickPanelCallBackOptions)
