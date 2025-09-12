@@ -1277,6 +1277,26 @@
     "user_switched": "使用者內容已切換至 {{user}}",
     "users": "使用者"
   },
+  "mention_group": {
+    "delete_confirm_content": "確定要刪除此分組嗎？",
+    "delete_confirm_title": "刪除分組",
+    "delete_group": "刪除分組",
+    "deleted": "已刪除",
+    "group_name": "群組名稱",
+    "invalid_name": "群組名稱不合法",
+    "load_failed": "載入模型分組失敗",
+    "name_exists": "名稱已存在",
+    "no_selection_warning": "請至少選擇一個模型",
+    "no_usable_models_warning": "目前附件限制下，該分組無可用模型",
+    "pin_group": "置頂分組",
+    "rename_group": "重新命名分組",
+    "save_as_group": "儲存選擇為分組",
+    "save_failed": "儲存模型分組失敗",
+    "saved": "已儲存",
+    "skipped_info": "有 {{count}} 個模型因附件限制被跳過",
+    "title": "模型分組",
+    "unpin_group": "取消置頂"
+  },
   "message": {
     "agents": {
       "import": {
