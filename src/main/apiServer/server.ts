@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 
+import { agentService } from '../services/agents/AgentService'
 import { loggerService } from '../services/LoggerService'
 import { app } from './app'
 import { config } from './config'
@@ -17,6 +18,11 @@ export class ApiServer {
 
     // Load config
     const { port, host, apiKey } = await config.load()
+
+    // Initialize AgentService
+    logger.info('Initializing AgentService...')
+    await agentService.initialize()
+    logger.info('AgentService initialized successfully')
 
     // Create server with Express app
     this.server = createServer(app)

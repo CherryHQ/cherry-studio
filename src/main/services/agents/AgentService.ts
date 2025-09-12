@@ -202,7 +202,7 @@ export class AgentService {
   async createAgent(agentData: CreateAgentRequest): Promise<AgentEntity> {
     this.ensureInitialized()
 
-    const id = `agent_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
     const serializedData = this.serializeJsonFields(agentData)
@@ -382,7 +382,7 @@ export class AgentService {
       throw new Error(`Agent with id ${sessionData.main_agent_id} does not exist`)
     }
 
-    const id = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
     const serializedData = this.serializeJsonFields(sessionData)
