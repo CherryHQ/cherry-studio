@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express'
 import { body, param, query, validationResult } from 'express-validator'
 
 import { agentService } from '../../services/agents/AgentService'
+import { sessionLogService } from '../../services/agents/SessionLogService'
+import { sessionService } from '../../services/agents/SessionService'
 import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerSessionLogsRoutes')
@@ -75,7 +77,7 @@ const checkAgentAndSessionExist = async (req: Request, res: Response, next: any)
       return
     }
 
-    const session = await agentService.getSession(sessionId)
+    const session = await sessionService.getSession(sessionId)
     if (!session) {
       res.status(404).json({
         error: {
@@ -251,7 +253,7 @@ function createSessionLogsRouter(): express.Router {
         logger.info(`Creating new log entry for session: ${sessionId}`)
         logger.debug('Log data:', logData)
 
-        const log = await agentService.createSessionLog(logData)
+        const log = await sessionLogService.createSessionLog(logData)
 
         logger.info(`Log entry created successfully: ${log.id}`)
         return res.status(201).json(log)
@@ -344,7 +346,7 @@ function createSessionLogsRouter(): express.Router {
 
         logger.info(`Creating ${logsData.length} log entries for session: ${sessionId}`)
 
-        const logs = await agentService.bulkCreateSessionLogs(logsData)
+        const logs = await sessionLogService.bulkCreateSessionLogs(logsData)
 
         logger.info(`${logs.length} log entries created successfully for session: ${sessionId}`)
         return res.status(201).json({
@@ -454,7 +456,7 @@ function createSessionLogsRouter(): express.Router {
 
         logger.info(`Listing logs for session: ${sessionId} with limit=${limit}, offset=${offset}`)
 
-        const result = await agentService.listSessionLogs(sessionId, { limit, offset })
+        const result = await sessionLogService.listSessionLogs(sessionId, { limit, offset })
 
         logger.info(`Retrieved ${result.logs.length} logs (total: ${result.total}) for session: ${sessionId}`)
         return res.json({
@@ -536,7 +538,7 @@ function createSessionLogsRouter(): express.Router {
 
         logger.info(`Getting log entry: ${logId} for session: ${sessionId}`)
 
-        const log = await agentService.getSessionLog(logIdNum)
+        const log = await sessionLogService.getSessionLog(logIdNum)
 
         if (!log) {
           logger.warn(`Log entry not found: ${logId}`)
@@ -658,7 +660,7 @@ function createSessionLogsRouter(): express.Router {
         logger.debug('Update data:', req.body)
 
         // First check if log exists and belongs to session
-        const existingLog = await agentService.getSessionLog(logIdNum)
+        const existingLog = await sessionLogService.getSessionLog(logIdNum)
         if (!existingLog || existingLog.session_id !== sessionId) {
           logger.warn(`Log entry ${logId} not found for session ${sessionId}`)
           return res.status(404).json({
@@ -670,7 +672,7 @@ function createSessionLogsRouter(): express.Router {
           })
         }
 
-        const log = await agentService.updateSessionLog(logIdNum, req.body)
+        const log = await sessionLogService.updateSessionLog(logIdNum, req.body)
 
         if (!log) {
           logger.warn(`Log entry not found for update: ${logId}`)
@@ -755,7 +757,7 @@ function createSessionLogsRouter(): express.Router {
         logger.info(`Deleting log entry: ${logId} for session: ${sessionId}`)
 
         // First check if log exists and belongs to session
-        const existingLog = await agentService.getSessionLog(logIdNum)
+        const existingLog = await sessionLogService.getSessionLog(logIdNum)
         if (!existingLog || existingLog.session_id !== sessionId) {
           logger.warn(`Log entry ${logId} not found for session ${sessionId}`)
           return res.status(404).json({
@@ -767,7 +769,7 @@ function createSessionLogsRouter(): express.Router {
           })
         }
 
-        const deleted = await agentService.deleteSessionLog(logIdNum)
+        const deleted = await sessionLogService.deleteSessionLog(logIdNum)
 
         if (!deleted) {
           logger.warn(`Log entry not found for deletion: ${logId}`)
@@ -880,7 +882,7 @@ router.get(
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
 
       // Check if session exists
-      const sessionExists = await agentService.sessionExists(sessionId)
+      const sessionExists = await sessionService.sessionExists(sessionId)
       if (!sessionExists) {
         return res.status(404).json({
           error: {
@@ -893,7 +895,7 @@ router.get(
 
       logger.info(`Listing logs for session: ${sessionId} with limit=${limit}, offset=${offset}`)
 
-      const result = await agentService.listSessionLogs(sessionId, { limit, offset })
+      const result = await sessionLogService.listSessionLogs(sessionId, { limit, offset })
 
       logger.info(`Retrieved ${result.logs.length} logs (total: ${result.total}) for session: ${sessionId}`)
       return res.json({
@@ -956,7 +958,7 @@ router.get('/session-logs/:logId', validateLogId, handleValidationErrors, async 
 
     logger.info(`Getting log entry: ${logId}`)
 
-    const log = await agentService.getSessionLog(logIdNum)
+    const log = await sessionLogService.getSessionLog(logIdNum)
 
     if (!log) {
       logger.warn(`Log entry not found: ${logId}`)

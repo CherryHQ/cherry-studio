@@ -1,2 +1,5 @@
 export * from './AgentService'
+export * from './BaseService'
 export * from './db'
+export * from './SessionLogService'
+export * from './SessionService'

@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express'
 import { body, param, query, validationResult } from 'express-validator'
 
 import { agentService } from '../../services/agents/AgentService'
+import { sessionService } from '../../services/agents/SessionService'
 import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerSessionsRoutes')
@@ -321,7 +322,7 @@ function createSessionsRouter(): express.Router {
         logger.info(`Creating new session for agent: ${agentId}`)
         logger.debug('Session data:', sessionData)
 
-        const session = await agentService.createSession(sessionData)
+        const session = await sessionService.createSession(sessionData)
 
         logger.info(`Session created successfully: ${session.id}`)
         return res.status(201).json(session)
@@ -428,7 +429,7 @@ function createSessionsRouter(): express.Router {
 
         logger.info(`Listing sessions for agent: ${agentId} with limit=${limit}, offset=${offset}, status=${status}`)
 
-        const result = await agentService.listSessions(agentId, { limit, offset, status })
+        const result = await sessionService.listSessions(agentId, { limit, offset, status })
 
         logger.info(`Retrieved ${result.sessions.length} sessions (total: ${result.total}) for agent: ${agentId}`)
         return res.json({
@@ -501,7 +502,7 @@ function createSessionsRouter(): express.Router {
         const { agentId, sessionId } = req.params
         logger.info(`Getting session: ${sessionId} for agent: ${agentId}`)
 
-        const session = await agentService.getSession(sessionId)
+        const session = await sessionService.getSession(sessionId)
 
         if (!session) {
           logger.warn(`Session not found: ${sessionId}`)
@@ -607,7 +608,7 @@ function createSessionsRouter(): express.Router {
         logger.debug('Update data:', req.body)
 
         // First check if session exists and belongs to agent
-        const existingSession = await agentService.getSession(sessionId)
+        const existingSession = await sessionService.getSession(sessionId)
         if (!existingSession || existingSession.main_agent_id !== agentId) {
           logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
           return res.status(404).json({
@@ -619,7 +620,7 @@ function createSessionsRouter(): express.Router {
           })
         }
 
-        const session = await agentService.updateSession(sessionId, req.body)
+        const session = await sessionService.updateSession(sessionId, req.body)
 
         if (!session) {
           logger.warn(`Session not found for update: ${sessionId}`)
@@ -720,7 +721,7 @@ function createSessionsRouter(): express.Router {
         logger.info(`Updating session status: ${sessionId} for agent: ${agentId} to ${status}`)
 
         // First check if session exists and belongs to agent
-        const existingSession = await agentService.getSession(sessionId)
+        const existingSession = await sessionService.getSession(sessionId)
         if (!existingSession || existingSession.main_agent_id !== agentId) {
           logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
           return res.status(404).json({
@@ -732,7 +733,7 @@ function createSessionsRouter(): express.Router {
           })
         }
 
-        const session = await agentService.updateSessionStatus(sessionId, status)
+        const session = await sessionService.updateSessionStatus(sessionId, status)
 
         if (!session) {
           logger.warn(`Session not found for status update: ${sessionId}`)
@@ -808,7 +809,7 @@ function createSessionsRouter(): express.Router {
         logger.info(`Deleting session: ${sessionId} for agent: ${agentId}`)
 
         // First check if session exists and belongs to agent
-        const existingSession = await agentService.getSession(sessionId)
+        const existingSession = await sessionService.getSession(sessionId)
         if (!existingSession || existingSession.main_agent_id !== agentId) {
           logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
           return res.status(404).json({
@@ -820,7 +821,7 @@ function createSessionsRouter(): express.Router {
           })
         }
 
-        const deleted = await agentService.deleteSession(sessionId)
+        const deleted = await sessionService.deleteSession(sessionId)
 
         if (!deleted) {
           logger.warn(`Session not found for deletion: ${sessionId}`)
@@ -923,7 +924,7 @@ router.get('/', validatePagination, handleValidationErrors, async (req: Request,
 
     logger.info(`Listing all sessions with limit=${limit}, offset=${offset}, status=${status}`)
 
-    const result = await agentService.listSessions(undefined, { limit, offset, status })
+    const result = await sessionService.listSessions(undefined, { limit, offset, status })
 
     logger.info(`Retrieved ${result.sessions.length} sessions (total: ${result.total})`)
     return res.json({
@@ -983,7 +984,7 @@ router.get('/:sessionId', validateSessionId, handleValidationErrors, async (req:
     const { sessionId } = req.params
     logger.info(`Getting session: ${sessionId}`)
 
-    const session = await agentService.getSession(sessionId)
+    const session = await sessionService.getSession(sessionId)
 
     if (!session) {
       logger.warn(`Session not found: ${sessionId}`)

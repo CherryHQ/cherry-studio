@@ -21,19 +21,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing & Quality
 
+- **Build Check**: `yarn build:check` - Checks build including type checking, it's REQUIRED before commits
 - **Run Tests**: `yarn test` - Runs all tests (Vitest)
-- **Run E2E Tests**: `yarn test:e2e` - Playwright end-to-end tests
-- **Type Check**: `yarn typecheck` - Checks TypeScript for both node and web
-- **Lint**: `yarn lint` - ESLint with auto-fix
-- **Format**: `yarn format` - Prettier formatting
-
-### Build & Release
-
-- **Build**: `yarn build` - Builds for production (includes typecheck)
-- **Platform-specific builds**:
-  - Windows: `yarn build:win`
-  - macOS: `yarn build:mac`
-  - Linux: `yarn build:linux`
 
 ## Architecture Overview
 
