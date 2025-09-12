@@ -539,8 +539,8 @@
         "title": "Exécution de code"
       },
       "code_fancy_block": {
-        "label": "[to be translated]:花式代码块",
-        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+        "label": "bloc de code fantaisie",
+        "tip": "Utiliser un style de bloc de code plus esthétique, comme une carte HTML"
       },
       "code_image_tools": {
         "label": "Activer l'outil d'aperçu",
@@ -1745,15 +1745,15 @@
         "compress_content": "réduire la largeur des colonnes",
         "compress_content_description": "L'activation limitera le nombre de caractères par ligne, réduisant ainsi le contenu affiché à l'écran.",
         "default_font": "police par défaut",
-        "font_size": "[to be translated]:字体大小",
-        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
-        "font_size_large": "[to be translated]:大",
-        "font_size_medium": "[to be translated]:中",
-        "font_size_small": "[to be translated]:小",
+        "font_size": "Taille de police",
+        "font_size_description": "Ajuster la taille de la police pour une meilleure expérience de lecture (10-30px)",
+        "font_size_large": "Grand",
+        "font_size_medium": "中",
+        "font_size_small": "petit",
         "font_title": "paramétrage des polices",
         "serif_font": "police à empattements",
-        "show_table_of_contents": "[to be translated]:显示目录大纲",
-        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
+        "show_table_of_contents": "Afficher le plan du sommaire",
+        "show_table_of_contents_description": "Afficher la barre latérale de la table des matières pour faciliter la navigation dans le document",
         "title": "Paramètres d'affichage"
       },
       "editor": {
