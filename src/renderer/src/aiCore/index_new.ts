@@ -284,7 +284,14 @@ export default class ModernAiProvider {
     // 创建带有中间件的执行器
     if (config.onChunk) {
       const accumulate = this.model!.supported_text_delta !== false // true and undefined
-      const adapter = new AiSdkToChunkAdapter(config.onChunk, config.mcpTools, accumulate)
+      const providerType = this.model?.provider || this.config!.providerId || 'openai'
+      const adapter = new AiSdkToChunkAdapter(
+        config.onChunk,
+        config.mcpTools,
+        accumulate,
+        providerType,
+        config.enableWebSearch
+      )
 
       const streamResult = await executor.streamText({
         ...params,

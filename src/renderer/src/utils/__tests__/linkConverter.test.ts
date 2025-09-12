@@ -226,8 +226,10 @@ describe('linkConverter', () => {
       it('should handle real links split across small chunks with proper buffering', () => {
         // 模拟真实链接被分割成小chunks的情况 - 更现实的分割方式
         const chunks = [
-          'Please visit [example.com](', // 不完整链接
-          'https://example.com) for details' // 完成链接
+          'Please visit [example.',
+          'com](', // 不完整链接'
+          'https://exa',
+          'mple.com) for details' // 完成链接'
         ]
 
         let accumulatedText = ''
@@ -235,14 +237,24 @@ describe('linkConverter', () => {
         // 第一个chunk：包含不完整链接 [text](
         const result1 = convertLinks(chunks[0], true)
         expect(result1.text).toBe('Please visit ') // 只返回安全部分
-        expect(result1.hasBufferedContent).toBe(true) // [example.com]( 被缓冲
+        expect(result1.hasBufferedContent).toBe(true) //
         accumulatedText += result1.text
 
-        // 第二个chunk：完成链接
+        // 第二个chunk
         const result2 = convertLinks(chunks[1], false)
-        expect(result2.text).toBe('[<sup>1</sup>](https://example.com) for details') // 完整链接 + 剩余文本
-        expect(result2.hasBufferedContent).toBe(false)
-        accumulatedText += result2.text
+        expect(result2.text).toBe('')
+        expect(result2.hasBufferedContent).toBe(true)
+        // 第三个chunk
+        const result3 = convertLinks(chunks[2], false)
+        expect(result3.text).toBe('')
+        expect(result3.hasBufferedContent).toBe(true)
+        accumulatedText += result3.text
+
+        // 第四个chunk
+        const result4 = convertLinks(chunks[3], false)
+        expect(result4.text).toBe('[<sup>1</sup>](https://example.com) for details')
+        expect(result4.hasBufferedContent).toBe(false)
+        accumulatedText += result4.text
 
         // 验证最终结果
         expect(accumulatedText).toBe('Please visit [<sup>1</sup>](https://example.com) for details')

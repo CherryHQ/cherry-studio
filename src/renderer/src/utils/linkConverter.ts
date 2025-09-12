@@ -171,11 +171,19 @@ export function convertLinks(
         break
       }
 
-      // 检查是否是完整的链接但需要验证
+      // 检查是否是完整的链接
       const completeLink = /^\[([^\]]+)\]\(([^)]+)\)/.test(substring)
       if (completeLink) {
         // 如果是完整链接，继续处理，不设置safePoint
         continue
+      }
+
+      // 检查是否是不完整的 [ 开始但还没有闭合的 ]
+      // 例如 [example. 这种情况
+      const incompleteBracket = /^\[[^\]]*$/.test(substring)
+      if (incompleteBracket) {
+        safePoint = i
+        break
       }
 
       // 如果不是潜在的链接格式，继续检查
@@ -498,6 +506,11 @@ export function smartLinkConverter(
       }
     }
   }
+
+  if (providerType === 'openrouter') {
+    return convertLinks(text, resetCounter)
+  }
+
   // 检测文本中的引用模式
   const references = extractWebSearchReferences(text)
 
@@ -512,11 +525,6 @@ export function smartLinkConverter(
   if (hasZhipuPattern) {
     return {
       text: convertLinksToZhipu(text, resetCounter),
-      hasBufferedContent: false
-    }
-  } else if (providerType === 'openrouter') {
-    return {
-      text: convertLinksToOpenRouter(text, resetCounter),
       hasBufferedContent: false
     }
   } else {
