@@ -10,7 +10,7 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
-import { Assistant, Model, ThinkingOption } from '@renderer/types'
+import { Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { FC, ReactElement, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,14 +22,14 @@ export interface ThinkingButtonRef {
 interface Props {
   ref?: React.RefObject<ThinkingButtonRef | null>
   model: Model
-  assistant: Assistant
+  assistantId: string
   ToolbarButton: any
 }
 
-const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): ReactElement => {
+const ThinkingButton: FC<Props> = ({ ref, model, assistantId, ToolbarButton }): ReactElement => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const { updateAssistantSettings } = useAssistant(assistant.id)
+  const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
   const currentReasoningEffort = useMemo(() => {
     return assistant.settings?.reasoning_effort || 'off'

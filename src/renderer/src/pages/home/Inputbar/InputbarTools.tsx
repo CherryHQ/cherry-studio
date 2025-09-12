@@ -337,20 +337,29 @@ const InputbarTools = ({
         key: 'thinking',
         label: t('chat.input.thinking.label'),
         component: (
-          <ThinkingButton ref={thinkingButtonRef} model={model} assistant={assistant} ToolbarButton={ToolbarButton} />
+          <ThinkingButton
+            ref={thinkingButtonRef}
+            model={model}
+            assistantId={assistant.id}
+            ToolbarButton={ToolbarButton}
+          />
         ),
         condition: showThinkingButton
       },
       {
         key: 'web_search',
         label: t('chat.input.web_search.label'),
-        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        component: (
+          <WebSearchButton ref={webSearchButtonRef} assistantId={assistant.id} ToolbarButton={ToolbarButton} />
+        ),
         condition: !isMandatoryWebSearchModel(model)
       },
       {
         key: 'url_context',
         label: t('chat.input.url_context'),
-        component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        component: (
+          <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} ToolbarButton={ToolbarButton} />
+        ),
         condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
@@ -372,7 +381,7 @@ const InputbarTools = ({
         label: t('settings.mcp.title'),
         component: (
           <MCPToolsButton
-            assistant={assistant}
+            assistantId={assistant.id}
             ref={mcpToolsButtonRef}
             ToolbarButton={ToolbarButton}
             setInputValue={setText}
@@ -419,7 +428,7 @@ const InputbarTools = ({
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
             ToolbarButton={ToolbarButton}
-            assistantObj={assistant}
+            assistantId={assistant.id}
           />
         )
       },

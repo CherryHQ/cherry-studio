@@ -6,7 +6,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
@@ -21,7 +21,7 @@ export interface MCPToolsButtonRef {
 }
 
 interface Props {
-  assistant: Assistant
+  assistantId: string
   ref?: React.RefObject<MCPToolsButtonRef | null>
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
@@ -113,14 +113,14 @@ const extractPromptContent = (response: any): string | null => {
   return null
 }
 
-const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, ToolbarButton, ...props }) => {
+const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantId }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const navigate = useNavigate()
   const [form] = Form.useForm()
 
-  const { updateAssistant, assistant } = useAssistant(props.assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const model = assistant.model
   const { setTimeoutTimer } = useTimer()
 

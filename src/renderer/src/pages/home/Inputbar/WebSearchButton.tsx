@@ -9,7 +9,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
@@ -23,17 +23,17 @@ export interface WebSearchButtonRef {
 
 interface Props {
   ref?: React.RefObject<WebSearchButtonRef | null>
-  assistant: Assistant
+  assistantId: string
   ToolbarButton: any
 }
 
 const logger = loggerService.withContext('WebSearchButton')
 
-const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
+const WebSearchButton: FC<Props> = ({ ref, assistantId, ToolbarButton }) => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
-  const { updateAssistant } = useAssistant(assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
   // 注意：assistant.enableWebSearch 有不同的语义

@@ -1,6 +1,5 @@
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { Assistant } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
@@ -13,13 +12,13 @@ export interface UrlContextButtonRef {
 
 interface Props {
   ref?: React.RefObject<UrlContextButtonRef | null>
-  assistant: Assistant
+  assistantId: string
   ToolbarButton: any
 }
 
-const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
+const UrlContextButton: FC<Props> = ({ assistantId, ToolbarButton }) => {
   const { t } = useTranslation()
-  const { updateAssistant } = useAssistant(assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
   const urlContentNewState = !assistant.enableUrlContext

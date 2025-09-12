@@ -7,9 +7,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
-import { useAppSelector } from '@renderer/store'
 import { QuickPhrase } from '@renderer/types'
-import { Assistant } from '@renderer/types'
 import { Input, Modal, Radio, Space, Tooltip } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
@@ -25,20 +23,16 @@ interface Props {
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   ToolbarButton: any
-  assistantObj: Assistant
+  assistantId: string
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantObj }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantId }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const activeAssistantId = useAppSelector(
-    (state) =>
-      state.assistants.assistants.find((a) => a.id === assistantObj.id)?.id || state.assistants.defaultAssistant.id
-  )
-  const { assistant, updateAssistant } = useAssistant(activeAssistantId)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
   const loadQuickListPhrases = useCallback(
