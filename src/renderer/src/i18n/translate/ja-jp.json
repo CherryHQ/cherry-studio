@@ -3116,6 +3116,13 @@
           "placeholder": "/* ここにカスタムCSSを入力 */"
         }
       },
+      "font": {
+        "code": "[to be translated]:代码字体",
+        "default": "[to be translated]:默认",
+        "global": "[to be translated]:全局字体",
+        "select": "[to be translated]:选择字体",
+        "title": "[to be translated]:字体设置"
+      },
       "navbar": {
         "position": {
           "label": "ナビゲーションバー位置",
