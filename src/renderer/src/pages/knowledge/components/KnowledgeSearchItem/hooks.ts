@@ -43,30 +43,3 @@ export const useCopyText = () => {
 
   return { handleCopy }
 }
-
-/**
- * 用于渲染知识搜索项元数据的hook
- */
-export const useKnowledgeItemMetadata = () => {
-  const getSourceLink = (item: { file: any; metadata: any }) => {
-    if (item.file) {
-      return {
-        href: `http://file/${item.file.name}`,
-        text: item.file.origin_name
-      }
-    } else if (isValidUrl(item.metadata.source)) {
-      return {
-        href: item.metadata.source,
-        text: item.metadata.source
-      }
-    } else {
-      // 处理预处理后的文件source
-      return {
-        href: `file://${item.metadata.source}`,
-        text: item.metadata.source.split('/').pop() || item.metadata.source
-      }
-    }
-  }
-
-  return { getSourceLink }
-}
