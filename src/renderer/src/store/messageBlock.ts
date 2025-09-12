@@ -23,6 +23,7 @@ const initialState = messageBlocksAdapter.getInitialState({
 })
 
 // 3. 创建 Slice
+// @ts-ignore ignore
 export const messageBlocksSlice = createSlice({
   name: 'messageBlocks',
   initialState,

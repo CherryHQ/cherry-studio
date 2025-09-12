@@ -238,7 +238,7 @@ const saveUpdatedBlockToDB = async (
   const state = getState()
   const blockToSave = state.messageBlocks.entities[blockId]
   if (blockToSave) {
-    await saveUpdatesToDB(messageId, topicId, {}, [blockToSave as MessageBlock]) // Pass messageId, topicId, empty message updates, and the block
+    await saveUpdatesToDB(messageId, topicId, {}, [blockToSave]) // Pass messageId, topicId, empty message updates, and the block
   } else {
     logger.warn(`[DB Save Single Block] Block ${blockId} not found in state. Cannot save.`)
   }
@@ -1079,7 +1079,7 @@ export const cloneMessagesToNewTopicThunk =
                 ...oldBlock,
                 id: newBlockId,
                 messageId: newMsgId // Link block to the NEW message ID
-              } as MessageBlock
+              }
               clonedBlocks.push(newBlock)
               newBlockIds.push(newBlockId)
 
