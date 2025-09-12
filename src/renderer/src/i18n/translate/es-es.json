@@ -539,8 +539,8 @@
         "title": "Ejecución de Código"
       },
       "code_fancy_block": {
-        "label": "[to be translated]:花式代码块",
-        "tip": "[to be translated]:使用更美观的代码块样式，例如 HTML 卡片"
+        "label": "Bloque de código con estilo",
+        "tip": "Utiliza un estilo de bloque de código más atractivo, como una tarjeta HTML"
       },
       "code_image_tools": {
         "label": "Habilitar herramienta de vista previa",
@@ -1745,15 +1745,15 @@
         "compress_content": "reducir el ancho de la columna",
         "compress_content_description": "Al activarlo, se limitará el número de caracteres por línea, reduciendo el contenido mostrado en pantalla.",
         "default_font": "fuente predeterminada",
-        "font_size": "[to be translated]:字体大小",
-        "font_size_description": "[to be translated]:调整字体大小以获得更好的阅读体验 (10-30px)",
-        "font_size_large": "[to be translated]:大",
-        "font_size_medium": "[to be translated]:中",
-        "font_size_small": "[to be translated]:小",
+        "font_size": "Tamaño de fuente",
+        "font_size_description": "Ajusta el tamaño de la fuente para una mejor experiencia de lectura (10-30px)",
+        "font_size_large": "Grande",
+        "font_size_medium": "中",
+        "font_size_small": "pequeño",
         "font_title": "Configuración de fuente",
         "serif_font": "fuente serif",
-        "show_table_of_contents": "[to be translated]:显示目录大纲",
-        "show_table_of_contents_description": "[to be translated]:显示目录大纲侧边栏，方便文档内导航",
+        "show_table_of_contents": "Mostrar esquema del directorio",
+        "show_table_of_contents_description": "Mostrar la barra lateral del índice para facilitar la navegación dentro del documento",
         "title": "configuración de visualización"
       },
       "editor": {
