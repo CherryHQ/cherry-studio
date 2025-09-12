@@ -4,9 +4,9 @@
  */
 
 import { loggerService } from '@logger'
-import { AISDKWebSearchResult, MCPTool, WebSearchResponse, WebSearchResults, WebSearchSource } from '@renderer/types'
+import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
-import { flushLinkConverterBuffer, smartLinkConverter } from '@renderer/utils/linkConverter'
+import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { TextStreamPart, ToolSet } from 'ai'
 
 import { ToolCallChunkHandler } from './handleToolCallChunk'
@@ -30,23 +30,17 @@ export interface CherryStudioChunk {
 export class AiSdkToChunkAdapter {
   toolCallHandler: ToolCallChunkHandler
   private accumulate: boolean | undefined
-  private webSearchState: {
-    results?: WebSearchResponse
-  } = {}
   private isFirstChunk = true
-  private providerType: string = 'openai'
   private enableWebSearch: boolean = false
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
     mcpTools: MCPTool[] = [],
     accumulate?: boolean,
-    providerType?: string,
     enableWebSearch?: boolean
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
-    this.providerType = providerType || 'openai'
     this.enableWebSearch = enableWebSearch || false
   }
 
@@ -128,12 +122,7 @@ export class AiSdkToChunkAdapter {
 
         // Only apply link conversion if web search is enabled
         if (this.enableWebSearch) {
-          const result = smartLinkConverter(
-            processedText,
-            this.providerType,
-            this.isFirstChunk,
-            this.webSearchState.results
-          )
+          const result = convertLinks(processedText, this.isFirstChunk)
           logger.silly('smartLinkConverter result:', { result: result.text })
 
           if (this.isFirstChunk) {
@@ -244,13 +233,12 @@ export class AiSdkToChunkAdapter {
         const { providerMetadata, finishReason } = chunk
         // googel web search
         if (providerMetadata?.google?.groundingMetadata) {
-          this.webSearchState.results = {
-            results: providerMetadata.google?.groundingMetadata as WebSearchResults,
-            source: WebSearchSource.GEMINI
-          }
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-            llm_web_search: this.webSearchState.results
+            llm_web_search: {
+              results: providerMetadata.google?.groundingMetadata as WebSearchResults,
+              source: WebSearchSource.GEMINI
+            }
           })
         } else if (final.webSearchResults.length) {
           const providerName = Object.keys(providerMetadata || {})[0]
@@ -268,13 +256,12 @@ export class AiSdkToChunkAdapter {
           }
           const source = sourceMap[providerName] || WebSearchSource.AISDK
 
-          this.webSearchState.results = {
-            results: final.webSearchResults,
-            source
-          }
           this.onChunk({
             type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-            llm_web_search: this.webSearchState.results
+            llm_web_search: {
+              results: final.webSearchResults,
+              source
+            }
           })
         }
         if (finishReason === 'tool-calls') {
