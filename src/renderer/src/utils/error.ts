@@ -1,3 +1,4 @@
+import { McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
   AiSdkErrorUnion,
   isSerializedAiSdkAPICallError,
@@ -41,25 +42,17 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
   return result
 }
 
-export function formatErrorMessage(error: any): string {
-  try {
-    const detailedError = getErrorDetails(error)
-    delete detailedError?.headers
-    delete detailedError?.stack
-    delete detailedError?.request_id
+export function formatErrorMessage(error: unknown): string {
+  const detailedError = getErrorDetails(error)
+  delete detailedError?.headers
+  delete detailedError?.stack
+  delete detailedError?.request_id
 
-    const formattedJson = JSON.stringify(detailedError, null, 2)
-      .split('\n')
-      .map((line) => `  ${line}`)
-      .join('\n')
-    return `Error Details:\n${formattedJson}`
-  } catch (e) {
-    try {
-      return `Error: ${String(error)}`
-    } catch {
-      return 'Error: Unable to format error message'
-    }
-  }
+  const formattedJson = JSON.stringify(detailedError, null, 2)
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
+  return `Error Details:\n${formattedJson}`
 }
 
 export const isAbortError = (error: any): boolean => {
@@ -89,10 +82,8 @@ export const isAbortError = (error: any): boolean => {
   return false
 }
 
-export const formatMcpError = (error: any) => {
-  if (error.message.includes('32000')) {
-    return t('settings.mcp.errors.32000')
-  }
+// TODO: format
+export const formatMcpError = (error: McpError) => {
   return error.message
 }
 

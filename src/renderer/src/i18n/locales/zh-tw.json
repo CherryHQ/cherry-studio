@@ -1728,7 +1728,7 @@
     "delete_confirm": "確定要刪除此 {{type}} 嗎？",
     "delete_folder_confirm": "確定要刪除資料夾 \"{{name}}\" 及其所有內容嗎？",
     "delete_note_confirm": "確定要刪除筆記 \"{{name}}\" 嗎？",
-    "drop_markdown_hint": "拖拽 Markdown 文件到此處導入",
+    "drop_markdown_hint": "拖拽 .md 文件或資料夾到此處導入",
     "empty": "暫無筆記",
     "expand": "展開",
     "export_failed": "匯出至知識庫失敗",
@@ -1739,8 +1739,7 @@
     "new_note": "新建筆記",
     "no_content_to_copy": "沒有內容可複制",
     "no_file_selected": "請選擇要上傳的文件",
-    "only_markdown": "僅支援 Markdown 格式",
-    "only_one_file_allowed": "只能上傳一個文件",
+    "no_valid_files": "沒有上傳有效的檔案",
     "open_folder": "打開外部文件夾",
     "open_outside": "從外部打開",
     "rename": "重命名",
@@ -1802,7 +1801,7 @@
     "sort_updated_asc": "更新時間（從舊到新）",
     "sort_updated_desc": "更新時間（從新到舊）",
     "sort_z2a": "文件名（Z-A）",
-    "star": "收藏",
+    "star": "收藏筆記",
     "starred_notes": "收藏的筆記",
     "title": "筆記",
     "unsaved_changes": "你有未儲存的內容，確定要離開嗎？",
@@ -2670,6 +2669,10 @@
         "token_placeholder": "請輸入 Joplin 授權 Token",
         "url": "Joplin 剪輯服務 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "磁碟空間警告",
+        "appDataDiskQuotaDescription": "資料目錄空間即將用盡, 請清理磁碟空間, 否則會丟失數據"
       },
       "local": {
         "autoSync": {

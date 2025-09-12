@@ -156,8 +156,10 @@ Assistant: The population of Shanghai is 26 million, while Guangzhou has a popul
 /**
  * 构建可用工具部分（提取自 Cherry Studio）
  */
-function buildAvailableTools(tools: ToolSet): string {
+function buildAvailableTools(tools: ToolSet): string | null {
   const availableTools = Object.keys(tools)
+  if (availableTools.length === 0) return null
+  const result = availableTools
     .map((toolName: string) => {
       const tool = tools[toolName]
       return `
@@ -172,7 +174,7 @@ function buildAvailableTools(tools: ToolSet): string {
     })
     .join('\n')
   return `<tools>
-${availableTools}
+${result}
 </tools>`
 }
 
@@ -181,6 +183,7 @@ ${availableTools}
  */
 function defaultBuildSystemPrompt(userSystemPrompt: string, tools: ToolSet): string {
   const availableTools = buildAvailableTools(tools)
+  if (availableTools === null) return userSystemPrompt
 
   const fullPrompt = DEFAULT_SYSTEM_PROMPT.replace('{{ TOOL_USE_EXAMPLES }}', DEFAULT_TOOL_USE_EXAMPLES)
     .replace('{{ AVAILABLE_TOOLS }}', availableTools)

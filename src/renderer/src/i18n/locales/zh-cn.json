@@ -132,6 +132,7 @@
     },
     "title": "API 服务器"
   },
+
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -1728,7 +1729,7 @@
     "delete_confirm": "确定要删除这个{{type}}吗？",
     "delete_folder_confirm": "确定要删除文件夹 \"{{name}}\" 及其所有内容吗？",
     "delete_note_confirm": "确定要删除笔记 \"{{name}}\" 吗？",
-    "drop_markdown_hint": "拖拽 Markdown 文件到此处导入",
+    "drop_markdown_hint": "拖拽 .md 文件或目录到此处导入",
     "empty": "暂无笔记",
     "expand": "展开",
     "export_failed": "导出到知识库失败",
@@ -1739,8 +1740,7 @@
     "new_note": "新建笔记",
     "no_content_to_copy": "没有内容可复制",
     "no_file_selected": "请选择要上传的文件",
-    "only_markdown": "仅支持 Markdown 格式",
-    "only_one_file_allowed": "只能上传一个文件",
+    "no_valid_files": "没有上传有效的文件",
     "open_folder": "打开外部文件夹",
     "open_outside": "从外部打开",
     "rename": "重命名",
@@ -1802,7 +1802,7 @@
     "sort_updated_asc": "更新时间（从旧到新）",
     "sort_updated_desc": "更新时间（从新到旧）",
     "sort_z2a": "文件名（Z-A）",
-    "star": "收藏",
+    "star": "收藏笔记",
     "starred_notes": "收藏的笔记",
     "title": "笔记",
     "unsaved_changes": "你有未保存的内容，确定要离开吗？",
@@ -2670,6 +2670,10 @@
         "token_placeholder": "请输入 Joplin 授权令牌",
         "url": "Joplin 剪裁服务监听 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "磁盘空间警告",
+        "appDataDiskQuotaDescription": "数据目录空间即将用尽, 请清理磁盘空间, 否则会丢失数据"
       },
       "local": {
         "autoSync": {

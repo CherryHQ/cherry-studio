@@ -222,6 +222,7 @@ export function uniqueObjectArray<T>(array: T[]): T[] {
 
 export * from './api'
 export * from './collection'
+export * from './dataLimit'
 export * from './file'
 export * from './groupHelpers'
 export * from './image'

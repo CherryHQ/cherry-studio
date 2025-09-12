@@ -135,6 +135,7 @@ const Container = styled.div`
   align-items: center;
   cursor: pointer;
   overflow: hidden;
+  min-height: 85px;
 `
 
 const IconContainer = styled.div`

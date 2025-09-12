@@ -14,7 +14,9 @@ jobs:
   claude-review:
     # Only trigger code review for PRs from the main repository due to upstream OIDC issues
     # https://github.com/anthropics/claude-code-action/issues/542
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: |
+      (github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     permissions:
       contents: read
