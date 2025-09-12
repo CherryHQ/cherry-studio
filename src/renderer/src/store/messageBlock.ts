@@ -9,14 +9,7 @@ import type OpenAI from 'openai'
 import type { RootState } from './index' // 确认 RootState 从 store/index.ts 导出
 
 // Create a simplified type for the entity adapter to avoid circular type issues
-type MessageBlockEntity = Omit<MessageBlock, 'model'> & {
-  model?: {
-    id: string
-    name: string
-    provider: string
-    type?: string[]
-  }
-}
+type MessageBlockEntity = MessageBlock
 
 // 1. 创建实体适配器 (Entity Adapter)
 // 我们使用块的 `id` 作为唯一标识符。
@@ -91,7 +84,7 @@ const selectBlockEntityById = (state: RootState, blockId: string | undefined): M
   if (!entity) return undefined
 
   // Convert back to full MessageBlock type
-  return entity as MessageBlock
+  return entity
 }
 
 // --- Centralized Citation Formatting Logic ---
