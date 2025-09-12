@@ -6,6 +6,7 @@
 export type SessionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'stopped'
 export type PermissionMode = 'readOnly' | 'acceptEdits' | 'bypassPermissions'
 export type SessionLogRole = 'user' | 'agent' | 'system' | 'tool'
+export type AgentType = 'claude-code' | 'codex' | 'qwen-cli' | 'gemini-cli' | 'custom'
 
 export type SessionLogType =
   | 'message' // User or agent message
@@ -38,6 +39,7 @@ export interface AgentConfiguration {
 // Agent entity representing an autonomous agent configuration
 export interface AgentEntity extends AgentConfiguration {
   id: string
+  type: AgentType
   name: string
   description?: string
   avatar?: string

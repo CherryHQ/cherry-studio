@@ -8,6 +8,7 @@ export const AgentQueries = {
     agents: `
       CREATE TABLE IF NOT EXISTS agents (
         id TEXT PRIMARY KEY,
+        type TEXT NOT NULL DEFAULT 'custom', -- 'claudeCode', 'codex', 'custom'
         name TEXT NOT NULL,
         description TEXT,
         avatar TEXT,
@@ -72,6 +73,7 @@ export const AgentQueries = {
   // Index creation queries
   createIndexes: {
     agentsName: 'CREATE INDEX IF NOT EXISTS idx_agents_name ON agents(name)',
+    agentsType: 'CREATE INDEX IF NOT EXISTS idx_agents_type ON agents(type)',
     agentsModel: 'CREATE INDEX IF NOT EXISTS idx_agents_model ON agents(model)',
     agentsPlanModel: 'CREATE INDEX IF NOT EXISTS idx_agents_plan_model ON agents(plan_model)',
     agentsSmallModel: 'CREATE INDEX IF NOT EXISTS idx_agents_small_model ON agents(small_model)',
@@ -99,8 +101,8 @@ export const AgentQueries = {
   // Agent operations
   agents: {
     insert: `
-      INSERT INTO agents (id, name, description, avatar, instructions, model, plan_model, small_model, built_in_tools, mcps, knowledges, configuration, accessible_paths, permission_mode, max_steps, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents (id, type, name, description, avatar, instructions, model, plan_model, small_model, built_in_tools, mcps, knowledges, configuration, accessible_paths, permission_mode, max_steps, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
 
     update: `

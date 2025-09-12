@@ -1,6 +1,13 @@
 import { Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import type { AgentEntity, AgentSessionEntity, PermissionMode, SessionLogEntity, SessionStatus } from '@types'
+import type {
+  AgentEntity,
+  AgentSessionEntity,
+  AgentType,
+  PermissionMode,
+  SessionLogEntity,
+  SessionStatus
+} from '@types'
 import { app } from 'electron'
 import path from 'path'
 
@@ -9,6 +16,7 @@ import { AgentQueries } from './db'
 const logger = loggerService.withContext('AgentService')
 
 export interface CreateAgentRequest {
+  type: AgentType
   name: string
   description?: string
   avatar?: string
@@ -201,6 +209,7 @@ export class AgentService {
 
     const values = [
       id,
+      serializedData.type,
       serializedData.name,
       serializedData.description || null,
       serializedData.avatar || null,
