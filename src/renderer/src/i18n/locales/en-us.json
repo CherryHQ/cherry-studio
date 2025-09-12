@@ -3116,6 +3116,13 @@
           "placeholder": "/* Put custom CSS here */"
         }
       },
+      "font": {
+        "code": "Code Font",
+        "default": "Default",
+        "global": "Global Font",
+        "select": "Select Font",
+        "title": "Font Settings"
+      },
       "navbar": {
         "position": {
           "label": "Navbar Position",
@@ -3154,13 +3161,6 @@
       },
       "zoom": {
         "title": "Zoom Settings"
-      },
-      "font": {
-        "title": "Font Settings",
-        "global": "Global Font",
-        "code": "Code Font",
-        "select": "Select Font",
-        "default": "Default"
       }
     },
     "font_size": {
