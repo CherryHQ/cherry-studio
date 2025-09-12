@@ -46,10 +46,7 @@ const AppsPage: FC = () => {
             style={{
               width: '30%',
               height: 28,
-              borderRadius: 15,
-              position: 'absolute',
-              left: '50vw',
-              transform: 'translateX(-50%)'
+              borderRadius: 15
             }}
             size="small"
             variant="filled"
@@ -107,6 +104,7 @@ const Container = styled.div`
   flex: 1;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 `
 
 const ContentContainer = styled.div`
@@ -132,11 +130,13 @@ const MainContainer = styled.div`
   flex: 1;
   flex-direction: row;
   height: calc(100vh - var(--navbar-height));
+  width: 100%;
 `
 
 const RightContainer = styled(Scrollbar)`
   display: flex;
-  flex: 1;
+  flex: 1 1 0%;
+  min-width: 0;
   flex-direction: column;
   height: 100%;
   align-items: center;
@@ -150,6 +150,7 @@ const AppsContainerWrapper = styled(Scrollbar)`
   justify-content: center;
   padding: 50px 0;
   width: 100%;
+  margin-bottom: 20px;
   [navbar-position='top'] & {
     padding: 20px 0;
   }
@@ -159,6 +160,7 @@ const AppsContainer = styled.div`
   display: grid;
   min-width: 0;
   max-width: 930px;
+  margin: 0 20px;
   width: 100%;
   grid-template-columns: repeat(auto-fill, 90px);
   gap: 25px;
