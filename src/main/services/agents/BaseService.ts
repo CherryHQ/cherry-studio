@@ -3,7 +3,8 @@ import { loggerService } from '@logger'
 import { app } from 'electron'
 import path from 'path'
 
-import { AgentQueries } from './db'
+import { migrations } from './database/migrations'
+import { Migrator } from './database/migrator'
 
 const logger = loggerService.withContext('BaseService')
 
@@ -30,15 +31,29 @@ export abstract class BaseService {
         url: `file:${dbPath}`
       })
 
-      // Create tables
-      await BaseService.db.execute(AgentQueries.createTables.agents)
-      await BaseService.db.execute(AgentQueries.createTables.sessions)
-      await BaseService.db.execute(AgentQueries.createTables.sessionLogs)
+      // Initialize migration system and run migrations
+      const migrator = new Migrator(BaseService.db)
 
-      // Create indexes
-      const indexQueries = Object.values(AgentQueries.createIndexes)
-      for (const query of indexQueries) {
-        await BaseService.db.execute(query)
+      // Register all migrations
+      migrator.addMigrations(migrations)
+
+      // Initialize migration tracking table
+      await migrator.initialize()
+
+      // Run any pending migrations
+      const results = await migrator.migrate()
+
+      if (results.length > 0) {
+        const successCount = results.filter((r) => r.success).length
+        const failCount = results.length - successCount
+
+        if (failCount > 0) {
+          throw new Error(`${failCount} migrations failed during initialization`)
+        }
+
+        logger.info(`Successfully applied ${successCount} migrations during initialization`)
+      } else {
+        logger.info('Database schema is up to date, no migrations needed')
       }
 
       BaseService.isInitialized = true

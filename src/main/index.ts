@@ -28,7 +28,7 @@ import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
 import process from 'node:process'
 import { apiServerService } from './services/ApiServerService'
-import { agentService } from './services/agents/AgentService'
+import { agentService } from './services/agents'
 
 const logger = loggerService.withContext('MainEntry')
 

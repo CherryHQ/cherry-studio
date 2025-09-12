@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import type { SessionLogEntity } from '@types'
 
-import { BaseService } from './BaseService'
-import { AgentQueries } from './db'
+import { BaseService } from '../BaseService'
+import { AgentQueries_Legacy as AgentQueries } from '../database'
 
 const logger = loggerService.withContext('SessionLogService')
 

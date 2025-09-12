@@ -1,7 +1,7 @@
 import type { AgentSessionEntity, SessionStatus } from '@types'
 
-import { BaseService } from './BaseService'
-import { AgentQueries } from './db'
+import { BaseService } from '../BaseService'
+import { AgentQueries_Legacy as AgentQueries } from '../database'
 
 export interface CreateSessionRequest {
   name?: string

@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 
-import { agentService } from '../services/agents/AgentService'
+import { agentService } from '../services/agents'
 import { loggerService } from '../services/LoggerService'
 import { app } from './app'
 import { config } from './config'

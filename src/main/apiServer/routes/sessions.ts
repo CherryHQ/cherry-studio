@@ -1,8 +1,7 @@
 import express, { Request, Response } from 'express'
 import { body, param, query, validationResult } from 'express-validator'
 
-import { agentService } from '../../services/agents/AgentService'
-import { sessionService } from '../../services/agents/SessionService'
+import { agentService, sessionService } from '../../services/agents'
 import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerSessionsRoutes')
