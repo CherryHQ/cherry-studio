@@ -1,3 +1,4 @@
+import type { LanguageModelV2Source } from '@ai-sdk/provider'
 import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GenerateImagesConfig, GroundingMetadata, PersonGeneration } from '@google/genai'
 import type OpenAI from 'openai'
@@ -726,12 +727,15 @@ export type WebSearchProviderResponse = {
   results: WebSearchProviderResult[]
 }
 
+export type AISDKWebSearchResult = Omit<Extract<LanguageModelV2Source, { sourceType: 'url' }>, 'sourceType'>
+
 export type WebSearchResults =
   | WebSearchProviderResponse
   | GroundingMetadata
   | OpenAI.Chat.Completions.ChatCompletionMessage.Annotation.URLCitation[]
   | OpenAI.Responses.ResponseOutputText.URLCitation[]
   | WebSearchResultBlock[]
+  | AISDKWebSearchResult[]
   | any[]
 
 export enum WebSearchSource {
