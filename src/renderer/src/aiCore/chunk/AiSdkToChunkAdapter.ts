@@ -4,7 +4,7 @@
  */
 
 import { loggerService } from '@logger'
-import { MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
+import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import type { TextStreamPart, ToolSet } from 'ai'
 
@@ -87,7 +87,7 @@ export class AiSdkToChunkAdapter {
    */
   private convertAndEmitChunk(
     chunk: TextStreamPart<any>,
-    final: { text: string; reasoningContent: string; webSearchResults: any[]; reasoningId: string }
+    final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
   ) {
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
@@ -200,7 +200,7 @@ export class AiSdkToChunkAdapter {
             [WebSearchSource.ANTHROPIC]: WebSearchSource.ANTHROPIC,
             [WebSearchSource.OPENROUTER]: WebSearchSource.OPENROUTER,
             [WebSearchSource.GEMINI]: WebSearchSource.GEMINI,
-            [WebSearchSource.PERPLEXITY]: WebSearchSource.PERPLEXITY,
+            // [WebSearchSource.PERPLEXITY]: WebSearchSource.PERPLEXITY,
             [WebSearchSource.QWEN]: WebSearchSource.QWEN,
             [WebSearchSource.HUNYUAN]: WebSearchSource.HUNYUAN,
             [WebSearchSource.ZHIPU]: WebSearchSource.ZHIPU,
@@ -268,18 +268,9 @@ export class AiSdkToChunkAdapter {
       // === 源和文件相关事件 ===
       case 'source':
         if (chunk.sourceType === 'url') {
-          // if (final.webSearchResults.length === 0) {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { sourceType: _, ...rest } = chunk
           final.webSearchResults.push(rest)
-          // }
-          // this.onChunk({
-          //   type: ChunkType.LLM_WEB_SEARCH_COMPLETE,
-          //   llm_web_search: {
-          //     source: WebSearchSource.AISDK,
-          //     results: final.webSearchResults
-          //   }
-          // })
         }
         break
       case 'file':

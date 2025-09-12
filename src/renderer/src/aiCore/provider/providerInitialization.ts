@@ -39,6 +39,14 @@ export const NEW_PROVIDER_CONFIGS: ProviderConfig[] = [
     creatorFunctionName: 'createAmazonBedrock',
     supportsImageGeneration: true,
     aliases: ['aws-bedrock']
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    import: () => import('@ai-sdk/perplexity'),
+    creatorFunctionName: 'createPerplexity',
+    supportsImageGeneration: false,
+    aliases: ['perplexity']
   }
 ] as const
 

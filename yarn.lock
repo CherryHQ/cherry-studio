@@ -239,6 +239,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/perplexity@npm:^2.0.8":
+  version: 2.0.8
+  resolution: "@ai-sdk/perplexity@npm:2.0.8"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.8"
+  peerDependencies:
+    zod: ^3.25.76 || ^4
+  checksum: 10c0/acfd6c09c4c0ef5af7eeec6e8bc20b90b24d1d3fc2bc8ee9de4e40770fc0c17ca2c8db8f0248ff07264b71e5aa65f64d37a165db2f43fee84c1b3513cb97983c
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/provider-utils@npm:3.0.3":
   version: 3.0.3
   resolution: "@ai-sdk/provider-utils@npm:3.0.3"
@@ -13023,6 +13035,7 @@ __metadata:
     "@ai-sdk/amazon-bedrock": "npm:^3.0.0"
     "@ai-sdk/google-vertex": "npm:^3.0.25"
     "@ai-sdk/mistral": "npm:^2.0.0"
+    "@ai-sdk/perplexity": "npm:^2.0.8"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
