@@ -1,9 +1,11 @@
 # Agents Service Refactoring Plan
 
 ## Overview
+
 Restructure the agents service to split database operations into smaller, more manageable files with migration support.
 
 ## New Folder Structure
+
 ```
 src/main/services/agents/
 ├── database/
@@ -36,11 +38,13 @@ src/main/services/agents/
 ## Implementation Tasks
 
 ### Task 1: Create Folder Structure and Migration System Infrastructure
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Create all necessary directories and implement the migration system infrastructure
 
 **Subtasks**:
+
 - [x] Create database/, database/migrations/, database/queries/, database/schema/, services/ directories
 - [x] Implement migration types and interfaces in database/migrations/types.ts
 - [x] Build Migrator class with transaction support in database/migrator.ts
@@ -49,11 +53,13 @@ src/main/services/agents/
 ---
 
 ### Task 2: Split Database Queries from db.ts
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Extract and organize queries from the current db.ts file into separate, focused files
 
 **Subtasks**:
+
 - [x] Move agent queries to database/queries/agent.queries.ts
 - [x] Move session queries to database/queries/session.queries.ts
 - [x] Move session log queries to database/queries/sessionLog.queries.ts
@@ -65,24 +71,27 @@ src/main/services/agents/
 ---
 
 ### Task 3: Create Initial Migration Files
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Create migration files based on existing schema
 
 **Subtasks**:
+
 - [x] Create 001_initial_schema.ts with agents table and indexes
 - [x] Create 002_add_session_tables.ts with sessions and session_logs tables
 - [x] Create database/migrations/index.ts to export all migrations
 
-
 ---
 
 ### Task 4: Update BaseService with Migration Support
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Integrate migration system into BaseService initialization
 
 **Subtasks**:
+
 - [x] Update BaseService.ts to use Migrator on initialize
 - [x] Keep existing JSON serialization utilities
 - [x] Update database initialization flow
@@ -90,11 +99,13 @@ src/main/services/agents/
 ---
 
 ### Task 5: Reorganize Service Files
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Move service files to services subdirectory and update imports
 
 **Subtasks**:
+
 - [x] Move AgentService.ts to services/
 - [x] Move SessionService.ts to services/
 - [x] Move SessionLogService.ts to services/
@@ -104,11 +115,13 @@ src/main/services/agents/
 ---
 
 ### Task 6: Create Export Structure and Clean Up
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Create proper export hierarchy and clean up old files
 
 **Subtasks**:
+
 - [x] Create main agents/index.ts with clean exports
 - [x] Create database/index.ts for database exports
 - [x] Ensure backward compatibility for existing imports
@@ -118,11 +131,13 @@ src/main/services/agents/
 ---
 
 ### Task 7: Test and Validate Refactoring
+
 **Status**: ✅ COMPLETED
 **Agent**: `general-purpose`
 **Description**: Ensure all functionality works after refactoring
 
 **Subtasks**:
+
 - [x] Run build check: `yarn build:check` ✅ PASSED (1420 tests, TypeScript compilation successful)
 - [x] Run tests: `yarn test` ✅ PASSED (All existing tests continue to pass)
 - [x] Validate migration system works ✅ PASSED (11 migration tests, transaction support verified)
@@ -130,6 +145,7 @@ src/main/services/agents/
 - [x] Verify database operations work as expected ✅ PASSED (CRUD operations, foreign keys, concurrent operations)
 
 **Additional Validation**:
+
 - [x] Created comprehensive validation report (VALIDATION_REPORT.md)
 - [x] Validated migration system with custom test suite
 - [x] Verified service initialization and file structure
@@ -164,6 +180,7 @@ src/main/services/agents/
 **Status**: ✅ **REFACTORING COMPLETED SUCCESSFULLY**
 
 All tasks have been completed and thoroughly validated. The agents service refactoring delivers:
+
 - ✅ Modular, maintainable code structure
 - ✅ Production-ready migration system
 - ✅ Complete backward compatibility
@@ -171,6 +188,7 @@ All tasks have been completed and thoroughly validated. The agents service refac
 - ✅ Enhanced developer experience
 
 **Final deliverables:**
+
 - 📁 Reorganized service architecture with clear separation of concerns
 - 🗃️ Database migration system with transaction support and rollback capability
 - 📋 Comprehensive validation report (VALIDATION_REPORT.md)

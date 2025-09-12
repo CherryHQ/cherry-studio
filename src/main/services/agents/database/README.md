@@ -5,6 +5,7 @@ A production-ready database management system for Cherry Studio's autonomous age
 ## Overview
 
 The Agents Database Module handles persistent storage for:
+
 - **Agents**: Autonomous AI agents with configurable models, tools, and permissions
 - **Sessions**: Agent execution sessions with status tracking and configuration overrides
 - **Session Logs**: Hierarchical message and action logs for debugging and audit trails
@@ -37,7 +38,7 @@ database/
 ├── index.ts                    # Main export file with centralized access
 ├── migrator.ts                # Core migration engine with transaction support
 ├── migrations/                # Migration files and registry
-│   ├── index.ts               # Migration registry and utility functions  
+│   ├── index.ts               # Migration registry and utility functions
 │   ├── types.ts               # TypeScript interfaces for migration system
 │   ├── 001_initial_schema.ts  # Initial agents table and indexes
 │   └── 002_add_session_tables.ts # Sessions and session_logs tables
@@ -53,12 +54,12 @@ database/
 
 ### File Responsibilities
 
-| Directory | Purpose | Key Files |
-|-----------|---------|-----------|
-| `/` | Main entry point and core migration engine | `index.ts`, `migrator.ts` |
-| `migrations/` | Version-controlled schema changes | `001_*.ts`, `002_*.ts`, etc. |
-| `queries/` | Pre-built SQL queries by entity | `*.queries.ts` |
-| `schema/` | Migration system infrastructure | `migrations.ts` |
+| Directory     | Purpose                                    | Key Files                    |
+| ------------- | ------------------------------------------ | ---------------------------- |
+| `/`           | Main entry point and core migration engine | `index.ts`, `migrator.ts`    |
+| `migrations/` | Version-controlled schema changes          | `001_*.ts`, `002_*.ts`, etc. |
+| `queries/`    | Pre-built SQL queries by entity            | `*.queries.ts`               |
+| `schema/`     | Migration system infrastructure            | `migrations.ts`              |
 
 ## Migration System
 
@@ -73,9 +74,9 @@ graph TD
     E --> F[Record Migration in Tracking Table]
     F --> G[Commit Transaction]
     G --> H[Migration Complete]
-    
+
     E --> I[Error Occurred]
-    I --> J[Rollback Transaction] 
+    I --> J[Rollback Transaction]
     J --> K[Migration Failed]
 ```
 
@@ -138,7 +139,7 @@ export const migration_003_add_permissions: Migration = {
 export const migrations: Migration[] = [
   migration_001_initial_schema,
   migration_002_add_session_tables,
-  migration_003_add_permissions  // Add here
+  migration_003_add_permissions // Add here
 ]
 ```
 
@@ -169,12 +170,12 @@ Queries are organized by entity with consistent naming patterns:
 
 ```typescript
 // Basic CRUD operations
-AgentQueries.insert    // Create new agent
-AgentQueries.update    // Update existing agent
-AgentQueries.getById   // Get agent by ID
-AgentQueries.list      // List all agents
-AgentQueries.delete    // Delete agent
-AgentQueries.count     // Count total agents
+AgentQueries.insert // Create new agent
+AgentQueries.update // Update existing agent
+AgentQueries.getById // Get agent by ID
+AgentQueries.list // List all agents
+AgentQueries.delete // Delete agent
+AgentQueries.count // Count total agents
 AgentQueries.checkExists // Check if agent exists
 ```
 
@@ -182,13 +183,13 @@ AgentQueries.checkExists // Check if agent exists
 
 ```typescript
 // Session management
-SessionQueries.insert              // Create new session
-SessionQueries.update              // Update session
-SessionQueries.updateStatus        // Update just status
-SessionQueries.getById             // Get session by ID
-SessionQueries.list                // List all sessions
-SessionQueries.listWithLimit       // Paginated session list
-SessionQueries.getByStatus         // Filter by status
+SessionQueries.insert // Create new session
+SessionQueries.update // Update session
+SessionQueries.updateStatus // Update just status
+SessionQueries.getById // Get session by ID
+SessionQueries.list // List all sessions
+SessionQueries.listWithLimit // Paginated session list
+SessionQueries.getByStatus // Filter by status
 SessionQueries.getSessionWithAgent // Join with agent data
 SessionQueries.getByExternalSessionId // Find by external ID
 ```
@@ -197,13 +198,13 @@ SessionQueries.getByExternalSessionId // Find by external ID
 
 ```typescript
 // Log operations
-SessionLogQueries.insert                    // Add log entry
-SessionLogQueries.getBySessionId            // Get all logs for session
+SessionLogQueries.insert // Add log entry
+SessionLogQueries.getBySessionId // Get all logs for session
 SessionLogQueries.getBySessionIdWithPagination // Paginated logs
-SessionLogQueries.getLatestBySessionId      // Most recent logs
-SessionLogQueries.update                    // Update log entry
-SessionLogQueries.deleteBySessionId         // Clear session logs
-SessionLogQueries.countBySessionId          // Count session logs
+SessionLogQueries.getLatestBySessionId // Most recent logs
+SessionLogQueries.update // Update log entry
+SessionLogQueries.deleteBySessionId // Clear session logs
+SessionLogQueries.countBySessionId // Count session logs
 ```
 
 ## Development Workflow
@@ -213,15 +214,17 @@ SessionLogQueries.countBySessionId          // Count session logs
 Follow these steps to add a new database entity:
 
 1. **Create Migration**:
+
    ```bash
    # Create new migration file
    touch migrations/004_add_workflows.ts
    ```
 
 2. **Define Migration**:
+
    ```typescript
    export const migration_004_add_workflows: Migration = {
-     id: '004', 
+     id: '004',
      description: 'Add workflows table for agent automation',
      createdAt: new Date(),
      up: [
@@ -239,13 +242,14 @@ Follow these steps to add a new database entity:
      ],
      down: [
        'DROP INDEX IF EXISTS idx_workflows_status',
-       'DROP INDEX IF EXISTS idx_workflows_agent_id', 
+       'DROP INDEX IF EXISTS idx_workflows_agent_id',
        'DROP TABLE IF EXISTS workflows'
      ]
    }
    ```
 
 3. **Register Migration**:
+
    ```typescript
    // migrations/index.ts
    export const migrations = [
@@ -255,17 +259,19 @@ Follow these steps to add a new database entity:
    ```
 
 4. **Create Query Module**:
+
    ```typescript
    // queries/workflow.queries.ts
    export const WorkflowQueries = {
      insert: 'INSERT INTO workflows (id, name, agent_id, steps, status, created_at) VALUES (?, ?, ?, ?, ?, ?)',
      getById: 'SELECT * FROM workflows WHERE id = ?',
-     getByAgentId: 'SELECT * FROM workflows WHERE agent_id = ?',
+     getByAgentId: 'SELECT * FROM workflows WHERE agent_id = ?'
      // ... other queries
    }
    ```
 
 5. **Export Query Module**:
+
    ```typescript
    // queries/index.ts
    export { WorkflowQueries } from './workflow.queries'
@@ -316,16 +322,16 @@ Main migration management class with transaction support.
 ```typescript
 class Migrator {
   constructor(database: Client)
-  
+
   // Migration management
   addMigration(migration: Migration): void
   addMigrations(migrations: Migration[]): void
-  
+
   // System lifecycle
   initialize(): Promise<void>
   migrate(options?: MigrationOptions): Promise<MigrationResult[]>
   rollbackLast(): Promise<MigrationResult | null>
-  
+
   // Status and validation
   getMigrationSummary(): Promise<MigrationSummary>
   validateMigrations(): Promise<ValidationResult>
@@ -336,10 +342,10 @@ class Migrator {
 
 ```typescript
 interface MigrationOptions {
-  useTransaction?: boolean      // Run in transaction (default: true)
-  validateChecksums?: boolean   // Validate migration checksums (default: true)  
-  limit?: number               // Max migrations to run (default: unlimited)
-  dryRun?: boolean             // Preview mode (default: false)
+  useTransaction?: boolean // Run in transaction (default: true)
+  validateChecksums?: boolean // Validate migration checksums (default: true)
+  limit?: number // Max migrations to run (default: unlimited)
+  dryRun?: boolean // Preview mode (default: false)
 }
 ```
 
@@ -347,19 +353,19 @@ interface MigrationOptions {
 
 ```typescript
 interface Migration {
-  id: string                   // Unique migration identifier
-  description: string          // Human-readable description
-  up: string[]                // Forward migration SQL statements
-  down?: string[]             // Rollback SQL statements (optional)
-  createdAt: Date             // Migration creation timestamp
+  id: string // Unique migration identifier
+  description: string // Human-readable description
+  up: string[] // Forward migration SQL statements
+  down?: string[] // Rollback SQL statements (optional)
+  createdAt: Date // Migration creation timestamp
 }
 
 interface MigrationResult {
-  migration: Migration         // Migration that was executed
-  success: boolean            // Execution success status
-  error?: string              // Error message if failed
-  executedAt: Date            // Execution timestamp
-  executionTime: number       // Execution duration in milliseconds
+  migration: Migration // Migration that was executed
+  success: boolean // Execution success status
+  error?: string // Error message if failed
+  executedAt: Date // Execution timestamp
+  executionTime: number // Execution duration in milliseconds
 }
 ```
 
@@ -418,7 +424,7 @@ CREATE TABLE sessions (
 )
 ```
 
-#### Session Logs Table  
+#### Session Logs Table
 
 ```sql
 CREATE TABLE session_logs (
@@ -447,16 +453,16 @@ import { createClient } from '@libsql/client'
 async function setupDatabase() {
   // Create database connection
   const db = createClient({ url: 'file:agents.db' })
-  
+
   // Initialize migration system
   const migrator = new Migrator(db)
   migrator.addMigrations(migrations)
   await migrator.initialize()
-  
+
   // Run pending migrations
   const results = await migrator.migrate()
   console.log(`Migrations complete: ${results.length} applied`)
-  
+
   return db
 }
 ```
@@ -470,7 +476,7 @@ async function createAgent(db: Client) {
   const agent = {
     id: crypto.randomUUID(),
     type: 'custom',
-    name: 'Code Review Assistant', 
+    name: 'Code Review Assistant',
     description: 'Helps review code for best practices',
     avatar: null,
     instructions: 'Review code for security, performance, and maintainability',
@@ -487,12 +493,12 @@ async function createAgent(db: Client) {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
-  
+
   await db.execute({
     sql: AgentQueries.insert,
     args: Object.values(agent)
   })
-  
+
   return agent.id
 }
 ```
@@ -504,7 +510,7 @@ import { SessionQueries, SessionLogQueries } from './database'
 
 async function createSession(db: Client, agentId: string) {
   const sessionId = crypto.randomUUID()
-  
+
   // Create session
   await db.execute({
     sql: SessionQueries.insert,
@@ -516,12 +522,21 @@ async function createSession(db: Client, agentId: string) {
       'Review the authentication module for security issues',
       'running',
       null, // external_session_id
-      null, null, null, null, null, null, null, null, null, null, // config overrides
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null, // config overrides
       new Date().toISOString(),
       new Date().toISOString()
     ]
   })
-  
+
   // Add initial log entry
   await db.execute({
     sql: SessionLogQueries.insert,
@@ -539,7 +554,7 @@ async function createSession(db: Client, agentId: string) {
       new Date().toISOString()
     ]
   })
-  
+
   return sessionId
 }
 ```
@@ -552,11 +567,11 @@ async function getSessionWithAgent(db: Client, sessionId: string) {
     sql: SessionQueries.getSessionWithAgent,
     args: [sessionId]
   })
-  
+
   if (result.rows.length === 0) {
     throw new Error('Session not found')
   }
-  
+
   const row = result.rows[0]
   return {
     // Session data
@@ -591,7 +606,7 @@ async function getSessionWithAgent(db: Client, sessionId: string) {
 
 1. **Use Transactions**: Always wrap related operations in transactions
 2. **Foreign Key Constraints**: Define relationships with proper CASCADE rules
-3. **Indexes**: Create indexes for foreign keys and frequently queried columns  
+3. **Indexes**: Create indexes for foreign keys and frequently queried columns
 4. **JSON Columns**: Use JSON for flexible, extensible data structures
 5. **Timestamps**: Include created_at and updated_at for audit trails
 
@@ -611,7 +626,7 @@ async function getSessionWithAgent(db: Client, sessionId: string) {
 4. **Efficient Queries**: Use appropriate indexes and avoid N+1 query problems
 5. **Documentation**: Comment complex queries and business logic
 
-### Error Handling  
+### Error Handling
 
 1. **Transaction Rollback**: Use transactions with proper rollback on errors
 2. **Validation**: Validate input data before database operations
@@ -628,6 +643,7 @@ async function getSessionWithAgent(db: Client, sessionId: string) {
 **Problem**: Migration tries to create a table that already exists.
 
 **Solution**: Use `IF NOT EXISTS` in all CREATE statements:
+
 ```sql
 CREATE TABLE IF NOT EXISTS my_table (...);
 CREATE INDEX IF NOT EXISTS idx_name ON my_table(column);
@@ -640,6 +656,7 @@ CREATE INDEX IF NOT EXISTS idx_name ON my_table(column);
 **Cause**: Migration file was modified after being applied.
 
 **Solutions**:
+
 1. **Never modify applied migrations** - create a new migration instead
 2. If in development, reset database and re-run all migrations
 3. For production, investigate what changed and create corrective migration
@@ -649,6 +666,7 @@ CREATE INDEX IF NOT EXISTS idx_name ON my_table(column);
 **Problem**: Cannot insert/update due to foreign key constraint violation.
 
 **Solutions**:
+
 1. Ensure referenced record exists before creating relationship
 2. Check foreign key column names and types match exactly
 3. Use transactions to maintain referential integrity
@@ -657,12 +675,14 @@ CREATE INDEX IF NOT EXISTS idx_name ON my_table(column);
 
 **Problem**: Migration appears to hang during execution.
 
-**Causes**: 
+**Causes**:
+
 - Long-running ALTER TABLE operations
 - Lock contention from other database connections
 - Complex migration with multiple DDL operations
 
 **Solutions**:
+
 1. Break large migrations into smaller chunks
 2. Ensure no other processes are using database during migration
 3. Use migration limit option to apply migrations incrementally
@@ -672,6 +692,7 @@ CREATE INDEX IF NOT EXISTS idx_name ON my_table(column);
 **Problem**: `SQLITE_BUSY` or `database is locked` errors.
 
 **Solutions**:
+
 1. Ensure only one process accesses database at a time
 2. Close all database connections properly
 3. Use shorter transactions to reduce lock duration
@@ -689,7 +710,7 @@ migrator.addMigrations(migrations)
 
 // Enable verbose migration logging
 const results = await migrator.migrate({
-  dryRun: true  // Preview migrations without applying
+  dryRun: true // Preview migrations without applying
 })
 
 console.log('Migration preview:', results)
