@@ -1,6 +1,5 @@
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
-import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
+import { type QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -242,7 +241,7 @@ const MentionModelsButton: FC<Props> = ({
       quickPanel.open({
         title: t('agents.edit.model.select.title'),
         list: modelItems,
-        symbol: '@',
+        symbol: QuickPanelReservedSymbol.MentionModels,
         multiple: true,
         triggerInfo: triggerInfo || { type: 'button' },
         afterAction({ item }) {

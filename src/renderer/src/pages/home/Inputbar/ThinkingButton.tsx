@@ -6,7 +6,7 @@ import {
   MdiLightbulbOn50,
   MdiLightbulbOn80
 } from '@renderer/components/Icons/SVGIcon'
-import { useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
@@ -114,12 +114,12 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
     quickPanel.open({
       title: t('assistants.settings.reasoning_effort.label'),
       list: panelItems,
-      symbol: 'thinking'
+      symbol: QuickPanelReservedSymbol.Thinking
     })
   }, [quickPanel, panelItems, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === 'thinking') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Thinking) {
       quickPanel.close()
       return
     }

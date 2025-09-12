@@ -1,6 +1,6 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
-import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
   isAutoEnableImageGenerationModel,
@@ -308,7 +308,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               }
             }
           }),
-        symbol: 'file',
+        symbol: QuickPanelReservedSymbol.File,
         multiple: true
       })
     },
@@ -341,7 +341,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           }
         })
       ],
-      symbol: 'file'
+      symbol: QuickPanelReservedSymbol.File
     })
   }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 

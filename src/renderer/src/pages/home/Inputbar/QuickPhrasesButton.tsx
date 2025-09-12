@@ -1,5 +1,9 @@
+import {
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  QuickPanelReservedSymbol
+} from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
@@ -135,7 +139,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
     () => ({
       title: t('settings.quickPhrase.title'),
       list: phraseItems,
-      symbol: 'quick-phrases'
+      symbol: QuickPanelReservedSymbol.QuickPhrases
     }),
     [phraseItems, t]
   )
@@ -145,7 +149,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   }, [quickPanel, quickPanelOpenOptions])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === 'quick-phrases') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.QuickPhrases) {
       quickPanel.close()
     } else {
       openQuickPanel()

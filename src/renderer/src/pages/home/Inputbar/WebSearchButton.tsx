@@ -1,7 +1,7 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isWebSearchModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -165,13 +165,13 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     quickPanel.open({
       title: t('chat.input.web_search.label'),
       list: providerItems,
-      symbol: '?',
+      symbol: QuickPanelReservedSymbol.WebSearch,
       pageSize: 9
     })
   }, [quickPanel, t, providerItems])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '?') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.WebSearch) {
       quickPanel.close()
     } else {
       openQuickPanel()

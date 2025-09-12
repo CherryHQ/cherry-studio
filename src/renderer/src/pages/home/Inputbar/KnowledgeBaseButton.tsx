@@ -1,4 +1,4 @@
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
 import { Tooltip } from 'antd'
@@ -77,7 +77,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
     quickPanel.open({
       title: t('chat.input.knowledge_base'),
       list: baseItems,
-      symbol: '#',
+      symbol: QuickPanelReservedSymbol.KnowledgeBase,
       multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
@@ -86,7 +86,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   }, [baseItems, quickPanel, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '#') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.KnowledgeBase) {
       quickPanel.close()
     } else {
       openQuickPanel()
@@ -95,7 +95,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
 
   // 监听 selectedBases 变化，动态更新已打开的 QuickPanel 列表状态
   useEffect(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '#') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.KnowledgeBase) {
       // 直接使用重新计算的 baseItems，因为它已经包含了最新的 isSelected 状态
       quickPanel.updateList(baseItems)
     }
