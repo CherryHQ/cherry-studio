@@ -37,7 +37,7 @@ const Link: React.FC<LinkProps> = (props) => {
       <CitationTooltip citation={citationData}>
         <a
           {...omit(props, ['node', 'citationData'])}
-          href={isEmpty(props.href) ? undefined : props.href}
+          href={isEmpty(props.href) ? citationData.url : props.href}
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
