@@ -16,6 +16,10 @@ const logger = loggerService.withContext('Migrator')
 
 /**
  * Database migration manager with transaction support
+ * 
+ * This class manages database schema evolution through migrations.
+ * All table and index definitions are maintained exclusively in migration files,
+ * providing a single source of truth for the database schema.
  */
 export class Migrator {
   private db: Client

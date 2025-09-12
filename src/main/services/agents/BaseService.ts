@@ -10,7 +10,11 @@ const logger = loggerService.withContext('BaseService')
 
 /**
  * Base service class providing shared database connection and utilities
- * for all agent-related services
+ * for all agent-related services.
+ * 
+ * Uses a migration-only approach for database schema management.
+ * The database schema is defined and maintained exclusively through
+ * migration files, ensuring a single source of truth.
  */
 export abstract class BaseService {
   protected static db: Client | null = null
