@@ -15,7 +15,7 @@ import { createVertexProvider, isVertexAIConfigured } from '@renderer/hooks/useV
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { loggerService } from '@renderer/services/LoggerService'
 import store from '@renderer/store'
-import type { Model, Provider } from '@renderer/types'
+import { isSystemProvider, type Model, type Provider } from '@renderer/types'
 import { formatApiHost } from '@renderer/utils/api'
 import { cloneDeep, isEmpty } from 'lodash'
 
@@ -61,14 +61,16 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
   //   return createVertexProvider(provider)
   // }
 
-  if (provider.id === 'aihubmix') {
-    return aihubmixProviderCreator(model, provider)
-  }
-  if (provider.id === 'newapi') {
-    return newApiResolverCreator(model, provider)
-  }
-  if (provider.id === 'vertexai') {
-    return vertexAnthropicProviderCreator(model, provider)
+  if (isSystemProvider(provider)) {
+    if (provider.id === 'aihubmix') {
+      return aihubmixProviderCreator(model, provider)
+    }
+    if (provider.id === 'new-api') {
+      return newApiResolverCreator(model, provider)
+    }
+    if (provider.id === 'vertexai') {
+      return vertexAnthropicProviderCreator(model, provider)
+    }
   }
   return provider
 }
