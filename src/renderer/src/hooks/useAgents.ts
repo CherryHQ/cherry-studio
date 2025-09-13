@@ -1,5 +1,11 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { addAgent, removeAgent, updateAgent, updateAgents, updateAgentSettings } from '@renderer/store/agents'
+import {
+  addAssistantPreset,
+  removeAssistantPreset,
+  setAssistantPresets,
+  updateAssistantPreset,
+  updateAssistantPresetSettings
+} from '@renderer/store/agents'
 import { AssistantPreset, AssistantSettings } from '@renderer/types'
 
 export function useAgents() {
@@ -8,9 +14,9 @@ export function useAgents() {
 
   return {
     agents,
-    updateAgents: (agents: AssistantPreset[]) => dispatch(updateAgents(agents)),
-    addAgent: (agent: AssistantPreset) => dispatch(addAgent(agent)),
-    removeAgent: (id: string) => dispatch(removeAgent({ id }))
+    setAgents: (agents: AssistantPreset[]) => dispatch(setAssistantPresets(agents)),
+    addAgent: (agent: AssistantPreset) => dispatch(addAssistantPreset(agent)),
+    removeAgent: (id: string) => dispatch(removeAssistantPreset({ id }))
   }
 }
 
@@ -20,9 +26,9 @@ export function useAgent(id: string) {
 
   return {
     agent,
-    updateAgent: (agent: AssistantPreset) => dispatch(updateAgent(agent)),
+    updateAgent: (agent: AssistantPreset) => dispatch(updateAssistantPreset(agent)),
     updateAgentSettings: (settings: Partial<AssistantSettings>) => {
-      dispatch(updateAgentSettings({ assistantId: agent.id, settings }))
+      dispatch(updateAssistantPresetSettings({ assistantId: agent.id, settings }))
     }
   }
 }

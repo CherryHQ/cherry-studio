@@ -11,7 +11,7 @@ import styled from 'styled-components'
 const PopupContainer: React.FC = () => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { agents, updateAgents } = useAgents()
+  const { agents, setAgents } = useAgents()
 
   const onOk = () => {
     setOpen(false)
@@ -43,7 +43,7 @@ const PopupContainer: React.FC = () => {
       centered>
       <Container>
         {agents.length > 0 && (
-          <DraggableList list={agents} onUpdate={updateAgents}>
+          <DraggableList list={agents} onUpdate={setAgents}>
             {(item) => (
               <AgentItem>
                 <Box mr={8}>

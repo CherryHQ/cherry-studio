@@ -1,33 +1,38 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import { AssistantPreset, AssistantSettings } from '@renderer/types'
+import { AgentEntity, AssistantPreset, AssistantSettings } from '@renderer/types'
 
 export interface AgentsState {
-  /** @deprecated They are actually assistant presets. */
+  /** They are actually assistant presets.
+   * They should not be in this slice. However, since redux will be removed
+   * in the future, I just don't care where should they are.  */
   agents: AssistantPreset[]
+  /** For new autonomous agent feature. They are actual agent entities. */
+  agentsNew: AgentEntity[]
 }
 
 const initialState: AgentsState = {
-  agents: []
+  agents: [],
+  agentsNew: []
 }
 
 const assistantsSlice = createSlice({
   name: 'agents',
   initialState,
   reducers: {
-    updateAgents: (state, action: PayloadAction<AssistantPreset[]>) => {
+    setAssistantPresets: (state, action: PayloadAction<AssistantPreset[]>) => {
       state.agents = action.payload
     },
-    addAgent: (state, action: PayloadAction<AssistantPreset>) => {
+    addAssistantPreset: (state, action: PayloadAction<AssistantPreset>) => {
       state.agents.push(action.payload)
     },
-    removeAgent: (state, action: PayloadAction<{ id: string }>) => {
+    removeAssistantPreset: (state, action: PayloadAction<{ id: string }>) => {
       state.agents = state.agents.filter((c) => c.id !== action.payload.id)
     },
-    updateAgent: (state, action: PayloadAction<AssistantPreset>) => {
+    updateAssistantPreset: (state, action: PayloadAction<AssistantPreset>) => {
       state.agents = state.agents.map((c) => (c.id === action.payload.id ? action.payload : c))
     },
-    updateAgentSettings: (
+    updateAssistantPresetSettings: (
       state,
       action: PayloadAction<{ assistantId: string; settings: Partial<AssistantSettings> }>
     ) => {
@@ -52,6 +57,12 @@ const assistantsSlice = createSlice({
   }
 })
 
-export const { updateAgents, addAgent, removeAgent, updateAgent, updateAgentSettings } = assistantsSlice.actions
+export const {
+  setAssistantPresets,
+  addAssistantPreset,
+  removeAssistantPreset,
+  updateAssistantPreset,
+  updateAssistantPresetSettings
+} = assistantsSlice.actions
 
 export default assistantsSlice.reducer

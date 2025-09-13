@@ -352,7 +352,7 @@ export const useKnowledgeBases = () => {
   const dispatch = useDispatch()
   const bases = useSelector((state: RootState) => state.knowledge.bases)
   const { assistants, updateAssistants } = useAssistants()
-  const { agents, updateAgents } = useAgents()
+  const { agents, setAgents } = useAgents()
 
   const addKnowledgeBase = (base: KnowledgeBase) => {
     dispatch(addBase(base))
@@ -390,7 +390,7 @@ export const useKnowledgeBases = () => {
     })
 
     updateAssistants(_assistants)
-    updateAgents(_agents)
+    setAgents(_agents)
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {
