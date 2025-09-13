@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { isGenerateImageModel } from '@renderer/config/models'
 import { Assistant, Model } from '@renderer/types'
 import { Tooltip } from 'antd'
@@ -8,11 +9,10 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   assistant: Assistant
   model: Model
-  ToolbarButton: any
   onEnableGenerateImage: () => void
 }
 
-const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEnableGenerateImage }) => {
+const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImage }) => {
   const { t } = useTranslation()
 
   return (
@@ -23,9 +23,12 @@ const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEna
       }
       mouseLeaveDelay={0}
       arrow>
-      <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
-        <Image size={18} color={assistant.enableGenerateImage ? 'var(--color-primary)' : 'var(--color-icon)'} />
-      </ToolbarButton>
+      <ActionIconButton
+        onClick={onEnableGenerateImage}
+        active={assistant.enableGenerateImage}
+        disabled={!isGenerateImageModel(model)}>
+        <Image size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

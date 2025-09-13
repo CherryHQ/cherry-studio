@@ -362,8 +362,9 @@
       "translate": "Translate to {{target_language}}",
       "translating": "Translating...",
       "upload": {
+        "attachment": "Upload attachment",
         "document": "Upload document file (model does not support images)",
-        "label": "Upload image or document file",
+        "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
       "url_context": "URL Context",

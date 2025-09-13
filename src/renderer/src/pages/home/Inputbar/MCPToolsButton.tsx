@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
@@ -6,7 +7,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
@@ -21,11 +22,10 @@ export interface MCPToolsButtonRef {
 }
 
 interface Props {
-  assistant: Assistant
+  assistantId: string
   ref?: React.RefObject<MCPToolsButtonRef | null>
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  ToolbarButton: any
 }
 
 // 添加类型定义
@@ -113,14 +113,14 @@ const extractPromptContent = (response: any): string | null => {
   return null
 }
 
-const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, ToolbarButton, ...props }) => {
+const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assistantId }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const navigate = useNavigate()
   const [form] = Form.useForm()
 
-  const { updateAssistant, assistant } = useAssistant(props.assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const model = assistant.model
   const { setTimeoutTimer } = useTimer()
 
@@ -486,12 +486,9 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <Hammer
-          size={18}
-          color={assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
-        />
-      </ToolbarButton>
+      <ActionIconButton onClick={handleOpenQuickPanel} active={assistant.mcpServers && assistant.mcpServers.length > 0}>
+        <Hammer size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

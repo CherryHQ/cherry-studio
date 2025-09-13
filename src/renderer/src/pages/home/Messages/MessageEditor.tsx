@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -25,7 +26,6 @@ import styled from 'styled-components'
 
 import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
-import { ToolbarButton } from '../Inputbar/Inputbar'
 
 interface Props {
   message: Message
@@ -346,27 +346,26 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               setFiles={setFiles}
               couldAddImageFile={couldAddImageFile}
               extensions={extensions}
-              ToolbarButton={ToolbarButton}
             />
           )}
         </ActionBarLeft>
         <ActionBarMiddle />
         <ActionBarRight>
           <Tooltip title={t('common.cancel')}>
-            <ToolbarButton type="text" onClick={onCancel}>
+            <ActionIconButton onClick={onCancel}>
               <X size={16} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
           <Tooltip title={t('common.save')}>
-            <ToolbarButton type="text" onClick={handleSave}>
+            <ActionIconButton onClick={handleSave}>
               <Save size={16} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
-              <ToolbarButton type="text" onClick={handleResend}>
+              <ActionIconButton onClick={handleResend}>
                 <Send size={16} />
-              </ToolbarButton>
+              </ActionIconButton>
             </Tooltip>
           )}
         </ActionBarRight>
