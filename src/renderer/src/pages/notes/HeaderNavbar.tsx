@@ -1,4 +1,5 @@
 import { BreadcrumbItem, Breadcrumbs } from '@heroui/react'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import { RowFlex } from '@renderer/components/Layout'
@@ -7,7 +8,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNodeByPath, findNodeInTree, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import { NotesTreeNode } from '@types'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -163,14 +164,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('navbar.hide_sidebar')} delay={800} showArrow={true}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('navbar.show_sidebar')} delay={800} showArrow={true}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -194,7 +195,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       </NavbarCenter>
       <NavbarRight style={{ paddingRight: 0 }}>
         {canShowStarButton && (
-          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} mouseEnterDelay={0.8}>
+          <Tooltip content={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800} showArrow={true}>
             <StarButton onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
@@ -204,7 +205,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
             </StarButton>
           </Tooltip>
         )}
-        <Tooltip title={t('notes.settings.title')} mouseEnterDelay={0.8}>
+        <Tooltip content={t('notes.settings.title')} delay={800} showArrow={true}>
           <Dropdown
             menu={{ items: menuItems.map(buildMenuItem) }}
             trigger={['click']}

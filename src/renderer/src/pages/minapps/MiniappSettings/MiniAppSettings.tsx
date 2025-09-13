@@ -1,4 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
+import { Tooltip } from '@heroui/react'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -9,7 +10,7 @@ import {
   setMinappsOpenLinkExternal,
   setShowOpenedMinappsInSidebar
 } from '@renderer/store/settings'
-import { Button, message, Slider, Switch, Tooltip } from 'antd'
+import { Button, message, Slider, Switch } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -111,7 +112,7 @@ const MiniAppSettings: FC = () => {
         </SettingLabelGroup>
         <CacheSettingControls>
           <SliderWithResetContainer>
-            <Tooltip title={t('settings.miniapps.reset_tooltip')} placement="top">
+            <Tooltip content={t('settings.miniapps.reset_tooltip')} placement="top" showArrow={true}>
               <ResetButton onClick={handleResetCacheLimit}>
                 <UndoOutlined />
               </ResetButton>

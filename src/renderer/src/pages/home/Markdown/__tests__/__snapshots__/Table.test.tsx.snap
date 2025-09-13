@@ -63,6 +63,7 @@ exports[`Table > rendering > should match snapshot 1`] = `
     class="c1 table-toolbar"
   >
     <div
+      data-show-arrow="true"
       data-testid="tooltip"
       title="common.copy"
     >

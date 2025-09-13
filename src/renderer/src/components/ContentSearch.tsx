@@ -1,6 +1,7 @@
+import { Tooltip } from '@heroui/react'
 import { ToolbarButton } from '@renderer/pages/home/Inputbar/Inputbar'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -363,13 +364,17 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               />
               <ToolBar>
                 {showUserToggle && (
-                  <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
+                  <Tooltip
+                    content={t('button.includes_user_questions')}
+                    delay={800}
+                    placement="bottom"
+                    showArrow={true}>
                     <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
                       <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
                     </ToolbarButton>
                   </Tooltip>
                 )}
-                <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
+                <Tooltip content={t('button.case_sensitive')} delay={800} placement="bottom" showArrow={true}>
                   <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
                     <CaseSensitive
                       size={18}
@@ -377,7 +382,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                     />
                   </ToolbarButton>
                 </Tooltip>
-                <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
+                <Tooltip content={t('button.whole_word')} delay={800} placement="bottom" showArrow={true}>
                   <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
                     <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
                   </ToolbarButton>

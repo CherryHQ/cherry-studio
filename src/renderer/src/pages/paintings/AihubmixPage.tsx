@@ -22,7 +22,8 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Upload } from 'antd'
+import { Tooltip } from '@heroui/react'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -790,7 +791,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
           {t(item.title!)}
           {item.tooltip && (
-            <Tooltip title={t(item.tooltip)}>
+            <Tooltip content={t(item.tooltip)} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           )}

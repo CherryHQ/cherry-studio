@@ -6,10 +6,12 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
-import { Button, Drawer, Tooltip } from 'antd'
+import { Modal } from '@heroui/react'
+import { Button } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -334,7 +336,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.close')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.close')} placement="left" delay={500} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
@@ -343,7 +345,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.top')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.top')} placement="left" delay={500} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
@@ -352,7 +354,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.prev')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.prev')} placement="left" delay={500} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<ArrowUpOutlined />}
@@ -361,7 +363,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.next')} placement="left" delay={500} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<ArrowDownOutlined />}
@@ -370,7 +372,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.bottom')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.bottom')} placement="left" delay={500} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
@@ -379,7 +381,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.history')} placement="left" delay={500} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}
@@ -390,22 +392,16 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         </ButtonGroup>
       </NavigationContainer>
 
-      <Drawer
+      <Modal
         title={t('chat.history.title')}
-        placement="right"
+        isOpen={showChatHistory}
         onClose={handleDrawerClose}
-        open={showChatHistory}
-        width={680}
-        destroyOnHidden
-        styles={{
-          header: { border: 'none' },
-          body: {
-            padding: 0,
-            height: 'calc(100% - 55px)'
-          }
-        }}>
-        <ChatFlowHistory conversationId={currentTopicId || undefined} />
-      </Drawer>
+        size="4xl"
+        placement="center">
+        <div style={{ padding: 0, height: '500px' }}>
+          <ChatFlowHistory conversationId={currentTopicId || undefined} />
+        </div>
+      </Modal>
     </>
   )
 }

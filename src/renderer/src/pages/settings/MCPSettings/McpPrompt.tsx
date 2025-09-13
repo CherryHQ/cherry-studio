@@ -1,6 +1,7 @@
 import { ColFlex, Flex } from '@renderer/components/Layout'
 import { MCPPrompt } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Tooltip, Typography } from 'antd'
+import { Collapse, Descriptions, Empty, Typography } from 'antd'
+import { Tooltip } from '@heroui/react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -26,7 +27,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                 <Flex className="gap-1">
                   <Typography.Text strong>{arg.name}</Typography.Text>
                   {arg.required && (
-                    <Tooltip title="Required field">
+                    <Tooltip content="Required field" showArrow={true}>
                       <span style={{ color: '#f5222d' }}>*</span>
                     </Tooltip>
                   )}

@@ -1,4 +1,5 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { RowFlex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -8,7 +9,7 @@ import { setFoldDisplayMode } from '@renderer/store/settings'
 import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
-import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
+import { Avatar, Segmented as AntdSegmented } from 'antd'
 import { motion } from 'motion/react'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +44,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip key={message.id} content={modelTip} delay={500} showArrow={true}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -70,14 +71,14 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   return (
     <Container>
       <Tooltip
-        title={
+        content={
           isCompact
             ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
         }
         placement="top"
-        mouseEnterDelay={0.5}
-        mouseLeaveDelay={0}>
+        delay={500}
+        showArrow={true}>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
           onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>

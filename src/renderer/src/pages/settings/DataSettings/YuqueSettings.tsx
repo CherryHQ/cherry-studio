@@ -1,10 +1,11 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
-import { Button, Space, Tooltip } from 'antd'
+import { Button, Space } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -91,7 +92,7 @@ const YuqueSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('settings.data.yuque.token')}
-          <Tooltip title={t('settings.data.yuque.help')} placement="left">
+          <Tooltip content={t('settings.data.yuque.help')} placement="left" showArrow={true}>
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
               onClick={handleYuqueHelpClick}

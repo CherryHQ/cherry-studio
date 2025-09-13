@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { RowFlex } from '@renderer/components/Layout'
 import UserPopup from '@renderer/components/Popups/UserPopup'
@@ -13,7 +14,7 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Avatar, Checkbox, Tooltip } from 'antd'
+import { Avatar, Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import { FC, memo, useCallback, useMemo } from 'react'
@@ -115,7 +116,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             {username}
           </UserName>
           {isGroupContextMessage && (
-            <Tooltip title={t('chat.message.useful.tip')}>
+            <Tooltip content={t('chat.message.useful.tip')} showArrow={true}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}

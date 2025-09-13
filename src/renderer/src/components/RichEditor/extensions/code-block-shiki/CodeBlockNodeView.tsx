@@ -1,7 +1,8 @@
 import { CopyOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { DEFAULT_LANGUAGES, getHighlighter, getShiki } from '@renderer/utils/shiki'
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps, ReactNodeViewRenderer } from '@tiptap/react'
-import { Button, Select, Tooltip } from 'antd'
+import { Button, Select } from 'antd'
 import { FC, useCallback, useEffect, useState } from 'react'
 
 const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
@@ -64,7 +65,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           options={languageOptions.map((lang) => ({ value: lang, label: lang }))}
           style={{ minWidth: 90 }}
         />
-        <Tooltip title="Copy">
+        <Tooltip content="Copy" showArrow={true}>
           <Button
             size="small"
             type="text"

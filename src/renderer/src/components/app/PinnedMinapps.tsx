@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -5,7 +6,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import { FC, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -85,7 +86,7 @@ export const SidebarOpenedMinappTabs: FC = () => {
             const isActive = minappShow && currentMinappId === app.id
 
             return (
-              <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+              <Tooltip key={app.id} content={app.name} delay={800} placement="right" showArrow={true}>
                 <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
                   <Icon
                     theme={theme}
@@ -126,7 +127,7 @@ export const SidebarPinnedApps: FC = () => {
         ]
         const isActive = minappShow && currentMinappId === app.id
         return (
-          <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+          <Tooltip key={app.id} content={app.name} delay={800} placement="right" showArrow={true}>
             <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
               <Icon
                 theme={theme}

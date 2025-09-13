@@ -1,8 +1,9 @@
 import { SearchOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { PROVIDER_LOGO_MAP } from '@renderer/config/providers'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Input, Tooltip } from 'antd'
+import { Input } from 'antd'
 import { FC, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
@@ -50,7 +51,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
       </SearchContainer>
       <LogoGrid>
         {filteredProviders.map(({ id, name, logo }) => (
-          <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
+          <Tooltip key={id} content={name} placement="top" showArrow={true}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
               <ProviderAvatarPrimitive providerId={id} size={52} providerName={name} logoSrc={logo} />
             </LogoItem>

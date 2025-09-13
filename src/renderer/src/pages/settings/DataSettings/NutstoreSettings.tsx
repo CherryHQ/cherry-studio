@@ -26,7 +26,8 @@ import {
 } from '@renderer/store/nutstore'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Button, Input, Switch, Tooltip, Typography } from 'antd'
+import { Button, Input, Switch, Typography } from 'antd'
+import { Tooltip } from '@heroui/react'
 import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -187,7 +188,7 @@ const NutstoreSettings: FC = () => {
       <RowFlex className="items-center gap-[5px]">
         {nutstoreSyncState.syncing && <SyncOutlined spin />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
-          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}>
+          <Tooltip content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`} showArrow={true}>
             <WarningOutlined style={{ color: 'red' }} />
           </Tooltip>
         )}

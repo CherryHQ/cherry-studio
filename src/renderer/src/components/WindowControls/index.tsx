@@ -1,5 +1,5 @@
+import { Tooltip } from '@heroui/react'
 import { isLinux, isWin } from '@renderer/config/constant'
-import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { SVGProps } from 'react'
@@ -85,20 +85,21 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
-      <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip content={t('navbar.window.minimize')} placement="bottom" delay={DEFAULT_DELAY * 1000} showArrow={true}>
         <ControlButton onClick={handleMinimize} aria-label="Minimize">
           <Minus size={14} />
         </ControlButton>
       </Tooltip>
       <Tooltip
-        title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
+        content={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
         placement="bottom"
-        mouseEnterDelay={DEFAULT_DELAY}>
+        delay={DEFAULT_DELAY * 1000}
+        showArrow={true}>
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
-      <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip content={t('navbar.window.close')} placement="bottom" delay={DEFAULT_DELAY * 1000} showArrow={true}>
         <ControlButton $isClose onClick={handleClose} aria-label="Close">
           <X size={17} />
         </ControlButton>

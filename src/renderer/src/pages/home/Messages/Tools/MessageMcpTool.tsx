@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { Flex } from '@renderer/components/Layout'
@@ -10,17 +11,7 @@ import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import {
-  Button,
-  Collapse,
-  ConfigProvider,
-  Dropdown,
-  message as antdMessage,
-  Modal,
-  Progress,
-  Tabs,
-  Tooltip
-} from 'antd'
+import { Button, Collapse, ConfigProvider, Dropdown, message as antdMessage, Modal, Progress, Tabs } from 'antd'
 import { message } from 'antd'
 import {
   Check,
@@ -270,7 +261,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                <Tooltip content={t('message.tools.autoApproveEnabled')} showArrow={true}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -282,7 +273,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             ) : (
               renderStatusIndicator(status, hasError)
             )}
-            <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+            <Tooltip content={t('common.expand')} delay={500} showArrow={true}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => {
@@ -297,7 +288,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               </ActionButton>
             </Tooltip>
             {!isPending && (
-              <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+              <Tooltip content={t('common.copy')} delay={500} showArrow={true}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => {

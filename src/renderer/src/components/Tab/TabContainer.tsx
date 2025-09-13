@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isMac } from '@renderer/config/constant'
@@ -14,7 +15,7 @@ import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import {
   FileSearch,
   Folder,
@@ -219,9 +220,10 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
         </HorizontalScrollContainer>
         <RightButtonsContainer>
           <Tooltip
-            title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-            mouseEnterDelay={0.8}
-            placement="bottom">
+            content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+            delay={800}
+            placement="bottom"
+            showArrow={true}>
             <ThemeButton onClick={toggleTheme}>
               {settedTheme === ThemeMode.dark ? (
                 <Moon size={16} />

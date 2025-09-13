@@ -42,9 +42,9 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: ({ children, title }: any) => (
-    <div data-testid="tooltip" title={title}>
+vi.mock('@heroui/react', () => ({
+  Tooltip: ({ children, content, showArrow }: any) => (
+    <div data-testid="tooltip" title={content} data-show-arrow={showArrow}>
       {children}
     </div>
   )
@@ -124,6 +124,7 @@ describe('Table', () => {
       expect(screen.getByText('Cell 1')).toBeInTheDocument()
       expect(screen.getByText('Cell 2')).toBeInTheDocument()
       expect(screen.getByTestId('tooltip')).toBeInTheDocument()
+      expect(screen.getByTestId('tooltip')).toHaveAttribute('data-show-arrow', 'true')
     })
 
     it('should render with table-wrapper and table-toolbar classes', () => {
@@ -138,6 +139,7 @@ describe('Table', () => {
 
       const tooltip = screen.getByTestId('tooltip')
       expect(tooltip).toHaveAttribute('title', 'common.copy')
+      expect(tooltip).toHaveAttribute('data-show-arrow', 'true')
     })
 
     it('should match snapshot', () => {

@@ -1,8 +1,9 @@
+import { Tooltip } from '@heroui/react'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
-import { Slider, Switch, Tooltip } from 'antd'
+import { Slider, Switch } from 'antd'
 import { t } from 'i18next'
 import { Info } from 'lucide-react'
 import { FC } from 'react'
@@ -29,7 +30,10 @@ const BasicSettings: FC = () => {
           <SettingRowTitle style={{ minWidth: 120 }}>
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
-              <Tooltip title={t('settings.tool.websearch.search_max_result.tooltip')} placement="top">
+              <Tooltip
+                content={t('settings.tool.websearch.search_max_result.tooltip')}
+                placement="top"
+                showArrow={true}>
                 <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
               </Tooltip>
             )}

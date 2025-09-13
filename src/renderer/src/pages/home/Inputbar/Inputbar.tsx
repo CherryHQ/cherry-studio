@@ -1,4 +1,5 @@
 import { HolderOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -49,7 +50,7 @@ import {
 import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
@@ -955,7 +956,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
-                <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
+                <Tooltip placement="top" content={t('chat.input.pause')} showArrow={true}>
                   <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
                     <CirclePause size={20} color="var(--color-error)" />
                   </ToolbarButton>

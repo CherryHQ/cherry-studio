@@ -2,7 +2,8 @@ import { CheckCircleOutlined, CopyOutlined, ExclamationCircleOutlined } from '@a
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Alert, Button, Input, Slider, Steps, Tooltip, Typography } from 'antd'
+import { Alert, Button, Input, Slider, Steps, Typography } from 'antd'
+import { Tooltip } from '@heroui/react'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -287,7 +288,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     </div>
                   </StepHeader>
                   <Tooltip
-                    title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
+                    content={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''} showArrow={true}>
                     <Button
                       type="primary"
                       loading={loading}

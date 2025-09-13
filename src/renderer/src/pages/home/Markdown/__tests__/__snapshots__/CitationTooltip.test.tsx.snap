@@ -47,9 +47,10 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
 }
 
 <div
-  data-color="var(--color-background)"
+  data-classnames="{"content":"border border-solid border-[var(--color-border)] p-3 rounded-lg bg-[var(--color-background)]"}"
+  data-color="foreground"
   data-placement="top"
-  data-styles="{"body":{"border":"1px solid var(--color-border)","padding":"12px","borderRadius":"8px"}}"
+  data-show-arrow="true"
   data-testid="tooltip-wrapper"
 >
   <span>
@@ -75,7 +76,6 @@ exports[`CitationTooltip > basic rendering > should match snapshot 1`] = `
           aria-level="3"
           class="c1"
           role="heading"
-          title="Example Article"
         >
           Example Article
         </div>

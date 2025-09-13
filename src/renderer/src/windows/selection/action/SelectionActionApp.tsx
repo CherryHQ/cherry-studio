@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { isMac } from '@renderer/config/constant'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -5,7 +6,7 @@ import i18n from '@renderer/i18n'
 import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Slider, Tooltip } from 'antd'
+import { Button, Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
@@ -203,8 +204,9 @@ const SelectionActionApp: FC = () => {
         <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
         <TitleBarButtons>
           <Tooltip
-            title={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
-            placement="bottom">
+            content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
+            placement="bottom"
+            showArrow={true}>
             <WinButton
               type="text"
               icon={<Pin size={14} className={isPinned ? 'pinned' : ''} />}
@@ -213,9 +215,10 @@ const SelectionActionApp: FC = () => {
             />
           </Tooltip>
           <Tooltip
-            title={t('selection.action.window.opacity')}
+            content={t('selection.action.window.opacity')}
             placement="bottom"
-            {...(showOpacitySlider ? { open: false } : {})}>
+            showArrow={true}
+            {...(showOpacitySlider ? { isOpen: false } : {})}>
             <WinButton
               type="text"
               icon={<Droplet size={14} />}

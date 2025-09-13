@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import Selector from '@renderer/components/Selector'
 import {
   isSupportedReasoningEffortOpenAIModel,
@@ -20,7 +21,7 @@ import {
   SystemProviderIds
 } from '@renderer/types'
 import { OpenAIVerbosity } from '@types'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -165,14 +166,14 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
   }
 
   return (
-    <CollapsibleSettingGroup title={t('settings.openai.title')} defaultExpanded={true}>
+    <CollapsibleSettingGroup content={t('settings.openai.title')} defaultExpanded={true}>
       <SettingGroup>
         {isSupportServiceTier && (
           <>
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.service_tier.title')}{' '}
-                <Tooltip title={t('settings.openai.service_tier.tip')}>
+                <Tooltip content={t('settings.openai.service_tier.tip')} showArrow={true}>
                   <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                 </Tooltip>
               </SettingRowTitleSmall>
@@ -193,7 +194,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.summary_text_mode.title')}{' '}
-                <Tooltip title={t('settings.openai.summary_text_mode.tip')}>
+                <Tooltip content={t('settings.openai.summary_text_mode.tip')} showArrow={true}>
                   <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
                 </Tooltip>
               </SettingRowTitleSmall>
@@ -212,7 +213,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
           <SettingRow>
             <SettingRowTitleSmall>
               {t('settings.openai.verbosity.title')}{' '}
-              <Tooltip title={t('settings.openai.verbosity.tip')}>
+              <Tooltip content={t('settings.openai.verbosity.tip')} showArrow={true}>
                 <CircleHelp size={14} style={{ marginLeft: 4 }} color="var(--color-text-2)" />
               </Tooltip>
             </SettingRowTitleSmall>

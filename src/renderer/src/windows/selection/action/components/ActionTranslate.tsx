@@ -1,4 +1,5 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
 import LanguageSelect from '@renderer/components/LanguageSelect'
@@ -14,7 +15,6 @@ import type { ActionItem } from '@renderer/types/selectionTypes'
 import { runAsyncFunction } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { detectLanguage } from '@renderer/utils/translate'
-import { Tooltip } from 'antd'
 import { ArrowRightFromLine, ArrowRightToLine, ChevronDown, CircleHelp, Globe } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -178,11 +178,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     <>
       <Container>
         <MenuContainer>
-          <Tooltip placement="bottom" title={t('translate.any.language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.any.language')} showArrow={true}>
             <Globe size={16} style={{ flexShrink: 0 }} />
           </Tooltip>
           <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.target_language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.target_language')} showArrow={true}>
             <LanguageSelect
               value={targetLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -194,7 +194,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.alter_language')} arrow>
+          <Tooltip placement="bottom" content={t('translate.alter_language')} showArrow={true}>
             <LanguageSelect
               value={alterLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -205,7 +205,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               disabled={isLoading}
             />
           </Tooltip>
-          <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')} arrow>
+          <Tooltip placement="bottom" content={t('selection.action.translate.smart_translate_tips')} showArrow={true}>
             <QuestionIcon size={14} style={{ marginLeft: 4 }} />
           </Tooltip>
           <Spacer />

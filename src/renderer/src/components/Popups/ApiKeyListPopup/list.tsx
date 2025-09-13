@@ -9,7 +9,8 @@ import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
 import { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
 import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
-import { Button, Card, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
+import { Button, Card, List, Popconfirm, Space, Typography } from 'antd'
+import { Tooltip } from '@heroui/react'
 import { Plus } from 'lucide-react'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -140,7 +141,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}>
-                <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
+                <Tooltip content={t('settings.provider.remove_invalid_keys')} placement="top" showArrow={true}>
                   <Button
                     type="text"
                     icon={<DeleteIcon size={16} className="lucide-custom" />}
@@ -151,7 +152,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
               </Popconfirm>
 
               {/* 批量检查 */}
-              <Tooltip title={t('settings.provider.check_all_keys')} placement="top" mouseLeaveDelay={0}>
+              <Tooltip content={t('settings.provider.check_all_keys')} placement="top" showArrow={true}>
                 <Button
                   type="text"
                   icon={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}

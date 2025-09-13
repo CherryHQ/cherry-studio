@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
@@ -7,7 +8,7 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { FileType, Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
-import { Avatar, Tooltip } from 'antd'
+import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, CircleX, Plus } from 'lucide-react'
@@ -306,7 +307,7 @@ const MentionModelsButton: FC<Props> = ({
   }))
 
   return (
-    <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" content={t('agents.edit.model.select.title')} showArrow={true}>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <AtSign size={18} color={mentionedModels.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'} />
       </ToolbarButton>

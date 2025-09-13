@@ -12,16 +12,17 @@ vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
   default: (props: any) => <div data-testid="mock-favicon" {...props} />
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: ({ children, overlay, title, placement, color, styles, ...props }: any) => (
+vi.mock('@heroui/react', () => ({
+  Tooltip: ({ children, content, placement, color, classNames, showArrow, ...props }: any) => (
     <div
       data-testid="tooltip-wrapper"
       data-placement={placement}
       data-color={color}
-      data-styles={JSON.stringify(styles)}
+      data-classnames={JSON.stringify(classNames)}
+      data-show-arrow={showArrow}
       {...props}>
       {children}
-      <div data-testid="tooltip-content">{overlay || title}</div>
+      <div data-testid="tooltip-content">{content}</div>
     </div>
   )
 }))
@@ -93,14 +94,13 @@ describe('CitationTooltip', () => {
 
       const tooltip = screen.getByTestId('tooltip-wrapper')
       expect(tooltip).toHaveAttribute('data-placement', 'top')
-      expect(tooltip).toHaveAttribute('data-color', 'var(--color-background)')
+      expect(tooltip).toHaveAttribute('data-color', 'foreground')
 
-      const styles = JSON.parse(tooltip.getAttribute('data-styles') || '{}')
-      expect(styles.body).toEqual({
-        border: '1px solid var(--color-border)',
-        padding: '12px',
-        borderRadius: '8px'
-      })
+      const classNames = JSON.parse(tooltip.getAttribute('data-classnames') || '{}')
+      expect(classNames.content).toEqual(
+        'border border-solid border-[var(--color-border)] p-3 rounded-lg bg-[var(--color-background)]'
+      )
+      expect(tooltip).toHaveAttribute('data-show-arrow', 'true')
     })
 
     it('should match snapshot', () => {

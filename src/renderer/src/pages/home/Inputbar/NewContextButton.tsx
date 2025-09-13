@@ -1,5 +1,6 @@
+import { Tooltip } from '@heroui/react'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { Eraser } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,9 +19,8 @@ const NewContextButton: FC<Props> = ({ onNewContext, ToolbarButton }) => {
   return (
     <Tooltip
       placement="top"
-      title={t('chat.input.new.context', { Command: newContextShortcut })}
-      mouseLeaveDelay={0}
-      arrow>
+      content={t('chat.input.new.context', { Command: newContextShortcut })}
+      showArrow={true}>
       <ToolbarButton type="text" onClick={onNewContext}>
         <Eraser size={18} />
       </ToolbarButton>

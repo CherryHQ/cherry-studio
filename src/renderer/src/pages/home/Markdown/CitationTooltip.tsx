@@ -1,5 +1,5 @@
+import { Tooltip } from '@heroui/react'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
-import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
 import styled from 'styled-components'
 import { z } from 'zod'
@@ -38,7 +38,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
       <div style={{ userSelect: 'text' }}>
         <TooltipHeader role="button" aria-label={`Open ${sourceTitle} in new tab`} onClick={handleClick}>
           <Favicon hostname={hostname} alt={sourceTitle} />
-          <TooltipTitle role="heading" aria-level={3} title={sourceTitle}>
+          <TooltipTitle role="heading" aria-level={3}>
             {sourceTitle}
           </TooltipTitle>
         </TooltipHeader>
@@ -57,16 +57,12 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
 
   return (
     <Tooltip
-      arrow={false}
-      overlay={tooltipContent}
+      showArrow={true}
+      content={tooltipContent}
       placement="top"
-      color="var(--color-background)"
-      styles={{
-        body: {
-          border: '1px solid var(--color-border)',
-          padding: '12px',
-          borderRadius: '8px'
-        }
+      color="foreground"
+      classNames={{
+        content: 'border border-solid border-[var(--color-border)] p-3 rounded-lg bg-[var(--color-background)]'
       }}>
       {children}
     </Tooltip>

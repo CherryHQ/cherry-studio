@@ -1,4 +1,5 @@
 import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { RowFlex } from '@renderer/components/Layout'
@@ -9,7 +10,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -111,7 +112,7 @@ const AssistantSettings: FC = () => {
       theme={theme}>
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
       <RowFlex className="items-center gap-2">
-        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
+        <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} showArrow={true} trigger="click">
           <EmojiButtonWrapper>
             <Button style={{ fontSize: 20, padding: '4px', minWidth: '30px', height: '30px' }}>{emoji}</Button>
             {emoji && (
@@ -157,14 +158,14 @@ const AssistantSettings: FC = () => {
           marginTop: 0
         }}>
         {t('settings.assistant.model_params')}
-        <Tooltip title={t('common.reset')} mouseLeaveDelay={0}>
+        <Tooltip content={t('common.reset')} showArrow={true}>
           <Button type="text" onClick={onReset} icon={<ResetIcon size={16} />} />
         </Tooltip>
       </SettingSubtitle>
       <SettingRow>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.temperature.label')}</Label>
-          <Tooltip title={t('chat.settings.temperature.tip')}>
+          <Tooltip content={t('chat.settings.temperature.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </RowFlex>
@@ -205,7 +206,7 @@ const AssistantSettings: FC = () => {
       <SettingRow>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
-          <Tooltip title={t('chat.settings.top_p.tip')}>
+          <Tooltip content={t('chat.settings.top_p.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </RowFlex>
@@ -238,7 +239,7 @@ const AssistantSettings: FC = () => {
       )}
       <Row align="middle">
         <Label>{t('chat.settings.context_count.label')}</Label>
-        <Tooltip title={t('chat.settings.context_count.tip')}>
+        <Tooltip content={t('chat.settings.context_count.tip')} showArrow={true}>
           <QuestionIcon />
         </Tooltip>
       </Row>
@@ -268,7 +269,7 @@ const AssistantSettings: FC = () => {
       <Flex className="items-center justify-between">
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
+          <Tooltip content={t('chat.settings.max_tokens.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </RowFlex>

@@ -1,9 +1,10 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { translateText } from '@renderer/services/TranslateService'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { Languages } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -65,9 +66,8 @@ const TranslateButton: FC<Props> = ({ text, onTranslated, disabled, style, isLoa
   return (
     <Tooltip
       placement="top"
-      title={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
-      mouseLeaveDelay={0}
-      arrow>
+      content={t('chat.input.translate', { target_language: getLanguageByLangcode(targetLanguage).label() })}
+      showArrow={true}>
       <ToolbarButton onClick={handleTranslate} disabled={disabled || isTranslating} style={style} type="text">
         {isTranslating ? <LoadingOutlined spin /> : <Languages size={18} />}
       </ToolbarButton>

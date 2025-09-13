@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import { Flex } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
@@ -23,7 +24,7 @@ import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import { Input, Switch, Tooltip } from 'antd'
+import { Input, Switch } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -284,7 +285,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.notification.assistant')}</span>
-            <Tooltip title={t('notification.tip')} placement="right">
+            <Tooltip content={t('notification.tip')} placement="right" showArrow={true}>
               <InfoCircleOutlined style={{ cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
@@ -347,7 +348,7 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
-            <InfoTooltip title={t('settings.developer.help')} />
+            <InfoTooltip content={t('settings.developer.help')} />
           </Flex>
           <Switch checked={enableDeveloperMode} onChange={setEnableDeveloperMode} />
         </SettingRow>

@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
       {tool.icon}
     </div>
   )),
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, content, showArrow }) => (
+    <div data-testid="tooltip" data-content={content} data-show-arrow={showArrow}>
       {children}
     </div>
   )),
@@ -39,7 +39,7 @@ vi.mock('../button', () => ({
   default: mocks.CodeToolButton
 }))
 
-vi.mock('antd', () => ({
+vi.mock('@heroui/react', () => ({
   Tooltip: mocks.Tooltip
 }))
 
@@ -234,7 +234,8 @@ describe('CodeToolbar', () => {
       render(<CodeToolbar tools={createMixedTools()} />)
 
       const tooltip = screen.getByTestId('tooltip')
-      expect(tooltip).toHaveAttribute('data-title', MORE_BUTTON_TOOLTIP)
+      expect(tooltip).toHaveAttribute('data-content', MORE_BUTTON_TOOLTIP)
+      expect(tooltip).toHaveAttribute('data-show-arrow', 'true')
 
       expect(screen.getByTestId('ellipsis-icon')).toBeInTheDocument()
       expect(screen.getByTestId('ellipsis-icon')).toHaveClass('tool-icon')

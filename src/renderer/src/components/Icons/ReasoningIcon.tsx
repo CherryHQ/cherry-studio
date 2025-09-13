@@ -1,4 +1,4 @@
-import { Tooltip } from 'antd'
+import { Tooltip } from '@heroui/react'
 import React, { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -8,7 +8,7 @@ const ReasoningIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement
 
   return (
     <Container>
-      <Tooltip title={t('models.type.reasoning')} placement="top">
+      <Tooltip content={t('models.type.reasoning')} placement="top" showArrow={true}>
         <Icon className="iconfont icon-thinking" {...(props as any)} />
       </Tooltip>
     </Container>

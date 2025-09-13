@@ -1,6 +1,7 @@
+import { Tooltip } from '@heroui/react'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingRow, SettingRowTitle } from '@renderer/pages/settings'
-import { Input, Select, Space, Tooltip } from 'antd'
+import { Input, Select, Space } from 'antd'
 import { ChevronDown, Info } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +28,10 @@ const CutoffSettings = () => {
     <SettingRow>
       <SettingRowTitle>
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
-        <Tooltip title={t('settings.tool.websearch.compression.cutoff.limit.tooltip')} placement="right">
+        <Tooltip
+          content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
+          placement="right"
+          showArrow={true}>
           <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
         </Tooltip>
       </SettingRowTitle>

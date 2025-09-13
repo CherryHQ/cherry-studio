@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 
 import InfoTooltip from '../InfoTooltip'
 
-vi.mock('antd', () => ({
-  Tooltip: ({ children, title }: { children: React.ReactNode; title: string }) => (
-    <div>
+vi.mock('@heroui/react', () => ({
+  Tooltip: ({ children, content, showArrow }: { children: React.ReactNode; content: string; showArrow?: boolean }) => (
+    <div data-show-arrow={showArrow}>
       {children}
-      {title && <div>{title}</div>}
+      {content && <div>{content}</div>}
     </div>
   )
 }))
@@ -34,5 +34,6 @@ describe('InfoTooltip', () => {
 
     expect(screen.getByRole('img', { name: 'Information' })).toBeInTheDocument()
     expect(screen.getByText(tooltipText)).toBeInTheDocument()
+    expect(document.querySelector('[data-show-arrow="true"]')).toBeInTheDocument()
   })
 })

@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { RowFlex } from '@renderer/components/Layout'
@@ -19,7 +20,7 @@ import { isSystemProvider } from '@renderer/types'
 import { ApiKeyConnectivity, HealthStatus } from '@renderer/types/healthCheck'
 import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Input, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Input, Select, Space, Switch } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
@@ -223,7 +224,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     return (
-      <Tooltip title={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
+      <Tooltip content={<ErrorOverlay>{apiKeyConnectivity.error}</ErrorOverlay>}>
         <TriangleAlert size={16} color="var(--color-status-warning)" />
       </Tooltip>
     )
@@ -249,7 +250,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             </Link>
           )}
           {!isSystemProvider(provider) && (
-            <Tooltip title={t('settings.provider.api.options.label')}>
+            <Tooltip content={t('settings.provider.api.options.label')} showArrow={true}>
               <Button
                 type="text"
                 icon={<Bolt size={14} />}
@@ -300,7 +301,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
-              <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+              <Tooltip content={t('settings.provider.api.key.list.open')} showArrow={true}>
                 <Button type="text" onClick={openApiKeyList} icon={<Settings2 size={16} />} />
               </Tooltip>
             )}

@@ -1,4 +1,4 @@
-import { Tooltip, TooltipProps } from 'antd'
+import { Tooltip, TooltipProps } from '@heroui/react'
 import { HelpCircle } from 'lucide-react'
 
 type InheritedTooltipProps = Omit<TooltipProps, 'children'>
@@ -11,7 +11,7 @@ interface HelpTooltipProps extends InheritedTooltipProps {
 
 const HelpTooltip = ({ iconColor = 'var(--color-text-2)', iconSize = 14, iconStyle, ...rest }: HelpTooltipProps) => {
   return (
-    <Tooltip {...rest}>
+    <Tooltip showArrow={true} {...rest}>
       <HelpCircle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Help" />
     </Tooltip>
   )

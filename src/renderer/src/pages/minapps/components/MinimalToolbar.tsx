@@ -8,13 +8,14 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
 import { MinAppType } from '@renderer/types'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { WebviewTag } from 'electron'
 import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -87,19 +88,19 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
     <ToolbarContainer>
       <LeftSection>
         <ButtonGroup>
-          <Tooltip title={t('minapp.popup.goBack')} placement="bottom">
+          <Tooltip content={t('minapp.popup.goBack')} placement="bottom" showArrow={true}>
             <ToolbarButton onClick={handleGoBack} $disabled={!canGoBack}>
               <ArrowLeftOutlined />
             </ToolbarButton>
           </Tooltip>
 
-          <Tooltip title={t('minapp.popup.goForward')} placement="bottom">
+          <Tooltip content={t('minapp.popup.goForward')} placement="bottom" showArrow={true}>
             <ToolbarButton onClick={handleGoForward} $disabled={!canGoForward}>
               <ArrowRightOutlined />
             </ToolbarButton>
           </Tooltip>
 
-          <Tooltip title={t('minapp.popup.refresh')} placement="bottom">
+          <Tooltip content={t('minapp.popup.refresh')} placement="bottom" showArrow={true}>
             <ToolbarButton onClick={onReload}>
               <ReloadOutlined />
             </ToolbarButton>
@@ -110,7 +111,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       <RightSection>
         <ButtonGroup>
           {canOpenExternalLink && (
-            <Tooltip title={t('minapp.popup.openExternal')} placement="bottom">
+            <Tooltip content={t('minapp.popup.openExternal')} placement="bottom" showArrow={true}>
               <ToolbarButton onClick={handleOpenLink}>
                 <ExportOutlined />
               </ToolbarButton>
@@ -119,8 +120,9 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
           {canPinned && (
             <Tooltip
-              title={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
-              placement="bottom">
+              content={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
+              placement="bottom"
+              showArrow={true}>
               <ToolbarButton onClick={handleTogglePin} $active={isPinned}>
                 <PushpinOutlined />
               </ToolbarButton>
@@ -128,26 +130,27 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           )}
 
           <Tooltip
-            title={
+            content={
               minappsOpenLinkExternal
                 ? t('minapp.popup.open_link_external_on')
                 : t('minapp.popup.open_link_external_off')
             }
-            placement="bottom">
+            placement="bottom"
+            showArrow={true}>
             <ToolbarButton onClick={handleToggleOpenExternal} $active={minappsOpenLinkExternal}>
               <LinkOutlined />
             </ToolbarButton>
           </Tooltip>
 
           {isInDevelopment && (
-            <Tooltip title={t('minapp.popup.devtools')} placement="bottom">
+            <Tooltip content={t('minapp.popup.devtools')} placement="bottom" showArrow={true}>
               <ToolbarButton onClick={onOpenDevTools}>
                 <CodeOutlined />
               </ToolbarButton>
             </Tooltip>
           )}
 
-          <Tooltip title={t('minapp.popup.minimize')} placement="bottom">
+          <Tooltip content={t('minapp.popup.minimize')} placement="bottom" showArrow={true}>
             <ToolbarButton onClick={handleMinimize}>
               <MinusOutlined />
             </ToolbarButton>

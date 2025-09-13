@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
@@ -8,7 +9,7 @@ import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model } from '@renderer/types'
-import { Slider, Tooltip } from 'antd'
+import { Slider } from 'antd'
 import { find } from 'lodash'
 import { Info } from 'lucide-react'
 import { useMemo } from 'react'
@@ -70,7 +71,7 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('models.embedding_dimensions')}
-          <Tooltip title={t('knowledge.dimensions_size_tooltip')}>
+          <Tooltip content={t('knowledge.dimensions_size_tooltip')} showArrow={true}>
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>
@@ -101,7 +102,10 @@ const RagSettings = () => {
       <SettingRow>
         <SettingRowTitle>
           {t('settings.tool.websearch.compression.rag.document_count.label')}
-          <Tooltip title={t('settings.tool.websearch.compression.rag.document_count.tooltip')} placement="top">
+          <Tooltip
+            content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
+            placement="top"
+            showArrow={true}>
             <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
           </Tooltip>
         </SettingRowTitle>

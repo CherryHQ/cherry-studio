@@ -1,5 +1,6 @@
+import { Tooltip } from '@heroui/react'
 import { ActionTool } from '@renderer/components/ActionTools'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import { memo, useMemo } from 'react'
 
 import { ToolWrapper } from './styles'
@@ -11,7 +12,7 @@ interface CodeToolButtonProps {
 const CodeToolButton = ({ tool }: CodeToolButtonProps) => {
   const mainTool = useMemo(
     () => (
-      <Tooltip key={tool.id} title={tool.tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+      <Tooltip key={tool.id} content={tool.tooltip} delay={500} showArrow={true}>
         <ToolWrapper onClick={tool.onClick}>{tool.icon}</ToolWrapper>
       </Tooltip>
     ),

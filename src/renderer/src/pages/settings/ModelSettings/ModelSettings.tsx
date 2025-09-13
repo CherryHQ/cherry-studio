@@ -1,4 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
@@ -12,7 +13,7 @@ import { getModelUniqId, hasModel } from '@renderer/services/ModelService'
 import { useAppDispatch } from '@renderer/store'
 import { setTranslateModelPrompt } from '@renderer/store/settings'
 import { Model } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { find } from 'lodash'
 import { Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
@@ -83,7 +84,7 @@ const ModelSettings: FC = () => {
           <RowFlex className="items-center gap-2.5">
             <Rocket size={18} color="var(--color-text)" />
             {t('settings.models.quick_model.label')}
-            <InfoTooltip title={t('settings.models.quick_model.tooltip')} />
+            <InfoTooltip content={t('settings.models.quick_model.tooltip')} />
           </RowFlex>
         </SettingTitle>
         <RowFlex className="items-center">
@@ -123,7 +124,7 @@ const ModelSettings: FC = () => {
             onClick={() => TranslateSettingsPopup.show()}
           />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip title={t('common.reset')}>
+            <Tooltip content={t('common.reset')} showArrow={true}>
               <Button icon={<RedoOutlined />} style={{ marginLeft: 8 }} onClick={onResetTranslatePrompt}></Button>
             </Tooltip>
           )}

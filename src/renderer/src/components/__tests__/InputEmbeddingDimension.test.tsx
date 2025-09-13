@@ -23,8 +23,8 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-// Mock antd components to prevent flaky snapshot tests
-vi.mock('antd', () => {
+// Mock HeroUI components to prevent flaky snapshot tests
+vi.mock('@heroui/react', () => {
   const MockSpaceCompact: React.FC<React.PropsWithChildren<{ style?: React.CSSProperties }>> = ({
     children,
     style
@@ -54,8 +54,12 @@ vi.mock('antd', () => {
     </button>
   )
 
-  const MockTooltip: React.FC<React.PropsWithChildren<{ title: string }>> = ({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  const MockTooltip: React.FC<React.PropsWithChildren<{ content: string; showArrow?: boolean }>> = ({
+    children,
+    content,
+    showArrow
+  }) => (
+    <div data-testid="tooltip" data-content={content} data-show-arrow={showArrow}>
       {children}
     </div>
   )

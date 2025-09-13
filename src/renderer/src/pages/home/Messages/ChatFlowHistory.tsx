@@ -1,6 +1,7 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
@@ -16,7 +17,7 @@ import { isEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
-import { Avatar, Spin, Tooltip } from 'antd'
+import { Avatar, Spin } from 'antd'
 import { isEqual } from 'lodash'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,18 +139,14 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
   return (
     <Tooltip
-      title={
+      content={
         <TooltipContent>
           <TooltipTitle>{title}</TooltipTitle>
           <TooltipBody>{data.content}</TooltipBody>
           <TooltipFooter>{t('chat.history.click_to_navigate')}</TooltipFooter>
         </TooltipContent>
       }
-      placement="top"
-      color="rgba(0, 0, 0, 0.85)"
-      mouseEnterDelay={0.3}
-      mouseLeaveDelay={0.1}
-      destroyOnHidden>
+      placement="top">
       <CustomNodeContainer
         style={{
           borderColor,
@@ -164,7 +161,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
           <NodeAvatar>{avatar}</NodeAvatar>
           <NodeTitle>{title}</NodeTitle>
         </NodeHeader>
-        <NodeContent title={data.content}>{data.content}</NodeContent>
+        <NodeContent content={data.content}>{data.content}</NodeContent>
 
         <Handle type="source" position={Position.Bottom} style={handleStyle} isConnectable={false} />
         <Handle type="source" position={Position.Right} style={handleStyle} isConnectable={false} />

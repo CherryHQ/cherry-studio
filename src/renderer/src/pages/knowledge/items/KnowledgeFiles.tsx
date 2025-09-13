@@ -9,7 +9,8 @@ import { getProviderName } from '@renderer/services/ProviderService'
 import { FileMetadata, FileTypes, isKnowledgeFileItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Button, Tooltip, Upload } from 'antd'
+import { Button, Upload } from 'antd'
+import { Tooltip } from '@heroui/react'
 import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -191,7 +192,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
-                            <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            <Tooltip content={file.origin_name} showArrow={true}>{file.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),

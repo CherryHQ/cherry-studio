@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeToolButton from '../button'
 
-// Mock Antd components
+// Mock HeroUI components
 const mocks = vi.hoisted(() => ({
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, content, showArrow }) => (
+    <div data-testid="tooltip" data-content={content} data-show-arrow={showArrow}>
       {children}
     </div>
   )),
@@ -18,8 +18,11 @@ const mocks = vi.hoisted(() => ({
   ))
 }))
 
+vi.mock('@heroui/react', () => ({
+  Tooltip: mocks.Tooltip
+}))
+
 vi.mock('antd', () => ({
-  Tooltip: mocks.Tooltip,
   Dropdown: mocks.Dropdown
 }))
 
@@ -142,7 +145,8 @@ describe('CodeToolButton', () => {
 
       const button = screen.getByTestId('tool-wrapper')
       expect(button.tagName).toBe('BUTTON')
-      expect(screen.getByTestId('tooltip')).toHaveAttribute('data-title', 'Accessible Tool')
+      expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'Accessible Tool')
+      expect(screen.getByTestId('tooltip')).toHaveAttribute('data-show-arrow', 'true')
     })
   })
 

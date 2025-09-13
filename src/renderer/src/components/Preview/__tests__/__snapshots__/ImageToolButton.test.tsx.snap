@@ -3,16 +3,25 @@
 exports[`ImageToolButton > should match snapshot 1`] = `
 <DocumentFragment>
   <div
+    data-show-arrow="true"
     title="Test tooltip"
   >
     <button
       aria-label="Test tooltip"
-      data-testid="custom-button"
-      icon="[object Object]"
+      class="ant-btn css-dev-only-do-not-override-l9pxc0 ant-btn-circle ant-btn-default ant-btn-color-default ant-btn-variant-outlined ant-btn-icon-only"
       role="button"
-      shape="circle"
       type="button"
-    />
+    >
+      <span
+        class="ant-btn-icon"
+      >
+        <span
+          data-testid="test-icon"
+        >
+          Icon
+        </span>
+      </span>
+    </button>
   </div>
 </DocumentFragment>
 `;

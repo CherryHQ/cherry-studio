@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
@@ -16,7 +17,7 @@ import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { Space, Tooltip } from 'antd'
+import { Space } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -352,18 +353,18 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         </ActionBarLeft>
         <ActionBarMiddle />
         <ActionBarRight>
-          <Tooltip title={t('common.cancel')}>
+          <Tooltip content={t('common.cancel')} showArrow={true}>
             <ToolbarButton type="text" onClick={onCancel}>
               <X size={16} />
             </ToolbarButton>
           </Tooltip>
-          <Tooltip title={t('common.save')}>
+          <Tooltip content={t('common.save')} showArrow={true}>
             <ToolbarButton type="text" onClick={handleSave}>
               <Save size={16} />
             </ToolbarButton>
           </Tooltip>
           {message.role === 'user' && (
-            <Tooltip title={t('chat.resend')}>
+            <Tooltip content={t('chat.resend')} showArrow={true}>
               <ToolbarButton type="text" onClick={handleResend}>
                 <Send size={16} />
               </ToolbarButton>

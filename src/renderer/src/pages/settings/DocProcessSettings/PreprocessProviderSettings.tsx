@@ -1,11 +1,12 @@
 import { ExportOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { Flex } from '@renderer/components/Layout'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Input, Tooltip } from 'antd'
+import { Avatar, Button, Divider, Input } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -93,7 +94,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500} showArrow={true}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
           </SettingSubtitle>

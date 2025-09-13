@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { DraggableVirtualList } from '@renderer/components/DraggableList'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
@@ -28,7 +29,7 @@ import {
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Dropdown, MenuProps, Tooltip } from 'antd'
+import { Dropdown, MenuProps } from 'antd'
 import { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
@@ -246,7 +247,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         key: 'topic-prompt',
         icon: <PackagePlus size={14} />,
         extra: (
-          <Tooltip title={t('chat.topics.prompt.tips')}>
+          <Tooltip content={t('chat.topics.prompt.tips')} showArrow={true}>
             <HelpCircle size={14} />
           </Tooltip>
         ),
@@ -543,7 +544,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 ) : (
                   <TopicName
                     className={getTopicNameClassName()}
-                    title={topicName}
+                    content={topicName}
                     onDoubleClick={() => {
                       setEditingTopicId(topic.id)
                       topicEdit.startEdit(topic.name)
@@ -554,9 +555,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
-                    title={
+                    content={
                       <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
                         {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
                       </div>
@@ -587,7 +586,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 )}
               </TopicNameContainer>
               {topicPrompt && (
-                <TopicPromptText className="prompt" title={fullTopicPrompt}>
+                <TopicPromptText className="prompt" content={fullTopicPrompt}>
                   {fullTopicPrompt}
                 </TopicPromptText>
               )}

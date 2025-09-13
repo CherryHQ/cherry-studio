@@ -60,8 +60,9 @@ exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 
       data-testid="hstack"
     >
       <div
+        data-content="code_block.more"
+        data-show-arrow="true"
         data-testid="tooltip"
-        data-title="code_block.more"
       >
         <div
           class="c2"

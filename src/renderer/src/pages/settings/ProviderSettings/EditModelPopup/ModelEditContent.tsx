@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { Flex } from '@renderer/components/Layout'
 import {
@@ -21,7 +22,7 @@ import {
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
-import { Button, Divider, Form, Input, InputNumber, message, Modal, ModalProps, Select, Switch, Tooltip } from 'antd'
+import { Button, Divider, Form, Input, InputNumber, message, Modal, ModalProps, Select, Switch } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -182,11 +183,11 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <TypeTitle>
           <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
-            <WarnTooltip title={t('settings.moresetting.check.warn')} />
+            <WarnTooltip content={t('settings.moresetting.check.warn')} />
           </Flex>
 
           {hasUserModified && (
-            <Tooltip title={t('common.reset')}>
+            <Tooltip content={t('common.reset')} showArrow={true}>
               <Button size="small" icon={<RotateCcw size={14} />} onClick={handleResetTypes} type="text" />
             </Tooltip>
           )}

@@ -1,5 +1,6 @@
+import { Tooltip } from '@heroui/react'
 import i18n from '@renderer/i18n'
-import { Input, InputRef, Tooltip } from 'antd'
+import { Input, InputRef } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -92,7 +93,7 @@ const CollapsibleSearchBar = ({
         }}
         style={{ cursor: 'pointer', display: 'flex' }}
         onClick={() => setSearchVisible(true)}>
-        <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+        <Tooltip content={tooltip} delay={500} showArrow={true}>
           {icon}
         </Tooltip>
       </motion.div>

@@ -1,7 +1,9 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`InfoTooltip > should match snapshot 1`] = `
-<div>
+<div
+  data-show-arrow="true"
+>
   <div
     aria-label="Information"
     color="#1890ff"

@@ -6,6 +6,7 @@ import {
   NumberOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
@@ -14,7 +15,7 @@ import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -105,9 +106,10 @@ const MessageGroupMenuBar: FC<Props> = ({
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
-              mouseEnterDelay={0.5}
+              delay={500}
               key={layout}
-              title={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}>
+              content={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}
+              showArrow={true}>
               <LayoutOption
                 $active={multiModelMessageStyle === layout}
                 onClick={() => setMultiModelMessageStyle(layout)}>
@@ -134,7 +136,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </RowFlex>
       {hasFailedMessages && (
-        <Tooltip title={t('message.group.retry_failed')} mouseEnterDelay={0.6}>
+        <Tooltip content={t('message.group.retry_failed')} delay={600} showArrow={true}>
           <Button
             type="text"
             size="small"

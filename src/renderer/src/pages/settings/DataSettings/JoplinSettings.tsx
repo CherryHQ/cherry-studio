@@ -1,10 +1,11 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
 import { setJoplinExportReasoning, setJoplinToken, setJoplinUrl } from '@renderer/store/settings'
-import { Button, Space, Switch, Tooltip } from 'antd'
+import { Button, Space, Switch } from 'antd'
 import { Input } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -98,7 +99,7 @@ const JoplinSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle style={{ display: 'flex', alignItems: 'center' }}>
           <span>{t('settings.data.joplin.token')}</span>
-          <Tooltip title={t('settings.data.joplin.help')} placement="left">
+          <Tooltip content={t('settings.data.joplin.help')} placement="left" showArrow={true}>
             <InfoCircleOutlined
               style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
               onClick={handleJoplinHelpClick}

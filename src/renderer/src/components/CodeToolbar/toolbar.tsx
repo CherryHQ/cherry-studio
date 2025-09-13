@@ -1,6 +1,7 @@
+import { Tooltip } from '@heroui/react'
 import { ActionTool } from '@renderer/components/ActionTools'
 import { RowFlex } from '@renderer/components/Layout'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { EllipsisVertical } from 'lucide-react'
 import { memo, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,7 +40,7 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (
-          <Tooltip title={t('code_block.more')} mouseEnterDelay={0.5}>
+          <Tooltip content={t('code_block.more')} delay={500} showArrow={true}>
             <ToolWrapper onClick={() => setShowQuickTools(!showQuickTools)} className={showQuickTools ? 'active' : ''}>
               <EllipsisVertical className="tool-icon" />
             </ToolWrapper>

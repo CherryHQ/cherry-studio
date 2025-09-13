@@ -1,4 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import VideoPopup from '@renderer/components/Popups/VideoPopup'
@@ -6,7 +7,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { FileTypes, isKnowledgeVideoItem, KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
@@ -128,7 +129,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(videoFile)}>
                           <Ellipsis>
-                            <Tooltip title={videoFile.origin_name}>{videoFile.origin_name}</Tooltip>
+                            <Tooltip content={videoFile.origin_name} showArrow={true}>
+                              {videoFile.origin_name}
+                            </Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),

@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import {
   MdiLightbulbAutoOutline,
   MdiLightbulbOffOutline,
@@ -11,7 +12,7 @@ import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS }
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Assistant, Model, ThinkingOption } from '@renderer/types'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { FC, ReactElement, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -144,13 +145,12 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
   return (
     <Tooltip
       placement="top"
-      title={
+      content={
         isThinkingEnabled && supportedOptions.includes('off')
           ? t('common.close')
           : t('assistants.settings.reasoning_effort.label')
       }
-      mouseLeaveDelay={0}
-      arrow>
+      showArrow={true}>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         {getThinkingIcon()}
       </ToolbarButton>

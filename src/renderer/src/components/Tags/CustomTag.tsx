@@ -1,5 +1,5 @@
 import { CloseOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
+import { Tooltip } from '@heroui/react'
 import { CSSProperties, FC, memo, MouseEventHandler, useMemo } from 'react'
 import styled from 'styled-components'
 
@@ -60,7 +60,7 @@ const CustomTag: FC<CustomTagProps> = ({
   )
 
   return tooltip ? (
-    <Tooltip title={tooltip} placement="top" mouseEnterDelay={0.3}>
+    <Tooltip content={tooltip} placement="top" delay={300} showArrow={true}>
       {tagContent}
     </Tooltip>
   ) : (

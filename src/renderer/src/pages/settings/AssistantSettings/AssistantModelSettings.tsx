@@ -1,4 +1,5 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
@@ -11,7 +12,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
@@ -243,7 +244,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <RowFlex className="items-center">
           <Label>
             {t('chat.settings.temperature.label')}
-            <Tooltip title={t('chat.settings.temperature.tip')}>
+            <Tooltip content={t('chat.settings.temperature.tip')} showArrow={true}>
               <QuestionIcon />
             </Tooltip>
           </Label>
@@ -292,7 +293,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
-          <Tooltip title={t('chat.settings.top_p.tip')}>
+          <Tooltip content={t('chat.settings.top_p.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </RowFlex>
@@ -341,7 +342,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <Col span={20}>
           <Label>
             {t('chat.settings.context_count.label')}{' '}
-            <Tooltip title={t('chat.settings.context_count.tip')}>
+            <Tooltip content={t('chat.settings.context_count.tip')} showArrow={true}>
               <QuestionIcon />
             </Tooltip>
           </Label>
@@ -381,7 +382,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
+          <Tooltip content={t('chat.settings.max_tokens.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </RowFlex>

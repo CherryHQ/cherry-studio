@@ -1,8 +1,9 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { Box } from '@renderer/components/Layout'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { Assistant, AssistantSettings } from '@renderer/types'
-import { Empty, Switch, Tooltip } from 'antd'
+import { Empty, Switch } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -54,7 +55,9 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       <HeaderContainer>
         <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('assistants.settings.mcp.title')}
-          <Tooltip title={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}>
+          <Tooltip
+            content={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}
+            showArrow={true}>
             <InfoIcon />
           </Tooltip>
         </Box>
@@ -78,11 +81,12 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                   {server.baseUrl && <ServerUrl>{server.baseUrl}</ServerUrl>}
                 </ServerInfo>
                 <Tooltip
-                  title={
+                  content={
                     !server.isActive
                       ? t('assistants.settings.mcp.enableFirst', 'Enable this server in MCP settings first')
                       : undefined
-                  }>
+                  }
+                  showArrow={true}>
                   <Switch
                     checked={isEnabled}
                     disabled={!server.isActive}

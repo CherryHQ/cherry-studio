@@ -1,4 +1,5 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { RowFlex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -6,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase } from '@renderer/types'
-import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
+import { Button, Empty, Tabs, Tag } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -153,7 +154,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             <div className="label-column">
               <label>{t('models.embedding_model')}</label>
             </div>
-            <Tooltip title={providerName} placement="bottom">
+            <Tooltip content={providerName} placement="bottom" showArrow={true}>
               <div className="tag-column">
                 <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
               </div>

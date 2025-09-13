@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -6,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Dropdown, Tooltip } from 'antd'
+import { Button, Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import { FC, useCallback, useMemo } from 'react'
@@ -161,7 +162,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     }}
                     trigger={['contextMenu']}>
                     <ClickableSpan>
-                      <Tooltip title={item.content as string}>
+                      <Tooltip content={item.content as string} showArrow={true}>
                         <Ellipsis>
                           <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                             {item.remark || (item.content as string)}

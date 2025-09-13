@@ -1,4 +1,5 @@
 import { PushpinOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { TopView } from '@renderer/components/TopView'
@@ -10,7 +11,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { Model, ModelType, objectEntries, Provider } from '@renderer/types'
 import { classNames, filterModelsByKeywords, getFancyProviderName } from '@renderer/utils'
 import { getModelTags } from '@renderer/utils/model'
-import { Avatar, Divider, Empty, Modal, Tooltip } from 'antd'
+import { Avatar, Divider, Empty, Modal } from 'antd'
 import { first, sortBy } from 'lodash'
 import { Settings2 } from 'lucide-react'
 import React, {
@@ -178,7 +179,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         type: 'group',
         name: getFancyProviderName(p),
         actions: (
-          <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip content={t('navigate.provider_settings')} delay={500} showArrow={true}>
             <Settings2
               size={12}
               color="var(--color-text)"

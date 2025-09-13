@@ -1,4 +1,5 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -42,7 +43,7 @@ import {
   determineTargetLanguage
 } from '@renderer/utils/translate'
 import { imageExts, MB, textExts } from '@shared/config/constant'
-import { Button, FloatButton, Popover, Tooltip, Typography } from 'antd'
+import { Button, FloatButton, Popover, Typography } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
 import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
@@ -714,7 +715,7 @@ const TranslatePage: FC = () => {
                 }
               ]}
             />
-            <Tooltip title={t('translate.exchange.label')} placement="bottom">
+            <Tooltip content={t('translate.exchange.label')} placement="bottom" showArrow={true}>
               <Button
                 type="text"
                 icon={<SwapOutlined />}
@@ -971,16 +972,16 @@ const TranslateButton = ({
   const { t } = useTranslation()
   return (
     <Tooltip
-      mouseEnterDelay={0.5}
+      delay={500}
       placement="bottom"
-      styles={{ body: { fontSize: '12px' } }}
-      title={
+      content={
         <div style={{ textAlign: 'center' }}>
           Enter: {t('translate.button.translate')}
           <br />
           Shift + Enter: {t('translate.tooltip.newline')}
         </div>
-      }>
+      }
+      showArrow={true}>
       {!translating && (
         <Button type="primary" onClick={onTranslate} disabled={!couldTranslate} icon={<SendOutlined />}>
           {t('translate.button.translate')}

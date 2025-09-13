@@ -1,7 +1,8 @@
+import { Tooltip } from '@heroui/react'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
-import { Tooltip } from 'antd'
+import {} from 'antd'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -106,7 +107,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   }))
 
   return (
-    <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" content={t('chat.input.knowledge_base')} showArrow={true}>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
         <FileSearch
           size={18}

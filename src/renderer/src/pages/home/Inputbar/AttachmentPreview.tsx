@@ -12,13 +12,14 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { ColFlex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Image, Tooltip } from 'antd'
+import { Image } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useState } from 'react'
 import styled from 'styled-components'
@@ -94,13 +95,10 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
 
   return (
     <Tooltip
-      styles={{
-        body: {
-          padding: 5
-        }
+      classNames={{
+        content: 'p-[5px]'
       }}
-      fresh
-      title={
+      content={
         <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (
             <Image
@@ -127,7 +125,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           const name = FileManager.formatFileName(file)
           preview(path, name, file.type, file.ext)
         }}
-        title={fullName}>
+        content={fullName}>
         {displayName}
       </FileName>
     </Tooltip>
