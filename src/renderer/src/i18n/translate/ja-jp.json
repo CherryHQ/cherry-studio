@@ -538,6 +538,10 @@
         "tip": "実行可能なコードブロックのツールバーには実行ボタンが表示されます。危険なコードを実行しないでください！",
         "title": "コード実行"
       },
+      "code_fancy_block": {
+        "label": "<translate_input>\n装飾的なコードブロック\n</translate_input>",
+        "tip": "より見栄えの良いコードブロックスタイルを使用する、例えばHTMLカード"
+      },
       "code_image_tools": {
         "label": "プレビューツールを有効にする",
         "tip": "mermaid などのコードブロックから生成された画像に対してプレビューツールを有効にする"
@@ -1704,7 +1708,7 @@
     "delete_confirm": "この{{type}}を本当に削除しますか？",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
     "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
-    "drop_markdown_hint": "Markdown ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
+    "drop_markdown_hint": ".md ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
     "empty": "暫無ノート",
     "expand": "展開",
     "export_failed": "知識ベースへのエクスポートに失敗しました",
@@ -1741,8 +1745,15 @@
         "compress_content": "バーの幅を減らします",
         "compress_content_description": "有効にすると、1行あたりの単語数が制限され、画面に表示されるコンテンツが減少します。",
         "default_font": "デフォルトフォント",
+        "font_size": "フォントサイズ",
+        "font_size_description": "フォントサイズを調整して読書体験を向上させる（10-30px）",
+        "font_size_large": "大",
+        "font_size_medium": "中",
+        "font_size_small": "小",
         "font_title": "フォント設定",
         "serif_font": "セリフフォント",
+        "show_table_of_contents": "目次アウトラインを表示",
+        "show_table_of_contents_description": "目次アウトラインサイドバーを表示し、文書内のナビゲーションを容易にする",
         "title": "見せる"
       },
       "editor": {
@@ -1770,7 +1781,7 @@
     "sort_updated_asc": "更新日時（古い順）",
     "sort_updated_desc": "更新日時（新しい順）",
     "sort_z2a": "ファイル名（Z-A）",
-    "star": "お気に入りに追加する",
+    "star": "お気に入りのノート",
     "starred_notes": "収集したノート",
     "title": "ノート",
     "unsaved_changes": "保存されていないコンテンツがあります。本当に離れますか？",
@@ -2638,6 +2649,10 @@
         "token_placeholder": "Joplin 認証トークンを入力してください",
         "url": "Joplin 剪輯服務 URL",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "ディスク容量警告",
+        "appDataDiskQuotaDescription": "データディレクトリの容量がほぼ満杯になっており、新しいデータの保存ができなくなる可能性があります。まずデータをバックアップしてから、ディスク容量を整理してください。"
       },
       "local": {
         "autoSync": {

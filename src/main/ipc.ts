@@ -12,6 +12,7 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
+import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import { Notification } from 'src/renderer/src/types/notification'
 
@@ -783,6 +784,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
       addStreamMessage(spanId, modelName, context, msg)
   )
 
+  ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
+    try {
+      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
+      logger.debug('disk space', diskSpace)
+      const { free, size } = diskSpace
+      return {
+        free,
+        size
+      }
+    } catch (error) {
+      logger.error('check disk space error', error as Error)
+      return null
+    }
+  })
   // API Server
   apiServerService.registerIpcHandlers()
 

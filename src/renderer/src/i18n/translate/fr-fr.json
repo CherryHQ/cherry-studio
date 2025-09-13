@@ -538,6 +538,10 @@
         "tip": "Une bouton d'exécution s'affichera dans la barre d'outils des blocs de code exécutables. Attention à ne pas exécuter de code dangereux !",
         "title": "Exécution de code"
       },
+      "code_fancy_block": {
+        "label": "bloc de code fantaisie",
+        "tip": "Utiliser un style de bloc de code plus esthétique, comme une carte HTML"
+      },
       "code_image_tools": {
         "label": "Activer l'outil d'aperçu",
         "tip": "Activer les outils de prévisualisation pour les images rendues des blocs de code tels que mermaid"
@@ -1704,7 +1708,7 @@
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ce {{type}} ?",
     "delete_folder_confirm": "Êtes-vous sûr de vouloir supprimer le dossier \"{{name}}\" et tout son contenu ?",
     "delete_note_confirm": "Êtes-vous sûr de vouloir supprimer la note \"{{name}}\" ?",
-    "drop_markdown_hint": "Déposez ici des fichiers ou dossiers Markdown pour les importer",
+    "drop_markdown_hint": "Déposez ici des fichiers ou dossiers .md pour les importer",
     "empty": "Aucune note pour le moment",
     "expand": "développer",
     "export_failed": "Échec de l'exportation vers la base de connaissances",
@@ -1741,8 +1745,15 @@
         "compress_content": "réduire la largeur des colonnes",
         "compress_content_description": "L'activation limitera le nombre de caractères par ligne, réduisant ainsi le contenu affiché à l'écran.",
         "default_font": "police par défaut",
+        "font_size": "Taille de police",
+        "font_size_description": "Ajuster la taille de la police pour une meilleure expérience de lecture (10-30px)",
+        "font_size_large": "Grand",
+        "font_size_medium": "中",
+        "font_size_small": "petit",
         "font_title": "paramétrage des polices",
         "serif_font": "police à empattements",
+        "show_table_of_contents": "Afficher le plan du sommaire",
+        "show_table_of_contents_description": "Afficher la barre latérale de la table des matières pour faciliter la navigation dans le document",
         "title": "Paramètres d'affichage"
       },
       "editor": {
@@ -1770,7 +1781,7 @@
     "sort_updated_asc": "Heure de mise à jour (du plus ancien au plus récent)",
     "sort_updated_desc": "Date de mise à jour (du plus récent au plus ancien)",
     "sort_z2a": "Nom de fichier (Z-A)",
-    "star": "Favori",
+    "star": "Notes enregistrées",
     "starred_notes": "notes de collection",
     "title": "notes",
     "unsaved_changes": "Vous avez des modifications non enregistrées, êtes-vous sûr de vouloir quitter ?",
@@ -2638,6 +2649,10 @@
         "token_placeholder": "Veuillez entrer le jeton d'autorisation de Joplin",
         "url": "URL surveillée par le service de découpage de Joplin",
         "url_placeholder": "http://127.0.0.1:41184/"
+      },
+      "limit": {
+        "appDataDiskQuota": "Avertissement d'espace sur le disque",
+        "appDataDiskQuotaDescription": "L'espace de stockage des données est presque plein, veuillez nettoyer l'espace sur le disque, sinon les données seront perdues"
       },
       "local": {
         "autoSync": {

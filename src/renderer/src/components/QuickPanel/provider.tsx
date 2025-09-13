@@ -61,7 +61,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
   const close = useCallback(
     (action?: QuickPanelCloseAction, searchText?: string) => {
       setIsVisible(false)
-      onClose?.({ symbol, action, triggerInfo, searchText, item: {} as QuickPanelListItem, multiple: false })
+      onClose?.({ action, searchText, item: {} as QuickPanelListItem, context: this })
 
       clearTimer.current = setTimeout(() => {
         setList([])
@@ -73,7 +73,7 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
         setTriggerInfo(undefined)
       }, 200)
     },
-    [onClose, symbol, triggerInfo]
+    [onClose]
   )
 
   useEffect(() => {
