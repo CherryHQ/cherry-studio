@@ -13185,6 +13185,7 @@ __metadata:
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:1.3.2"
+    font-list: "npm:^2.0.0"
     framer-motion: "npm:^12.23.12"
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
@@ -18027,6 +18028,13 @@ __metadata:
     debug:
       optional: true
   checksum: 10c0/5829165bd112c3c0e82be6c15b1a58fa9dcfaede3b3c54697a82fe4a62dd5ae5e8222956b448d2f98e331525f05d00404aba7d696de9e761ef6e42fdc780244f
+  languageName: node
+  linkType: hard
+
+"font-list@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "font-list@npm:2.0.0"
+  checksum: 10c0/9fc8600fa40a5d079982505ea101e49b21260a36f33167ac993fd7b26cec8372a16017c00d6fb404e259600ce8d588830167c9141c2df7dedb0fedd5953905f6
   languageName: node
   linkType: hard
 
