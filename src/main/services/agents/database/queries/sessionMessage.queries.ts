@@ -1,8 +1,8 @@
 /**
- * SQL queries for Session Log operations
+ * SQL queries for Session Message operations
  */
 
-export const SessionLogQueries = {
+export const SessionMessageQueries = {
   // CREATE
   insert: `
     INSERT INTO session_logs (session_id, parent_id, role, type, content, metadata, created_at, updated_at)

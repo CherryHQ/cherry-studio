@@ -16,7 +16,7 @@ export { Migrator } from './migrator'
 // Database queries (organized by entity)
 export * as AgentQueries from './queries/agent.queries'
 export * as SessionQueries from './queries/session.queries'
-export * as SessionLogQueries from './queries/sessionLog.queries'
+export * as SessionMessageQueries from './queries/sessionMessage.queries'
 
 // Migration schema utilities (for migration tracking table)
 export * as MigrationsSchema from './schema/migrations'
@@ -25,7 +25,7 @@ export * as MigrationsSchema from './schema/migrations'
 // Services only use the query methods, not the table/index creation methods
 import * as AgentQueriesActual from './queries/agent.queries'
 import * as SessionQueriesActual from './queries/session.queries'
-import * as SessionLogQueriesActual from './queries/sessionLog.queries'
+import * as SessionMessageQueriesActual from './queries/sessionMessage.queries'
 
 export const AgentQueries_Legacy = {
   // Agent operations
@@ -34,6 +34,6 @@ export const AgentQueries_Legacy = {
   // Session operations
   sessions: SessionQueriesActual.SessionQueries,
 
-  // Session logs operations
-  sessionLogs: SessionLogQueriesActual.SessionLogQueries
+  // Session messages operations
+  sessionMessages: SessionMessageQueriesActual.SessionMessageQueries
 }

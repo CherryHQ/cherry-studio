@@ -1,14 +1,14 @@
 /**
- * Database entity types for Agent, Session, and SessionLog
+ * Database entity types for Agent, Session, and SessionMessage
  * Shared between main and renderer processes
  */
 
 export type SessionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'stopped'
 export type PermissionMode = 'readOnly' | 'acceptEdits' | 'bypassPermissions'
-export type SessionLogRole = 'user' | 'agent' | 'system' | 'tool'
+export type SessionMessageRole = 'user' | 'agent' | 'system' | 'tool'
 export type AgentType = 'claude-code' | 'codex' | 'qwen-cli' | 'gemini-cli' | 'custom'
 
-export type SessionLogType =
+export type SessionMessageType =
   | 'message' // User or agent message
   | 'thought' // Agent's internal reasoning/planning
   | 'action' // Tool/function call initiated
@@ -61,13 +61,13 @@ export interface AgentSessionEntity extends AgentConfiguration {
   updated_at: string
 }
 
-// SessionLog entity for tracking all agent activities
-export interface SessionLogEntity {
+// SessionMessage entity for tracking all agent activities
+export interface SessionMessageEntity {
   id: number // Auto-increment primary key
   session_id: string // Reference to session
   parent_id?: number // For tree structure (e.g., tool calls under an action)
-  role: SessionLogRole // 'user', 'agent', 'system', 'tool'
-  type: SessionLogType // Type of log entry
+  role: SessionMessageRole // 'user', 'agent', 'system', 'tool'
+  type: SessionMessageType // Type of log entry
   content: Record<string, any> // JSON structured data
   metadata?: Record<string, any> // Additional metadata (optional)
   created_at: string // ISO timestamp

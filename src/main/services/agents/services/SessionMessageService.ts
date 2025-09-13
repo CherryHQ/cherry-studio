@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
-import type { SessionLogEntity } from '@types'
+import type { SessionMessageEntity } from '@types'
 
 import { BaseService } from '../BaseService'
 import { AgentQueries_Legacy as AgentQueries } from '../database'
 
-const logger = loggerService.withContext('SessionLogService')
+const logger = loggerService.withContext('SessionMessageService')
 
-export interface CreateSessionLogRequest {
+export interface CreateSessionMessageRequest {
   session_id: string
   parent_id?: number
   role: 'user' | 'agent' | 'system' | 'tool'
@@ -15,31 +15,31 @@ export interface CreateSessionLogRequest {
   metadata?: Record<string, any>
 }
 
-export interface UpdateSessionLogRequest {
+export interface UpdateSessionMessageRequest {
   content?: Record<string, any>
   metadata?: Record<string, any>
 }
 
-export interface ListSessionLogsOptions {
+export interface ListSessionMessagesOptions {
   limit?: number
   offset?: number
 }
 
-export class SessionLogService extends BaseService {
-  private static instance: SessionLogService | null = null
+export class SessionMessageService extends BaseService {
+  private static instance: SessionMessageService | null = null
 
-  static getInstance(): SessionLogService {
-    if (!SessionLogService.instance) {
-      SessionLogService.instance = new SessionLogService()
+  static getInstance(): SessionMessageService {
+    if (!SessionMessageService.instance) {
+      SessionMessageService.instance = new SessionMessageService()
     }
-    return SessionLogService.instance
+    return SessionMessageService.instance
   }
 
   async initialize(): Promise<void> {
     await BaseService.initialize()
   }
 
-  async createSessionLog(logData: CreateSessionLogRequest): Promise<SessionLogEntity> {
+  async createSessionMessage(messageData: CreateSessionMessageRequest): Promise<SessionMessageEntity> {
     this.ensureInitialized()
 
     // Validate session exists - we'll need to import SessionService for this check
@@ -47,52 +47,52 @@ export class SessionLogService extends BaseService {
     // The database foreign key constraint will handle this
 
     // Validate parent exists if specified
-    if (logData.parent_id) {
-      const parentExists = await this.sessionLogExists(logData.parent_id)
+    if (messageData.parent_id) {
+      const parentExists = await this.sessionMessageExists(messageData.parent_id)
       if (!parentExists) {
-        throw new Error(`Parent log with id ${logData.parent_id} does not exist`)
+        throw new Error(`Parent message with id ${messageData.parent_id} does not exist`)
       }
     }
 
     const now = new Date().toISOString()
 
     const values = [
-      logData.session_id,
-      logData.parent_id || null,
-      logData.role,
-      logData.type,
-      JSON.stringify(logData.content),
-      logData.metadata ? JSON.stringify(logData.metadata) : null,
+      messageData.session_id,
+      messageData.parent_id || null,
+      messageData.role,
+      messageData.type,
+      JSON.stringify(messageData.content),
+      messageData.metadata ? JSON.stringify(messageData.metadata) : null,
       now,
       now
     ]
 
     const result = await this.database.execute({
-      sql: AgentQueries.sessionLogs.insert,
+      sql: AgentQueries.sessionMessages.insert,
       args: values
     })
 
     if (!result.lastInsertRowid) {
-      throw new Error('Failed to create session log')
+      throw new Error('Failed to create session message')
     }
 
     const logResult = await this.database.execute({
-      sql: AgentQueries.sessionLogs.getById,
+      sql: AgentQueries.sessionMessages.getById,
       args: [result.lastInsertRowid]
     })
 
     if (!logResult.rows[0]) {
-      throw new Error('Failed to retrieve created session log')
+      throw new Error('Failed to retrieve created session message')
     }
 
-    return this.deserializeSessionLog(logResult.rows[0]) as SessionLogEntity
+    return this.deserializeSessionMessage(logResult.rows[0]) as SessionMessageEntity
   }
 
-  async getSessionLog(id: number): Promise<SessionLogEntity | null> {
+  async getSessionMessage(id: number): Promise<SessionMessageEntity | null> {
     this.ensureInitialized()
 
     const result = await this.database.execute({
-      sql: AgentQueries.sessionLogs.getById,
+      sql: AgentQueries.sessionMessages.getById,
       args: [id]
     })
 
@@ -100,28 +100,28 @@ export class SessionLogService extends BaseService {
       return null
     }
 
-    return this.deserializeSessionLog(result.rows[0]) as SessionLogEntity
+    return this.deserializeSessionMessage(result.rows[0]) as SessionMessageEntity
   }
 
-  async listSessionLogs(
+  async listSessionMessages(
     sessionId: string,
-    options: ListSessionLogsOptions = {}
-  ): Promise<{ logs: SessionLogEntity[]; total: number }> {
+    options: ListSessionMessagesOptions = {}
+  ): Promise<{ messages: SessionMessageEntity[]; total: number }> {
     this.ensureInitialized()
 
     // Get total count
     const countResult = await this.database.execute({
-      sql: AgentQueries.sessionLogs.countBySessionId,
+      sql: AgentQueries.sessionMessages.countBySessionId,
       args: [sessionId]
     })
     const total = (countResult.rows[0] as any).total
 
-    // Get logs with pagination
+    // Get messages with pagination
     let query: string
     const args: any[] = [sessionId]
 
     if (options.limit !== undefined) {
-      query = AgentQueries.sessionLogs.getBySessionIdWithPagination
+      query = AgentQueries.sessionMessages.getBySessionIdWithPagination
       args.push(options.limit)
 
       if (options.offset !== undefined) {
@@ -130,7 +130,7 @@ export class SessionLogService extends BaseService {
         args.push(0)
       }
     } else {
-      query = AgentQueries.sessionLogs.getBySessionId
+      query = AgentQueries.sessionMessages.getBySessionId
     }
 
     const result = await this.database.execute({
@@ -138,16 +138,16 @@ export class SessionLogService extends BaseService {
       args: args
     })
 
-    const logs = result.rows.map((row) => this.deserializeSessionLog(row)) as SessionLogEntity[]
+    const messages = result.rows.map((row) => this.deserializeSessionMessage(row)) as SessionMessageEntity[]
 
-    return { logs, total }
+    return { messages, total }
   }
 
-  async updateSessionLog(id: number, updates: UpdateSessionLogRequest): Promise<SessionLogEntity | null> {
+  async updateSessionMessage(id: number, updates: UpdateSessionMessageRequest): Promise<SessionMessageEntity | null> {
     this.ensureInitialized()
 
-    // Check if log exists
-    const existing = await this.getSessionLog(id)
+    // Check if message exists
+    const existing = await this.getSessionMessage(id)
     if (!existing) {
       return null
     }
@@ -168,50 +168,50 @@ export class SessionLogService extends BaseService {
     ]
 
     await this.database.execute({
-      sql: AgentQueries.sessionLogs.update,
+      sql: AgentQueries.sessionMessages.update,
       args: values
     })
 
-    return await this.getSessionLog(id)
+    return await this.getSessionMessage(id)
   }
 
-  async deleteSessionLog(id: number): Promise<boolean> {
+  async deleteSessionMessage(id: number): Promise<boolean> {
     this.ensureInitialized()
 
     const result = await this.database.execute({
-      sql: AgentQueries.sessionLogs.deleteById,
+      sql: AgentQueries.sessionMessages.deleteById,
       args: [id]
     })
 
     return result.rowsAffected > 0
   }
 
-  async sessionLogExists(id: number): Promise<boolean> {
+  async sessionMessageExists(id: number): Promise<boolean> {
     this.ensureInitialized()
 
     const result = await this.database.execute({
-      sql: AgentQueries.sessionLogs.getById,
+      sql: AgentQueries.sessionMessages.getById,
       args: [id]
     })
 
     return result.rows.length > 0
   }
 
-  async bulkCreateSessionLogs(logs: CreateSessionLogRequest[]): Promise<SessionLogEntity[]> {
+  async bulkCreateSessionMessages(messages: CreateSessionMessageRequest[]): Promise<SessionMessageEntity[]> {
     this.ensureInitialized()
 
-    const results: SessionLogEntity[] = []
+    const results: SessionMessageEntity[] = []
 
     // Use a transaction for bulk insert
-    for (const logData of logs) {
-      const result = await this.createSessionLog(logData)
+    for (const messageData of messages) {
+      const result = await this.createSessionMessage(messageData)
       results.push(result)
     }
 
     return results
   }
 
-  private deserializeSessionLog(data: any): SessionLogEntity {
+  private deserializeSessionMessage(data: any): SessionMessageEntity {
     if (!data) return data
 
     const deserialized = { ...data }
@@ -238,4 +238,4 @@ export class SessionLogService extends BaseService {
   }
 }
 
-export const sessionLogService = SessionLogService.getInstance()
+export const sessionMessageService = SessionMessageService.getInstance()

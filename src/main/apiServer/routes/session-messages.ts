@@ -1,15 +1,15 @@
 import express, { Request, Response } from 'express'
 import { body, param, query, validationResult } from 'express-validator'
 
-import { agentService, sessionLogService, sessionService } from '../../services/agents'
+import { agentService, sessionMessageService, sessionService } from '../../services/agents'
 import { loggerService } from '../../services/LoggerService'
 
-const logger = loggerService.withContext('ApiServerSessionLogsRoutes')
+const logger = loggerService.withContext('ApiServerSessionMessagesRoutes')
 
 const router = express.Router()
 
 // Validation middleware
-const validateSessionLog = [
+const validateSessionMessage = [
   body('parent_id').optional().isInt({ min: 1 }).withMessage('Parent ID must be a positive integer'),
   body('role').notEmpty().isIn(['user', 'agent', 'system', 'tool']).withMessage('Valid role is required'),
   body('type').notEmpty().isString().withMessage('Type is required'),
@@ -17,12 +17,12 @@ const validateSessionLog = [
   body('metadata').optional().isObject().withMessage('Metadata must be a valid object')
 ]
 
-const validateSessionLogUpdate = [
+const validateSessionMessageUpdate = [
   body('content').optional().isObject().withMessage('Content must be a valid object'),
   body('metadata').optional().isObject().withMessage('Metadata must be a valid object')
 ]
 
-const validateBulkSessionLogs = [
+const validateBulkSessionMessages = [
   body().isArray().withMessage('Request body must be an array'),
   body('*.parent_id').optional().isInt({ min: 1 }).withMessage('Parent ID must be a positive integer'),
   body('*.role').notEmpty().isIn(['user', 'agent', 'system', 'tool']).withMessage('Valid role is required'),
@@ -35,7 +35,7 @@ const validateAgentId = [param('agentId').notEmpty().withMessage('Agent ID is re
 
 const validateSessionId = [param('sessionId').notEmpty().withMessage('Session ID is required')]
 
-const validateLogId = [param('logId').isInt({ min: 1 }).withMessage('Log ID must be a positive integer')]
+const validateMessageId = [param('messageId').isInt({ min: 1 }).withMessage('Message ID must be a positive integer')]
 
 const validatePagination = [
   query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
@@ -116,28 +116,28 @@ const checkAgentAndSessionExist = async (req: Request, res: Response, next: any)
  * @swagger
  * components:
  *   schemas:
- *     SessionLogEntity:
+ *     SessionMessageEntity:
  *       type: object
  *       properties:
  *         id:
  *           type: integer
- *           description: Unique log entry identifier
+ *           description: Unique message entry identifier
  *         session_id:
  *           type: string
  *           description: Reference to session
  *         parent_id:
  *           type: integer
- *           description: Parent log entry ID for tree structure
+ *           description: Parent message entry ID for tree structure
  *         role:
  *           type: string
  *           enum: [user, agent, system, tool]
- *           description: Role that created the log entry
+ *           description: Role that created the message entry
  *         type:
  *           type: string
- *           description: Type of log entry
+ *           description: Type of message entry
  *         content:
  *           type: object
- *           description: JSON structured log data
+ *           description: JSON structured message data
  *         metadata:
  *           type: object
  *           description: Additional metadata
@@ -155,22 +155,22 @@ const checkAgentAndSessionExist = async (req: Request, res: Response, next: any)
  *         - content
  *         - created_at
  *         - updated_at
- *     CreateSessionLogRequest:
+ *     CreateSessionMessageRequest:
  *       type: object
  *       properties:
  *         parent_id:
  *           type: integer
- *           description: Parent log entry ID for tree structure
+ *           description: Parent message entry ID for tree structure
  *         role:
  *           type: string
  *           enum: [user, agent, system, tool]
- *           description: Role that created the log entry
+ *           description: Role that created the message entry
  *         type:
  *           type: string
- *           description: Type of log entry
+ *           description: Type of message entry
  *         content:
  *           type: object
- *           description: JSON structured log data
+ *           description: JSON structured message data
  *         metadata:
  *           type: object
  *           description: Additional metadata
@@ -180,17 +180,17 @@ const checkAgentAndSessionExist = async (req: Request, res: Response, next: any)
  *         - content
  */
 
-// Create nested session logs router
-function createSessionLogsRouter(): express.Router {
-  const sessionLogsRouter = express.Router({ mergeParams: true })
+// Create nested session messages router
+function createSessionMessagesRouter(): express.Router {
+  const sessionMessagesRouter = express.Router({ mergeParams: true })
 
   /**
    * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/logs:
+   * /v1/agents/{agentId}/sessions/{sessionId}/messages:
    *   post:
-   *     summary: Create a new log entry for a session
-   *     description: Creates a new log entry for the specified session
-   *     tags: [Session Logs]
+   *     summary: Create a new message entry for a session
+   *     description: Creates a new message entry for the specified session
+   *     tags: [Session Messages]
    *     parameters:
    *       - in: path
    *         name: agentId
@@ -209,14 +209,14 @@ function createSessionLogsRouter(): express.Router {
    *       content:
    *         application/json:
    *           schema:
-   *             $ref: '#/components/schemas/CreateSessionLogRequest'
+   *             $ref: '#/components/schemas/CreateSessionMessageRequest'
    *     responses:
    *       201:
    *         description: Log entry created successfully
    *         content:
    *           application/json:
    *             schema:
-   *               $ref: '#/components/schemas/SessionLogEntity'
+   *               $ref: '#/components/schemas/SessionMessageEntity'
    *       400:
    *         description: Validation error
    *         content:
@@ -236,32 +236,32 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionLogsRouter.post(
+  sessionMessagesRouter.post(
     '/',
     validateAgentId,
     validateSessionId,
     checkAgentAndSessionExist,
-    validateSessionLog,
+    validateSessionMessage,
     handleValidationErrors,
     async (req: Request, res: Response) => {
       try {
         const { sessionId } = req.params
-        const logData = { ...req.body, session_id: sessionId }
+        const messageData = { ...req.body, session_id: sessionId }
 
-        logger.info(`Creating new log entry for session: ${sessionId}`)
-        logger.debug('Log data:', logData)
+        logger.info(`Creating new message entry for session: ${sessionId}`)
+        logger.debug('Message data:', messageData)
 
-        const log = await sessionLogService.createSessionLog(logData)
+        const message = await sessionMessageService.createSessionMessage(messageData)
 
-        logger.info(`Log entry created successfully: ${log.id}`)
-        return res.status(201).json(log)
+        logger.info(`Message entry created successfully: ${message.id}`)
+        return res.status(201).json(message)
       } catch (error: any) {
-        logger.error('Error creating session log:', error)
+        logger.error('Error creating session message:', error)
         return res.status(500).json({
           error: {
-            message: 'Failed to create log entry',
+            message: 'Failed to create message entry',
             type: 'internal_error',
-            code: 'log_creation_failed'
+            code: 'message_creation_failed'
           }
         })
       }
@@ -270,11 +270,11 @@ function createSessionLogsRouter(): express.Router {
 
   /**
    * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/logs/bulk:
+   * /v1/agents/{agentId}/sessions/{sessionId}/messages/bulk:
    *   post:
-   *     summary: Create multiple log entries for a session
-   *     description: Creates multiple log entries for the specified session in a single request
-   *     tags: [Session Logs]
+   *     summary: Create multiple message entries for a session
+   *     description: Creates multiple message entries for the specified session in a single request
+   *     tags: [Session Messages]
    *     parameters:
    *       - in: path
    *         name: agentId
@@ -295,7 +295,7 @@ function createSessionLogsRouter(): express.Router {
    *           schema:
    *             type: array
    *             items:
-   *               $ref: '#/components/schemas/CreateSessionLogRequest'
+   *               $ref: '#/components/schemas/CreateSessionMessageRequest'
    *     responses:
    *       201:
    *         description: Log entries created successfully
@@ -307,10 +307,10 @@ function createSessionLogsRouter(): express.Router {
    *                 data:
    *                   type: array
    *                   items:
-   *                     $ref: '#/components/schemas/SessionLogEntity'
+   *                     $ref: '#/components/schemas/SessionMessageEntity'
    *                 count:
    *                   type: integer
-   *                   description: Number of log entries created
+   *                   description: Number of message entries created
    *       400:
    *         description: Validation error
    *         content:
@@ -330,34 +330,34 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionLogsRouter.post(
+  sessionMessagesRouter.post(
     '/bulk',
     validateAgentId,
     validateSessionId,
     checkAgentAndSessionExist,
-    validateBulkSessionLogs,
+    validateBulkSessionMessages,
     handleValidationErrors,
     async (req: Request, res: Response) => {
       try {
         const { sessionId } = req.params
-        const logsData = req.body.map((logData: any) => ({ ...logData, session_id: sessionId }))
+        const messagesData = req.body.map((messageData: any) => ({ ...messageData, session_id: sessionId }))
 
-        logger.info(`Creating ${logsData.length} log entries for session: ${sessionId}`)
+        logger.info(`Creating ${messagesData.length} message entries for session: ${sessionId}`)
 
-        const logs = await sessionLogService.bulkCreateSessionLogs(logsData)
+        const messages = await sessionMessageService.bulkCreateSessionMessages(messagesData)
 
-        logger.info(`${logs.length} log entries created successfully for session: ${sessionId}`)
+        logger.info(`${messages.length} message entries created successfully for session: ${sessionId}`)
         return res.status(201).json({
-          data: logs,
-          count: logs.length
+          data: messages,
+          count: messages.length
         })
       } catch (error: any) {
-        logger.error('Error creating bulk session logs:', error)
+        logger.error('Error creating bulk session messages:', error)
         return res.status(500).json({
           error: {
-            message: 'Failed to create log entries',
+            message: 'Failed to create message entries',
             type: 'internal_error',
-            code: 'bulk_log_creation_failed'
+            code: 'bulk_message_creation_failed'
           }
         })
       }
@@ -366,11 +366,11 @@ function createSessionLogsRouter(): express.Router {
 
   /**
    * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/logs:
+   * /v1/agents/{agentId}/sessions/{sessionId}/messages:
    *   get:
-   *     summary: List log entries for a session
-   *     description: Retrieves a paginated list of log entries for the specified session
-   *     tags: [Session Logs]
+   *     summary: List message entries for a session
+   *     description: Retrieves a paginated list of message entries for the specified session
+   *     tags: [Session Messages]
    *     parameters:
    *       - in: path
    *         name: agentId
@@ -391,17 +391,17 @@ function createSessionLogsRouter(): express.Router {
    *           minimum: 1
    *           maximum: 100
    *           default: 50
-   *         description: Number of log entries to return
+   *         description: Number of message entries to return
    *       - in: query
    *         name: offset
    *         schema:
    *           type: integer
    *           minimum: 0
    *           default: 0
-   *         description: Number of log entries to skip
+   *         description: Number of message entries to skip
    *     responses:
    *       200:
-   *         description: List of log entries
+   *         description: List of message entries
    *         content:
    *           application/json:
    *             schema:
@@ -410,16 +410,16 @@ function createSessionLogsRouter(): express.Router {
    *                 data:
    *                   type: array
    *                   items:
-   *                     $ref: '#/components/schemas/SessionLogEntity'
+   *                     $ref: '#/components/schemas/SessionMessageEntity'
    *                 total:
    *                   type: integer
-   *                   description: Total number of log entries
+   *                   description: Total number of message entries
    *                 limit:
    *                   type: integer
-   *                   description: Number of log entries returned
+   *                   description: Number of message entries returned
    *                 offset:
    *                   type: integer
-   *                   description: Number of log entries skipped
+   *                   description: Number of message entries skipped
    *       400:
    *         description: Validation error
    *         content:
@@ -439,7 +439,7 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionLogsRouter.get(
+  sessionMessagesRouter.get(
     '/',
     validateAgentId,
     validateSessionId,
@@ -452,24 +452,24 @@ function createSessionLogsRouter(): express.Router {
         const limit = req.query.limit ? parseInt(req.query.limit as string) : 50
         const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
 
-        logger.info(`Listing logs for session: ${sessionId} with limit=${limit}, offset=${offset}`)
+        logger.info(`Listing messages for session: ${sessionId} with limit=${limit}, offset=${offset}`)
 
-        const result = await sessionLogService.listSessionLogs(sessionId, { limit, offset })
+        const result = await sessionMessageService.listSessionMessages(sessionId, { limit, offset })
 
-        logger.info(`Retrieved ${result.logs.length} logs (total: ${result.total}) for session: ${sessionId}`)
+        logger.info(`Retrieved ${result.messages.length} messages (total: ${result.total}) for session: ${sessionId}`)
         return res.json({
-          data: result.logs,
+          data: result.messages,
           total: result.total,
           limit,
           offset
         })
       } catch (error: any) {
-        logger.error('Error listing session logs:', error)
+        logger.error('Error listing session messages:', error)
         return res.status(500).json({
           error: {
-            message: 'Failed to list log entries',
+            message: 'Failed to list message entries',
             type: 'internal_error',
-            code: 'log_list_failed'
+            code: 'message_list_failed'
           }
         })
       }
@@ -478,11 +478,11 @@ function createSessionLogsRouter(): express.Router {
 
   /**
    * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/logs/{logId}:
+   * /v1/agents/{agentId}/sessions/{sessionId}/messages/{messageId}:
    *   get:
-   *     summary: Get log entry by ID
-   *     description: Retrieves a specific log entry for the specified session
-   *     tags: [Session Logs]
+   *     summary: Get message entry by ID
+   *     description: Retrieves a specific message entry for the specified session
+   *     tags: [Session Messages]
    *     parameters:
    *       - in: path
    *         name: agentId
@@ -497,7 +497,7 @@ function createSessionLogsRouter(): express.Router {
    *           type: string
    *         description: Session ID
    *       - in: path
-   *         name: logId
+   *         name: messageId
    *         required: true
    *         schema:
    *           type: integer
@@ -508,9 +508,9 @@ function createSessionLogsRouter(): express.Router {
    *         content:
    *           application/json:
    *             schema:
-   *               $ref: '#/components/schemas/SessionLogEntity'
+   *               $ref: '#/components/schemas/SessionMessageEntity'
    *       404:
-   *         description: Agent, session, or log entry not found
+   *         description: Agent, session, or message entry not found
    *         content:
    *           application/json:
    *             schema:
@@ -522,54 +522,54 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionLogsRouter.get(
-    '/:logId',
+  sessionMessagesRouter.get(
+    '/:messageId',
     validateAgentId,
     validateSessionId,
-    validateLogId,
+    validateMessageId,
     checkAgentAndSessionExist,
     handleValidationErrors,
     async (req: Request, res: Response) => {
       try {
-        const { sessionId, logId } = req.params
-        const logIdNum = parseInt(logId)
+        const { sessionId, messageId } = req.params
+        const messageIdNum = parseInt(messageId)
 
-        logger.info(`Getting log entry: ${logId} for session: ${sessionId}`)
+        logger.info(`Getting message entry: ${messageId} for session: ${sessionId}`)
 
-        const log = await sessionLogService.getSessionLog(logIdNum)
+        const message = await sessionMessageService.getSessionMessage(messageIdNum)
 
-        if (!log) {
-          logger.warn(`Log entry not found: ${logId}`)
+        if (!message) {
+          logger.warn(`Message entry not found: ${messageId}`)
           return res.status(404).json({
             error: {
-              message: 'Log entry not found',
+              message: 'Message entry not found',
               type: 'not_found',
-              code: 'log_not_found'
+              code: 'message_not_found'
             }
           })
         }
 
-        // Verify log belongs to the session
-        if (log.session_id !== sessionId) {
-          logger.warn(`Log entry ${logId} does not belong to session ${sessionId}`)
+        // Verify message belongs to the session
+        if (message.session_id !== sessionId) {
+          logger.warn(`Message entry ${messageId} does not belong to session ${sessionId}`)
           return res.status(404).json({
             error: {
-              message: 'Log entry not found for this session',
+              message: 'Message entry not found for this session',
               type: 'not_found',
-              code: 'log_not_found'
+              code: 'message_not_found'
             }
           })
         }
 
-        logger.info(`Log entry retrieved successfully: ${logId}`)
-        return res.json(log)
+        logger.info(`Message entry retrieved successfully: ${messageId}`)
+        return res.json(message)
       } catch (error: any) {
-        logger.error('Error getting session log:', error)
+        logger.error('Error getting session message:', error)
         return res.status(500).json({
           error: {
-            message: 'Failed to get log entry',
+            message: 'Failed to get message entry',
             type: 'internal_error',
-            code: 'log_get_failed'
+            code: 'message_get_failed'
           }
         })
       }
@@ -578,11 +578,11 @@ function createSessionLogsRouter(): express.Router {
 
   /**
    * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/logs/{logId}:
+   * /v1/agents/{agentId}/sessions/{sessionId}/messages/{messageId}:
    *   put:
-   *     summary: Update log entry
-   *     description: Updates an existing log entry for the specified session
-   *     tags: [Session Logs]
+   *     summary: Update message entry
+   *     description: Updates an existing message entry for the specified session
+   *     tags: [Session Messages]
    *     parameters:
    *       - in: path
    *         name: agentId
@@ -597,7 +597,7 @@ function createSessionLogsRouter(): express.Router {
    *           type: string
    *         description: Session ID
    *       - in: path
-   *         name: logId
+   *         name: messageId
    *         required: true
    *         schema:
    *           type: integer
@@ -611,7 +611,7 @@ function createSessionLogsRouter(): express.Router {
    *             properties:
    *               content:
    *                 type: object
-   *                 description: Updated log content
+   *                 description: Updated message content
    *               metadata:
    *                 type: object
    *                 description: Updated metadata
@@ -621,7 +621,7 @@ function createSessionLogsRouter(): express.Router {
    *         content:
    *           application/json:
    *             schema:
-   *               $ref: '#/components/schemas/SessionLogEntity'
+   *               $ref: '#/components/schemas/SessionMessageEntity'
    *       400:
    *         description: Validation error
    *         content:
@@ -629,7 +629,7 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    *       404:
-   *         description: Agent, session, or log entry not found
+   *         description: Agent, session, or message entry not found
    *         content:
    *           application/json:
    *             schema:
@@ -641,57 +641,57 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionLogsRouter.put(
-    '/:logId',
+  sessionMessagesRouter.put(
+    '/:messageId',
     validateAgentId,
     validateSessionId,
-    validateLogId,
+    validateMessageId,
     checkAgentAndSessionExist,
-    validateSessionLogUpdate,
+    validateSessionMessageUpdate,
     handleValidationErrors,
     async (req: Request, res: Response) => {
       try {
-        const { sessionId, logId } = req.params
-        const logIdNum = parseInt(logId)
+        const { sessionId, messageId } = req.params
+        const messageIdNum = parseInt(messageId)
 
-        logger.info(`Updating log entry: ${logId} for session: ${sessionId}`)
+        logger.info(`Updating message entry: ${messageId} for session: ${sessionId}`)
         logger.debug('Update data:', req.body)
 
         // First check if log exists and belongs to session
-        const existingLog = await sessionLogService.getSessionLog(logIdNum)
-        if (!existingLog || existingLog.session_id !== sessionId) {
-          logger.warn(`Log entry ${logId} not found for session ${sessionId}`)
+        const existingMessage = await sessionMessageService.getSessionMessage(messageIdNum)
+        if (!existingMessage || existingMessage.session_id !== sessionId) {
+          logger.warn(`Log entry ${messageId} not found for session ${sessionId}`)
           return res.status(404).json({
             error: {
-              message: 'Log entry not found for this session',
+              message: 'Message entry not found for this session',
               type: 'not_found',
-              code: 'log_not_found'
+              code: 'message_not_found'
             }
           })
         }
 
-        const log = await sessionLogService.updateSessionLog(logIdNum, req.body)
+        const message = await sessionMessageService.updateSessionMessage(messageIdNum, req.body)
 
-        if (!log) {
-          logger.warn(`Log entry not found for update: ${logId}`)
+        if (!message) {
+          logger.warn(`Log entry not found for update: ${messageId}`)
           return res.status(404).json({
             error: {
-              message: 'Log entry not found',
+              message: 'Message entry not found',
               type: 'not_found',
-              code: 'log_not_found'
+              code: 'message_not_found'
             }
           })
         }
 
-        logger.info(`Log entry updated successfully: ${logId}`)
-        return res.json(log)
+        logger.info(`Log entry updated successfully: ${messageId}`)
+        return res.json(message)
       } catch (error: any) {
-        logger.error('Error updating session log:', error)
+        logger.error('Error updating session message:', error)
         return res.status(500).json({
           error: {
-            message: 'Failed to update log entry',
+            message: 'Failed to update message entry',
             type: 'internal_error',
-            code: 'log_update_failed'
+            code: 'message_update_failed'
           }
         })
       }
@@ -700,11 +700,11 @@ function createSessionLogsRouter(): express.Router {
 
   /**
    * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/logs/{logId}:
+   * /v1/agents/{agentId}/sessions/{sessionId}/messages/{messageId}:
    *   delete:
-   *     summary: Delete log entry
-   *     description: Deletes a specific log entry
-   *     tags: [Session Logs]
+   *     summary: Delete message entry
+   *     description: Deletes a specific message entry
+   *     tags: [Session Messages]
    *     parameters:
    *       - in: path
    *         name: agentId
@@ -719,7 +719,7 @@ function createSessionLogsRouter(): express.Router {
    *           type: string
    *         description: Session ID
    *       - in: path
-   *         name: logId
+   *         name: messageId
    *         required: true
    *         schema:
    *           type: integer
@@ -728,7 +728,7 @@ function createSessionLogsRouter(): express.Router {
    *       204:
    *         description: Log entry deleted successfully
    *       404:
-   *         description: Agent, session, or log entry not found
+   *         description: Agent, session, or message entry not found
    *         content:
    *           application/json:
    *             schema:
@@ -740,72 +740,72 @@ function createSessionLogsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionLogsRouter.delete(
-    '/:logId',
+  sessionMessagesRouter.delete(
+    '/:messageId',
     validateAgentId,
     validateSessionId,
-    validateLogId,
+    validateMessageId,
     checkAgentAndSessionExist,
     handleValidationErrors,
     async (req: Request, res: Response) => {
       try {
-        const { sessionId, logId } = req.params
-        const logIdNum = parseInt(logId)
+        const { sessionId, messageId } = req.params
+        const messageIdNum = parseInt(messageId)
 
-        logger.info(`Deleting log entry: ${logId} for session: ${sessionId}`)
+        logger.info(`Deleting message entry: ${messageId} for session: ${sessionId}`)
 
         // First check if log exists and belongs to session
-        const existingLog = await sessionLogService.getSessionLog(logIdNum)
-        if (!existingLog || existingLog.session_id !== sessionId) {
-          logger.warn(`Log entry ${logId} not found for session ${sessionId}`)
+        const existingMessage = await sessionMessageService.getSessionMessage(messageIdNum)
+        if (!existingMessage || existingMessage.session_id !== sessionId) {
+          logger.warn(`Log entry ${messageId} not found for session ${sessionId}`)
           return res.status(404).json({
             error: {
-              message: 'Log entry not found for this session',
+              message: 'Message entry not found for this session',
               type: 'not_found',
-              code: 'log_not_found'
+              code: 'message_not_found'
             }
           })
         }
 
-        const deleted = await sessionLogService.deleteSessionLog(logIdNum)
+        const deleted = await sessionMessageService.deleteSessionMessage(messageIdNum)
 
         if (!deleted) {
-          logger.warn(`Log entry not found for deletion: ${logId}`)
+          logger.warn(`Log entry not found for deletion: ${messageId}`)
           return res.status(404).json({
             error: {
-              message: 'Log entry not found',
+              message: 'Message entry not found',
               type: 'not_found',
-              code: 'log_not_found'
+              code: 'message_not_found'
             }
           })
         }
 
-        logger.info(`Log entry deleted successfully: ${logId}`)
+        logger.info(`Log entry deleted successfully: ${messageId}`)
         return res.status(204).send()
       } catch (error: any) {
-        logger.error('Error deleting session log:', error)
+        logger.error('Error deleting session message:', error)
         return res.status(500).json({
           error: {
-            message: 'Failed to delete log entry',
+            message: 'Failed to delete message entry',
             type: 'internal_error',
-            code: 'log_delete_failed'
+            code: 'message_delete_failed'
           }
         })
       }
     }
   )
 
-  return sessionLogsRouter
+  return sessionMessagesRouter
 }
 
-// Convenience routes (standalone session logs without agent context)
+// Convenience routes (standalone session messages without agent context)
 /**
  * @swagger
- * /v1/sessions/{sessionId}/logs:
+ * /v1/sessions/{sessionId}/messages:
  *   get:
- *     summary: List log entries for a session (convenience endpoint)
- *     description: Retrieves a paginated list of log entries for the specified session without requiring agent context
- *     tags: [Session Logs]
+ *     summary: List message entries for a session (convenience endpoint)
+ *     description: Retrieves a paginated list of message entries for the specified session without requiring agent context
+ *     tags: [Session Messages]
  *     parameters:
  *       - in: path
  *         name: sessionId
@@ -820,17 +820,17 @@ function createSessionLogsRouter(): express.Router {
  *           minimum: 1
  *           maximum: 100
  *           default: 50
- *         description: Number of log entries to return
+ *         description: Number of message entries to return
  *       - in: query
  *         name: offset
  *         schema:
  *           type: integer
  *           minimum: 0
  *           default: 0
- *         description: Number of log entries to skip
+ *         description: Number of message entries to skip
  *     responses:
  *       200:
- *         description: List of log entries
+ *         description: List of message entries
  *         content:
  *           application/json:
  *             schema:
@@ -839,16 +839,16 @@ function createSessionLogsRouter(): express.Router {
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/SessionLogEntity'
+ *                     $ref: '#/components/schemas/SessionMessageEntity'
  *                 total:
  *                   type: integer
- *                   description: Total number of log entries
+ *                   description: Total number of message entries
  *                 limit:
  *                   type: integer
- *                   description: Number of log entries returned
+ *                   description: Number of message entries returned
  *                 offset:
  *                   type: integer
- *                   description: Number of log entries skipped
+ *                   description: Number of message entries skipped
  *       400:
  *         description: Validation error
  *         content:
@@ -869,7 +869,7 @@ function createSessionLogsRouter(): express.Router {
  *               $ref: '#/components/schemas/Error'
  */
 router.get(
-  '/:sessionId/logs',
+  '/:sessionId/messages',
   validateSessionId,
   validatePagination,
   handleValidationErrors,
@@ -891,24 +891,24 @@ router.get(
         })
       }
 
-      logger.info(`Listing logs for session: ${sessionId} with limit=${limit}, offset=${offset}`)
+      logger.info(`Listing messages for session: ${sessionId} with limit=${limit}, offset=${offset}`)
 
-      const result = await sessionLogService.listSessionLogs(sessionId, { limit, offset })
+      const result = await sessionMessageService.listSessionMessages(sessionId, { limit, offset })
 
-      logger.info(`Retrieved ${result.logs.length} logs (total: ${result.total}) for session: ${sessionId}`)
+      logger.info(`Retrieved ${result.messages.length} messages (total: ${result.total}) for session: ${sessionId}`)
       return res.json({
-        data: result.logs,
+        data: result.messages,
         total: result.total,
         limit,
         offset
       })
     } catch (error: any) {
-      logger.error('Error listing session logs:', error)
+      logger.error('Error listing session messages:', error)
       return res.status(500).json({
         error: {
-          message: 'Failed to list log entries',
+          message: 'Failed to list message entries',
           type: 'internal_error',
-          code: 'log_list_failed'
+          code: 'message_list_failed'
         }
       })
     }
@@ -917,14 +917,14 @@ router.get(
 
 /**
  * @swagger
- * /v1/session-logs/{logId}:
+ * /v1/session-messages/{messageId}:
  *   get:
- *     summary: Get log entry by ID (convenience endpoint)
- *     description: Retrieves a specific log entry without requiring agent or session context
- *     tags: [Session Logs]
+ *     summary: Get message entry by ID (convenience endpoint)
+ *     description: Retrieves a specific message entry without requiring agent or session context
+ *     tags: [Session Messages]
  *     parameters:
  *       - in: path
- *         name: logId
+ *         name: messageId
  *         required: true
  *         schema:
  *           type: integer
@@ -935,7 +935,7 @@ router.get(
  *         content:
  *           application/json:
  *             schema:
- *               $ref: '#/components/schemas/SessionLogEntity'
+ *               $ref: '#/components/schemas/SessionMessageEntity'
  *       404:
  *         description: Log entry not found
  *         content:
@@ -949,38 +949,43 @@ router.get(
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/session-logs/:logId', validateLogId, handleValidationErrors, async (req: Request, res: Response) => {
-  try {
-    const { logId } = req.params
-    const logIdNum = parseInt(logId)
+router.get(
+  '/session-messages/:messageId',
+  validateMessageId,
+  handleValidationErrors,
+  async (req: Request, res: Response) => {
+    try {
+      const { messageId } = req.params
+      const messageIdNum = parseInt(messageId)
 
-    logger.info(`Getting log entry: ${logId}`)
+      logger.info(`Getting message entry: ${messageId}`)
 
-    const log = await sessionLogService.getSessionLog(logIdNum)
+      const message = await sessionMessageService.getSessionMessage(messageIdNum)
 
-    if (!log) {
-      logger.warn(`Log entry not found: ${logId}`)
-      return res.status(404).json({
+      if (!message) {
+        logger.warn(`Log entry not found: ${messageId}`)
+        return res.status(404).json({
+          error: {
+            message: 'Log entry not found',
+            type: 'not_found',
+            code: 'message_not_found'
+          }
+        })
+      }
+
+      logger.info(`Log entry retrieved successfully: ${messageId}`)
+      return res.json(message)
+    } catch (error: any) {
+      logger.error('Error getting session message:', error)
+      return res.status(500).json({
         error: {
-          message: 'Log entry not found',
-          type: 'not_found',
-          code: 'log_not_found'
+          message: 'Failed to get message entry',
+          type: 'internal_error',
+          code: 'message_get_failed'
         }
       })
     }
-
-    logger.info(`Log entry retrieved successfully: ${logId}`)
-    return res.json(log)
-  } catch (error: any) {
-    logger.error('Error getting session log:', error)
-    return res.status(500).json({
-      error: {
-        message: 'Failed to get log entry',
-        type: 'internal_error',
-        code: 'log_get_failed'
-      }
-    })
   }
-})
+)
 
-export { createSessionLogsRouter, router as sessionLogsRoutes }
+export { createSessionMessagesRouter, router as sessionMessagesRoutes }

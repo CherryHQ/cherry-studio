@@ -551,14 +551,14 @@ router.delete('/:agentId', validateAgentId, handleValidationErrors, async (req: 
 })
 
 // Mount session routes as nested resources
-import { createSessionLogsRouter } from './session-logs'
+import { createSessionMessagesRouter } from './session-messages'
 import { createSessionsRouter } from './sessions'
 
 const sessionsRouter = createSessionsRouter()
-const sessionLogsRouter = createSessionLogsRouter()
+const sessionMessagesRouter = createSessionMessagesRouter()
 
 // Mount nested routes
 router.use('/:agentId/sessions', sessionsRouter)
-router.use('/:agentId/sessions/:sessionId/logs', sessionLogsRouter)
+router.use('/:agentId/sessions/:sessionId/messages', sessionMessagesRouter)
 
 export { router as agentsRoutes }

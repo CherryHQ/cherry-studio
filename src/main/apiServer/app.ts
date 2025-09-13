@@ -10,7 +10,7 @@ import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
 import { modelsRoutes } from './routes/models'
-import { sessionLogsRoutes } from './routes/session-logs'
+import { sessionMessagesRoutes } from './routes/session-messages'
 import { sessionsRoutes } from './routes/sessions'
 
 const logger = loggerService.withContext('ApiServer')
@@ -125,7 +125,7 @@ apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
 apiRouter.use('/sessions', sessionsRoutes)
-apiRouter.use('/', sessionLogsRoutes) // This handles /sessions/:sessionId/logs and /session-logs/:logId
+apiRouter.use('/', sessionMessagesRoutes) // This handles /sessions/:sessionId/messages and /session-messages/:messageId
 app.use('/v1', apiRouter)
 
 // Setup OpenAPI documentation
