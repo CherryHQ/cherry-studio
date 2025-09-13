@@ -15,6 +15,7 @@ import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
+export * from './agent'
 export * from './knowledge'
 export * from './mcp'
 export * from './ocr'
