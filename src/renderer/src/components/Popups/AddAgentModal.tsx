@@ -57,7 +57,6 @@ export const AddAgentModal: React.FC = () => {
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   const { setTimeoutTimer } = useTimer()
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { addAgent } = useAgents()
 
   // default values. may change to undefined.
@@ -208,14 +207,14 @@ export const AddAgentModal: React.FC = () => {
         model: form.model
       } satisfies AgentEntity
       logger.debug('Agent', agent)
-      // addAgent(agent)
+      addAgent(agent)
       window.toast.success(t('common.add_success'))
       loadingRef.current = false
 
       setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       onClose()
     },
-    [form.type, form.model, form.name, form.description, form.instructions, t, setTimeoutTimer, onClose]
+    [form.type, form.model, form.name, form.description, form.instructions, addAgent, t, setTimeoutTimer, onClose]
   )
 
   return (
@@ -250,7 +249,7 @@ export const AddAgentModal: React.FC = () => {
                     )}
                   </Select>
                   <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
-                  {/* Model type definition is string. It cannot be related to provider. Just mock a model now. */}
+                  {/* FIXME: Model type definition is string. It cannot be related to provider. Just mock a model now. */}
                   <Select
                     isRequired
                     selectionMode="single"
