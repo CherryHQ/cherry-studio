@@ -18,12 +18,14 @@ interface AssistantsTabProps {
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
   onCreateAssistant: () => void
+  onCreateAgent: () => void
   onCreateDefaultAssistant: () => void
 }
 const Assistants: FC<AssistantsTabProps> = ({
   activeAssistant,
   setActiveAssistant,
   onCreateAssistant,
+  onCreateAgent,
   onCreateDefaultAssistant
 }) => {
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
@@ -83,6 +85,19 @@ const Assistants: FC<AssistantsTabProps> = ({
     )
   }, [onCreateAssistant, t])
 
+  const AddAgentButton = useCallback(() => {
+    return (
+      <AssistantAddItem onClick={onCreateAgent}>
+        <AddItemWrapper>
+          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.agent.title') }}>
+            {t('chat.add.agent.title')}
+          </Typography.Text>
+        </AddItemWrapper>
+      </AssistantAddItem>
+    )
+  }, [onCreateAgent, t])
+
   if (assistantsTabSortType === 'tags') {
     return (
       <Container className="assistants-tab" ref={containerRef}>
@@ -132,6 +147,7 @@ const Assistants: FC<AssistantsTabProps> = ({
           ))}
         </div>
         {renderAddAssistantButton}
+        <AddAgentButton />
       </Container>
     )
   }
@@ -159,6 +175,7 @@ const Assistants: FC<AssistantsTabProps> = ({
         )}
       </DraggableList>
       {!dragging && renderAddAssistantButton}
+      {!dragging && <AddAgentButton />}
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )

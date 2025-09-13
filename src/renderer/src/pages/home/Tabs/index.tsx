@@ -62,6 +62,10 @@ const HomeTabs: FC<Props> = ({
     assistant && setActiveAssistant(assistant)
   }
 
+  const onCreateAgent = async () => {
+    window.toast.info('Not implemented')
+  }
+
   const onCreateDefaultAssistant = () => {
     const assistant = { ...defaultAssistant, id: uuid() }
     addAssistant(assistant)
@@ -133,6 +137,7 @@ const HomeTabs: FC<Props> = ({
             activeAssistant={activeAssistant}
             setActiveAssistant={setActiveAssistant}
             onCreateAssistant={onCreateAssistant}
+            onCreateAgent={onCreateAgent}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
           />
         )}

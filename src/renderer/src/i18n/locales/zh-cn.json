@@ -132,7 +132,6 @@
     },
     "title": "API 服务器"
   },
-
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -263,6 +262,9 @@
   },
   "chat": {
     "add": {
+      "agent": {
+        "title": "添加 Agent"
+      },
       "assistant": {
         "title": "添加助手"
       },
