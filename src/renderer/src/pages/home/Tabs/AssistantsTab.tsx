@@ -1,12 +1,14 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { Button } from '@heroui/react'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { AddAgentModal } from '@renderer/components/Popups/AddAgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
+import { Tooltip } from 'antd'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,14 +20,12 @@ interface AssistantsTabProps {
   activeAssistant: Assistant
   setActiveAssistant: (assistant: Assistant) => void
   onCreateAssistant: () => void
-  onCreateAgent: () => void
   onCreateDefaultAssistant: () => void
 }
 const Assistants: FC<AssistantsTabProps> = ({
   activeAssistant,
   setActiveAssistant,
   onCreateAssistant,
-  onCreateAgent,
   onCreateDefaultAssistant
 }) => {
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
@@ -74,29 +74,25 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   const renderAddAssistantButton = useMemo(() => {
     return (
-      <AssistantAddItem onClick={onCreateAssistant}>
-        <AddItemWrapper>
-          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.assistant.title') }}>
-            {t('chat.add.assistant.title')}
-          </Typography.Text>
-        </AddItemWrapper>
-      </AssistantAddItem>
+      <Button onPress={onCreateAssistant} className="justify-start bg-transparent text-foreground-500 hover:bg-accent">
+        <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+        {t('chat.add.assistant.title')}
+      </Button>
     )
   }, [onCreateAssistant, t])
 
-  const AddAgentButton = useCallback(() => {
-    return (
-      <AssistantAddItem onClick={onCreateAgent}>
-        <AddItemWrapper>
-          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('agent.add.title') }}>
-            {t('agent.add.title')}
-          </Typography.Text>
-        </AddItemWrapper>
-      </AssistantAddItem>
-    )
-  }, [onCreateAgent, t])
+  // const AddAgentButton = useCallback(() => {
+  //   return (
+  //     <AssistantAddItem onClick={onCreateAgent}>
+  //       <AddItemWrapper>
+  //         <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+  //         <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('agent.add.title') }}>
+  //           {t('agent.add.title')}
+  //         </Typography.Text>
+  //       </AddItemWrapper>
+  //     </AssistantAddItem>
+  //   )
+  // }, [onCreateAgent, t])
 
   if (assistantsTabSortType === 'tags') {
     return (
@@ -147,7 +143,7 @@ const Assistants: FC<AssistantsTabProps> = ({
           ))}
         </div>
         {renderAddAssistantButton}
-        <AddAgentButton />
+        {/* <AddAgentButton /> */}
       </Container>
     )
   }
@@ -175,7 +171,8 @@ const Assistants: FC<AssistantsTabProps> = ({
         )}
       </DraggableList>
       {!dragging && renderAddAssistantButton}
-      {!dragging && <AddAgentButton />}
+      {/* {!dragging && <AddAgentButton />} */}
+      {!dragging && <AddAgentModal />}
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )
@@ -193,22 +190,6 @@ const TagsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-`
-
-const AssistantAddItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 7px 12px;
-  position: relative;
-  padding-right: 35px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-  }
 `
 
 const GroupTitle = styled.div`
@@ -241,15 +222,6 @@ const GroupTitleName = styled.div`
 const GroupTitleDivider = styled.div`
   flex: 1;
   border-top: 1px solid var(--color-border);
-`
-
-const AddItemWrapper = styled.div`
-  color: var(--color-text-2);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
 `
 
 export default Assistants

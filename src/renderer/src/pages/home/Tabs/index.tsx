@@ -1,4 +1,3 @@
-import AddAgentPopup from '@renderer/components/Popups/AddAgentPopup'
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -61,10 +60,6 @@ const HomeTabs: FC<Props> = ({
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
     assistant && setActiveAssistant(assistant)
-  }
-
-  const onCreateAgent = async () => {
-    await AddAgentPopup.show()
   }
 
   const onCreateDefaultAssistant = () => {
@@ -138,7 +133,6 @@ const HomeTabs: FC<Props> = ({
             activeAssistant={activeAssistant}
             setActiveAssistant={setActiveAssistant}
             onCreateAssistant={onCreateAssistant}
-            onCreateAgent={onCreateAgent}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
           />
         )}

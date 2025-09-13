@@ -12,25 +12,23 @@ import {
   SelectedItemProps,
   SelectedItems,
   SelectItem,
-  Textarea
+  Textarea,
+  useDisclosure
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { AgentEntity, isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
+import { Plus } from 'lucide-react'
 import { ChangeEvent, FormEvent, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../ErrorBoundary'
 
 const logger = loggerService.withContext('AddAgentPopup')
-interface Props {
-  resolve: (value: AgentEntity | undefined) => void
-}
 
 interface Option {
   key: string
@@ -54,13 +52,14 @@ type AgentForm = {
   model?: AgentEntity['model']
 }
 
-const PopupContainer: React.FC<Props> = ({ resolve }) => {
-  const [open, setOpen] = useState(true)
+export const AddAgentModal: React.FC = () => {
+  const { isOpen, onClose, onOpen } = useDisclosure()
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   const { setTimeoutTimer } = useTimer()
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { addAgent } = useAgents()
+
   // default values. may change to undefined.
   const [form, setForm] = useState<AgentForm>({
     type: 'claude-code',
@@ -211,22 +210,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       logger.debug('Agent', agent)
       // addAgent(agent)
       window.toast.success(t('common.add_success'))
+      loadingRef.current = false
 
       setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-      resolve(agent)
-      setOpen(false)
+      onClose()
     },
-    [form.type, form.model, form.name, form.description, form.instructions, t, setTimeoutTimer, resolve]
+    [form.type, form.model, form.name, form.description, form.instructions, t, setTimeoutTimer, onClose]
   )
-
-  const onClose = async () => {
-    AddAgentPopup.hide()
-    resolve(undefined)
-  }
 
   return (
     <ErrorBoundary>
-      <Modal isOpen={open} onClose={onClose}>
+      <Button onPress={onOpen} className="justify-start bg-transparent text-foreground-500 hover:bg-accent">
+        <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+        {t('agent.add.title')}
+      </Button>
+      <Modal isOpen={isOpen} onClose={onClose}>
         <ModalContent>
           {(onClose) => (
             <>
@@ -281,17 +279,4 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       </Modal>
     </ErrorBoundary>
   )
-}
-
-// FIXME: Under the current TopView design, the close animation will fail.
-export default class AddAgentPopup {
-  static topviewId = 0
-  static hide() {
-    TopView.hide('AddAgentPopup')
-  }
-  static show() {
-    return new Promise<AgentEntity | undefined>((resolve) => {
-      TopView.show(<PopupContainer resolve={resolve} />, 'AddAgentPopup')
-    })
-  }
 }
