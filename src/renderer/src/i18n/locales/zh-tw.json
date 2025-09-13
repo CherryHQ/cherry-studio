@@ -3117,11 +3117,11 @@
         }
       },
       "font": {
-        "code": "[to be translated]:代码字体",
-        "default": "[to be translated]:默认",
-        "global": "[to be translated]:全局字体",
-        "select": "[to be translated]:选择字体",
-        "title": "[to be translated]:字体设置"
+        "code": "程式碼字型",
+        "default": "預設",
+        "global": "全域字型",
+        "select": "選擇字體",
+        "title": "字型設定"
       },
       "navbar": {
         "position": {
