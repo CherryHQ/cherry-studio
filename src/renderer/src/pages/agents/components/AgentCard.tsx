@@ -3,7 +3,7 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
-import type { Agent } from '@renderer/types'
+import type { AssistantPreset } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Dropdown } from 'antd'
 import { t } from 'i18next'
@@ -14,7 +14,7 @@ import styled from 'styled-components'
 import ManageAgentsPopup from './ManageAgentsPopup'
 
 interface Props {
-  agent: Agent
+  agent: AssistantPreset
   activegroup?: string
   onClick: () => void
   getLocalizedGroupName: (group: string) => string
@@ -26,7 +26,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
   const cardRef = useRef<HTMLDivElement>(null)
 
   const handleDelete = useCallback(
-    (agent: Agent) => {
+    (agent: AssistantPreset) => {
       window.modal.confirm({
         centered: true,
         content: t('agents.delete.popup.content'),

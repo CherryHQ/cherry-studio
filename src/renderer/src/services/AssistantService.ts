@@ -12,7 +12,7 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
 import type {
-  Agent,
+  AssistantPreset,
   Assistant,
   AssistantSettings,
   Model,
@@ -185,7 +185,7 @@ export function getAssistantById(id: string) {
   return assistants.find((a) => a.id === id)
 }
 
-export async function createAssistantFromAgent(agent: Agent) {
+export async function createAssistantFromAgent(agent: AssistantPreset) {
   const assistantId = uuid()
   const topic = getDefaultTopic(assistantId)
 

@@ -11,7 +11,7 @@ import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
-import { Agent, KnowledgeBase } from '@renderer/types'
+import { AssistantPreset, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -21,7 +21,7 @@ import stringWidth from 'string-width'
 import styled from 'styled-components'
 
 interface Props {
-  resolve: (data: Agent | null) => void
+  resolve: (data: AssistantPreset | null) => void
 }
 
 type FieldType = {
@@ -77,7 +77,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       return
     }
 
-    const _agent: Agent = {
+    const _agent: AssistantPreset = {
       id: uuid(),
       name: values.name,
       knowledge_bases: values.knowledge_base_ids
@@ -272,7 +272,7 @@ export default class AddAgentPopup {
     TopView.hide('AddAgentPopup')
   }
   static show() {
-    return new Promise<Agent | null>((resolve) => {
+    return new Promise<AssistantPreset | null>((resolve) => {
       TopView.show(
         <PopupContainer
           resolve={(v) => {

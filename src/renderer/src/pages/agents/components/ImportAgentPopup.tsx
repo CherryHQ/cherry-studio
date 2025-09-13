@@ -3,14 +3,14 @@ import { useAgents } from '@renderer/hooks/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Agent } from '@renderer/types'
+import { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Flex, Form, Input, Modal, Radio } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  resolve: (value: Agent[] | null) => void
+  resolve: (value: AssistantPreset[] | null) => void
 }
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
@@ -25,7 +25,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const onFinish = async (values: { url?: string }) => {
     setLoading(true)
     try {
-      let agents: Agent[] = []
+      let agents: AssistantPreset[] = []
 
       if (importType === 'url') {
         if (!values.url) {
@@ -58,7 +58,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           throw new Error(t('agents.import.error.invalid_format'))
         }
 
-        const newAgent: Agent = {
+        const newAgent: AssistantPreset = {
           id: uuid(),
           name: agent.name,
           emoji: agent.emoji || '🤖',
@@ -133,7 +133,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
 export default class ImportAgentPopup {
   static show() {
-    return new Promise<Agent[] | null>((resolve) => {
+    return new Promise<AssistantPreset[] | null>((resolve) => {
       TopView.show(
         <PopupContainer
           resolve={(v) => {

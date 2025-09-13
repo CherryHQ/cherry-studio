@@ -5,7 +5,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useSystemAgents } from '@renderer/pages/agents'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Agent, Assistant } from '@renderer/types'
+import { Assistant, AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Divider, Input, InputRef, Modal, Tag } from 'antd'
 import { take } from 'lodash'
@@ -37,7 +37,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { setTimeoutTimer } = useTimer()
 
   const agents = useMemo(() => {
-    const allAgents = [...userAgents, ...systemAgents] as Agent[]
+    const allAgents = [...userAgents, ...systemAgents] as AssistantPreset[]
     const list = [defaultAssistant, ...allAgents.filter((agent) => !assistants.map((a) => a.id).includes(agent.id))]
     const filtered = searchText
       ? list.filter(
@@ -48,7 +48,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       : list
 
     if (searchText.trim()) {
-      const newAgent: Agent = {
+      const newAgent: AssistantPreset = {
         id: 'new',
         name: searchText.trim(),
         prompt: '',
@@ -67,7 +67,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }, [agents.length, searchText])
 
   const onCreateAssistant = useCallback(
-    async (agent: Agent) => {
+    async (agent: AssistantPreset) => {
       if (loadingRef.current) {
         return
       }

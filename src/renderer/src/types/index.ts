@@ -130,7 +130,7 @@ export type AssistantSettings = {
   toolUseMode: 'function' | 'prompt'
 }
 
-export type Agent = Omit<Assistant, 'model'> & {
+export type AssistantPreset = Omit<Assistant, 'model'> & {
   group?: string[]
 }
 

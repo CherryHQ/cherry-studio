@@ -1,9 +1,10 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import { Agent, AssistantSettings } from '@renderer/types'
+import { AssistantPreset, AssistantSettings } from '@renderer/types'
 
 export interface AgentsState {
-  agents: Agent[]
+  /** @deprecated They are actually assistant presets. */
+  agents: AssistantPreset[]
 }
 
 const initialState: AgentsState = {
@@ -14,16 +15,16 @@ const assistantsSlice = createSlice({
   name: 'agents',
   initialState,
   reducers: {
-    updateAgents: (state, action: PayloadAction<Agent[]>) => {
+    updateAgents: (state, action: PayloadAction<AssistantPreset[]>) => {
       state.agents = action.payload
     },
-    addAgent: (state, action: PayloadAction<Agent>) => {
+    addAgent: (state, action: PayloadAction<AssistantPreset>) => {
       state.agents.push(action.payload)
     },
     removeAgent: (state, action: PayloadAction<{ id: string }>) => {
       state.agents = state.agents.filter((c) => c.id !== action.payload.id)
     },
-    updateAgent: (state, action: PayloadAction<Agent>) => {
+    updateAgent: (state, action: PayloadAction<AssistantPreset>) => {
       state.agents = state.agents.map((c) => (c.id === action.payload.id ? action.payload : c))
     },
     updateAgentSettings: (

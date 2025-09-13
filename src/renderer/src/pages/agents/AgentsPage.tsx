@@ -7,7 +7,7 @@ import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
-import { Agent } from '@renderer/types'
+import { AssistantPreset } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
 import { omit } from 'lodash'
@@ -28,7 +28,7 @@ const AgentsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [activeGroup, setActiveGroup] = useState('我的')
-  const [agentGroups, setAgentGroups] = useState<Record<string, Agent[]>>({})
+  const [agentGroups, setAgentGroups] = useState<Record<string, AssistantPreset[]>>({})
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const systemAgents = useSystemAgents()
   const { agents: userAgents } = useAgents()
@@ -40,7 +40,7 @@ const AgentsPage: FC = () => {
       我的: userAgents,
       精选: [],
       ...systemAgentsGroupList
-    } as Record<string, Agent[]>
+    } as Record<string, AssistantPreset[]>
     setAgentGroups(agentsGroupList)
   }, [systemAgents, userAgents])
 
@@ -49,7 +49,7 @@ const AgentsPage: FC = () => {
     if (!search.trim()) {
       return agentGroups[activeGroup] || []
     }
-    const uniqueAgents = new Map<string, Agent>()
+    const uniqueAgents = new Map<string, AssistantPreset>()
     Object.entries(agentGroups).forEach(([, agents]) => {
       agents.forEach((agent) => {
         if (
@@ -66,7 +66,7 @@ const AgentsPage: FC = () => {
   const { t, i18n } = useTranslation()
 
   const onAddAgentConfirm = useCallback(
-    (agent: Agent) => {
+    (agent: AssistantPreset) => {
       window.modal.confirm({
         title: agent.name,
         content: (
