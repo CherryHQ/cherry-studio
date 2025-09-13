@@ -8,6 +8,10 @@ export type PermissionMode = 'readOnly' | 'acceptEdits' | 'bypassPermissions'
 export type SessionMessageRole = 'user' | 'agent' | 'system' | 'tool'
 export type AgentType = 'claude-code' | 'codex' | 'qwen-cli' | 'gemini-cli' | 'custom'
 
+export function isAgentType(value: string): value is AgentType {
+  return ['claude-code', 'codex', 'qwen-cli', 'gemini-cli', 'custom'].includes(value)
+}
+
 export type SessionMessageType =
   | 'message' // User or agent message
   | 'thought' // Agent's internal reasoning/planning

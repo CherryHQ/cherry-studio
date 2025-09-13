@@ -1,9 +1,14 @@
 {
   "agent": {
     "add": {
-      "label": "Agent 类型",
-      "placeholder": "选择 Agent 类型",
-      "title": "添加 Agent"
+      "error": {
+        "invalid_agent": "无效的 Agent"
+      },
+      "title": "添加 Agent",
+      "type": {
+        "label": "Agent 类型",
+        "placeholder": "选择 Agent 类型"
+      }
     }
   },
   "agents": {
@@ -738,6 +743,7 @@
   },
   "common": {
     "add": "添加",
+    "add_success": "添加成功",
     "advanced_settings": "高级设置",
     "and": "和",
     "assistant": "智能体",
@@ -766,6 +772,9 @@
     "edit": "编辑",
     "enabled": "已启用",
     "error": "错误",
+    "errors": {
+      "validation": "验证失败"
+    },
     "expand": "展开",
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
@@ -788,6 +797,11 @@
     "none": "无",
     "open": "打开",
     "paste": "粘贴",
+    "placeholders": {
+      "select": {
+        "model": "选择模型"
+      }
+    },
     "preview": "预览",
     "prompt": "提示词",
     "provider": "提供商",

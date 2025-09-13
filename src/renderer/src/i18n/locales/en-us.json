@@ -1,4 +1,16 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "Invalid Agent"
+      },
+      "title": "Add Agent",
+      "type": {
+        "label": "Agent Type",
+        "placeholder": "Select an agent type"
+      }
+    }
+  },
   "agents": {
     "add": {
       "button": "Add to Assistant",
@@ -731,6 +743,7 @@
   },
   "common": {
     "add": "Add",
+    "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
     "and": "and",
     "assistant": "Assistant",
@@ -769,6 +782,7 @@
     "go_to_settings": "Go to settings",
     "i_know": "I know",
     "inspect": "Inspect",
+    "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
     "language": "Language",
     "loading": "Loading...",
@@ -780,6 +794,11 @@
     "none": "None",
     "open": "Open",
     "paste": "Paste",
+    "placeholders": {
+      "select": {
+        "model": "Select a model"
+      }
+    },
     "preview": "Preview",
     "prompt": "Prompt",
     "provider": "Provider",
