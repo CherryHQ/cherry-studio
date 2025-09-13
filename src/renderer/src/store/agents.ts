@@ -1,7 +1,10 @@
+import { loggerService } from '@logger'
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { AgentEntity, AssistantPreset, AssistantSettings } from '@renderer/types'
+import { cloneDeep, mergeWith } from 'lodash'
 
+const logger = loggerService.withContext('Agents')
 export interface AgentsState {
   /** They are actually assistant presets.
    * They should not be in this slice. However, since redux will be removed
@@ -53,6 +56,28 @@ const assistantsSlice = createSlice({
           }
         }
       }
+    },
+    setAgents: (state, action: PayloadAction<AgentEntity[]>) => {
+      state.agentsNew = action.payload
+    },
+    addAgent: (state, action: PayloadAction<AgentEntity>) => {
+      state.agentsNew.push(action.payload)
+    },
+    removeAgent: (state, action: PayloadAction<{ id: string }>) => {
+      state.agentsNew = state.agentsNew.filter((agent) => agent.id !== action.payload.id)
+    },
+    updateAgent: (state, action: PayloadAction<Partial<AgentEntity> & { id: string }>) => {
+      const { id, ...update } = action.payload
+      const agent = state.agentsNew.find((agent) => agent.id === id)
+      if (agent) {
+        mergeWith(agent, update, (_, srcVal) => {
+          // cut reference
+          if (Array.isArray(srcVal)) return cloneDeep(srcVal)
+          else return undefined
+        })
+      } else {
+        logger.warn('Agent not found when trying to update')
+      }
     }
   }
 })
@@ -62,7 +87,11 @@ export const {
   addAssistantPreset,
   removeAssistantPreset,
   updateAssistantPreset,
-  updateAssistantPresetSettings
+  updateAssistantPresetSettings,
+  setAgents,
+  addAgent,
+  removeAgent,
+  updateAgent
 } = assistantsSlice.actions
 
 export default assistantsSlice.reducer
