@@ -220,6 +220,9 @@ export const AddAgentModal: React.FC = () => {
 
   return (
     <ErrorBoundary>
+      {/* NOTE: Hero UI Modal Pattern: Combine the Button and Modal components into a single
+      encapsulated component. This is because the Modal component needs to bind the onOpen
+      event handler to the Button for proper focus management.  */}
       <Button onPress={onOpen} className="justify-start bg-transparent text-foreground-500 hover:bg-accent">
         <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
         {t('agent.add.title')}
