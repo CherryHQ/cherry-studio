@@ -90,8 +90,8 @@ const Assistants: FC<AssistantsTabProps> = ({
       <AssistantAddItem onClick={onCreateAgent}>
         <AddItemWrapper>
           <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.agent.title') }}>
-            {t('chat.add.agent.title')}
+          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('agent.add.title') }}>
+            {t('agent.add.title')}
           </Typography.Text>
         </AddItemWrapper>
       </AssistantAddItem>

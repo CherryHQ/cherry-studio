@@ -1,4 +1,11 @@
 {
+  "agent": {
+    "add": {
+      "label": "Agent 类型",
+      "placeholder": "选择 Agent 类型",
+      "title": "添加 Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "添加到助手",
@@ -262,9 +269,6 @@
   },
   "chat": {
     "add": {
-      "agent": {
-        "title": "添加 Agent"
-      },
       "assistant": {
         "title": "添加助手"
       },
@@ -772,6 +776,7 @@
     "go_to_settings": "前往设置",
     "i_know": "我知道了",
     "inspect": "检查",
+    "invalid_value": "无效值",
     "knowledge_base": "知识库",
     "language": "语言",
     "loading": "加载中...",
