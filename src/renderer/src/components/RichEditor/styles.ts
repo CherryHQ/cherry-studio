@@ -166,6 +166,50 @@ export const EditorContent = styled.div`
         border-radius: 3px;
       }
     }
+
+    /* AI Completion Preview styles */
+    .ai-completion-preview {
+      color: var(--color-text-3);
+      opacity: 0.6;
+      font-style: italic;
+      position: relative;
+      display: inline;
+      pointer-events: none;
+      user-select: none;
+
+      &:before {
+        content: attr(data-placeholder);
+        color: inherit;
+        opacity: inherit;
+        font-style: inherit;
+      }
+
+      /* Animation for streaming text */
+      &.streaming {
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      /* Hover effect to show it's interactive */
+      &:hover {
+        opacity: 0.8;
+      }
+    }
+
+    /* Placeholder styles compatibility - removed duplicate :before pseudo-element */
+    .placeholder {
+      color: var(--color-text-3);
+      opacity: 0.6;
+    }
+
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 0.6;
+      }
+      50% {
+        opacity: 0.8;
+      }
+    }
   }
 `
 
