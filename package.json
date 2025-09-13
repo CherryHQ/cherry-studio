@@ -154,6 +154,7 @@
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opentelemetry/sdk-trace-web": "^2.0.0",
     "@playwright/test": "^1.52.0",
+    "@radix-ui/react-context-menu": "^2.2.16",
     "@reduxjs/toolkit": "^2.2.5",
     "@shikijs/markdown-it": "^3.12.0",
     "@swc/plugin-styled-components": "^8.0.4",
