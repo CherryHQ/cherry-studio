@@ -1,5 +1,6 @@
+import { ColFlex, Flex } from '@renderer/components/Layout'
 import { MCPPrompt } from '@renderer/types'
-import { Collapse, Descriptions, Empty, Flex, Tooltip, Typography } from 'antd'
+import { Collapse, Descriptions, Empty, Tooltip, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -22,7 +23,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
             <Descriptions.Item
               key={index}
               label={
-                <Flex gap={4}>
+                <Flex className="gap-1">
                   <Typography.Text strong>{arg.name}</Typography.Text>
                   {arg.required && (
                     <Tooltip title="Required field">
@@ -31,13 +32,13 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                   )}
                 </Flex>
               }>
-              <Flex vertical gap={4}>
+              <ColFlex className="gap-1">
                 {arg.description && (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
                     {arg.description}
                   </Typography.Paragraph>
                 )}
-              </Flex>
+              </ColFlex>
             </Descriptions.Item>
           ))}
         </Descriptions>
@@ -54,8 +55,8 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
             <Collapse.Panel
               key={prompt.id || prompt.name}
               header={
-                <Flex vertical align="flex-start">
-                  <Flex align="center" style={{ width: '100%' }}>
+                <ColFlex className="items-start">
+                  <Flex className="w-full items-center">
                     <Typography.Text strong>{prompt.name}</Typography.Text>
                   </Flex>
                   {prompt.description && (
@@ -63,7 +64,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                       {prompt.description}
                     </Typography.Text>
                   )}
-                </Flex>
+                </ColFlex>
               }>
               <SelectableContent>{renderPromptArguments(prompt)}</SelectableContent>
             </Collapse.Panel>

@@ -1,5 +1,6 @@
-import { Flex } from 'antd'
 import { styled } from 'styled-components'
+
+import { Flex } from '../Layout'
 
 export const PreviewError = styled.div`
   overflow: auto;

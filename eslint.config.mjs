@@ -113,6 +113,25 @@ export default defineConfig([
     }
   },
   {
+    // Layout Component Rules - prevent importing Flex from antd
+    files: ['src/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'antd',
+              importNames: ['Flex'],
+              message:
+                '❌ Do not import Flex from antd. Use our custom Layout components instead: import { Flex } from "@renderer/components/Layout"'
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
     ignores: [
       'node_modules/**',
       'build/**',

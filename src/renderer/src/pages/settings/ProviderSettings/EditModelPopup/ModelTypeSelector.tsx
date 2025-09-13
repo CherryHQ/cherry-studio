@@ -1,6 +1,7 @@
+import { Flex } from '@renderer/components/Layout'
 import { ModelCapability, ModelType } from '@renderer/types'
 import { getDifference, uniqueObjectArray } from '@renderer/utils'
-import { Button, Checkbox, Flex } from 'antd'
+import { Button, Checkbox } from 'antd'
 import { FC, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -132,7 +133,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
 
   return (
     <div>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+      <Flex className="mb-2 items-center justify-between">
         <Checkbox.Group
           value={selectedTypes}
           onChange={handleTypeChange}

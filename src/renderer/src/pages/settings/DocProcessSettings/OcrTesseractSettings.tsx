@@ -1,11 +1,12 @@
 // import { loggerService } from '@logger'
+import { Flex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { BuiltinOcrProviderIds, isOcrTesseractProvider, TesseractLangCode } from '@renderer/types'
-import { Flex, Select } from 'antd'
+import { Select } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -62,7 +63,7 @@ export const OcrTesseractSettings = () => {
     <>
       <SettingRow>
         <SettingRowTitle>
-          <Flex align="center" gap={4}>
+          <Flex className="items-center gap-1">
             {t('settings.tool.ocr.common.langs')}
             <InfoTooltip title={t('settings.tool.ocr.tesseract.langs_tooltip')} />
           </Flex>

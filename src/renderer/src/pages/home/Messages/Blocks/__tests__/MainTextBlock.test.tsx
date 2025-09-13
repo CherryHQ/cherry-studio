@@ -254,12 +254,11 @@ describe('MainTextBlock', () => {
       const mentionElement = screen.getByText('@Test Model')
       expect(mentionElement).toHaveStyle({ color: 'var(--color-link)' })
 
-      // Check container layout
-      const container = mentionElement.closest('[style*="gap"]')
-      expect(container).toHaveStyle({
-        gap: '8px',
-        marginBottom: '10px'
-      })
+      // Check container layout - now using Tailwind classes
+      const container = mentionElement.closest('.gap-2')
+      expect(container).toHaveClass('gap-2')
+      expect(container).toHaveClass('flex-wrap')
+      expect(container).toHaveClass('mb-2.5')
     })
   })
 

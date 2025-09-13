@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { Center, VStack } from '@renderer/components/Layout'
+import { Center, ColFlex } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'
@@ -190,8 +190,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       okButtonProps={{ disabled: buttonDisabled }}>
       <Divider style={{ margin: '8px 0' }} />
 
-      <Center mt="10px" mb="20px">
-        <VStack alignItems="center" gap="10px">
+      <Center className="mt-2.5">
+        <ColFlex className="items-center gap-2.5">
           <Dropdown
             menu={{ items }}
             trigger={['click']}
@@ -226,7 +226,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               )}
             </Popover>
           </Dropdown>
-        </VStack>
+        </ColFlex>
       </Center>
 
       <Form layout="vertical" style={{ gap: 8 }}>

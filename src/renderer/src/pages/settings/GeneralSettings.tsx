@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -22,7 +23,7 @@ import { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
-import { Flex, Input, Switch, Tooltip } from 'antd'
+import { Input, Switch, Tooltip } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -195,7 +196,7 @@ const GeneralSettings: FC = () => {
             onChange={onSelectLanguage}
             options={languagesOptions.map((lang) => ({
               label: (
-                <Flex align="center" gap={8}>
+                <Flex className="items-center gap-2">
                   <span role="img" aria-label={lang.flag}>
                     {lang.flag}
                   </span>
@@ -246,7 +247,7 @@ const GeneralSettings: FC = () => {
         )}
         <SettingDivider />
         <SettingRow>
-          <HStack justifyContent="space-between" alignItems="center" style={{ flex: 1, marginRight: 16 }}>
+          <RowFlex className="mr-4 flex-1 items-center justify-between">
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && (
               <Selector<string>
@@ -258,7 +259,7 @@ const GeneralSettings: FC = () => {
                 options={spellCheckLanguageOptions.map((lang) => ({
                   value: lang.value,
                   label: (
-                    <Flex align="center" gap={8}>
+                    <Flex className="items-center gap-2">
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
@@ -268,7 +269,7 @@ const GeneralSettings: FC = () => {
                 }))}
               />
             )}
-          </HStack>
+          </RowFlex>
           <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />
@@ -344,7 +345,7 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <Flex align="center" gap={4}>
+          <Flex className="items-center gap-1">
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip title={t('settings.developer.help')} />
           </Flex>

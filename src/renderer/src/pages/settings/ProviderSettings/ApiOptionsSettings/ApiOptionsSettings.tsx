@@ -1,8 +1,8 @@
-import { HStack } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
-import { Flex, Switch } from 'antd'
+import { Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -104,19 +104,19 @@ const ApiOptionsSettings = ({ providerId }: Props) => {
   }, [openAIOptions, provider.apiOptions, provider.type, t, updateProviderTransition])
 
   return (
-    <Flex vertical gap="middle">
+    <ColFlex className="gap-4">
       {options.map((item) => (
-        <HStack key={item.key} justifyContent="space-between">
-          <HStack alignItems="center" gap={6}>
+        <RowFlex key={item.key} className="justify-between">
+          <RowFlex className="items-center gap-1.5">
             <label style={{ cursor: 'pointer' }} htmlFor={item.key}>
               {item.label}
             </label>
             <InfoTooltip title={item.tip}></InfoTooltip>
-          </HStack>
+          </RowFlex>
           <Switch id={item.key} checked={item.checked} onChange={item.onChange} />
-        </HStack>
+        </RowFlex>
       ))}
-    </Flex>
+    </ColFlex>
   )
 }
 

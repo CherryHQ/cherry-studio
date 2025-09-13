@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
+import { Flex } from '@renderer/components/Layout'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -14,7 +15,6 @@ import {
   Collapse,
   ConfigProvider,
   Dropdown,
-  Flex,
   message as antdMessage,
   Modal,
   Progress,
@@ -267,7 +267,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
-            <ToolName align="center" gap={4}>
+            <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
                 <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>

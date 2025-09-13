@@ -1,6 +1,8 @@
+import { cn } from '@heroui/react'
 import { ThemeMode } from '@renderer/types'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
+import React from 'react'
 import styled, { CSSProp } from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
@@ -26,13 +28,17 @@ export const SettingTitle = styled.div`
   font-weight: bold;
 `
 
-export const SettingSubtitle = styled.div`
-  font-size: 14px;
-  color: var(--color-text-1);
-  margin: 15px 0 0 0;
-  user-select: none;
-  font-weight: bold;
-`
+export const SettingSubtitle = ({
+  ref,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
+  <div
+    ref={ref}
+    className={cn('mt-4 text-sm font-bold text-[var(--color-text-1)] select-none', className)}
+    {...props}
+  />
+)
 
 export const SettingDescription = styled.div`
   font-size: 12px;

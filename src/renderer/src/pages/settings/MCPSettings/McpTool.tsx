@@ -1,6 +1,7 @@
+import { ColFlex, Flex } from '@renderer/components/Layout'
 import { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -58,7 +59,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           <Descriptions.Item
             key={key}
             label={
-              <Flex gap={4}>
+              <Flex className="gap-1">
                 <Typography.Text strong>{key}</Typography.Text>
                 {tool.inputSchema.required?.includes(key) && (
                   <Tooltip title="Required field">
@@ -67,8 +68,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 )}
               </Flex>
             }>
-            <Flex vertical gap={4}>
-              <Flex align="center" gap={8}>
+            <ColFlex className="gap-1">
+              <Flex className="items-center gap-2">
                 {prop.type && (
                   // <Typography.Text type="secondary">{prop.type} </Typography.Text>
                   <Badge
@@ -94,7 +95,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                   </div>
                 </div>
               )}
-            </Flex>
+            </ColFlex>
           </Descriptions.Item>
         ))}
       </Descriptions>
@@ -113,8 +114,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       onFilter: (value, record) => record.name === value,
       filterSearch: true,
       render: (_, tool) => (
-        <Flex vertical align="flex-start" gap={4}>
-          <Flex align="center" gap={4}>
+        <ColFlex className="gap-1">
+          <Flex className="items-center gap-1">
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
@@ -130,12 +131,12 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               {tool.description}
             </Typography.Paragraph>
           )}
-        </Flex>
+        </ColFlex>
       )
     },
     {
       title: (
-        <Flex align="center" justify="center" gap={4}>
+        <Flex className="items-center justify-center gap-1">
           <Hammer size={14} color="orange" />
           <Typography.Text strong>{t('settings.mcp.tools.enable')}</Typography.Text>
         </Flex>
@@ -149,7 +150,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
     },
     {
       title: (
-        <Flex align="center" justify="center" gap={4}>
+        <Flex className="items-center justify-center gap-1">
           <Zap size={14} color="red" />
           <Typography.Text strong>{t('settings.mcp.tools.autoApprove.label')}</Typography.Text>
         </Flex>

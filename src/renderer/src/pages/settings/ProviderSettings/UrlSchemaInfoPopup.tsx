@@ -1,8 +1,9 @@
+import { Flex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { Provider, ProviderType } from '@renderer/types'
 import { getFancyProviderName, maskApiKey } from '@renderer/utils'
-import { Button, Descriptions, Flex, Modal } from 'antd'
+import { Button, Descriptions, Modal } from 'antd'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -108,7 +109,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           <Descriptions.Item label={t('settings.models.provider_id')}>{baseProvider.id}</Descriptions.Item>
           {baseUrl && <Descriptions.Item label={t('settings.models.base_url')}>{baseUrl}</Descriptions.Item>}
           <Descriptions.Item label={t('settings.models.api_key')}>
-            <Flex justify="space-between">
+            <Flex className="justify-between">
               {showFullKey ? newApiKey : maskApiKey(newApiKey)}
               <Button
                 type="link"

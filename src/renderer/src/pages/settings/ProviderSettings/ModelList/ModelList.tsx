@@ -1,6 +1,7 @@
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -12,7 +13,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Flex, Spin, Tooltip } from 'antd'
+import { Button, Spin, Tooltip } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -98,10 +99,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
 
   return (
     <>
-      <SettingSubtitle style={{ marginBottom: 5 }}>
-        <HStack alignItems="center" justifyContent="space-between" style={{ width: '100%' }}>
-          <HStack alignItems="center" gap={8}>
-            <SettingSubtitle style={{ marginTop: 0 }}>{t('common.models')}</SettingSubtitle>
+      <SettingSubtitle className="mb-[5px]">
+        <RowFlex className="w-full items-center justify-between">
+          <RowFlex className="items-center gap-2">
+            <SettingSubtitle className="mt-0">{t('common.models')}</SettingSubtitle>
             {modelCount > 0 && (
               <CustomTag color="#8c8c8c" size={10}>
                 {modelCount}
@@ -112,9 +113,9 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
               placeholder={t('models.search.placeholder')}
               tooltip={t('models.search.tooltip')}
             />
-          </HStack>
+          </RowFlex>
           {editable && (
-            <HStack>
+            <RowFlex>
               <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
                 <Button
                   type="text"
@@ -122,13 +123,13 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                   icon={<StreamlineGoodHealthAndWellBeing size={16} isActive={isHealthChecking} />}
                 />
               </Tooltip>
-            </HStack>
+            </RowFlex>
           )}
-        </HStack>
+        </RowFlex>
       </SettingSubtitle>
       <Spin spinning={isLoading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
         {displayedModelGroups && !isEmpty(displayedModelGroups) && (
-          <Flex gap={12} vertical>
+          <ColFlex className="gap-3">
             {Object.keys(displayedModelGroups).map((group, i) => (
               <ModelListGroup
                 key={group}
@@ -142,10 +143,10 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
                 disabled={!editable}
               />
             ))}
-          </Flex>
+          </ColFlex>
         )}
       </Spin>
-      <Flex justify="space-between" align="center">
+      <Flex className="items-center justify-between">
         {docsWebsite || modelsWebsite ? (
           <SettingHelpTextRow>
             <SettingHelpText>{t('settings.provider.docs_check')} </SettingHelpText>
@@ -164,11 +165,11 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             <SettingHelpText>{t('settings.provider.docs_more_details')}</SettingHelpText>
           </SettingHelpTextRow>
         ) : (
-          <div style={{ height: 5 }} />
+          <div className="h-[5px]" />
         )}
       </Flex>
       {editable && (
-        <Flex gap={10} style={{ marginTop: 12 }}>
+        <Flex className="mt-3 gap-2.5">
           <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
             {t('button.manage')}
           </Button>

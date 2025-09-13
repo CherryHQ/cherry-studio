@@ -84,8 +84,8 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
     data-testid="modal-body"
   >
     <div
+      class="h-full"
       data-testid="hstack"
-      height="100%"
     >
       <div
         class="c1"

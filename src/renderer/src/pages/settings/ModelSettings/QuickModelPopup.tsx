@@ -1,10 +1,11 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { ResetIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
 import { setEnableTopicNaming, setTopicNamingPrompt } from '@renderer/store/settings'
-import { Button, Divider, Flex, Input, Modal, Popover, Switch } from 'antd'
+import { Button, Divider, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -55,14 +56,14 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
         {t('settings.models.topic_naming.label')}
       </SettingSubtitle>
-      <Flex vertical align="stretch" gap={8}>
-        <HStack style={{ gap: 16 }} alignItems="center">
+      <ColFlex className="items-stretch gap-2">
+        <RowFlex className="items-center gap-4">
           <div>{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onChange={(v) => dispatch(setEnableTopicNaming(v))} />
-        </HStack>
+        </RowFlex>
         <Divider style={{ margin: 0 }} />
         <div>
-          <Flex align="center" gap={4} style={{ marginBottom: 4, height: 30 }}>
+          <Flex className="mb-1 h-[30px] items-center gap-1">
             <div>{t('settings.models.topic_naming.prompt')}</div>
             <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
@@ -77,7 +78,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             style={{ width: '100%' }}
           />
         </div>
-      </Flex>
+      </ColFlex>
     </Modal>
   )
 }

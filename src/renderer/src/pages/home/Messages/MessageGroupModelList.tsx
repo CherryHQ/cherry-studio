@@ -1,6 +1,6 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'
@@ -108,7 +108,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   )
 }
 
-const Container = styled(HStack)`
+const Container = styled(RowFlex)`
   flex: 1;
   overflow: hidden;
   align-items: center;

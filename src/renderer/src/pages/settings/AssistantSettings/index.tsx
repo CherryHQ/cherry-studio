@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/useAgents'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -111,7 +111,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       width="min(800px, 70vw)"
       height="80vh"
       centered>
-      <HStack>
+      <RowFlex>
         <LeftMenu>
           <StyledMenu
             defaultSelectedKeys={[tab || 'prompt']}
@@ -161,7 +161,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
             />
           )}
         </Settings>
-      </HStack>
+      </RowFlex>
     </StyledModal>
   )
 }

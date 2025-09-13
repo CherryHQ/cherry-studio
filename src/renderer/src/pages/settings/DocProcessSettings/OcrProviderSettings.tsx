@@ -1,10 +1,11 @@
 // import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { Flex } from '@renderer/components/Layout'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'
 import { isBuiltinOcrProvider, isOcrSystemProvider, OcrProvider } from '@renderer/types'
-import { Divider, Flex } from 'antd'
+import { Divider } from 'antd'
 import styled from 'styled-components'
 
 import { SettingGroup, SettingTitle } from '..'
@@ -46,7 +47,7 @@ const OcrProviderSettings = ({ provider }: Props) => {
   return (
     <SettingGroup theme={themeMode}>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <OcrProviderLogo provider={provider} />
           <ProviderName> {getOcrProviderName(provider)}</ProviderName>
         </Flex>
