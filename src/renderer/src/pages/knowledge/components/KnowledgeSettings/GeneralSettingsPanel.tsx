@@ -50,7 +50,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('settings.tool.preprocess.title')}
-          <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
+          <InfoTooltip content={t('settings.tool.preprocess.tooltip')} placement="right" />
         </div>
         <Select
           value={selectedDocPreprocessProvider?.id}
@@ -65,7 +65,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('models.embedding_model')}
-          <InfoTooltip title={t('models.embedding_model_tooltip')} placement="right" />
+          <InfoTooltip content={t('models.embedding_model_tooltip')} placement="right" />
         </div>
         <ModelSelector
           providers={providers}
@@ -80,7 +80,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.dimensions')}
-          <InfoTooltip title={t('knowledge.dimensions_size_tooltip')} placement="right" />
+          <InfoTooltip content={t('knowledge.dimensions_size_tooltip')} placement="right" />
         </div>
         <InputEmbeddingDimension
           value={newBase.dimensions}
@@ -93,7 +93,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('models.rerank_model')}
-          <InfoTooltip title={t('models.rerank_model_tooltip')} placement="right" />
+          <InfoTooltip content={t('models.rerank_model_tooltip')} placement="right" />
         </div>
         <ModelSelector
           providers={providers}
@@ -111,7 +111,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           <SettingsItem>
             <div className="settings-label">
               {t('knowledge.retriever')}
-              <InfoTooltip title={t('knowledge.retriever_tooltip')} placement="right" />
+              <InfoTooltip content={t('knowledge.retriever_tooltip')} placement="right" />
             </div>
             <Segmented
               value={newBase.retriever?.mode || 'hybrid'}
@@ -158,7 +158,7 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">
           {t('knowledge.document_count')}
-          <InfoTooltip title={t('knowledge.document_count_help')} placement="right" />
+          <InfoTooltip content={t('knowledge.document_count_help')} placement="right" />
         </div>
         <Slider
           style={{ width: '100%' }}

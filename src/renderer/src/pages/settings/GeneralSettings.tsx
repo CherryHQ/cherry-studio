@@ -1,5 +1,3 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import { Flex } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
@@ -283,12 +281,10 @@ const GeneralSettings: FC = () => {
         <SettingTitle>{t('settings.notification.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>{t('settings.notification.assistant')}</span>
-            <Tooltip content={t('notification.tip')} placement="right" showArrow={true}>
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
-          </SettingRowTitle>
+          <Flex className="items-center gap-1">
+            <SettingRowTitle>{t('settings.notification.assistant')}</SettingRowTitle>
+            <InfoTooltip content={t('notification.tip')} />
+          </Flex>
           <Switch checked={notificationSettings.assistant} onChange={(v) => handleNotificationChange('assistant', v)} />
         </SettingRow>
         <SettingDivider />

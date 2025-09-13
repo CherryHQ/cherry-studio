@@ -4,6 +4,7 @@ import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import HelpTooltip from '@renderer/components/TooltipIcons/HelpTooltip'
 import { isMac } from '@renderer/config/constant'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
@@ -36,7 +37,6 @@ import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   FolderOpen,
-  HelpCircle,
   MenuIcon,
   NotebookPen,
   PackagePlus,
@@ -246,11 +246,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         label: t('chat.topics.prompt.label'),
         key: 'topic-prompt',
         icon: <PackagePlus size={14} />,
-        extra: (
-          <Tooltip content={t('chat.topics.prompt.tips')} showArrow={true}>
-            <HelpCircle size={14} />
-          </Tooltip>
-        ),
+        extra: <HelpTooltip content={t('chat.topics.prompt.tips')} />,
         async onClick() {
           const prompt = await PromptPopup.show({
             title: t('chat.topics.prompt.edit.title'),

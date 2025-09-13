@@ -56,7 +56,7 @@ export const OcrSystemSettings = () => {
         <SettingRowTitle>
           <Flex className="items-center gap-1">
             {t('settings.tool.ocr.common.langs')}
-            {isWin && <InfoTooltip title={t('settings.tool.ocr.system.win.langs_tooltip')} />}
+            {isWin && <InfoTooltip content={t('settings.tool.ocr.system.win.langs_tooltip')} />}
           </Flex>
         </SettingRowTitle>
         <div style={{ display: 'flex', gap: '8px' }}>

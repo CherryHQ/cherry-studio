@@ -1,5 +1,4 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
@@ -11,6 +10,7 @@ import ImageSize16_9 from '@renderer/assets/images/paintings/image-size-16-9.svg
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { LanguagesEnum } from '@renderer/config/translate'
@@ -29,7 +29,6 @@ import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Button, Input, InputNumber, Radio, Select, Slider, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -403,9 +402,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.number_images')}
-            <Tooltip content={t('paintings.number_images_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.number_images_tip')} />
           </SettingTitle>
           <InputNumber
             min={1}
@@ -416,9 +413,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.seed')}
-            <Tooltip content={t('paintings.seed_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.seed_tip')} />
           </SettingTitle>
           <Input
             value={painting.seed}
@@ -433,9 +428,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.inference_steps')}
-            <Tooltip content={t('paintings.inference_steps_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.inference_steps_tip')} />
           </SettingTitle>
           <SliderContainer>
             <Slider min={1} max={50} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
@@ -449,9 +442,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.guidance_scale')}
-            <Tooltip content={t('paintings.guidance_scale_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.guidance_scale_tip')} />
           </SettingTitle>
           <SliderContainer>
             <Slider
@@ -471,9 +462,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SliderContainer>
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.negative_prompt')}
-            <Tooltip content={t('paintings.negative_prompt_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.negative_prompt_tip')} />
           </SettingTitle>
           <TextArea
             value={painting.negativePrompt}
@@ -483,9 +472,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.prompt_enhancement')}
-            <Tooltip content={t('paintings.prompt_enhancement_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.prompt_enhancement_tip')} />
           </SettingTitle>
           <RowFlex>
             <Switch
@@ -628,19 +615,6 @@ const RadioButton = styled(Radio.Button)`
   flex: 1;
   justify-content: center;
   align-items: center;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const SliderContainer = styled.div`

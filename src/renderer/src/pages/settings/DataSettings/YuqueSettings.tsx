@@ -1,6 +1,6 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
@@ -90,15 +90,10 @@ const YuqueSettings: FC = () => {
       </SettingRow>
       <SettingDivider />
       <SettingRow>
-        <SettingRowTitle>
-          {t('settings.data.yuque.token')}
-          <Tooltip content={t('settings.data.yuque.help')} placement="left" showArrow={true}>
-            <InfoCircleOutlined
-              style={{ color: 'var(--color-text-2)', cursor: 'pointer', marginLeft: 4 }}
-              onClick={handleYuqueHelpClick}
-            />
-          </Tooltip>
-        </SettingRowTitle>
+        <Flex className="items-center gap-1">
+          <SettingRowTitle>{t('settings.data.yuque.token')}</SettingRowTitle>
+          <InfoTooltip content={t('settings.data.yuque.help')} placement="left" onClick={handleYuqueHelpClick} />
+        </Flex>
         <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password

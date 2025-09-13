@@ -1,7 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { RowFlex } from '@renderer/components/Layout'
+import { Flex, RowFlex } from '@renderer/components/Layout'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -67,12 +67,10 @@ const QuickAssistantSettings: FC = () => {
         <SettingTitle>{t('settings.quickAssistant.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
-            <Tooltip content={t('settings.quickAssistant.use_shortcut_to_show')} placement="right" showArrow={true}>
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
-          </SettingRowTitle>
+          <Flex className="items-center gap-1">
+            <SettingRowTitle>{t('settings.quickAssistant.enable_quick_assistant')}</SettingRowTitle>
+            <InfoTooltip content={t('settings.quickAssistant.use_shortcut_to_show')} />
+          </Flex>
           <Switch checked={enableQuickAssistant} onChange={handleEnableQuickAssistant} />
         </SettingRow>
         {enableQuickAssistant && (
@@ -99,9 +97,7 @@ const QuickAssistantSettings: FC = () => {
           <RowFlex className="items-center justify-between">
             <RowFlex className="items-center gap-2.5">
               {t('settings.models.quick_assistant_model')}
-              <Tooltip content={t('selection.settings.user_modal.model.tooltip')} showArrow={true}>
-                <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-              </Tooltip>
+              <InfoTooltip content={t('selection.settings.user_modal.model.tooltip')} />
               <Spacer />
             </RowFlex>
             <RowFlex className="items-center gap-2.5">

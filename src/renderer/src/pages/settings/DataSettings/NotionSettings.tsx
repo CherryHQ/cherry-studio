@@ -1,7 +1,7 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
-import { Tooltip } from '@heroui/react'
 import { Client } from '@notionhq/client'
 import { RowFlex } from '@renderer/components/Layout'
+import { Flex } from '@renderer/components/Layout'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { RootState, useAppDispatch } from '@renderer/store'
@@ -81,15 +81,10 @@ const NotionSettings: FC = () => {
 
   return (
     <SettingGroup theme={theme}>
-      <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
-        {t('settings.data.notion.title')}
-        <Tooltip content={t('settings.data.notion.help')} placement="right" showArrow={true}>
-          <InfoCircleOutlined
-            style={{ color: 'var(--color-text-2)', cursor: 'pointer' }}
-            onClick={handleNotionTitleClick}
-          />
-        </Tooltip>
-      </SettingTitle>
+      <Flex className="items-center gap-1">
+        <SettingTitle>{t('settings.data.notion.title')}</SettingTitle>
+        <InfoTooltip content={t('settings.data.notion.help')} placement="right" onClick={handleNotionTitleClick} />
+      </Flex>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>

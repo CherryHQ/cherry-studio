@@ -7,19 +7,26 @@ interface InfoTooltipProps extends InheritedTooltipProps {
   iconColor?: string
   iconSize?: string | number
   iconStyle?: React.CSSProperties
-  title?: string // Support legacy title prop for backward compatibility
+  onClick?: () => void
 }
 
 const InfoTooltip = ({
   iconColor = 'var(--color-text-2)',
   iconSize = 14,
   iconStyle,
-  title,
+  onClick,
   ...rest
 }: InfoTooltipProps) => {
   return (
-    <Tooltip showArrow={true} content={title || rest.content} {...rest}>
-      <Info size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
+    <Tooltip classNames={{ content: 'max-w-[240px]' }} showArrow={true} content={rest.content} {...rest}>
+      <Info
+        size={iconSize}
+        color={iconColor}
+        style={{ ...iconStyle }}
+        role="img"
+        aria-label="Information"
+        onClick={onClick}
+      />
     </Tooltip>
   )
 }

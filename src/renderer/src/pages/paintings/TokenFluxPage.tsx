@@ -3,6 +3,7 @@ import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
@@ -20,7 +21,6 @@ import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -464,11 +464,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           {readI18nContext(property, 'title')}
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
-                        {property.description && (
-                          <Tooltip content={readI18nContext(property, 'description')} showArrow={true}>
-                            <InfoIcon />
-                          </Tooltip>
-                        )}
+                        {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
                       </ParameterLabel>
                       <DynamicFormRender
                         schemaProperty={property}
@@ -751,19 +747,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 14px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const ProviderLogo = styled(Avatar)`

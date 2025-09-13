@@ -1,11 +1,11 @@
 import { Radio, RadioGroup, Switch, Tooltip } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { ColFlex, Flex, RowFlex } from '@renderer/components/Layout'
+import HelpTooltip from '@renderer/components/TooltipIcons/HelpTooltip'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
 import { Button, Modal, Space } from 'antd'
-import { HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -105,14 +105,10 @@ const TranslateSettings: FC<{
         </div>
 
         <RowFlex className="justify-between">
-          <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+          <RowFlex className="items-center gap-[5px]">
             {t('translate.detect.method.label')}
-            <Tooltip content={t('translate.detect.method.tip')} showArrow={true}>
-              <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
-                <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-              </span>
-            </Tooltip>
-          </div>
+            <HelpTooltip content={t('translate.detect.method.tip')} />
+          </RowFlex>
           <RowFlex className="items-center gap-[5px]">
             <RadioGroup
               value={autoDetectionMethod}
@@ -136,16 +132,10 @@ const TranslateSettings: FC<{
 
         <div>
           <Flex className="items-center justify-between">
-            <div style={{ fontWeight: 500 }}>
-              <RowFlex className="items-center gap-[5px]">
-                {t('translate.settings.bidirectional')}
-                <Tooltip content={t('translate.settings.bidirectional_tip')} showArrow={true}>
-                  <span style={{ display: 'flex', alignItems: 'center' }}>
-                    <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
-                  </span>
-                </Tooltip>
-              </RowFlex>
-            </div>
+            <RowFlex className="items-center gap-[5px]">
+              {t('translate.settings.bidirectional')}
+              <HelpTooltip content={t('translate.settings.bidirectional_tip')} />
+            </RowFlex>
             <Switch
               isSelected={isBidirectional}
               color="primary"

@@ -23,14 +23,14 @@ vi.mock('lucide-react', () => ({
 describe('InfoTooltip', () => {
   it('should match snapshot', () => {
     const { container } = render(
-      <InfoTooltip title="Test tooltip" placement="top" iconColor="#1890ff" iconStyle={{ fontSize: '16px' }} />
+      <InfoTooltip content="Test tooltip" placement="top" iconColor="#1890ff" iconStyle={{ fontSize: '16px' }} />
     )
     expect(container.firstChild).toMatchSnapshot()
   })
 
   it('should pass title prop to the underlying Tooltip component', () => {
     const tooltipText = 'This is helpful information'
-    render(<InfoTooltip title={tooltipText} />)
+    render(<InfoTooltip content={tooltipText} />)
 
     expect(screen.getByRole('img', { name: 'Information' })).toBeInTheDocument()
     expect(screen.getByText(tooltipText)).toBeInTheDocument()

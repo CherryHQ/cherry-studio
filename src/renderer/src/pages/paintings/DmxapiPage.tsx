@@ -1,9 +1,9 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Tooltip } from '@heroui/react'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { RowFlex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -18,7 +18,6 @@ import { convertToBase64, uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
 import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import React, { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -924,9 +923,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
                 {t('paintings.seed')}
-                <Tooltip content={t('paintings.seed_desc_tip')} showArrow={true}>
-                  <InfoIcon />
-                </Tooltip>
+                <InfoTooltip content={t('paintings.seed_desc_tip')} />
               </SettingTitle>
               <Input
                 value={painting.seed}
@@ -958,9 +955,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.auto_create_paint')}
-            <Tooltip content={t('paintings.auto_create_paint_tip')} showArrow={true}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip content={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
           <RowFlex>
             <Switch checked={painting.autoCreate} onChange={(checked) => onChangeAutoCreate(checked)} />
@@ -1102,18 +1097,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const SliderContainer = styled.div`
