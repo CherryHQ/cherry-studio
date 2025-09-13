@@ -1,10 +1,10 @@
-import { Client, createClient } from '@libsql/client'
+import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import { drizzle } from 'drizzle-orm/libsql'
 import { app } from 'electron'
 import path from 'path'
 
-import { migrations } from './database/migrations'
-import { Migrator } from './database/migrator'
+import * as schema from './database/schema'
 
 const logger = loggerService.withContext('BaseService')
 
@@ -17,7 +17,8 @@ const logger = loggerService.withContext('BaseService')
  * migration files, ensuring a single source of truth.
  */
 export abstract class BaseService {
-  protected static db: Client | null = null
+  protected static client: Client | null = null
+  protected static db: ReturnType<typeof drizzle> | null = null
   protected static isInitialized = false
 
   protected static async initialize(): Promise<void> {
@@ -31,34 +32,14 @@ export abstract class BaseService {
 
       logger.info(`Initializing Agent database at: ${dbPath}`)
 
-      BaseService.db = createClient({
+      BaseService.client = createClient({
         url: `file:${dbPath}`
       })
 
-      // Initialize migration system and run migrations
-      const migrator = new Migrator(BaseService.db)
+      BaseService.db = drizzle(BaseService.client, { schema })
 
-      // Register all migrations
-      migrator.addMigrations(migrations)
-
-      // Initialize migration tracking table
-      await migrator.initialize()
-
-      // Run any pending migrations
-      const results = await migrator.migrate()
-
-      if (results.length > 0) {
-        const successCount = results.filter((r) => r.success).length
-        const failCount = results.length - successCount
-
-        if (failCount > 0) {
-          throw new Error(`${failCount} migrations failed during initialization`)
-        }
-
-        logger.info(`Successfully applied ${successCount} migrations during initialization`)
-      } else {
-        logger.info('Database schema is up to date, no migrations needed')
-      }
+      // For new development, tables will be created by Drizzle Kit migrations
+      // or can be created programmatically as needed
 
       BaseService.isInitialized = true
       logger.info('Agent database initialized successfully')
@@ -69,14 +50,19 @@ export abstract class BaseService {
   }
 
   protected ensureInitialized(): void {
-    if (!BaseService.isInitialized || !BaseService.db) {
+    if (!BaseService.isInitialized || !BaseService.db || !BaseService.client) {
       throw new Error('Database not initialized. Call initialize() first.')
     }
   }
 
-  protected get database(): Client {
+  protected get database(): ReturnType<typeof drizzle> {
     this.ensureInitialized()
     return BaseService.db!
+  }
+
+  protected get rawClient(): Client {
+    this.ensureInitialized()
+    return BaseService.client!
   }
 
   protected serializeJsonFields(data: any): any {

@@ -5,7 +5,7 @@
  * - Agent lifecycle management (CRUD operations)
  * - Session handling with conversation history
  * - Comprehensive logging and audit trails
- * - Database operations with migration support
+ * - Database operations with Drizzle ORM and migration support
  * - RESTful API endpoints for external integration
  */
 
@@ -18,12 +18,5 @@ export * from './services'
 export { BaseService } from './BaseService'
 
 // === Database Layer ===
-// New modular database structure (recommended for new code)
+// Drizzle ORM schemas, migrations, and database utilities
 export * as Database from './database'
-
-// === Legacy Compatibility ===
-// Backward compatibility layer - use Database exports for new code
-export { AgentQueries_Legacy as AgentQueries } from './database'
-
-// === Type Re-exports ===
-// Main service types are available through service exports

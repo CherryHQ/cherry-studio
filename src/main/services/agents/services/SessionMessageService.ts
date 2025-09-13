@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import type { SessionMessageEntity } from '@types'
+import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { AgentQueries_Legacy as AgentQueries } from '../database'
+import { type InsertSessionMessageRow, type SessionMessageRow, sessionMessagesTable } from '../database/schema'
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -56,51 +57,36 @@ export class SessionMessageService extends BaseService {
 
     const now = new Date().toISOString()
 
-    const values = [
-      messageData.session_id,
-      messageData.parent_id || null,
-      messageData.role,
-      messageData.type,
-      JSON.stringify(messageData.content),
-      messageData.metadata ? JSON.stringify(messageData.metadata) : null,
-      now,
-      now
-    ]
+    const insertData: InsertSessionMessageRow = {
+      session_id: messageData.session_id,
+      parent_id: messageData.parent_id || null,
+      role: messageData.role,
+      type: messageData.type,
+      content: JSON.stringify(messageData.content),
+      metadata: messageData.metadata ? JSON.stringify(messageData.metadata) : null,
+      created_at: now,
+      updated_at: now
+    }
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessionMessages.insert,
-      args: values
-    })
+    const result = await this.database.insert(sessionMessagesTable).values(insertData).returning()
 
-    if (!result.lastInsertRowid) {
+    if (!result[0]) {
       throw new Error('Failed to create session message')
     }
 
-    const logResult = await this.database.execute({
-      sql: AgentQueries.sessionMessages.getById,
-      args: [result.lastInsertRowid]
-    })
-
-    if (!logResult.rows[0]) {
-      throw new Error('Failed to retrieve created session message')
-    }
-
-    return this.deserializeSessionMessage(logResult.rows[0]) as SessionMessageEntity
+    return this.deserializeSessionMessage(result[0]) as SessionMessageEntity
   }
 
   async getSessionMessage(id: number): Promise<SessionMessageEntity | null> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessionMessages.getById,
-      args: [id]
-    })
+    const result = await this.database.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, id)).limit(1)
 
-    if (!result.rows[0]) {
+    if (!result[0]) {
       return null
     }
 
-    return this.deserializeSessionMessage(result.rows[0]) as SessionMessageEntity
+    return this.deserializeSessionMessage(result[0]) as SessionMessageEntity
   }
 
   async listSessionMessages(
@@ -110,35 +96,28 @@ export class SessionMessageService extends BaseService {
     this.ensureInitialized()
 
     // Get total count
-    const countResult = await this.database.execute({
-      sql: AgentQueries.sessionMessages.countBySessionId,
-      args: [sessionId]
-    })
-    const total = (countResult.rows[0] as any).total
+    const totalResult = await this.database
+      .select({ count: count() })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.session_id, sessionId))
+
+    const total = totalResult[0].count
 
     // Get messages with pagination
-    let query: string
-    const args: any[] = [sessionId]
+    const baseQuery = this.database
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.session_id, sessionId))
+      .orderBy(sessionMessagesTable.created_at)
 
-    if (options.limit !== undefined) {
-      query = AgentQueries.sessionMessages.getBySessionIdWithPagination
-      args.push(options.limit)
+    const result =
+      options.limit !== undefined
+        ? options.offset !== undefined
+          ? await baseQuery.limit(options.limit).offset(options.offset)
+          : await baseQuery.limit(options.limit)
+        : await baseQuery
 
-      if (options.offset !== undefined) {
-        args.push(options.offset)
-      } else {
-        args.push(0)
-      }
-    } else {
-      query = AgentQueries.sessionMessages.getBySessionId
-    }
-
-    const result = await this.database.execute({
-      sql: query,
-      args: args
-    })
-
-    const messages = result.rows.map((row) => this.deserializeSessionMessage(row)) as SessionMessageEntity[]
+    const messages = result.map((row) => this.deserializeSessionMessage(row)) as SessionMessageEntity[]
 
     return { messages, total }
   }
@@ -154,23 +133,19 @@ export class SessionMessageService extends BaseService {
 
     const now = new Date().toISOString()
 
-    const values = [
-      updates.content !== undefined ? JSON.stringify(updates.content) : JSON.stringify(existing.content),
-      updates.metadata !== undefined
-        ? updates.metadata
-          ? JSON.stringify(updates.metadata)
-          : null
-        : existing.metadata
-          ? JSON.stringify(existing.metadata)
-          : null,
-      now,
-      id
-    ]
+    const updateData: Partial<SessionMessageRow> = {
+      updated_at: now
+    }
 
-    await this.database.execute({
-      sql: AgentQueries.sessionMessages.update,
-      args: values
-    })
+    if (updates.content !== undefined) {
+      updateData.content = JSON.stringify(updates.content)
+    }
+
+    if (updates.metadata !== undefined) {
+      updateData.metadata = updates.metadata ? JSON.stringify(updates.metadata) : null
+    }
+
+    await this.database.update(sessionMessagesTable).set(updateData).where(eq(sessionMessagesTable.id, id))
 
     return await this.getSessionMessage(id)
   }
@@ -178,10 +153,7 @@ export class SessionMessageService extends BaseService {
   async deleteSessionMessage(id: number): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessionMessages.deleteById,
-      args: [id]
-    })
+    const result = await this.database.delete(sessionMessagesTable).where(eq(sessionMessagesTable.id, id))
 
     return result.rowsAffected > 0
   }
@@ -189,12 +161,13 @@ export class SessionMessageService extends BaseService {
   async sessionMessageExists(id: number): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessionMessages.getById,
-      args: [id]
-    })
+    const result = await this.database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, id))
+      .limit(1)
 
-    return result.rows.length > 0
+    return result.length > 0
   }
 
   async bulkCreateSessionMessages(messages: CreateSessionMessageRequest[]): Promise<SessionMessageEntity[]> {

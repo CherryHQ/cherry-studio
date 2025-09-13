@@ -1,7 +1,8 @@
 import type { AgentEntity, AgentType, PermissionMode } from '@types'
+import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { AgentQueries_Legacy as AgentQueries } from '../database'
+import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
 
 export interface CreateAgentRequest {
   type: AgentType
@@ -66,86 +67,69 @@ export class AgentService extends BaseService {
 
     const serializedData = this.serializeJsonFields(agentData)
 
-    const values = [
+    const insertData: InsertAgentRow = {
       id,
-      serializedData.type,
-      serializedData.name,
-      serializedData.description || null,
-      serializedData.avatar || null,
-      serializedData.instructions || null,
-      serializedData.model,
-      serializedData.plan_model || null,
-      serializedData.small_model || null,
-      serializedData.built_in_tools || null,
-      serializedData.mcps || null,
-      serializedData.knowledges || null,
-      serializedData.configuration || null,
-      serializedData.accessible_paths || null,
-      serializedData.permission_mode || 'readOnly',
-      serializedData.max_steps || 10,
-      now,
-      now
-    ]
+      type: serializedData.type,
+      name: serializedData.name,
+      description: serializedData.description || null,
+      avatar: serializedData.avatar || null,
+      instructions: serializedData.instructions || null,
+      model: serializedData.model,
+      plan_model: serializedData.plan_model || null,
+      small_model: serializedData.small_model || null,
+      built_in_tools: serializedData.built_in_tools || null,
+      mcps: serializedData.mcps || null,
+      knowledges: serializedData.knowledges || null,
+      configuration: serializedData.configuration || null,
+      accessible_paths: serializedData.accessible_paths || null,
+      permission_mode: serializedData.permission_mode || 'readOnly',
+      max_steps: serializedData.max_steps || 10,
+      created_at: now,
+      updated_at: now
+    }
 
-    await this.database.execute({
-      sql: AgentQueries.agents.insert,
-      args: values
-    })
+    await this.database.insert(agentsTable).values(insertData)
 
-    const result = await this.database.execute({
-      sql: AgentQueries.agents.getById,
-      args: [id]
-    })
+    const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
 
-    if (!result.rows[0]) {
+    if (!result[0]) {
       throw new Error('Failed to create agent')
     }
 
-    return this.deserializeJsonFields(result.rows[0]) as AgentEntity
+    return this.deserializeJsonFields(result[0]) as AgentEntity
   }
 
   async getAgent(id: string): Promise<AgentEntity | null> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.agents.getById,
-      args: [id]
-    })
+    const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
 
-    if (!result.rows[0]) {
+    if (!result[0]) {
       return null
     }
 
-    return this.deserializeJsonFields(result.rows[0]) as AgentEntity
+    return this.deserializeJsonFields(result[0]) as AgentEntity
   }
 
   async listAgents(options: ListAgentsOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     this.ensureInitialized()
 
     // Get total count
-    const countResult = await this.database.execute(AgentQueries.agents.count)
-    const total = (countResult.rows[0] as any).total
+    const totalResult = await this.database.select({ count: count() }).from(agentsTable)
 
-    // Get agents with pagination
-    let query = AgentQueries.agents.list
-    const args: any[] = []
+    const total = totalResult[0].count
 
-    if (options.limit !== undefined) {
-      query += ' LIMIT ?'
-      args.push(options.limit)
+    // Build query with pagination
+    const baseQuery = this.database.select().from(agentsTable).orderBy(agentsTable.created_at)
 
-      if (options.offset !== undefined) {
-        query += ' OFFSET ?'
-        args.push(options.offset)
-      }
-    }
+    const result =
+      options.limit !== undefined
+        ? options.offset !== undefined
+          ? await baseQuery.limit(options.limit).offset(options.offset)
+          : await baseQuery.limit(options.limit)
+        : await baseQuery
 
-    const result = await this.database.execute({
-      sql: query,
-      args: args
-    })
-
-    const agents = result.rows.map((row) => this.deserializeJsonFields(row)) as AgentEntity[]
+    const agents = result.map((row) => this.deserializeJsonFields(row)) as AgentEntity[]
 
     return { agents, total }
   }
@@ -162,49 +146,28 @@ export class AgentService extends BaseService {
     const now = new Date().toISOString()
     const serializedUpdates = this.serializeJsonFields(updates)
 
-    const values = [
-      serializedUpdates.name !== undefined ? serializedUpdates.name : existing.name,
-      serializedUpdates.description !== undefined ? serializedUpdates.description : existing.description,
-      serializedUpdates.avatar !== undefined ? serializedUpdates.avatar : existing.avatar,
-      serializedUpdates.instructions !== undefined ? serializedUpdates.instructions : existing.instructions,
-      serializedUpdates.model !== undefined ? serializedUpdates.model : existing.model,
-      serializedUpdates.plan_model !== undefined ? serializedUpdates.plan_model : existing.plan_model,
-      serializedUpdates.small_model !== undefined ? serializedUpdates.small_model : existing.small_model,
-      serializedUpdates.built_in_tools !== undefined
-        ? serializedUpdates.built_in_tools
-        : existing.built_in_tools
-          ? JSON.stringify(existing.built_in_tools)
-          : null,
-      serializedUpdates.mcps !== undefined
-        ? serializedUpdates.mcps
-        : existing.mcps
-          ? JSON.stringify(existing.mcps)
-          : null,
-      serializedUpdates.knowledges !== undefined
-        ? serializedUpdates.knowledges
-        : existing.knowledges
-          ? JSON.stringify(existing.knowledges)
-          : null,
-      serializedUpdates.configuration !== undefined
-        ? serializedUpdates.configuration
-        : existing.configuration
-          ? JSON.stringify(existing.configuration)
-          : null,
-      serializedUpdates.accessible_paths !== undefined
-        ? serializedUpdates.accessible_paths
-        : existing.accessible_paths
-          ? JSON.stringify(existing.accessible_paths)
-          : null,
-      serializedUpdates.permission_mode !== undefined ? serializedUpdates.permission_mode : existing.permission_mode,
-      serializedUpdates.max_steps !== undefined ? serializedUpdates.max_steps : existing.max_steps,
-      now,
-      id
-    ]
+    const updateData: Partial<AgentRow> = {
+      updated_at: now
+    }
 
-    await this.database.execute({
-      sql: AgentQueries.agents.update,
-      args: values
-    })
+    // Only update fields that are provided
+    if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
+    if (serializedUpdates.description !== undefined) updateData.description = serializedUpdates.description
+    if (serializedUpdates.avatar !== undefined) updateData.avatar = serializedUpdates.avatar
+    if (serializedUpdates.instructions !== undefined) updateData.instructions = serializedUpdates.instructions
+    if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
+    if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
+    if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
+    if (serializedUpdates.built_in_tools !== undefined) updateData.built_in_tools = serializedUpdates.built_in_tools
+    if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
+    if (serializedUpdates.knowledges !== undefined) updateData.knowledges = serializedUpdates.knowledges
+    if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
+    if (serializedUpdates.accessible_paths !== undefined)
+      updateData.accessible_paths = serializedUpdates.accessible_paths
+    if (serializedUpdates.permission_mode !== undefined) updateData.permission_mode = serializedUpdates.permission_mode
+    if (serializedUpdates.max_steps !== undefined) updateData.max_steps = serializedUpdates.max_steps
+
+    await this.database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
 
     return await this.getAgent(id)
   }
@@ -212,10 +175,7 @@ export class AgentService extends BaseService {
   async deleteAgent(id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.agents.delete,
-      args: [id]
-    })
+    const result = await this.database.delete(agentsTable).where(eq(agentsTable.id, id))
 
     return result.rowsAffected > 0
   }
@@ -223,12 +183,13 @@ export class AgentService extends BaseService {
   async agentExists(id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.agents.checkExists,
-      args: [id]
-    })
+    const result = await this.database
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, id))
+      .limit(1)
 
-    return result.rows.length > 0
+    return result.length > 0
   }
 }
 

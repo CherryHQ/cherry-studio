@@ -1,7 +1,8 @@
 import type { AgentSessionEntity, SessionStatus } from '@types'
+import { and, count, eq, type SQL } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { AgentQueries_Legacy as AgentQueries } from '../database'
+import { type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 
 export interface CreateSessionRequest {
   name?: string
@@ -73,73 +74,57 @@ export class SessionService extends BaseService {
 
     const serializedData = this.serializeJsonFields(sessionData)
 
-    const values = [
+    const insertData: InsertSessionRow = {
       id,
-      serializedData.name || null,
-      serializedData.main_agent_id,
-      serializedData.sub_agent_ids || null,
-      serializedData.user_goal || null,
-      serializedData.status || 'idle',
-      serializedData.external_session_id || null,
-      serializedData.model || null,
-      serializedData.plan_model || null,
-      serializedData.small_model || null,
-      serializedData.built_in_tools || null,
-      serializedData.mcps || null,
-      serializedData.knowledges || null,
-      serializedData.configuration || null,
-      serializedData.accessible_paths || null,
-      serializedData.permission_mode || 'readOnly',
-      serializedData.max_steps || 10,
-      now,
-      now
-    ]
+      name: serializedData.name || null,
+      main_agent_id: serializedData.main_agent_id,
+      sub_agent_ids: serializedData.sub_agent_ids || null,
+      user_goal: serializedData.user_goal || null,
+      status: serializedData.status || 'idle',
+      external_session_id: serializedData.external_session_id || null,
+      model: serializedData.model || null,
+      plan_model: serializedData.plan_model || null,
+      small_model: serializedData.small_model || null,
+      built_in_tools: serializedData.built_in_tools || null,
+      mcps: serializedData.mcps || null,
+      knowledges: serializedData.knowledges || null,
+      configuration: serializedData.configuration || null,
+      accessible_paths: serializedData.accessible_paths || null,
+      permission_mode: serializedData.permission_mode || 'readOnly',
+      max_steps: serializedData.max_steps || 10,
+      created_at: now,
+      updated_at: now
+    }
 
-    await this.database.execute({
-      sql: AgentQueries.sessions.insert,
-      args: values
-    })
+    await this.database.insert(sessionsTable).values(insertData)
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessions.getById,
-      args: [id]
-    })
+    const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
-    if (!result.rows[0]) {
+    if (!result[0]) {
       throw new Error('Failed to create session')
     }
 
-    return this.deserializeJsonFields(result.rows[0]) as AgentSessionEntity
+    return this.deserializeJsonFields(result[0]) as AgentSessionEntity
   }
 
   async getSession(id: string): Promise<AgentSessionEntity | null> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessions.getById,
-      args: [id]
-    })
+    const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
 
-    if (!result.rows[0]) {
+    if (!result[0]) {
       return null
     }
 
-    return this.deserializeJsonFields(result.rows[0]) as AgentSessionEntity
+    return this.deserializeJsonFields(result[0]) as AgentSessionEntity
   }
 
   async getSessionWithAgent(id: string): Promise<any | null> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessions.getSessionWithAgent,
-      args: [id]
-    })
-
-    if (!result.rows[0]) {
-      return null
-    }
-
-    return this.deserializeJsonFields(result.rows[0])
+    // TODO: Implement join query with agents table when needed
+    // For now, just return the session
+    return await this.getSession(id)
   }
 
   async listSessions(
@@ -148,64 +133,38 @@ export class SessionService extends BaseService {
   ): Promise<{ sessions: AgentSessionEntity[]; total: number }> {
     this.ensureInitialized()
 
-    let countQuery: string
-    let listQuery: string
-    const countArgs: any[] = []
-    const listArgs: any[] = []
-
-    // Build base queries
+    // Build where conditions
+    const whereConditions: SQL[] = []
     if (agentId) {
-      countQuery = 'SELECT COUNT(*) as total FROM sessions WHERE main_agent_id = ?'
-      listQuery = 'SELECT * FROM sessions WHERE main_agent_id = ?'
-      countArgs.push(agentId)
-      listArgs.push(agentId)
-    } else {
-      countQuery = AgentQueries.sessions.count
-      listQuery = AgentQueries.sessions.list
+      whereConditions.push(eq(sessionsTable.main_agent_id, agentId))
     }
-
-    // Filter by status if specified
     if (options.status) {
-      if (agentId) {
-        countQuery += ' AND status = ?'
-        listQuery += ' AND status = ?'
-      } else {
-        countQuery = 'SELECT COUNT(*) as total FROM sessions WHERE status = ?'
-        listQuery = 'SELECT * FROM sessions WHERE status = ?'
-      }
-      countArgs.push(options.status)
-      listArgs.push(options.status)
+      whereConditions.push(eq(sessionsTable.status, options.status))
     }
 
-    // Add ordering if not already present
-    if (!listQuery.includes('ORDER BY')) {
-      listQuery += ' ORDER BY created_at DESC'
-    }
+    const whereClause =
+      whereConditions.length > 1
+        ? and(...whereConditions)
+        : whereConditions.length === 1
+          ? whereConditions[0]
+          : undefined
 
     // Get total count
-    const countResult = await this.database.execute({
-      sql: countQuery,
-      args: countArgs
-    })
-    const total = (countResult.rows[0] as any).total
+    const totalResult = await this.database.select({ count: count() }).from(sessionsTable).where(whereClause)
 
-    // Add pagination
-    if (options.limit !== undefined) {
-      listQuery += ' LIMIT ?'
-      listArgs.push(options.limit)
+    const total = totalResult[0].count
 
-      if (options.offset !== undefined) {
-        listQuery += ' OFFSET ?'
-        listArgs.push(options.offset)
-      }
-    }
+    // Build list query with pagination
+    const baseQuery = this.database.select().from(sessionsTable).where(whereClause).orderBy(sessionsTable.created_at)
 
-    const result = await this.database.execute({
-      sql: listQuery,
-      args: listArgs
-    })
+    const result =
+      options.limit !== undefined
+        ? options.offset !== undefined
+          ? await baseQuery.limit(options.limit).offset(options.offset)
+          : await baseQuery.limit(options.limit)
+        : await baseQuery
 
-    const sessions = result.rows.map((row) => this.deserializeJsonFields(row)) as AgentSessionEntity[]
+    const sessions = result.map((row) => this.deserializeJsonFields(row)) as AgentSessionEntity[]
 
     return { sessions, total }
   }
@@ -225,57 +184,31 @@ export class SessionService extends BaseService {
     const now = new Date().toISOString()
     const serializedUpdates = this.serializeJsonFields(updates)
 
-    const values = [
-      serializedUpdates.name !== undefined ? serializedUpdates.name : existing.name,
-      serializedUpdates.main_agent_id !== undefined ? serializedUpdates.main_agent_id : existing.main_agent_id,
-      serializedUpdates.sub_agent_ids !== undefined
-        ? serializedUpdates.sub_agent_ids
-        : existing.sub_agent_ids
-          ? JSON.stringify(existing.sub_agent_ids)
-          : null,
-      serializedUpdates.user_goal !== undefined ? serializedUpdates.user_goal : existing.user_goal,
-      serializedUpdates.status !== undefined ? serializedUpdates.status : existing.status,
-      serializedUpdates.external_session_id !== undefined
-        ? serializedUpdates.external_session_id
-        : existing.external_session_id,
-      serializedUpdates.model !== undefined ? serializedUpdates.model : existing.model,
-      serializedUpdates.plan_model !== undefined ? serializedUpdates.plan_model : existing.plan_model,
-      serializedUpdates.small_model !== undefined ? serializedUpdates.small_model : existing.small_model,
-      serializedUpdates.built_in_tools !== undefined
-        ? serializedUpdates.built_in_tools
-        : existing.built_in_tools
-          ? JSON.stringify(existing.built_in_tools)
-          : null,
-      serializedUpdates.mcps !== undefined
-        ? serializedUpdates.mcps
-        : existing.mcps
-          ? JSON.stringify(existing.mcps)
-          : null,
-      serializedUpdates.knowledges !== undefined
-        ? serializedUpdates.knowledges
-        : existing.knowledges
-          ? JSON.stringify(existing.knowledges)
-          : null,
-      serializedUpdates.configuration !== undefined
-        ? serializedUpdates.configuration
-        : existing.configuration
-          ? JSON.stringify(existing.configuration)
-          : null,
-      serializedUpdates.accessible_paths !== undefined
-        ? serializedUpdates.accessible_paths
-        : existing.accessible_paths
-          ? JSON.stringify(existing.accessible_paths)
-          : null,
-      serializedUpdates.permission_mode !== undefined ? serializedUpdates.permission_mode : existing.permission_mode,
-      serializedUpdates.max_steps !== undefined ? serializedUpdates.max_steps : existing.max_steps,
-      now,
-      id
-    ]
+    const updateData: Partial<SessionRow> = {
+      updated_at: now
+    }
 
-    await this.database.execute({
-      sql: AgentQueries.sessions.update,
-      args: values
-    })
+    // Only update fields that are provided
+    if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
+    if (serializedUpdates.main_agent_id !== undefined) updateData.main_agent_id = serializedUpdates.main_agent_id
+    if (serializedUpdates.sub_agent_ids !== undefined) updateData.sub_agent_ids = serializedUpdates.sub_agent_ids
+    if (serializedUpdates.user_goal !== undefined) updateData.user_goal = serializedUpdates.user_goal
+    if (serializedUpdates.status !== undefined) updateData.status = serializedUpdates.status
+    if (serializedUpdates.external_session_id !== undefined)
+      updateData.external_session_id = serializedUpdates.external_session_id
+    if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
+    if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
+    if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
+    if (serializedUpdates.built_in_tools !== undefined) updateData.built_in_tools = serializedUpdates.built_in_tools
+    if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
+    if (serializedUpdates.knowledges !== undefined) updateData.knowledges = serializedUpdates.knowledges
+    if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
+    if (serializedUpdates.accessible_paths !== undefined)
+      updateData.accessible_paths = serializedUpdates.accessible_paths
+    if (serializedUpdates.permission_mode !== undefined) updateData.permission_mode = serializedUpdates.permission_mode
+    if (serializedUpdates.max_steps !== undefined) updateData.max_steps = serializedUpdates.max_steps
+
+    await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
     return await this.getSession(id)
   }
@@ -285,10 +218,10 @@ export class SessionService extends BaseService {
 
     const now = new Date().toISOString()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessions.updateStatus,
-      args: [status, now, id]
-    })
+    const result = await this.database
+      .update(sessionsTable)
+      .set({ status, updated_at: now })
+      .where(eq(sessionsTable.id, id))
 
     if (result.rowsAffected === 0) {
       return null
@@ -300,10 +233,7 @@ export class SessionService extends BaseService {
   async deleteSession(id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessions.delete,
-      args: [id]
-    })
+    const result = await this.database.delete(sessionsTable).where(eq(sessionsTable.id, id))
 
     return result.rowsAffected > 0
   }
@@ -311,12 +241,13 @@ export class SessionService extends BaseService {
   async sessionExists(id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.execute({
-      sql: AgentQueries.sessions.checkExists,
-      args: [id]
-    })
+    const result = await this.database
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
 
-    return result.rows.length > 0
+    return result.length > 0
   }
 }
 

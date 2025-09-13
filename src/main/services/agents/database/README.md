@@ -41,7 +41,7 @@ database/
 │   ├── index.ts               # Migration registry and utility functions
 │   ├── types.ts               # TypeScript interfaces for migration system
 │   ├── 001_initial_schema.ts  # Initial agents table and indexes
-│   └── 002_add_session_tables.ts # Sessions and session_logs tables
+│   └── 002_add_session_tables.ts # Sessions and session_messages tables
 ├── queries/                   # SQL queries organized by entity
 │   ├── index.ts              # Export all query modules
 │   ├── agent.queries.ts      # Agent CRUD operations
@@ -194,17 +194,17 @@ SessionQueries.getSessionWithAgent // Join with agent data
 SessionQueries.getByExternalSessionId // Find by external ID
 ```
 
-### Session Log Queries (`SessionLogQueries`)
+### Session Message Queries (`SessionMessageQueries`)
 
 ```typescript
-// Log operations
-SessionLogQueries.insert // Add log entry
-SessionLogQueries.getBySessionId // Get all logs for session
-SessionLogQueries.getBySessionIdWithPagination // Paginated logs
-SessionLogQueries.getLatestBySessionId // Most recent logs
-SessionLogQueries.update // Update log entry
-SessionLogQueries.deleteBySessionId // Clear session logs
-SessionLogQueries.countBySessionId // Count session logs
+// Message operations
+SessionMessageQueries.insert // Add message entry
+SessionMessageQueries.getBySessionId // Get all messages for session
+SessionMessageQueries.getBySessionIdWithPagination // Paginated messages
+SessionMessageQueries.getLatestBySessionId // Most recent messages
+SessionMessageQueries.update // Update message entry
+SessionMessageQueries.deleteBySessionId // Clear session messages
+SessionMessageQueries.countBySessionId // Count session messages
 ```
 
 ## Development Workflow
@@ -427,7 +427,7 @@ CREATE TABLE sessions (
 #### Session Logs Table
 
 ```sql
-CREATE TABLE session_logs (
+CREATE TABLE session_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id TEXT NOT NULL,
   parent_id INTEGER,                        -- For hierarchical log structure
@@ -438,7 +438,7 @@ CREATE TABLE session_logs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
-  FOREIGN KEY (parent_id) REFERENCES session_logs(id)
+  FOREIGN KEY (parent_id) REFERENCES session_messages(id)
 )
 ```
 
@@ -506,7 +506,7 @@ async function createAgent(db: Client) {
 ### Managing Sessions
 
 ```typescript
-import { SessionQueries, SessionLogQueries } from './database'
+import { SessionQueries, SessionMessageQueries } from './database'
 
 async function createSession(db: Client, agentId: string) {
   const sessionId = crypto.randomUUID()
@@ -539,7 +539,7 @@ async function createSession(db: Client, agentId: string) {
 
   // Add initial log entry
   await db.execute({
-    sql: SessionLogQueries.insert,
+    sql: SessionMessageQueries.insert,
     args: [
       sessionId,
       null, // parent_id
@@ -760,7 +760,7 @@ Monitor query performance and add indexes for frequently used columns:
 ```sql
 -- Add indexes for common query patterns
 CREATE INDEX idx_sessions_status_created ON sessions(status, created_at);
-CREATE INDEX idx_session_logs_session_type ON session_logs(session_id, type);
+CREATE INDEX idx_session_messages_session_type ON session_messages(session_id, type);
 CREATE INDEX idx_agents_type_name ON agents(type, name);
 ```
 
