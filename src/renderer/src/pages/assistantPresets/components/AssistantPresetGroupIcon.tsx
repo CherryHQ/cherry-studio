@@ -1,4 +1,4 @@
-import { groupTranslations } from '@renderer/pages/agents/agentGroupTranslations'
+import { groupTranslations } from '@renderer/pages/assistantPresets/assistantPresetGroupTranslations'
 import { DynamicIcon, IconName } from 'lucide-react/dynamic'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,7 +9,7 @@ interface Props {
   strokeWidth?: number
 }
 
-export const AgentGroupIcon: FC<Props> = ({ groupName, size = 20, strokeWidth = 1.2 }) => {
+export const AssistantPresetGroupIcon: FC<Props> = ({ groupName, size = 20, strokeWidth = 1.2 }) => {
   const { i18n } = useTranslation()
   const currentLanguage = i18n.language as keyof (typeof groupTranslations)[string]
 

@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
@@ -31,13 +31,13 @@ type FieldType = {
   knowledge_base_ids: string[]
 }
 
-const logger = loggerService.withContext('AddAgentPopup')
+const logger = loggerService.withContext('AddAssistantPresetPopup')
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const { addAgent } = useAgents()
+  const { addAssistantPreset } = useAssistantPresets()
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
@@ -91,7 +91,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       messages: []
     }
 
-    addAgent(_agent)
+    addAssistantPreset(_agent)
     resolve(_agent)
     setOpen(false)
   }
@@ -266,10 +266,10 @@ const TokenCount = styled.div`
   user-select: none;
 `
 
-export default class AddAgentPopup {
+export default class AddAssistantPresetPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('AddAgentPopup')
+    TopView.hide('AddAssistantPresetPopup')
   }
   static show() {
     return new Promise<AssistantPreset | null>((resolve) => {
@@ -280,7 +280,7 @@ export default class AddAgentPopup {
             this.hide()
           }}
         />,
-        'AddAgentPopup'
+        'AddAssistantPresetPopup'
       )
     })
   }

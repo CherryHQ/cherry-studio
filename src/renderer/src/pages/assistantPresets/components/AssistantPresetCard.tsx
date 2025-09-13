@@ -1,6 +1,6 @@
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { AssistantPreset } from '@renderer/types'
@@ -11,50 +11,50 @@ import { ArrowDownAZ, Ellipsis, PlusIcon, SquareArrowOutUpRight } from 'lucide-r
 import { type FC, memo, useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-import ManageAgentsPopup from './ManageAgentsPopup'
+import ManageAssistantPresetsPopup from './ManageAssistantPresetsPopup'
 
 interface Props {
-  agent: AssistantPreset
+  preset: AssistantPreset
   activegroup?: string
   onClick: () => void
   getLocalizedGroupName: (group: string) => string
 }
 
-const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupName }) => {
-  const { removeAgent } = useAgents()
+const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocalizedGroupName }) => {
+  const { removeAssistantPreset } = useAssistantPresets()
   const [isVisible, setIsVisible] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   const handleDelete = useCallback(
-    (agent: AssistantPreset) => {
+    (preset: AssistantPreset) => {
       window.modal.confirm({
         centered: true,
         content: t('agents.delete.popup.content'),
-        onOk: () => removeAgent(agent.id)
+        onOk: () => removeAssistantPreset(preset.id)
       })
     },
-    [removeAgent]
+    [removeAssistantPreset]
   )
 
-  const exportAgent = useCallback(async () => {
+  const exportPreset = useCallback(async () => {
     const result = [
       {
-        name: agent.name,
-        emoji: agent.emoji,
-        group: agent.group,
-        prompt: agent.prompt,
-        description: agent.description,
-        regularPhrases: agent.regularPhrases,
+        name: preset.name,
+        emoji: preset.emoji,
+        group: preset.group,
+        prompt: preset.prompt,
+        description: preset.description,
+        regularPhrases: preset.regularPhrases,
         type: 'agent'
       }
     ]
 
     const resultStr = JSON.stringify(result, null, 2)
 
-    await window.api.file.save(`${agent.name}.json`, new TextEncoder().encode(resultStr), {
+    await window.api.file.save(`${preset.name}.json`, new TextEncoder().encode(resultStr), {
       filters: [{ name: t('agents.import.file_filter'), extensions: ['json'] }]
     })
-  }, [agent])
+  }, [preset])
 
   const menuItems = [
     {
@@ -63,7 +63,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
       icon: <EditIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        AssistantSettingsPopup.show({ assistant: agent })
+        AssistantSettingsPopup.show({ assistant: preset })
       }
     },
     {
@@ -72,7 +72,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
       icon: <PlusIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        createAssistantFromAgent(agent)
+        createAssistantFromAgent(preset)
       }
     },
     {
@@ -81,7 +81,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
       icon: <ArrowDownAZ size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        ManageAgentsPopup.show()
+        ManageAssistantPresetsPopup.show()
       }
     },
     {
@@ -90,7 +90,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
       icon: <SquareArrowOutUpRight size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        exportAgent()
+        exportPreset()
       }
     },
     {
@@ -100,7 +100,7 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
       danger: true,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
-        handleDelete(agent)
+        handleDelete(preset)
       }
     }
   ]
@@ -125,8 +125,8 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
     }
   }, [])
 
-  const emoji = agent.emoji || getLeadingEmoji(agent.name)
-  const prompt = (agent.description || agent.prompt).substring(0, 200).replace(/\\n/g, '')
+  const emoji = preset.emoji || getLeadingEmoji(preset.name)
+  const prompt = (preset.description || preset.prompt).substring(0, 200).replace(/\\n/g, '')
 
   const content = (
     <AgentCardContainer onClick={onClick} ref={cardRef}>
@@ -135,15 +135,15 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
           <AgentCardBackground>{emoji}</AgentCardBackground>
           <AgentCardHeader>
             <AgentCardHeaderInfo>
-              <AgentCardHeaderInfoTitle>{agent.name}</AgentCardHeaderInfoTitle>
+              <AgentCardHeaderInfoTitle>{preset.name}</AgentCardHeaderInfoTitle>
               <AgentCardHeaderInfoTags>
                 {activegroup === '我的' && (
                   <CustomTag color="#A0A0A0" size={11}>
                     {getLocalizedGroupName('我的')}
                   </CustomTag>
                 )}
-                {!!agent.group?.length &&
-                  agent.group.map((group) => (
+                {!!preset.group?.length &&
+                  preset.group.map((group) => (
                     <CustomTag key={group} color="#A0A0A0" size={11}>
                       {getLocalizedGroupName(group)}
                     </CustomTag>
@@ -346,4 +346,4 @@ const AgentPrompt = styled.div`
   color: var(--color-text-2);
 `
 
-export default memo(AgentCard)
+export default memo(AssistantPresetCard)

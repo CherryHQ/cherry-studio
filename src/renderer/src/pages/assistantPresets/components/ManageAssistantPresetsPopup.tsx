@@ -2,7 +2,7 @@ import { MenuOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { Box, HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { Empty, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,7 +11,7 @@ import styled from 'styled-components'
 const PopupContainer: React.FC = () => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const { agents, setAgents } = useAgents()
+  const { presets, setAssistantPresets } = useAssistantPresets()
 
   const onOk = () => {
     setOpen(false)
@@ -22,14 +22,14 @@ const PopupContainer: React.FC = () => {
   }
 
   const onClose = async () => {
-    ManageAgentsPopup.hide()
+    ManageAssistantPresetsPopup.hide()
   }
 
   useEffect(() => {
-    if (agents.length === 0) {
+    if (presets.length === 0) {
       setOpen(false)
     }
-  }, [agents])
+  }, [presets])
 
   return (
     <Modal
@@ -42,8 +42,8 @@ const PopupContainer: React.FC = () => {
       transitionName="animation-move-down"
       centered>
       <Container>
-        {agents.length > 0 && (
-          <DraggableList list={agents} onUpdate={setAgents}>
+        {presets.length > 0 && (
+          <DraggableList list={presets} onUpdate={setAssistantPresets}>
             {(item) => (
               <AgentItem>
                 <Box mr={8}>
@@ -56,7 +56,7 @@ const PopupContainer: React.FC = () => {
             )}
           </DraggableList>
         )}
-        {agents.length === 0 && <Empty description="" />}
+        {presets.length === 0 && <Empty description="" />}
       </Container>
     </Modal>
   )
@@ -90,12 +90,12 @@ const AgentItem = styled.div`
   }
 `
 
-export default class ManageAgentsPopup {
+export default class ManageAssistantPresetsPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('ManageAgentsPopup')
+    TopView.hide('ManageAssistantPresetsPopup')
   }
   static show() {
-    TopView.show(<PopupContainer />, 'ManageAgentsPopup')
+    TopView.show(<PopupContainer />, 'ManageAssistantPresetsPopup')
   }
 }

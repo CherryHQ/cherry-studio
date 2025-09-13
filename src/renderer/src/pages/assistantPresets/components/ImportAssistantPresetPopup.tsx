@@ -1,5 +1,5 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -17,7 +17,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const { addAgent } = useAgents()
+  const { addAssistantPreset } = useAssistantPresets()
   const [importType, setImportType] = useState<'url' | 'file'>('url')
   const [loading, setLoading] = useState(false)
   const { setTimeoutTimer } = useTimer()
@@ -25,7 +25,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const onFinish = async (values: { url?: string }) => {
     setLoading(true)
     try {
-      let agents: AssistantPreset[] = []
+      let presets: AssistantPreset[] = []
 
       if (importType === 'url') {
         if (!values.url) {
@@ -36,16 +36,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           throw new Error(t('agents.import.error.fetch_failed'))
         }
         const data = await response.json()
-        agents = Array.isArray(data) ? data : [data]
+        presets = Array.isArray(data) ? data : [data]
       } else {
         const result = await window.api.file.open({
           filters: [{ name: t('agents.import.file_filter'), extensions: ['json'] }]
         })
 
         if (result) {
-          agents = JSON.parse(new TextDecoder('utf-8').decode(result.content))
-          if (!Array.isArray(agents)) {
-            agents = [agents]
+          presets = JSON.parse(new TextDecoder('utf-8').decode(result.content))
+          if (!Array.isArray(presets)) {
+            presets = [presets]
           }
         } else {
           return
@@ -53,32 +53,32 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }
 
       // Validate and process agents
-      for (const agent of agents) {
-        if (!agent.name || !agent.prompt) {
+      for (const preset of presets) {
+        if (!preset.name || !preset.prompt) {
           throw new Error(t('agents.import.error.invalid_format'))
         }
 
-        const newAgent: AssistantPreset = {
+        const newPreset: AssistantPreset = {
           id: uuid(),
-          name: agent.name,
-          emoji: agent.emoji || '🤖',
-          group: agent.group || [],
-          prompt: agent.prompt,
-          description: agent.description || '',
+          name: preset.name,
+          emoji: preset.emoji || '🤖',
+          group: preset.group || [],
+          prompt: preset.prompt,
+          description: preset.description || '',
           type: 'agent',
           topics: [],
           messages: [],
           defaultModel: getDefaultModel(),
-          regularPhrases: agent.regularPhrases || []
+          regularPhrases: preset.regularPhrases || []
         }
-        addAgent(newAgent)
+        addAssistantPreset(newPreset)
       }
 
       window.toast.success(t('message.agents.imported'))
 
       setTimeoutTimer('onFinish', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       setOpen(false)
-      resolve(agents)
+      resolve(presets)
     } catch (error) {
       window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     } finally {
@@ -131,7 +131,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   )
 }
 
-export default class ImportAgentPopup {
+export default class ImportAssistantPresetPopup {
   static show() {
     return new Promise<AssistantPreset[] | null>((resolve) => {
       TopView.show(
@@ -141,12 +141,12 @@ export default class ImportAgentPopup {
             this.hide()
           }}
         />,
-        'ImportAgentPopup'
+        'ImportAssistantPresetPopup'
       )
     })
   }
 
   static hide() {
-    TopView.hide('ImportAgentPopup')
+    TopView.hide('ImportAssistantPresetPopup')
   }
 }

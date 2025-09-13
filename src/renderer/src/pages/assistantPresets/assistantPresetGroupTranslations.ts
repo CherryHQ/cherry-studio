@@ -1,3 +1,4 @@
+// FIXME: Just use i18next!
 export type GroupTranslations = {
   [key: string]: {
     'el-GR': string

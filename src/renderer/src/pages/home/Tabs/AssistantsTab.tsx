@@ -1,8 +1,8 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
@@ -30,7 +30,7 @@ const Assistants: FC<AssistantsTabProps> = ({
 }) => {
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
-  const { addAgent } = useAgents()
+  const { addAssistantPreset } = useAssistantPresets()
   const { t } = useTranslation()
   const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
@@ -134,7 +134,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                         sortBy={assistantsTabSortType}
                         onSwitch={setActiveAssistant}
                         onDelete={onDelete}
-                        addAgent={addAgent}
+                        addPreset={addAssistantPreset}
                         copyAssistant={copyAssistant}
                         onCreateDefaultAssistant={onCreateDefaultAssistant}
                         handleSortByChange={handleSortByChange}
@@ -167,7 +167,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             sortBy={assistantsTabSortType}
             onSwitch={setActiveAssistant}
             onDelete={onDelete}
-            addAgent={addAgent}
+            addPreset={addAssistantPreset}
             copyAssistant={copyAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
             handleSortByChange={handleSortByChange}

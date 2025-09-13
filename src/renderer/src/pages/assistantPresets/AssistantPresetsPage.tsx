@@ -4,7 +4,7 @@ import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { AssistantPreset } from '@renderer/types'
@@ -17,65 +17,65 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
-import { groupByCategories, useSystemAgents } from '.'
-import { groupTranslations } from './agentGroupTranslations'
-import AddAgentPopup from './components/AddAgentPopup'
-import AgentCard from './components/AgentCard'
-import { AgentGroupIcon } from './components/AgentGroupIcon'
-import ImportAgentPopup from './components/ImportAgentPopup'
+import { groupByCategories, useSystemAssistantPresets } from '.'
+import { groupTranslations } from './assistantPresetGroupTranslations'
+import AddAssistantPresetPopup from './components/AddAssistantPresetPopup'
+import AssistantPresetCard from './components/AssistantPresetCard'
+import { AssistantPresetGroupIcon } from './components/AssistantPresetGroupIcon'
+import ImportAssistantPresetPopup from './components/ImportAssistantPresetPopup'
 
-const AgentsPage: FC = () => {
+const AssistantPresetsPage: FC = () => {
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [activeGroup, setActiveGroup] = useState('我的')
   const [agentGroups, setAgentGroups] = useState<Record<string, AssistantPreset[]>>({})
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-  const systemAgents = useSystemAgents()
-  const { agents: userAgents } = useAgents()
+  const systemPresets = useSystemAssistantPresets()
+  const { presets: userPresets } = useAssistantPresets()
   const { isTopNavbar } = useNavbarPosition()
 
   useEffect(() => {
-    const systemAgentsGroupList = groupByCategories(systemAgents)
+    const systemAgentsGroupList = groupByCategories(systemPresets)
     const agentsGroupList = {
-      我的: userAgents,
+      我的: userPresets,
       精选: [],
       ...systemAgentsGroupList
     } as Record<string, AssistantPreset[]>
     setAgentGroups(agentsGroupList)
-  }, [systemAgents, userAgents])
+  }, [systemPresets, userPresets])
 
-  const filteredAgents = useMemo(() => {
+  const filteredPresets = useMemo(() => {
     // 搜索框为空直接返回「我的」分组下的 agent
     if (!search.trim()) {
       return agentGroups[activeGroup] || []
     }
-    const uniqueAgents = new Map<string, AssistantPreset>()
+    const uniquePresets = new Map<string, AssistantPreset>()
     Object.entries(agentGroups).forEach(([, agents]) => {
       agents.forEach((agent) => {
         if (
           agent.name.toLowerCase().includes(search.toLowerCase()) ||
           agent.description?.toLowerCase().includes(search.toLowerCase())
         ) {
-          uniqueAgents.set(agent.id, agent)
+          uniquePresets.set(agent.id, agent)
         }
       })
     })
-    return Array.from(uniqueAgents.values())
+    return Array.from(uniquePresets.values())
   }, [agentGroups, activeGroup, search])
 
   const { t, i18n } = useTranslation()
 
-  const onAddAgentConfirm = useCallback(
-    (agent: AssistantPreset) => {
+  const onAddPresetConfirm = useCallback(
+    (preset: AssistantPreset) => {
       window.modal.confirm({
-        title: agent.name,
+        title: preset.name,
         content: (
           <Flex gap={16} vertical style={{ width: 'calc(100% + 12px)' }}>
-            {agent.description && <AgentDescription>{agent.description}</AgentDescription>}
+            {preset.description && <AgentDescription>{preset.description}</AgentDescription>}
 
-            {agent.prompt && (
+            {preset.prompt && (
               <AgentPrompt className="markdown">
-                <ReactMarkdown>{agent.prompt}</ReactMarkdown>
+                <ReactMarkdown>{preset.prompt}</ReactMarkdown>
               </AgentPrompt>
             )}
           </Flex>
@@ -87,16 +87,16 @@ const AgentsPage: FC = () => {
         centered: true,
         okButtonProps: { type: 'primary' },
         okText: t('agents.add.button'),
-        onOk: () => createAssistantFromAgent(agent)
+        onOk: () => createAssistantFromAgent(preset)
       })
     },
     [t]
   )
 
-  const getAgentFromSystemAgent = useCallback((agent: (typeof systemAgents)[number]) => {
+  const getPresetFromSystemPreset = useCallback((preset: (typeof systemPresets)[number]) => {
     return {
-      ...omit(agent, 'group'),
-      name: agent.name,
+      ...omit(preset, 'group'),
+      name: preset.name,
       id: uuid(),
       topics: [],
       type: 'agent'
@@ -161,14 +161,14 @@ const AgentsPage: FC = () => {
   }
 
   const handleAddAgent = () => {
-    AddAgentPopup.show().then(() => {
+    AddAssistantPresetPopup.show().then(() => {
       handleSearchClear()
     })
   }
 
   const handleImportAgent = async () => {
     try {
-      await ImportAgentPopup.show()
+      await ImportAssistantPresetPopup.show()
     } catch (error) {
       window.toast.error(error instanceof Error ? error.message : t('message.agents.import.error'))
     }
@@ -207,7 +207,7 @@ const AgentsPage: FC = () => {
               title={
                 <Flex gap={16} align="center" justify="space-between">
                   <Flex gap={10} align="center">
-                    <AgentGroupIcon groupName={group} />
+                    <AssistantPresetGroupIcon groupName={group} />
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
@@ -229,19 +229,19 @@ const AgentsPage: FC = () => {
             <AgentsListTitle>
               {search.trim() ? (
                 <>
-                  <AgentGroupIcon groupName="搜索" size={24} />
+                  <AssistantPresetGroupIcon groupName="搜索" size={24} />
                   {search.trim()}{' '}
                 </>
               ) : (
                 <>
-                  <AgentGroupIcon groupName={activeGroup} size={24} />
+                  <AssistantPresetGroupIcon groupName={activeGroup} size={24} />
                   {getLocalizedGroupName(activeGroup)}
                 </>
               )}
 
               {
                 <CustomTag color="#A0A0A0" size={10}>
-                  {filteredAgents.length}
+                  {filteredPresets.length}
                 </CustomTag>
               }
             </AgentsListTitle>
@@ -282,13 +282,13 @@ const AgentsPage: FC = () => {
             </Flex>
           </AgentsListHeader>
 
-          {filteredAgents.length > 0 ? (
+          {filteredPresets.length > 0 ? (
             <AgentsList>
-              {filteredAgents.map((agent, index) => (
-                <AgentCard
+              {filteredPresets.map((agent, index) => (
+                <AssistantPresetCard
                   key={agent.id || index}
-                  onClick={() => onAddAgentConfirm(getAgentFromSystemAgent(agent))}
-                  agent={agent}
+                  onClick={() => onAddPresetConfirm(getPresetFromSystemPreset(agent))}
+                  preset={agent}
                   activegroup={activeGroup}
                   getLocalizedGroupName={getLocalizedGroupName}
                 />
@@ -390,4 +390,4 @@ const EmptyView = styled.div`
   color: var(--color-text-secondary);
 `
 
-export default AgentsPage
+export default AssistantPresetsPage

@@ -40,7 +40,7 @@ interface AssistantItemProps {
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
-  addAgent: (agent: any) => void
+  addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
   handleSortByChange?: (sortType: AssistantsSortType) => void
@@ -52,7 +52,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   sortBy,
   onSwitch,
   onDelete,
-  addAgent,
+  addPreset,
   copyAssistant,
   handleSortByChange
 }) => {
@@ -91,7 +91,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
         allTags,
         assistants,
         updateAssistants,
-        addAgent,
+        addPreset,
         copyAssistant,
         onSwitch,
         onDelete,
@@ -108,7 +108,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
       allTags,
       assistants,
       updateAssistants,
-      addAgent,
+      addPreset,
       copyAssistant,
       onSwitch,
       onDelete,
@@ -249,7 +249,7 @@ function getMenuItems({
   allTags,
   assistants,
   updateAssistants,
-  addAgent,
+  addPreset,
   copyAssistant,
   onSwitch,
   onDelete,
@@ -297,10 +297,10 @@ function getMenuItems({
       key: 'save-to-agent',
       icon: <Save size={14} />,
       onClick: async () => {
-        const agent = omit(assistant, ['model', 'emoji'])
-        agent.id = uuid()
-        agent.type = 'agent'
-        addAgent(agent)
+        const preset = omit(assistant, ['model', 'emoji'])
+        preset.id = uuid()
+        preset.type = 'agent'
+        addPreset(preset)
         window.toast.success(t('assistants.save.success'))
       }
     },

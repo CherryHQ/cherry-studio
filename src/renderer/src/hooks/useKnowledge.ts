@@ -33,8 +33,8 @@ import { cloneDeep } from 'lodash'
 import { useCallback, useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 
-import { useAgents } from './useAgents'
 import { useAssistants } from './useAssistant'
+import { useAssistantPresets } from './useAssistantPresets'
 import { useTimer } from './useTimer'
 
 export const useKnowledge = (baseId: string) => {
@@ -352,7 +352,7 @@ export const useKnowledgeBases = () => {
   const dispatch = useDispatch()
   const bases = useSelector((state: RootState) => state.knowledge.bases)
   const { assistants, updateAssistants } = useAssistants()
-  const { agents, setAgents } = useAgents()
+  const { presets, setAssistantPresets } = useAssistantPresets()
 
   const addKnowledgeBase = (base: KnowledgeBase) => {
     dispatch(addBase(base))
@@ -379,7 +379,7 @@ export const useKnowledgeBases = () => {
     })
 
     // remove agent knowledge_base
-    const _agents = agents.map((agent) => {
+    const _presets = presets.map((agent) => {
       if (agent.knowledge_bases?.find((kb) => kb.id === baseId)) {
         return {
           ...agent,
@@ -390,7 +390,7 @@ export const useKnowledgeBases = () => {
     })
 
     updateAssistants(_assistants)
-    setAgents(_agents)
+    setAssistantPresets(_presets)
   }
 
   const updateKnowledgeBases = (bases: KnowledgeBase[]) => {

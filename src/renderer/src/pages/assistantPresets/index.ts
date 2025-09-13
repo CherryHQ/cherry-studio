@@ -26,9 +26,9 @@ export const getAgentsFromSystemAgents = (systemAgents: any) => {
   return agents
 }
 
-export function useSystemAgents() {
-  const { defaultAgent } = useSettings()
-  const [agents, setAgents] = useState<AssistantPreset[]>([])
+export function useSystemAssistantPresets() {
+  const { defaultAgent: defaultPreset } = useSettings()
+  const [presets, setPresets] = useState<AssistantPreset[]>([])
   const { resourcesPath } = useRuntime()
   const { agentssubscribeUrl } = store.getState().settings
   const { i18n } = useTranslation()
@@ -46,7 +46,7 @@ export function useSystemAgents() {
               throw new Error(`HTTP error! Status: ${response.status}`)
             }
             const agentsData = (await response.json()) as AssistantPreset[]
-            setAgents(agentsData)
+            setPresets(agentsData)
             return
           } catch (error) {
             logger.error('Failed to load remote agents:', error as Error)
@@ -65,18 +65,18 @@ export function useSystemAgents() {
           }
         }
 
-        setAgents(_agents)
+        setPresets(_agents)
       } catch (error) {
         logger.error('Failed to load agents:', error as Error)
         // 发生错误时使用已加载的本地 agents
-        setAgents(_agents)
+        setPresets(_agents)
       }
     }
 
     loadAgents()
-  }, [defaultAgent, resourcesPath, agentssubscribeUrl, currentLanguage])
+  }, [defaultPreset, resourcesPath, agentssubscribeUrl, currentLanguage])
 
-  return agents
+  return presets
 }
 
 export function groupByCategories(data: AssistantPreset[]) {
