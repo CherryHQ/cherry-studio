@@ -1,7 +1,7 @@
+import { Tooltip } from '@heroui/react'
 import { ColFlex, Flex } from '@renderer/components/Layout'
 import { MCPPrompt } from '@renderer/types'
 import { Collapse, Descriptions, Empty, Typography } from 'antd'
-import { Tooltip } from '@heroui/react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

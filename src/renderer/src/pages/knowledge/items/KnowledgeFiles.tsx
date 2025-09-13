@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -10,7 +11,6 @@ import { FileMetadata, FileTypes, isKnowledgeFileItem, KnowledgeBase, KnowledgeI
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
 import { Button, Upload } from 'antd'
-import { Tooltip } from '@heroui/react'
 import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

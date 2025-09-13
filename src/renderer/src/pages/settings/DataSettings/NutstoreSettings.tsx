@@ -1,4 +1,5 @@
 import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { RowFlex } from '@renderer/components/Layout'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
@@ -27,7 +28,6 @@ import {
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
 import { Button, Input, Switch, Typography } from 'antd'
-import { Tooltip } from '@heroui/react'
 import dayjs from 'dayjs'
 import { FC, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

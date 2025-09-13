@@ -40,7 +40,7 @@ describe('CustomTag', () => {
 
     expect(screen.getByText('no tooltip')).toBeInTheDocument()
     // 不应有 tooltip 相关内容
-    expect(document.querySelector('[data-slot=\"tooltip\"]')).toBeNull()
+    expect(document.querySelector('[data-slot="tooltip"]')).toBeNull()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 

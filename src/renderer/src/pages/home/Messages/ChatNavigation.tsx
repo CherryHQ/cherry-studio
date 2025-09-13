@@ -7,10 +7,10 @@ import {
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
 import { Tooltip } from '@heroui/react'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Modal } from '@heroui/react'
+import { useSettings } from '@renderer/hooks/useSettings'
+import { RootState } from '@renderer/store'
 import { Button } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
