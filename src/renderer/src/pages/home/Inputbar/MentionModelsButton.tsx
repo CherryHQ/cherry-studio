@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { type QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
@@ -26,7 +27,6 @@ interface Props {
   onClearMentionModels: () => void
   couldMentionNotVisionModel: boolean
   files: FileType[]
-  ToolbarButton: any
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
@@ -37,7 +37,6 @@ const MentionModelsButton: FC<Props> = ({
   onClearMentionModels,
   couldMentionNotVisionModel,
   files,
-  ToolbarButton,
   setText
 }) => {
   const { providers } = useProviders()
@@ -306,9 +305,9 @@ const MentionModelsButton: FC<Props> = ({
 
   return (
     <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <AtSign size={18} color={mentionedModels.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'} />
-      </ToolbarButton>
+      <ActionIconButton onClick={handleOpenQuickPanel} active={mentionedModels.length > 0}>
+        <AtSign size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
@@ -19,19 +20,10 @@ interface Props {
   extensions: string[]
   files: FileType[]
   setFiles: Dispatch<SetStateAction<FileType[]>>
-  ToolbarButton: any
   disabled?: boolean
 }
 
-const AttachmentButton: FC<Props> = ({
-  ref,
-  couldAddImageFile,
-  extensions,
-  files,
-  setFiles,
-  ToolbarButton,
-  disabled
-}) => {
+const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files, setFiles, disabled }) => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const { bases: knowledgeBases } = useKnowledgeBases()
@@ -155,9 +147,9 @@ const AttachmentButton: FC<Props> = ({
       title={couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')}
       mouseLeaveDelay={0}
       arrow>
-      <ToolbarButton type="text" onClick={openFileSelectDialog} disabled={disabled}>
-        <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
-      </ToolbarButton>
+      <ActionIconButton onClick={openFileSelectDialog} active={files.length > 0} disabled={disabled}>
+        <Paperclip size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

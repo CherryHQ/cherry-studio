@@ -1,5 +1,6 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import {
   isGeminiModel,
@@ -45,7 +46,6 @@ import styled from 'styled-components'
 
 import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import GenerateImageButton from './GenerateImageButton'
-import { ToolbarButton } from './Inputbar'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
 import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
 import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
@@ -348,9 +348,9 @@ const InputbarTools = ({
             title={t('chat.input.new_topic', { Command: newTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
-            <ToolbarButton type="text" onClick={addNewTopic}>
+            <ActionIconButton onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )
       },
@@ -364,37 +364,25 @@ const InputbarTools = ({
             extensions={extensions}
             files={files}
             setFiles={setFiles}
-            ToolbarButton={ToolbarButton}
           />
         )
       },
       {
         key: 'thinking',
         label: t('chat.input.thinking.label'),
-        component: (
-          <ThinkingButton
-            ref={thinkingButtonRef}
-            model={model}
-            assistantId={assistant.id}
-            ToolbarButton={ToolbarButton}
-          />
-        ),
+        component: <ThinkingButton ref={thinkingButtonRef} model={model} assistantId={assistant.id} />,
         condition: showThinkingButton
       },
       {
         key: 'web_search',
         label: t('chat.input.web_search.label'),
-        component: (
-          <WebSearchButton ref={webSearchButtonRef} assistantId={assistant.id} ToolbarButton={ToolbarButton} />
-        ),
+        component: <WebSearchButton ref={webSearchButtonRef} assistantId={assistant.id} />,
         condition: !isMandatoryWebSearchModel(model)
       },
       {
         key: 'url_context',
         label: t('chat.input.url_context'),
-        component: (
-          <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} ToolbarButton={ToolbarButton} />
-        ),
+        component: <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} />,
         condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
@@ -405,7 +393,6 @@ const InputbarTools = ({
             ref={knowledgeBaseButtonRef}
             selectedBases={selectedKnowledgeBases}
             onSelect={handleKnowledgeBaseSelect}
-            ToolbarButton={ToolbarButton}
             disabled={files.length > 0}
           />
         ),
@@ -418,7 +405,6 @@ const InputbarTools = ({
           <MCPToolsButton
             assistantId={assistant.id}
             ref={mcpToolsButtonRef}
-            ToolbarButton={ToolbarButton}
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
           />
@@ -429,12 +415,7 @@ const InputbarTools = ({
         key: 'generate_image',
         label: t('chat.input.generate_image'),
         component: (
-          <GenerateImageButton
-            model={model}
-            assistant={assistant}
-            onEnableGenerateImage={onEnableGenerateImage}
-            ToolbarButton={ToolbarButton}
-          />
+          <GenerateImageButton model={model} assistant={assistant} onEnableGenerateImage={onEnableGenerateImage} />
         ),
         condition: isGenerateImageModel(model)
       },
@@ -447,7 +428,6 @@ const InputbarTools = ({
             mentionedModels={mentionedModels}
             onMentionModel={onMentionModel}
             onClearMentionModels={onClearMentionModels}
-            ToolbarButton={ToolbarButton}
             couldMentionNotVisionModel={couldMentionNotVisionModel}
             files={files}
             setText={setText}
@@ -462,7 +442,6 @@ const InputbarTools = ({
             ref={quickPhrasesButtonRef}
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
-            ToolbarButton={ToolbarButton}
             assistantId={assistant.id}
           />
         )
@@ -476,9 +455,9 @@ const InputbarTools = ({
             title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
-            <ToolbarButton type="text" onClick={clearTopic}>
+            <ActionIconButton onClick={clearTopic}>
               <PaintbrushVertical size={18} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )
       },
@@ -491,16 +470,16 @@ const InputbarTools = ({
             title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
             mouseLeaveDelay={0}
             arrow>
-            <ToolbarButton type="text" onClick={onToggleExpended}>
+            <ActionIconButton onClick={onToggleExpended}>
               {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )
       },
       {
         key: 'new_context',
         label: t('chat.input.new.context', { Command: '' }),
-        component: <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
+        component: <NewContextButton onNewContext={onNewContext} />
       }
     ]
   }, [
@@ -672,14 +651,14 @@ const InputbarTools = ({
             placement="top"
             title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
             arrow>
-            <ToolbarButton type="text" onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
+            <ActionIconButton onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
               <CircleChevronRight
                 size={18}
                 style={{
                   transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
                 }}
               />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )}
       </ToolsContainer>

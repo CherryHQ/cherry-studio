@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import { KnowledgeBase } from '@renderer/types'
@@ -16,10 +17,9 @@ interface Props {
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
-  ToolbarButton: any
 }
 
-const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled, ToolbarButton }) => {
+const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
@@ -107,12 +107,12 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
 
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
-        <FileSearch
-          size={18}
-          color={selectedBases && selectedBases.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
-        />
-      </ToolbarButton>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={selectedBases && selectedBases.length > 0}
+        disabled={disabled}>
+        <FileSearch size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

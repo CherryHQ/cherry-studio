@@ -1,5 +1,6 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isWebSearchModel } from '@renderer/config/models'
@@ -24,12 +25,11 @@ export interface WebSearchButtonRef {
 interface Props {
   ref?: React.RefObject<WebSearchButtonRef | null>
   assistantId: string
-  ToolbarButton: any
 }
 
 const logger = loggerService.withContext('WebSearchButton')
 
-const WebSearchButton: FC<Props> = ({ ref, assistantId, ToolbarButton }) => {
+const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
@@ -190,17 +190,15 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId, ToolbarButton }) => {
     openQuickPanel
   }))
 
-  const color = enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
-
   return (
     <Tooltip
       placement="top"
       title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
       arrow>
-      <ToolbarButton type="text" onClick={onClick}>
-        <WebSearchIcon color={color} pid={assistant.webSearchProviderId} />
-      </ToolbarButton>
+      <ActionIconButton onClick={onClick} active={!!enableWebSearch}>
+        <WebSearchIcon pid={assistant.webSearchProviderId} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

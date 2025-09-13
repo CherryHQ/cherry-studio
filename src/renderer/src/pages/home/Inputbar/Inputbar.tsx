@@ -1,5 +1,6 @@
 import { HolderOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import TranslateButton from '@renderer/components/TranslateButton'
 import {
@@ -44,7 +45,7 @@ import {
 } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { debounce, isEmpty } from 'lodash'
 import { CirclePause } from 'lucide-react'
@@ -828,16 +829,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
                 estimateTokenCount={estimateTokenCount}
                 inputTokenCount={inputTokenCount}
                 contextCount={contextCount}
-                ToolbarButton={ToolbarButton}
                 onClick={onNewContext}
               />
               <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
               <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
               {loading && (
                 <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ToolbarButton type="text" onClick={onPause} style={{ marginRight: -2 }}>
+                  <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
                     <CirclePause size={20} color="var(--color-error)" />
-                  </ToolbarButton>
+                  </ActionIconButton>
                 </Tooltip>
               )}
             </ToolbarMenu>
@@ -950,47 +950,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-export const ToolbarButton = styled(Button)`
-  width: 30px;
-  height: 30px;
-  font-size: 16px;
-  border-radius: 50%;
-  transition: all 0.3s ease;
-  color: var(--color-icon);
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  &.anticon,
-  &.iconfont {
-    transition: all 0.3s ease;
-    color: var(--color-icon);
-  }
-  .icon-a-addchat {
-    font-size: 18px;
-    margin-bottom: -2px;
-  }
-  &:hover {
-    background-color: var(--color-background-soft);
-    .anticon,
-    .iconfont {
-      color: var(--color-text-1);
-    }
-  }
-  &.active {
-    background-color: var(--color-primary) !important;
-    .anticon,
-    .iconfont,
-    .chevron-icon {
-      color: var(--color-white-soft);
-    }
-    &:hover {
-      background-color: var(--color-primary);
-    }
-  }
 `
 
 export default Inputbar

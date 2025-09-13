@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import {
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
@@ -22,11 +23,10 @@ interface Props {
   ref?: React.RefObject<QuickPhrasesButtonRef | null>
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  ToolbarButton: any
   assistantId: string
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantId }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
@@ -157,9 +157,9 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   return (
     <>
       <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
-        <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+        <ActionIconButton onClick={handleOpenQuickPanel}>
           <Zap size={18} />
-        </ToolbarButton>
+        </ActionIconButton>
       </Tooltip>
 
       <Modal
