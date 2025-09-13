@@ -1,22 +1,17 @@
 import { useAppDispatch } from '@renderer/store'
 import { addAgent, removeAgent, setAgents, updateAgent } from '@renderer/store/agents'
 import { AgentEntity } from '@renderer/types'
-import { uuid } from '@renderer/utils'
 import { useCallback } from 'react'
 
 export const useAgents = () => {
   const dispatch = useAppDispatch()
   /**
    * Adds a new agent to the store
-   * @param config - The configuration object for the new agent (without id)
+   * @param agent - The complete agent entity to add
    */
   const addAgent_ = useCallback(
-    (config: Omit<AgentEntity, 'id'>) => {
-      const entity = {
-        ...config,
-        id: uuid()
-      } as const
-      dispatch(addAgent(entity))
+    (agent: AgentEntity) => {
+      dispatch(addAgent(agent))
     },
     [dispatch]
   )
