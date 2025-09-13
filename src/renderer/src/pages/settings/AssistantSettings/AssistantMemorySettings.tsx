@@ -90,7 +90,8 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
                 : !isMemoryConfigured
                   ? t('memory.configure_memory_first')
                   : ''
-            } showArrow={true}>
+            }
+            showArrow={true}>
             <Switch
               checked={assistant.enableMemory || false}
               onChange={handleMemoryToggle}

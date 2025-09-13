@@ -116,10 +116,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
-                <Tooltip
-                  placement="top"
-                  content={t('selection.settings.user_modal.icon.tooltip')}
-                  showArrow={true}>
+                <Tooltip placement="top" content={t('selection.settings.user_modal.icon.tooltip')} showArrow={true}>
                   <QuestionIcon size={14} />
                 </Tooltip>
                 <Spacer />
@@ -166,10 +163,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col flex="auto" style={{ paddingRight: '16px' }}>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
-                <Tooltip
-                  placement="top"
-                  content={t('selection.settings.user_modal.model.tooltip')}
-                  showArrow={true}>
+                <Tooltip placement="top" content={t('selection.settings.user_modal.model.tooltip')} showArrow={true}>
                   <QuestionIcon size={14} />
                 </Tooltip>
               </ModalSectionTitle>
@@ -221,10 +215,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
         <ModalSection>
           <ModalSectionTitle>
             <ModalSectionTitleLabel>{t('selection.settings.user_modal.prompt.label')}</ModalSectionTitleLabel>
-            <Tooltip
-              placement="top"
-              content={t('selection.settings.user_modal.prompt.tooltip')}
-              showArrow={true}>
+            <Tooltip placement="top" content={t('selection.settings.user_modal.prompt.tooltip')} showArrow={true}>
               <QuestionIcon size={14} />
             </Tooltip>
             <Spacer />

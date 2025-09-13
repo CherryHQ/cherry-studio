@@ -309,10 +309,7 @@ const InputbarTools = ({
         key: 'new_topic',
         label: t('chat.input.new_topic', { Command: '' }),
         component: (
-          <Tooltip
-            placement="top"
-            content={t('chat.input.new_topic', { Command: newTopicShortcut })}
-            showArrow={true}>
+          <Tooltip placement="top" content={t('chat.input.new_topic', { Command: newTopicShortcut })} showArrow={true}>
             <ToolbarButton type="text" onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
             </ToolbarButton>

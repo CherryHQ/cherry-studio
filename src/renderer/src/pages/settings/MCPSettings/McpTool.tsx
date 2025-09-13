@@ -168,7 +168,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
           }
-          placement="top" showArrow={true}>
+          placement="top"
+          showArrow={true}>
           <Switch
             checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}
