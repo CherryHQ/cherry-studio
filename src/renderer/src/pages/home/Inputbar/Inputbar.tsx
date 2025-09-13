@@ -13,7 +13,6 @@ import {
 } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
 import { useMessageOperations, useTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -33,9 +32,9 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, KnowledgeItem, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Model, Topic } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
-import { classNames, delay, filterSupportedFiles, formatFileSize } from '@renderer/utils'
+import { classNames, delay, filterSupportedFiles } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
 import {
   getFilesFromDropEvent,
@@ -47,9 +46,8 @@ import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Tooltip } from 'antd'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
-import dayjs from 'dayjs'
 import { debounce, isEmpty } from 'lodash'
-import { CirclePause, FileSearch, FileText, Upload } from 'lucide-react'
+import { CirclePause } from 'lucide-react'
 import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -110,7 +108,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
   const startHeight = useRef<number>(0)
-  const { bases: knowledgeBases } = useKnowledgeBases()
   const isMultiSelectMode = useAppSelector((state) => state.runtime.chat.isMultiSelectMode)
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
@@ -267,72 +264,6 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setIsTranslating(false)
     }
   }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
-
-  const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
-      quickPanel.open({
-        title: base.name,
-        list: base.items
-          .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
-          .map((file) => {
-            const fileContent = file.content as FileType
-            return {
-              label: fileContent.origin_name || fileContent.name,
-              description:
-                formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
-              icon: <FileText />,
-              isSelected: files.some((f) => f.path === fileContent.path),
-              action: async ({ item }) => {
-                item.isSelected = !item.isSelected
-                if (fileContent.path) {
-                  setFiles((prevFiles) => {
-                    const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                    if (fileExists) {
-                      return prevFiles.filter((f) => f.path !== fileContent.path)
-                    } else {
-                      return fileContent ? [...prevFiles, fileContent] : prevFiles
-                    }
-                  })
-                }
-              }
-            }
-          }),
-        symbol: QuickPanelReservedSymbol.File,
-        multiple: true
-      })
-    },
-    [files, quickPanel]
-  )
-
-  const openSelectFileMenu = useCallback(() => {
-    quickPanel.open({
-      title: t('chat.input.upload.label'),
-      list: [
-        {
-          label: t('chat.input.upload.upload_from_local'),
-          description: '',
-          icon: <Upload />,
-          action: () => {
-            inputbarToolsRef.current?.openAttachmentQuickPanel()
-          }
-        },
-        ...knowledgeBases.map((base) => {
-          const length = base.items?.filter(
-            (item): item is KnowledgeItem => ['file', 'note'].includes(item.type) && typeof item.content !== 'string'
-          ).length
-          return {
-            label: base.name,
-            description: `${length} ${t('files.count')}`,
-            icon: <FileSearch />,
-            disabled: length === 0,
-            isMenu: true,
-            action: () => openKnowledgeFileList(base)
-          }
-        })
-      ],
-      symbol: QuickPanelReservedSymbol.File
-    })
-  }, [knowledgeBases, openKnowledgeFileList, quickPanel, t, inputbarToolsRef])
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // 按下Tab键，自动选中${xxx}
@@ -505,11 +436,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           const quickPanelMenu =
             inputbarToolsRef.current?.getQuickPanelMenu({
-              t,
-              files,
-              couldAddImageFile,
               text: newText,
-              openSelectFileMenu,
               translate
             }) || []
 
@@ -535,7 +462,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     },
-    [enableQuickPanelTriggers, quickPanel, t, files, couldAddImageFile, openSelectFileMenu, translate]
+    [enableQuickPanelTriggers, quickPanel, t, translate]
   )
 
   const onPaste = useCallback(

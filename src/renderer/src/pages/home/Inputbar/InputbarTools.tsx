@@ -58,14 +58,7 @@ import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 const logger = loggerService.withContext('InputbarTools')
 
 export interface InputbarToolsRef {
-  getQuickPanelMenu: (params: {
-    t: (key: string, options?: any) => string
-    files: FileType[]
-    couldAddImageFile: boolean
-    text: string
-    openSelectFileMenu: () => void
-    translate: () => void
-  }) => QuickPanelListItem[]
+  getQuickPanelMenu: (params: { text: string; translate: () => void }) => QuickPanelListItem[]
   openMentionModelsPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
   openAttachmentQuickPanel: () => void
 }
@@ -74,7 +67,7 @@ export interface InputbarToolsProps {
   assistantId: string
   model: Model
   files: FileType[]
-  setFiles: (files: FileType[]) => void
+  setFiles: Dispatch<SetStateAction<FileType[]>>
   extensions: string[]
   setText: Dispatch<SetStateAction<string>>
   resizeTextArea: () => void
@@ -211,15 +204,8 @@ const InputbarTools = ({
     [dispatch, toolOrder.hidden, toolOrder.visible]
   )
 
-  const getQuickPanelMenuImpl = (params: {
-    t: (key: string, options?: any) => string
-    files: FileType[]
-    couldAddImageFile: boolean
-    text: string
-    openSelectFileMenu: () => void
-    translate: () => void
-  }): QuickPanelListItem[] => {
-    const { t, files, couldAddImageFile, text, openSelectFileMenu, translate } = params
+  const getQuickPanelMenuImpl = (params: { text: string; translate: () => void }): QuickPanelListItem[] => {
+    const { text, translate } = params
 
     return [
       {
@@ -296,11 +282,13 @@ const InputbarTools = ({
         }
       },
       {
-        label: couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document'),
+        label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
         isMenu: true,
-        action: openSelectFileMenu
+        action: () => {
+          attachmentButtonRef.current?.openQuickPanel()
+        }
       },
       {
         label: t('translate.title'),
@@ -368,7 +356,7 @@ const InputbarTools = ({
       },
       {
         key: 'attachment',
-        label: t('chat.input.upload.label'),
+        label: t('chat.input.upload.image_or_document'),
         component: (
           <AttachmentButton
             ref={attachmentButtonRef}
