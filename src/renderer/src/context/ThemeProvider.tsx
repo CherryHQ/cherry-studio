@@ -31,7 +31,7 @@ const tailwindThemeChange = (theme: ThemeMode) => {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // 用户设置的主题
-  const { theme: settedTheme, setTheme: setSettedTheme } = useSettings()
+  const { theme: settedTheme, setTheme: setSettedTheme, language } = useSettings()
   const [actualTheme, setActualTheme] = useState<ThemeMode>(
     window.matchMedia('(prefers-color-scheme: dark)').matches ? ThemeMode.dark : ThemeMode.light
   )
@@ -59,6 +59,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.classList.add('light')
     }
     document.body.setAttribute('navbar-position', navbarPosition)
+    document.documentElement.lang = language
 
     // if theme is old auto, then set theme to system
     // we can delete this after next big release
