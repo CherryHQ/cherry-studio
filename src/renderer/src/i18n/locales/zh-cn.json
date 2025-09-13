@@ -3138,6 +3138,13 @@
           "placeholder": "/* 这里写自定义 CSS */"
         }
       },
+      "font": {
+        "code": "代码字体",
+        "default": "默认",
+        "global": "全局字体",
+        "select": "选择字体",
+        "title": "字体设置"
+      },
       "navbar": {
         "position": {
           "label": "导航栏位置",

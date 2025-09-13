@@ -3116,6 +3116,13 @@
           "placeholder": "/* Escribe tu CSS personalizado aquí */"
         }
       },
+      "font": {
+        "code": "fuente de código",
+        "default": "predeterminado",
+        "global": "Fuente global",
+        "select": "Seleccionar fuente",
+        "title": "Configuración de fuente"
+      },
       "navbar": {
         "position": {
           "label": "Posición de la barra de navegación",

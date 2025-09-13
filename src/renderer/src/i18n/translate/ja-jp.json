@@ -3116,6 +3116,13 @@
           "placeholder": "/* ここにカスタムCSSを入力 */"
         }
       },
+      "font": {
+        "code": "コードフォント",
+        "default": "デフォルト",
+        "global": "グローバルフォント",
+        "select": "フォントを選択",
+        "title": "フォント設定"
+      },
       "navbar": {
         "position": {
           "label": "ナビゲーションバー位置",

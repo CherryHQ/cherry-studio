@@ -3116,6 +3116,13 @@
           "placeholder": "/* 這裡寫自訂 CSS */"
         }
       },
+      "font": {
+        "code": "程式碼字型",
+        "default": "預設",
+        "global": "全域字型",
+        "select": "選擇字體",
+        "title": "字型設定"
+      },
       "navbar": {
         "position": {
           "label": "導航欄位置",

@@ -14,6 +14,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
+import fontList from 'font-list'
 import { Notification } from 'src/renderer/src/types/notification'
 
 import { apiServerService } from './services/ApiServerService'
@@ -217,6 +218,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
     return mainWindow.isFullScreen()
+  })
+
+  // Get System Fonts
+  ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
+    try {
+      const fonts = await fontList.getFonts()
+      return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
+    } catch (error) {
+      logger.error('Failed to get system fonts:', error as Error)
+      return []
+    }
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {

@@ -3116,6 +3116,13 @@
           "placeholder": "/* Écrire votre CSS personnalisé ici */"
         }
       },
+      "font": {
+        "code": "police de code",
+        "default": "Par défaut",
+        "global": "Police de caractère globale",
+        "select": "Sélectionner la police",
+        "title": "Paramètres de police"
+      },
       "navbar": {
         "position": {
           "label": "Position de la barre de navigation",

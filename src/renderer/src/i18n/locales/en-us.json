@@ -3135,6 +3135,13 @@
           "placeholder": "/* Put custom CSS here */"
         }
       },
+      "font": {
+        "code": "Code Font",
+        "default": "Default",
+        "global": "Global Font",
+        "select": "Select Font",
+        "title": "Font Settings"
+      },
       "navbar": {
         "position": {
           "label": "Navbar Position",

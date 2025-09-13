@@ -239,6 +239,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ai-sdk/perplexity@npm:^2.0.8":
+  version: 2.0.8
+  resolution: "@ai-sdk/perplexity@npm:2.0.8"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.8"
+  peerDependencies:
+    zod: ^3.25.76 || ^4
+  checksum: 10c0/acfd6c09c4c0ef5af7eeec6e8bc20b90b24d1d3fc2bc8ee9de4e40770fc0c17ca2c8db8f0248ff07264b71e5aa65f64d37a165db2f43fee84c1b3513cb97983c
+  languageName: node
+  linkType: hard
+
 "@ai-sdk/provider-utils@npm:3.0.3":
   version: 3.0.3
   resolution: "@ai-sdk/provider-utils@npm:3.0.3"
@@ -13386,6 +13398,7 @@ __metadata:
     "@ai-sdk/amazon-bedrock": "npm:^3.0.0"
     "@ai-sdk/google-vertex": "npm:^3.0.25"
     "@ai-sdk/mistral": "npm:^2.0.0"
+    "@ai-sdk/perplexity": "npm:^2.0.8"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
@@ -13551,6 +13564,7 @@ __metadata:
     fast-diff: "npm:^1.3.0"
     fast-xml-parser: "npm:^5.2.0"
     fetch-socks: "npm:1.3.2"
+    font-list: "npm:^2.0.0"
     framer-motion: "npm:^12.23.12"
     franc-min: "npm:^6.2.0"
     fs-extra: "npm:^11.2.0"
@@ -18689,6 +18703,13 @@ __metadata:
     debug:
       optional: true
   checksum: 10c0/5829165bd112c3c0e82be6c15b1a58fa9dcfaede3b3c54697a82fe4a62dd5ae5e8222956b448d2f98e331525f05d00404aba7d696de9e761ef6e42fdc780244f
+  languageName: node
+  linkType: hard
+
+"font-list@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "font-list@npm:2.0.0"
+  checksum: 10c0/9fc8600fa40a5d079982505ea101e49b21260a36f33167ac993fd7b26cec8372a16017c00d6fb404e259600ce8d588830167c9141c2df7dedb0fedd5953905f6
   languageName: node
   linkType: hard
 
