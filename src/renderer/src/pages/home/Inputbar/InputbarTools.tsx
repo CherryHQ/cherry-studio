@@ -1,4 +1,5 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
+import { Tooltip } from '@heroui/react'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
@@ -7,7 +8,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
 import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
 import { classNames } from '@renderer/utils'
-import { Divider, Dropdown, Tooltip } from 'antd'
+import { Divider, Dropdown } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import {
   AtSign,
@@ -310,9 +311,9 @@ const InputbarTools = ({
         component: (
           <Tooltip
             placement="top"
-            title={t('chat.input.new_topic', { Command: newTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
+            content={t('chat.input.new_topic', { Command: newTopicShortcut })}
+            closeDelay={0}
+            showArrow={true}>
             <ToolbarButton type="text" onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
             </ToolbarButton>
@@ -429,9 +430,9 @@ const InputbarTools = ({
         component: (
           <Tooltip
             placement="top"
-            title={t('chat.input.clear.label', { Command: cleanTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
+            content={t('chat.input.clear.label', { Command: cleanTopicShortcut })}
+            closeDelay={0}
+            showArrow={true}>
             <ToolbarButton type="text" onClick={clearTopic}>
               <PaintbrushVertical size={18} />
             </ToolbarButton>
@@ -444,9 +445,9 @@ const InputbarTools = ({
         component: (
           <Tooltip
             placement="top"
-            title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
-            mouseLeaveDelay={0}
-            arrow>
+            content={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
+            closeDelay={0}
+            showArrow={true}>
             <ToolbarButton type="text" onClick={onToggleExpended}>
               {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
             </ToolbarButton>
@@ -626,8 +627,8 @@ const InputbarTools = ({
         {showCollapseButton && (
           <Tooltip
             placement="top"
-            title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
-            arrow>
+            content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
+            showArrow={true}>
             <ToolbarButton type="text" onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
               <CircleChevronRight
                 size={18}

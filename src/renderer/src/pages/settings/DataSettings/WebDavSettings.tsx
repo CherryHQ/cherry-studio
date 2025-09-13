@@ -1,4 +1,5 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { HStack } from '@renderer/components/Layout'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -18,7 +19,7 @@ import {
   setWebdavSyncInterval as _setWebdavSyncInterval,
   setWebdavUser as _setWebdavUser
 } from '@renderer/store/settings'
-import { Button, Input, Switch, Tooltip } from 'antd'
+import { Button, Input, Switch } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -95,7 +96,7 @@ const WebDavSettings: FC = () => {
       <HStack gap="5px" alignItems="center">
         {webdavSync.syncing && <SyncOutlined spin />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
-          <Tooltip title={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}>
+          <Tooltip content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`} showArrow={true}>
             <WarningOutlined style={{ color: 'red' }} />
           </Tooltip>
         )}

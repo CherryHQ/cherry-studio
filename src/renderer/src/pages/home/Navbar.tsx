@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -11,7 +12,6 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { Assistant, Topic } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -76,7 +76,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+              <Tooltip content={t('navbar.hide_sidebar')} closeDelay={800} showArrow={true}>
                 <NavbarIcon onClick={toggleShowAssistants}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
@@ -87,7 +87,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </AnimatePresence>
       {!showAssistants && (
         <NavbarLeft style={{ justifyContent: 'flex-start', borderRight: 'none', padding: '0 10px', minWidth: 'auto' }}>
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('navbar.show_sidebar')} closeDelay={800} showArrow={true}>
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -118,26 +118,26 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
-          <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('chat.assistant.search.placeholder')} closeDelay={800} showArrow={true}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
             </NarrowIcon>
           </Tooltip>
-          <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+          <Tooltip content={t('navbar.expand')} closeDelay={800} showArrow={true}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
           <UpdateAppButton />
           {topicPosition === 'right' && !showTopics && (
-            <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+            <Tooltip content={t('navbar.show_sidebar')} closeDelay={2000} showArrow={true}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
           {topicPosition === 'right' && showTopics && (
-            <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+            <Tooltip content={t('navbar.hide_sidebar')} closeDelay={2000} showArrow={true}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>

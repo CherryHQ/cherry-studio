@@ -1,4 +1,4 @@
-import { Tooltip, TooltipProps } from 'antd'
+import { Tooltip, TooltipProps } from '@heroui/react'
 import { AlertTriangle } from 'lucide-react'
 
 type InheritedTooltipProps = Omit<TooltipProps, 'children'>
@@ -16,7 +16,7 @@ const WarnTooltip = ({
   ...rest
 }: WarnTooltipProps) => {
   return (
-    <Tooltip {...rest}>
+    <Tooltip showArrow={true} {...rest}>
       <AlertTriangle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
     </Tooltip>
   )

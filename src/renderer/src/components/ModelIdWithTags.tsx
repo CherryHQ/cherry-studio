@@ -1,5 +1,6 @@
+import { Tooltip } from '@heroui/react'
+import CopyButton from '@renderer/components/CopyButton'
 import { Model } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
 import { memo } from 'react'
 import styled from 'styled-components'
 
@@ -20,20 +21,18 @@ const ModelIdWithTags = ({
   return (
     <ListItemName ref={ref} $fontSize={fontSize} style={style}>
       <Tooltip
-        styles={{
-          root: {
-            width: 'auto',
-            maxWidth: '500px'
-          }
+        classNames={{
+          content: 'w-auto max-w-lg'
         }}
-        destroyOnHidden
-        title={
-          <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
-            {model.id}
-          </Typography.Text>
+        content={
+          <div style={{ color: 'white', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{model.id}</span>
+            <CopyButton textToCopy={model.id} size={12} />
+          </div>
         }
-        mouseEnterDelay={0.5}
-        placement="top">
+        closeDelay={500}
+        placement="top"
+        showArrow={true}>
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />

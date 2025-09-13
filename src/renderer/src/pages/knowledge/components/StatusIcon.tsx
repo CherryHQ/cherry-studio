@@ -1,7 +1,8 @@
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { KnowledgeBase, ProcessingStatus } from '@renderer/types'
-import { Progress, Tooltip } from 'antd'
+import { Progress } from 'antd'
 import React, { FC, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -35,19 +36,19 @@ const StatusIcon: FC<StatusIconProps> = ({
       if (item?.uniqueId) {
         if (isPreprocessed && item.type === 'file') {
           return (
-            <Tooltip title={t('knowledge.status_preprocess_completed')} placement="left">
+            <Tooltip content={t('knowledge.status_preprocess_completed')} placement="left" showArrow={true}>
               <CheckCircleOutlined style={{ color: '#52c41a' }} />
             </Tooltip>
           )
         }
         return (
-          <Tooltip title={t('knowledge.status_embedding_completed')} placement="left">
+          <Tooltip content={t('knowledge.status_embedding_completed')} placement="left" showArrow={true}>
             <CheckCircleOutlined style={{ color: '#52c41a' }} />
           </Tooltip>
         )
       }
       return (
-        <Tooltip title={t('knowledge.status_new')} placement="left">
+        <Tooltip content={t('knowledge.status_new')} placement="left" showArrow={true}>
           <StatusDot $status="new" />
         </Tooltip>
       )
@@ -56,7 +57,7 @@ const StatusIcon: FC<StatusIconProps> = ({
     switch (status) {
       case 'pending':
         return (
-          <Tooltip title={t('knowledge.status_pending')} placement="left">
+          <Tooltip content={t('knowledge.status_pending')} placement="left" showArrow={true}>
             <StatusDot $status="pending" />
           </Tooltip>
         )
@@ -65,20 +66,20 @@ const StatusIcon: FC<StatusIconProps> = ({
         return type === 'directory' || type === 'file' ? (
           <Progress type="circle" size={14} percent={Number(progress?.toFixed(0))} />
         ) : (
-          <Tooltip title={t('knowledge.status_processing')} placement="left">
+          <Tooltip content={t('knowledge.status_processing')} placement="left" showArrow={true}>
             <StatusDot $status="processing" />
           </Tooltip>
         )
       }
       case 'completed':
         return (
-          <Tooltip title={t('knowledge.status_completed')} placement="left">
+          <Tooltip content={t('knowledge.status_completed')} placement="left" showArrow={true}>
             <CheckCircleOutlined style={{ color: '#52c41a' }} />
           </Tooltip>
         )
       case 'failed':
         return (
-          <Tooltip title={errorText || t('knowledge.status_failed')} placement="left">
+          <Tooltip content={errorText || t('knowledge.status_failed')} placement="left" showArrow={true}>
             <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
           </Tooltip>
         )

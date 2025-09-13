@@ -1,5 +1,6 @@
+import { Tooltip } from '@heroui/react'
 import { Model } from '@renderer/types'
-import { Button, Tooltip, TooltipProps } from 'antd'
+import { Button } from 'antd'
 import { useCallback, useMemo } from 'react'
 
 import ModelAvatar from './Avatar/ModelAvatar'
@@ -10,7 +11,7 @@ type Props = {
   onSelectModel: (model: Model) => void
   modelFilter?: (model: Model) => boolean
   noTooltip?: boolean
-  tooltipProps?: TooltipProps
+  tooltipProps?: any
 }
 
 const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, tooltipProps }: Props) => {
@@ -29,7 +30,7 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
     return button
   } else {
     return (
-      <Tooltip title={model.name} {...tooltipProps}>
+      <Tooltip content={model.name} showArrow={true} {...tooltipProps}>
         {button}
       </Tooltip>
     )

@@ -1,4 +1,5 @@
 import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
@@ -8,7 +9,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Flex, Input, InputNumber, Modal, Popover, Row, Slider, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Dispatch, FC, SetStateAction, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -156,14 +157,14 @@ const AssistantSettings: FC = () => {
           marginTop: 0
         }}>
         {t('settings.assistant.model_params')}
-        <Tooltip title={t('common.reset')} mouseLeaveDelay={0}>
+        <Tooltip content={t('common.reset')} closeDelay={0} showArrow={true}>
           <Button type="text" onClick={onReset} icon={<ResetIcon size={16} />} />
         </Tooltip>
       </SettingSubtitle>
       <SettingRow>
         <HStack alignItems="center">
           <Label>{t('chat.settings.temperature.label')}</Label>
-          <Tooltip title={t('chat.settings.temperature.tip')}>
+          <Tooltip content={t('chat.settings.temperature.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </HStack>
@@ -204,7 +205,7 @@ const AssistantSettings: FC = () => {
       <SettingRow>
         <HStack alignItems="center">
           <Label>{t('chat.settings.top_p.label')}</Label>
-          <Tooltip title={t('chat.settings.top_p.tip')}>
+          <Tooltip content={t('chat.settings.top_p.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </HStack>
@@ -237,7 +238,7 @@ const AssistantSettings: FC = () => {
       )}
       <Row align="middle">
         <Label>{t('chat.settings.context_count.label')}</Label>
-        <Tooltip title={t('chat.settings.context_count.tip')}>
+        <Tooltip content={t('chat.settings.context_count.tip')} showArrow={true}>
           <QuestionIcon />
         </Tooltip>
       </Row>
@@ -267,7 +268,7 @@ const AssistantSettings: FC = () => {
       <Flex justify="space-between" align="center">
         <HStack alignItems="center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
-          <Tooltip title={t('chat.settings.max_tokens.tip')}>
+          <Tooltip content={t('chat.settings.max_tokens.tip')} showArrow={true}>
             <QuestionIcon />
           </Tooltip>
         </HStack>

@@ -1,6 +1,7 @@
 import { CopyOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { FileMetadata, KnowledgeSearchResult } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
+import { Typography } from 'antd'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,7 +45,7 @@ export const CopyButtonContainer: React.FC<CopyButtonContainerProps> = ({ textTo
 
   return (
     <TagContainer>
-      <Tooltip title={tooltipTitle}>
+      <Tooltip content={tooltipTitle} showArrow={true}>
         <CopyButton onClick={() => handleCopy(textToCopy)}>
           <CopyOutlined />
         </CopyButton>

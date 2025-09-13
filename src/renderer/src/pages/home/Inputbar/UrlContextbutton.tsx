@@ -1,8 +1,8 @@
+import { Tooltip } from '@heroui/react'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { Assistant } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,7 +47,7 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
   }, [setTimeoutTimer, assistant, urlContentNewState, updateAssistant, t])
 
   return (
-    <Tooltip placement="top" title={t('chat.input.url_context')} arrow>
+    <Tooltip placement="top" content={t('chat.input.url_context')} showArrow={true}>
       <ToolbarButton type="text" onClick={handleToggle}>
         <Link
           size={18}

@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
@@ -8,7 +9,7 @@ import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
 import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { Form, Input, Tooltip } from 'antd'
+import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -485,7 +486,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
   }))
 
   return (
-    <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" content={t('settings.mcp.title')} closeDelay={0} showArrow={true}>
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         <Hammer
           size={18}

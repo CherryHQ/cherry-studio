@@ -1,4 +1,5 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
@@ -13,7 +14,7 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
+import { Button, Divider, Flex, Form, Input, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info, List } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
@@ -177,7 +178,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+            <Tooltip content={t('settings.provider.api.key.list.open')} delay={500} showArrow={true}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
           </SettingSubtitle>
@@ -237,7 +238,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth.label')}
-            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
+            <Tooltip content={t('settings.provider.basic_auth.tip')} placement="right" showArrow={true}>
               <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
             </Tooltip>
           </SettingSubtitle>

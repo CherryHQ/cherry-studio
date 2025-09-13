@@ -1,4 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
@@ -15,7 +16,7 @@ import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
 import { DmxapiPainting } from '@types'
-import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch, Tooltip } from 'antd'
+import { Avatar, Button, Input, InputNumber, Segmented, Select, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import React, { FC, useEffect, useRef, useState } from 'react'
@@ -923,7 +924,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
                 {t('paintings.seed')}
-                <Tooltip title={t('paintings.seed_desc_tip')}>
+                <Tooltip content={t('paintings.seed_desc_tip')} showArrow={true}>
                   <InfoIcon />
                 </Tooltip>
               </SettingTitle>
@@ -957,7 +958,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.auto_create_paint')}
-            <Tooltip title={t('paintings.auto_create_paint_tip')}>
+            <Tooltip content={t('paintings.auto_create_paint_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>

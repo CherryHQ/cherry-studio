@@ -1,10 +1,11 @@
 import { Switch } from '@heroui/react'
+import { Tooltip } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import { HStack } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Flex, Modal, Radio, Space, Tooltip } from 'antd'
+import { Button, Flex, Modal, Radio, Space } from 'antd'
 import { HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -107,7 +108,7 @@ const TranslateSettings: FC<{
         <HStack style={{ justifyContent: 'space-between' }}>
           <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
             {t('translate.detect.method.label')}
-            <Tooltip title={t('translate.detect.method.tip')}>
+            <Tooltip content={t('translate.detect.method.tip')} showArrow={true}>
               <span style={{ marginLeft: 4, display: 'flex', alignItems: 'center' }}>
                 <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
               </span>
@@ -122,13 +123,13 @@ const TranslateSettings: FC<{
               onChange={(e) => {
                 setAutoDetectionMethod(e.target.value)
               }}>
-              <Tooltip title={t('translate.detect.method.auto.tip')}>
+              <Tooltip content={t('translate.detect.method.auto.tip')} showArrow={true}>
                 <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
               </Tooltip>
-              <Tooltip title={t('translate.detect.method.algo.tip')}>
+              <Tooltip content={t('translate.detect.method.algo.tip')} showArrow={true}>
                 <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
               </Tooltip>
-              <Tooltip title={t('translate.detect.method.llm.tip')}>
+              <Tooltip content={t('translate.detect.method.llm.tip')} showArrow={true}>
                 <Radio.Button value="llm">LLM</Radio.Button>
               </Tooltip>
             </Radio.Group>
@@ -140,7 +141,7 @@ const TranslateSettings: FC<{
             <div style={{ fontWeight: 500 }}>
               <HStack alignItems="center" gap={5}>
                 {t('translate.settings.bidirectional')}
-                <Tooltip title={t('translate.settings.bidirectional_tip')}>
+                <Tooltip content={t('translate.settings.bidirectional_tip')} showArrow={true}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>
                     <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
                   </span>

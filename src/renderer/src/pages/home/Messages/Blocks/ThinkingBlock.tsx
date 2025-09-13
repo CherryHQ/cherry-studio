@@ -1,10 +1,11 @@
 import { CheckOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { Collapse, message as antdMessage, Tooltip } from 'antd'
+import { Collapse, message as antdMessage } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -79,7 +80,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                 fontSize
               }}>
               {!isThinking && (
-                <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+                <Tooltip content={t('common.copy')} closeDelay={0.8} showArrow={true}>
                   <ActionButton
                     className="message-action-button"
                     onClick={(e) => {

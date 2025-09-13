@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -6,7 +7,7 @@ import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { useAppSelector } from '@renderer/store'
 import { QuickPhrase } from '@renderer/types'
 import { Assistant } from '@renderer/types'
-import { Input, Modal, Radio, Space, Tooltip } from 'antd'
+import { Input, Modal, Radio, Space } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -158,7 +159,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
 
   return (
     <>
-      <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
+      <Tooltip placement="top" content={t('settings.quickPhrase.title')} closeDelay={0} showArrow={true}>
         <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
           <Zap size={18} />
         </ToolbarButton>

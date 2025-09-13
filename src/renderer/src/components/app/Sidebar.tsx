@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
@@ -12,7 +13,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
-import { Avatar, Tooltip } from 'antd'
+import { Avatar } from 'antd'
 import {
   Code,
   FileSearch,
@@ -90,9 +91,10 @@ const Sidebar: FC = () => {
       </MainMenusContainer>
       <Menus>
         <Tooltip
-          title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-          mouseEnterDelay={0.8}
-          placement="right">
+          content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
+          closeDelay={800}
+          placement="right"
+          showArrow={true}>
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
@@ -103,7 +105,7 @@ const Sidebar: FC = () => {
             )}
           </Icon>
         </Tooltip>
-        <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
+        <Tooltip content={t('settings.title')} closeDelay={800} placement="right" showArrow={true}>
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
@@ -159,7 +161,7 @@ const MainMenus: FC = () => {
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 
     return (
-      <Tooltip key={icon} title={getSidebarIconLabel(icon)} mouseEnterDelay={0.8} placement="right">
+      <Tooltip key={icon} content={getSidebarIconLabel(icon)} closeDelay={800} placement="right" showArrow={true}>
         <StyledLink
           onClick={async () => {
             hideMinappPopup()

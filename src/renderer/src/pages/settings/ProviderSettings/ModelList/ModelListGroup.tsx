@@ -1,8 +1,9 @@
+import { Tooltip } from '@heroui/react'
 import CustomCollapse from '@renderer/components/CustomCollapse'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
-import { Button, Flex, Tooltip } from 'antd'
+import { Button, Flex } from 'antd'
 import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -55,7 +56,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           </Flex>
         }
         extra={
-          <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseLeaveDelay={0}>
+          <Tooltip content={t('settings.models.manage.remove_whole_group')} closeDelay={0} showArrow={true}>
             <Button
               type="text"
               className="toolbar-item"

@@ -1,6 +1,6 @@
+import { Tooltip } from '@heroui/react'
 import { isGenerateImageModel } from '@renderer/config/models'
 import { Assistant, Model } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { Image } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,11 +18,11 @@ const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEna
   return (
     <Tooltip
       placement="top"
-      title={
+      content={
         isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
       }
-      mouseLeaveDelay={0}
-      arrow>
+      closeDelay={0}
+      showArrow={true}>
       <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
         <Image size={18} color={assistant.enableGenerateImage ? 'var(--color-primary)' : 'var(--color-icon)'} />
       </ToolbarButton>

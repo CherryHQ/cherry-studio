@@ -1,4 +1,5 @@
 import { FolderOpenOutlined, InfoCircleOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { HStack } from '@renderer/components/Layout'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
@@ -10,7 +11,7 @@ import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setS3Partial } from '@renderer/store/settings'
 import { S3Config } from '@renderer/types'
-import { Button, Input, Switch, Tooltip } from 'antd'
+import { Button, Input, Switch } from 'antd'
 import dayjs from 'dayjs'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -90,7 +91,7 @@ const S3Settings: FC = () => {
       <HStack gap="5px" alignItems="center">
         {s3Sync?.syncing && <SyncOutlined spin />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
-          <Tooltip title={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}>
+          <Tooltip content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })} showArrow={true}>
             <WarningOutlined style={{ color: 'red' }} />
           </Tooltip>
         )}
@@ -118,7 +119,7 @@ const S3Settings: FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle style={{ justifyContent: 'flex-start', gap: 10 }}>
         {t('settings.data.s3.title.label')}
-        <Tooltip title={t('settings.data.s3.title.tooltip')} placement="right">
+        <Tooltip content={t('settings.data.s3.title.tooltip')} placement="right" showArrow={true}>
           <InfoCircleOutlined style={{ color: 'var(--color-text-2)', cursor: 'pointer' }} onClick={handleTitleClick} />
         </Tooltip>
       </SettingTitle>

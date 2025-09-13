@@ -1,4 +1,4 @@
-import { Tooltip } from 'antd'
+import { Tooltip } from '@heroui/react'
 import type { TFunction } from 'i18next'
 import { LucideProps } from 'lucide-react'
 import React, { ForwardRefExoticComponent, RefAttributes, useEffect, useState } from 'react'
@@ -176,7 +176,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
         )
 
         return (
-          <Tooltip key={item.id} title={tooltipText} placement="top">
+          <Tooltip key={item.id} content={tooltipText} placement="top" showArrow={true}>
             {buttonElement}
           </Tooltip>
         )

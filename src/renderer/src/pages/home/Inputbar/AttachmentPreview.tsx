@@ -12,12 +12,13 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import { FileMetadata } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Flex, Image, Tooltip } from 'antd'
+import { Flex, Image } from 'antd'
 import { isEmpty } from 'lodash'
 import { FC, useState } from 'react'
 import styled from 'styled-components'
@@ -93,13 +94,8 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
 
   return (
     <Tooltip
-      styles={{
-        body: {
-          padding: 5
-        }
-      }}
-      fresh
-      title={
+      showArrow={true}
+      content={
         <Flex vertical gap={2} align="center">
           {isImage(file.ext) && (
             <Image

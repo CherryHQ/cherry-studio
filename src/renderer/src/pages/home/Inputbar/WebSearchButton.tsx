@@ -1,4 +1,5 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -12,7 +13,6 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
 import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -195,9 +195,9 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
   return (
     <Tooltip
       placement="top"
-      title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
-      mouseLeaveDelay={0}
-      arrow>
+      content={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
+      closeDelay={0}
+      showArrow={true}>
       <ToolbarButton type="text" onClick={onClick}>
         <WebSearchIcon color={color} pid={assistant.webSearchProviderId} />
       </ToolbarButton>

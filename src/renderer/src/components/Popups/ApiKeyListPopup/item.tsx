@@ -1,9 +1,10 @@
+import { Tooltip } from '@heroui/react'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { Button, Flex, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'
+import { Button, Flex, Input, InputRef, List, Popconfirm, Typography } from 'antd'
 import { Check, Minus, X } from 'lucide-react'
 import { FC, memo, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -103,7 +104,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             disabled={disabled}
           />
           <Flex gap={0} align="center">
-            <Tooltip title={t('common.save')}>
+            <Tooltip content={t('common.save')} showArrow={true}>
               <Button
                 type={hasUnsavedChanges ? 'primary' : 'text'}
                 icon={<Check size={16} />}
@@ -111,7 +112,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 disabled={disabled}
               />
             </Tooltip>
-            <Tooltip title={t('common.cancel')}>
+            <Tooltip content={t('common.cancel')} showArrow={true}>
               <Button type="text" icon={<X size={16} />} onClick={handleCancelEdit} disabled={disabled} />
             </Tooltip>
           </Flex>
@@ -119,15 +120,14 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
       ) : (
         <ItemInnerContainer style={{ gap: '10px' }}>
           <Tooltip
-            title={
+            content={
               <Typography.Text style={{ color: 'white' }} copyable={{ text: keyStatus.key }}>
                 {keyStatus.key}
               </Typography.Text>
             }
-            mouseEnterDelay={0.5}
+            closeDelay={500}
             placement="top"
-            // 确保不留下明文
-            destroyOnHidden>
+            showArrow={true}>
             <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
           </Tooltip>
 
@@ -136,7 +136,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
             <Flex gap={0} align="center">
               {showHealthCheck && (
-                <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                <Tooltip content={t('settings.provider.check')} closeDelay={0} showArrow={true}>
                   <Button
                     type="text"
                     icon={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
@@ -145,7 +145,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   />
                 </Tooltip>
               )}
-              <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
+              <Tooltip content={t('common.edit')} closeDelay={0} showArrow={true}>
                 <Button type="text" icon={<EditIcon size={16} />} onClick={handleEdit} disabled={disabled} />
               </Tooltip>
               <Popconfirm
@@ -155,7 +155,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}>
-                <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
+                <Tooltip content={t('common.delete')} closeDelay={0} showArrow={true}>
                   <Button type="text" icon={<Minus size={16} />} disabled={disabled} />
                 </Tooltip>
               </Popconfirm>

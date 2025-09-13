@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
@@ -20,7 +21,7 @@ import { fetchModels } from '@renderer/services/ApiService'
 import { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
-import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
+import { Button, Empty, Flex, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
@@ -243,12 +244,13 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     return (
       <HStack gap={8}>
         <Tooltip
-          title={
+          content={
             isAllFilteredInProvider
               ? t('settings.models.manage.remove_listed')
               : t('settings.models.manage.add_listed.label')
           }
-          mouseLeaveDelay={0}>
+          closeDelay={0}
+          showArrow={true}>
           <Button
             type="default"
             icon={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
@@ -260,7 +262,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             disabled={loadingModels || list.length === 0}
           />
         </Tooltip>
-        <Tooltip title={t('settings.models.manage.refetch_list')} mouseLeaveDelay={0}>
+        <Tooltip content={t('settings.models.manage.refetch_list')} closeDelay={0} showArrow={true}>
           <Button
             type="default"
             icon={<RefreshCcw size={16} />}

@@ -1,6 +1,6 @@
+import { Tooltip } from '@heroui/react'
 import { FileType } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
-import { Tooltip } from 'antd'
 import { Paperclip } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -81,9 +81,9 @@ const AttachmentButton: FC<Props> = ({
   return (
     <Tooltip
       placement="top"
-      title={couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document')}
-      mouseLeaveDelay={0}
-      arrow>
+      content={couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document')}
+      closeDelay={0}
+      showArrow={true}>
       <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>
         <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
       </ToolbarButton>

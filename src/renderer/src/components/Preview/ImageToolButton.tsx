@@ -1,4 +1,5 @@
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from '@heroui/react'
+import { Button } from 'antd'
 import { memo } from 'react'
 
 interface ImageToolButtonProps {
@@ -9,7 +10,7 @@ interface ImageToolButtonProps {
 
 const ImageToolButton = ({ tooltip, icon, onClick }: ImageToolButtonProps) => {
   return (
-    <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+    <Tooltip content={tooltip} closeDelay={500} showArrow={true}>
       <Button shape="circle" icon={icon} onClick={onClick} role="button" aria-label={tooltip} />
     </Tooltip>
   )

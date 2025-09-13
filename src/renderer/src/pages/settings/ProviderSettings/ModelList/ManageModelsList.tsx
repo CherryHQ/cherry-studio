@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -6,7 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { Model, Provider } from '@renderer/types'
-import { Button, Flex, Tooltip } from 'antd'
+import { Button, Flex } from 'antd'
 import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
@@ -109,14 +110,14 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
       return (
         <Tooltip
-          destroyOnHidden
-          title={
+          content={
             isAllInProvider
               ? t('settings.models.manage.remove_whole_group')
               : t('settings.models.manage.add_whole_group')
           }
-          mouseLeaveDelay={0}
-          placement="top">
+          closeDelay={0}
+          placement="top"
+          showArrow={true}>
           <Button
             type="text"
             icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}

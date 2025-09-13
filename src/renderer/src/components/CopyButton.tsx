@@ -1,4 +1,4 @@
-import { Tooltip } from 'antd'
+import { Tooltip } from '@heroui/react'
 import { Copy } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -47,7 +47,11 @@ const CopyButton: FC<CopyButtonProps> = ({
   )
 
   if (tooltip) {
-    return <Tooltip title={tooltip}>{button}</Tooltip>
+    return (
+      <Tooltip content={tooltip} showArrow={true}>
+        {button}
+      </Tooltip>
+    )
   }
 
   return button

@@ -1,11 +1,12 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { Box } from '@renderer/components/Layout'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import { Assistant, AssistantSettings } from '@renderer/types'
-import { Alert, Button, Card, Space, Switch, Tooltip, Typography } from 'antd'
+import { Alert, Button, Card, Space, Switch, Typography } from 'antd'
 import { useForm } from 'antd/es/form/Form'
 import { Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -76,20 +77,21 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
       <HeaderContainer>
         <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('memory.title')}
-          <Tooltip title={t('memory.description')}>
+          <Tooltip content={t('memory.description')} showArrow={true}>
             <InfoIcon />
           </Tooltip>
         </Box>
         <Space>
           <Button type="text" icon={<Settings2 size={15} />} onClick={handleNavigateToMemory} />
           <Tooltip
-            title={
+            content={
               !globalMemoryEnabled
                 ? t('memory.enable_global_memory_first')
                 : !isMemoryConfigured
                   ? t('memory.configure_memory_first')
                   : ''
-            }>
+            }
+            showArrow={true}>
             <Switch
               checked={assistant.enableMemory || false}
               onChange={handleMemoryToggle}

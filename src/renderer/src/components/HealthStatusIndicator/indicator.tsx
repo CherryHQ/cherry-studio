@@ -1,5 +1,6 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
-import { Flex, Tooltip, Typography } from 'antd'
+import { Tooltip } from '@heroui/react'
+import { Flex, Typography } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
@@ -50,7 +51,7 @@ const HealthStatusIndicator: React.FC<HealthStatusIndicatorProps> = ({
   return (
     <Flex align="center" gap={6}>
       {latencyText && <LatencyText type="secondary">{latencyText}</LatencyText>}
-      <Tooltip title={tooltip} styles={{ body: { userSelect: 'text' } }}>
+      <Tooltip content={tooltip} classNames={{ content: 'user-select-text' }} showArrow={true}>
         <IndicatorWrapper $type={overallStatus}>{icon}</IndicatorWrapper>
       </Tooltip>
     </Flex>

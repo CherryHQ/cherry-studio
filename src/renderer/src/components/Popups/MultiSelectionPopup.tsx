@@ -1,7 +1,8 @@
+import { Tooltip } from '@heroui/react'
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { Topic } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { Save, X } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +36,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
       <ActionBar>
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
-          <Tooltip title={t('common.save')}>
+          <Tooltip content={t('common.save')} showArrow={true}>
             <Button
               shape="circle"
               color="default"
@@ -45,7 +46,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               onClick={() => handleAction('save')}
             />
           </Tooltip>
-          <Tooltip title={t('common.copy')}>
+          <Tooltip content={t('common.copy')} showArrow={true}>
             <Button
               shape="circle"
               color="default"
@@ -55,7 +56,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               onClick={() => handleAction('copy')}
             />
           </Tooltip>
-          <Tooltip title={t('common.delete')}>
+          <Tooltip content={t('common.delete')} showArrow={true}>
             <Button
               shape="circle"
               color="danger"
@@ -66,7 +67,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
             />
           </Tooltip>
         </ActionButtons>
-        <Tooltip title={t('chat.navigation.close')}>
+        <Tooltip content={t('chat.navigation.close')} showArrow={true}>
           <Button shape="circle" color="default" variant="text" icon={<X size={16} />} onClick={handleClose} />
         </Tooltip>
       </ActionBar>

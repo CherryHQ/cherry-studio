@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
@@ -5,7 +6,7 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
 import { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
+import { Alert, Button, Space, Switch, Tag, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
 import { FC, useCallback } from 'react'
 import { FallbackProps } from 'react-error-boundary'
@@ -82,7 +83,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 danger
                 type="text"
                 icon={
-                  <Tooltip title={t('error.boundary.details')}>
+                  <Tooltip content={t('error.boundary.details')} showArrow={true}>
                     <CircleXIcon size={16} />
                   </Tooltip>
                 }
@@ -93,7 +94,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 danger
                 type="text"
                 icon={
-                  <Tooltip title={t('common.delete')}>
+                  <Tooltip content={t('common.delete')} showArrow={true}>
                     <DeleteIcon size={16} />
                   </Tooltip>
                 }

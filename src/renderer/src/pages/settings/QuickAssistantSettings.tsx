@@ -1,4 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -12,7 +13,7 @@ import {
   setReadClipboardAtStartup
 } from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Button, Select, Switch, Tooltip } from 'antd'
+import { Button, Select, Switch } from 'antd'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -68,7 +69,7 @@ const QuickAssistantSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
-            <Tooltip title={t('settings.quickAssistant.use_shortcut_to_show')} placement="right">
+            <Tooltip content={t('settings.quickAssistant.use_shortcut_to_show')} placement="right" showArrow={true}>
               <InfoCircleOutlined style={{ cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
@@ -98,7 +99,7 @@ const QuickAssistantSettings: FC = () => {
           <HStack alignItems="center" justifyContent="space-between">
             <HStack alignItems="center" gap={10}>
               {t('settings.models.quick_assistant_model')}
-              <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
+              <Tooltip content={t('selection.settings.user_modal.model.tooltip')} showArrow={true}>
                 <InfoCircleOutlined style={{ cursor: 'pointer' }} />
               </Tooltip>
               <Spacer />

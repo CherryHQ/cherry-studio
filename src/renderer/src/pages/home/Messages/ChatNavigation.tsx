@@ -6,10 +6,11 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
-import { Button, Drawer, Tooltip } from 'antd'
+import { Button, Drawer } from 'antd'
 import { FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -334,7 +335,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.close')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.close')} placement="left" closeDelay={0.5} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
@@ -343,7 +344,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.top')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.top')} placement="left" closeDelay={0.5} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
@@ -352,7 +353,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.prev')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.prev')} placement="left" closeDelay={0.5} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<ArrowUpOutlined />}
@@ -361,7 +362,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.next')} placement="left" closeDelay={0.5} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<ArrowDownOutlined />}
@@ -370,7 +371,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.bottom')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.bottom')} placement="left" closeDelay={0.5} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
@@ -379,7 +380,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip content={t('chat.navigation.history')} placement="left" closeDelay={0.5} showArrow={true}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}

@@ -1,6 +1,7 @@
+import { Tooltip } from '@heroui/react'
 import { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Flex, Switch, Table, Tag, Typography } from 'antd'
 import { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -61,7 +62,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               <Flex gap={4}>
                 <Typography.Text strong>{key}</Typography.Text>
                 {tool.inputSchema.required?.includes(key) && (
-                  <Tooltip title="Required field">
+                  <Tooltip content="Required field" showArrow={true}>
                     <span style={{ color: '#f5222d' }}>*</span>
                   </Tooltip>
                 )}
@@ -118,7 +119,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
-            <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
+            <Tooltip content={`ID: ${tool.id}`} closeDelay={0} showArrow={true}>
               <Info size={14} />
             </Tooltip>
           </Flex>
@@ -159,14 +160,15 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       align: 'center',
       render: (_, tool) => (
         <Tooltip
-          title={
+          content={
             !isToolEnabled(tool)
               ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
               : isToolAutoApproved(tool, server)
                 ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
           }
-          placement="top">
+          placement="top"
+          showArrow={true}>
           <Switch
             checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}

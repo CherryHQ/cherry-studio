@@ -1,8 +1,18 @@
+import { Tooltip } from '@heroui/react'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
-import { Tooltip } from 'antd'
 import React, { memo, useCallback, useMemo } from 'react'
-import styled from 'styled-components'
+import styled, { createGlobalStyle } from 'styled-components'
 import { z } from 'zod'
+
+const CitationTooltipStyles = createGlobalStyle`
+  .citation-tooltip-content {
+    background: var(--color-background) !important;
+    border: 1px solid var(--color-border) !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  }
+`
 
 export const CitationSchema = z.object({
   url: z.url(),
@@ -56,20 +66,18 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   )
 
   return (
-    <Tooltip
-      arrow={false}
-      overlay={tooltipContent}
-      placement="top"
-      color="var(--color-background)"
-      styles={{
-        body: {
-          border: '1px solid var(--color-border)',
-          padding: '12px',
-          borderRadius: '8px'
-        }
-      }}>
-      {children}
-    </Tooltip>
+    <>
+      <CitationTooltipStyles />
+      <Tooltip
+        showArrow={false}
+        content={tooltipContent}
+        placement="top"
+        classNames={{
+          content: 'citation-tooltip-content'
+        }}>
+        {children}
+      </Tooltip>
+    </>
   )
 }
 

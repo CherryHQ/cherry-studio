@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { HStack } from '@renderer/components/Layout'
@@ -6,7 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { Avatar, Button, Tooltip } from 'antd'
+import { Avatar, Button } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,10 +53,10 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
       <HStack alignItems="center" gap={6}>
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
         <HStack alignItems="center" gap={0}>
-          <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
+          <Tooltip content={t('models.edit')} closeDelay={0} showArrow={true}>
             <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Bolt size={14} />} />
           </Tooltip>
-          <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
+          <Tooltip content={t('settings.models.manage.remove_model')} closeDelay={0} showArrow={true}>
             <Button type="text" onClick={() => onRemove(model)} disabled={disabled} icon={<Minus size={14} />} />
           </Tooltip>
         </HStack>

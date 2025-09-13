@@ -1,6 +1,7 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
@@ -16,7 +17,7 @@ import { isEmoji } from '@renderer/utils'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Edge, Node, NodeTypes, Position, useEdgesState, useNodesState } from '@xyflow/react'
-import { Avatar, Spin, Tooltip } from 'antd'
+import { Avatar, Spin } from 'antd'
 import { isEqual } from 'lodash'
 import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,7 +139,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
   return (
     <Tooltip
-      title={
+      content={
         <TooltipContent>
           <TooltipTitle>{title}</TooltipTitle>
           <TooltipBody>{data.content}</TooltipBody>
@@ -146,10 +147,8 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         </TooltipContent>
       }
       placement="top"
-      color="rgba(0, 0, 0, 0.85)"
-      mouseEnterDelay={0.3}
-      mouseLeaveDelay={0.1}
-      destroyOnHidden>
+      closeDelay={0.3}
+      showArrow={true}>
       <CustomNodeContainer
         style={{
           borderColor,

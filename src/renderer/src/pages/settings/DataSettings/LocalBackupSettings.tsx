@@ -1,4 +1,5 @@
 import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { HStack } from '@renderer/components/Layout'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -16,7 +17,7 @@ import {
   setLocalBackupSyncInterval as _setLocalBackupSyncInterval
 } from '@renderer/store/settings'
 import { AppInfo } from '@renderer/types'
-import { Button, Input, Switch, Tooltip } from 'antd'
+import { Button, Input, Switch } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -175,7 +176,7 @@ const LocalBackupSettings: React.FC = () => {
       <HStack gap="5px" alignItems="center">
         {localBackupSync.syncing && <SyncOutlined spin />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
-          <Tooltip title={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}>
+          <Tooltip content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`} showArrow={true}>
             <WarningOutlined style={{ color: 'red' }} />
           </Tooltip>
         )}

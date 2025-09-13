@@ -1,4 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import ImageSize1_1 from '@renderer/assets/images/paintings/image-size-1-1.svg'
@@ -26,7 +27,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Input, InputNumber, Radio, Select, Slider, Switch } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -402,7 +403,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.number_images')}
-            <Tooltip title={t('paintings.number_images_tip')}>
+            <Tooltip content={t('paintings.number_images_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
@@ -415,7 +416,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.seed')}
-            <Tooltip title={t('paintings.seed_tip')}>
+            <Tooltip content={t('paintings.seed_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
@@ -432,7 +433,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.inference_steps')}
-            <Tooltip title={t('paintings.inference_steps_tip')}>
+            <Tooltip content={t('paintings.inference_steps_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
@@ -448,7 +449,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.guidance_scale')}
-            <Tooltip title={t('paintings.guidance_scale_tip')}>
+            <Tooltip content={t('paintings.guidance_scale_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
@@ -470,7 +471,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SliderContainer>
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.negative_prompt')}
-            <Tooltip title={t('paintings.negative_prompt_tip')}>
+            <Tooltip content={t('paintings.negative_prompt_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>
@@ -482,7 +483,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           />
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.prompt_enhancement')}
-            <Tooltip title={t('paintings.prompt_enhancement_tip')}>
+            <Tooltip content={t('paintings.prompt_enhancement_tip')} showArrow={true}>
               <InfoIcon />
             </Tooltip>
           </SettingTitle>

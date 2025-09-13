@@ -1,4 +1,5 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
@@ -6,7 +7,7 @@ import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
+import { Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -91,7 +92,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             <TagsContainer key={group.tag}>
               {group.tag !== t('assistants.tags.untagged') && (
                 <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
-                  <Tooltip title={group.tag}>
+                  <Tooltip content={group.tag} showArrow={true}>
                     <GroupTitleName>
                       {collapsedTags[group.tag] ? (
                         <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />

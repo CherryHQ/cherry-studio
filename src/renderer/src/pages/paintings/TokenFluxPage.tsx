@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -17,7 +18,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setGenerating } from '@renderer/store/runtime'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Select, Tooltip } from 'antd'
+import { Avatar, Button, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -435,7 +436,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Select.OptGroup key={provider} label={provider}>
                 {providerModels.map((model) => (
                   <Select.Option key={model.id} value={model.id}>
-                    <Tooltip title={model.description} placement="right">
+                    <Tooltip content={model.description} placement="right" showArrow={true}>
                       <ModelOptionContainer>
                         <ModelName>{model.name}</ModelName>
                       </ModelOptionContainer>
@@ -464,7 +465,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
                         {property.description && (
-                          <Tooltip title={readI18nContext(property, 'description')}>
+                          <Tooltip content={readI18nContext(property, 'description')} showArrow={true}>
                             <InfoIcon />
                           </Tooltip>
                         )}

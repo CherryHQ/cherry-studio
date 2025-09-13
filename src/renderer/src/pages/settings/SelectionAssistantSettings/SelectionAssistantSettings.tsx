@@ -1,10 +1,11 @@
+import { Tooltip } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import { FilterMode, TriggerMode } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import { Button, Radio, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Radio, Row, Slider, Switch } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -132,7 +133,10 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
                   {/* FIXME: 没有考虑Linux？ */}
-                  <Tooltip placement="top" title={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')} arrow>
+                  <Tooltip
+                    placement="top"
+                    content={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')}
+                    showArrow={true}>
                     <QuestionIcon size={14} />
                   </Tooltip>
                 </SettingRowTitle>
@@ -142,17 +146,23 @@ const SelectionAssistantSettings: FC = () => {
                 value={triggerMode}
                 onChange={(e) => setTriggerMode(e.target.value as TriggerMode)}
                 buttonStyle="solid">
-                <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.selected_note')} arrow>
+                <Tooltip
+                  placement="top"
+                  content={t('selection.settings.toolbar.trigger_mode.selected_note')}
+                  showArrow={true}>
                   <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
                 </Tooltip>
                 {isWin && (
-                  <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')} arrow>
+                  <Tooltip
+                    placement="top"
+                    content={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')}
+                    showArrow={true}>
                     <Radio.Button value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio.Button>
                   </Tooltip>
                 )}
                 <Tooltip
-                  placement="topRight"
-                  title={
+                  placement="top-end"
+                  content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
                       <Link to="/settings/shortcut" style={{ color: 'var(--color-primary)' }}>
@@ -160,7 +170,7 @@ const SelectionAssistantSettings: FC = () => {
                       </Link>
                     </div>
                   }
-                  arrow>
+                  showArrow={true}>
                   <Radio.Button value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio.Button>
                 </Tooltip>
               </Radio.Group>

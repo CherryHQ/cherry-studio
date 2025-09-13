@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
@@ -15,7 +16,7 @@ import {
   processTopicContent,
   TopicContentStats
 } from '@renderer/utils/knowledge'
-import { Flex, Form, Modal, Select, Tooltip, Typography } from 'antd'
+import { Flex, Form, Modal, Select, Typography } from 'antd'
 import { Check, CircleHelp } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -334,7 +335,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                       {option.count}
                     </CustomTag>
                     <span>{option.label}</span>
-                    <Tooltip title={option.description} mouseLeaveDelay={0}>
+                    <Tooltip content={option.description} closeDelay={0} showArrow={true}>
                       <CircleHelp size={16} style={{ cursor: 'help' }} />
                     </Tooltip>
                   </Flex>

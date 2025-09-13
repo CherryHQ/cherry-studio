@@ -1,3 +1,4 @@
+import { Tooltip } from '@heroui/react'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { LoadingIcon, StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
@@ -12,7 +13,7 @@ import ManageModelsPopup from '@renderer/pages/settings/ProviderSettings/ModelLi
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import { Model } from '@renderer/types'
 import { filterModelsByKeywords } from '@renderer/utils'
-import { Button, Flex, Spin, Tooltip } from 'antd'
+import { Button, Flex, Spin } from 'antd'
 import { groupBy, isEmpty, sortBy, toPairs } from 'lodash'
 import { ListCheck, Plus } from 'lucide-react'
 import React, { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
@@ -115,7 +116,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
           </HStack>
           {editable && (
             <HStack>
-              <Tooltip title={t('settings.models.check.button_caption')} mouseLeaveDelay={0}>
+              <Tooltip content={t('settings.models.check.button_caption')} closeDelay={0} showArrow={true}>
                 <Button
                   type="text"
                   onClick={runHealthCheck}
