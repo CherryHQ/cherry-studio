@@ -2454,7 +2454,7 @@ const migrateConfig = {
   },
   '154': (state: RootState) => {
     try {
-      if (state.settings.userTheme.userFontFamily && state.settings.userTheme.userCodeFontFamily) {
+      if (state.settings.userTheme) {
         state.settings.userTheme.userFontFamily = settingsInitialState.userTheme.userFontFamily
         state.settings.userTheme.userCodeFontFamily = settingsInitialState.userTheme.userCodeFontFamily
       }
