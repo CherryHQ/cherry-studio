@@ -13,6 +13,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
+import { getClaudeSupportedProviders } from '@renderer/utils/provider'
 import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, HelpCircle, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -25,7 +26,6 @@ import {
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
-  getClaudeSupportedProviders,
   parseEnvironmentVariables
 } from '.'
 
