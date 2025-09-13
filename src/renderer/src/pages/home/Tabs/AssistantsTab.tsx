@@ -1,19 +1,21 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
-import { Button } from '@heroui/react'
+import { Button, Divider } from '@heroui/react'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { AddAgentModal } from '@renderer/components/Popups/AddAgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant, AssistantsSortType } from '@renderer/types'
+import { AgentEntity, Assistant, AssistantsSortType } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AgentItem from './components/AgentItem'
 import AssistantItem from './components/AssistantItem'
 
 interface AssistantsTabProps {
@@ -35,6 +37,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const containerRef = useRef<HTMLDivElement>(null)
+  const { agents, setAgents, removeAgent } = useAgents()
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
@@ -46,6 +49,14 @@ const Assistants: FC<AssistantsTabProps> = ({
       removeAssistant(assistant.id)
     },
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
+  )
+
+  const onDeleteAgent = useCallback(
+    (agent: AgentEntity) => {
+      removeAgent(agent.id)
+      window.toast.success(t('common.delete_success'))
+    },
+    [removeAgent, t]
   )
 
   const handleSortByChange = useCallback(
@@ -80,19 +91,6 @@ const Assistants: FC<AssistantsTabProps> = ({
       </Button>
     )
   }, [onCreateAssistant, t])
-
-  // const AddAgentButton = useCallback(() => {
-  //   return (
-  //     <AssistantAddItem onClick={onCreateAgent}>
-  //       <AddItemWrapper>
-  //         <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-  //         <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('agent.add.title') }}>
-  //           {t('agent.add.title')}
-  //         </Typography.Text>
-  //       </AddItemWrapper>
-  //     </AssistantAddItem>
-  //   )
-  // }, [onCreateAgent, t])
 
   if (assistantsTabSortType === 'tags') {
     return (
@@ -151,6 +149,15 @@ const Assistants: FC<AssistantsTabProps> = ({
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <DraggableList
+        list={agents}
+        onUpdate={setAgents}
+        onDragStart={() => setDragging(true)}
+        onDragEnd={() => setDragging(false)}>
+        {(agent) => <AgentItem agent={agent} isActive={false} onDelete={onDeleteAgent} />}
+      </DraggableList>
+      {!dragging && <AddAgentModal />}
+      <Divider className="my-2" />
+      <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
         onDragStart={() => setDragging(true)}
@@ -171,8 +178,6 @@ const Assistants: FC<AssistantsTabProps> = ({
         )}
       </DraggableList>
       {!dragging && renderAddAssistantButton}
-      {/* {!dragging && <AddAgentButton />} */}
-      {!dragging && <AddAgentModal />}
       <div style={{ minHeight: 10 }}></div>
     </Container>
   )

@@ -9,6 +9,10 @@
         "label": "Agent 类型",
         "placeholder": "选择 Agent 类型"
       }
+    },
+    "delete": {
+      "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "title": "删除 Agent"
     }
   },
   "agents": {
@@ -763,6 +767,7 @@
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
+    "delete_success": "删除成功",
     "description": "描述",
     "detail": "详情",
     "disabled": "已禁用",

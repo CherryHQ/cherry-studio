@@ -9,6 +9,13 @@
         "label": "Agent Type",
         "placeholder": "Select an agent type"
       }
+    },
+    "delete": {
+      "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
+      "title": "Delete Agent"
+    },
+    "edit": {
+      "title": "Edit Agent"
     }
   },
   "agents": {
@@ -763,6 +770,7 @@
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
+    "delete_success": "Deleted successfully",
     "description": "Description",
     "detail": "Detail",
     "disabled": "Disabled",

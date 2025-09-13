@@ -1,9 +1,10 @@
-import { useAppDispatch } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addAgent, removeAgent, setAgents, updateAgent } from '@renderer/store/agents'
 import { AgentEntity } from '@renderer/types'
 import { useCallback } from 'react'
 
 export const useAgents = () => {
+  const agents = useAppSelector((state) => state.agents.agentsNew)
   const dispatch = useAppDispatch()
   /**
    * Adds a new agent to the store
@@ -50,6 +51,7 @@ export const useAgents = () => {
   )
 
   return {
+    agents,
     addAgent: addAgent_,
     removeAgent: removeAgent_,
     updateAgent: updateAgent_,

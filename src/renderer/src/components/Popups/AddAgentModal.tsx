@@ -20,7 +20,7 @@ import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { AgentEntity, isAgentType } from '@renderer/types'
+import { AgentEntity, AgentType, isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { Plus } from 'lucide-react'
 import { ChangeEvent, FormEvent, useCallback, useMemo, useRef, useState } from 'react'
@@ -204,7 +204,8 @@ export const AddAgentModal: React.FC = () => {
         instructions: form.instructions,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        model: form.model
+        model: form.model,
+        avatar: getAvatar(form.type)
       } satisfies AgentEntity
       logger.debug('Agent', agent)
       addAgent(agent)
@@ -281,4 +282,12 @@ export const AddAgentModal: React.FC = () => {
       </Modal>
     </ErrorBoundary>
   )
+}
+
+const getAvatar = (type: AgentType) => {
+  switch (type) {
+    case 'claude-code':
+      return ClaudeIcon
+  }
+  return undefined
 }
