@@ -1,6 +1,5 @@
 import { Tooltip } from '@heroui/react'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
-import {} from 'antd'
 import { Eraser } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'

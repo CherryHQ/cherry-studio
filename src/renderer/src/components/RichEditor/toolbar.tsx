@@ -1,5 +1,4 @@
 import { Tooltip } from '@heroui/react'
-import {} from 'antd'
 import type { TFunction } from 'i18next'
 import { LucideProps } from 'lucide-react'
 import React, { ForwardRefExoticComponent, RefAttributes, useEffect, useState } from 'react'

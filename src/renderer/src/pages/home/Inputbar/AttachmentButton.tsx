@@ -1,7 +1,6 @@
 import { Tooltip } from '@heroui/react'
 import { FileType } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
-import {} from 'antd'
 import { Paperclip } from 'lucide-react'
 import { FC, useCallback, useImperativeHandle, useState } from 'react'
 import { useTranslation } from 'react-i18next'

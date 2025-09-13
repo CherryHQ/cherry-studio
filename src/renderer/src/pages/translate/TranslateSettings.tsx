@@ -1,12 +1,10 @@
-import { Switch } from '@heroui/react'
-import { Tooltip } from '@heroui/react'
+import { Radio, RadioGroup, Switch, Tooltip } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { ColFlex, RowFlex } from '@renderer/components/Layout'
-import { Flex } from '@renderer/components/Layout'
+import { ColFlex, Flex, RowFlex } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Modal, Radio, Space } from 'antd'
+import { Button, Modal, Space } from 'antd'
 import { HelpCircle } from 'lucide-react'
 import { FC, memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -116,24 +114,23 @@ const TranslateSettings: FC<{
             </Tooltip>
           </div>
           <RowFlex className="items-center gap-[5px]">
-            <Radio.Group
-              defaultValue={'auto'}
+            <RadioGroup
               value={autoDetectionMethod}
-              optionType="button"
-              buttonStyle="solid"
-              onChange={(e) => {
-                setAutoDetectionMethod(e.target.value)
-              }}>
+              onValueChange={(value) => {
+                setAutoDetectionMethod(value as AutoDetectionMethod)
+              }}
+              orientation="horizontal"
+              size="sm">
               <Tooltip content={t('translate.detect.method.auto.tip')} showArrow={true}>
-                <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
+                <Radio value="auto">{t('translate.detect.method.auto.label')}</Radio>
               </Tooltip>
               <Tooltip content={t('translate.detect.method.algo.tip')} showArrow={true}>
-                <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
+                <Radio value="franc">{t('translate.detect.method.algo.label')}</Radio>
               </Tooltip>
               <Tooltip content={t('translate.detect.method.llm.tip')} showArrow={true}>
-                <Radio.Button value="llm">LLM</Radio.Button>
+                <Radio value="llm">LLM</Radio>
               </Tooltip>
-            </Radio.Group>
+            </RadioGroup>
           </RowFlex>
         </RowFlex>
 

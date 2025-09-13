@@ -21,7 +21,6 @@ import {
   SystemProviderIds
 } from '@renderer/types'
 import { OpenAIVerbosity } from '@types'
-import {} from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
