@@ -15,7 +15,8 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
     'knowledge_base',
     'mcp_tools',
     'generate_image',
-    'mention_models'
+    'mention_models',
+    'todos'
   ],
   hidden: ['quick_phrases', 'clear_topic', 'toggle_expand', 'new_context']
 }

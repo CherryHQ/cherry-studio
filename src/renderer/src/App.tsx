@@ -14,6 +14,7 @@ import { CodeStyleProvider } from './context/CodeStyleProvider'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
+import TodoProvider from './context/TodoProvider'
 import Router from './Router'
 
 const logger = loggerService.withContext('App.tsx')
@@ -42,7 +43,9 @@ function App(): React.ReactElement {
                   <CodeStyleProvider>
                     <PersistGate loading={null} persistor={persistor}>
                       <TopViewContainer>
-                        <Router />
+                        <TodoProvider>
+                          <Router />
+                        </TodoProvider>
                       </TopViewContainer>
                     </PersistGate>
                   </CodeStyleProvider>

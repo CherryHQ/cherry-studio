@@ -2451,6 +2451,41 @@ const migrateConfig = {
       logger.error('migrate 153 error', error as Error)
       return state
     }
+  },
+  '154': (state: RootState) => {
+    try {
+      const { toolOrder } = state.inputTools
+      const todosKey = 'todos'
+      const previousKey = 'mention_models'
+
+      const alreadyHasTodos = toolOrder.visible.includes(todosKey) || toolOrder.hidden.includes(todosKey)
+
+      if (!alreadyHasTodos) {
+        // Prefer inserting after previousKey
+        const previousVisibleIdx = toolOrder.visible.indexOf(previousKey)
+        const previousHiddenIdx = toolOrder.hidden.indexOf(previousKey)
+
+        if (previousVisibleIdx !== -1) {
+          toolOrder.visible.splice(previousVisibleIdx + 1, 0, todosKey)
+        } else if (previousHiddenIdx !== -1) {
+          toolOrder.hidden.splice(previousHiddenIdx + 1, 0, todosKey)
+        } else {
+          // Fallback: append to visible
+          toolOrder.visible.push(todosKey)
+        }
+      }
+
+      if (state.settings) {
+        state.settings.assistantTodos = {
+          autoPoppedPanel: true
+        }
+      }
+
+      return state
+    } catch (error) {
+      logger.error('migrate 154 error', error as Error)
+      return state
+    }
   }
 }
 

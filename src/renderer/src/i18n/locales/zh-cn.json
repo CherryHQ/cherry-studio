@@ -3479,7 +3479,8 @@
         "paste_long_text_threshold": "长文本长度",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
-        "title": "输入设置"
+        "title": "输入设置",
+        "todos_auto_popped_panel": "自动弹出待办事项面板"
       },
       "markdown_rendering_input_message": "Markdown 渲染输入消息",
       "metrics": "首字时延 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
@@ -4194,6 +4195,11 @@
     "paintings": "绘画",
     "settings": "设置",
     "translate": "翻译"
+  },
+  "todos": {
+    "clear_all": "清除所有待办事项",
+    "clear_ended": "清除已经结束的待办事项",
+    "title": "待办事项"
   },
   "trace": {
     "backList": "返回列表",

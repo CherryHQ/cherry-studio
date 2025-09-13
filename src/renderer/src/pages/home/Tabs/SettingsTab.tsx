@@ -19,6 +19,7 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import { useAppDispatch } from '@renderer/store'
 import {
   SendMessageShortcut,
+  setAssistantTodos,
   setAutoTranslateWithSpace,
   setCodeCollapsible,
   setCodeEditor,
@@ -112,7 +113,8 @@ const SettingsTab: FC<Props> = (props) => {
     showTranslateConfirm,
     showMessageOutline,
     confirmDeleteMessage,
-    confirmRegenerateMessage
+    confirmRegenerateMessage,
+    assistantTodos
   } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
@@ -657,6 +659,15 @@ const SettingsTab: FC<Props> = (props) => {
               size="small"
               checked={enableQuickPanelTriggers}
               onChange={(checked) => dispatch(setEnableQuickPanelTriggers(checked))}
+            />
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitleSmall>{t('settings.messages.input.todos_auto_popped_panel')}</SettingRowTitleSmall>
+            <Switch
+              size="small"
+              checked={assistantTodos.autoPoppedPanel}
+              onChange={(checked) => dispatch(setAssistantTodos({ autoPoppedPanel: checked }))}
             />
           </SettingRow>
           <SettingDivider />

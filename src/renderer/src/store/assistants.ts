@@ -3,6 +3,7 @@ import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/cons
 import { TopicManager } from '@renderer/hooks/useTopic'
 import { getDefaultAssistant, getDefaultTopic } from '@renderer/services/AssistantService'
 import { Assistant, AssistantSettings, Model, Topic } from '@renderer/types'
+import type { BaseTodo } from '@renderer/types/todos'
 import { isEmpty, uniqBy } from 'lodash'
 
 import { RootState } from '.'
@@ -173,6 +174,70 @@ const assistantsSlice = createSlice({
             }
           : assistant
       )
+    },
+    // --- Todos management on Assistant ---
+    addAssistantTodo: (state, action: PayloadAction<{ assistantId: string; topicId: string; todo: BaseTodo }>) => {
+      const { assistantId, topicId, todo } = action.payload
+      state.assistants = state.assistants.map((assistant) => {
+        if (assistant.id !== assistantId) return assistant
+        const existingList = assistant.todos || {}
+        const topicTodos = existingList[topicId] || []
+        return {
+          ...assistant,
+          todos: {
+            ...existingList,
+            [topicId]: [...topicTodos, todo]
+          }
+        }
+      })
+    },
+    updateAssistantTodo: (
+      state,
+      action: PayloadAction<{
+        assistantId: string
+        topicId: string
+        todoId: string
+        changes: Partial<BaseTodo>
+      }>
+    ) => {
+      const { assistantId, topicId, todoId, changes } = action.payload
+      state.assistants = state.assistants.map((assistant) => {
+        if (assistant.id !== assistantId) return assistant
+        const existingList = assistant.todos || {}
+        const topicTodos = existingList[topicId] || []
+        const idx = topicTodos.findIndex((t) => t.id === todoId)
+        if (idx === -1) return assistant
+        const updated = {
+          ...topicTodos[idx],
+          ...changes,
+          updatedAt: new Date().toISOString()
+        }
+        const newTopicTodos = [...topicTodos]
+        newTopicTodos[idx] = updated
+        return {
+          ...assistant,
+          todos: {
+            ...existingList,
+            [topicId]: newTopicTodos
+          }
+        }
+      })
+    },
+    removeAssistantTodo: (state, action: PayloadAction<{ assistantId: string; topicId: string; todoId: string }>) => {
+      const { assistantId, topicId, todoId } = action.payload
+      state.assistants = state.assistants.map((assistant) => {
+        if (assistant.id !== assistantId) return assistant
+        const existingList = assistant.todos || {}
+        const topicTodos = existingList[topicId] || []
+        const filtered = topicTodos.filter((t) => t.id !== todoId)
+        return {
+          ...assistant,
+          todos: {
+            ...existingList,
+            [topicId]: filtered
+          }
+        }
+      })
     }
   }
 })
@@ -184,6 +249,9 @@ export const {
   insertAssistant,
   removeAssistant,
   updateAssistant,
+  addAssistantTodo,
+  updateAssistantTodo,
+  removeAssistantTodo,
   addTopic,
   removeTopic,
   updateTopic,
@@ -206,5 +274,19 @@ export const selectTopicsMap = createSelector([selectAllTopics], (topics) => {
     return map
   }, new Map())
 })
+
+// Todos selectors
+export const selectAssistantTodosByTopic = createSelector(
+  [
+    (state: RootState) => state.assistants.assistants,
+    (_: RootState, assistantId: string) => assistantId,
+    (_: RootState, __: string, topicId: string) => topicId
+  ],
+  (assistants, assistantId, topicId) => {
+    const assistant = assistants.find((a) => a.id === assistantId)
+    const list = assistant?.todos?.[topicId] || []
+    return list
+  }
+)
 
 export default assistantsSlice.reducer

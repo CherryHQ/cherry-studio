@@ -3478,7 +3478,8 @@
         "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
-        "title": "輸入設定"
+        "title": "輸入設定",
+        "todos_auto_popped_panel": "自動彈出待辦事項面板"
       },
       "markdown_rendering_input_message": "Markdown 渲染輸入訊息",
       "metrics": "首字延遲 {{time_first_token_millsec}} ms | 每秒 {{token_speed}} tokens",
@@ -4193,6 +4194,11 @@
     "paintings": "繪畫",
     "settings": "設定",
     "translate": "翻譯"
+  },
+  "todos": {
+    "clear_all": "清除所有待辦事項",
+    "clear_ended": "清除已經結束的待辦事項",
+    "title": "待辦事項"
   },
   "trace": {
     "backList": "返回清單",

@@ -1,7 +1,9 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import type { MinAppType, Topic, WebSearchStatus } from '@renderer/types'
 import type { UpdateInfo } from 'builder-util-runtime'
+
+import type { RootState } from '.'
 
 export interface ChatState {
   isMultiSelectMode: boolean
@@ -11,6 +13,8 @@ export interface ChatState {
   renamingTopics: string[]
   /** topic ids that are newly renamed */
   newlyRenamedTopics: string[]
+  /** assistant ids that have active todo lists */
+  activeTodoExecutors: string[]
 }
 
 export interface WebSearchState {
@@ -79,7 +83,8 @@ const initialState: RuntimeState = {
     selectedMessageIds: [],
     activeTopic: null,
     renamingTopics: [],
-    newlyRenamedTopics: []
+    newlyRenamedTopics: [],
+    activeTodoExecutors: []
   },
   websearch: {
     activeSearches: {}
@@ -148,6 +153,19 @@ const runtimeSlice = createSlice({
     setNewlyRenamedTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.newlyRenamedTopics = action.payload
     },
+    setActiveTodoExecutors: (state, action: PayloadAction<string[]>) => {
+      state.chat.activeTodoExecutors = action.payload
+    },
+    addActiveTodoExecutor: (state, action: PayloadAction<string>) => {
+      const id = action.payload
+      if (!state.chat.activeTodoExecutors.includes(id)) {
+        state.chat.activeTodoExecutors.push(id)
+      }
+    },
+    removeActiveTodoExecutor: (state, action: PayloadAction<string>) => {
+      const id = action.payload
+      state.chat.activeTodoExecutors = state.chat.activeTodoExecutors.filter((x) => x !== id)
+    },
     // WebSearch related actions
     setActiveSearches: (state, action: PayloadAction<Record<string, WebSearchStatus>>) => {
       state.websearch.activeSearches = action.payload
@@ -182,9 +200,16 @@ export const {
   setActiveTopic,
   setRenamingTopics,
   setNewlyRenamedTopics,
+  setActiveTodoExecutors,
+  addActiveTodoExecutor,
+  removeActiveTodoExecutor,
   // WebSearch related actions
   setActiveSearches,
   setWebSearchStatus
 } = runtimeSlice.actions
 
 export default runtimeSlice.reducer
+
+// Selectors
+export const selectActiveTodoExecutorIds = (state: RootState) => state.runtime.chat.activeTodoExecutors
+export const selectActiveTodoExecutorSet = createSelector([selectActiveTodoExecutorIds], (ids) => new Set(ids))

@@ -216,6 +216,10 @@ export interface SettingsState {
   // API Server
   apiServer: ApiServerConfig
   showMessageOutline: boolean
+  // Assistant todos
+  assistantTodos: {
+    autoPoppedPanel: boolean
+  }
 }
 
 export type MultiModelMessageStyle = 'horizontal' | 'vertical' | 'fold' | 'grid'
@@ -409,7 +413,10 @@ export const initialState: SettingsState = {
     port: 23333,
     apiKey: `cs-sk-${uuid()}`
   },
-  showMessageOutline: false
+  showMessageOutline: false,
+  assistantTodos: {
+    autoPoppedPanel: true
+  }
 }
 
 const settingsSlice = createSlice({
@@ -847,6 +854,11 @@ const settingsSlice = createSlice({
     },
     setShowMessageOutline: (state, action: PayloadAction<boolean>) => {
       state.showMessageOutline = action.payload
+    },
+    setAssistantTodos: (state, action: PayloadAction<Partial<SettingsState['assistantTodos']>>) => {
+      if (action.payload.autoPoppedPanel !== undefined) {
+        state.assistantTodos.autoPoppedPanel = action.payload.autoPoppedPanel
+      }
     }
   }
 })
@@ -978,7 +990,9 @@ export const {
   // API Server actions
   setApiServerEnabled,
   setApiServerPort,
-  setApiServerApiKey
+  setApiServerApiKey,
+  // Assistant todos
+  setAssistantTodos
 } = settingsSlice.actions
 
 export default settingsSlice.reducer

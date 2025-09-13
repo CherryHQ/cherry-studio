@@ -13,6 +13,7 @@ import type { FileMetadata } from './file'
 import { KnowledgeBase, KnowledgeReference } from './knowledge'
 import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
+import { AssistantTodos } from './todos'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './knowledge'
@@ -46,6 +47,8 @@ export type Assistant = {
   // for translate. 更好的做法是定义base assistant，把 Assistant 作为多种不同定义 assistant 的联合类型，但重构代价太大
   content?: string
   targetLanguage?: TranslateLanguage
+  /** Todo list */
+  todos?: AssistantTodos
 }
 
 export type TranslateAssistant = Assistant & {

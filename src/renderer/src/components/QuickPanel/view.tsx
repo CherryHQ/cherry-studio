@@ -297,7 +297,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       if (lastSymbolIndex !== -1) {
         const newSearchText = textBeforeCursor.slice(lastSymbolIndex)
         setSearchTextDebounced(newSearchText)
-      } else {
+      } else if (ctx.symbol !== 'todos') {
         // 使用本地 handleClose，确保在删除触发符时同步受控输入值
         handleClose('delete-symbol')
       }
@@ -467,7 +467,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (target.closest('#inputbar')) return
-      if (bodyRef.current && !bodyRef.current.contains(target)) {
+      if (bodyRef.current && !bodyRef.current.contains(target) && ctx.symbol !== 'todos') {
         handleClose('outsideclick')
       }
     }

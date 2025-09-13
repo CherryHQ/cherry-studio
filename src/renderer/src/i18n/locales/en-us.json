@@ -3478,7 +3478,8 @@
         "paste_long_text_threshold": "Paste long text length",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
-        "title": "Input Settings"
+        "title": "Input Settings",
+        "todos_auto_popped_panel": "Auto pop up todos panel"
       },
       "markdown_rendering_input_message": "Markdown render input message",
       "metrics": "{{time_first_token_millsec}}ms to first token | {{token_speed}} tok/sec",
@@ -4193,6 +4194,11 @@
     "paintings": "Paintings",
     "settings": "Settings",
     "translate": "Translate"
+  },
+  "todos": {
+    "clear_all": "Clear all todos",
+    "clear_ended": "Clear ended todos",
+    "title": "Todos"
   },
   "trace": {
     "backList": "Back To List",
