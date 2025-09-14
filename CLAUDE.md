@@ -2,118 +2,54 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Tools
-
-- Use `ast-grep` to search code patterns if available.
-
 ## Development Commands
 
-### Environment Setup
+- **Install**: `yarn install`
+- **Development**: `yarn dev` - Runs Electron app in development mode
+- **Debug**: `yarn debug` - Starts with debugging enabled, use chrome://inspect
+- **Build Check**: `yarn build:check` - REQUIRED before commits (lint + test + typecheck)
+- **Test**: `yarn test` - Run all tests (Vitest)
+- **Single Test**: `yarn test:main` or `yarn test:renderer`
+- **Lint**: `yarn lint` - Fix linting issues and run typecheck
 
-- **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
-- **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
-- **Install Dependencies**: `yarn install`
+## Architecture
 
-### Development
+### Electron Structure
+- **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
+- **Renderer Process** (`src/renderer/`): React UI with Redux state management
+- **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
-- **Start Development**: `yarn dev` - Runs Electron app in development mode
-- **Debug Mode**: `yarn debug` - Starts with debugging enabled, use chrome://inspect
+### Key Components
+- **AI Core** (`src/renderer/src/aiCore/`): Middleware pipeline for multiple AI providers
+- **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
+- **Build System**: Electron-Vite with experimental rolldown-vite, yarn workspaces
 
-### Testing & Quality
-
-- **Build Check**: `yarn build:check` - Checks build including type checking, it's REQUIRED before commits
-- **Run Tests**: `yarn test` - Runs all tests (Vitest)
-
-## Architecture Overview
-
-### Electron Multi-Process Architecture
-
-- **Main Process** (`src/main/`): Node.js backend handling system integration, file operations, and services
-- **Renderer Process** (`src/renderer/`): React-based UI running in Chromium
-- **Preload Scripts** (`src/preload/`): Secure bridge between main and renderer processes
-
-### Key Architectural Components
-
-#### Main Process Services (`src/main/services/`)
-
-- **MCPService**: Model Context Protocol server management
-- **KnowledgeService**: Document processing and knowledge base management
-- **FileStorage/S3Storage/WebDav**: Multiple storage backends
-- **WindowService**: Multi-window management (main, mini, selection windows)
-- **ProxyManager**: Network proxy handling
-- **SearchService**: Full-text search capabilities
-
-#### AI Core (`src/renderer/src/aiCore/`)
-
-- **Middleware System**: Composable pipeline for AI request processing
-- **Client Factory**: Supports multiple AI providers (OpenAI, Anthropic, Gemini, etc.)
-- **Stream Processing**: Real-time response handling
-
-#### State Management (`src/renderer/src/store/`)
-
-- **Redux Toolkit**: Centralized state management
-- **Persistent Storage**: Redux-persist for data persistence
-- **Thunks**: Async actions for complex operations
-
-#### Knowledge Management
-
-- **Embeddings**: Vector search with multiple providers (OpenAI, Voyage, etc.)
-- **OCR**: Document text extraction (system OCR, Doc2x, Mineru)
-- **Preprocessing**: Document preparation pipeline
-- **Loaders**: Support for various file formats (PDF, DOCX, EPUB, etc.)
-
-### Build System
-
-- **Electron-Vite**: Development and build tooling (v4.0.0)
-- **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
-- **Workspaces**: Monorepo structure with `packages/` directory
-- **Multiple Entry Points**: Main app, mini window, selection toolbar
-- **Styled Components**: CSS-in-JS styling with SWC optimization
-
-### Testing Strategy
-
-- **Vitest**: Unit and integration testing
-- **Playwright**: End-to-end testing
-- **Component Testing**: React Testing Library
-- **Coverage**: Available via `yarn test:coverage`
-
-### Key Patterns
-
-- **IPC Communication**: Secure main-renderer communication via preload scripts
-- **Service Layer**: Clear separation between UI and business logic
-- **Plugin Architecture**: Extensible via MCP servers and middleware
-- **Multi-language Support**: i18n with dynamic loading
-- **Theme System**: Light/dark themes with custom CSS variables
-
-### UI Design
-
-The project is in the process of migrating from antd & styled-components to HeroUI. Please use HeroUI to build UI components. The use of antd and styled-components is prohibited.
-
-HeroUI Docs: https://www.heroui.com/docs/guide/introduction
-
-## Logging Standards
-
-### Usage
-
+### Logging
 ```typescript
-// Main process
 import { loggerService } from '@logger'
 const logger = loggerService.withContext('moduleName')
-
-// Renderer process (set window source first)
-loggerService.initWindowSource('windowName')
-const logger = loggerService.withContext('moduleName')
-
-// Logging
+// Renderer: loggerService.initWindowSource('windowName') first
 logger.info('message', CONTEXT)
-logger.error('message', new Error('error'), CONTEXT)
 ```
 
-### Log Levels (highest to lowest)
+## Session Tracking
 
-- `error` - Critical errors causing crash/unusable functionality
-- `warn` - Potential issues that don't affect core functionality
-- `info` - Application lifecycle and key user actions
-- `verbose` - Detailed flow information for feature tracing
-- `debug` - Development diagnostic info (not for production)
-- `silly` - Extreme debugging, low-level information
+When working in plan mode, Claude Code MUST:
+
+1. **Create Session File**: Create a markdown file in `.sessions/` folder with format:
+   `YYYY-MM-DD-HH-MM-SS-<feature-name>.md`
+
+2. **Track Progress**: After each code patch or significant change, update the session file with:
+   - What was changed
+   - Files modified
+   - Decisions made
+   - Next steps
+
+3. **Keep Updated**: The session file must remain current throughout the entire development session
+
+## Must Follow Rules
+
+1. **Search Code**: Use `ast-grep` for code pattern searches if available, otherwise use `rg` or `grep` for text-based searches
+2. **UI Components**: Use HeroUI for new components - antd and styled-components are PROHIBITED
+3. **Quality Gate**: Run `yarn build:check` before any commits
+4. **Session Documentation**: Maintain session tracking file when in plan mode
