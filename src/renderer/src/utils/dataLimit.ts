@@ -40,7 +40,7 @@ async function checkAppDataDiskQuota(appDataPath: string) {
       return false
     }
     const { free } = diskInfo
-    logger.info(`App data disk quota: Free ${free / GB} GB`)
+    logger.info(`App data disk quota: Free ${(free / GB).toFixed(2)} GB`)
     // if free is less than 1GB, return true
     return free < 1 * GB
   } catch (error) {
