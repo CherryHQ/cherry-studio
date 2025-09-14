@@ -45,7 +45,8 @@
       "!*.md",
       "!*.json",
       "!src/main/integration/**",
-      "!**/tailwind.css"
+      "!**/tailwind.css",
+      "!**/package.json"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
