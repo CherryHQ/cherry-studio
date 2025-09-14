@@ -1,6 +1,7 @@
-import { Avatar, cn } from '@heroui/react'
+import { Avatar, cn, useDisclosure } from '@heroui/react'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { FC, memo, useCallback } from 'react'
@@ -17,6 +18,7 @@ interface AgentItemProps {
 
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
   const { t } = useTranslation()
+  const { isOpen, onOpen, onClose } = useDisclosure()
   // const { agents } = useAgents()
 
   const AgentLabel = useCallback(() => {
@@ -31,36 +33,43 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
   const handleClick = () => logger.debug('not implemented')
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
-        <Container onClick={handleClick} className={isActive ? 'active' : ''}>
-          <AssistantNameRow className="name" title={agent.name}>
-            <AgentLabel />
-          </AssistantNameRow>
-        </Container>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem key="edit" onClick={() => window.toast.info('not implemented')}>
-          <EditIcon size={14} />
-          {t('common.edit')}
-        </ContextMenuItem>
-        <ContextMenuItem
-          key="delete"
-          className="text-danger"
-          onClick={() => {
-            window.modal.confirm({
-              title: t('agent.delete.title'),
-              content: t('agent.delete.content'),
-              centered: true,
-              okButtonProps: { danger: true },
-              onOk: () => onDelete(agent)
-            })
-          }}>
-          <DeleteIcon size={14} className="lucide-custom text-danger" />
-          <span className="text-danger">{t('common.delete')}</span>
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <>
+      <ContextMenu modal={false}>
+        <ContextMenuTrigger>
+          <Container onClick={handleClick} className={isActive ? 'active' : ''}>
+            <AssistantNameRow className="name" title={agent.name}>
+              <AgentLabel />
+            </AssistantNameRow>
+          </Container>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            key="edit"
+            onClick={() => {
+              onOpen()
+            }}>
+            <EditIcon size={14} />
+            {t('common.edit')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            key="delete"
+            className="text-danger"
+            onClick={() => {
+              window.modal.confirm({
+                title: t('agent.delete.title'),
+                content: t('agent.delete.content'),
+                centered: true,
+                okButtonProps: { danger: true },
+                onOk: () => onDelete(agent)
+              })
+            }}>
+            <DeleteIcon size={14} className="lucide-custom text-danger" />
+            <span className="text-danger">{t('common.delete')}</span>
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+      <AgentModal isOpen={isOpen} onClose={onClose} agent={agent} />
+    </>
   )
 }
 
@@ -85,33 +94,5 @@ const AssistantNameRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ clas
     className={cn('text-[13px] text-[var(--color-text)]', 'flex flex-row items-center gap-2', className)}
   />
 )
-
-// const MenuButton: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-//   <div
-//     {...props}
-//     className={cn(
-//       'flex flex-row items-center justify-center',
-//       'h-[22px] min-h-[22px] min-w-[22px]',
-//       'absolute rounded-[11px]',
-//       'bg-[var(--color-background)]',
-//       'top-[6px] right-[9px]',
-//       'px-[5px]',
-//       'border-[0.5px] border-[var(--color-border)]',
-//       className
-//     )}
-//   />
-// )
-
-// const TopicCount: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-//   <div
-//     {...props}
-//     className={cn(
-//       'text-[10px] text-[var(--color-text)]',
-//       'rounded-[10px]',
-//       'flex flex-row items-center justify-center',
-//       className
-//     )}
-//   />
-// )
 
 export default memo(AgentItem)

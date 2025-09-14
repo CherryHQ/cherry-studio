@@ -13,6 +13,9 @@
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
       "title": "删除 Agent"
+    },
+    "edit": {
+      "title": "编辑 Agent"
     }
   },
   "agents": {
@@ -833,6 +836,7 @@
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
+    "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
     "you": "用户"

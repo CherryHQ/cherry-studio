@@ -1,7 +1,7 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
 import { Button, Divider } from '@heroui/react'
 import { DraggableList } from '@renderer/components/DraggableList'
-import { AddAgentModal } from '@renderer/components/Popups/AddAgentModal'
+import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
@@ -155,7 +155,20 @@ const Assistants: FC<AssistantsTabProps> = ({
         onDragEnd={() => setDragging(false)}>
         {(agent) => <AgentItem agent={agent} isActive={false} onDelete={onDeleteAgent} />}
       </DraggableList>
-      {!dragging && <AddAgentModal />}
+      {!dragging && (
+        <AgentModal
+          trigger={{
+            content: (
+              <Button
+                onPress={(e) => e.continuePropagation()}
+                className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+                <Plus size={16} className="mr-1 shrink-0" />
+                {t('agent.add.title')}
+              </Button>
+            )
+          }}
+        />
+      )}
       <Divider className="my-2" />
       <DraggableList
         list={assistants}

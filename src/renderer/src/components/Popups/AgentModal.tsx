@@ -1,6 +1,7 @@
 import {
   Avatar,
   Button,
+  cn,
   Form,
   Input,
   Modal,
@@ -22,8 +23,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { AgentEntity, AgentType, isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Plus } from 'lucide-react'
-import { ChangeEvent, FormEvent, useCallback, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -52,19 +52,52 @@ type AgentForm = {
   model?: AgentEntity['model']
 }
 
-export const AddAgentModal: React.FC = () => {
-  const { isOpen, onClose, onOpen } = useDisclosure()
+interface BaseProps {
+  agent?: AgentEntity
+}
+
+interface TriggerProps extends BaseProps {
+  trigger: { content: ReactNode; className?: string }
+  isOpen?: never
+  onClose?: never
+}
+
+interface StateProps extends BaseProps {
+  trigger?: never
+  isOpen: boolean
+  onClose: () => void
+}
+
+type Props = TriggerProps | StateProps
+
+/**
+ * Modal component for creating or editing an agent.
+ *
+ * Either trigger or isOpen and onClose is given.
+ * @param agent - Optional agent entity for editing mode.
+ * @param trigger - Optional trigger element that opens the modal. It MUST propagate the click event to trigger the modal.
+ * @param isOpen - Optional controlled modal open state. From useDisclosure.
+ * @param onClose - Optional callback when modal closes. From useDisclosure.
+ * @returns Modal component for agent creation/editing
+ */
+export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, onClose: _onClose }) => {
+  const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   const { setTimeoutTimer } = useTimer()
-  const { addAgent } = useAgents()
+  const { addAgent, updateAgent } = useAgents()
+  const isEditing = (agent?: AgentEntity) => agent !== undefined
 
   // default values. may change to undefined.
-  const [form, setForm] = useState<AgentForm>({
-    type: 'claude-code',
-    name: 'Claude Code',
-    model: 'claude-4-sonnet'
-  })
+  const [form, setForm] = useState<AgentForm>(
+    isEditing(agent)
+      ? agent
+      : {
+          type: 'claude-code',
+          name: 'Claude Code',
+          model: 'claude-4-sonnet'
+        }
+  )
 
   const Option = useCallback(
     ({ option }: { option?: Option | null }) => {
@@ -196,46 +229,86 @@ export const AddAgentModal: React.FC = () => {
         return
       }
 
-      const agent = {
-        id: uuid(),
-        type: form.type,
-        name: form.name,
-        description: form.description,
-        instructions: form.instructions,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        model: form.model,
-        avatar: getAvatar(form.type)
-      } satisfies AgentEntity
-      logger.debug('Agent', agent)
-      addAgent(agent)
-      window.toast.success(t('common.add_success'))
+      let _agent: AgentEntity
+      if (isEditing(agent)) {
+        _agent = {
+          ...agent,
+          // type: form.type,
+          name: form.name,
+          description: form.description,
+          instructions: form.instructions,
+          updated_at: new Date().toISOString(),
+          model: form.model
+          // avatar: getAvatar(form.type)
+        } satisfies AgentEntity
+        updateAgent(_agent)
+        window.toast.success(t('common.update_success'))
+      } else {
+        _agent = {
+          id: uuid(),
+          type: form.type,
+          name: form.name,
+          description: form.description,
+          instructions: form.instructions,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          model: form.model,
+          avatar: getAvatar(form.type)
+        } satisfies AgentEntity
+        addAgent(_agent)
+        window.toast.success(t('common.add_success'))
+      }
+
+      logger.debug('Agent', _agent)
       loadingRef.current = false
 
       setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       onClose()
     },
-    [form.type, form.model, form.name, form.description, form.instructions, addAgent, t, setTimeoutTimer, onClose]
+    [
+      form.type,
+      form.model,
+      form.name,
+      form.description,
+      form.instructions,
+      agent,
+      setTimeoutTimer,
+      onClose,
+      t,
+      updateAgent,
+      addAgent
+    ]
   )
 
   return (
     <ErrorBoundary>
       {/* NOTE: Hero UI Modal Pattern: Combine the Button and Modal components into a single
       encapsulated component. This is because the Modal component needs to bind the onOpen
-      event handler to the Button for proper focus management.  */}
-      <Button onPress={onOpen} className="justify-start bg-transparent text-foreground-500 hover:bg-accent">
-        <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-        {t('agent.add.title')}
-      </Button>
+      event handler to the Button for proper focus management.
+
+      Or just use external isOpen/onOpen/onClose to control modal state.
+      */}
+
+      {trigger && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpen()
+          }}
+          className={cn('w-full', trigger.className)}>
+          {trigger.content}
+        </div>
+      )}
       <Modal isOpen={isOpen} onClose={onClose}>
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>{t('agent.add.title')}</ModalHeader>
+              <ModalHeader>{isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}</ModalHeader>
               <Form onSubmit={onSubmit} className="w-full">
                 <ModalBody className="w-full">
                   <Select
                     isRequired
+                    isDisabled={isEditing(agent)}
                     selectionMode="single"
                     selectedKeys={[form.type]}
                     onChange={onAgentTypeChange}
@@ -272,7 +345,7 @@ export const AddAgentModal: React.FC = () => {
                 <ModalFooter className="w-full">
                   <Button onPress={onClose}>{t('common.close')}</Button>
                   <Button color="primary" type="submit" isLoading={loadingRef.current}>
-                    {t('common.add')}
+                    {isEditing(agent) ? t('common.confirm') : t('common.add')}
                   </Button>
                 </ModalFooter>
               </Form>
