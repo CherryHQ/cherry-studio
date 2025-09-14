@@ -63,11 +63,11 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:e2e": "yarn playwright test",
-    "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "test:lint": "oxlint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "test:scripts": "vitest scripts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
+    "lint": "oxlint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
     "claude": "dotenv -e .env -- claude"
   },
