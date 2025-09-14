@@ -48,7 +48,8 @@
     "formatter": {
       "arrowParentheses": "always",
       "attributePosition": "auto",
-      "bracketSameLine": true, // false is better. toggle it in the future
+      // To minimize changes in this PR as much as possible, it's set to true. However, setting it to false would make it more convenient to add attributes at the end.
+      "bracketSameLine": true,
       "bracketSpacing": true,
       "jsxQuoteStyle": "double",
       "quoteProperties": "asNeeded",
