@@ -1,4 +1,4 @@
-/* eslint-disable no-case-declarations */
+/* oxlint-disable no-case-declarations */
 // ExportService
 
 import { loggerService } from '@logger'

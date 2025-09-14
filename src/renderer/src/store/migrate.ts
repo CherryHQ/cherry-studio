@@ -1394,7 +1394,7 @@ const migrateConfig = {
       if (state.websearch?.providers) {
         state.websearch.providers = state.websearch.providers.map((provider) => {
           if (provider.id === 'exa' || provider.id === 'tavily') {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            // oxlint-disable-next-line @typescript-eslint/no-unused-vars
             const { basicAuthUsername, basicAuthPassword, ...rest } = provider
             return rest
           }
