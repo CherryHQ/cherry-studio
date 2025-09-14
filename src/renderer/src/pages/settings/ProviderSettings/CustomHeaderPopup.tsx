@@ -1,5 +1,7 @@
+import { usePreference } from '@data/hooks/usePreference'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'
@@ -22,6 +24,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
   const { t } = useTranslation()
   const { updateProvider } = useProvider(provider.id)
   const { defaultHeaders, updateDefaultHeaders } = useCopilot()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
 
   const headers =
     provider.id === 'copilot'
@@ -74,6 +78,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
         <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
         <CodeEditor
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={headerText}
           language="json"
           onChange={(value) => setHeaderText(value)}

@@ -1,10 +1,10 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@renderer/components/CodeEditor'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { HighlightChunkResult, ShikiPreProperties, shikiStreamService } from '@renderer/services/ShikiStreamService'
 import { getHighlighter, getMarkdownIt, getShiki, loadLanguageIfNeeded, loadThemeIfNeeded } from '@renderer/utils/shiki'
 import { ThemeMode } from '@shared/data/preferenceTypes'
-import * as cmThemes from '@uiw/codemirror-themes-all'
 import type React from 'react'
 import { createContext, type PropsWithChildren, use, useCallback, useEffect, useMemo, useState } from 'react'
 import type { BundledThemeInfo } from 'shiki/types'
@@ -18,7 +18,7 @@ interface CodeStyleContextType {
   themeNames: string[]
   activeShikiTheme: string
   isShikiThemeDark: boolean
-  activeCmTheme: any
+  activeCmTheme: CodeMirrorTheme
 }
 
 const defaultCodeStyleContext: CodeStyleContextType = {
@@ -31,7 +31,7 @@ const defaultCodeStyleContext: CodeStyleContextType = {
   themeNames: ['auto'],
   activeShikiTheme: 'auto',
   isShikiThemeDark: false,
-  activeCmTheme: null
+  activeCmTheme: 'none'
 }
 
 const CodeStyleContext = createContext<CodeStyleContextType>(defaultCodeStyleContext)
@@ -60,10 +60,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     // CodeMirror 主题
     // 更保险的做法可能是硬编码主题列表
     if (codeEditorEnabled) {
-      return ['auto', 'light', 'dark']
-        .concat(Object.keys(cmThemes))
-        .filter((item) => typeof cmThemes[item as keyof typeof cmThemes] !== 'function')
-        .filter((item) => !/^(defaultSettings)/.test(item as string) && !/(Style)$/.test(item as string))
+      return getCmThemeNames()
     }
 
     // Shiki 主题，取出所有 BundledThemeInfo 的 id 作为主题名
@@ -92,7 +89,7 @@ export const CodeStyleProvider: React.FC<PropsWithChildren> = ({ children }) => 
     if (!themeName || themeName === 'auto' || !themeNames.includes(themeName)) {
       themeName = theme === ThemeMode.light ? 'materialLight' : 'dark'
     }
-    return cmThemes[themeName as keyof typeof cmThemes] || themeName
+    return getCmThemeByName(themeName)
   }, [theme, codeEditorThemeLight, codeEditorThemeDark, themeNames])
 
   // 自定义 shiki 语言别名

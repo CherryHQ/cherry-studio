@@ -3,6 +3,7 @@ import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { EditorView } from '@renderer/types'
 import { Empty, Spin } from 'antd'
@@ -23,6 +24,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, isLoading, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
         return settings.defaultEditMode
@@ -61,14 +63,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
+                theme={activeCmTheme}
+                fontSize={settings.fontSize}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
                 height="100%"
                 expanded={false}
                 style={{
-                  height: '100%',
-                  fontSize: `${settings.fontSize}px`
+                  height: '100%'
                 }}
               />
             </SourceEditorWrapper>

@@ -1,6 +1,8 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setMCPServers } from '@renderer/store/mcp'
 import { MCPServer, safeValidateMcpConfig } from '@renderer/types'
@@ -23,7 +25,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [jsonError, setJsonError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const mcpServers = useAppSelector((state) => state.mcp.servers)
-
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const dispatch = useAppDispatch()
   const { t } = useTranslation()
 
@@ -131,6 +134,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Spin size="large" />
       ) : (
         <CodeEditor
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={jsonConfig}
           language="json"
           onChange={(value) => setJsonConfig(value)}

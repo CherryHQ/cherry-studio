@@ -21,8 +21,8 @@ import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
-import { useRuntime } from './useRuntime'
 import { useNavbarPosition } from './useNavbar'
+import { useRuntime } from './useRuntime'
 import useUpdateHandler from './useUpdateHandler'
 const logger = loggerService.withContext('useAppInit')
 

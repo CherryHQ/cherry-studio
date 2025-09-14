@@ -1,7 +1,9 @@
 import { UploadOutlined } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import CodeEditor from '@renderer/components/CodeEditor'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
@@ -70,6 +72,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   initialImportMethod = 'json'
 }) => {
   const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
@@ -321,7 +325,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             label={t('settings.mcp.addServer.importFrom.tooltip')}
             rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
             <CodeEditor
-              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
               value={serverConfigValue}
               placeholder={initialJsonExample}
               language="json"

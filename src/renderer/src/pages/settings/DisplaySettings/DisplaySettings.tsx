@@ -4,6 +4,7 @@ import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { isMac, THEME_COLOR_PRESETS } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import useUserTheme from '@renderer/hooks/useUserTheme'
@@ -56,12 +57,14 @@ const DisplaySettings: FC = () => {
   const [pinTopicsToTop, setPinTopicsToTop] = usePreference('topic.tab.pin_to_top')
   const [showTopicTime, setShowTopicTime] = usePreference('topic.tab.show_time')
   const [assistantIconType, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [fontSize] = usePreference('chat.message.font_size')
 
   const { navbarPosition, setNavbarPosition } = useNavbarPosition()
   const { theme, settedTheme, setTheme } = useTheme()
   const { t } = useTranslation()
   const [currentZoom, setCurrentZoom] = useState(1.0)
   const { userTheme, setUserTheme } = useUserTheme()
+  const { activeCmTheme } = useCodeStyle()
   // const [visibleIcons, setVisibleIcons] = useState(sidebarIcons?.visible || DEFAULT_SIDEBAR_ICONS)
   // const [disabledIcons, setDisabledIcons] = useState(sidebarIcons?.disabled || [])
   const [fontList, setFontList] = useState<string[]>([])
@@ -414,6 +417,8 @@ const DisplaySettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <CodeEditor
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={customCss}
           language="css"
           placeholder={t('settings.display.custom.css.placeholder')}
