@@ -63,7 +63,7 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:e2e": "yarn playwright test",
-    "test:lint": "oxlint && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "test:scripts": "vitest scripts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
