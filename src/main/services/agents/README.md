@@ -18,13 +18,14 @@ For new development, you can:
 
 1. **Use Drizzle Kit to generate migrations from schema:**
    ```bash
-   npx drizzle-kit generate:sqlite --config src/main/services/agents/drizzle.config.ts
+   yarn drizzle-kit generate:sqlite --config src/main/services/agents/drizzle.config.ts
    ```
 
 2. **Push schema directly to database (for development):**
    ```bash
-   npx drizzle-kit push:sqlite --config src/main/services/agents/drizzle.config.ts
+   yarn drizzle-kit push:sqlite --config src/main/services/agents/drizzle.config.ts
    ```
+
 
 3. **Create tables programmatically (if needed):**
    The schema exports can be used with `CREATE TABLE` statements.
