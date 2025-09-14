@@ -6,6 +6,11 @@
     "enabled": true,
     "includes": ["**/*.json", "!*.json", "!**/package.json"]
   },
+  "css": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
   "files": { "ignoreUnknown": false },
   "formatter": {
     "attributePosition": "auto",
