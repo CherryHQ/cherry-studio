@@ -2,20 +2,20 @@
   "agent": {
     "add": {
       "error": {
-        "invalid_agent": "[to be translated]:无效的 Agent"
+        "invalid_agent": "無効なエージェント"
       },
-      "title": "[to be translated]:添加 Agent",
+      "title": "エージェントを追加",
       "type": {
-        "label": "[to be translated]:Agent 类型",
-        "placeholder": "[to be translated]:选择 Agent 类型"
+        "label": "エージェントタイプ",
+        "placeholder": "エージェントタイプを選択"
       }
     },
     "delete": {
-      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
-      "title": "[to be translated]:删除 Agent"
+      "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
+      "title": "エージェントを削除"
     },
     "edit": {
-      "title": "[to be translated]:编辑 Agent"
+      "title": "編集エージェント"
     }
   },
   "agents": {
@@ -750,14 +750,14 @@
   },
   "common": {
     "add": "追加",
-    "add_success": "[to be translated]:添加成功",
+    "add_success": "追加成功",
     "advanced_settings": "詳細設定",
-    "agent_one": "[to be translated]:Agent",
-    "agent_other": "[to be translated]:Agents",
+    "agent_one": "エージェント",
+    "agent_other": "エージェント",
     "and": "と",
     "assistant": "アシスタント",
-    "assistant_one": "[to be translated]:助手",
-    "assistant_other": "[to be translated]:助手",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "アバター",
     "back": "戻る",
     "browse": "参照",
@@ -774,7 +774,7 @@
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
-    "delete_success": "[to be translated]:删除成功",
+    "delete_success": "削除に成功しました",
     "description": "説明",
     "detail": "詳細",
     "disabled": "無効",
@@ -785,7 +785,7 @@
     "enabled": "有効",
     "error": "エラー",
     "errors": {
-      "validation": "[to be translated]:验证失败"
+      "validation": "検証に失敗しました"
     },
     "expand": "展開",
     "file": {
@@ -797,7 +797,7 @@
     "go_to_settings": "設定に移動",
     "i_know": "わかりました",
     "inspect": "検査",
-    "invalid_value": "[to be translated]:无效值",
+    "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
@@ -811,7 +811,7 @@
     "paste": "貼り付け",
     "placeholders": {
       "select": {
-        "model": "[to be translated]:选择模型"
+        "model": "モデルを選択"
       }
     },
     "preview": "プレビュー",
@@ -840,7 +840,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
-    "update_success": "[to be translated]:更新成功",
+    "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
     "you": "あなた"

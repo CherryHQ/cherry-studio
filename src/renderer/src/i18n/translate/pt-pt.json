@@ -2,20 +2,20 @@
   "agent": {
     "add": {
       "error": {
-        "invalid_agent": "[to be translated]:无效的 Agent"
+        "invalid_agent": "Agent inválido"
       },
-      "title": "[to be translated]:添加 Agent",
+      "title": "Adicionar Agente",
       "type": {
-        "label": "[to be translated]:Agent 类型",
-        "placeholder": "[to be translated]:选择 Agent 类型"
+        "label": "Tipo de Agente",
+        "placeholder": "Selecionar tipo de Agente"
       }
     },
     "delete": {
-      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
-      "title": "[to be translated]:删除 Agent"
+      "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
+      "title": "删除代理"
     },
     "edit": {
-      "title": "[to be translated]:编辑 Agent"
+      "title": "Agent Editor"
     }
   },
   "agents": {
@@ -750,14 +750,14 @@
   },
   "common": {
     "add": "Adicionar",
-    "add_success": "[to be translated]:添加成功",
+    "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
-    "agent_one": "[to be translated]:Agent",
-    "agent_other": "[to be translated]:Agents",
+    "agent_one": "Agente",
+    "agent_other": "Agentes",
     "and": "e",
     "assistant": "Agente Inteligente",
-    "assistant_one": "[to be translated]:助手",
-    "assistant_other": "[to be translated]:助手",
+    "assistant_one": "assistente",
+    "assistant_other": "assistente",
     "avatar": "Avatar",
     "back": "Voltar",
     "browse": "Navegar",
@@ -774,7 +774,7 @@
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
-    "delete_success": "[to be translated]:删除成功",
+    "delete_success": "Excluído com sucesso",
     "description": "Descrição",
     "detail": "detalhes",
     "disabled": "Desativado",
@@ -785,7 +785,7 @@
     "enabled": "Ativado",
     "error": "错误",
     "errors": {
-      "validation": "[to be translated]:验证失败"
+      "validation": "Falha na verificação"
     },
     "expand": "Expandir",
     "file": {
@@ -797,7 +797,7 @@
     "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
     "inspect": "Verificar",
-    "invalid_value": "[to be translated]:无效值",
+    "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
     "loading": "Carregando...",
@@ -811,7 +811,7 @@
     "paste": "Colar",
     "placeholders": {
       "select": {
-        "model": "[to be translated]:选择模型"
+        "model": "Selecionar modelo"
       }
     },
     "preview": "Pré-visualização",
@@ -840,7 +840,7 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
-    "update_success": "[to be translated]:更新成功",
+    "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",
     "you": "Você"

@@ -755,7 +755,7 @@
     "agent_one": "Agent",
     "agent_other": "Agents",
     "and": "and",
-    "assistant": "[to be translated]:智能体",
+    "assistant": "Agent",
     "assistant_one": "Assistant",
     "assistant_other": "Assistants",
     "avatar": "Avatar",
@@ -785,7 +785,7 @@
     "enabled": "Enabled",
     "error": "error",
     "errors": {
-      "validation": "[to be translated]:验证失败"
+      "validation": "Verification failed"
     },
     "expand": "Expand",
     "file": {

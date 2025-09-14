@@ -2,20 +2,20 @@
   "agent": {
     "add": {
       "error": {
-        "invalid_agent": "[to be translated]:无效的 Agent"
+        "invalid_agent": "Недействительный агент"
       },
-      "title": "[to be translated]:添加 Agent",
+      "title": "Добавить агента",
       "type": {
-        "label": "[to be translated]:Agent 类型",
-        "placeholder": "[to be translated]:选择 Agent 类型"
+        "label": "Тип агента",
+        "placeholder": "Выбор типа агента"
       }
     },
     "delete": {
-      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
-      "title": "[to be translated]:删除 Agent"
+      "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
+      "title": "Удалить агента"
     },
     "edit": {
-      "title": "[to be translated]:编辑 Agent"
+      "title": "Редактировать агент"
     }
   },
   "agents": {
@@ -750,14 +750,14 @@
   },
   "common": {
     "add": "Добавить",
-    "add_success": "[to be translated]:添加成功",
+    "add_success": "Успешно добавлено",
     "advanced_settings": "Дополнительные настройки",
-    "agent_one": "[to be translated]:Agent",
-    "agent_other": "[to be translated]:Agents",
+    "agent_one": "Агент",
+    "agent_other": "Агенты",
     "and": "и",
     "assistant": "Ассистент",
-    "assistant_one": "[to be translated]:助手",
-    "assistant_other": "[to be translated]:助手",
+    "assistant_one": "Помощник",
+    "assistant_other": "ассистент",
     "avatar": "Аватар",
     "back": "Назад",
     "browse": "Обзор",
@@ -774,7 +774,7 @@
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
-    "delete_success": "[to be translated]:删除成功",
+    "delete_success": "Удаление выполнено успешно",
     "description": "Описание",
     "detail": "Подробности",
     "disabled": "Отключено",
@@ -785,7 +785,7 @@
     "enabled": "Включено",
     "error": "ошибка",
     "errors": {
-      "validation": "[to be translated]:验证失败"
+      "validation": "Ошибка проверки"
     },
     "expand": "Развернуть",
     "file": {
@@ -797,7 +797,7 @@
     "go_to_settings": "Перейти в настройки",
     "i_know": "Я понял",
     "inspect": "Осмотреть",
-    "invalid_value": "[to be translated]:无效值",
+    "invalid_value": "недопустимое значение",
     "knowledge_base": "База знаний",
     "language": "Язык",
     "loading": "Загрузка...",
@@ -811,7 +811,7 @@
     "paste": "Вставить",
     "placeholders": {
       "select": {
-        "model": "[to be translated]:选择模型"
+        "model": "Выбор модели"
       }
     },
     "preview": "Предварительный просмотр",
@@ -840,7 +840,7 @@
     "success": "Успешно",
     "swap": "Поменять местами",
     "topics": "Топики",
-    "update_success": "[to be translated]:更新成功",
+    "update_success": "Обновление выполнено успешно",
     "upload_files": "Загрузить файл",
     "warning": "Предупреждение",
     "you": "Вы"

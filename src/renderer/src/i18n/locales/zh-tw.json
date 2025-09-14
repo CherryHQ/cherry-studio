@@ -2,20 +2,20 @@
   "agent": {
     "add": {
       "error": {
-        "invalid_agent": "[to be translated]:无效的 Agent"
+        "invalid_agent": "無效的 Agent"
       },
-      "title": "[to be translated]:添加 Agent",
+      "title": "新增代理",
       "type": {
-        "label": "[to be translated]:Agent 类型",
-        "placeholder": "[to be translated]:选择 Agent 类型"
+        "label": "代理類型",
+        "placeholder": "選擇 Agent 類型"
       }
     },
     "delete": {
-      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
-      "title": "[to be translated]:删除 Agent"
+      "content": "刪除該 Agent 將強制終止並刪除該 Agent 下的所有會話。您確定嗎？",
+      "title": "刪除 Agent"
     },
     "edit": {
-      "title": "[to be translated]:编辑 Agent"
+      "title": "編輯 Agent"
     }
   },
   "agents": {
@@ -750,14 +750,14 @@
   },
   "common": {
     "add": "新增",
-    "add_success": "[to be translated]:添加成功",
+    "add_success": "新增成功",
     "advanced_settings": "進階設定",
-    "agent_one": "[to be translated]:Agent",
-    "agent_other": "[to be translated]:Agents",
+    "agent_one": "代理人",
+    "agent_other": "代理人",
     "and": "與",
     "assistant": "智慧代理人",
-    "assistant_one": "[to be translated]:助手",
-    "assistant_other": "[to be translated]:助手",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "頭像",
     "back": "返回",
     "browse": "瀏覽",
@@ -774,7 +774,7 @@
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
-    "delete_success": "[to be translated]:删除成功",
+    "delete_success": "刪除成功",
     "description": "描述",
     "detail": "詳情",
     "disabled": "已停用",
@@ -785,7 +785,7 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "errors": {
-      "validation": "[to be translated]:验证失败"
+      "validation": "驗證失敗"
     },
     "expand": "展開",
     "file": {
@@ -797,7 +797,7 @@
     "go_to_settings": "前往設定",
     "i_know": "我知道了",
     "inspect": "檢查",
-    "invalid_value": "[to be translated]:无效值",
+    "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
     "loading": "加載中...",
@@ -811,7 +811,7 @@
     "paste": "貼上",
     "placeholders": {
       "select": {
-        "model": "[to be translated]:选择模型"
+        "model": "選擇模型"
       }
     },
     "preview": "預覽",
@@ -840,7 +840,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
-    "update_success": "[to be translated]:更新成功",
+    "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",
     "you": "您"
