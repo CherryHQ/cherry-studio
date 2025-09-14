@@ -491,6 +491,144 @@ router.put(
 /**
  * @swagger
  * /v1/agents/{agentId}:
+ *   patch:
+ *     summary: Partially update agent
+ *     description: Partially updates an existing agent with only the provided fields
+ *     tags: [Agents]
+ *     parameters:
+ *       - in: path
+ *         name: agentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Agent ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Agent name
+ *               description:
+ *                 type: string
+ *                 description: Agent description
+ *               avatar:
+ *                 type: string
+ *                 description: Agent avatar URL
+ *               instructions:
+ *                 type: string
+ *                 description: System prompt/instructions
+ *               model:
+ *                 type: string
+ *                 description: Main model ID
+ *               plan_model:
+ *                 type: string
+ *                 description: Optional planning model ID
+ *               small_model:
+ *                 type: string
+ *                 description: Optional small/fast model ID
+ *               built_in_tools:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Built-in tool IDs
+ *               mcps:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: MCP tool IDs
+ *               knowledges:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Knowledge base IDs
+ *               configuration:
+ *                 type: object
+ *                 description: Extensible settings
+ *               accessible_paths:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Accessible directory paths
+ *               permission_mode:
+ *                 type: string
+ *                 enum: [readOnly, acceptEdits, bypassPermissions]
+ *                 description: Permission mode
+ *               max_steps:
+ *                 type: integer
+ *                 description: Maximum steps the agent can take
+ *             description: Only include the fields you want to update
+ *     responses:
+ *       200:
+ *         description: Agent updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AgentEntity'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Agent not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+router.patch(
+  '/:agentId',
+  validateAgentId,
+  validateAgentUpdate,
+  handleValidationErrors,
+  async (req: Request, res: Response) => {
+    try {
+      const { agentId } = req.params
+      logger.info(`Partially updating agent: ${agentId}`)
+      logger.debug('Partial update data:', req.body)
+
+      const agent = await agentService.updateAgent(agentId, req.body)
+
+      if (!agent) {
+        logger.warn(`Agent not found for partial update: ${agentId}`)
+        return res.status(404).json({
+          error: {
+            message: 'Agent not found',
+            type: 'not_found',
+            code: 'agent_not_found'
+          }
+        })
+      }
+
+      logger.info(`Agent partially updated successfully: ${agentId}`)
+      return res.json(agent)
+    } catch (error: any) {
+      logger.error('Error partially updating agent:', error)
+      return res.status(500).json({
+        error: {
+          message: 'Failed to partially update agent',
+          type: 'internal_error',
+          code: 'agent_patch_failed'
+        }
+      })
+    }
+  }
+)
+
+/**
+ * @swagger
+ * /v1/agents/{agentId}:
  *   delete:
  *     summary: Delete agent
  *     description: Deletes an agent and all associated sessions and logs

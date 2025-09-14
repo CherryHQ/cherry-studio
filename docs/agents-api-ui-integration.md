@@ -32,7 +32,8 @@ This document provides comprehensive guidance for UI components to integrate wit
 | POST | `/agents` | Create new agent | `CreateAgentRequest` | `AgentEntity` |
 | GET | `/agents` | List agents (paginated) | Query params | `{ data: AgentEntity[], total: number }` |
 | GET | `/agents/{id}` | Get specific agent | - | `AgentEntity` |
-| PUT | `/agents/{id}` | Update agent | `UpdateAgentRequest` | `AgentEntity` |
+| PUT | `/agents/{id}` | Replace agent (complete update) | `UpdateAgentRequest` | `AgentEntity` |
+| PATCH | `/agents/{id}` | Partially update agent | `Partial<UpdateAgentRequest>` | `AgentEntity` |
 | DELETE | `/agents/{id}` | Delete agent | - | `204 No Content` |
 
 ### Session Management (`/agents/{agentId}/sessions`)
@@ -42,8 +43,8 @@ This document provides comprehensive guidance for UI components to integrate wit
 | POST | `/agents/{agentId}/sessions` | Create session | `CreateSessionRequest` | `AgentSessionEntity` |
 | GET | `/agents/{agentId}/sessions` | List agent sessions | Query params | `{ data: AgentSessionEntity[], total: number }` |
 | GET | `/agents/{agentId}/sessions/{id}` | Get specific session | - | `AgentSessionEntity` |
-| PUT | `/agents/{agentId}/sessions/{id}` | Update session | `UpdateSessionRequest` | `AgentSessionEntity` |
-| PATCH | `/agents/{agentId}/sessions/{id}/status` | Update session status | `{ status: SessionStatus }` | `AgentSessionEntity` |
+| PUT | `/agents/{agentId}/sessions/{id}` | Replace session (complete update) | `UpdateSessionRequest` | `AgentSessionEntity` |
+| PATCH | `/agents/{agentId}/sessions/{id}` | Partially update session | `Partial<UpdateSessionRequest>` | `AgentSessionEntity` |
 | DELETE | `/agents/{agentId}/sessions/{id}` | Delete session | - | `204 No Content` |
 
 ### Message Streaming (`/agents/{agentId}/sessions/{sessionId}/messages`)
@@ -52,6 +53,55 @@ This document provides comprehensive guidance for UI components to integrate wit
 |--------|----------|-------------|--------------|----------|
 | POST | `/agents/{agentId}/sessions/{sessionId}/messages` | Send message to agent | `CreateMessageRequest` | **Stream Response** |
 | GET | `/agents/{agentId}/sessions/{sessionId}/messages` | List session messages | Query params | `{ data: SessionMessageEntity[], total: number }` |
+
+## HTTP Methods: PUT vs PATCH
+
+Both agents and sessions support two types of update operations:
+
+### PUT - Complete Replacement
+- **Purpose**: Replaces the entire resource with the provided data
+- **Behavior**: All fields in the request body will be applied to the resource
+- **Use Case**: When you want to completely update a resource with a new set of values
+- **Example**: Updating an agent's configuration completely
+
+```typescript
+// PUT - Replace entire agent
+await fetch('/v1/agents/agent-123', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'New Agent Name',
+    model: 'gpt-4',
+    instructions: 'New instructions',
+    built_in_tools: ['search', 'calculator'],
+    // All other fields will be reset to defaults if not provided
+  })
+})
+```
+
+### PATCH - Partial Update
+- **Purpose**: Updates only the specified fields, leaving others unchanged
+- **Behavior**: Only the fields present in the request body will be modified
+- **Use Case**: When you want to update specific fields without affecting others
+- **Example**: Updating only an agent's name or instructions
+
+```typescript
+// PATCH - Update only specific fields
+await fetch('/v1/agents/agent-123', {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    name: 'Updated Agent Name'
+    // All other fields remain unchanged
+  })
+})
+```
+
+### Validation
+Both methods use the same validation rules:
+- All fields are optional for both PUT and PATCH
+- When provided, fields must meet their validation criteria (e.g., `name` cannot be empty)
+- The same middleware (`validateAgentUpdate` for agents, `validateSessionUpdate` for sessions) handles both operations
 
 ## Data Types & Schemas
 
@@ -198,7 +248,42 @@ async function createSession(agentId: string, sessionData: CreateSessionRequest)
 }
 ```
 
-### Session Status Management
+### Session Updates
+Sessions can be updated using either PUT (complete replacement) or PATCH (partial update):
+
+#### Complete Session Replacement (PUT)
+```typescript
+async function replaceSession(agentId: string, sessionId: string, sessionData: UpdateSessionRequest): Promise<AgentSessionEntity> {
+  const response = await fetch(`/v1/agents/${agentId}/sessions/${sessionId}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(sessionData) // Complete session configuration
+  })
+
+  return await response.json()
+}
+```
+
+#### Partial Session Update (PATCH)
+```typescript
+async function updateSession(agentId: string, sessionId: string, updates: Partial<UpdateSessionRequest>): Promise<AgentSessionEntity> {
+  const response = await fetch(`/v1/agents/${agentId}/sessions/${sessionId}`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(updates) // Only the fields to update
+  })
+
+  return await response.json()
+}
+```
+
+#### Session Status Management
 Sessions have five possible statuses:
 - `idle`: Ready to process messages
 - `running`: Currently processing
@@ -207,17 +292,9 @@ Sessions have five possible statuses:
 - `stopped`: Manually stopped by user
 
 ```typescript
+// Update only the session status using PATCH
 async function updateSessionStatus(agentId: string, sessionId: string, status: SessionStatus): Promise<AgentSessionEntity> {
-  const response = await fetch(`/v1/agents/${agentId}/sessions/${sessionId}/status`, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ status })
-  })
-
-  return await response.json()
+  return await updateSession(agentId, sessionId, { status })
 }
 ```
 

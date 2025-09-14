@@ -11,7 +11,6 @@ const router = express.Router()
 // Validation middleware
 const validateSession = [
   body('name').optional().isString(),
-  body('main_agent_id').notEmpty().withMessage('Main agent ID is required'),
   body('sub_agent_ids').optional().isArray(),
   body('user_goal').optional().isString(),
   body('status').optional().isIn(['idle', 'running', 'completed', 'failed', 'stopped']),
@@ -545,6 +544,114 @@ function createSessionsRouter(): express.Router {
    * @swagger
    * /v1/agents/{agentId}/sessions/{sessionId}:
    *   put:
+   *     summary: Replace session
+   *     description: Completely replaces an existing session for the specified agent
+   *     tags: [Sessions]
+   *     parameters:
+   *       - in: path
+   *         name: agentId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Agent ID
+   *       - in: path
+   *         name: sessionId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Session ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             $ref: '#/components/schemas/CreateSessionRequest'
+   *     responses:
+   *       200:
+   *         description: Session replaced successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/AgentSessionEntity'
+   *       400:
+   *         description: Validation error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *       404:
+   *         description: Agent or session not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
+   */
+  sessionsRouter.put(
+    '/:sessionId',
+    validateAgentId,
+    validateSessionId,
+    checkAgentExists,
+    validateSessionUpdate,
+    handleValidationErrors,
+    async (req: Request, res: Response) => {
+      try {
+        const { agentId, sessionId } = req.params
+        logger.info(`Replacing session: ${sessionId} for agent: ${agentId}`)
+        logger.debug('Replace data:', req.body)
+
+        // First check if session exists and belongs to agent
+        const existingSession = await sessionService.getSession(sessionId)
+        if (!existingSession || existingSession.main_agent_id !== agentId) {
+          logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
+          return res.status(404).json({
+            error: {
+              message: 'Session not found for this agent',
+              type: 'not_found',
+              code: 'session_not_found'
+            }
+          })
+        }
+
+        // For PUT, we replace the entire resource
+        const sessionData = { ...req.body, main_agent_id: agentId }
+        const session = await sessionService.updateSession(sessionId, sessionData)
+
+        if (!session) {
+          logger.warn(`Session not found for replace: ${sessionId}`)
+          return res.status(404).json({
+            error: {
+              message: 'Session not found',
+              type: 'not_found',
+              code: 'session_not_found'
+            }
+          })
+        }
+
+        logger.info(`Session replaced successfully: ${sessionId}`)
+        return res.json(session)
+      } catch (error: any) {
+        logger.error('Error replacing session:', error)
+        return res.status(500).json({
+          error: {
+            message: 'Failed to replace session',
+            type: 'internal_error',
+            code: 'session_replace_failed'
+          }
+        })
+      }
+    }
+  )
+
+  /**
+   * @swagger
+   * /v1/agents/{agentId}/sessions/{sessionId}:
+   *   patch:
    *     summary: Update session
    *     description: Updates an existing session for the specified agent
    *     tags: [Sessions]
@@ -593,7 +700,7 @@ function createSessionsRouter(): express.Router {
    *             schema:
    *               $ref: '#/components/schemas/Error'
    */
-  sessionsRouter.put(
+  sessionsRouter.patch(
     '/:sessionId',
     validateAgentId,
     validateSessionId,
@@ -618,8 +725,8 @@ function createSessionsRouter(): express.Router {
             }
           })
         }
-
-        const session = await sessionService.updateSession(sessionId, req.body)
+        const updateSession = { ...existingSession, ...req.body }
+        const session = await sessionService.updateSession(sessionId, updateSession)
 
         if (!session) {
           logger.warn(`Session not found for update: ${sessionId}`)
@@ -641,119 +748,6 @@ function createSessionsRouter(): express.Router {
             message: 'Failed to update session',
             type: 'internal_error',
             code: 'session_update_failed'
-          }
-        })
-      }
-    }
-  )
-
-  /**
-   * @swagger
-   * /v1/agents/{agentId}/sessions/{sessionId}/status:
-   *   patch:
-   *     summary: Update session status
-   *     description: Updates the status of a specific session
-   *     tags: [Sessions]
-   *     parameters:
-   *       - in: path
-   *         name: agentId
-   *         required: true
-   *         schema:
-   *           type: string
-   *         description: Agent ID
-   *       - in: path
-   *         name: sessionId
-   *         required: true
-   *         schema:
-   *           type: string
-   *         description: Session ID
-   *     requestBody:
-   *       required: true
-   *       content:
-   *         application/json:
-   *           schema:
-   *             type: object
-   *             properties:
-   *               status:
-   *                 type: string
-   *                 enum: [idle, running, completed, failed, stopped]
-   *             required:
-   *               - status
-   *     responses:
-   *       200:
-   *         description: Session status updated successfully
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/AgentSessionEntity'
-   *       400:
-   *         description: Validation error
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/Error'
-   *       404:
-   *         description: Agent or session not found
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/Error'
-   *       500:
-   *         description: Internal server error
-   *         content:
-   *           application/json:
-   *             schema:
-   *               $ref: '#/components/schemas/Error'
-   */
-  sessionsRouter.patch(
-    '/:sessionId/status',
-    validateAgentId,
-    validateSessionId,
-    checkAgentExists,
-    validateStatusUpdate,
-    handleValidationErrors,
-    async (req: Request, res: Response) => {
-      try {
-        const { agentId, sessionId } = req.params
-        const { status } = req.body
-
-        logger.info(`Updating session status: ${sessionId} for agent: ${agentId} to ${status}`)
-
-        // First check if session exists and belongs to agent
-        const existingSession = await sessionService.getSession(sessionId)
-        if (!existingSession || existingSession.main_agent_id !== agentId) {
-          logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
-          return res.status(404).json({
-            error: {
-              message: 'Session not found for this agent',
-              type: 'not_found',
-              code: 'session_not_found'
-            }
-          })
-        }
-
-        const session = await sessionService.updateSessionStatus(sessionId, status)
-
-        if (!session) {
-          logger.warn(`Session not found for status update: ${sessionId}`)
-          return res.status(404).json({
-            error: {
-              message: 'Session not found',
-              type: 'not_found',
-              code: 'session_not_found'
-            }
-          })
-        }
-
-        logger.info(`Session status updated successfully: ${sessionId} -> ${status}`)
-        return res.json(session)
-      } catch (error: any) {
-        logger.error('Error updating session status:', error)
-        return res.status(500).json({
-          error: {
-            message: 'Failed to update session status',
-            type: 'internal_error',
-            code: 'session_status_update_failed'
           }
         })
       }
