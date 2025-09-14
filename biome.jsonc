@@ -64,6 +64,8 @@
   },
   "linter": {
     "enabled": true,
+    "includes": ["!**/tailwind.css"],
+    // only enable sorted tailwind css rule. used as formatter instead of linter
     "rules": {
       "nursery": {
         // to sort tailwind css classes
