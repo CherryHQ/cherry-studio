@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - develop
+      - v2
 
 jobs:
   build:
