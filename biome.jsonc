@@ -2,7 +2,17 @@
   "$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
   "assist": {
     // to sort json
-    "actions": { "source": { "organizeImports": "on", "useSortedKeys": "on" } },
+    "actions": {
+      "source": {
+        "organizeImports": "on",
+        "useSortedKeys": {
+          "level": "on",
+          "options": {
+            "sortOrder": "lexicographic"
+          }
+        }
+      }
+    },
     "enabled": true,
     "includes": ["**/*.json", "!*.json", "!**/package.json"]
   },
