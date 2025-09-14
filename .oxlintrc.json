@@ -157,7 +157,7 @@
     "typescript/no-namespace": "error",
     "typescript/no-non-null-asserted-optional-chain": "off", // it's off now. but may turn it on.
     "typescript/no-redundant-type-constituents": "warn",
-    // "typescript/no-require-imports": "error",
+    "typescript/no-require-imports": "off",
     "typescript/no-this-alias": "error",
     "typescript/no-unnecessary-parameter-property-assignment": "warn",
     "typescript/no-unnecessary-type-constraint": "error",
