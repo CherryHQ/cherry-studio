@@ -3,6 +3,7 @@ import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
 import { defineConfig } from 'eslint/config'
+import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
@@ -128,5 +129,7 @@ export default defineConfig([
       'src/renderer/src/ui/**',
       'packages/**/dist'
     ]
-  }
+  },
+  // oxlint as last one as docs said
+  ...oxlint.configs['flat/recommended']
 ])
