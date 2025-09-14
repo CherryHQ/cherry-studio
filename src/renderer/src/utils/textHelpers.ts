@@ -15,6 +15,19 @@ export const removeAtSymbolAndText = (
 ): string => {
   const safeCaret = Math.max(0, Math.min(caretPosition ?? 0, currentText.length))
 
+  const isWordChar = (ch: string | undefined): boolean => {
+    if (!ch) return false
+    return /[A-Za-z0-9_]/.test(ch)
+  }
+
+  const hasWordBoundaryAfter = (text: string, pos: number): boolean => {
+    // pos is the index immediately after a candidate match
+    if (pos >= text.length) return true
+    const next = text[pos]
+    // Boundary iff the following char is NOT a word character
+    return !isWordChar(next)
+  }
+
   // ESC/precise delete: prefer pattern = "@" + searchText scanning left from caret
   if (searchText !== undefined) {
     const pattern = '@' + searchText
@@ -22,17 +35,21 @@ export const removeAtSymbolAndText = (
     const start = currentText.lastIndexOf(pattern, fromIndex)
     if (start !== -1) {
       const end = start + pattern.length
-      return currentText.slice(0, start) + currentText.slice(end)
+      // Only treat as a precise match if there is a word boundary after the match
+      if (hasWordBoundaryAfter(currentText, end)) {
+        return currentText.slice(0, start) + currentText.slice(end)
+      }
+      // Otherwise, fall through to fallback handling
     }
 
     // Fallback: use the opening position if available and matches
     if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
       const expected = pattern
       const actual = currentText.slice(fallbackPosition, fallbackPosition + expected.length)
-      if (actual === expected) {
+      if (actual === expected && hasWordBoundaryAfter(currentText, fallbackPosition + expected.length)) {
         return currentText.slice(0, fallbackPosition) + currentText.slice(fallbackPosition + expected.length)
       }
-      // If not a full match, safely remove only the '@'
+      // If not a full match or not at a boundary, safely remove only the '@'
       return currentText.slice(0, fallbackPosition) + currentText.slice(fallbackPosition + 1)
     }
 
