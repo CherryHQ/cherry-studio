@@ -61,6 +61,7 @@ export interface AgentSessionEntity extends AgentConfiguration {
   user_goal?: string // Initial user goal for the session
   status: SessionStatus
   external_session_id?: string // Agent session for external agent management/tracking
+  messages?: SessionMessageEntity[] // Hierarchical session messages
   created_at: string
   updated_at: string
 }
@@ -72,7 +73,7 @@ export interface SessionMessageEntity {
   parent_id?: number // For tree structure (e.g., tool calls under an action)
   role: SessionMessageRole // 'user', 'agent', 'system', 'tool'
   type: SessionMessageType // Type of log entry
-  content: Record<string, any> // JSON structured data
+  content: string | Record<string, any> // JSON structured data
   metadata?: Record<string, any> // Additional metadata (optional)
   created_at: string // ISO timestamp
   updated_at: string // ISO timestamp

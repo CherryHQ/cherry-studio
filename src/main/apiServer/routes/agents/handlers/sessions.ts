@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 
-import { sessionService } from '../../../../services/agents'
+import { sessionMessageService, sessionService } from '../../../../services/agents'
 import { loggerService } from '../../../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
@@ -89,8 +89,18 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
       })
     }
 
-    logger.info(`Session retrieved successfully: ${sessionId}`)
-    return res.json(session)
+    // Fetch session messages
+    logger.info(`Fetching messages for session: ${sessionId}`)
+    const { messages } = await sessionMessageService.listSessionMessages(sessionId)
+
+    // Add messages to session
+    const sessionWithMessages = {
+      ...session,
+      messages: messages
+    }
+
+    logger.info(`Session retrieved successfully: ${sessionId} with ${messages.length} messages`)
+    return res.json(sessionWithMessages)
   } catch (error: any) {
     logger.error('Error getting session:', error)
     return res.status(500).json({
