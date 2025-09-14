@@ -289,9 +289,8 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
                       name={arg.name}
                       label={`${arg.name}${arg.required ? ' *' : ''}`}
                       tooltip={arg.description}
-                      rules={
-                        arg.required ? [{ required: true, message: t('settings.mcp.prompts.requiredField') }] : []
-                      }>
+                      rules={arg.required ? [{ required: true, message: t('settings.mcp.prompts.requiredField') }] : []}
+                    >
                       <Input placeholder={arg.description || arg.name} />
                     </Form.Item>
                   ))}
@@ -318,7 +317,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           })
 
           await handlePromptResponse(response)
-        } catch (error: Error | any) {
+        } catch (error: any) {
           if (error.message !== 'cancelled') {
             window.modal.error({
               title: t('common.error'),
@@ -335,7 +334,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
             name: prompt.name
           })
           await handlePromptResponse(response)
-        } catch (error: Error | any) {
+        } catch (error: any) {
           window.modal.error({
             title: t('common.error'),
             content: error.message || t('settings.mcp.prompts.genericError')
@@ -416,7 +415,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           } else {
             processResourceContent(response as ResourceData)
           }
-        } catch (error: Error | any) {
+        } catch (error: any) {
           window.modal.error({
             title: t('common.error'),
             content: error.message || t('settings.mcp.resources.genericError')
