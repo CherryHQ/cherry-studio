@@ -35,7 +35,7 @@ jobs:
           # 在临时目录安装依赖
           mkdir -p /tmp/translation-deps
           cd /tmp/translation-deps
-          echo '{"dependencies": {"openai": "^5.12.2", "cli-progress": "^3.12.0", "tsx": "^4.20.3", "prettier": "^3.5.3", "prettier-plugin-sort-json": "^4.1.1", "prettier-plugin-tailwindcss": "^0.6.14"}}' > package.json
+          echo '{"dependencies": {"openai": "^5.12.2", "cli-progress": "^3.12.0", "tsx": "^4.20.3", "@biomejs/biome": "2.2.4"}}' > package.json
           npm install --no-package-lock
 
           # 设置 NODE_PATH 让项目能找到这些依赖
@@ -45,7 +45,7 @@ jobs:
         run: npx tsx scripts/auto-translate-i18n.ts
 
       - name: 🔍 Format
-        run: cd /tmp/translation-deps && npx prettier --write --config /home/runner/work/cherry-studio/cherry-studio/.prettierrc /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/
+        run: cd /tmp/translation-deps && npx biome format --write /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/
 
       - name: 🔄 Commit changes
         run: |
