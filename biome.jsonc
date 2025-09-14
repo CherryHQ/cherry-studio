@@ -1,0 +1,71 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
+  "assist": {
+    // to sort json
+    "actions": { "source": { "organizeImports": "on", "useSortedKeys": "on" } },
+    "enabled": true,
+    "includes": ["**/*.json", "!*.json", "!**/package.json"]
+  },
+  "files": { "ignoreUnknown": false },
+  "formatter": {
+    "attributePosition": "auto",
+    "bracketSameLine": false,
+    "bracketSpacing": true,
+    "enabled": true,
+    "expand": "auto",
+    "formatWithErrors": true,
+    "includes": [
+      "**",
+      "!out/*",
+      "!**/dist/*",
+      "!build/*",
+      "!.yarn/*",
+      "!.github/*",
+      "!.husky/*",
+      "!.vscode/*",
+      "!*.yaml",
+      "!*.yml",
+      "!*.mjs",
+      "!*.cjs",
+      "!*.md",
+      "!*.json",
+      "!src/main/integration/*"
+    ],
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 120,
+    "useEditorconfig": true
+  },
+  "html": { "formatter": { "selfCloseVoidElements": "always" } },
+  "javascript": {
+    "formatter": {
+      "arrowParentheses": "always",
+      "attributePosition": "auto",
+      "bracketSameLine": false,
+      "bracketSpacing": true,
+      "jsxQuoteStyle": "single",
+      "quoteProperties": "asNeeded",
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "none"
+    }
+  },
+  "json": {
+    "parser": {
+      "allowComments": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "nursery": {
+        // to sort tailwind css classes
+        "useSortedClasses": "error"
+      },
+      "recommended": false,
+      "suspicious": "off"
+    }
+  },
+  "vcs": { "clientKind": "git", "enabled": false, "useIgnoreFile": false }
+}
