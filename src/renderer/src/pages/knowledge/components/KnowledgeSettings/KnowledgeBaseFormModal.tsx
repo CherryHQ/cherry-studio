@@ -40,8 +40,7 @@ const KnowledgeBaseFormModal: React.FC<KnowledgeBaseFormModalProps> = ({ panels,
           overflow: 'hidden'
         }
       }}
-      {...rest}
-    >
+      {...rest}>
       <HStack height="100%">
         <LeftMenu>
           <StyledMenu

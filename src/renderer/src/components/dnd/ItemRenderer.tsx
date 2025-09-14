@@ -54,13 +54,11 @@ export function ItemRenderer<T>({
       ref={ref}
       data-index={index}
       className={classNames({ dragOverlay: dragOverlay })}
-      style={{ ...wrapperStyle }}
-    >
+      style={{ ...wrapperStyle }}>
       <DraggableItem
         className={classNames({ dragging: dragging, dragOverlay: dragOverlay, ghost: ghost })}
         {...listeners}
-        {...props}
-      >
+        {...props}>
         {renderItem(item, { dragging: !!dragging })}
       </DraggableItem>
     </ItemWrapper>

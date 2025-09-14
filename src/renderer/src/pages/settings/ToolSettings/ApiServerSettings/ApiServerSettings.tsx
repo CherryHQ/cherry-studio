@@ -148,8 +148,7 @@ const ApiServerSettings: FC = () => {
             <Tooltip title={t('apiServer.actions.restart.tooltip')}>
               <RestartButton
                 $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : handleApiServerRestart}
-              >
+                onClick={apiServerLoading ? undefined : handleApiServerRestart}>
                 <RotateCcw size={14} />
                 <span>{t('apiServer.actions.restart.button')}</span>
               </RestartButton>
@@ -173,15 +172,13 @@ const ApiServerSettings: FC = () => {
             {apiServerRunning ? (
               <StopButton
                 $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(false)}
-              >
+                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(false)}>
                 <Square size={20} style={{ color: 'var(--color-status-error)' }} />
               </StopButton>
             ) : (
               <StartButton
                 $loading={apiServerLoading}
-                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(true)}
-              >
+                onClick={apiServerLoading ? undefined : () => handleApiServerToggle(true)}>
                 <Play size={20} style={{ color: 'var(--color-status-success)' }} />
               </StartButton>
             )}

@@ -122,8 +122,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                   onClick={installUV}
                   loading={isInstallingUv}
                   disabled={isInstallingUv}
-                  size="small"
-                >
+                  size="small">
                   {isInstallingUv ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -131,8 +130,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
             <SettingRow style={{ width: '100%' }}>
               <SettingDescription
                 onClick={openBinariesDir}
-                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}
-              >
+                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
                 {uvPath}
               </SettingDescription>
             </SettingRow>
@@ -155,8 +153,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                   onClick={installBun}
                   loading={isInstallingBun}
                   disabled={isInstallingBun}
-                  size="small"
-                >
+                  size="small">
                   {isInstallingBun ? t('settings.mcp.dependenciesInstalling') : t('settings.mcp.install')}
                 </Button>
               )}
@@ -164,8 +161,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
             <SettingRow style={{ width: '100%' }}>
               <SettingDescription
                 onClick={openBinariesDir}
-                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}
-              >
+                style={{ margin: 0, fontWeight: 'normal', cursor: 'pointer' }}>
                 {bunPath}
               </SettingDescription>
             </SettingRow>

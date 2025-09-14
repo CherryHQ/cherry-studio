@@ -40,8 +40,7 @@ const PopupContainer: React.FC = () => {
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered
-    >
+      centered>
       <Container>
         {agents.length > 0 && (
           <DraggableList list={agents} onUpdate={updateAgents}>

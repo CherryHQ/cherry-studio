@@ -53,8 +53,7 @@ const MessageGroupSettings: FC = () => {
             </Col>
           </Row>
         </div>
-      }
-    >
+      }>
       <SettingOutlined style={{ marginLeft: 15, cursor: 'pointer' }} />
     </Popover>
   )

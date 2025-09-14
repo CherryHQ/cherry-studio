@@ -127,8 +127,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             mouseEnterDelay={0.5}
             placement="top"
             // 确保不留下明文
-            destroyOnHidden
-          >
+            destroyOnHidden>
             <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
           </Tooltip>
 
@@ -155,8 +154,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 disabled={disabled}
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
-                okButtonProps={{ danger: true }}
-              >
+                okButtonProps={{ danger: true }}>
                 <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
                   <Button type="text" icon={<Minus size={16} />} disabled={disabled} />
                 </Tooltip>

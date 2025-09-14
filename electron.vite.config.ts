@@ -4,7 +4,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
 
-import pkg from './package.json'
+import pkg from './package.json' assert { type: 'json' }
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []

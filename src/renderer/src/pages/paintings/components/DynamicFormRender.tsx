@@ -73,8 +73,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
             beforeUpload={(file) => {
               handleImageUpload(propertyName, file, onChange)
               return false
-            }}
-          >
+            }}>
             <Button
               icon={<UploadOutlined />}
               title="Upload image file"
@@ -97,8 +96,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               backgroundColor: 'var(--color-fill-quaternary)',
               borderRadius: '6px',
               border: '1px solid var(--color-border)'
-            }}
-          >
+            }}>
             <img
               src={value}
               alt="Image preview"
@@ -120,8 +118,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
                 minWidth: 0,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
-              }}
-            >
+              }}>
               {value.startsWith('data:') ? 'Uploaded image' : 'Image URL'}
             </div>
             <Button

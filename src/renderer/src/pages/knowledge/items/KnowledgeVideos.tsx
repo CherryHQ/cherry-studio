@@ -91,8 +91,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             e.stopPropagation()
             handleAddVideo()
           }}
-          disabled={disabled}
-        >
+          disabled={disabled}>
           {t('knowledge.add_video')}
         </ResponsiveButton>
       </ItemHeader>
@@ -108,8 +107,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             styles={{
               verticalScrollBar: { width: 6 },
               verticalScrollBarThumb: { background: 'var(--color-scrollbar-thumb)' }
-            }}
-          >
+            }}>
             {(item) => {
               if (!isKnowledgeVideoItem(item)) {
                 return null

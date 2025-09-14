@@ -48,8 +48,7 @@ vi.mock('antd', () => ({
           key={item.key}
           data-testid={`menu-item-${item.key}`}
           onClick={() => onSelect?.({ key: item.key })}
-          style={{ cursor: 'pointer' }}
-        >
+          style={{ cursor: 'pointer' }}>
           {item.label}
         </div>
       ))}

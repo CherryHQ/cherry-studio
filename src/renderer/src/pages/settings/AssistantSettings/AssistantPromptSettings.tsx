@@ -81,8 +81,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
                 padding: '4px',
                 minWidth: '28px',
                 height: '28px'
-              }}
-            >
+              }}>
               {emoji}
             </Button>
             {emoji && (
@@ -128,8 +127,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
                 const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
                 setShowPreview(false)
                 requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-              }}
-            >
+              }}>
               <ReactMarkdown>{processedPrompt || prompt}</ReactMarkdown>
             </MarkdownContainer>
           ) : (
@@ -163,8 +161,7 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
                 requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
               })
             }
-          }}
-        >
+          }}>
           {showPreview ? t('common.edit') : t('common.save')}
         </Button>
       </HSpaceBetweenStack>

@@ -87,8 +87,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             e.stopPropagation()
             handleAddNote()
           }}
-          disabled={disabled}
-        >
+          disabled={disabled}>
           {t('knowledge.add_note')}
         </ResponsiveButton>
       </ItemHeader>
@@ -100,8 +99,7 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           overscan={2}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
-          autoHideScrollbar
-        >
+          autoHideScrollbar>
           {(note) => (
             <FileItem
               key={note.id}

@@ -66,8 +66,7 @@ const Sidebar: FC = () => {
     <Container
       $isFullscreen={isFullscreen}
       id="app-sidebar"
-      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}
-    >
+      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
           {avatar}
@@ -93,8 +92,7 @@ const Sidebar: FC = () => {
         <Tooltip
           title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
           mouseEnterDelay={0.8}
-          placement="right"
-        >
+          placement="right">
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
@@ -110,8 +108,7 @@ const Sidebar: FC = () => {
             onClick={async () => {
               hideMinappPopup()
               await to('/settings/provider')
-            }}
-          >
+            }}>
             <Icon theme={theme} className={pathname.startsWith('/settings') && !minappShow ? 'active' : ''}>
               <Settings size={20} className="icon" />
             </Icon>
@@ -168,8 +165,7 @@ const MainMenus: FC = () => {
             hideMinappPopup()
             await modelGenerating()
             navigate(path)
-          }}
-        >
+          }}>
           <Icon theme={theme} className={isActive}>
             {iconMap[icon]}
           </Icon>

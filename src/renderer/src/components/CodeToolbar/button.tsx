@@ -29,8 +29,7 @@ const CodeToolButton = ({ tool }: CodeToolButtonProps) => {
             onClick: child.onClick
           }))
         }}
-        trigger={['click']}
-      >
+        trigger={['click']}>
         {mainTool}
       </Dropdown>
     )

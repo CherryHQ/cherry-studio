@@ -98,8 +98,7 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       className={className}
       $expandable={expandable}
       $disableHoverButton={isScrolledToEnd}
-      onClick={expandable ? handleContainerClick : undefined}
-    >
+      onClick={expandable ? handleContainerClick : undefined}>
       <ScrollContent ref={scrollRef} $gap={gap} $isExpanded={isExpanded} $expandable={expandable}>
         {children}
       </ScrollContent>

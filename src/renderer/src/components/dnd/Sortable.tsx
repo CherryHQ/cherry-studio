@@ -178,16 +178,14 @@ function Sortable<T>({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
-      modifiers={modifiers}
-    >
+      modifiers={modifiers}>
       <SortableContext items={itemIds} strategy={strategy}>
         <ListWrapper
           className={className}
           data-layout={layout}
           data-direction={horizontal ? 'horizontal' : 'vertical'}
           $gap={gap}
-          style={listStyle}
-        >
+          style={listStyle}>
           {items.map((item, index) => (
             <SortableItem
               key={itemIds[index]}

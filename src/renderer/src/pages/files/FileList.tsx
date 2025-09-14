@@ -68,8 +68,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
                         },
                         icon: <ExclamationCircleOutlined style={{ color: 'red' }} />
                       })
-                    }}
-                  >
+                    }}>
                     <DeleteIcon size={14} className="lucide-custom" />
                   </DeleteButton>
                 </ImageWrapper>
@@ -92,8 +91,7 @@ const FileList: React.FC<FileItemProps> = ({ id, list, files }) => {
       itemContainerStyle={{
         height: '75px',
         paddingTop: '12px'
-      }}
-    >
+      }}>
       {(item) => (
         <FileItem
           key={item.key}

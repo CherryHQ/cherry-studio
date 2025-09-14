@@ -102,8 +102,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8
-              }}
-            >
+              }}>
               <Selector
                 value={tmpViewMode as EditorView}
                 onChange={(value: EditorView) => setTmpViewMode(value)}

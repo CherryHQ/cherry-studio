@@ -41,8 +41,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       transitionName="animation-move-down"
       styles={{ body: { padding: '20px 16px' } }}
       footer={null}
-      centered
-    >
+      centered>
       <ApiOptionsSettings providerId={providerId} />
     </Modal>
   )

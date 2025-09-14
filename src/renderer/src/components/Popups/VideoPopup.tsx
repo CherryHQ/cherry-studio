@@ -63,8 +63,7 @@ const SingleFileUploader: React.FC<SingleFileUploaderProps> = ({
             logger.error('Upload failed: Invalid file format')
           }
         }}
-        onRemove={onRemove}
-      >
+        onRemove={onRemove}>
         <p className="ant-upload-drag-icon">
           <UploadOutlined />
         </p>
@@ -166,8 +165,7 @@ const VideoPopupContainer: React.FC<Props> = ({ title, resolve }) => {
       width={600}
       okButtonProps={{ disabled: isOkButtonDisabled }}
       okText={t('common.confirm')}
-      cancelText={t('common.cancel')}
-    >
+      cancelText={t('common.cancel')}>
       <Space direction="vertical" style={{ width: '100%', gap: '16px' }}>
         <SingleFileUploader
           uploadType="video"

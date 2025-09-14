@@ -82,8 +82,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                     !server.isActive
                       ? t('assistants.settings.mcp.enableFirst', 'Enable this server in MCP settings first')
                       : undefined
-                  }
-                >
+                  }>
                   <Switch
                     checked={isEnabled}
                     disabled={!server.isActive}

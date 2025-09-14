@@ -17,8 +17,7 @@ export const ToolsCallingTag = ({ size, showTooltip, showLabel, ...restProps }: 
       color="#f18737"
       icon={<ToolOutlined style={{ fontSize: size }} />}
       tooltip={showTooltip ? t('models.type.function_calling') : undefined}
-      {...restProps}
-    >
+      {...restProps}>
       {showLabel ? t('models.type.function_calling') : ''}
     </CustomTag>
   )

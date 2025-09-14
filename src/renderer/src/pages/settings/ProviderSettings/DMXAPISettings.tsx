@@ -95,8 +95,7 @@ const DMXAPISettings: FC<DMXAPISettingsProps> = ({ providerId }) => {
                 </a>
               </span>
             )
-          }))}
-        ></Radio.Group>
+          }))}></Radio.Group>
       </Space>
     </Container>
   )

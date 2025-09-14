@@ -101,8 +101,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
       cancelText={t('common.cancel')}
       width={500}
       transitionName="animation-move-down"
-      centered
-    >
+      centered>
       <Container>
         <Descriptions column={1} size="small" bordered>
           <Descriptions.Item label={t('settings.models.provider_name')}>{displayName}</Descriptions.Item>

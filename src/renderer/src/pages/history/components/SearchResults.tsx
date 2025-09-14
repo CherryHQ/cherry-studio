@@ -154,8 +154,7 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
               <Title
                 level={5}
                 style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
-                onClick={() => onTopicClick(topic)}
-              >
+                onClick={() => onTopicClick(topic)}>
                 {topic.name}
               </Title>
               <div style={{ cursor: 'pointer' }} onClick={() => onMessageClick(message)}>

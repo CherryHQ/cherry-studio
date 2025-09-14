@@ -128,8 +128,7 @@ const PlantUmlPreview = ({
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
-      source="plantuml"
-    >
+      source="plantuml">
       <ShadowWhiteContainer ref={containerRef} className="plantuml-preview special-preview" />
     </ImagePreviewLayout>
   )

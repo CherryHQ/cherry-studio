@@ -674,8 +674,7 @@ const TranslatePage: FC = () => {
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
-      onDrop={preventDrop}
-    >
+      onDrop={preventDrop}>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
       </Navbar>
@@ -747,8 +746,7 @@ const TranslatePage: FC = () => {
             onDragEnter={handleDragEnterInput}
             onDragLeave={handleDragLeaveInput}
             onDragOver={handleDragOverInput}
-            onDrop={handleDrop}
-          >
+            onDrop={handleDrop}>
             {(isDragging || isDraggingOnInput) && (
               <InputContainerDraggingHintContainer>
                 <UploadIcon color="var(--color-text-3)" />
@@ -981,8 +979,7 @@ const TranslateButton = ({
           <br />
           Shift + Enter: {t('translate.tooltip.newline')}
         </div>
-      }
-    >
+      }>
       {!translating && (
         <Button type="primary" onClick={onTranslate} disabled={!couldTranslate} icon={<SendOutlined />}>
           {t('translate.button.translate')}

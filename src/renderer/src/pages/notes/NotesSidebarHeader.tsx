@@ -86,8 +86,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
                 items: sortMenuWithCheck,
                 onClick: handleSortMenuClick
               }}
-              trigger={['click']}
-            >
+              trigger={['click']}>
               <Tooltip title={t('agents.sorting.title')} mouseEnterDelay={0.8}>
                 <ActionButton>
                   <ArrowUpNarrowWide size={18} />

@@ -16,8 +16,7 @@ const StyleSheetManager = ({ children }: StyleSheetManagerProps): React.ReactEle
         }
         // 对于自定义组件，允许所有非特殊属性通过
         return prop !== '$' && !prop.startsWith('$')
-      }}
-    >
+      }}>
       {children}
     </StyledComponentsStyleSheetManager>
   )

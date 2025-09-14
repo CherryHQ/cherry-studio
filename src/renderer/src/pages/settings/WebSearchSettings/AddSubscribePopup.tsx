@@ -63,16 +63,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered
-    >
+      centered>
       <Form
         form={form}
         labelCol={{ flex: '110px' }}
         labelAlign="right"
         colon={false}
         style={{ marginTop: 25 }}
-        onFinish={onFinish}
-      >
+        onFinish={onFinish}>
         <Form.Item name="url" label={t('settings.tool.websearch.subscribe_url')} rules={[{ required: true }]}>
           <Input
             placeholder="https://git.io/ublacklist"

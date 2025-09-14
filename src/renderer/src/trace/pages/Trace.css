@@ -61,11 +61,11 @@
 }
 
 .headerOption {
-  display: "flex";
-  align-items: "center";
+  display: 'flex';
+  align-items: 'center';
   gap: 8;
   width: 120;
-  justify-content: "flex-end";
+  justify-content: 'flex-end';
 }
 
 .tab-container_trace {
@@ -166,8 +166,8 @@
   overflow-y: auto;
   margin-top: 2px;
   scrollbar-width: none;
-  border-top: "1px solid #eee";
-  width: "100%";
+  border-top: '1px solid #eee';
+  width: '100%';
 }
 
 .code-container::-webkit-scrollbar {
@@ -189,7 +189,7 @@
   color: white;
 }
 
-.settingsModal button[aria-label="Close"] {
+.settingsModal button[aria-label='Close'] {
   -webkit-app-region: no-drag;
 }
 

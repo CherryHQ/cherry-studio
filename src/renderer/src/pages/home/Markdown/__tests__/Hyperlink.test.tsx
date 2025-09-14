@@ -11,8 +11,7 @@ const mocks = vi.hoisted(() => ({
       data-arrow={String(arrow)}
       data-placement={placement}
       data-color={color}
-      data-styles={JSON.stringify(styles)}
-    >
+      data-styles={JSON.stringify(styles)}>
       <div data-testid="popover-content">{content}</div>
       <div data-testid="popover-children">{children}</div>
     </div>

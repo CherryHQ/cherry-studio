@@ -153,8 +153,7 @@ describe('DraggableVirtualList', () => {
           onUpdate={() => {}}
           className="custom-class"
           style={{ border: '1px solid red' }}
-          itemStyle={{ background: 'blue' }}
-        >
+          itemStyle={{ background: 'blue' }}>
           {(item) => <div>{item.name}</div>}
         </DraggableVirtualList>
       )

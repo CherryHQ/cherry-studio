@@ -62,8 +62,7 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve, reject }) => {
       afterClose={onClose}
       transitionName="animation-move-down"
       width={400}
-      centered
-    >
+      centered>
       <ModelSelector
         providers={[provider]}
         predicate={modelPredicate}

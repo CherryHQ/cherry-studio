@@ -220,8 +220,7 @@ const AgentsPage: FC = () => {
                 </Flex>
               }
               style={{ margin: '0 8px', paddingLeft: 16, paddingRight: 16 }}
-              onClick={handleGroupClick(group)}
-            ></ListItem>
+              onClick={handleGroupClick(group)}></ListItem>
           ))}
         </AgentsGroupList>
 
@@ -269,8 +268,7 @@ const AgentsPage: FC = () => {
                   <Button
                     type="text"
                     onClick={handleSearchIconClick}
-                    icon={<Search size={18} color="var(--color-icon)" />}
-                  >
+                    icon={<Search size={18} color="var(--color-icon)" />}>
                     {t('common.search')}
                   </Button>
                 )

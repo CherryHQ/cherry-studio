@@ -295,8 +295,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
       <SplitViewWrapper
         className="split-view-wrapper"
         $isSpecialView={showSpecialView && !showSourceView}
-        $isSplitView={showSpecialView && showSourceView}
-      >
+        $isSplitView={showSpecialView && showSourceView}>
         {showSpecialView && specialView}
         {showSourceView && sourceView}
       </SplitViewWrapper>

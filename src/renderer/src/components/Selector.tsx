@@ -134,8 +134,7 @@ const Selector = <V extends string | number>({
       trigger={['click']}
       placement={placement}
       open={open && !disabled}
-      onOpenChange={handleOpenChange}
-    >
+      onOpenChange={handleOpenChange}>
       <Label $size={size} $open={open} $disabled={disabled} $isPlaceholder={label === placeholder}>
         {label}
         <LabelIcon size={size + 3} />

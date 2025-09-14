@@ -54,8 +54,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
               userSelect: 'text',
               marginRight: 20,
               color: 'var(--color-status-error)'
-            }}
-          >
+            }}>
             {errorDetails}
           </div>
         )

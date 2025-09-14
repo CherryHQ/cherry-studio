@@ -316,8 +316,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
         disabled: vaults.length === 0 || loading || !!error
       }}
       okText={i18n.t('chat.topics.export.obsidian_btn')}
-      afterClose={() => setOpen(open)}
-    >
+      afterClose={() => setOpen(open)}>
       {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}
       <Form layout="horizontal" labelCol={{ span: 6 }} wrapperCol={{ span: 18 }} labelAlign="left">
         <Form.Item label={i18n.t('chat.topics.export.obsidian_title')}>
@@ -334,8 +333,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
               value={selectedVault}
               onChange={handleVaultChange}
               placeholder={i18n.t('chat.topics.export.obsidian_vault_placeholder')}
-              style={{ width: '100%' }}
-            >
+              style={{ width: '100%' }}>
               {vaults.map((vault) => (
                 <Option key={vault.name} value={vault.name}>
                   {vault.name}
@@ -365,8 +363,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
                 dropdownStyle={{ maxHeight: 400, overflow: 'auto' }}
                 treeDefaultExpandAll={false}
                 treeNodeFilterProp="title"
-                treeData={fileTreeData}
-              ></TreeSelect>
+                treeData={fileTreeData}></TreeSelect>
             ) : (
               <Empty
                 description={i18n.t('chat.topics.export.obsidian_select_vault_first')}
@@ -401,8 +398,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             value={state.processingMethod}
             onChange={(value) => handleChange('processingMethod', value)}
             placeholder={i18n.t('chat.topics.export.obsidian_operate_placeholder')}
-            allowClear
-          >
+            allowClear>
             <Option value={ObsidianProcessingMethod.APPEND}>
               {i18n.t('chat.topics.export.obsidian_operate_append')}
             </Option>

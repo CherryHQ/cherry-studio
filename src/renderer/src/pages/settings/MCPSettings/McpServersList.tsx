@@ -235,8 +235,7 @@ const McpServersList: FC = () => {
             menu={{
               items: menuItems
             }}
-            trigger={['click']}
-          >
+            trigger={['click']}>
             <Button icon={<Plus size={16} />} type="default" shape="round">
               {t('common.add')}
             </Button>

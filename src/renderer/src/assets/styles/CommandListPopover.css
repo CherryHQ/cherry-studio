@@ -1,23 +1,24 @@
 .command-list-popover {
   /* Base styles are handled inline for theme support */
+
   /* Arrow styles based on placement */
 }
 
-.command-list-popover[data-placement^="bottom"] {
+.command-list-popover[data-placement^='bottom'] {
   transform-origin: top center;
   animation: slideDownAndFadeIn 0.15s ease-out;
 }
 
-.command-list-popover[data-placement^="top"] {
+.command-list-popover[data-placement^='top'] {
   transform-origin: bottom center;
   animation: slideUpAndFadeIn 0.15s ease-out;
 }
 
-.command-list-popover[data-placement*="start"] {
+.command-list-popover[data-placement*='start'] {
   transform-origin: left center;
 }
 
-.command-list-popover[data-placement*="end"] {
+.command-list-popover[data-placement*='end'] {
   transform-origin: right center;
 }
 

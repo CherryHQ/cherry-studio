@@ -160,8 +160,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
   return (
     <NavbarHeader
       className="home-navbar"
-      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}
-    >
+      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <HStack alignItems="center" flex="0 0 auto">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
@@ -185,8 +184,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
               <BreadcrumbItem key={item.key} isCurrent={index === breadcrumbItems.length - 1}>
                 <BreadcrumbTitle
                   onClick={() => handleBreadcrumbClick(item)}
-                  $clickable={item.isFolder && index < breadcrumbItems.length - 1}
-                >
+                  $clickable={item.isFolder && index < breadcrumbItems.length - 1}>
                   {item.title}
                 </BreadcrumbTitle>
               </BreadcrumbItem>
@@ -211,8 +209,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
             menu={{ items: menuItems.map(buildMenuItem) }}
             trigger={['click']}
             placement="bottomRight"
-            destroyOnHidden={false}
-          >
+            destroyOnHidden={false}>
             <NavbarIcon>
               <MoreHorizontal size={18} />
             </NavbarIcon>

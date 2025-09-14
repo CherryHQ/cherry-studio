@@ -18,8 +18,7 @@ const KnowledgeBaseInput: FC<{
             color="#3d9d0f"
             key={knowledgeBase.id}
             closable
-            onClose={() => onRemoveKnowledgeBase(knowledgeBase)}
-          >
+            onClose={() => onRemoveKnowledgeBase(knowledgeBase)}>
             {knowledgeBase.name}
           </CustomTag>
         ))}

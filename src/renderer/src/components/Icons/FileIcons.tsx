@@ -48,8 +48,7 @@ const BaseFileIcon = ({ size = '1.1em', text = 'SVG', ...props }: BaseFileIconPr
     version="1.1"
     id="svg4"
     xmlns="http://www.w3.org/2000/svg"
-    {...props}
-  >
+    {...props}>
     <defs id="defs4" />
     <path d="m 14,2 v 4 a 2,2 0 0 0 2,2 h 4" id="path3" />
     <path d="M 15,2 H 6 A 2,2 0 0 0 4,4 v 16 a 2,2 0 0 0 2,2 h 12 a 2,2 0 0 0 2,-2 V 7 Z" id="path4" />
@@ -59,8 +58,7 @@ const BaseFileIcon = ({ size = '1.1em', text = 'SVG', ...props }: BaseFileIconPr
       x="12.478625"
       y="17.170216"
       id="text4"
-      transform="scale(0.96196394,1.03954)"
-    >
+      transform="scale(0.96196394,1.03954)">
       <tspan id="tspan4" x="12.478625" y="17.170216" style={tspanStyle}>
         {text}
       </tspan>

@@ -313,15 +313,13 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
       destroyOnHidden
       centered
       transitionName="animation-move-down"
-      width={600}
-    >
+      width={600}>
       <Form form={form} layout="vertical" name="add_mcp_server_form">
         {importMethod === 'json' ? (
           <Form.Item
             name="serverConfig"
             label={t('settings.mcp.addServer.importFrom.tooltip')}
-            rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}
-          >
+            rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
             <CodeEditor
               // 如果表單值為空，顯示範例 JSON；否則顯示表單值
               value={serverConfigValue}
@@ -343,8 +341,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         ) : (
           <Form.Item
             label={t('settings.mcp.addServer.importFrom.dxtFile')}
-            help={t('settings.mcp.addServer.importFrom.dxtHelp')}
-          >
+            help={t('settings.mcp.addServer.importFrom.dxtHelp')}>
             <Upload
               accept=".dxt"
               maxCount={1}
@@ -353,8 +350,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
                 return false // Prevent automatic upload
               }}
               onRemove={() => setDxtFile(null)}
-              fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}
-            >
+              fileList={dxtFile ? [{ uid: '-1', name: dxtFile.name, status: 'done' } as any] : []}>
               <Button icon={<UploadOutlined />}>{t('settings.mcp.addServer.importFrom.selectDxtFile')}</Button>
             </Upload>
           </Form.Item>

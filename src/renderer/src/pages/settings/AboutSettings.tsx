@@ -211,8 +211,7 @@ const AboutSettings: FC = () => {
               <Tag
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
                 color="cyan"
-                style={{ marginTop: 8, cursor: 'pointer' }}
-              >
+                style={{ marginTop: 8, cursor: 'pointer' }}>
                 v{version}
               </Tag>
             </VersionWrapper>
@@ -221,8 +220,7 @@ const AboutSettings: FC = () => {
             <CheckUpdateButton
               onClick={onCheckUpdate}
               loading={update.checking}
-              disabled={update.downloading || update.checking}
-            >
+              disabled={update.downloading || update.checking}>
               {update.downloading
                 ? t('settings.about.downloading')
                 : update.available
@@ -254,8 +252,7 @@ const AboutSettings: FC = () => {
                     size="small"
                     buttonStyle="solid"
                     value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}
-                  >
+                    onChange={(e) => handleTestChannelChange(e.target.value)}>
                     {getAvailableTestChannels().map((option) => (
                       <Tooltip key={option.value} title={option.tooltip}>
                         <Radio.Button value={option.value}>{option.label}</Radio.Button>

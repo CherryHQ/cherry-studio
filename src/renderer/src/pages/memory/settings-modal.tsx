@@ -135,14 +135,12 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         body: {
           paddingTop: 24
         }
-      }}
-    >
+      }}>
       <Form form={form} layout="vertical" onFinish={handleFormSubmit}>
         <Form.Item
           label={t('memory.llm_model')}
           name="llmModel"
-          rules={[{ required: true, message: t('memory.please_select_llm_model') }]}
-        >
+          rules={[{ required: true, message: t('memory.please_select_llm_model') }]}>
           <ModelSelector
             providers={providers}
             predicate={llmPredicate}
@@ -152,8 +150,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         <Form.Item
           label={t('memory.embedding_model')}
           name="embedderModel"
-          rules={[{ required: true, message: t('memory.please_select_embedding_model') }]}
-        >
+          rules={[{ required: true, message: t('memory.please_select_embedding_model') }]}>
           <ModelSelector
             providers={providers}
             predicate={embeddingPredicate}
@@ -162,8 +159,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
         </Form.Item>
         <Form.Item
           noStyle
-          shouldUpdate={(prevValues, currentValues) => prevValues.embedderModel !== currentValues.embedderModel}
-        >
+          shouldUpdate={(prevValues, currentValues) => prevValues.embedderModel !== currentValues.embedderModel}>
           {({ getFieldValue }) => {
             const embedderModelId = getFieldValue('embedderModel')
             const embedderModel = findModelById(embedderModelId)
@@ -185,8 +181,7 @@ const MemoriesSettingsModal: FC<MemoriesSettingsModalProps> = ({ visible, onSubm
                       return Promise.reject(new Error(t('knowledge.dimensions_error_invalid')))
                     }
                   }
-                ]}
-              >
+                ]}>
                 <InputEmbeddingDimension model={embedderModel} disabled={!embedderModel} />
               </Form.Item>
             )

@@ -52,8 +52,7 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
       }}
       centered
       closable={true}
-      footer={null}
-    >
+      footer={null}>
       {extension !== undefined ? (
         <Editor
           editable={false}

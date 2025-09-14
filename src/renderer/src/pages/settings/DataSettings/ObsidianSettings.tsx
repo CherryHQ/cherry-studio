@@ -70,8 +70,7 @@ const ObsidianSettings: FC = () => {
                 value={defaultObsidianVault || undefined}
                 onChange={handleChange}
                 placeholder={t('settings.data.obsidian.default_vault_placeholder')}
-                style={{ width: 300 }}
-              >
+                style={{ width: 300 }}>
                 {vaults.map((vault) => (
                   <Option key={vault.name} value={vault.name}>
                     {vault.name}

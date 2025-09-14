@@ -50,16 +50,14 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
     <div
       style={{
         width: '100%'
-      }}
-    >
+      }}>
       <SimpleGrid
         columns={20}
         className="traceItem"
         onClick={(e) => {
           e.preventDefault()
           handleClick(node.id)
-        }}
-      >
+        }}>
         <GridItem colSpan={8} style={{ paddingLeft: `${paddingLeft}px`, textAlign: 'left' }}>
           <HStack gap={2}>
             <IconButton

@@ -181,8 +181,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
       ref={containerRef}
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
-      $height={containerHeight}
-    >
+      $height={containerHeight}>
       <MessagesList ref={messagesListRef} style={{ transform: `translateY(${listOffsetY}px)` }}>
         <MessageItem
           key="bottom-anchor"
@@ -193,8 +192,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
           style={{
             opacity: mouseY ? 0.5 : Math.max(0, 0.6 - (0.3 * Math.abs(0 - messages.length / 2)) / 5)
           }}
-          onClick={scrollToBottom}
-        >
+          onClick={scrollToBottom}>
           <CircleChevronDown
             size={10 + calculateValueByDistance('bottom-anchor', 20)}
             style={{ color: theme === 'dark' ? 'var(--color-text)' : 'var(--color-primary)' }}
@@ -220,8 +218,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
               style={{
                 opacity: mouseY ? opacity : Math.max(0, 0.6 - (0.3 * Math.abs(index - messages.length / 2)) / 5)
               }}
-              onClick={() => scrollToMessage(message)}
-            >
+              onClick={() => scrollToMessage(message)}>
               <MessageItemContainer style={{ transform: ` scale(${scale})` }}>
                 <MessageItemTitle>{username}</MessageItemTitle>
                 <MessageItemContent>{content.substring(0, 50)}</MessageItemContent>
@@ -245,8 +242,7 @@ const MessageAnchorLine: FC<MessageLineProps> = ({ messages }) => {
                       style={{
                         cursor: 'default',
                         pointerEvents: 'none'
-                      }}
-                    >
+                      }}>
                       {avatar}
                     </EmojiAvatar>
                   ) : (
