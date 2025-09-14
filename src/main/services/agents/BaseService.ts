@@ -5,6 +5,7 @@ import { app } from 'electron'
 import path from 'path'
 
 import * as schema from './database/schema'
+import { syncDatabaseSchema } from './schemaSyncer'
 
 const logger = loggerService.withContext('BaseService')
 
@@ -38,8 +39,8 @@ export abstract class BaseService {
 
       BaseService.db = drizzle(BaseService.client, { schema })
 
-      // For new development, tables will be created by Drizzle Kit migrations
-      // or can be created programmatically as needed
+      // Auto-sync database schema on startup
+      await syncDatabaseSchema()
 
       BaseService.isInitialized = true
       logger.info('Agent database initialized successfully')
