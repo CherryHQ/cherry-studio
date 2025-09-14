@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { WebviewTag } from 'electron'
 import React, { useEffect, useRef } from 'react'
