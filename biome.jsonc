@@ -48,7 +48,7 @@
     "formatter": {
       "arrowParentheses": "always",
       "attributePosition": "auto",
-      "bracketSameLine": false,
+      "bracketSameLine": true, // false is better. toggle it in the future
       "bracketSpacing": true,
       "jsxQuoteStyle": "double",
       "quoteProperties": "asNeeded",
