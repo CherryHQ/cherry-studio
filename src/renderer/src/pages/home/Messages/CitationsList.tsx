@@ -80,7 +80,8 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
               marginBottom: -8,
               fontWeight: 'bold',
               borderBottom: '0.5px solid var(--color-border)'
-            }}>
+            }}
+          >
             {t('message.citations')}
           </div>
         }
@@ -90,7 +91,8 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
           body: {
             padding: '0 0 8px 0'
           }
-        }}>
+        }}
+      >
         <OpenButton type="text">
           <PreviewIcons>
             {previewItems.map((c, i) => (

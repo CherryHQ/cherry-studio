@@ -99,7 +99,8 @@ const MinAppTabsPool: React.FC = () => {
           : { visibility: 'hidden' }
       }
       data-minapp-tabs-pool
-      aria-hidden={!shouldShow}>
+      aria-hidden={!shouldShow}
+    >
       {apps.map((app) => (
         <WebviewWrapper key={app.id} $active={app.id === currentMinappId}>
           <WebviewContainer

@@ -390,7 +390,8 @@ const RichEditor = ({
       $isFullWidth={isFullWidth}
       $fontFamily={fontFamily}
       $fontSize={fontSize}
-      onKeyDown={onKeyDownEditor}>
+      onKeyDown={onKeyDownEditor}
+    >
       {showToolbar && (
         <Toolbar
           editor={editor}

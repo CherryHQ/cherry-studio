@@ -287,12 +287,14 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     </div>
                   </StepHeader>
                   <Tooltip
-                    title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
+                    title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}
+                  >
                     <Button
                       type="primary"
                       loading={loading}
                       disabled={!verificationPageOpened}
-                      onClick={handleGetToken}>
+                      onClick={handleGetToken}
+                    >
                       {t('settings.provider.copilot.connect')}
                     </Button>
                   </Tooltip>

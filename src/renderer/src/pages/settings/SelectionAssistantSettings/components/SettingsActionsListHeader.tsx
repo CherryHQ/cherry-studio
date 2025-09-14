@@ -31,13 +31,15 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
           isCustomItemLimitReached
             ? t('selection.settings.actions.add_tooltip.disabled', { max: maxCustomItems })
             : t('selection.settings.actions.add_tooltip.enabled')
-        }>
+        }
+      >
         <Button
           type="primary"
           icon={<Plus size={16} />}
           onClick={onAdd}
           disabled={isCustomItemLimitReached}
-          style={{ paddingInline: '8px' }}>
+          style={{ paddingInline: '8px' }}
+        >
           {t('selection.settings.actions.custom')}
         </Button>
       </Tooltip>

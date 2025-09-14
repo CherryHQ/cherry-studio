@@ -193,7 +193,8 @@ const SettingsTab: FC<Props> = (props) => {
               onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
             />
           </HStack>
-        }>
+        }
+      >
         <SettingGroup style={{ marginTop: 5 }}>
           <Row align="middle">
             <SettingRowTitleSmall>

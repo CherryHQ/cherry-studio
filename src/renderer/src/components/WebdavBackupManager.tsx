@@ -245,7 +245,8 @@ export function WebdavBackupManager({
             type="link"
             danger
             onClick={() => handleDeleteSingle(record.fileName)}
-            disabled={deleting || restoring}>
+            disabled={deleting || restoring}
+          >
             {t('settings.data.webdav.backup.manager.delete.text')}
           </Button>
         </>
@@ -278,13 +279,15 @@ export function WebdavBackupManager({
           icon={<DeleteOutlined />}
           onClick={handleDeleteSelected}
           disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}>
+          loading={deleting}
+        >
           {t('settings.data.webdav.backup.manager.delete.selected')} ({selectedRowKeys.length})
         </Button>,
         <Button key="close" onClick={onClose}>
           {t('common.close')}
         </Button>
-      ]}>
+      ]}
+    >
       <Table
         rowKey="fileName"
         columns={columns}

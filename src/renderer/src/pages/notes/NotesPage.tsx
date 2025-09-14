@@ -608,7 +608,8 @@ const NotesPage: FC = () => {
               animate={{ width: 250, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
+              style={{ overflow: 'hidden' }}
+            >
               <NotesSidebar
                 notesTree={notesTree}
                 selectedFolderId={selectedFolderId}

@@ -305,7 +305,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       className="messages-container"
       ref={scrollContainerRef}
       key={assistant.id}
-      onScroll={handleScrollPosition}>
+      onScroll={handleScrollPosition}
+    >
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}
@@ -314,7 +315,8 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
           loader={null}
           scrollableTarget="messages"
           inverse
-          style={{ overflow: 'visible' }}>
+          style={{ overflow: 'visible' }}
+        >
           <ContextMenu>
             <ScrollContainer>
               {groupedMessages.map(([key, groupMessages]) => (

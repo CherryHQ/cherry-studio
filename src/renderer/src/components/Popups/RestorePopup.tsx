@@ -72,7 +72,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       cancelButtonProps={{ disabled: isDisabled }}
       maskClosable={false}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       {!progressData && <div>{t('restore.content')}</div>}
       {progressData && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>

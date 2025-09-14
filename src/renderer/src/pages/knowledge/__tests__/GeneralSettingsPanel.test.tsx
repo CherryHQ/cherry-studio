@@ -57,7 +57,8 @@ vi.mock('@renderer/components/ModelSelector', () => ({
         data-placeholder={placeholder}
         data-allow-clear={allowClear}
         data-model-type={isEmbedding ? 'embedding' : isRerank ? 'rerank' : 'unknown'}
-        data-has-providers={hasProviders}>
+        data-has-providers={hasProviders}
+      >
         <option value="">Select model</option>
         {isEmbedding && (
           <>
@@ -127,7 +128,8 @@ vi.mock('antd', () => ({
       value={value || ''}
       onChange={(e) => onChange?.(e.target.value)}
       data-placeholder={placeholder}
-      data-allow-clear={allowClear}>
+      data-allow-clear={allowClear}
+    >
       <option value="">Select option</option>
       {options?.map((option: any) => (
         <option key={option.value} value={option.value}>
@@ -149,7 +151,8 @@ vi.mock('antd', () => ({
           style={{
             backgroundColor: value === option.value ? '#1677ff' : '#fff',
             color: value === option.value ? '#fff' : '#000'
-          }}>
+          }}
+        >
           {option.label}
         </button>
       ))}

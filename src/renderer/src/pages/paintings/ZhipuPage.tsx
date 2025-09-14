@@ -409,7 +409,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           <Select
             value={isCustomSize ? 'custom' : painting.imageSize}
             onChange={onSelectImageSize}
-            style={{ width: '100%' }}>
+            style={{ width: '100%' }}
+          >
             {IMAGE_SIZES.map((size) => (
               <Select.Option key={size.value} value={size.value}>
                 {size.label}

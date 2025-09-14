@@ -69,7 +69,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Form
         form={form}
         labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
@@ -79,12 +80,14 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
         onFinish={onFinish}
         initialValues={{
           endpointType: 'openai'
-        }}>
+        }}
+      >
         <Form.Item
           name="endpointType"
           label={t('settings.models.add.endpoint_type.label')}
           tooltip={t('settings.models.add.endpoint_type.tooltip')}
-          rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
+          rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}
+        >
           <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
             {endpointTypeOptions.map((opt) => (
               <Select.Option key={opt.value} value={opt.value}>

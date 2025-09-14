@@ -110,7 +110,8 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       }}
       width="min(800px, 70vw)"
       height="80vh"
-      centered>
+      centered
+    >
       <HStack>
         <LeftMenu>
           <StyledMenu

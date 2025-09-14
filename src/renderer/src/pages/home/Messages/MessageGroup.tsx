@@ -234,7 +234,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
               [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
               selected: message.id === selectedMessageId
             }
-          ])}>
+          ])}
+        >
           <MessageItem
             onUpdateUseful={onUpdateUseful}
             isGroupContextMessage={isGrouped && message.id === groupContextMessageId}
@@ -256,7 +257,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
                     [multiModelMessageStyle]: message.role === 'assistant' && messages.length > 1,
                     selected: message.id === selectedMessageId
                   }
-                ])}>
+                ])}
+              >
                 <MessageItem onUpdateUseful={onUpdateUseful} {...messageProps} />
               </MessageWrapper>
             }
@@ -264,7 +266,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
             styles={{
               root: { maxWidth: '60vw', overflowY: 'auto', zIndex: 1000 },
               body: { padding: 2 }
-            }}>
+            }}
+          >
             {messageContent}
           </Popover>
         )
@@ -290,11 +293,13 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
       <GroupContainer
         id={messages[0].askId ? `message-group-${messages[0].askId}` : undefined}
         className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
-        style={{ maxWidth }}>
+        style={{ maxWidth }}
+      >
         <GridContainer
           $count={messageLength}
           $gridColumns={gridColumns}
-          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
+        >
           {messages.map(renderMessage)}
         </GridContainer>
         {isGrouped && (

@@ -175,7 +175,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
-            }}>
+            }}
+          >
             {t('settings.provider.api_key.label')}
             <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
@@ -195,7 +196,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               ghost={apiValid}
               type={apiValid ? 'primary' : 'default'}
               onClick={checkSearch}
-              disabled={apiChecking}>
+              disabled={apiChecking}
+            >
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -257,7 +259,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 if ('password' in changedValues) {
                   setBasicAuthPassword(changedValues.password || '')
                 }
-              }}>
+              }}
+            >
               <Form.Item label={t('settings.provider.basic_auth.user_name.label')} name="username">
                 <Input
                   placeholder={t('settings.provider.basic_auth.user_name.tip')}
@@ -269,7 +272,8 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 name="password"
                 rules={[{ required: !!basicAuthUsername, validateTrigger: ['onBlur', 'onChange'] }]}
                 help=""
-                hidden={!basicAuthUsername}>
+                hidden={!basicAuthUsername}
+              >
                 <Input.Password
                   placeholder={t('settings.provider.basic_auth.password.tip')}
                   onBlur={onUpdateBasicAuthPassword}

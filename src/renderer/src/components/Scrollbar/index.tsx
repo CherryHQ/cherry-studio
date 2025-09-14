@@ -52,7 +52,8 @@ const Scrollbar: FC<ScrollbarProps> = ({ ref: passedRef, children, onScroll: ext
       {...htmlProps} // Pass other HTML attributes
       $isScrolling={isScrolling}
       onScroll={combinedOnScroll} // Use the combined handler
-      ref={passedRef}>
+      ref={passedRef}
+    >
       {children}
     </ScrollBarContainer>
   )

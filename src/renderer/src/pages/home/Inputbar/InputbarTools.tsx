@@ -312,7 +312,8 @@ const InputbarTools = ({
             placement="top"
             title={t('chat.input.new_topic', { Command: newTopicShortcut })}
             mouseLeaveDelay={0}
-            arrow>
+            arrow
+          >
             <ToolbarButton type="text" onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
             </ToolbarButton>
@@ -431,7 +432,8 @@ const InputbarTools = ({
             placement="top"
             title={t('chat.input.clear.label', { Command: cleanTopicShortcut })}
             mouseLeaveDelay={0}
-            arrow>
+            arrow
+          >
             <ToolbarButton type="text" onClick={clearTopic}>
               <PaintbrushVertical size={18} />
             </ToolbarButton>
@@ -446,7 +448,8 @@ const InputbarTools = ({
             placement="top"
             title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
             mouseLeaveDelay={0}
-            arrow>
+            arrow
+          >
             <ToolbarButton type="text" onClick={onToggleExpended}>
               {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
             </ToolbarButton>
@@ -553,7 +556,8 @@ const InputbarTools = ({
           if (!isToolButton) {
             setTargetTool(null)
           }
-        }}>
+        }}
+      >
         <DragDropContext onDragEnd={handleDragEnd}>
           <Droppable droppableId="inputbar-tools-visible" direction="horizontal">
             {(provided) => (
@@ -572,7 +576,8 @@ const InputbarTools = ({
                               {...provided.dragHandleProps}
                               style={{
                                 ...provided.draggableProps.style
-                              }}>
+                              }}
+                            >
                               {tool.component}
                             </ToolWrapper>
                           </DraggablePortal>
@@ -609,7 +614,8 @@ const InputbarTools = ({
                               style={{
                                 ...provided.draggableProps.style,
                                 transitionDelay: `${index * 0.02}s`
-                              }}>
+                              }}
+                            >
                               {tool.component}
                             </ToolWrapper>
                           </DraggablePortal>
@@ -627,7 +633,8 @@ const InputbarTools = ({
           <Tooltip
             placement="top"
             title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
-            arrow>
+            arrow
+          >
             <ToolbarButton type="text" onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
               <CircleChevronRight
                 size={18}

@@ -67,7 +67,8 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
           padding: '12px',
           borderRadius: '8px'
         }
-      }}>
+      }}
+    >
       {children}
     </Tooltip>
   )

@@ -303,7 +303,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         <Form.Item
           label={t('chat.save.knowledge.select.base.title')}
           help={!formState.hasValidBase && selectedBaseId ? t('chat.save.knowledge.error.invalid_base') : undefined}
-          validateStatus={!formState.hasValidBase && selectedBaseId ? 'error' : undefined}>
+          validateStatus={!formState.hasValidBase && selectedBaseId ? 'error' : undefined}
+        >
           <Select
             value={selectedBaseId}
             onChange={setSelectedBaseId}
@@ -319,18 +320,21 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
               isTopicMode
                 ? 'chat.save.topic.knowledge.select.content.label'
                 : 'chat.save.knowledge.select.content.title'
-            )}>
+            )}
+          >
             <Flex gap={8} style={{ flexDirection: 'column' }}>
               {contentTypeOptions.map((option) => (
                 <ContentTypeItem
                   key={option.type}
                   align="center"
                   justify="space-between"
-                  onClick={() => handleContentTypeToggle(option.type)}>
+                  onClick={() => handleContentTypeToggle(option.type)}
+                >
                   <Flex align="center" gap={8}>
                     <CustomTag
                       color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
-                      size={12}>
+                      size={12}
+                    >
                       {option.count}
                     </CustomTag>
                     <span>{option.label}</span>
@@ -397,7 +401,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
       width={500}
       okText={t('common.save')}
       cancelText={t('common.cancel')}
-      okButtonProps={{ loading, disabled: !formState.canSubmit || analysisLoading }}>
+      okButtonProps={{ loading, disabled: !formState.canSubmit || analysisLoading }}
+    >
       {uiState.type === 'form' ? renderFormContent() : renderEmptyState()}
     </Modal>
   )

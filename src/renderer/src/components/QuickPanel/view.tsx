@@ -550,7 +550,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           onClick={(e) => {
             e.stopPropagation()
             handleItemAction(item, 'click')
-          }}>
+          }}
+        >
           <QuickPanelItemLeft>
             <QuickPanelItemIcon>{item.icon}</QuickPanelItemIcon>
             <QuickPanelItemLabel>{item.label}</QuickPanelItemLabel>
@@ -581,7 +582,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $selectedColorHover={selectedColorHover}
       $collapsed={collapsed}
       className={ctx.isVisible ? 'visible' : ''}
-      data-testid="quick-panel">
+      data-testid="quick-panel"
+    >
       <QuickPanelBody
         ref={bodyRef}
         onMouseMove={() =>
@@ -589,7 +591,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             scrollTriggerRef.current = 'initial'
             return prev ? prev : true
           })
-        }>
+        }
+      >
         {!collapsed && (
           <DynamicVirtualList
             ref={listRef}
@@ -599,7 +602,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             overscan={5}
             scrollerStyle={{
               pointerEvents: isMouseOver ? 'auto' : 'none'
-            }}>
+            }}
+          >
             {rowRenderer}
           </DynamicVirtualList>
         )}

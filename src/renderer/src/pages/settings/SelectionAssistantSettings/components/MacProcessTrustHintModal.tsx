@@ -39,7 +39,8 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
         </div>
       }
       centered
-      destroyOnHidden>
+      destroyOnHidden
+    >
       <ContentContainer>
         <Paragraph>
           <Text>

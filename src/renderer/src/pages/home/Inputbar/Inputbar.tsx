@@ -862,12 +862,14 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         onDrop={handleDrop}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
-        className="inputbar">
+        className="inputbar"
+      >
         <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
           className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
-          ref={containerRef}>
+          ref={containerRef}
+        >
           {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
           {selectedKnowledgeBases.length > 0 && (
             <KnowledgeBaseInput

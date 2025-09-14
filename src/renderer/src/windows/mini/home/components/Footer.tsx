@@ -55,7 +55,8 @@ const Footer: FC<FooterProps> = ({
             )
           }
           className="nodrag"
-          onClick={onEsc}>
+          onClick={onEsc}
+        >
           {t('miniwindow.footer.esc', {
             action: loading
               ? t('miniwindow.footer.esc_pause')
@@ -70,7 +71,8 @@ const Footer: FC<FooterProps> = ({
             icon={<ArrowLeftOutlined />}
             style={{ cursor: 'pointer' }}
             className="nodrag"
-            onClick={() => clearClipboard!()}>
+            onClick={() => clearClipboard!()}
+          >
             {t('miniwindow.footer.backspace_clear')}
           </Tag>
         )}
@@ -80,7 +82,8 @@ const Footer: FC<FooterProps> = ({
             icon={<Copy size={14} color="var(--color-text)" />}
             style={{ cursor: 'pointer' }}
             className="nodrag"
-            onClick={handleCopy}>
+            onClick={handleCopy}
+          >
             {t('miniwindow.footer.copy_last_message')}
           </Tag>
         )}

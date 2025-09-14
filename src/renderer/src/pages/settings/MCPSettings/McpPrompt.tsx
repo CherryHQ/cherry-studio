@@ -30,7 +30,8 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                     </Tooltip>
                   )}
                 </Flex>
-              }>
+              }
+            >
               <Flex vertical gap={4}>
                 {arg.description && (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
@@ -64,7 +65,8 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                     </Typography.Text>
                   )}
                 </Flex>
-              }>
+              }
+            >
               <SelectableContent>{renderPromptArguments(prompt)}</SelectableContent>
             </Collapse.Panel>
           ))}

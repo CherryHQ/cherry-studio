@@ -126,7 +126,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
           <Popconfirm
             title={t('translate.history.clear')}
             description={t('translate.history.clear_description')}
-            onConfirm={clearHistory}>
+            onConfirm={clearHistory}
+          >
             <Button type="text" size="small" danger icon={<DeleteOutlined />}>
               {t('translate.history.clear')}
             </Button>
@@ -141,7 +142,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
         header: {
           paddingTop: 'var(--navbar-height)'
         }
-      }}>
+      }}
+    >
       <HistoryContainer>
         {/* Search Bar */}
         <HStack style={{ padding: '0 12px', borderBottom: '1px solid var(--ant-color-split)' }}>
@@ -197,7 +199,8 @@ const TranslateHistoryList: FC<TranslateHistoryProps> = ({ isOpen, onHistoryItem
                               }}
                               onPopupClick={(e) => {
                                 e.stopPropagation()
-                              }}>
+                              }}
+                            >
                               <Button
                                 icon={<DeleteOutlined />}
                                 danger

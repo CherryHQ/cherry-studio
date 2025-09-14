@@ -23,7 +23,8 @@ export const ToCItem: React.FC<ToCItemProps> = ({ item, onItemClick }) => {
         {
           '--level': item.level
         } as React.CSSProperties
-      }>
+      }
+    >
       <a href={`#${item.id}`} onClick={(e) => onItemClick(e, item.id)} data-item-index={item.itemIndex}>
         {item.textContent}
       </a>

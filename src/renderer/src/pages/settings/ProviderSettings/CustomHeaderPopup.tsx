@@ -70,7 +70,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       afterClose={onClose}
       maskClosable={false}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Space.Compact direction="vertical" style={{ width: '100%', marginTop: 5 }}>
         <SettingHelpText>{t('settings.provider.copilot.headers_description')}</SettingHelpText>
         <CodeEditor

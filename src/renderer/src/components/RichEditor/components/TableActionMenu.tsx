@@ -73,7 +73,8 @@ export const TableActionMenu: FC<TableActionMenuProps> = ({ show, position, acti
         boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
         minWidth: '160px',
         padding: '4px 0'
-      }}>
+      }}
+    >
       {actions.map((action, index) => (
         <button
           key={index}
@@ -99,7 +100,8 @@ export const TableActionMenu: FC<TableActionMenuProps> = ({ show, position, acti
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent'
-          }}>
+          }}
+        >
           {action.icon && <span>{action.icon}</span>}
           <span>{action.label}</span>
         </button>

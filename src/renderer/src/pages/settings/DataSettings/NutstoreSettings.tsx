@@ -224,7 +224,8 @@ const NutstoreSettings: FC = () => {
               type={nsConnected ? 'primary' : 'default'}
               ghost={nsConnected}
               onClick={handleCheckConnection}
-              loading={checkConnectionLoading}>
+              loading={checkConnectionLoading}
+            >
               {checkConnectionLoading ? (
                 <LoadingOutlined spin />
               ) : nsConnected ? (

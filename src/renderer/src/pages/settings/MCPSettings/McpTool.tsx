@@ -66,7 +66,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                   </Tooltip>
                 )}
               </Flex>
-            }>
+            }
+          >
             <Flex vertical gap={4}>
               <Flex align="center" gap={8}>
                 {prop.type && (
@@ -126,7 +127,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             <Typography.Paragraph
               type="secondary"
               style={{ fontSize: '13px' }}
-              ellipsis={{ rows: 1, expandable: true }}>
+              ellipsis={{ rows: 1, expandable: true }}
+            >
               {tool.description}
             </Typography.Paragraph>
           )}
@@ -166,7 +168,8 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
                 ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
                 : t('settings.mcp.tools.autoApprove.tooltip.disabled')
           }
-          placement="top">
+          placement="top"
+        >
           <Switch
             checked={isToolAutoApproved(tool, server)}
             disabled={!isToolEnabled(tool)}

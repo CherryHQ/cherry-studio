@@ -78,7 +78,8 @@ function DraggableList<T>({
                           ...listStyle,
                           ...provided.draggableProps.style,
                           marginBottom: 8
-                        }}>
+                        }}
+                      >
                         {children(item, index)}
                       </div>
                     )}

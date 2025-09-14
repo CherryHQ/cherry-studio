@@ -78,7 +78,8 @@ export function S3BackupModal({
       onCancel={handleCancel}
       okButtonProps={{ loading: backuping }}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Input
         value={customFileName}
         onChange={(e) => setCustomFileName(e.target.value)}
@@ -222,7 +223,8 @@ export function S3RestoreModal({
       okButtonProps={{ loading: restoring }}
       width={600}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <div style={{ position: 'relative' }}>
         <Select
           style={{ width: '100%' }}

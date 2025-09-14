@@ -265,12 +265,14 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             ? ''
             : model.pricing?.currencySymbol || ''
         }}
-        onFinish={onFinish}>
+        onFinish={onFinish}
+      >
         <Form.Item
           name="id"
           label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
-          rules={[{ required: true }]}>
+          rules={[{ required: true }]}
+        >
           <Flex justify="space-between" gap={5}>
             <Input
               placeholder={t('settings.models.add.model_id.placeholder')}
@@ -300,13 +302,15 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <Form.Item
           name="name"
           label={t('settings.models.add.model_name.label')}
-          tooltip={t('settings.models.add.model_name.tooltip')}>
+          tooltip={t('settings.models.add.model_name.tooltip')}
+        >
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
           label={t('settings.models.add.group_name.label')}
-          tooltip={t('settings.models.add.group_name.tooltip')}>
+          tooltip={t('settings.models.add.group_name.tooltip')}
+        >
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         {provider.id === 'new-api' && (
@@ -314,7 +318,8 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             name="endpointType"
             label={t('settings.models.add.endpoint_type.label')}
             tooltip={t('settings.models.add.endpoint_type.tooltip')}
-            rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
+            rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}
+          >
             <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
               {endpointTypeOptions.map((opt) => (
                 <Select.Option key={opt.value} value={opt.value}>
@@ -332,7 +337,8 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               icon={showMoreSettings ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               iconPosition="end"
               onClick={() => setShowMoreSettings(!showMoreSettings)}
-              style={{ color: 'var(--color-text-3)' }}>
+              style={{ color: 'var(--color-text-3)' }}
+            >
               {t('settings.moresetting.label')}
             </Button>
             <Button type="primary" htmlType="submit" icon={<SaveIcon size={16} />}>
@@ -350,7 +356,8 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               style={{ marginBottom: 10 }}
               labelCol={{ flex: 1 }}
               label={t('settings.models.add.supported_text_delta.label')}
-              tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
+              tooltip={t('settings.models.add.supported_text_delta.tooltip')}
+            >
               <Switch
                 checked={supportedTextDelta}
                 style={{ marginLeft: 'auto' }}
@@ -396,7 +403,8 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
                 name="customCurrencySymbol"
                 label={t('models.price.custom_currency')}
                 style={{ marginBottom: 10 }}
-                rules={[{ required: isCustomCurrency }]}>
+                rules={[{ required: isCustomCurrency }]}
+              >
                 <Input
                   style={{ width: '100px' }}
                   placeholder={t('models.price.custom_currency_placeholder')}

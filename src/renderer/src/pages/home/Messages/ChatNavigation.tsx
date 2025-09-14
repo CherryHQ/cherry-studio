@@ -403,7 +403,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             padding: 0,
             height: 'calc(100% - 55px)'
           }
-        }}>
+        }}
+      >
         <ChatFlowHistory conversationId={currentTopicId || undefined} />
       </Drawer>
     </>

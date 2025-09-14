@@ -405,7 +405,8 @@ const DisplaySettings: FC = () => {
       {navbarPosition === 'left' && (
         <SettingGroup theme={theme}>
           <SettingTitle
-            style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <span>{t('settings.display.sidebar.title')}</span>
             <ResetButtonWrapper>
               <Button onClick={handleReset}>{t('common.reset')}</Button>

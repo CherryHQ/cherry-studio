@@ -54,7 +54,8 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
         <Button key="modal-save" type="primary" onClick={handleSave}>
           {t('common.save')}
         </Button>
-      ]}>
+      ]}
+    >
       <UserTip>
         {isWin
           ? t('selection.settings.filter_modal.user_tips.windows')

@@ -16,7 +16,8 @@ export const ReasoningTag = ({ size, showTooltip, showLabel, ...restProps }: Pro
       color="#6372bd"
       icon={<i className="iconfont icon-thinking" />}
       tooltip={showTooltip ? t('models.type.reasoning') : undefined}
-      {...restProps}>
+      {...restProps}
+    >
       {showLabel ? t('models.type.reasoning') : ''}
     </CustomTag>
   )

@@ -194,7 +194,8 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
       width={550}
       footer={null}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <ContentContainer>
         {/* Only show provider selector if there are multiple providers */}
 
@@ -259,7 +260,8 @@ const PopupContainer: React.FC<Props> = ({ resolve, existingServers }) => {
                       required: true,
                       message: t('settings.mcp.sync.tokenRequired', 'API Token is required')
                     }
-                  ]}>
+                  ]}
+                >
                   <Input.Password
                     placeholder={t('settings.mcp.sync.tokenPlaceholder', 'Enter API token here')}
                     onChange={(e) => {

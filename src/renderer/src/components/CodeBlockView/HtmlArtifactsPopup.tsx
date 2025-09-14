@@ -82,21 +82,24 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
             size="small"
             type={viewMode === 'split' ? 'primary' : 'default'}
             icon={<SquareSplitHorizontal size={14} />}
-            onClick={() => setViewMode('split')}>
+            onClick={() => setViewMode('split')}
+          >
             {t('html_artifacts.split')}
           </ViewButton>
           <ViewButton
             size="small"
             type={viewMode === 'code' ? 'primary' : 'default'}
             icon={<Code size={14} />}
-            onClick={() => setViewMode('code')}>
+            onClick={() => setViewMode('code')}
+          >
             {t('html_artifacts.code')}
           </ViewButton>
           <ViewButton
             size="small"
             type={viewMode === 'preview' ? 'primary' : 'default'}
             icon={<Eye size={14} />}
-            onClick={() => setViewMode('preview')}>
+            onClick={() => setViewMode('preview')}
+          >
             {t('html_artifacts.preview')}
           </ViewButton>
         </ViewControls>
@@ -120,7 +123,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
                 onClick: () => handleCapture('clipboard')
               }
             ]
-          }}>
+          }}
+        >
           <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
             <Button type="text" icon={<Camera size={16} />} className="nodrag" />
           </Tooltip>
@@ -230,7 +234,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       }}
       zIndex={isFullscreen ? 10000 : 1000}
       footer={null}
-      closable={false}>
+      closable={false}
+    >
       <Container>{renderContent()}</Container>
     </StyledModal>
   )

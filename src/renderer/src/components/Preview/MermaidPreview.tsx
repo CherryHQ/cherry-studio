@@ -129,7 +129,8 @@ const MermaidPreview = ({
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
-      source="mermaid">
+      source="mermaid"
+    >
       <ShadowTransparentContainer ref={containerRef} className="mermaid special-preview" />
     </ImagePreviewLayout>
   )

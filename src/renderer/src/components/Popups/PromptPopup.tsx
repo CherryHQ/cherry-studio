@@ -67,7 +67,8 @@ const PromptPopupContainer: React.FC<Props> = ({
       afterClose={onAfterClose}
       afterOpenChange={handleAfterOpenChange}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Box mb={8}>{message}</Box>
       <Input.TextArea
         ref={textAreaRef}

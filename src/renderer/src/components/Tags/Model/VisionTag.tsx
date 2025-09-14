@@ -18,7 +18,8 @@ export const VisionTag = ({ size, showTooltip, showLabel, ...restProps }: Props)
       color="#00b96b"
       icon={<EyeOutlined style={{ fontSize: size }} />}
       tooltip={showTooltip ? t('models.type.vision') : undefined}
-      {...restProps}>
+      {...restProps}
+    >
       {showLabel ? t('models.type.vision') : ''}
     </CustomTag>
   )

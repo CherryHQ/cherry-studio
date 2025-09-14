@@ -87,7 +87,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}>
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+            >
               <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginRight: 8 }}>
                 <Menu size={18} />
               </NavbarIcon>

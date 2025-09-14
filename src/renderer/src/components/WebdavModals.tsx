@@ -76,7 +76,8 @@ export function WebdavBackupModal({
       onCancel={handleCancel}
       okButtonProps={{ loading: backuping }}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Input
         value={customFileName}
         onChange={(e) => setCustomFileName(e.target.value)}

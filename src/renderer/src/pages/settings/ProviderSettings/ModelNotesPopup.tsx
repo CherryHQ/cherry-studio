@@ -46,7 +46,8 @@ const PopupContainer: FC<Props> = ({ provider: _provider, resolve }) => {
       afterClose={onClose}
       width={800}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <EditorContainer>
         <MarkdownEditor
           value={notes}

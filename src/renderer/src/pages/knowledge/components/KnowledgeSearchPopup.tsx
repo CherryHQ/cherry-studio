@@ -94,7 +94,8 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           overflow: 'hidden',
           padding: 0
         }
-      }}>
+      }}
+    >
       <HStack style={{ padding: '0 12px', marginTop: 8 }}>
         <Input
           ref={searchInputRef}

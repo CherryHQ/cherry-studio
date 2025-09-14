@@ -465,19 +465,22 @@ const MessageMenubar: FC<Props> = (props) => {
     <>
       {showMessageTokens && <MessageTokens message={message} />}
       <MenusBar
-        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
+        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}
+      >
         {message.role === 'user' &&
           (confirmRegenerateMessage ? (
             <Popconfirm
               title={t('message.regenerate.confirm')}
               okButtonProps={{ danger: true }}
               onConfirm={() => handleResendUserMessage()}
-              onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+              onOpenChange={(open) => open && setShowDeleteTooltip(false)}
+            >
               <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => e.stopPropagation()}
-                  $softHoverBg={isBubbleStyle}>
+                  $softHoverBg={isBubbleStyle}
+                >
                   <RefreshIcon size={15} />
                 </ActionButton>
               </Tooltip>
@@ -487,7 +490,8 @@ const MessageMenubar: FC<Props> = (props) => {
               <ActionButton
                 className="message-action-button"
                 onClick={() => handleResendUserMessage()}
-                $softHoverBg={isBubbleStyle}>
+                $softHoverBg={isBubbleStyle}
+              >
                 <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
@@ -511,12 +515,14 @@ const MessageMenubar: FC<Props> = (props) => {
               title={t('message.regenerate.confirm')}
               okButtonProps={{ danger: true }}
               onConfirm={onRegenerate}
-              onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+              onOpenChange={(open) => open && setShowDeleteTooltip(false)}
+            >
               <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => e.stopPropagation()}
-                  $softHoverBg={softHoverBg}>
+                  $softHoverBg={softHoverBg}
+                >
                   <RefreshIcon size={15} />
                 </ActionButton>
               </Tooltip>
@@ -599,12 +605,14 @@ const MessageMenubar: FC<Props> = (props) => {
             }}
             trigger={['click']}
             placement="top"
-            arrow>
+            arrow
+          >
             <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => e.stopPropagation()}
-                $softHoverBg={softHoverBg}>
+                $softHoverBg={softHoverBg}
+              >
                 <Languages size={15} />
               </ActionButton>
             </Tooltip>
@@ -631,7 +639,8 @@ const MessageMenubar: FC<Props> = (props) => {
                 const markdown = messageToMarkdown(message)
                 exportMessageToNotes(title, markdown, notesPath)
               }}
-              $softHoverBg={softHoverBg}>
+              $softHoverBg={softHoverBg}
+            >
               <NotebookPen size={15} />
             </ActionButton>
           </Tooltip>
@@ -641,16 +650,19 @@ const MessageMenubar: FC<Props> = (props) => {
             title={t('message.message.delete.content')}
             okButtonProps={{ danger: true }}
             onConfirm={() => deleteMessage(message.id, message.traceId, message.model?.name)}
-            onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
+            onOpenChange={(open) => open && setShowDeleteTooltip(false)}
+          >
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
-              $softHoverBg={softHoverBg}>
+              $softHoverBg={softHoverBg}
+            >
               <Tooltip
                 title={t('common.delete')}
                 mouseEnterDelay={1}
                 open={showDeleteTooltip}
-                onOpenChange={setShowDeleteTooltip}>
+                onOpenChange={setShowDeleteTooltip}
+              >
                 <DeleteIcon size={15} />
               </Tooltip>
             </ActionButton>
@@ -662,12 +674,14 @@ const MessageMenubar: FC<Props> = (props) => {
               e.stopPropagation()
               deleteMessage(message.id, message.traceId, message.model?.name)
             }}
-            $softHoverBg={softHoverBg}>
+            $softHoverBg={softHoverBg}
+          >
             <Tooltip
               title={t('common.delete')}
               mouseEnterDelay={1}
               open={showDeleteTooltip}
-              onOpenChange={setShowDeleteTooltip}>
+              onOpenChange={setShowDeleteTooltip}
+            >
               <DeleteIcon size={15} />
             </Tooltip>
           </ActionButton>
@@ -683,11 +697,13 @@ const MessageMenubar: FC<Props> = (props) => {
           <Dropdown
             menu={{ items: dropdownItems, onClick: (e) => e.domEvent.stopPropagation() }}
             trigger={['click']}
-            placement="topRight">
+            placement="topRight"
+          >
             <ActionButton
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
-              $softHoverBg={softHoverBg}>
+              $softHoverBg={softHoverBg}
+            >
               <Menu size={19} />
             </ActionButton>
           </Dropdown>

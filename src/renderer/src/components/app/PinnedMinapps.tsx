@@ -90,7 +90,8 @@ export const SidebarOpenedMinappTabs: FC = () => {
                   <Icon
                     theme={theme}
                     onClick={() => handleOnClick(app)}
-                    className={`${isActive ? 'opened-active' : ''}`}>
+                    className={`${isActive ? 'opened-active' : ''}`}
+                  >
                     <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
                   </Icon>
                 </Dropdown>
@@ -131,7 +132,8 @@ export const SidebarPinnedApps: FC = () => {
               <Icon
                 theme={theme}
                 onClick={() => openMinappKeepAlive(app)}
-                className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}>
+                className={`${isActive ? 'active' : ''} ${openedKeepAliveMinapps.some((item) => item.id === app.id) ? 'opened-minapp' : ''}`}
+              >
                 <MinAppIcon size={20} app={app} style={{ borderRadius: 6 }} sidebar />
               </Icon>
             </Dropdown>

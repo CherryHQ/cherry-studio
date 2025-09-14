@@ -25,7 +25,8 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
     version="1.1"
     id="svg4"
     xmlns="http://www.w3.org/2000/svg"
-    {...props}>
+    {...props}
+  >
     <defs id="defs1" />
     <rect
       width="14.165795"
@@ -93,7 +94,8 @@ const WindowControls: React.FC = () => {
       <Tooltip
         title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
         placement="bottom"
-        mouseEnterDelay={DEFAULT_DELAY}>
+        mouseEnterDelay={DEFAULT_DELAY}
+      >
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>

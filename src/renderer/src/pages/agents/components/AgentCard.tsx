@@ -158,7 +158,8 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
                     items: menuItems
                   }}
                   trigger={['click']}
-                  placement="bottomRight">
+                  placement="bottomRight"
+                >
                   <MenuButton
                     onClick={(e) => {
                       e.stopPropagation()
@@ -189,7 +190,8 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
         menu={{
           items: menuItems
         }}
-        trigger={['contextMenu']}>
+        trigger={['contextMenu']}
+      >
         {content}
       </Dropdown>
     )

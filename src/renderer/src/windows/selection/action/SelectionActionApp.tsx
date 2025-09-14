@@ -204,7 +204,8 @@ const SelectionActionApp: FC = () => {
         <TitleBarButtons>
           <Tooltip
             title={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
-            placement="bottom">
+            placement="bottom"
+          >
             <WinButton
               type="text"
               icon={<Pin size={14} className={isPinned ? 'pinned' : ''} />}
@@ -215,7 +216,8 @@ const SelectionActionApp: FC = () => {
           <Tooltip
             title={t('selection.action.window.opacity')}
             placement="bottom"
-            {...(showOpacitySlider ? { open: false } : {})}>
+            {...(showOpacitySlider ? { open: false } : {})}
+          >
             <WinButton
               type="text"
               icon={<Droplet size={14} />}

@@ -125,7 +125,8 @@ const AnthropicSettings = () => {
               okButtonProps={{ loading }}
               okText={t('settings.provider.anthropic.submit_code')}
               cancelText={t('settings.provider.anthropic.cancel')}
-              centered>
+              centered
+            >
               <Input
                 value={authCode}
                 onChange={(e) => setAuthCode(e.target.value)}

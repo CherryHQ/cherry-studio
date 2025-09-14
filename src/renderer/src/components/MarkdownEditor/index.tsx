@@ -44,7 +44,8 @@ const MarkdownEditor: FC<MarkdownEditorProps> = ({
       <PreviewArea className="markdown">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkCjkFriendly, remarkMath]}
-          rehypePlugins={[rehypeRaw, rehypeKatex]}>
+          rehypePlugins={[rehypeRaw, rehypeKatex]}
+        >
           {inputValue || t('settings.provider.notes.markdown_editor_default_value')}
         </ReactMarkdown>
       </PreviewArea>

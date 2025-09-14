@@ -77,7 +77,8 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
               style={{
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize
-              }}>
+              }}
+            >
               {!isThinking && (
                 <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
                   <ActionButton
@@ -86,7 +87,8 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                       e.stopPropagation()
                       copyThought()
                     }}
-                    aria-label={t('common.copy')}>
+                    aria-label={t('common.copy')}
+                  >
                     {!copied && <i className="iconfont icon-copy"></i>}
                     {copied && <CheckOutlined style={{ color: 'var(--color-primary)' }} />}
                   </ActionButton>
