@@ -3,7 +3,7 @@
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "categories": {},
   "env": {
-    "builtin": true
+    "es2022": true
   },
   "globals": {},
   "ignorePatterns": [
@@ -19,15 +19,50 @@
     "src/main/integration/cherryin/index.js",
     "src/main/integration/nutstore/sso/lib/**",
     "src/renderer/src/ui/**",
-    "packages/**/dist"
+    "packages/**/dist",
+    "eslint.config.mjs"
+  ],
+  "overrides": [
+    // set different env
+    {
+      "env": {
+        "node": true
+      },
+      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts"]
+    },
+    {
+      "env": {
+        "browser": true
+      },
+      "files": [
+        "src/renderer/**/*.{ts,tsx}",
+        "packages/aiCore/**",
+        "packages/extension-table-plus/**",
+        "resources/js/**"
+      ]
+    },
+    {
+      "env": {
+        "node": true,
+        "vitest": true
+      },
+      "files": ["**/__tests__/*.test.{ts,tsx}", "tests/**"]
+    },
+    {
+      "env": {
+        "browser": true,
+        "node": true
+      },
+      "files": ["src/preload/**"]
+    }
   ],
   "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
     "constructor-super": "error",
     "for-direction": "error",
     "getter-return": "error",
+    // "import/no-cycle": "error", // tons of error, bro
     "no-async-promise-executor": "error",
-    // "import/no-cycle": "warn",
     "no-caller": "warn",
     "no-case-declarations": "error",
     "no-class-assign": "error",
@@ -51,7 +86,7 @@
     "no-eval": "warn",
     "no-ex-assign": "error",
     "no-extra-boolean-cast": "error",
-    "no-fallthrough": "error",
+    "no-fallthrough": "warn",
     "no-func-assign": "error",
     "no-global-assign": "error",
     "no-import-assign": "error",
@@ -80,7 +115,7 @@
     "no-unsafe-optional-chaining": "error",
     "no-unused-labels": "error",
     "no-unused-private-class-members": "error",
-    "no-unused-vars": "warn", // manually off bacause of existing warning. may turn it on in the future
+    "no-unused-vars": ["error", { "caughtErrors": "none" }],
     "no-useless-backreference": "error",
     "no-useless-catch": "error",
     "no-useless-escape": "error",
@@ -101,6 +136,7 @@
     "oxc/uninvoked-array-callback": "warn",
     "require-yield": "error",
     "typescript/await-thenable": "warn",
+    // "typescript/consistent-type-imports": "error",
     "typescript/no-array-delete": "warn",
     "typescript/no-base-to-string": "warn",
     "typescript/no-duplicate-enum-values": "warn",
