@@ -13329,7 +13329,6 @@ __metadata:
     pdf-lib: "npm:^1.17.1"
     pdf-parse: "npm:^1.1.1"
     playwright: "npm:^1.52.0"
-    prettier: "npm:^3.5.3"
     prettier-plugin-sort-json: "npm:^4.1.1"
     prettier-plugin-tailwindcss: "npm:^0.6.14"
     proxy-agent: "npm:^6.5.0"
