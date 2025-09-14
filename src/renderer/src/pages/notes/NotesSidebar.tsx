@@ -382,7 +382,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 onDragOver={(e) => handleDragOver(e, node)}
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, node)}
-                onDragEnd={handleDragEnd}>
+                onDragEnd={handleDragEnd}
+              >
                 <TreeNodeContent onClick={() => onSelectNode(node)}>
                   <NodeIndent depth={depth} />
 
@@ -392,7 +393,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         e.stopPropagation()
                         onToggleExpanded(node.id)
                       }}
-                      title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
+                      title={node.expanded ? t('notes.collapse') : t('notes.expand')}
+                    >
                       {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </ExpandIcon>
                   )}
@@ -550,7 +552,8 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         if (!draggedNodeId) {
           handleDropFiles(e)
         }
-      }}>
+      }}
+    >
       <NotesSidebarHeader
         isShowStarred={isShowStarred}
         isShowSearch={isShowSearch}

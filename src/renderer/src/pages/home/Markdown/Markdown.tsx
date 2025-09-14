@@ -160,7 +160,8 @@ const Markdown: FC<Props> = ({ block, postProcess }) => {
           footnoteLabel: t('common.footnotes'),
           footnoteLabelTagName: 'h4',
           footnoteBackContent: ' '
-        }}>
+        }}
+      >
         {messageContent}
       </ReactMarkdown>
     </div>

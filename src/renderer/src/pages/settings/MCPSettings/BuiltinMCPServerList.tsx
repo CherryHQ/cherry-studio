@@ -53,7 +53,8 @@ const BuiltinMCPServerList: FC = () => {
                 title={server.name}
                 trigger="hover"
                 placement="topLeft"
-                overlayStyle={{ maxWidth: 400 }}>
+                overlayStyle={{ maxWidth: 400 }}
+              >
                 <ServerDescription>{getBuiltInMcpServerDescriptionLabel(server.name)}</ServerDescription>
               </Popover>
               <ServerFooter>

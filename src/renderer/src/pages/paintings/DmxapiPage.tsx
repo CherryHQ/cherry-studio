@@ -846,7 +846,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={onSelectModel}
             style={{ width: '100%' }}
             loading={isLoadingModels}
-            placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
+            placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}
+          >
             {Object.entries(modelOptions).map(([provider, models]) => {
               if ((models as any[]).length === 0) return null
               return (
@@ -865,7 +866,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           <Select
             value={isCustomSize ? 'custom' : painting.image_size}
             onChange={(value) => onSelectImageSize(value)}
-            style={{ width: '100%' }}>
+            style={{ width: '100%' }}
+          >
             {(() => {
               const currentModel = allModels.find((m) => m.id === painting.model)
               const modelImageSizes = currentModel?.image_sizes || []
@@ -948,7 +950,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 <RadioTextItem
                   key={ele.label}
                   className={painting.style_type === ele.label ? 'selected' : ''}
-                  onClick={() => onSelectStyleType(ele.label)}>
+                  onClick={() => onSelectStyleType(ele.label)}
+                >
                   {ele.label}
                 </RadioTextItem>
               ))}

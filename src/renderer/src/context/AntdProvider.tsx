@@ -112,7 +112,8 @@ const AntdProvider: FC<PropsWithChildren> = ({ children }) => {
           colorBgMask: _theme === 'dark' ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)',
           motionDurationMid: '100ms'
         }
-      }}>
+      }}
+    >
       {children}
     </ConfigProvider>
   )

@@ -206,7 +206,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
                     onClick={(e) => {
                       e.stopPropagation()
                       closeTab(tab.id)
-                    }}>
+                    }}
+                  >
                     <X size={12} />
                   </CloseButton>
                 )}
@@ -221,7 +222,8 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           <Tooltip
             title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
             mouseEnterDelay={0.8}
-            placement="bottom">
+            placement="bottom"
+          >
             <ThemeButton onClick={toggleTheme}>
               {settedTheme === ThemeMode.dark ? (
                 <Moon size={16} />

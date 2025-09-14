@@ -74,7 +74,8 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
             e.stopPropagation()
             handleAddDirectory()
           }}
-          disabled={disabled}>
+          disabled={disabled}
+        >
           {t('knowledge.add_directory')}
         </ResponsiveButton>
       </ItemHeader>
@@ -86,7 +87,8 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
           overscan={2}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
-          autoHideScrollbar>
+          autoHideScrollbar
+        >
           {(item) => (
             <FileItem
               key={item.id}

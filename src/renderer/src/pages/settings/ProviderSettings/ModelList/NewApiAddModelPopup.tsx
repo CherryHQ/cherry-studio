@@ -93,7 +93,8 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Form
         form={form}
         labelCol={{ style: { width: useDynamicLabelWidth([t('settings.models.add.endpoint_type.label')]) } }}
@@ -112,12 +113,14 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
             : {
                 endpointType: endpointType ?? 'openai'
               }
-        }>
+        }
+      >
         <Form.Item
           name="id"
           label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
-          rules={[{ required: true }]}>
+          rules={[{ required: true }]}
+        >
           <Input
             placeholder={t('settings.models.add.model_id.placeholder')}
             spellCheck={false}
@@ -131,20 +134,23 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, model, endp
         <Form.Item
           name="name"
           label={t('settings.models.add.model_name.label')}
-          tooltip={t('settings.models.add.model_name.placeholder')}>
+          tooltip={t('settings.models.add.model_name.placeholder')}
+        >
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
           label={t('settings.models.add.group_name.label')}
-          tooltip={t('settings.models.add.group_name.tooltip')}>
+          tooltip={t('settings.models.add.group_name.tooltip')}
+        >
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="endpointType"
           label={t('settings.models.add.endpoint_type.label')}
           tooltip={t('settings.models.add.endpoint_type.tooltip')}
-          rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}>
+          rules={[{ required: true, message: t('settings.models.add.endpoint_type.required') }]}
+        >
           <Select placeholder={t('settings.models.add.endpoint_type.placeholder')}>
             {endpointTypeOptions.map((opt) => (
               <Select.Option key={opt.value} value={opt.value}>

@@ -41,7 +41,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="animation-move-down"
       width="80vw"
       footer={null}
-      centered>
+      centered
+    >
       <SettingContainer theme={theme} style={{ padding: '10px 0', background: 'transparent' }}>
         <TranslatePromptSettings />
         <SettingGroup theme={theme} style={{ flex: 1 }}>

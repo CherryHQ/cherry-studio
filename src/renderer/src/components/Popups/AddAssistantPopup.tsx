@@ -172,7 +172,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         }
       }}
       closeIcon={null}
-      footer={null}>
+      footer={null}
+    >
       <HStack style={{ padding: '0 12px', marginTop: 5 }}>
         <Input
           prefix={
@@ -198,7 +199,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             key={agent.id}
             onClick={() => onCreateAssistant(agent)}
             className={`agent-item ${agent.id === 'default' ? 'default' : ''} ${index === selectedIndex ? 'keyboard-selected' : ''}`}
-            onMouseEnter={() => setSelectedIndex(index)}>
+            onMouseEnter={() => setSelectedIndex(index)}
+          >
             <HStack alignItems="center" gap={5} style={{ overflow: 'hidden', maxWidth: '100%' }}>
               <EmojiIcon emoji={agent.emoji || ''} />
               <span className="text-nowrap">{agent.name}</span>

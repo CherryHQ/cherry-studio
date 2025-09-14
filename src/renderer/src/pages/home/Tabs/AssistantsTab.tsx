@@ -110,7 +110,8 @@ const Assistants: FC<AssistantsTabProps> = ({
                     list={group.assistants}
                     onUpdate={(newList) => handleGroupReorder(group.tag, newList)}
                     onDragStart={() => setDragging(true)}
-                    onDragEnd={() => setDragging(false)}>
+                    onDragEnd={() => setDragging(false)}
+                  >
                     {(assistant) => (
                       <AssistantItem
                         key={assistant.id}
@@ -142,7 +143,8 @@ const Assistants: FC<AssistantsTabProps> = ({
         list={assistants}
         onUpdate={updateAssistants}
         onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
+        onDragEnd={() => setDragging(false)}
+      >
         {(assistant) => (
           <AssistantItem
             key={assistant.id}

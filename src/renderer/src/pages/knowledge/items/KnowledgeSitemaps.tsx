@@ -93,7 +93,8 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             e.stopPropagation()
             handleAddSitemap()
           }}
-          disabled={disabled}>
+          disabled={disabled}
+        >
           {t('knowledge.add_sitemap')}
         </ResponsiveButton>
       </ItemHeader>
@@ -105,7 +106,8 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           overscan={2}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
-          autoHideScrollbar>
+          autoHideScrollbar
+        >
           {(item) => (
             <FileItem
               key={item.id}

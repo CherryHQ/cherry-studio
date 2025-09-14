@@ -292,7 +292,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                     title: tool.name
                   })
                 }}
-                aria-label={t('common.expand')}>
+                aria-label={t('common.expand')}
+              >
                 <Maximize size={14} />
               </ActionButton>
             </Tooltip>
@@ -304,7 +305,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                     e.stopPropagation()
                     copyContent(JSON.stringify(result, null, 2), id)
                   }}
-                  aria-label={t('common.copy')}>
+                  aria-label={t('common.copy')}
+                >
                   {!copiedMap[id] && <CopyIcon size={14} />}
                   {copiedMap[id] && <Check size={14} color="var(--status-color-success)" />}
                 </ActionButton>
@@ -319,7 +321,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize
-            }}>
+            }}
+          >
             <CollapsedContent isExpanded={activeKeys.includes(id)} resultString={resultString} />
           </ToolResponseContainer>
         ) : argsString ? (
@@ -381,7 +384,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               borderRadiusSM: 6
             }
           }
-        }}>
+        }}
+      >
         <ToolContainer>
           <ToolContentWrapper className={isPending ? 'pending' : status}>
             <CollapseContainer
@@ -412,7 +416,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                       size="small"
                       onClick={() => {
                         handleCancelTool()
-                      }}>
+                      }}
+                    >
                       <CircleX size={15} className="lucide-custom" />
                       {t('common.cancel')}
                     </Button>
@@ -426,7 +431,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                       onClick={(e) => {
                         e.stopPropagation()
                         handleAbortTool()
-                      }}>
+                      }}
+                    >
                       <PauseCircle size={14} className="lucide-custom" />
                       {t('chat.input.pause')}
                     </Button>
@@ -449,7 +455,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                               }
                             }
                           ]
-                        }}>
+                        }}
+                      >
                         <CirclePlay size={15} className="lucide-custom" />
                         <CountdownText>
                           {t('settings.mcp.tools.run', 'Run')} ({countdown}s)
@@ -471,13 +478,15 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         width="80%"
         centered
         transitionName="animation-move-down"
-        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}>
+        styles={{ body: { maxHeight: '80vh', overflow: 'auto' } }}
+      >
         {expandedResponse && (
           <ExpandedResponseContainer
             style={{
               fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
               fontSize
-            }}>
+            }}
+          >
             <Tabs
               tabBarExtraContent={
                 <ActionButton
@@ -490,7 +499,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                     )
                     antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
                   }}
-                  aria-label={t('common.copy')}>
+                  aria-label={t('common.copy')}
+                >
                   <i className="iconfont icon-copy"></i>
                 </ActionButton>
               }

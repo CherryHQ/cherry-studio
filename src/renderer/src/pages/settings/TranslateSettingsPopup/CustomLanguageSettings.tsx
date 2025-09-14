@@ -90,7 +90,8 @@ const CustomLanguageSettings = () => {
               <Popconfirm
                 title={t('settings.translate.custom.delete.title')}
                 description={t('settings.translate.custom.delete.description')}
-                onConfirm={() => onDelete(record.id)}>
+                onConfirm={() => onDelete(record.id)}
+              >
                 <Button icon={<DeleteOutlined />} danger>
                   {t('common.delete')}
                 </Button>
@@ -124,7 +125,8 @@ const CustomLanguageSettings = () => {
             type="primary"
             icon={<PlusOutlined size={16} />}
             onClick={onClickAdd}
-            style={{ marginBottom: 5, marginTop: -5 }}>
+            style={{ marginBottom: 5, marginTop: -5 }}
+          >
             {t('common.add')}
           </Button>
         </HStack>

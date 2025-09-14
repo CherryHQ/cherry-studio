@@ -33,7 +33,8 @@ const ModelIdWithTags = ({
           </Typography.Text>
         }
         mouseEnterDelay={0.5}
-        placement="top">
+        placement="top"
+      >
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />

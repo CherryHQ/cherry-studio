@@ -110,7 +110,8 @@ const QuickAssistantSettings: FC = () => {
                     value={quickAssistantId || defaultAssistant.id}
                     style={{ width: 300, height: 34 }}
                     onChange={(value) => dispatch(setQuickAssistantId(value))}
-                    placeholder={t('settings.models.quick_assistant_selection')}>
+                    placeholder={t('settings.models.quick_assistant_selection')}
+                  >
                     <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
                       <AssistantItem>
                         <ModelAvatar model={defaultAssistant.model || defaultModel} size={18} />
@@ -139,13 +140,15 @@ const QuickAssistantSettings: FC = () => {
                   onClick={() => {
                     dispatch(setQuickAssistantId(defaultAssistant.id))
                   }}
-                  selected={!!quickAssistantId}>
+                  selected={!!quickAssistantId}
+                >
                   {t('settings.models.use_assistant')}
                 </StyledButton>
                 <StyledButton
                   type={!quickAssistantId ? 'primary' : 'default'}
                   onClick={() => dispatch(setQuickAssistantId(''))}
-                  selected={!quickAssistantId}>
+                  selected={!quickAssistantId}
+                >
                   {t('settings.models.use_model')}
                 </StyledButton>
               </HStack>

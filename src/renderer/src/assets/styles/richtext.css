@@ -217,7 +217,7 @@
 }
 
 .tiptap .selectedCell::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
@@ -283,8 +283,8 @@
   grid-template-columns: 1fr 25px;
   grid-template-rows: 1fr 25px;
   grid-template-areas:
-    'table column-btn'
-    'row-btn corner';
+    "table column-btn"
+    "row-btn corner";
   gap: 5px;
 }
 
@@ -348,7 +348,7 @@
 
 .tiptap .tableWrapper .add-row-button::before,
 .tiptap .tableWrapper .add-column-button::before {
-  content: '+';
+  content: "+";
   font-weight: bold;
 }
 
@@ -402,7 +402,7 @@
 
 .tiptap .tableWrapper .row-action-trigger::before,
 .tiptap .tableWrapper .column-action-trigger::before {
-  content: '•••';
+  content: "•••";
 }
 
 .tiptap.resize-cursor {
@@ -438,18 +438,18 @@
   list-style: decimal;
 }
 
-.tiptap ul[data-type='taskList'] {
+.tiptap ul[data-type="taskList"] {
   list-style: none;
   margin-left: 0;
   padding: 0;
 }
 
-.tiptap ul[data-type='taskList'] li {
+.tiptap ul[data-type="taskList"] li {
   align-items: center;
   display: flex;
 }
 
-.tiptap ul[data-type='taskList'] li > label {
+.tiptap ul[data-type="taskList"] li > label {
   flex: 0 0 auto;
   margin-right: 0.5rem;
   user-select: none;
@@ -457,32 +457,32 @@
   align-items: center;
 }
 
-.tiptap ul[data-type='taskList'] li > div {
+.tiptap ul[data-type="taskList"] li > div {
   flex: 1 1 auto;
 }
 
-.tiptap ul[data-type='taskList'] li > div p {
+.tiptap ul[data-type="taskList"] li > div p {
   margin: 0;
 }
 
 /* Checked task item appearance */
-.tiptap ul[data-type='taskList'] li[data-checked='true'] > div {
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
   color: var(--color-text-2);
   text-decoration: line-through;
 }
 
-.tiptap ul[data-type='taskList'] input[type='checkbox'] {
+.tiptap ul[data-type="taskList"] input[type="checkbox"] {
   cursor: pointer;
 }
 
 /* Use primary color for checked checkbox */
-.tiptap ul[data-type='taskList'] input[type='checkbox']:checked {
+.tiptap ul[data-type="taskList"] input[type="checkbox"]:checked {
   accent-color: var(--color-primary);
   background-color: var(--color-primary);
   border-color: var(--color-primary);
 }
 
-.tiptap ul[data-type='taskList'] ul[data-type='taskList'] {
+.tiptap ul[data-type="taskList"] ul[data-type="taskList"] {
   margin: 0;
 }
 
@@ -496,7 +496,7 @@
 
 /* Bottom spacer to create viewport padding */
 .tiptap::after {
-  content: '';
+  content: "";
   display: block;
   height: 50px;
   pointer-events: none;

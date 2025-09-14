@@ -67,7 +67,8 @@ export const OGCard = ({ link, show }: Props) => {
               fontSize: '14px',
               lineHeight: '1.2',
               color: 'var(--color-text)'
-            }}>
+            }}
+          >
             {metadata['og:title'] || hostname}
           </Title>
         </StyledHyperLink>
@@ -78,7 +79,8 @@ export const OGCard = ({ link, show }: Props) => {
             fontSize: '12px',
             lineHeight: '1.2',
             color: 'var(--color-text-secondary)'
-          }}>
+          }}
+        >
           {metadata['og:description'] || link}
         </Paragraph>
       </PreviewContent>

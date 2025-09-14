@@ -506,7 +506,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
           <PlusIcon size={16} />
           {t('chat.add.topic.title')}
         </AddTopicButton>
-      }>
+      }
+    >
       {(topic) => {
         const isActive = topic.id === activeTopic?.id
         const topicName = topic.name.replace('`', '')
@@ -528,7 +529,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
               style={{
                 borderRadius,
                 cursor: editingTopicId === topic.id && topicEdit.isEditing ? 'default' : 'pointer'
-              }}>
+              }}
+            >
               {isPending(topic.id) && !isActive && <PendingIndicator />}
               {isFulfilled(topic.id) && !isActive && <FulfilledIndicator />}
               <TopicNameContainer>
@@ -547,7 +549,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                     onDoubleClick={() => {
                       setEditingTopicId(topic.id)
                       topicEdit.startEdit(topic.name)
-                    }}>
+                    }}
+                  >
                     {topicName}
                   </TopicName>
                 )}
@@ -560,7 +563,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                       <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
                         {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
                       </div>
-                    }>
+                    }
+                  >
                     <MenuButton
                       className="menu"
                       onClick={(e) => {
@@ -571,7 +575,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                         } else {
                           handleDeleteClick(topic.id, e)
                         }
-                      }}>
+                      }}
+                    >
                       {deletingTopicId === topic.id ? (
                         <DeleteIcon size={14} color="var(--color-error)" style={{ pointerEvents: 'none' }} />
                       ) : (

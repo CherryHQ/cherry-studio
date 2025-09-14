@@ -85,7 +85,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               } catch (error: any) {
                 window.toast.error(error.message)
               }
-            }}>
+            }}
+          >
             {t('settings.general.image_upload')}
           </Upload>
         </div>
@@ -100,7 +101,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             e.stopPropagation()
             setEmojiPickerOpen(true)
             setDropdownOpen(false)
-          }}>
+          }}
+        >
           {t('settings.general.emoji_picker')}
         </div>
       )
@@ -113,7 +115,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           onClick={(e) => {
             e.stopPropagation()
             handleReset()
-          }}>
+          }}
+        >
           {t('settings.general.avatar.reset')}
         </div>
       )
@@ -129,7 +132,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       onCancel={onCancel}
       afterClose={onClose}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Center mt="30px">
         <VStack alignItems="center" gap="10px">
           <Dropdown
@@ -143,7 +147,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               if (visible) {
                 setEmojiPickerOpen(false)
               }
-            }}>
+            }}
+          >
             <Popover
               content={<EmojiPicker onEmojiClick={handleEmojiClick} />}
               trigger="click"
@@ -154,7 +159,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                   setDropdownOpen(false)
                 }
               }}
-              placement="bottom">
+              placement="bottom"
+            >
               {isEmoji(avatar) ? (
                 <EmojiAvatar size={80} fontSize={40}>
                   {avatar}

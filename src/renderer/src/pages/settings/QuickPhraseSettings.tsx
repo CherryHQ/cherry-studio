@@ -86,7 +86,8 @@ const QuickPhraseSettings: FC = () => {
               onUpdate={(newPhrases) => handleUpdateOrder([...newPhrases].reverse())}
               style={{ paddingBottom: dragging ? '34px' : 0 }}
               onDragStart={() => setDragging(true)}
-              onDragEnd={() => setDragging(false)}>
+              onDragEnd={() => setDragging(false)}
+            >
               {(phrase) => (
                 <FileItem
                   key={phrase.id}
@@ -108,7 +109,8 @@ const QuickPhraseSettings: FC = () => {
                           okText={t('common.confirm')}
                           cancelText={t('common.cancel')}
                           onConfirm={() => handleDelete(phrase.id)}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
+                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}
+                        >
                           <Button
                             key="delete"
                             type="text"
@@ -134,7 +136,8 @@ const QuickPhraseSettings: FC = () => {
         width={520}
         transitionName="animation-move-down"
         centered
-        maskClosable={false}>
+        maskClosable={false}
+      >
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <Label>{t('settings.quickPhrase.titleLabel')}</Label>

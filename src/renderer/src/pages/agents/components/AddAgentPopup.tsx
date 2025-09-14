@@ -170,7 +170,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       okText={t('agents.add.title')}
       width={600}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Form
         ref={formRef}
         form={form}
@@ -188,7 +189,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
           const currentValues = form.getFieldsValue()
           setHasUnsavedChanges(currentValues.name?.trim() || currentValues.prompt?.trim() || emoji)
-        }}>
+        }}
+      >
         <Form.Item name="name" label="Emoji">
           <Popover
             content={
@@ -200,7 +202,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               />
             }
             arrow
-            trigger="click">
+            trigger="click"
+          >
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
@@ -212,7 +215,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             name="prompt"
             label={t('agents.add.prompt.label')}
             rules={[{ required: true }]}
-            style={{ position: 'relative' }}>
+            style={{ position: 'relative' }}
+          >
             <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
@@ -234,7 +238,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <Form.Item
             name="knowledge_base_ids"
             label={t('agents.add.knowledge_base.label')}
-            rules={[{ required: false }]}>
+            rules={[{ required: false }]}
+          >
             <Select
               mode="multiple"
               allowClear

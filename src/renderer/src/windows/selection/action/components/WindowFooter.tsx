@@ -160,7 +160,8 @@ const WindowFooter: FC<FooterProps> = ({
       onMouseEnter={() => setIsContainerHovered(true)}
       onMouseLeave={() => setIsContainerHovered(false)}
       $isHovered={isContainerHovered}
-      $showInitially={isShowMe}>
+      $showInitially={isShowMe}
+    >
       <OpButtonWrapper>
         <OpButton onClick={handleEsc} $isWindowFocus={isWindowFocus} data-hovered={isEscHovered}>
           {loading ? (

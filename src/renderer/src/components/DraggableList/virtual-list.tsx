@@ -129,7 +129,8 @@ function DraggableVirtualList<T>({
   return (
     <div
       className={`${className} draggable-virtual-list`}
-      style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}>
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', ...style }}
+    >
       <DragDropContext onDragStart={onDragStart} onDragEnd={_onDragEnd}>
         {header}
         <Droppable
@@ -145,12 +146,14 @@ function DraggableVirtualList<T>({
                 style={{
                   ...itemStyle,
                   ...provided.draggableProps.style
-                }}>
+                }}
+              >
                 {item && children(item, rubric.source.index)}
               </div>
             )
           }}
-          {...droppableProps}>
+          {...droppableProps}
+        >
           {(provided) => {
             // 让 dnd 和虚拟列表共享同一个滚动容器
             const setRefs = (el: HTMLDivElement | null) => {
@@ -169,14 +172,16 @@ function DraggableVirtualList<T>({
                   width: '100%',
                   overflowY: 'auto',
                   position: 'relative'
-                }}>
+                }}
+              >
                 <div
                   className="virtual-list"
                   style={{
                     height: `${virtualizer.getTotalSize()}px`,
                     width: '100%',
                     position: 'relative'
-                  }}>
+                  }}
+                >
                   {virtualizer.getVirtualItems().map((virtualItem) => (
                     <VirtualRow
                       key={virtualItem.key}
@@ -211,7 +216,8 @@ const VirtualRow = memo(
         key={`draggable_${draggableId}`}
         draggableId={draggableId}
         isDragDisabled={disabled}
-        index={virtualItem.index}>
+        index={virtualItem.index}
+      >
         {(provided) => {
           const setDragRefs = (el: HTMLElement | null) => {
             provided.innerRef(el)
@@ -242,7 +248,8 @@ const VirtualRow = memo(
                 left: 0,
                 width: '100%',
                 transform: combinedTransform
-              }}>
+              }}
+            >
               <div {...provided.dragHandleProps} className="draggable-content" style={itemStyle}>
                 {item && children(item, virtualItem.index)}
               </div>

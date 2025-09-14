@@ -220,7 +220,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
         <HStack alignItems="center" gap={5}>
           <ModelSelectButton
             icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
-            onClick={onSelectModel}>
+            onClick={onSelectModel}
+          >
             <ModelName>{defaultModel ? defaultModel.name : t('agents.edit.model.select.title')}</ModelName>
           </ModelSelectButton>
           {defaultModel && (
@@ -472,7 +473,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
             <Select
               value={param.type}
               onChange={(value) => onUpdateCustomParameter(index, 'type', value)}
-              style={{ width: '100%' }}>
+              style={{ width: '100%' }}
+            >
               <Select.Option value="string">{t('models.parameter_type.string')}</Select.Option>
               <Select.Option value="number">{t('models.parameter_type.number')}</Select.Option>
               <Select.Option value="boolean">{t('models.parameter_type.boolean')}</Select.Option>

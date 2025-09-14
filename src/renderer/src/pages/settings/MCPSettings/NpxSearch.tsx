@@ -128,7 +128,8 @@ const NpxSearch: FC = () => {
                   cursor: searchLoading ? 'not-allowed' : 'pointer',
                   borderRadius: 100,
                   backgroundColor: 'var(--color-background-mute)'
-                }}>
+                }}
+              >
                 {scope}
               </Tag>
             ))}
@@ -187,7 +188,8 @@ const NpxSearch: FC = () => {
                       }}
                     />
                   </Flex>
-                }>
+                }
+              >
                 <Space direction="vertical" size="small">
                   <Text className="selectable">{record.description}</Text>
                   <Text type="secondary" className="selectable">

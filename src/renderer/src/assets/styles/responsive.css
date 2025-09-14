@@ -12,7 +12,7 @@
   --scrollbar-width: 5px;
 }
 
-[navbar-position='left'] {
+[navbar-position="left"] {
   --navbar-height: 42px;
   --list-item-border-radius: 20px;
 }

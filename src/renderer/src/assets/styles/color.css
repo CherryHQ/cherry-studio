@@ -70,7 +70,7 @@
   --color-status-warning: #faad14;
 }
 
-[theme-mode='light'] {
+[theme-mode="light"] {
   --color-white: #ffffff;
   --color-white-soft: rgba(0, 0, 0, 0.04);
   --color-white-mute: #eee;
@@ -136,12 +136,12 @@
   --chat-text-user: var(--color-text);
 }
 
-[navbar-position='left'][theme-mode='light'] {
+[navbar-position="left"][theme-mode="light"] {
   --color-list-item: #eee;
   --color-list-item-hover: #f5f5f5;
 }
 
-[navbar-position='left'][theme-mode='dark'] {
+[navbar-position="left"][theme-mode="dark"] {
   --color-list-item: #252525;
   --color-list-item-hover: #1e1e1e;
 }

@@ -103,7 +103,8 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
         body: {
           paddingTop: 20
         }
-      }}>
+      }}
+    >
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item name="memory" rules={[{ required: true, message: t('memory.please_enter_memory') }]}>
           <TextArea
@@ -170,12 +171,14 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
         <Button key="submit" type="primary" size="large" loading={loading} onClick={() => form.submit()}>
           {t('common.save')}
         </Button>
-      ]}>
+      ]}
+    >
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item
           label={t('memory.memory_content')}
           name="memory"
-          rules={[{ required: true, message: t('memory.please_enter_memory') }]}>
+          rules={[{ required: true, message: t('memory.please_enter_memory') }]}
+        >
           <TextArea
             rows={5}
             placeholder={t('memory.memory_placeholder')}
@@ -248,7 +251,8 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
           <UserRoundPlus size={16} color="var(--color-primary)" />
           <span>{t('memory.add_user')}</span>
         </Flex>
-      }>
+      }
+    >
       <Form form={form} layout="vertical" onFinish={handleSubmit}>
         <Form.Item label={t('memory.new_user_id')} name="userId" rules={[{ validator: validateUserId }]}>
           <Input
@@ -267,7 +271,8 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
             padding: '12px',
             borderRadius: '8px',
             border: '1px solid var(--color-border)'
-          }}>
+          }}
+        >
           {t('memory.user_id_rules')}
         </div>
       </Form>
@@ -676,7 +681,8 @@ const MemorySettings = () => {
                 ]
               }}
               trigger={['click']}
-              placement="bottomRight">
+              placement="bottomRight"
+            >
               <Button icon={<MenuIcon size={16} />}>{t('common.more')}</Button>
             </Dropdown>
           </Space>
@@ -699,7 +705,8 @@ const MemorySettings = () => {
                     type="primary"
                     icon={<PlusIcon size={18} />}
                     onClick={() => setAddMemoryModalVisible(true)}
-                    size="large">
+                    size="large"
+                  >
                     {t('memory.add_first_memory')}
                   </Button>
                 </div>

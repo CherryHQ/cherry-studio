@@ -26,7 +26,8 @@ vi.mock('antd', () => ({
       className={className}
       data-active-key={activeKey}
       data-size={size}
-      data-expand-icon-position={expandIconPosition}>
+      data-expand-icon-position={expandIconPosition}
+    >
       {items.map((item: any) => (
         <div key={item.key} data-testid={`collapse-item-${item.key}`}>
           <div data-testid={`collapse-header-${item.key}`} onClick={() => onChange()}>
@@ -77,7 +78,8 @@ vi.mock('motion/react', () => ({
         data-variants={JSON.stringify(variants)}
         data-animate={animate}
         data-initial={initial}
-        style={style}>
+        style={style}
+      >
         {children}
       </span>
     )
@@ -110,7 +112,8 @@ vi.mock('@renderer/components/ThinkingEffect', () => ({
       data-testid="mock-marquee-component"
       data-is-thinking={isThinking}
       data-expanded={expanded}
-      data-content={content}>
+      data-content={content}
+    >
       <div data-testid="thinking-time-text">{thinkingTimeText}</div>
     </div>
   )

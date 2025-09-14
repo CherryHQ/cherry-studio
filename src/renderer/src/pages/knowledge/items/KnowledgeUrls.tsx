@@ -121,7 +121,8 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             e.stopPropagation()
             handleAddUrl()
           }}
-          disabled={disabled}>
+          disabled={disabled}
+        >
           {t('knowledge.add_url')}
         </ResponsiveButton>
       </ItemHeader>
@@ -133,7 +134,8 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
           overscan={2}
           scrollerStyle={{ paddingRight: 2 }}
           itemContainerStyle={{ paddingBottom: 10 }}
-          autoHideScrollbar>
+          autoHideScrollbar
+        >
           {(item) => (
             <FileItem
               key={item.id}
@@ -159,7 +161,8 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                         }
                       ]
                     }}
-                    trigger={['contextMenu']}>
+                    trigger={['contextMenu']}
+                  >
                     <ClickableSpan>
                       <Tooltip title={item.content as string}>
                         <Ellipsis>

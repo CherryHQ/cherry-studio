@@ -148,7 +148,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
             } catch (error: any) {
               window.toast.error(error.message)
             }
-          }}>
+          }}
+        >
           <MenuItem ref={uploadRef}>{t('settings.general.image_upload')}</MenuItem>
         </Upload>
       ),
@@ -187,7 +188,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
       transitionName="animation-move-down"
       centered
       title={t('settings.provider.add.title')}
-      okButtonProps={{ disabled: buttonDisabled }}>
+      okButtonProps={{ disabled: buttonDisabled }}
+    >
       <Divider style={{ margin: '8px 0' }} />
 
       <Center mt="10px" mb="20px">
@@ -203,7 +205,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
               if (visible) {
                 setLogoPickerOpen(false)
               }
-            }}>
+            }}
+          >
             <Popover
               content={<ProviderLogoPicker onProviderClick={handleProviderLogoClick} />}
               trigger="click"
@@ -214,7 +217,8 @@ const PopupContainer: React.FC<Props> = ({ provider, resolve }) => {
                   setDropdownOpen(false)
                 }
               }}
-              placement="bottom">
+              placement="bottom"
+            >
               {logo ? (
                 <ProviderLogo>
                   <ProviderAvatarPrimitive providerId={logo} providerName={name} logoSrc={logo} size={60} />

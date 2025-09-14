@@ -10,7 +10,8 @@ const UnWrapIcon = (props: React.SVGProps<SVGSVGElement>) => (
     strokeWidth={2}
     className="unwrap_svg__lucide unwrap_svg__lucide-text unwrap_svg__size-4"
     viewBox="0 0 24 24"
-    {...props}>
+    {...props}
+  >
     <path d="M17 6.1H3M21 12.1H3M15.1 18H3" />
   </svg>
 )

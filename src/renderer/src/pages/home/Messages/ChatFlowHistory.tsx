@@ -149,14 +149,16 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
       color="rgba(0, 0, 0, 0.85)"
       mouseEnterDelay={0.3}
       mouseLeaveDelay={0.1}
-      destroyOnHidden>
+      destroyOnHidden
+    >
       <CustomNodeContainer
         style={{
           borderColor,
           background: `linear-gradient(135deg, ${backgroundColor} 0%, ${gradientColor} 100%)`,
           boxShadow: `0 4px 10px rgba(0, 0, 0, 0.1), 0 0 0 2px ${borderColor}40`
         }}
-        onClick={handleNodeClick}>
+        onClick={handleNodeClick}
+      >
         <Handle type="target" position={Position.Top} style={handleStyle} isConnectable={false} />
         <Handle type="target" position={Position.Left} style={handleStyle} isConnectable={false} />
 
@@ -502,7 +504,8 @@ const ChatFlowHistory: FC<ChatFlowHistoryProps> = ({ conversationId }) => {
               }}
               proOptions={{ hideAttribution: true }}
               className="react-flow-container"
-              colorMode={settedTheme}>
+              colorMode={settedTheme}
+            >
               <Controls showInteractive={false} />
               <MiniMap
                 nodeStrokeWidth={3}

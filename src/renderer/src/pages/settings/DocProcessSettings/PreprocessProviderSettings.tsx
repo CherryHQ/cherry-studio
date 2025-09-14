@@ -90,7 +90,8 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
-            }}>
+            }}
+          >
             {t('settings.provider.api_key.label')}
             <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />

@@ -154,7 +154,8 @@ const Chat: FC<Props> = (props) => {
           vertical
           flex={1}
           justify="space-between"
-          style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
+          style={{ maxWidth: chatMaxWidth, height: mainHeight }}
+        >
           <Messages
             key={props.activeTopic.id}
             assistant={assistant}
@@ -183,7 +184,8 @@ const Chat: FC<Props> = (props) => {
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}>
+              style={{ overflow: 'hidden' }}
+            >
               <Tabs
                 activeAssistant={assistant}
                 activeTopic={props.activeTopic}

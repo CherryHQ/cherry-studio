@@ -42,7 +42,8 @@ const CustomTag: FC<CustomTagProps> = ({
         style={{
           ...(disabled && { cursor: 'not-allowed' }),
           ...style
-        }}>
+        }}
+      >
         {icon && icon} {children}
         {closable && (
           <CloseIcon

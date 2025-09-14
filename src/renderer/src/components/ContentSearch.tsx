@@ -350,7 +350,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
       <Container
         ref={containerRef}
         style={enableContentSearch ? {} : { display: 'none' }}
-        $overlayPosition={positionMode === 'absolute' ? 'absolute' : 'static'}>
+        $overlayPosition={positionMode === 'absolute' ? 'absolute' : 'static'}
+      >
         <NarrowLayout style={{ width: '100%' }}>
           <SearchBarContainer $position={positionMode}>
             <InputWrapper>

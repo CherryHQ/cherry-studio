@@ -107,7 +107,8 @@ const AssistantSettings: FC = () => {
   return (
     <SettingContainer
       style={{ height: 'auto', background: 'transparent', padding: `0 0 12px 0`, gap: 12 }}
-      theme={theme}>
+      theme={theme}
+    >
       <SettingSubtitle style={{ marginTop: 0 }}>{t('common.name')}</SettingSubtitle>
       <HStack gap={8} alignItems="center">
         <Popover content={<EmojiPicker onEmojiClick={handleEmojiSelect} />} arrow trigger="click">
@@ -154,7 +155,8 @@ const AssistantSettings: FC = () => {
           flexDirection: 'row',
           justifyContent: 'space-between',
           marginTop: 0
-        }}>
+        }}
+      >
         {t('settings.assistant.model_params')}
         <Tooltip title={t('common.reset')} mouseLeaveDelay={0}>
           <Button type="text" onClick={onReset} icon={<ResetIcon size={16} />} />
@@ -343,7 +345,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       transitionName="animation-move-down"
       centered
       width={500}
-      footer={null}>
+      footer={null}
+    >
       <AssistantSettings />
     </Modal>
   )

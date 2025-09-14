@@ -107,24 +107,28 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
         maskClosable={false}
         footer={null}
         transitionName="animation-move-down"
-        centered>
+        centered
+      >
         <Form form={form} onFinish={handleAddCustomApp} layout="vertical">
           <Form.Item
             name="id"
             label={t('settings.miniapps.custom.id')}
-            rules={[{ required: true, message: t('settings.miniapps.custom.id_error') }]}>
+            rules={[{ required: true, message: t('settings.miniapps.custom.id_error') }]}
+          >
             <Input placeholder={t('settings.miniapps.custom.id_placeholder')} />
           </Form.Item>
           <Form.Item
             name="name"
             label={t('settings.miniapps.custom.name')}
-            rules={[{ required: true, message: t('settings.miniapps.custom.name_error') }]}>
+            rules={[{ required: true, message: t('settings.miniapps.custom.name_error') }]}
+          >
             <Input placeholder={t('settings.miniapps.custom.name_placeholder')} />
           </Form.Item>
           <Form.Item
             name="url"
             label={t('settings.miniapps.custom.url')}
-            rules={[{ required: true, message: t('settings.miniapps.custom.url_error') }]}>
+            rules={[{ required: true, message: t('settings.miniapps.custom.url_error') }]}
+          >
             <Input placeholder={t('settings.miniapps.custom.url_placeholder')} />
           </Form.Item>
           <Form.Item label={t('settings.miniapps.custom.logo')}>
@@ -144,7 +148,8 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
                 maxCount={1}
                 fileList={fileList}
                 onChange={handleFileChange}
-                beforeUpload={() => false}>
+                beforeUpload={() => false}
+              >
                 <Button icon={<UploadOutlined />}>{t('settings.miniapps.custom.logo_upload_button')}</Button>
               </Upload>
             </Form.Item>

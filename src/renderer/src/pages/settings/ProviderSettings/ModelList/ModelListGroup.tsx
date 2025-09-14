@@ -72,7 +72,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           header: {
             padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
           }
-        }}>
+        }}
+      >
         <DynamicVirtualList
           ref={listRef}
           list={models}
@@ -85,7 +86,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           }}
           itemContainerStyle={{
             padding: '4px 0'
-          }}>
+          }}
+        >
           {(model) => (
             <ModelListItem
               model={model}

@@ -25,7 +25,8 @@ const EmojiAvatar = ({
     $fontSize={fontSize ?? size * 0.5}
     onClick={onClick}
     className={className}
-    style={style}>
+    style={style}
+  >
     {children}
   </StyledEmojiAvatar>
 )

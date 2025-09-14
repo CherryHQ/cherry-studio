@@ -296,7 +296,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between'
-            }}>
+            }}
+          >
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
               <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
@@ -318,7 +319,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               type={isApiKeyConnectable ? 'primary' : 'default'}
               ghost={isApiKeyConnectable}
               onClick={onCheckApi}
-              disabled={!apiHost || apiKeyConnectivity.checking}>
+              disabled={!apiHost || apiKeyConnectivity.checking}
+            >
               {apiKeyConnectivity.checking ? (
                 <LoadingIcon />
               ) : apiKeyConnectivity.status === 'success' ? (
@@ -364,7 +366,8 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
               {isOpenAIProvider(provider) && (
                 <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
                   <SettingHelpText
-                    style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>
+                    style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}
+                  >
                     {hostPreview()}
                   </SettingHelpText>
                   <SettingHelpText style={{ minWidth: 'fit-content' }}>

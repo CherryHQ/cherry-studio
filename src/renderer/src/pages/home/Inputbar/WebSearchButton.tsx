@@ -197,7 +197,8 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
       placement="top"
       title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
-      arrow>
+      arrow
+    >
       <ToolbarButton type="text" onClick={onClick}>
         <WebSearchIcon color={color} pid={assistant.webSearchProviderId} />
       </ToolbarButton>

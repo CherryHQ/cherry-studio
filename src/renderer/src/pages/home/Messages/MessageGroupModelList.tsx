@@ -49,7 +49,8 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
               $isSelected={message.id === selectMessageId}
               onClick={() => {
                 setSelectedMessage(message)
-              }}>
+              }}
+            >
               <motion.span variants={lightbulbSoftVariants} animate={isProcessing ? 'active' : 'idle'} initial="idle">
                 <ModelAvatar model={message.model as Model} size={22} />
               </motion.span>
@@ -77,10 +78,12 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
         }
         placement="top"
         mouseEnterDelay={0.5}
-        mouseLeaveDelay={0}>
+        mouseLeaveDelay={0}
+      >
         <DisplayModeToggle
           displayMode={foldDisplayMode}
-          onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}>
+          onClick={() => dispatch(setFoldDisplayMode(isCompact ? 'expanded' : 'compact'))}
+        >
           {isCompact ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </DisplayModeToggle>
       </Tooltip>

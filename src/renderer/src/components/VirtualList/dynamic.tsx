@@ -199,13 +199,15 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
         overflow: 'auto',
         ...(horizontal ? { width: size ?? '100%' } : { height: size ?? '100%' }),
         ...scrollerStyle
-      }}>
+      }}
+    >
       <div
         style={{
           position: 'relative',
           width: horizontal ? `${totalSize}px` : '100%',
           height: !horizontal ? `${totalSize}px` : '100%'
-        }}>
+        }}
+      >
         {virtualItems.map((virtualItem) => {
           const isItemSticky = stickyIndexes.includes(virtualItem.index)
           const isItemActiveSticky = isItemSticky && activeStickyIndexRef.current === virtualItem.index

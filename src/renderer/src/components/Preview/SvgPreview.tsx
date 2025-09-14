@@ -34,7 +34,8 @@ const SvgPreview = ({ children, enableToolbar = false, className, ref }: SvgPrev
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
-      source="svg">
+      source="svg"
+    >
       {/* 使用透明容器，把背景色完全交给 SVG 自己控制 */}
       <ShadowTransparentContainer ref={containerRef} className={className ?? 'svg-preview special-preview'} />
     </ImagePreviewLayout>

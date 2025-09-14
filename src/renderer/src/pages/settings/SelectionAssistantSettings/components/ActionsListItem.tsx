@@ -28,7 +28,8 @@ const ActionsListItem = memo(
         {...provided.draggableProps}
         {...(isLastEnabledItem ? {} : provided.dragHandleProps)}
         disabled={!isEnabled}
-        className={isLastEnabledItem ? 'non-draggable' : ''}>
+        className={isLastEnabledItem ? 'non-draggable' : ''}
+      >
         <ItemLeft>
           <ItemIcon disabled={!isEnabled}>
             <DynamicIcon name={item.icon as any} size={16} fallback={() => <div style={{ width: 16, height: 16 }} />} />

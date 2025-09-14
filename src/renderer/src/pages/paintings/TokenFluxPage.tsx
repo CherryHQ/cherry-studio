@@ -390,7 +390,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           <Select
             value={providerOptions.find((p) => p.value === 'tokenflux')?.value}
             onChange={handleProviderChange}
-            style={{ width: '100%' }}>
+            style={{ width: '100%' }}
+          >
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
@@ -403,7 +404,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* Model & Pricing Section */}
           <SectionTitle
-            style={{ marginBottom: 5, marginTop: 15, justifyContent: 'space-between', alignItems: 'center' }}>
+            style={{ marginBottom: 5, marginTop: 15, justifyContent: 'space-between', alignItems: 'center' }}
+          >
             {t('paintings.model_and_pricing')}
             {selectedModel && selectedModel.pricing && (
               <PricingContainer>
@@ -418,7 +420,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             style={{ width: '100%', marginBottom: 12 }}
             value={selectedModel?.id}
             onChange={handleModelChange}
-            placeholder={t('paintings.select_model')}>
+            placeholder={t('paintings.select_model')}
+          >
             {Object.entries(
               models.reduce(
                 (acc, model) => {

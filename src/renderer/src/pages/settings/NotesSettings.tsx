@@ -114,7 +114,8 @@ const NotesSettings: FC = () => {
               icon={<FolderOpen size={16} />}
               onClick={handleSelectWorkDirectory}
               loading={isSelecting}
-              style={{ marginLeft: 8 }}>
+              style={{ marginLeft: 8 }}
+            >
               {t('notes.settings.data.select')}
             </Button>
           </PathInputContainer>

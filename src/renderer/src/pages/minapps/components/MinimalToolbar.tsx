@@ -120,7 +120,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
           {canPinned && (
             <Tooltip
               title={isPinned ? t('minapp.remove_from_launchpad') : t('minapp.add_to_launchpad')}
-              placement="bottom">
+              placement="bottom"
+            >
               <ToolbarButton onClick={handleTogglePin} $active={isPinned}>
                 <PushpinOutlined />
               </ToolbarButton>
@@ -133,7 +134,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 ? t('minapp.popup.open_link_external_on')
                 : t('minapp.popup.open_link_external_off')
             }
-            placement="bottom">
+            placement="bottom"
+          >
             <ToolbarButton onClick={handleToggleOpenExternal} $active={minappsOpenLinkExternal}>
               <LinkOutlined />
             </ToolbarButton>

@@ -150,7 +150,8 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistant, ToolbarButton }): Re
           : t('assistants.settings.reasoning_effort.label')
       }
       mouseLeaveDelay={0}
-      arrow>
+      arrow
+    >
       <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
         {getThinkingIcon()}
       </ToolbarButton>

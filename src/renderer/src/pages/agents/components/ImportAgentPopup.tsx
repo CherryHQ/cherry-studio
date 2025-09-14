@@ -106,7 +106,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         </Flex>
       }
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Form form={form} onFinish={onFinish} layout="vertical">
         <Form.Item>
           <Radio.Group value={importType} onChange={(e) => setImportType(e.target.value)}>

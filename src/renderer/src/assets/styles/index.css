@@ -1,15 +1,15 @@
-@import './color.css';
-@import './font.css';
-@import './markdown.css';
-@import './ant.css';
-@import './scrollbar.css';
-@import './container.css';
-@import './animation.css';
-@import './richtext.css';
-@import './responsive.css';
-@import '../fonts/icon-fonts/iconfont.css';
-@import '../fonts/ubuntu/ubuntu.css';
-@import '../fonts/country-flag-fonts/flag.css';
+@import "./color.css";
+@import "./font.css";
+@import "./markdown.css";
+@import "./ant.css";
+@import "./scrollbar.css";
+@import "./container.css";
+@import "./animation.css";
+@import "./richtext.css";
+@import "./responsive.css";
+@import "../fonts/icon-fonts/iconfont.css";
+@import "../fonts/ubuntu/ubuntu.css";
+@import "../fonts/country-flag-fonts/flag.css";
 
 *,
 *::before,
@@ -64,7 +64,7 @@ body {
 
 input,
 textarea,
-[contenteditable='true'],
+[contenteditable="true"],
 .markdown,
 #messages,
 .selectable,

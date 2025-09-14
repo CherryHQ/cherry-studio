@@ -51,7 +51,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       maskClosable={false}
       transitionName="animation-move-down"
       centered
-      style={{ padding: '24px' }}>
+      style={{ padding: '24px' }}
+    >
       <SettingSubtitle style={{ marginTop: 0, marginBottom: 8 }}>
         {t('settings.models.topic_naming.label')}
       </SettingSubtitle>

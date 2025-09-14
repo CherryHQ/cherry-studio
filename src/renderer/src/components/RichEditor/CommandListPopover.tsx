@@ -161,7 +161,8 @@ const CommandListPopover = ({
             alignItems: 'center'
           }}
           onClick={() => selectItem(index)}
-          onMouseEnter={() => handleItemMouseEnter(index)}>
+          onMouseEnter={() => handleItemMouseEnter(index)}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
             <div
               style={{
@@ -171,7 +172,8 @@ const CommandListPopover = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
-              }}>
+              }}
+            >
               <item.icon size={16} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>

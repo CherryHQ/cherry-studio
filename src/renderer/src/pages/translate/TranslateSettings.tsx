@@ -62,7 +62,8 @@ const TranslateSettings: FC<{
       centered={true}
       footer={null}
       width={520}
-      transitionName="animation-move-down">
+      transitionName="animation-move-down"
+    >
       <Flex vertical gap={16} style={{ marginTop: 16, paddingBottom: 20 }}>
         <div>
           <Flex align="center" justify="space-between">
@@ -121,7 +122,8 @@ const TranslateSettings: FC<{
               buttonStyle="solid"
               onChange={(e) => {
                 setAutoDetectionMethod(e.target.value)
-              }}>
+              }}
+            >
               <Tooltip title={t('translate.detect.method.auto.tip')}>
                 <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
               </Tooltip>

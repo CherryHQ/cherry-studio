@@ -39,7 +39,8 @@ export function LocalBackupModal({
         <Button key="submit" type="primary" loading={backuping} onClick={handleBackup}>
           {t('common.confirm')}
         </Button>
-      ]}>
+      ]}
+    >
       <Input
         value={customFileName}
         onChange={(e) => setCustomFileName(e.target.value)}

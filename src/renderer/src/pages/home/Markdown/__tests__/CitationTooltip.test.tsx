@@ -19,7 +19,8 @@ vi.mock('antd', () => ({
       data-placement={placement}
       data-color={color}
       data-styles={JSON.stringify(styles)}
-      {...props}>
+      {...props}
+    >
       {children}
       <div data-testid="tooltip-content">{overlay || title}</div>
     </div>

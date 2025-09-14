@@ -87,19 +87,22 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Form
         form={form}
         labelCol={{ flex: '110px' }}
         labelAlign="left"
         colon={false}
         style={{ marginTop: 25 }}
-        onFinish={onFinish}>
+        onFinish={onFinish}
+      >
         <Form.Item
           name="id"
           label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
-          rules={[{ required: true }]}>
+          rules={[{ required: true }]}
+        >
           <Input
             placeholder={t('settings.models.add.model_id.placeholder')}
             spellCheck={false}
@@ -113,13 +116,15 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         <Form.Item
           name="name"
           label={t('settings.models.add.model_name.label')}
-          tooltip={t('settings.models.add.model_name.placeholder')}>
+          tooltip={t('settings.models.add.model_name.placeholder')}
+        >
           <Input placeholder={t('settings.models.add.model_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item
           name="group"
           label={t('settings.models.add.group_name.label')}
-          tooltip={t('settings.models.add.group_name.tooltip')}>
+          tooltip={t('settings.models.add.group_name.tooltip')}
+        >
           <Input placeholder={t('settings.models.add.group_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>

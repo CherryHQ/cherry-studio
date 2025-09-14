@@ -273,7 +273,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         size="small"
         style={{ display: 'flex' }}
         onDragOver={(e) => e.preventDefault()}
-        onDrop={handleDrop}>
+        onDrop={handleDrop}
+      >
         {editedBlocks
           .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
           .map((block) => (
@@ -301,7 +302,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               autoSize={{ minRows: 1, maxRows: 15 }}
               style={{
                 fontSize
-              }}>
+              }}
+            >
               <TranslateButton onTranslated={onTranslated} />
             </TextArea>
           ))}
@@ -318,7 +320,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
                       icon={getFileIcon(block.file.ext)}
                       color="#37a5aa"
                       closable
-                      onClose={() => handleFileRemove(block.id)}>
+                      onClose={() => handleFileRemove(block.id)}
+                    >
                       <FileNameRender file={block.file} />
                     </CustomTag>
                   )
@@ -330,7 +333,8 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
                 icon={getFileIcon(file.ext)}
                 color="#37a5aa"
                 closable
-                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}>
+                onClose={() => setFiles((prevFiles) => prevFiles.filter((f) => f.id !== file.id))}
+              >
                 <FileNameRender file={file} />
               </CustomTag>
             ))}

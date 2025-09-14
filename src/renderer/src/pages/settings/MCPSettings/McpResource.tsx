@@ -73,7 +73,8 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
                     </Typography.Text>
                   )}
                 </Flex>
-              }>
+              }
+            >
               <SelectableContent>{renderResourceProperties(resource)}</SelectableContent>
             </Collapse.Panel>
           ))}

@@ -27,7 +27,8 @@ const MentionModelsInput: FC<{
             color="#1677ff"
             key={getModelUniqId(model)}
             closable
-            onClose={() => onRemoveModel(model)}>
+            onClose={() => onRemoveModel(model)}
+          >
             {model.name} ({getProviderName(model)})
           </CustomTag>
         ))}

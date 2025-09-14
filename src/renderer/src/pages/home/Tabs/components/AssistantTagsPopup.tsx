@@ -80,7 +80,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered>
+      centered
+    >
       <Container>
         {tags.length > 0 ? (
           <DragDropContext onDragEnd={handleDragEnd}>
