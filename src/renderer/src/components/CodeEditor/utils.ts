@@ -59,7 +59,14 @@ const _customLanguageExtensions: Record<string, string> = {
  * @returns file extension (without `.` prefix)
  */
 export async function getNormalizedExtension(language: string) {
-  const lowerLanguage = language.toLowerCase()
+  let lang = language
+
+  // If the language name looks like an extension, remove the dot
+  if (language.startsWith('.') && language.length > 1) {
+    lang = language.slice(1)
+  }
+
+  const lowerLanguage = lang.toLowerCase()
 
   // 1. Search for custom extensions
   const customExt = _customLanguageExtensions[lowerLanguage]
@@ -68,18 +75,13 @@ export async function getNormalizedExtension(language: string) {
   }
 
   // 2. Search for github linguist extensions
-  const linguistExt = getExtensionByLanguage(language)
+  const linguistExt = getExtensionByLanguage(lang)
   if (linguistExt) {
     return linguistExt.slice(1)
   }
 
-  // 3. If the language name looks like an extension
-  if (language.startsWith('.') && language.length > 1) {
-    return language.slice(1)
-  }
-
   // Fallback to language name
-  return language
+  return lang
 }
 
 /**
@@ -115,7 +117,7 @@ export function getExtensionByLanguage(language: string): string {
   }
 
   // Fallback to language name
-  return language.startsWith('.') ? language : `.${language}`
+  return `.${language}`
 }
 
 /**
