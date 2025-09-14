@@ -20,7 +20,7 @@ Content-Type: application/json
 }
 
 ### Get Session Details
-GET {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815281790_q4yxgdk74
+GET {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815260195_eldvompnv
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
@@ -37,4 +37,16 @@ Content-Type: application/json
 {
   "name": "Code Review Session 1",
   "user_goal": "Review the newly implemented feature for bugs and improvements"
+}
+
+
+### Create Session Message
+POST {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815260195_eldvompnv/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role": "assistant",
+  "content": "Sure! Please provide the code or details of the feature you would like me to review.",
+  "parent_message_id": null
 }
