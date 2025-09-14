@@ -13190,6 +13190,7 @@ __metadata:
     emoji-picker-element: "npm:^1.22.1"
     epub: "patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch"
     eslint: "npm:^9.22.0"
+    eslint-plugin-oxlint: "npm:^1.15.0"
     eslint-plugin-react-hooks: "npm:^5.2.0"
     eslint-plugin-simple-import-sort: "npm:^12.1.1"
     eslint-plugin-unused-imports: "npm:^4.1.4"
@@ -17036,6 +17037,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"eslint-plugin-oxlint@npm:^1.15.0":
+  version: 1.15.0
+  resolution: "eslint-plugin-oxlint@npm:1.15.0"
+  dependencies:
+    jsonc-parser: "npm:^3.3.1"
+  checksum: 10c0/1c16e4a70fe3bc7ca4cda28393bb00f20d2b009121d5804dc3e9a247adb2773236e542078d6a0f4d4168e4ba68cb88fe5ad8efaee52bec24f72c16b1dad2990c
+  languageName: node
+  linkType: hard
+
 "eslint-plugin-prettier@npm:^5.2.3":
   version: 5.2.6
   resolution: "eslint-plugin-prettier@npm:5.2.6"
@@ -19948,6 +19958,13 @@ __metadata:
   bin:
     json5: lib/cli.js
   checksum: 10c0/5a04eed94810fa55c5ea138b2f7a5c12b97c3750bc63d11e511dcecbfef758003861522a070c2272764ee0f4e3e323862f386945aeb5b85b87ee43f084ba586c
+  languageName: node
+  linkType: hard
+
+"jsonc-parser@npm:^3.3.1":
+  version: 3.3.1
+  resolution: "jsonc-parser@npm:3.3.1"
+  checksum: 10c0/269c3ae0a0e4f907a914bf334306c384aabb9929bd8c99f909275ebd5c2d3bc70b9bcd119ad794f339dec9f24b6a4ee9cd5a8ab2e6435e730ad4075388fc2ab6
   languageName: node
   linkType: hard
 
