@@ -420,7 +420,7 @@ export function sanitizeFilename(fileName: string, replacement = '_'): string {
 
   // 移除或替换非法字符
   let sanitized = fileName
-    // eslint-disable-next-line no-control-regex
+    // oxlint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, replacement) // Windows 非法字符
     .replace(/^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\.|$)/i, replacement + '$2') // Windows 保留名
     .replace(/[\s.]+$/, '') // 移除末尾的空格和点
