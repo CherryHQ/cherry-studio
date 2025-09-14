@@ -36,7 +36,7 @@ export function debounce(func: (...args: any[]) => void, wait: number, immediate
   }
 }
 
-// NODE: It's an unused function. localStorage should not be accessed in main process.
+// NOTE: It's an unused function. localStorage should not be accessed in main process.
 // export function dumpPersistState() {
 //   const persistState = JSON.parse(localStorage.getItem('persist:cherry-studio') || '{}')
 //   for (const key in persistState) {
