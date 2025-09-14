@@ -74,7 +74,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       document.body.setAttribute('theme-mode', actualTheme)
       setActualTheme(actualTheme)
     })
-  }, [actualTheme, initUserTheme, navbarPosition, setSettedTheme, settedTheme])
+  }, [actualTheme, initUserTheme, language, navbarPosition, setSettedTheme, settedTheme])
 
   useEffect(() => {
     tailwindThemeChange(actualTheme)
