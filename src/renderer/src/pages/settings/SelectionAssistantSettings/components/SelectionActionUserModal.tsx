@@ -95,8 +95,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       open={isModalOpen}
       onOk={handleOk}
       onCancel={onCancel}
-      width={520}
-    >
+      width={520}>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         <ModalSection>
           <div style={{ display: 'flex', flexDirection: 'row' }}>
@@ -124,8 +123,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   href="https://lucide.dev/icons/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ fontSize: '12px', color: 'var(--color-primary)' }}
-                >
+                  style={{ fontSize: '12px', color: 'var(--color-primary)' }}>
                   {t('selection.settings.user_modal.icon.view_all')}
                 </a>
                 <Tooltip title={t('selection.settings.user_modal.icon.random')}>
@@ -133,8 +131,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                     onClick={() => {
                       const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
                       handleInputChange('icon', randomIcon)
-                    }}
-                  >
+                    }}>
                     <Dices size={14} className="btn-icon" />
                   </DiceButton>
                 </Tooltip>
@@ -175,8 +172,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               onChange={(e) =>
                 handleInputChange('assistantId', e.target.value === 'default' ? '' : defaultAssistant.id)
               }
-              buttonStyle="solid"
-            >
+              buttonStyle="solid">
               <Radio.Button value="default">{t('selection.settings.user_modal.model.default')}</Radio.Button>
               <Radio.Button value="assistant">{t('selection.settings.user_modal.model.assistant')}</Radio.Button>
             </Radio.Group>
@@ -192,8 +188,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               value={formData.assistantId || defaultAssistant.id}
               onChange={(value) => handleInputChange('assistantId', value)}
               style={{ width: '100%' }}
-              dropdownRender={(menu) => menu}
-            >
+              dropdownRender={(menu) => menu}>
               <Select.Option key={defaultAssistant.id} value={defaultAssistant.id}>
                 <AssistantItem>
                   <ModelAvatar model={defaultAssistant.model || getDefaultModel()} size={18} />
@@ -231,8 +226,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '4px'
-              }}
-            >
+              }}>
               {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
               <CopyButton tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')} textToCopy="{{text}}" />
             </div>

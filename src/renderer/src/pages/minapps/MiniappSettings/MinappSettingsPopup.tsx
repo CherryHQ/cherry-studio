@@ -37,8 +37,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       afterClose={onClose}
       footer={null}
       transitionName="animation-move-down"
-      centered
-    >
+      centered>
       <MiniAppSettings />
     </Modal>
   )

@@ -235,8 +235,7 @@ const CodeToolsPage: FC = () => {
                       icon={<Download size={14} />}
                       onClick={handleInstallBun}
                       loading={isInstallingBun}
-                      disabled={isInstallingBun}
-                    >
+                      disabled={isInstallingBun}>
                       {isInstallingBun ? t('code.installing_bun') : t('code.install_bun')}
                     </Button>
                   </div>
@@ -271,8 +270,7 @@ const CodeToolsPage: FC = () => {
                               <Link
                                 key={provider.id}
                                 style={{ color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: 4 }}
-                                to={`/settings/provider?id=${provider.id}`}
-                              >
+                                to={`/settings/provider?id=${provider.id}`}>
                                 <ProviderLogo shape="square" src={getProviderLogo(provider.id)} size={20} />
                                 {getProviderLabel(provider.id)}
                                 <ArrowUpRight size={14} />
@@ -283,8 +281,7 @@ const CodeToolsPage: FC = () => {
                       </div>
                     }
                     trigger="hover"
-                    placement="right"
-                  >
+                    placement="right">
                     <HelpCircle size={14} style={{ color: 'var(--color-text-3)', cursor: 'pointer' }} />
                   </Popover>
                 )}
@@ -361,8 +358,7 @@ const CodeToolsPage: FC = () => {
             onClick={handleLaunch}
             loading={isLaunching}
             disabled={!canLaunch || !isBunInstalled}
-            block
-          >
+            block>
             {isLaunching ? t('code.launching') : t('code.launch.label')}
           </Button>
         </MainContent>

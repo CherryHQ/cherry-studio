@@ -69,8 +69,7 @@ export const useHealthStatus = ({ results, showLatency = false }: UseHealthStatu
         listStyleType: 'none',
         maxWidth: '300px',
         wordWrap: 'break-word'
-      }}
-    >
+      }}>
       {results.map((result, idx) => {
         const statusText = getStatusText(result.status)
         const statusColor =

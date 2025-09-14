@@ -56,8 +56,7 @@ const PopupContainer: React.FC<Props> = ({
         wrapper: {
           width: 'var(--assistants-width)'
         }
-      }}
-    >
+      }}>
       <HomeTabs
         activeAssistant={activeAssistant}
         activeTopic={activeTopic}

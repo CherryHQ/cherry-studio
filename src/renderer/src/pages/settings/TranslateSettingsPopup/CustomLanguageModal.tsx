@@ -105,8 +105,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
         body: {
           padding: '20px'
         }
-      }}
-    >
+      }}>
       <Form form={form} onFinish={handleSubmit} validateTrigger="onBlur" colon={false}>
         <Form.Item name="emoji" label="Emoji" {...formItemLayout} style={{ height: 32 }} initialValue={defaultEmoji}>
           <Popover
@@ -119,8 +118,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
               />
             }
             arrow
-            trigger="click"
-          >
+            trigger="click">
             <Button style={{ aspectRatio: '1/1' }} icon={<Emoji emoji={emoji} />} />
           </Popover>
         </Form.Item>
@@ -132,8 +130,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
           rules={[
             { required: true, message: t('settings.translate.custom.error.value.empty') },
             { max: 32, message: t('settings.translate.custom.error.value.too_long') }
-          ]}
-        >
+          ]}>
           <Input placeholder={t('settings.translate.custom.value.placeholder')} />
         </Form.Item>
         <Form.Item
@@ -162,8 +159,7 @@ const CustomLanguageModal = ({ isOpen, editingCustomLanguage, onAdd, onEdit, onC
                 }
               }
             }
-          ]}
-        >
+          ]}>
           <Input placeholder={t('settings.translate.custom.langCode.placeholder')} />
         </Form.Item>
       </Form>

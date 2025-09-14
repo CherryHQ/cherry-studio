@@ -94,8 +94,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
             onUpdate={(newPrompts) => handleUpdateOrder([...newPrompts].reverse())}
             style={{ paddingBottom: dragging ? '34px' : 0 }}
             onDragStart={() => setDragging(true)}
-            onDragEnd={() => setDragging(false)}
-          >
+            onDragEnd={() => setDragging(false)}>
             {(prompt) => (
               <FileItem
                 key={prompt.id}
@@ -115,8 +114,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                         okText={t('common.confirm')}
                         cancelText={t('common.cancel')}
                         onConfirm={() => handleDelete(prompt.id)}
-                        icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}
-                      >
+                        icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
                         <Button
                           key="delete"
                           type="text"
@@ -144,8 +142,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
         onCancel={() => setIsModalOpen(false)}
         width={520}
         transitionName="animation-move-down"
-        centered
-      >
+        centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <Label>{t('assistants.settings.regular_phrases.titleLabel', 'Title')}</Label>

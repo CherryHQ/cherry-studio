@@ -44,16 +44,14 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
         'message-assistant': isAssistantMessage,
         'message-user': !isAssistantMessage
       })}
-      style={{ maxWidth }}
-    >
+      style={{ maxWidth }}>
       <MessageContentContainer
         className="message-content-container"
         style={{
           fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
           fontSize,
           background: messageBackground
-        }}
-      >
+        }}>
         <MessageErrorBoundary>
           <MessageContent message={message} />
         </MessageErrorBoundary>

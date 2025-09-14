@@ -58,8 +58,7 @@ const CollapsibleSearchBar = ({
           expanded: { maxWidth: maxWidth, opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
           collapsed: { maxWidth: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
         }}
-        style={{ overflow: 'hidden', flex: 1 }}
-      >
+        style={{ overflow: 'hidden', flex: 1 }}>
         <Input
           ref={inputRef}
           type="text"
@@ -92,8 +91,7 @@ const CollapsibleSearchBar = ({
           hidden: { opacity: 0, transition: { duration: 0.1, ease: 'easeInOut' } }
         }}
         style={{ cursor: 'pointer', display: 'flex' }}
-        onClick={() => setSearchVisible(true)}
-      >
+        onClick={() => setSearchVisible(true)}>
         <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
           {icon}
         </Tooltip>

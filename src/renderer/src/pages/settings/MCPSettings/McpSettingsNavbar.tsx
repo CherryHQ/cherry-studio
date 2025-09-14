@@ -22,8 +22,7 @@ export const McpSettingsNavbar = () => {
           onClick={() => navigate('/settings/mcp/npx-search')}
           icon={<Search size={14} />}
           className="nodrag"
-          style={{ fontSize: 13, height: 28, borderRadius: 20 }}
-        >
+          style={{ fontSize: 13, height: 28, borderRadius: 20 }}>
           {t('settings.mcp.searchNpx')}
         </Button>
         <InstallNpxUv mini />

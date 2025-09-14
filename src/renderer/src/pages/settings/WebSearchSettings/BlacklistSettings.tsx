@@ -259,8 +259,7 @@ const BlacklistSettings: FC = () => {
             type={subscribeValid ? 'primary' : 'default'}
             ghost={subscribeValid}
             disabled={subscribeChecking}
-            onClick={handleAddSubscribe}
-          >
+            onClick={handleAddSubscribe}>
             {t('settings.tool.websearch.subscribe_add')}
           </Button>
         </SettingTitle>
@@ -279,8 +278,7 @@ const BlacklistSettings: FC = () => {
               ghost={subscribeValid}
               disabled={subscribeChecking || selectedRowKeys.length === 0}
               style={{ width: 100 }}
-              onClick={updateSubscribe}
-            >
+              onClick={updateSubscribe}>
               {subscribeChecking ? (
                 <LoadingOutlined spin />
               ) : subscribeValid ? (

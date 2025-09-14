@@ -27,8 +27,7 @@ export default function Spinner({ text }: Props) {
         repeat: Infinity,
         repeatType: 'reverse',
         ease: 'easeInOut'
-      }}
-    >
+      }}>
       <Search size={16} style={{ color: 'unset' }} />
       <span>{text}</span>
     </Searching>

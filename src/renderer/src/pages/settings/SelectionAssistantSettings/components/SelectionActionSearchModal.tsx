@@ -150,8 +150,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
       onOk={handleOk}
       onCancel={handleCancel}
       destroyOnHidden
-      centered
-    >
+      centered>
       <Form
         form={form}
         layout="vertical"
@@ -159,8 +158,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
           engine: 'Google',
           customName: '',
           customUrl: ''
-        }}
-      >
+        }}>
         <Form.Item name="engine" label={t('selection.settings.search_modal.engine.label')}>
           <Select
             options={DEFAULT_SEARCH_ENGINES.map((engine) => ({
@@ -193,8 +191,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                   rules={[
                     { required: true, message: t('selection.settings.search_modal.custom.name.hint') },
                     { max: 16, message: t('selection.settings.search_modal.custom.name.max_length') }
-                  ]}
-                >
+                  ]}>
                   <Input placeholder={t('selection.settings.search_modal.custom.name.hint')} />
                 </Form.Item>
 
@@ -216,8 +213,7 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                         return Promise.resolve()
                       }
                     }
-                  ]}
-                >
+                  ]}>
                   <Input
                     placeholder={EXAMPLE_URL}
                     suffix={

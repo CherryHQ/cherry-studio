@@ -80,8 +80,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       okText={t('backup.confirm.button')}
       maskClosable={false}
       transitionName="animation-move-down"
-      centered
-    >
+      centered>
       {!progressData && <div>{t('backup.content')}</div>}
       {progressData && (
         <div style={{ textAlign: 'center', padding: '20px 0' }}>

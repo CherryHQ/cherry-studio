@@ -107,12 +107,10 @@ const MessageGroupMenuBar: FC<Props> = ({
             <Tooltip
               mouseEnterDelay={0.5}
               key={layout}
-              title={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}
-            >
+              title={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}>
               <LayoutOption
                 $active={multiModelMessageStyle === layout}
-                onClick={() => setMultiModelMessageStyle(layout)}
-              >
+                onClick={() => setMultiModelMessageStyle(layout)}>
                 {layout === 'fold' ? (
                   <FolderOutlined />
                 ) : layout === 'horizontal' ? (

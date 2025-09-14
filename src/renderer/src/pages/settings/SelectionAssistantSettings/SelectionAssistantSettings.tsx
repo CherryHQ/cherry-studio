@@ -98,8 +98,7 @@ const SelectionAssistantSettings: FC = () => {
           <Button
             type="link"
             onClick={() => window.api.openWebsite('https://github.com/CherryHQ/cherry-studio/issues/6505')}
-            style={{ fontSize: 12 }}
-          >
+            style={{ fontSize: 12 }}>
             {'FAQ & ' + t('settings.about.feedback.button')}
           </Button>
           {isMac && <ExperimentalText>{t('selection.settings.experimental')}</ExperimentalText>}
@@ -142,8 +141,7 @@ const SelectionAssistantSettings: FC = () => {
               <Radio.Group
                 value={triggerMode}
                 onChange={(e) => setTriggerMode(e.target.value as TriggerMode)}
-                buttonStyle="solid"
-              >
+                buttonStyle="solid">
                 <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.selected_note')} arrow>
                   <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
                 </Tooltip>
@@ -162,8 +160,7 @@ const SelectionAssistantSettings: FC = () => {
                       </Link>
                     </div>
                   }
-                  arrow
-                >
+                  arrow>
                   <Radio.Button value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio.Button>
                 </Tooltip>
               </Radio.Group>
@@ -245,8 +242,7 @@ const SelectionAssistantSettings: FC = () => {
               <Radio.Group
                 value={filterMode ?? 'default'}
                 onChange={(e) => setFilterMode(e.target.value as FilterMode)}
-                buttonStyle="solid"
-              >
+                buttonStyle="solid">
                 <Radio.Button value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio.Button>
                 <Radio.Button value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio.Button>
                 <Radio.Button value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio.Button>

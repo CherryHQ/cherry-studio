@@ -205,8 +205,7 @@ const ErrorDetailModal: React.FC<ErrorDetailModalProps> = ({ open, onClose, erro
           {t('common.close')}
         </Button>
       ]}
-      width={600}
-    >
+      width={600}>
       <ErrorDetailContainer>{renderErrorDetails(error)}</ErrorDetailContainer>
     </Modal>
   )

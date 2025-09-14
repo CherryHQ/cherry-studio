@@ -334,15 +334,13 @@ const ProviderList: FC = () => {
             padding: 8,
             paddingRight: 5
           }}
-          itemContainerStyle={{ paddingBottom: 5 }}
-        >
+          itemContainerStyle={{ paddingBottom: 5 }}>
           {(provider) => (
             <Dropdown menu={{ items: getDropdownMenus(provider) }} trigger={['contextMenu']}>
               <ProviderListItem
                 key={provider.id}
                 className={provider.id === selectedProvider?.id ? 'active' : ''}
-                onClick={() => setSelectedProvider(provider)}
-              >
+                onClick={() => setSelectedProvider(provider)}>
                 <DragHandle>
                   <GripVertical size={12} />
                 </DragHandle>
@@ -369,8 +367,7 @@ const ProviderList: FC = () => {
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
             icon={<PlusIcon size={16} />}
             onClick={onAddProvider}
-            disabled={dragging}
-          >
+            disabled={dragging}>
             {t('button.add')}
           </Button>
         </AddButtonWrapper>

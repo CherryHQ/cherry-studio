@@ -46,8 +46,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
           color="var(--color-link)"
           size={11}
           onClick={onNavigateProvider}
-          style={{ display: 'flex', alignItems: 'center', gap: 2 }}
-        >
+          style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {getProviderLabel(providerId)}
           <ArrowUpRight size={12} />
         </CustomTag>

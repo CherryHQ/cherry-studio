@@ -684,8 +684,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <Radio.Group
             value={painting[item.key!] || item.initialValue}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
-          >
+            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
             {radioOptions!.map((option) => (
               <Radio.Button key={option.value} value={option.value}>
                 {option.label}
@@ -768,8 +767,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               setFileMap({ ...fileMap, [path]: file as unknown as FileMetadata })
               updatePaintingState({ [item.key!]: path })
               return false // 阻止默认上传行为
-            }}
-          >
+            }}>
             {painting[item.key!] ? (
               <ImagePreview>
                 <img src={painting[item.key!]} alt="预览图" />

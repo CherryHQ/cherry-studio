@@ -248,8 +248,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
               ? t('settings.models.manage.remove_listed')
               : t('settings.models.manage.add_listed.label')
           }
-          mouseLeaveDelay={0}
-        >
+          mouseLeaveDelay={0}>
           <Button
             type="default"
             icon={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
@@ -289,8 +288,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
           overflowY: 'hidden'
         }
       }}
-      centered
-    >
+      centered>
       <SearchContainer>
         <TopToolsWrapper>
           <Input
@@ -333,8 +331,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       </SearchContainer>
       <Spin
         spinning={isLoading}
-        indicator={<LoadingIcon color="var(--color-text-2)" style={{ opacity: loadingModels ? 1 : 0 }} />}
-      >
+        indicator={<LoadingIcon color="var(--color-text-2)" style={{ opacity: loadingModels ? 1 : 0 }} />}>
         <ListContainer>
           {loadingModels || isEmpty(list) ? (
             <Empty

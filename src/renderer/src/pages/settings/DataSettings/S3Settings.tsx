@@ -198,15 +198,13 @@ const S3Settings: FC = () => {
             onClick={showBackupModal}
             icon={<SaveOutlined />}
             loading={backuping}
-            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}
-          >
+            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}>
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
             onClick={showBackupManager}
             icon={<FolderOpenOutlined />}
-            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}
-          >
+            disabled={!endpoint || !region || !bucket || !accessKeyId || !secretAccessKey}>
             {t('settings.data.s3.backup.manager.button')}
           </Button>
         </HStack>

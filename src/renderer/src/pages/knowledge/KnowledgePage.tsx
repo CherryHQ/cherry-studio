@@ -109,8 +109,7 @@ const KnowledgePage: FC = () => {
             onUpdate={updateKnowledgeBases}
             style={{ marginBottom: 0, paddingBottom: isDragging ? 50 : 0 }}
             onDragStart={() => setIsDragging(true)}
-            onDragEnd={() => setIsDragging(false)}
-          >
+            onDragEnd={() => setIsDragging(false)}>
             {(base: KnowledgeBase) => (
               <Dropdown menu={{ items: getMenuItems(base) }} trigger={['contextMenu']} key={base.id}>
                 <div>

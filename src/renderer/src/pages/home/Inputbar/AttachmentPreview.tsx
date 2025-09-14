@@ -115,8 +115,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           <span style={{ wordBreak: 'break-all' }}>{fullName}</span>
           {formatFileSize(file.size)}
         </Flex>
-      }
-    >
+      }>
       <FileName
         onClick={() => {
           if (isImage(file.ext)) {
@@ -127,8 +126,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           const name = FileManager.formatFileName(file)
           preview(path, name, file.type, file.ext)
         }}
-        title={fullName}
-      >
+        title={fullName}>
         {displayName}
       </FileName>
     </Tooltip>
@@ -148,8 +146,7 @@ const AttachmentPreview: FC<Props> = ({ files, setFiles }) => {
           icon={getFileIcon(file.ext)}
           color="#37a5aa"
           closable
-          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}
-        >
+          onClose={() => setFiles(files.filter((f) => f.id !== file.id))}>
           <FileNameRender file={file} />
         </CustomTag>
       ))}

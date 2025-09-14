@@ -503,8 +503,7 @@ const McpSettings: React.FC = () => {
             overflowY: 'auto',
             width: 'calc(100% + 10px)',
             paddingRight: '10px'
-          }}
-        >
+          }}>
           <Form.Item name="name" label={t('settings.mcp.name')} rules={[{ required: true, message: '' }]}>
             <Input placeholder={t('common.name')} disabled={server.type === 'inMemory'} />
           </Form.Item>
@@ -516,8 +515,7 @@ const McpSettings: React.FC = () => {
               name="serverType"
               label={t('settings.mcp.type')}
               rules={[{ required: true }]}
-              initialValue="stdio"
-            >
+              initialValue="stdio">
               <Select
                 onChange={(value) => setServerType(value)}
                 options={[
@@ -534,8 +532,7 @@ const McpSettings: React.FC = () => {
                 name="baseUrl"
                 label={t('settings.mcp.url')}
                 rules={[{ required: serverType === 'sse', message: '' }]}
-                tooltip={t('settings.mcp.baseUrlTooltip')}
-              >
+                tooltip={t('settings.mcp.baseUrlTooltip')}>
                 <Input placeholder="http://localhost:3000/sse" />
               </Form.Item>
               <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
@@ -553,8 +550,7 @@ const McpSettings: React.FC = () => {
                 name="baseUrl"
                 label={t('settings.mcp.url')}
                 rules={[{ required: serverType === 'streamableHttp', message: '' }]}
-                tooltip={t('settings.mcp.baseUrlTooltip')}
-              >
+                tooltip={t('settings.mcp.baseUrlTooltip')}>
                 <Input placeholder="http://localhost:3000/mcp" />
               </Form.Item>
               <Form.Item name="headers" label={t('settings.mcp.headers')} tooltip={t('settings.mcp.headersTooltip')}>
@@ -571,8 +567,7 @@ const McpSettings: React.FC = () => {
               <Form.Item
                 name="command"
                 label={t('settings.mcp.command')}
-                rules={[{ required: serverType === 'stdio', message: '' }]}
-              >
+                rules={[{ required: serverType === 'stdio', message: '' }]}>
                 <Input placeholder="uvx or npx" onChange={(e) => handleCommandChange(e.target.value)} />
               </Form.Item>
 
@@ -580,18 +575,15 @@ const McpSettings: React.FC = () => {
                 <Form.Item
                   name="registryUrl"
                   label={t('settings.mcp.registry')}
-                  tooltip={t('settings.mcp.registryTooltip')}
-                >
+                  tooltip={t('settings.mcp.registryTooltip')}>
                   <Radio.Group
-                    value={selectedRegistryType === 'custom' ? 'custom' : form.getFieldValue('registryUrl') || ''}
-                  >
+                    value={selectedRegistryType === 'custom' ? 'custom' : form.getFieldValue('registryUrl') || ''}>
                     <Radio
                       key="no-proxy"
                       value=""
                       onChange={(e) => {
                         onSelectRegistry(e.target.value)
-                      }}
-                    >
+                      }}>
                       {t('settings.mcp.registryDefault')}
                     </Radio>
                     {registry.map((reg) => (
@@ -600,8 +592,7 @@ const McpSettings: React.FC = () => {
                         value={reg.url}
                         onChange={(e) => {
                           onSelectRegistry(e.target.value)
-                        }}
-                      >
+                        }}>
                         {reg.name}
                       </Radio>
                     ))}
@@ -645,8 +636,7 @@ const McpSettings: React.FC = () => {
             label={t('settings.mcp.longRunning', 'Long Running')}
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
-            valuePropName="checked"
-          >
+            valuePropName="checked">
             <Switch size="small" style={{ marginLeft: 10 }} />
           </Form.Item>
           <Form.Item
@@ -655,8 +645,7 @@ const McpSettings: React.FC = () => {
             tooltip={t(
               'settings.mcp.timeoutTooltip',
               'Timeout in seconds for requests to this server, default is 60 seconds'
-            )}
-          >
+            )}>
             <Input type="number" min={1} placeholder="60" addonAfter="s" />
           </Form.Item>
 
@@ -766,8 +755,7 @@ const McpSettings: React.FC = () => {
               onClick={onSave}
               loading={loading}
               shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}
-            >
+              disabled={!isFormChanged || activeTab !== 'settings'}>
               {t('common.save')}
             </Button>
           </Flex>

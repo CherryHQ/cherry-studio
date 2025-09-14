@@ -95,8 +95,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
         size="small"
         type="inner"
         styles={{ body: { padding: 0 } }}
-        style={{ marginBottom: '5px', border: '0.5px solid var(--color-border)' }}
-      >
+        style={{ marginBottom: '5px', border: '0.5px solid var(--color-border)' }}>
         {displayKeys.length === 0 ? (
           <Typography.Text type="secondary" style={{ padding: '4px 11px', display: 'block' }}>
             {t('error.no_api_key')}
@@ -139,8 +138,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
                 onConfirm={removeInvalidKeys}
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
-                okButtonProps={{ danger: true }}
-              >
+                okButtonProps={{ danger: true }}>
                 <Tooltip title={t('settings.provider.remove_invalid_keys')} placement="top" mouseLeaveDelay={0}>
                   <Button
                     type="text"
@@ -170,8 +168,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
             onClick={handleAddNew}
             icon={<Plus size={16} />}
             autoFocus={shouldAutoFocus()}
-            disabled={isChecking || !!pendingNewKey}
-          >
+            disabled={isChecking || !!pendingNewKey}>
             {t('common.add')}
           </Button>
         </Space>

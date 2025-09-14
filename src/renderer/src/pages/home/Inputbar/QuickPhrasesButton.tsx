@@ -175,8 +175,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
         }}
         width={520}
         transitionName="animation-move-down"
-        centered
-      >
+        centered>
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <div>
             <Label>{t('settings.quickPhrase.titleLabel')}</Label>
@@ -200,8 +199,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
             <Label>{t('settings.quickPhrase.locationLabel', '添加位置')}</Label>
             <Radio.Group
               value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-            >
+              onChange={(e) => setFormData({ ...formData, location: e.target.value })}>
               <Radio value="global">
                 <Zap size={20} style={{ paddingRight: '4px', verticalAlign: 'middle', paddingBottom: '3px' }} />
                 {t('settings.quickPhrase.global', '全局快速短语')}

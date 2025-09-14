@@ -374,8 +374,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
             selected: item.isSelected
           })}
           onClick={() => handleItemClick(item)}
-          onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}
-        >
+          onMouseOver={() => !isFocused && setFocusedItemKey(item.key)}>
           <ModelItemLeft>
             {item.icon}
             {item.name}
@@ -389,8 +388,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
               }
             }}
             data-pinned={item.isPinned}
-            $isPinned={item.isPinned}
-          >
+            $isPinned={item.isPinned}>
             <PushpinOutlined />
           </PinIconWrapper>
         </ModelItem>
@@ -420,8 +418,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         }
       }}
       closeIcon={null}
-      footer={null}
-    >
+      footer={null}>
       {/* 搜索框 */}
       <SelectModelSearchBar onSearch={setSearchText} />
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
@@ -443,8 +440,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
             isSticky={isSticky}
             scrollPaddingStart={ITEM_HEIGHT} // 留出 sticky header 高度
             overscan={5}
-            scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}
-          >
+            scrollerStyle={{ pointerEvents: isMouseOver ? 'auto' : 'none' }}>
             {rowRenderer}
           </DynamicVirtualList>
         </ListContainer>

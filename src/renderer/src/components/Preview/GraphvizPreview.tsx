@@ -42,8 +42,7 @@ const GraphvizPreview = ({
       enableToolbar={enableToolbar}
       ref={ref}
       imageRef={containerRef}
-      source="graphviz"
-    >
+      source="graphviz">
       <ShadowWhiteContainer ref={containerRef} className="graphviz special-preview" />
     </ImagePreviewLayout>
   )

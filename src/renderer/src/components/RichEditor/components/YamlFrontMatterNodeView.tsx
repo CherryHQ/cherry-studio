@@ -421,15 +421,13 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
         if (e.target === e.currentTarget) {
           e.preventDefault()
         }
-      }}
-    >
+      }}>
       <PropertiesContainer
         hasContent={hasContent}
         onClick={(e) => {
           // Prevent node selection when clicking inside properties
           e.stopPropagation()
-        }}
-      >
+        }}>
         {parsedProperties.map((property) => (
           <Dropdown
             key={property.key}
@@ -439,13 +437,11 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
             open={openDropdown === `context-${property.key}`}
             onOpenChange={(open) => {
               setOpenDropdown(open ? `context-${property.key}` : null)
-            }}
-          >
+            }}>
             <PropertyRow
               onContextMenu={(e) => {
                 e.stopPropagation()
-              }}
-            >
+              }}>
               <PropertyIcon>{getPropertyIcon(property.type)}</PropertyIcon>
               <PropertyName>{property.key}</PropertyName>
               {renderPropertyValue(property)}
@@ -457,8 +453,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                   open={openDropdown === `action-${property.key}`}
                   onOpenChange={(open) => {
                     setOpenDropdown(open ? `action-${property.key}` : null)
-                  }}
-                >
+                  }}>
                   <ActionButton onClick={(e) => e.stopPropagation()} title={t('richEditor.frontMatter.moreActions')}>
                     <MoreHorizontal size={14} />
                   </ActionButton>

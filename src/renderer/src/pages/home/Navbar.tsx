@@ -74,8 +74,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             animate={{ width: 'auto', opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}
-          >
+            style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
                 <NavbarIcon onClick={toggleShowAssistants}>
@@ -99,8 +98,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{ overflow: 'hidden' }}
-            >
+              style={{ overflow: 'hidden' }}>
               <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
                 <Menu size={18} />
               </NavbarIcon>
@@ -118,8 +116,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           position: 'relative',
           paddingRight: isWin || isLinux ? '144px' : '6px'
         }}
-        className="home-navbar-right"
-      >
+        className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>

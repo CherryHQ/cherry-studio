@@ -146,8 +146,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             e.stopPropagation()
             handleAddFile()
           }}
-          disabled={disabled}
-        >
+          disabled={disabled}>
           {t('knowledge.add_file')}
         </ResponsiveButton>
       </ItemHeader>
@@ -157,15 +156,13 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
           onClick={(e) => {
             e.stopPropagation()
             handleAddFile()
-          }}
-        >
+          }}>
           <Dragger
             showUploadList={false}
             customRequest={({ file }) => handleDrop([file as File])}
             multiple={true}
             accept={fileTypes.join(',')}
-            openFileDialogOnClick={false}
-          >
+            openFileDialogOnClick={false}>
             <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
             <p className="ant-upload-hint">
               {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
@@ -180,8 +177,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             estimateSize={estimateSize}
             overscan={2}
             scrollerStyle={{ height: windowHeight - 270 }}
-            autoHideScrollbar
-          >
+            autoHideScrollbar>
             {(item) => {
               if (!isKnowledgeFileItem(item)) {
                 return null

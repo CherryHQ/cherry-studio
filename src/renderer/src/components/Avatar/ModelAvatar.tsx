@@ -25,8 +25,7 @@ const ModelAvatar: FC<Props> = ({ model, size, props, className }) => {
         justifyContent: 'center'
       }}
       {...props}
-      className={className}
-    >
+      className={className}>
       {first(model?.name)}
     </Avatar>
   )

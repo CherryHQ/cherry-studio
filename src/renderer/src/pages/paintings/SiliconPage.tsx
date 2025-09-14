@@ -373,8 +373,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               size="small"
               className="nodrag"
               icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}
-            >
+              onClick={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -390,8 +389,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           <Radio.Group
             value={painting.imageSize}
             onChange={(e) => onSelectImageSize(e.target.value)}
-            style={{ display: 'flex' }}
-          >
+            style={{ display: 'flex' }}>
             {IMAGE_SIZES.map((size) => (
               <RadioButton value={size.value} key={size.value}>
                 <VStack alignItems="center">

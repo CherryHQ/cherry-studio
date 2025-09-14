@@ -167,8 +167,7 @@ const DragContextMenu: React.FC<DragContextMenuProps> = ({
               $danger={action.danger}
               onClick={() => handleMenuItemClick(action)}
               disabled={!action.isEnabled(editor, node, position)}
-              title={action.shortcut ? `${action.label} (${action.shortcut})` : action.label}
-            >
+              title={action.shortcut ? `${action.label} (${action.shortcut})` : action.label}>
               {action.icon && <MenuItemIcon>{action.icon}</MenuItemIcon>}
               <MenuItemLabel>{action.label}</MenuItemLabel>
               {action.shortcut && <MenuItemShortcut>{action.shortcut}</MenuItemShortcut>}
@@ -194,8 +193,7 @@ const DragContextMenu: React.FC<DragContextMenuProps> = ({
           top: menuPosition.y
         }}
         onKeyDown={handleKeyDown}
-        tabIndex={-1}
-      >
+        tabIndex={-1}>
         <EmptyState>No actions available for this block</EmptyState>
       </MenuContainer>
     )
@@ -214,8 +212,7 @@ const DragContextMenu: React.FC<DragContextMenuProps> = ({
       }}
       onKeyDown={handleKeyDown}
       tabIndex={-1}
-      data-testid="drag-context-menu"
-    >
+      data-testid="drag-context-menu">
       {GROUP_ORDER.map((group, index) => {
         const actions = finalActionsByGroup[group]
         const groupElement = renderMenuGroup(group, actions)

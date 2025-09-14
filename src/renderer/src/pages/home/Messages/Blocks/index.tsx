@@ -50,8 +50,7 @@ const AnimatedBlockWrapper: React.FC<AnimatedBlockWrapperProps> = ({ children, e
       className="block-wrapper"
       variants={blockWrapperVariants}
       initial={enableAnimation ? 'hidden' : 'static'}
-      animate={enableAnimation ? 'visible' : 'static'}
-    >
+      animate={enableAnimation ? 'visible' : 'static'}>
       {children}
     </motion.div>
   )
@@ -209,8 +208,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
         return (
           <AnimatedBlockWrapper
             key={block.type === MessageBlockType.UNKNOWN ? 'placeholder' : block.id}
-            enableAnimation={message.status.includes('ing')}
-          >
+            enableAnimation={message.status.includes('ing')}>
             {blockComponent}
           </AnimatedBlockWrapper>
         )

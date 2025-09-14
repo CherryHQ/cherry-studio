@@ -30,8 +30,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, fs }) => {
       afterClose={onClose}
       onCancel={onClose}
       footer={null}
-      centered
-    >
+      centered>
       <NutstorePathSelector fs={fs} onConfirm={resolve} onCancel={onCancel} />
     </Modal>
   )

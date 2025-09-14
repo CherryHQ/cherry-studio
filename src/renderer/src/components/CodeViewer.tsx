@@ -168,16 +168,14 @@ const CodeViewer = ({
             maxHeight: expanded ? undefined : maxHeight,
             overflowY: expanded ? 'hidden' : 'auto'
           } as React.CSSProperties
-        }
-      >
+        }>
         <div
           className="shiki-list"
           style={{
             height: `${virtualizer.getTotalSize()}px`,
             width: '100%',
             position: 'relative'
-          }}
-        >
+          }}>
           <div
             style={{
               position: 'absolute',
@@ -185,8 +183,7 @@ const CodeViewer = ({
               left: 0,
               width: '100%',
               transform: `translateY(${virtualItems[0]?.start ?? 0}px)`
-            }}
-          >
+            }}>
             {virtualItems.map((virtualItem) => (
               <div key={virtualItem.key} data-index={virtualItem.index} ref={virtualizer.measureElement}>
                 <VirtualizedRow

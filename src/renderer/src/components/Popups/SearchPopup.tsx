@@ -49,8 +49,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       }}
       centered
       closable={false}
-      footer={null}
-    >
+      footer={null}>
       <HistoryPage />
     </Modal>
   )

@@ -238,8 +238,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             type="link"
             danger
             onClick={() => handleDeleteSingle(record.fileName)}
-            disabled={deleting || restoring}
-          >
+            disabled={deleting || restoring}>
             {t('settings.data.s3.manager.delete.label')}
           </Button>
         </>
@@ -272,15 +271,13 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
           icon={<DeleteOutlined />}
           onClick={handleDeleteSelected}
           disabled={selectedRowKeys.length === 0 || deleting}
-          loading={deleting}
-        >
+          loading={deleting}>
           {t('settings.data.s3.manager.delete.selected', { count: selectedRowKeys.length })}
         </Button>,
         <Button key="close" onClick={onClose}>
           {t('settings.data.s3.manager.close')}
         </Button>
-      ]}
-    >
+      ]}>
       <Table
         rowKey="fileName"
         columns={columns}

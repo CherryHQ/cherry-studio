@@ -200,8 +200,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
             </Flex>
           </Flex>
         </>
-      )}
-    >
+      )}>
       <Alert
         message={t('common.warning')}
         description={t('settings.models.check.disclaimer')}
@@ -217,8 +216,7 @@ const PopupContainer: React.FC<Props> = ({ title, apiKeys, resolve }) => {
           <Radio.Group
             value={selectedKeyIndex}
             onChange={(e) => dispatch({ type: 'SET_KEY_INDEX', payload: e.target.value })}
-            style={{ display: 'block', marginTop: 8 }}
-          >
+            style={{ display: 'block', marginTop: 8 }}>
             {apiKeys.map((key, index) => (
               <Radio key={index} value={index} style={{ display: 'block', marginBottom: 8 }}>
                 <Typography.Text copyable={{ text: key }} style={{ maxWidth: '450px' }}>

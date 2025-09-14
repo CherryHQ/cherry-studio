@@ -27,8 +27,7 @@ const UpdateAppButton: FC = () => {
         icon={<SyncOutlined />}
         color="orange"
         variant="outlined"
-        size="small"
-      >
+        size="small">
         {t('button.update_available')}
       </UpdateButton>
     </Container>

@@ -17,8 +17,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ start = 0, progress, h
         borderRadius: height,
         overflow: 'hidden',
         marginTop: '8px'
-      }}
-    >
+      }}>
       <div
         style={{
           width: `${displayProgress}%`,

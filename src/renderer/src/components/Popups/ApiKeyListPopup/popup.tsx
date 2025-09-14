@@ -50,8 +50,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, title, resolve, showHealt
       transitionName="animation-move-down"
       centered
       width={600}
-      footer={null}
-    >
+      footer={null}>
       {ListComponent}
     </Modal>
   )

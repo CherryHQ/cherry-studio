@@ -515,8 +515,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           <Select
             value={providerOptions.find((p) => p.value === 'new-api')?.value}
             onChange={handleProviderChange}
-            style={{ width: '100%' }}
-          >
+            style={{ width: '100%' }}>
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
@@ -533,8 +532,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               style={{ marginTop: 24 }}
               description={t('paintings.no_image_generation_model', {
                 endpoint_type: t('endpoint_type.image-generation')
-              })}
-            >
+              })}>
               <Button type="primary" onClick={handleShowAddModelPopup}>
                 {t('paintings.go_to_settings')}
               </Button>
@@ -551,8 +549,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     maxCount={16}
                     showUploadList={true}
                     listType="picture"
-                    beforeUpload={handleImageUpload}
-                  >
+                    beforeUpload={handleImageUpload}>
                     <ImagePlaceholder>
                       <ImageSizeImage src={IcImageUp} theme={theme} />
                     </ImagePlaceholder>
@@ -595,8 +592,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   <Select
                     value={painting.quality}
                     onChange={handleQualityChange}
-                    style={{ width: '100%', marginBottom: 15 }}
-                  >
+                    style={{ width: '100%', marginBottom: 15 }}>
                     {selectedModelConfig.quality.map((q) => (
                       <Select.Option value={q.value} key={q.value}>
                         {getPaintingsQualityOptionsLabel(q.value) ?? q.value}
@@ -615,8 +611,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     <Select
                       value={painting.moderation}
                       onChange={handleModerationChange}
-                      style={{ width: '100%', marginBottom: 15 }}
-                    >
+                      style={{ width: '100%', marginBottom: 15 }}>
                       {selectedModelConfig.moderation.map((m) => (
                         <Select.Option value={m.value} key={m.value}>
                           {getPaintingsModerationOptionsLabel(m.value) ?? m.value}
@@ -635,8 +630,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     <Select
                       value={painting.background}
                       onChange={(value) => updatePaintingState({ background: value })}
-                      style={{ width: '100%', marginBottom: 15 }}
-                    >
+                      style={{ width: '100%', marginBottom: 15 }}>
                       {selectedModelConfig.background.map((b) => (
                         <Select.Option value={b.value} key={b.value}>
                           {getPaintingsBackgroundOptionsLabel(b.value) ?? b.value}

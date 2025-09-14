@@ -116,8 +116,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
               : t('settings.models.manage.add_whole_group')
           }
           mouseLeaveDelay={0}
-          placement="top"
-        >
+          placement="top">
           <Button
             type="text"
             icon={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}
@@ -141,8 +140,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
       scrollerStyle={{
         paddingRight: '10px',
         borderRadius: '8px'
-      }}
-    >
+      }}>
       {(row) => {
         if (row.type === 'group') {
           const isCollapsed = collapsedGroups.has(row.groupName)

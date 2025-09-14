@@ -83,8 +83,7 @@ const AttachmentButton: FC<Props> = ({
       placement="top"
       title={couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document')}
       mouseLeaveDelay={0}
-      arrow
-    >
+      arrow>
       <ToolbarButton type="text" onClick={onSelectFile} disabled={disabled}>
         <Paperclip size={18} style={{ color: files.length ? 'var(--color-primary)' : 'var(--color-icon)' }} />
       </ToolbarButton>

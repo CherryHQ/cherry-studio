@@ -173,8 +173,7 @@ const MessageItem: FC<Props> = ({
             return
           }
           EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-        }}
-      >
+        }}>
         <Divider dashed style={{ padding: '0 20px' }} plain>
           {t('chat.message.new.context')}
         </Divider>
@@ -191,8 +190,7 @@ const MessageItem: FC<Props> = ({
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage
         })}
-        ref={messageContainerRef}
-      >
+        ref={messageContainerRef}>
         <MessageHeader
           message={message}
           assistant={assistant}
@@ -221,8 +219,7 @@ const MessageItem: FC<Props> = ({
                 fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
                 fontSize,
                 overflowY: 'visible'
-              }}
-            >
+              }}>
               <MessageErrorBoundary>
                 <MessageContent message={message} />
               </MessageErrorBoundary>

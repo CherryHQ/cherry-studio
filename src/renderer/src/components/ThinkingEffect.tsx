@@ -65,8 +65,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
               transition={{
                 duration: 0.15,
                 ease: 'linear'
-              }}
-            >
+              }}>
               {messages.map((message, index) => {
                 if (index < messages.length - 5) return null
 

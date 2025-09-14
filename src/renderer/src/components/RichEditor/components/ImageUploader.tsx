@@ -134,8 +134,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
             showUploadList={false}
             beforeUpload={handleFileSelect}
             customRequest={() => {}} // Prevent default upload
-            disabled={loading}
-          >
+            disabled={loading}>
             {loading ? (
               <>
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />} />
@@ -181,8 +180,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                 borderRadius: '4px',
                 color: '#3c4043',
                 background: '#ffffff'
-              }}
-            >
+              }}>
               {t('common.clear')}
             </Button>
             <Button type="primary" onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
@@ -201,8 +199,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
       onCancel={handleCancel}
       footer={null}
       width={600}
-      centered
-    >
+      centered>
       <Tabs defaultActiveKey="upload" items={tabItems} size="large" />
     </Modal>
   )

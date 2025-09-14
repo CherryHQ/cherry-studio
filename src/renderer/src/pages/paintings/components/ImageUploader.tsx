@@ -66,8 +66,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   customRequest={customRequest}
                   beforeUpload={(file) => {
                     handleBeforeUpload(file, index)
-                  }}
-                >
+                  }}>
                   <ImagePreview>
                     <img src={src} alt={`预览图${index + 1}`} />
                   </ImagePreview>
@@ -76,8 +75,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   title="确定要删除这张图片吗？"
                   okText="确定"
                   cancelText="取消"
-                  onConfirm={() => onDeleteImage(index)}
-                >
+                  onConfirm={() => onDeleteImage(index)}>
                   <DeleteButton>
                     <DeleteOutlined />
                   </DeleteButton>
@@ -101,8 +99,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
               customRequest={customRequest}
               beforeUpload={(file) => {
                 handleBeforeUpload(file)
-              }}
-            >
+              }}>
               <ImageSizeImage src={IcImageUp} theme={theme} />
             </ImageUploadButton>
           </UploadImageItem>

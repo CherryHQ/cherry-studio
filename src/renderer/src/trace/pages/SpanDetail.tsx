@@ -93,8 +93,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
           }}
           href={'#'}
           style={{ color: '#1677ff' }}
-          className="back-button"
-        >
+          className="back-button">
           <DoubleLeftOutlined style={{ fontSize: '14px' }} />
           <span style={{ marginLeft: '6px', fontSize: '14px' }}>{t('trace.backList')}</span>
         </a>
@@ -165,8 +164,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
               fontSize: 12,
               overflowX: 'auto',
               marginTop: '2px'
-            }}
-          >
+            }}>
             <code className="code-context">{`${typeof jsonData === 'object' ? JSON.stringify(jsonData, null, 2) : String(jsonData)}`}</code>
           </pre>
         )}

@@ -48,8 +48,7 @@ const MigrationInfoTag: FC<{ base: KnowledgeBase }> = ({ base: _base }) => {
         margin: 0,
         cursor: 'pointer'
       }}
-      onClick={onClick}
-    >
+      onClick={onClick}>
       {t('knowledge.migrate.migrate_to_langchain.info')}
     </Tag>
   )

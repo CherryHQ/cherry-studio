@@ -42,14 +42,12 @@ const PaintingsList: FC<PaintingsListProps> = ({
         list={paintings}
         onUpdate={(value) => updatePaintings(namespace, value)}
         onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}
-      >
+        onDragEnd={() => setDragging(false)}>
         {(item: Painting) => (
           <CanvasWrapper key={item.id}>
             <Canvas
               className={classNames(selectedPainting.id === item.id && 'selected')}
-              onClick={() => onSelectPainting(item)}
-            >
+              onClick={() => onSelectPainting(item)}>
               {item.files[0] && <ThumbnailImage src={FileManager.getFileUrl(item.files[0])} alt="" />}
             </Canvas>
             <DeleteButton>
@@ -57,8 +55,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
                 title={t('paintings.button.delete.image.confirm')}
                 onConfirm={() => onDeletePainting(item)}
                 okButtonProps={{ danger: true }}
-                placement="left"
-              >
+                placement="left">
                 <DeleteOutlined />
               </Popconfirm>
             </DeleteButton>

@@ -33,8 +33,7 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
           borderRadius: '8px',
           overflow: 'hidden'
         }
-      }}
-    >
+      }}>
       {children}
     </Popover>
   )

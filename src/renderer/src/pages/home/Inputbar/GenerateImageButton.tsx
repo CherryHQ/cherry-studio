@@ -22,8 +22,7 @@ const GenerateImageButton: FC<Props> = ({ model, ToolbarButton, assistant, onEna
         isGenerateImageModel(model) ? t('chat.input.generate_image') : t('chat.input.generate_image_not_supported')
       }
       mouseLeaveDelay={0}
-      arrow
-    >
+      arrow>
       <ToolbarButton type="text" disabled={!isGenerateImageModel(model)} onClick={onEnableGenerateImage}>
         <Image size={18} color={assistant.enableGenerateImage ? 'var(--color-primary)' : 'var(--color-icon)'} />
       </ToolbarButton>

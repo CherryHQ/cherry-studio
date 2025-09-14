@@ -119,8 +119,7 @@ const FilesPage: FC = () => {
             cancelText={t('common.cancel')}
             onConfirm={() => handleDelete(file.id, t)}
             placement="left"
-            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}
-          >
+            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
             <Button type="text" danger icon={<DeleteIcon size={14} className="lucide-custom" />} />
           </Popconfirm>
           {fileType !== 'image' && (
@@ -173,8 +172,7 @@ const FilesPage: FC = () => {
                       setSortField(field as 'created_at' | 'size' | 'name')
                       setSortOrder('desc')
                     }
-                  }}
-                >
+                  }}>
                   {getFileFieldLabel(field)}
                   {sortField === field &&
                     (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
@@ -198,21 +196,18 @@ const FilesPage: FC = () => {
                           okText={t('common.confirm')}
                           cancelText={t('common.cancel')}
                           onConfirm={handleBatchDelete}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}
-                        >
+                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
                           {t('files.batch_delete')} ({selectedFileIds.length})
                         </Popconfirm>
                       )
                     }
                   ]
                 }}
-                trigger={['click']}
-              >
+                trigger={['click']}>
                 <Checkbox
                   indeterminate={selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length}
                   checked={selectedFileIds.length === sortedFiles.length && sortedFiles.length > 0}
-                  onChange={(e) => handleSelectAll(e.target.checked)}
-                >
+                  onChange={(e) => handleSelectAll(e.target.checked)}>
                   {t('files.batch_operation')}
                 </Checkbox>
               </Dropdown.Button>

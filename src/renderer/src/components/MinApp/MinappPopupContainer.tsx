@@ -417,8 +417,7 @@ const MinappPopupContainer: React.FC = () => {
             root: {
               maxWidth: '400px'
             }
-          }}
-        >
+          }}>
           <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
         </Tooltip>
         {appInfo.canOpenExternalLink && (
@@ -432,8 +431,7 @@ const MinappPopupContainer: React.FC = () => {
         <ButtonsGroup
           className={isWin || isLinux ? 'windows' : ''}
           style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
-          isTopNavbar={isTopNavbar}
-        >
+          isTopNavbar={isTopNavbar}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
               <ArrowLeftOutlined />
@@ -461,8 +459,7 @@ const MinappPopupContainer: React.FC = () => {
                     : t('minapp.add_to_sidebar')
               }
               mouseEnterDelay={0.8}
-              placement="bottom"
-            >
+              placement="bottom">
               <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
               </TitleButton>
@@ -475,8 +472,7 @@ const MinappPopupContainer: React.FC = () => {
                 : t('minapp.popup.open_link_external_off')
             }
             mouseEnterDelay={0.8}
-            placement="bottom"
-          >
+            placement="bottom">
             <TitleButton onClick={handleToggleOpenExternal} className={minappsOpenLinkExternal ? 'open-external' : ''}>
               <LinkOutlined />
             </TitleButton>
@@ -551,8 +547,7 @@ const MinappPopupContainer: React.FC = () => {
         body: {
           borderTopLeftRadius: '10px'
         }
-      }}
-    >
+      }}>
       {/* 在所有小程序中显示GoogleLoginTip */}
       <GoogleLoginTip isReady={isReady} currentUrl={currentUrl} currentAppId={currentMinappId} />
       {!isReady && (

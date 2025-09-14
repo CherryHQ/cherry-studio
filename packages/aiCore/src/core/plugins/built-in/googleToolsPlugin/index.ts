@@ -24,6 +24,7 @@ export const googleToolsPlugin = (config?: ToolConfig) =>
           if (!typedParams.tools) {
             typedParams.tools = {}
           }
+
           // 使用类型安全的方式遍历配置
           ;(Object.keys(config) as ToolConfigKey[]).forEach((key) => {
             if (config[key] && key in toolNameMap && key in google.tools) {

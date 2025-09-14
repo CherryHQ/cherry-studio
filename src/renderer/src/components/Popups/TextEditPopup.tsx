@@ -135,8 +135,7 @@ const PopupContainer: React.FC<Props> = ({
       onCancel={onCancel}
       afterClose={onClose}
       afterOpenChange={handleAfterOpenChange}
-      centered
-    >
+      centered>
       <TextAreaContainer>
         <TextArea
           ref={textareaRef}
@@ -152,8 +151,7 @@ const PopupContainer: React.FC<Props> = ({
           <TranslateButton
             onClick={handleTranslate}
             aria-label="Translate text"
-            disabled={isTranslating || !textValue.trim()}
-          >
+            disabled={isTranslating || !textValue.trim()}>
             {isTranslating ? <LoadingOutlined spin /> : <Languages size={16} />}
           </TranslateButton>
         )}
