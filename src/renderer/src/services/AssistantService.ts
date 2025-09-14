@@ -12,8 +12,8 @@ import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { addAssistant } from '@renderer/store/assistants'
 import type {
-  AssistantPreset,
   Assistant,
+  AssistantPreset,
   AssistantSettings,
   Model,
   Provider,

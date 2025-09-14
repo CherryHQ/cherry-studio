@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "[to be translated]:无效的 Agent"
+      },
+      "title": "[to be translated]:添加 Agent",
+      "type": {
+        "label": "[to be translated]:Agent 类型",
+        "placeholder": "[to be translated]:选择 Agent 类型"
+      }
+    },
+    "delete": {
+      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "title": "[to be translated]:删除 Agent"
+    },
+    "edit": {
+      "title": "[to be translated]:编辑 Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "Προσθήκη στο Βοηθό",
@@ -731,9 +750,14 @@
   },
   "common": {
     "add": "Προσθέστε",
+    "add_success": "[to be translated]:添加成功",
     "advanced_settings": "Προχωρημένες ρυθμίσεις",
+    "agent_one": "[to be translated]:Agent",
+    "agent_other": "[to be translated]:Agents",
     "and": "και",
     "assistant": "Εξυπνιασμένη Ενότητα",
+    "assistant_one": "[to be translated]:助手",
+    "assistant_other": "[to be translated]:助手",
     "avatar": "Εικονίδιο",
     "back": "Πίσω",
     "browse": "Περιήγηση",
@@ -750,6 +774,7 @@
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
+    "delete_success": "[to be translated]:删除成功",
     "description": "Περιγραφή",
     "detail": "Λεπτομέρειες",
     "disabled": "Απενεργοποιημένο",
@@ -759,6 +784,9 @@
     "edit": "Επεξεργασία",
     "enabled": "Ενεργοποιημένο",
     "error": "σφάλμα",
+    "errors": {
+      "validation": "[to be translated]:验证失败"
+    },
     "expand": "Επεκτάση",
     "file": {
       "not_supported": "Μη υποστηριζόμενος τύπος αρχείου {{type}}"
@@ -769,6 +797,7 @@
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "i_know": "Το έχω καταλάβει",
     "inspect": "Επιθεώρηση",
+    "invalid_value": "[to be translated]:无效值",
     "knowledge_base": "Βάση Γνώσεων",
     "language": "Γλώσσα",
     "loading": "Φόρτωση...",
@@ -780,6 +809,11 @@
     "none": "Χωρίς",
     "open": "Άνοιγμα",
     "paste": "Επικόλληση",
+    "placeholders": {
+      "select": {
+        "model": "[to be translated]:选择模型"
+      }
+    },
     "preview": "Προεπισκόπηση",
     "prompt": "Ενδεικτικός ρήματος",
     "provider": "Παρέχων",
@@ -806,6 +840,7 @@
     "success": "Επιτυχία",
     "swap": "Εναλλαγή",
     "topics": "Θέματα",
+    "update_success": "[to be translated]:更新成功",
     "upload_files": "Ανέβασμα αρχείου",
     "warning": "Προσοχή",
     "you": "Εσείς"

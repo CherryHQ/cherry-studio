@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "[to be translated]:无效的 Agent"
+      },
+      "title": "[to be translated]:添加 Agent",
+      "type": {
+        "label": "[to be translated]:Agent 类型",
+        "placeholder": "[to be translated]:选择 Agent 类型"
+      }
+    },
+    "delete": {
+      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "title": "[to be translated]:删除 Agent"
+    },
+    "edit": {
+      "title": "[to be translated]:编辑 Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "アシスタントに追加",
@@ -731,9 +750,14 @@
   },
   "common": {
     "add": "追加",
+    "add_success": "[to be translated]:添加成功",
     "advanced_settings": "詳細設定",
+    "agent_one": "[to be translated]:Agent",
+    "agent_other": "[to be translated]:Agents",
     "and": "と",
     "assistant": "アシスタント",
+    "assistant_one": "[to be translated]:助手",
+    "assistant_other": "[to be translated]:助手",
     "avatar": "アバター",
     "back": "戻る",
     "browse": "参照",
@@ -750,6 +774,7 @@
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
+    "delete_success": "[to be translated]:删除成功",
     "description": "説明",
     "detail": "詳細",
     "disabled": "無効",
@@ -759,6 +784,9 @@
     "edit": "編集",
     "enabled": "有効",
     "error": "エラー",
+    "errors": {
+      "validation": "[to be translated]:验证失败"
+    },
     "expand": "展開",
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
@@ -769,6 +797,7 @@
     "go_to_settings": "設定に移動",
     "i_know": "わかりました",
     "inspect": "検査",
+    "invalid_value": "[to be translated]:无效值",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
@@ -780,6 +809,11 @@
     "none": "無",
     "open": "開く",
     "paste": "貼り付け",
+    "placeholders": {
+      "select": {
+        "model": "[to be translated]:选择模型"
+      }
+    },
     "preview": "プレビュー",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
@@ -806,6 +840,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "update_success": "[to be translated]:更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
     "you": "あなた"

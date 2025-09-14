@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "[to be translated]:无效的 Agent"
+      },
+      "title": "[to be translated]:添加 Agent",
+      "type": {
+        "label": "[to be translated]:Agent 类型",
+        "placeholder": "[to be translated]:选择 Agent 类型"
+      }
+    },
+    "delete": {
+      "content": "[to be translated]:删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "title": "[to be translated]:删除 Agent"
+    },
+    "edit": {
+      "title": "[to be translated]:编辑 Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "Ajouter à l'assistant",
@@ -731,9 +750,14 @@
   },
   "common": {
     "add": "Ajouter",
+    "add_success": "[to be translated]:添加成功",
     "advanced_settings": "Paramètres avancés",
+    "agent_one": "[to be translated]:Agent",
+    "agent_other": "[to be translated]:Agents",
     "and": "et",
     "assistant": "Intelligence artificielle",
+    "assistant_one": "[to be translated]:助手",
+    "assistant_other": "[to be translated]:助手",
     "avatar": "Avatar",
     "back": "Retour",
     "browse": "Parcourir",
@@ -750,6 +774,7 @@
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
+    "delete_success": "[to be translated]:删除成功",
     "description": "Description",
     "detail": "détails",
     "disabled": "Désactivé",
@@ -759,6 +784,9 @@
     "edit": "Éditer",
     "enabled": "Activé",
     "error": "erreur",
+    "errors": {
+      "validation": "[to be translated]:验证失败"
+    },
     "expand": "Développer",
     "file": {
       "not_supported": "Type de fichier non pris en charge {{type}}"
@@ -769,6 +797,7 @@
     "go_to_settings": "Aller aux paramètres",
     "i_know": "J'ai compris",
     "inspect": "Vérifier",
+    "invalid_value": "[to be translated]:无效值",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
     "loading": "Chargement...",
@@ -780,6 +809,11 @@
     "none": "Aucun",
     "open": "Ouvrir",
     "paste": "Coller",
+    "placeholders": {
+      "select": {
+        "model": "[to be translated]:选择模型"
+      }
+    },
     "preview": "Aperçu",
     "prompt": "Prompt",
     "provider": "Fournisseur",
@@ -806,6 +840,7 @@
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
+    "update_success": "[to be translated]:更新成功",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
     "you": "Vous"
