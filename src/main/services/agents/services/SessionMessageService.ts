@@ -80,7 +80,11 @@ export class SessionMessageService extends BaseService {
   async getSessionMessage(id: number): Promise<SessionMessageEntity | null> {
     this.ensureInitialized()
 
-    const result = await this.database.select().from(sessionMessagesTable).where(eq(sessionMessagesTable.id, id)).limit(1)
+    const result = await this.database
+      .select()
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, id))
+      .limit(1)
 
     if (!result[0]) {
       return null

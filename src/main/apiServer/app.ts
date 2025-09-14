@@ -10,8 +10,6 @@ import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
 import { modelsRoutes } from './routes/models'
-import { sessionMessagesRoutes } from './routes/session-messages'
-import { sessionsRoutes } from './routes/sessions'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -104,13 +102,7 @@ app.get('/', (_req, res) => {
     name: 'Cherry Studio API',
     version: '1.0.0',
     endpoints: {
-      health: 'GET /health',
-      models: 'GET /v1/models',
-      chat: 'POST /v1/chat/completions',
-      mcp: 'GET /v1/mcps',
-      agents: 'GET /v1/agents',
-      sessions: 'GET /v1/sessions',
-      logs: 'GET /v1/sessions/{sessionId}/logs'
+      health: 'GET /health'
     }
   })
 })
@@ -124,8 +116,6 @@ apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
-apiRouter.use('/sessions', sessionsRoutes)
-apiRouter.use('/', sessionMessagesRoutes) // This handles /sessions/:sessionId/messages and /session-messages/:messageId
 app.use('/v1', apiRouter)
 
 // Setup OpenAPI documentation

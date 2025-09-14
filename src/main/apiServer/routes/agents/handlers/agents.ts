@@ -1,202 +1,9 @@
-import express, { Request, Response } from 'express'
-import { body, param, query, validationResult } from 'express-validator'
+import { Request, Response } from 'express'
 
-import { agentService } from '../../services/agents'
-import { loggerService } from '../../services/LoggerService'
+import { agentService } from '../../../../services/agents'
+import { loggerService } from '../../../../services/LoggerService'
 
-const logger = loggerService.withContext('ApiServerAgentsRoutes')
-
-const router = express.Router()
-
-// Validation middleware
-const validateAgent = [
-  body('name').notEmpty().withMessage('Name is required'),
-  body('model').notEmpty().withMessage('Model is required'),
-  body('description').optional().isString(),
-  body('avatar').optional().isString(),
-  body('instructions').optional().isString(),
-  body('plan_model').optional().isString(),
-  body('small_model').optional().isString(),
-  body('built_in_tools').optional().isArray(),
-  body('mcps').optional().isArray(),
-  body('knowledges').optional().isArray(),
-  body('configuration').optional().isObject(),
-  body('accessible_paths').optional().isArray(),
-  body('permission_mode').optional().isIn(['readOnly', 'acceptEdits', 'bypassPermissions']),
-  body('max_steps').optional().isInt({ min: 1 })
-]
-
-const validateAgentUpdate = [
-  body('name').optional().notEmpty().withMessage('Name cannot be empty'),
-  body('model').optional().notEmpty().withMessage('Model cannot be empty'),
-  body('description').optional().isString(),
-  body('avatar').optional().isString(),
-  body('instructions').optional().isString(),
-  body('plan_model').optional().isString(),
-  body('small_model').optional().isString(),
-  body('built_in_tools').optional().isArray(),
-  body('mcps').optional().isArray(),
-  body('knowledges').optional().isArray(),
-  body('configuration').optional().isObject(),
-  body('accessible_paths').optional().isArray(),
-  body('permission_mode').optional().isIn(['readOnly', 'acceptEdits', 'bypassPermissions']),
-  body('max_steps').optional().isInt({ min: 1 })
-]
-
-const validateAgentId = [param('agentId').notEmpty().withMessage('Agent ID is required')]
-
-const validatePagination = [
-  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
-  query('offset').optional().isInt({ min: 0 }).withMessage('Offset must be non-negative')
-]
-
-// Error handler for validation
-const handleValidationErrors = (req: Request, res: Response, next: any): void => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) {
-    res.status(400).json({
-      error: {
-        message: 'Validation failed',
-        type: 'validation_error',
-        details: errors.array()
-      }
-    })
-    return
-  }
-  next()
-}
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     AgentEntity:
- *       type: object
- *       properties:
- *         id:
- *           type: string
- *           description: Unique agent identifier
- *         name:
- *           type: string
- *           description: Agent name
- *         description:
- *           type: string
- *           description: Agent description
- *         avatar:
- *           type: string
- *           description: Agent avatar URL
- *         instructions:
- *           type: string
- *           description: System prompt/instructions
- *         model:
- *           type: string
- *           description: Main model ID
- *         plan_model:
- *           type: string
- *           description: Optional planning model ID
- *         small_model:
- *           type: string
- *           description: Optional small/fast model ID
- *         built_in_tools:
- *           type: array
- *           items:
- *             type: string
- *           description: Built-in tool IDs
- *         mcps:
- *           type: array
- *           items:
- *             type: string
- *           description: MCP tool IDs
- *         knowledges:
- *           type: array
- *           items:
- *             type: string
- *           description: Knowledge base IDs
- *         configuration:
- *           type: object
- *           description: Extensible settings
- *         accessible_paths:
- *           type: array
- *           items:
- *             type: string
- *           description: Accessible directory paths
- *         permission_mode:
- *           type: string
- *           enum: [readOnly, acceptEdits, bypassPermissions]
- *           description: Permission mode
- *         max_steps:
- *           type: integer
- *           description: Maximum steps the agent can take
- *         created_at:
- *           type: string
- *           format: date-time
- *         updated_at:
- *           type: string
- *           format: date-time
- *       required:
- *         - id
- *         - name
- *         - model
- *         - created_at
- *         - updated_at
- *     CreateAgentRequest:
- *       type: object
- *       properties:
- *         name:
- *           type: string
- *           description: Agent name
- *         description:
- *           type: string
- *           description: Agent description
- *         avatar:
- *           type: string
- *           description: Agent avatar URL
- *         instructions:
- *           type: string
- *           description: System prompt/instructions
- *         model:
- *           type: string
- *           description: Main model ID
- *         plan_model:
- *           type: string
- *           description: Optional planning model ID
- *         small_model:
- *           type: string
- *           description: Optional small/fast model ID
- *         built_in_tools:
- *           type: array
- *           items:
- *             type: string
- *           description: Built-in tool IDs
- *         mcps:
- *           type: array
- *           items:
- *             type: string
- *           description: MCP tool IDs
- *         knowledges:
- *           type: array
- *           items:
- *             type: string
- *           description: Knowledge base IDs
- *         configuration:
- *           type: object
- *           description: Extensible settings
- *         accessible_paths:
- *           type: array
- *           items:
- *             type: string
- *           description: Accessible directory paths
- *         permission_mode:
- *           type: string
- *           enum: [readOnly, acceptEdits, bypassPermissions]
- *           description: Permission mode
- *         max_steps:
- *           type: integer
- *           description: Maximum steps the agent can take
- *       required:
- *         - name
- *         - model
- */
+const logger = loggerService.withContext('ApiServerAgentsHandlers')
 
 /**
  * @swagger
@@ -231,7 +38,7 @@ const handleValidationErrors = (req: Request, res: Response, next: any): void =>
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/', validateAgent, handleValidationErrors, async (req: Request, res: Response) => {
+export const createAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
     logger.info('Creating new agent')
     logger.debug('Agent data:', req.body)
@@ -250,7 +57,7 @@ router.post('/', validateAgent, handleValidationErrors, async (req: Request, res
       }
     })
   }
-})
+}
 
 /**
  * @swagger
@@ -309,7 +116,7 @@ router.post('/', validateAgent, handleValidationErrors, async (req: Request, res
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/', validatePagination, handleValidationErrors, async (req: Request, res: Response) => {
+export const listAgents = async (req: Request, res: Response): Promise<Response> => {
   try {
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
@@ -335,7 +142,7 @@ router.get('/', validatePagination, handleValidationErrors, async (req: Request,
       }
     })
   }
-})
+}
 
 /**
  * @swagger
@@ -371,7 +178,7 @@ router.get('/', validatePagination, handleValidationErrors, async (req: Request,
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/:agentId', validateAgentId, handleValidationErrors, async (req: Request, res: Response) => {
+export const getAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId } = req.params
     logger.info(`Getting agent: ${agentId}`)
@@ -401,7 +208,7 @@ router.get('/:agentId', validateAgentId, handleValidationErrors, async (req: Req
       }
     })
   }
-})
+}
 
 /**
  * @swagger
@@ -449,44 +256,38 @@ router.get('/:agentId', validateAgentId, handleValidationErrors, async (req: Req
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.put(
-  '/:agentId',
-  validateAgentId,
-  validateAgentUpdate,
-  handleValidationErrors,
-  async (req: Request, res: Response) => {
-    try {
-      const { agentId } = req.params
-      logger.info(`Updating agent: ${agentId}`)
-      logger.debug('Update data:', req.body)
+export const updateAgent = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId } = req.params
+    logger.info(`Updating agent: ${agentId}`)
+    logger.debug('Update data:', req.body)
 
-      const agent = await agentService.updateAgent(agentId, req.body)
+    const agent = await agentService.updateAgent(agentId, req.body)
 
-      if (!agent) {
-        logger.warn(`Agent not found for update: ${agentId}`)
-        return res.status(404).json({
-          error: {
-            message: 'Agent not found',
-            type: 'not_found',
-            code: 'agent_not_found'
-          }
-        })
-      }
-
-      logger.info(`Agent updated successfully: ${agentId}`)
-      return res.json(agent)
-    } catch (error: any) {
-      logger.error('Error updating agent:', error)
-      return res.status(500).json({
+    if (!agent) {
+      logger.warn(`Agent not found for update: ${agentId}`)
+      return res.status(404).json({
         error: {
-          message: 'Failed to update agent',
-          type: 'internal_error',
-          code: 'agent_update_failed'
+          message: 'Agent not found',
+          type: 'not_found',
+          code: 'agent_not_found'
         }
       })
     }
+
+    logger.info(`Agent updated successfully: ${agentId}`)
+    return res.json(agent)
+  } catch (error: any) {
+    logger.error('Error updating agent:', error)
+    return res.status(500).json({
+      error: {
+        message: 'Failed to update agent',
+        type: 'internal_error',
+        code: 'agent_update_failed'
+      }
+    })
   }
-)
+}
 
 /**
  * @swagger
@@ -587,44 +388,38 @@ router.put(
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.patch(
-  '/:agentId',
-  validateAgentId,
-  validateAgentUpdate,
-  handleValidationErrors,
-  async (req: Request, res: Response) => {
-    try {
-      const { agentId } = req.params
-      logger.info(`Partially updating agent: ${agentId}`)
-      logger.debug('Partial update data:', req.body)
+export const patchAgent = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId } = req.params
+    logger.info(`Partially updating agent: ${agentId}`)
+    logger.debug('Partial update data:', req.body)
 
-      const agent = await agentService.updateAgent(agentId, req.body)
+    const agent = await agentService.updateAgent(agentId, req.body)
 
-      if (!agent) {
-        logger.warn(`Agent not found for partial update: ${agentId}`)
-        return res.status(404).json({
-          error: {
-            message: 'Agent not found',
-            type: 'not_found',
-            code: 'agent_not_found'
-          }
-        })
-      }
-
-      logger.info(`Agent partially updated successfully: ${agentId}`)
-      return res.json(agent)
-    } catch (error: any) {
-      logger.error('Error partially updating agent:', error)
-      return res.status(500).json({
+    if (!agent) {
+      logger.warn(`Agent not found for partial update: ${agentId}`)
+      return res.status(404).json({
         error: {
-          message: 'Failed to partially update agent',
-          type: 'internal_error',
-          code: 'agent_patch_failed'
+          message: 'Agent not found',
+          type: 'not_found',
+          code: 'agent_not_found'
         }
       })
     }
+
+    logger.info(`Agent partially updated successfully: ${agentId}`)
+    return res.json(agent)
+  } catch (error: any) {
+    logger.error('Error partially updating agent:', error)
+    return res.status(500).json({
+      error: {
+        message: 'Failed to partially update agent',
+        type: 'internal_error',
+        code: 'agent_patch_failed'
+      }
+    })
   }
-)
+}
 
 /**
  * @swagger
@@ -656,7 +451,7 @@ router.patch(
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.delete('/:agentId', validateAgentId, handleValidationErrors, async (req: Request, res: Response) => {
+export const deleteAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId } = req.params
     logger.info(`Deleting agent: ${agentId}`)
@@ -686,17 +481,4 @@ router.delete('/:agentId', validateAgentId, handleValidationErrors, async (req: 
       }
     })
   }
-})
-
-// Mount session routes as nested resources
-import { createSessionMessagesRouter } from './session-messages'
-import { createSessionsRouter } from './sessions'
-
-const sessionsRouter = createSessionsRouter()
-const sessionMessagesRouter = createSessionMessagesRouter()
-
-// Mount nested routes
-router.use('/:agentId/sessions', sessionsRouter)
-router.use('/:agentId/sessions/:sessionId/messages', sessionMessagesRouter)
-
-export { router as agentsRoutes }
+}
