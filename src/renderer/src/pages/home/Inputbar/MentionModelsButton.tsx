@@ -532,19 +532,19 @@ const MentionModelsButton: FC<Props> = ({
         afterAction({ item }) {
           item.isSelected = !item.isSelected
         },
-        onClose({ action, triggerInfo: closeTriggerInfo, searchText }) {
+        onClose({ action, searchText, context: ctx }) {
           // ESC close: delete '@' and the search text
           if (action === 'esc') {
             // Only do this for input trigger and when a selection occurred
             if (
               hasModelActionRef.current &&
-              closeTriggerInfo?.type === 'input' &&
-              closeTriggerInfo?.position !== undefined
+              ctx.triggerInfo?.type === 'input' &&
+              ctx.triggerInfo?.position !== undefined
             ) {
               // Use saved position to avoid DOM queries
               setText((currentText) => {
-                const caret = closeTriggerInfo.position!
-                return removeAtSymbolAndText(currentText, caret, searchText || '', closeTriggerInfo.position!)
+                const caret = ctx.triggerInfo!.position!
+                return removeAtSymbolAndText(currentText, caret, searchText || '', ctx.triggerInfo!.position!)
               })
             }
           }
