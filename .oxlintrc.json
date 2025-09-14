@@ -5,10 +5,25 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": [],
-  "plugins": ["unicorn", "typescript", "oxc"],
+  "ignorePatterns": [
+    "node_modules/**",
+    "build/**",
+    "dist/**",
+    "out/**",
+    "local/**",
+    ".yarn/**",
+    ".gitignore",
+    "scripts/cloudflare-worker.js",
+    "src/main/integration/nutstore/sso/lib/**",
+    "src/main/integration/cherryin/index.js",
+    "src/main/integration/nutstore/sso/lib/**",
+    "src/renderer/src/ui/**",
+    "packages/**/dist"
+  ],
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
   "rules": {
     "for-direction": "warn",
+    // "import/no-cycle": "warn",
     "no-async-promise-executor": "warn",
     "no-caller": "warn",
     "no-class-assign": "warn",

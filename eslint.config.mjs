@@ -130,6 +130,8 @@ export default defineConfig([
       'packages/**/dist'
     ]
   },
-  // oxlint as last one as docs said
-  ...oxlint.configs['flat/recommended']
+  // turn off oxlint supported rules.
+  ...oxlint.configs['flat/eslint'],
+  ...oxlint.configs['flat/typescript'],
+  ...oxlint.configs['flat/unicorn']
 ])
