@@ -47,7 +47,7 @@
       "bracketSpacing": true,
       "jsxQuoteStyle": "single",
       "quoteProperties": "asNeeded",
-      "quoteStyle": "double",
+      "quoteStyle": "single",
       "semicolons": "asNeeded",
       "trailingCommas": "none"
     }
