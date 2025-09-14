@@ -45,7 +45,7 @@ jobs:
         run: npx tsx scripts/auto-translate-i18n.ts
 
       - name: 🔍 Format
-        run: cd /tmp/translation-deps && npx biome format --write /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/
+        run: cd /tmp/translation-deps && npx biome format --config /home/runner/work/cherry-studio/cherry-studio/biome.jsonc --write /home/runner/work/cherry-studio/cherry-studio/src/renderer/src/i18n/
 
       - name: 🔄 Commit changes
         run: |
