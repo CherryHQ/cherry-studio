@@ -148,6 +148,7 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
+      <span className="mb-2 text-xs text-foreground-400">{t('common.agent_other')}</span>
       <DraggableList
         list={agents}
         onUpdate={setAgents}
@@ -170,6 +171,7 @@ const Assistants: FC<AssistantsTabProps> = ({
         />
       )}
       <Divider className="my-2" />
+      <span className="mb-2 text-xs text-foreground-400">{t('common.assistant_other')}</span>
       <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
