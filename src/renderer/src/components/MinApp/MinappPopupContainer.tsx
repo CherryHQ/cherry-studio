@@ -12,7 +12,7 @@ import {
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
-import { isLinux, isMac, isWin } from '@renderer/config/constant'
+import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -169,8 +169,6 @@ const MinappPopupContainer: React.FC = () => {
   const { minappsOpenLinkExternal } = useSettings()
 
   const { isLeftNavbar } = useNavbarPosition()
-
-  const isInDevelopment = process.env.NODE_ENV === 'development'
 
   const { setTimeoutTimer } = useTimer()
 
@@ -477,7 +475,7 @@ const MinappPopupContainer: React.FC = () => {
               <LinkOutlined />
             </TitleButton>
           </Tooltip>
-          {isInDevelopment && (
+          {isDev && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
               <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
                 <CodeOutlined />

@@ -36,13 +36,14 @@ export function debounce(func: (...args: any[]) => void, wait: number, immediate
   }
 }
 
-export function dumpPersistState() {
-  const persistState = JSON.parse(localStorage.getItem('persist:cherry-studio') || '{}')
-  for (const key in persistState) {
-    persistState[key] = JSON.parse(persistState[key])
-  }
-  return JSON.stringify(persistState)
-}
+// NODE: It's an unused function. localStorage should not be accessed in main process.
+// export function dumpPersistState() {
+//   const persistState = JSON.parse(localStorage.getItem('persist:cherry-studio') || '{}')
+//   for (const key in persistState) {
+//     persistState[key] = JSON.parse(persistState[key])
+//   }
+//   return JSON.stringify(persistState)
+// }
 
 export const runAsyncFunction = async (fn: () => void) => {
   await fn()
