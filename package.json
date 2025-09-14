@@ -65,8 +65,8 @@
     "test:e2e": "yarn playwright test",
     "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "test:scripts": "vitest scripts",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "biome format --write",
+    "format:check": "biome format",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
     "claude": "dotenv -e .env -- claude"

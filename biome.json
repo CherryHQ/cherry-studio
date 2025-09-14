@@ -2,7 +2,8 @@
   "$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
   "assist": {
     "actions": { "source": { "organizeImports": "on", "useSortedKeys": "on" } },
-    "enabled": true
+    "enabled": true,
+    "includes": ["**/*.json", "!*.json", "!**/package.json"]
   },
   "files": { "ignoreUnknown": false },
   "formatter": {
@@ -14,20 +15,20 @@
     "formatWithErrors": false,
     "includes": [
       "**",
-      "!**/out/",
-      "!**/dist/",
-      "!**/build/",
-      "!**/.yarn/",
-      "!**/.github/",
-      "!**/.husky/",
-      "!**/.vscode/",
-      "!**/*.yaml",
-      "!**/*.yml",
-      "!**/*.mjs",
-      "!**/*.cjs",
-      "!**/*.md",
-      "!**/*.json",
-      "!src/main/integration/"
+      "!out/*",
+      "!**/dist/*",
+      "!build/*",
+      "!.yarn/*",
+      "!.github/*",
+      "!.husky/*",
+      "!.vscode/*",
+      "!*.yaml",
+      "!*.yml",
+      "!*.mjs",
+      "!*.cjs",
+      "!*.md",
+      "!*.json",
+      "!src/main/integration/*"
     ],
     "indentStyle": "space",
     "indentWidth": 2,
