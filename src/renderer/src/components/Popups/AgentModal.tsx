@@ -18,7 +18,7 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { AgentEntity, AgentType, isAgentType } from '@renderer/types'

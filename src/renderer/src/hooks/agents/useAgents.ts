@@ -1,9 +1,15 @@
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addAgent, removeAgent, setAgents, updateAgent } from '@renderer/store/agents'
 import { AgentEntity } from '@renderer/types'
+// import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 
 export const useAgents = () => {
+  // const qc = useQueryClient()
+  // const { data, isLoading, error } = useQuery({
+  //   queryKey: ['agents'],
+  //   queryFn: async () => {}
+  // })
   const agents = useAppSelector((state) => state.agents.agentsNew)
   const dispatch = useAppDispatch()
   /**

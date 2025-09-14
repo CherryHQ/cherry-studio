@@ -10,7 +10,9 @@ export interface AgentsState {
    * They should not be in this slice. However, since redux will be removed
    * in the future, I just don't care where should they are.  */
   agents: AssistantPreset[]
-  /** For new autonomous agent feature. They are actual agent entities. */
+  /** For new autonomous agent feature. They are actual agent entities.
+   * They won't be used anymore when sqlite api is ready.
+   */
   agentsNew: AgentEntity[]
 }
 
