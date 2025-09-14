@@ -1,4 +1,3 @@
-// 根配置文件用于全局规则配置
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "categories": {},
