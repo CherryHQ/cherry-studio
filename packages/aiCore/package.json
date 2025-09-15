@@ -1,6 +1,6 @@
 {
   "name": "@cherrystudio/ai-core",
-  "version": "1.0.0-alpha.15",
+  "version": "1.0.0-alpha.16",
   "description": "Cherry Studio AI Core - Unified AI Provider Interface Based on Vercel AI SDK",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -11,11 +11,7 @@
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "prepublishOnly": "yarn build",
-    "release:alpha": "yarn run prepublishOnly && npm version prerelease --preid alpha && npm publish --tag alpha",
-    "release:beta": "yarn run prepublishOnly && npm version prerelease --preid beta && npm publish --tag beta",
-    "release": "yarn run prepublishOnly && npm version patch && npm publish"
+    "test:watch": "vitest"
   },
   "keywords": [
     "ai",
@@ -85,5 +81,6 @@
       "require": "./dist/provider/index.js",
       "default": "./dist/provider/index.js"
     }
-  }
+  },
+  "stableVersion": "1.0.0-alpha.15"
 }
