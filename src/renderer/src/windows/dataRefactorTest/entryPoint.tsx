@@ -1,5 +1,5 @@
 import '@ant-design/v5-patch-for-react-19'
-import '@renderer/assets/styles/index.scss'
+import '@renderer/assets/styles/index.css'
 
 import { loggerService } from '@logger'
 import { createRoot } from 'react-dom/client'
