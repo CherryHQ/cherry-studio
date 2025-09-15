@@ -9,6 +9,7 @@ import { prepareCodeChanges } from './utils'
 /**
  * A code editor component based on CodeMirror.
  * This is a wrapper of ReactCodeMirror.
+ * @deprecated Import CodeEditor from @cherrystudio/ui instead.
  */
 const CodeEditor = ({
   ref,

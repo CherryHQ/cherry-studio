@@ -1,7 +1,7 @@
+import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { ActionTool } from '@renderer/components/ActionTools'
-import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import {
   CodeToolbar,
   useCopyTool,

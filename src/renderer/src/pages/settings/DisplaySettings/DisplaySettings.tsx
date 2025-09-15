@@ -1,5 +1,5 @@
+import { CodeEditor } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { ResetIcon } from '@renderer/components/Icons'
 import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'

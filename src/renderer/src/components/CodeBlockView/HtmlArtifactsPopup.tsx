@@ -1,5 +1,5 @@
+import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'

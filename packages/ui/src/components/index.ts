@@ -41,7 +41,14 @@ export { default as WebSearchIcon } from './icons/WebSearchIcon'
 export { default as WrapIcon } from './icons/WrapIcon'
 
 // Interactive Components
-export { default as CodeEditor } from './interactive/CodeEditor'
+export {
+  default as CodeEditor,
+  type CodeEditorHandles,
+  type CodeEditorProps,
+  type CodeMirrorTheme,
+  getCmThemeByName,
+  getCmThemeNames
+} from './interactive/CodeEditor'
 export { default as CollapsibleSearchBar } from './interactive/CollapsibleSearchBar'
 export { DraggableList, useDraggableReorder } from './interactive/DraggableList'
 export type { EditableNumberProps } from './interactive/EditableNumber'

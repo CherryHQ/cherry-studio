@@ -1,4 +1,4 @@
-import CodeEditor from '@renderer/components/CodeEditor'
+import { CodeEditor } from '@cherrystudio/ui'
 import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'

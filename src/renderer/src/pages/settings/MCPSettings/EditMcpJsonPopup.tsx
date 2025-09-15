@@ -1,6 +1,6 @@
+import { CodeEditor } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { TopView } from '@renderer/components/TopView'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useAppDispatch, useAppSelector } from '@renderer/store'

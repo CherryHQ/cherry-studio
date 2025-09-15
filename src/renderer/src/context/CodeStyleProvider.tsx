@@ -1,5 +1,5 @@
+import { CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { CodeMirrorTheme, getCmThemeByName, getCmThemeNames } from '@renderer/components/CodeEditor'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMermaid } from '@renderer/hooks/useMermaid'
 import { HighlightChunkResult, ShikiPreProperties, shikiStreamService } from '@renderer/services/ShikiStreamService'

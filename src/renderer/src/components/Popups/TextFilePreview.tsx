@@ -1,5 +1,5 @@
+import { CodeEditor } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import CodeEditor from '@renderer/components/CodeEditor'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Modal } from 'antd'
 import { useState } from 'react'
