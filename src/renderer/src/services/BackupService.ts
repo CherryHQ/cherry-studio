@@ -141,7 +141,11 @@ export async function backupToWebdav({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
@@ -319,7 +323,11 @@ export async function backupToS3({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
