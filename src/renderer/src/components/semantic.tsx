@@ -1,22 +1,26 @@
 import React from "react"
 
-type DistributiveOmit<T, K extends keyof T> = T extends any ? Omit<T, K> : never;
-
-type IntrinsicProps<Tag extends keyof React.JSX.IntrinsicElements> =
-  DistributiveOmit<React.JSX.IntrinsicElements[Tag], 'ref'>
-
 type NoStyleProps<Tag extends keyof React.JSX.IntrinsicElements> =
-  Omit<IntrinsicProps<Tag>, 'style'>
+  Omit<React.ComponentPropsWithoutRef<Tag>, 'style'>;
 
 function intrinsicFactory<Tag extends keyof React.JSX.IntrinsicElements>(tag: Tag) {
   return React.forwardRef<
     React.ComponentRef<Tag>,
-    NoStyleProps<Tag> & { children?: React.ReactNode }
-  >((props, ref) => React.createElement(tag, { ...props, ref } as any));
+    NoStyleProps<Tag>
+  >((props, ref) => React.createElement(tag, { ...props, ref }));
 }
 
-export const semantic = {
-  div: intrinsicFactory('div'),
-  span: intrinsicFactory('span')
-} as const
+const createSemantic = () => {
+  function semantic<T extends React.FC>(component: T) {
+    return React.forwardRef<
+      React.ComponentRef<T>,
+      React.ComponentProps<T>
+    >((props, ref) => React.createElement(component, { ...props, ref }))
+  }
+  // add more native html element here
+  semantic.div = intrinsicFactory('div')
+  semantic.span = intrinsicFactory('span')
+  return semantic
+}
 
+export const semantic = createSemantic()
