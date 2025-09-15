@@ -31,7 +31,8 @@
   },
   "editor.formatOnSave": true,
   "files.associations": {
-    "*.css": "tailwindcss"
+    "*.css": "tailwindcss",
+    ".oxlintrc.json": "jsonc"
   },
   "files.eol": "\n",
   "i18n-ally.displayLanguage": "zh-cn",
