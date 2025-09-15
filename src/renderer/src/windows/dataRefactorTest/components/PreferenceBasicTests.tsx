@@ -77,7 +77,7 @@ const PreferenceBasicTests: React.FC = () => {
   ]
 
   return (
-    <TestContainer isDark={isDarkTheme}>
+    <TestContainer $isDark={isDarkTheme}>
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
         {/* Key Selection */}
         <div>
@@ -96,7 +96,7 @@ const PreferenceBasicTests: React.FC = () => {
         </div>
 
         {/* Current Value Display */}
-        <CurrentValueContainer isDark={isDarkTheme}>
+        <CurrentValueContainer $isDark={isDarkTheme}>
           <Text strong>当前值:</Text>
           <ValueDisplay>
             {value !== undefined ? (
@@ -319,31 +319,31 @@ const PreferenceBasicTests: React.FC = () => {
   )
 }
 
-const TestContainer = styled.div<{ isDark: boolean }>`
+const TestContainer = styled.div<{ $isDark: boolean }>`
   padding: 16px;
-  background: ${(props) => (props.isDark ? '#262626' : '#fafafa')};
+  background: ${(props) => (props.$isDark ? '#262626' : '#fafafa')};
   border-radius: 8px;
 
   .ant-typography {
-    color: ${(props) => (props.isDark ? '#fff' : 'inherit')} !important;
+    color: ${(props) => (props.$isDark ? '#fff' : 'inherit')} !important;
   }
 
   .ant-select-selector {
-    background-color: ${(props) => (props.isDark ? '#1f1f1f' : '#fff')} !important;
-    border-color: ${(props) => (props.isDark ? '#434343' : '#d9d9d9')} !important;
-    color: ${(props) => (props.isDark ? '#fff' : '#000')} !important;
+    background-color: ${(props) => (props.$isDark ? '#1f1f1f' : '#fff')} !important;
+    border-color: ${(props) => (props.$isDark ? '#434343' : '#d9d9d9')} !important;
+    color: ${(props) => (props.$isDark ? '#fff' : '#000')} !important;
   }
 
   .ant-input {
-    background-color: ${(props) => (props.isDark ? '#1f1f1f' : '#fff')} !important;
-    border-color: ${(props) => (props.isDark ? '#434343' : '#d9d9d9')} !important;
-    color: ${(props) => (props.isDark ? '#fff' : '#000')} !important;
+    background-color: ${(props) => (props.$isDark ? '#1f1f1f' : '#fff')} !important;
+    border-color: ${(props) => (props.$isDark ? '#434343' : '#d9d9d9')} !important;
+    color: ${(props) => (props.$isDark ? '#fff' : '#000')} !important;
   }
 `
 
-const CurrentValueContainer = styled.div<{ isDark?: boolean }>`
+const CurrentValueContainer = styled.div<{ $isDark?: boolean }>`
   padding: 12px;
-  background: ${(props) => (props.isDark ? '#1f1f1f' : '#f0f0f0')};
+  background: ${(props) => (props.$isDark ? '#1f1f1f' : '#f0f0f0')};
   border-radius: 6px;
   border-left: 4px solid var(--color-primary);
 `

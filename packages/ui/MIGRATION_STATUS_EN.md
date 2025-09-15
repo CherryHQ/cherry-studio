@@ -48,9 +48,9 @@ When submitting PRs, please place components in the correct directory based on t
 ## Migration Overview
 
 - **Total Components**: 236
-- **Migrated**: 38
+- **Migrated**: 43
 - **Refactored**: 0
-- **Pending Migration**: 198
+- **Pending Migration**: 193
 
 ## Component Status Table
 
@@ -74,6 +74,7 @@ When submitting PRs, please place components in the correct directory based on t
 | | ThinkingEffect | ✅ | ❌ | Thinking effect animation |
 | | EmojiAvatar | ✅ | ❌ | Emoji avatar |
 | | ListItem | ✅ | ❌ | List item |
+| | MaxContextCount | ✅ | ❌ | Max context count display |
 | | CodeViewer | ❌ | ❌ | Code viewer (external deps) |
 | | OGCard | ❌ | ❌ | OG card |
 | | MarkdownShadowDOMRenderer | ❌ | ❌ | Markdown renderer |
@@ -106,8 +107,11 @@ When submitting PRs, please place components in the correct directory based on t
 | | HelpTooltip | ✅ | ❌ | Help tooltip |
 | | WarnTooltip | ✅ | ❌ | Warning tooltip |
 | | EditableNumber | ✅ | ❌ | Editable number |
-| | DraggableList | ❌ | ❌ | Draggable list |
-| | EmojiPicker | ❌ | ❌ | Emoji picker |
+| | InfoPopover | ✅ | ❌ | Info popover |
+| | CollapsibleSearchBar | ✅ | ❌ | Collapsible search bar |
+| | ImageToolButton | ✅ | ❌ | Image tool button |
+| | DraggableList | ✅ | ❌ | Draggable list |
+| | EmojiPicker | ❌ | ❌ | Emoji picker (useTheme dependency) |
 | | Selector | ✅ | ❌ | Selector (i18n dependency) |
 | | ModelSelector | ❌ | ❌ | Model selector (Redux dependency) |
 | | LanguageSelect | ❌ | ❌ | Language select |

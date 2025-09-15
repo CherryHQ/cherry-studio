@@ -2,11 +2,15 @@ import { AppLogo } from '@renderer/config/env'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Card, Col, Divider, Layout, Row, Space, Typography } from 'antd'
+import { Button, Card, Col, Divider, Layout, Row, Space, Typography, Tabs } from 'antd'
 import { Activity, AlertTriangle, Database, FlaskConical, Settings, TestTube, TrendingUp, Zap } from 'lucide-react'
 import React from 'react'
 import styled from 'styled-components'
 
+import CacheAdvancedTests from './components/CacheAdvancedTests'
+import CacheBasicTests from './components/CacheBasicTests'
+import CacheServiceTests from './components/CacheServiceTests'
+import CacheStressTests from './components/CacheStressTests'
 import DataApiAdvancedTests from './components/DataApiAdvancedTests'
 import DataApiBasicTests from './components/DataApiBasicTests'
 import DataApiHookTests from './components/DataApiHookTests'
@@ -100,149 +104,256 @@ const TestApp: React.FC = () => {
                     </Title>
                   </Space>
                   <Text style={{ color: isDarkTheme ? '#d9d9d9' : 'rgba(0, 0, 0, 0.45)' }}>
-                    此测试窗口用于验证数据重构项目的各项功能，包括 PreferenceService、DataApiService 和相关 React hooks
+                    此测试窗口用于验证数据重构项目的各项功能，包括 PreferenceService、CacheService、DataApiService 和相关 React hooks
                     的完整测试套件。
                   </Text>
                   <Text style={{ color: isDarkTheme ? '#d9d9d9' : 'rgba(0, 0, 0, 0.45)' }}>
-                    PreferenceService 测试使用真实的偏好设置系统，DataApiService 测试使用专用的测试路由和假数据。
+                    PreferenceService 测试使用真实的偏好设置系统，CacheService 测试使用三层缓存架构，DataApiService 测试使用专用的测试路由和假数据。
                   </Text>
                   <Text style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
                     📋 跨窗口测试指南：在一个窗口中修改偏好设置，观察其他窗口是否实时同步更新。
                   </Text>
                   <Text style={{ color: 'var(--color-secondary)', fontWeight: 'bold' }}>
+                    🗄️ 缓存系统测试：三层缓存架构（Memory/Shared/Persist），支持跨窗口同步、TTL过期、性能优化。
+                  </Text>
+                  <Text style={{ color: 'var(--color-tertiary)', fontWeight: 'bold' }}>
                     🚀 数据API测试：包含基础CRUD、高级功能、React hooks和压力测试，全面验证数据请求架构。
                   </Text>
                 </Space>
               </Card>
             </Col>
 
-            {/* PreferenceService Basic Tests */}
+            {/* Main Content Tabs */}
             <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>PreferenceService 基础测试</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <PreferenceServiceTests />
-              </Card>
-            </Col>
+              <StyledTabs
+                defaultActiveKey="preference"
+                size="large"
+                $isDark={isDarkTheme}
+                style={{
+                  backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
+                  borderRadius: 8,
+                  padding: '0 16px',
+                  border: `1px solid ${borderColor}`
+                }}
+                items={[
+                  {
+                    key: 'preference',
+                    label: (
+                      <Space>
+                        <Settings size={16} />
+                        <span>PreferenceService 测试</span>
+                      </Space>
+                    ),
+                    children: (
+                      <Row gutter={[24, 24]}>
+                        {/* PreferenceService Basic Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>PreferenceService 基础测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <PreferenceServiceTests />
+                          </Card>
+                        </Col>
 
-            {/* Basic Hook Tests */}
-            <Col span={12}>
-              <Card
-                title={
-                  <Space>
-                    <Settings size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>usePreference Hook 测试</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <PreferenceBasicTests />
-              </Card>
-            </Col>
+                        {/* Basic Hook Tests */}
+                        <Col span={12}>
+                          <Card
+                            title={
+                              <Space>
+                                <Settings size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>usePreference Hook 测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <PreferenceBasicTests />
+                          </Card>
+                        </Col>
 
-            {/* Hook Tests */}
-            <Col span={12}>
-              <Card
-                title={
-                  <Space>
-                    <Settings size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>Hook 高级功能测试</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <PreferenceHookTests />
-              </Card>
-            </Col>
+                        {/* Hook Tests */}
+                        <Col span={12}>
+                          <Card
+                            title={
+                              <Space>
+                                <Settings size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>Hook 高级功能测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <PreferenceHookTests />
+                          </Card>
+                        </Col>
 
-            {/* Multiple Preferences Tests */}
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>usePreferences 批量操作测试</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <PreferenceMultipleTests />
-              </Card>
-            </Col>
-          </Row>
+                        {/* Multiple Preferences Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>usePreferences 批量操作测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <PreferenceMultipleTests />
+                          </Card>
+                        </Col>
+                      </Row>
+                    )
+                  },
+                  {
+                    key: 'cache',
+                    label: (
+                      <Space>
+                        <Database size={16} />
+                        <span>CacheService 测试</span>
+                      </Space>
+                    ),
+                    children: (
+                      <Row gutter={[24, 24]}>
+                        {/* Cache Service Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>CacheService 直接API测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <CacheServiceTests />
+                          </Card>
+                        </Col>
 
-          <Divider orientation="left" style={{ color: textColor }}>
-            <Space>
-              <Zap size={20} color="var(--color-primary)" />
-              <Text style={{ color: textColor, fontSize: 16, fontWeight: 600 }}>DataApiService 功能测试</Text>
-            </Space>
-          </Divider>
+                        {/* Cache Basic Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Settings size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>Cache Hooks 基础测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <CacheBasicTests />
+                          </Card>
+                        </Col>
 
-          <Row gutter={[24, 24]}>
-            {/* DataApi Basic Tests */}
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>DataApi 基础功能测试 (CRUD操作)</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <DataApiBasicTests />
-              </Card>
-            </Col>
+                        {/* Cache Advanced Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Activity size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>Cache 高级功能测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <CacheAdvancedTests />
+                          </Card>
+                        </Col>
 
-            {/* DataApi Advanced Tests */}
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <Activity size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>DataApi 高级功能测试 (取消、重试、批量)</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <DataApiAdvancedTests />
-              </Card>
-            </Col>
+                        {/* Cache Stress Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <AlertTriangle size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>Cache 压力测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <CacheStressTests />
+                          </Card>
+                        </Col>
+                      </Row>
+                    )
+                  },
+                  {
+                    key: 'dataapi',
+                    label: (
+                      <Space>
+                        <Zap size={16} />
+                        <span>DataApiService 测试</span>
+                      </Space>
+                    ),
+                    children: (
+                      <Row gutter={[24, 24]}>
+                        {/* DataApi Basic Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Database size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>DataApi 基础功能测试 (CRUD操作)</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <DataApiBasicTests />
+                          </Card>
+                        </Col>
 
-            {/* DataApi Hook Tests */}
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <TrendingUp size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>DataApi React Hooks 测试</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <DataApiHookTests />
-              </Card>
-            </Col>
+                        {/* DataApi Advanced Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <Activity size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>DataApi 高级功能测试 (取消、重试、批量)</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <DataApiAdvancedTests />
+                          </Card>
+                        </Col>
 
-            {/* DataApi Stress Tests */}
-            <Col span={24}>
-              <Card
-                title={
-                  <Space>
-                    <AlertTriangle size={18} color={isDarkTheme ? '#fff' : '#000'} />
-                    <span style={{ color: textColor }}>DataApi 压力测试 (性能与错误处理)</span>
-                  </Space>
-                }
-                size="small"
-                style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
-                <DataApiStressTests />
-              </Card>
+                        {/* DataApi Hook Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <TrendingUp size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>DataApi React Hooks 测试</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <DataApiHookTests />
+                          </Card>
+                        </Col>
+
+                        {/* DataApi Stress Tests */}
+                        <Col span={24}>
+                          <Card
+                            title={
+                              <Space>
+                                <AlertTriangle size={18} color={isDarkTheme ? '#fff' : '#000'} />
+                                <span style={{ color: textColor }}>DataApi 压力测试 (性能与错误处理)</span>
+                              </Space>
+                            }
+                            size="small"
+                            style={{ backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff', borderColor: borderColor }}>
+                            <DataApiStressTests />
+                          </Card>
+                        </Col>
+                      </Row>
+                    )
+                  }
+                ]}
+              />
             </Col>
           </Row>
 
@@ -288,6 +399,44 @@ const HeaderContent = styled.div`
 const Container = styled.div`
   max-width: 1200px;
   margin: 0 auto;
+`
+
+const StyledTabs = styled(Tabs)<{ $isDark: boolean }>`
+  .ant-tabs-nav {
+    background: ${props => props.$isDark ? '#262626' : '#fafafa'};
+    border-radius: 6px 6px 0 0;
+    margin-bottom: 0;
+  }
+
+  .ant-tabs-tab {
+    color: ${props => props.$isDark ? '#d9d9d9' : '#666'} !important;
+
+    &:hover {
+      color: ${props => props.$isDark ? '#fff' : '#000'} !important;
+    }
+
+    &.ant-tabs-tab-active {
+      color: ${props => props.$isDark ? '#1890ff' : '#1890ff'} !important;
+
+      .ant-tabs-tab-btn {
+        color: ${props => props.$isDark ? '#1890ff' : '#1890ff'} !important;
+      }
+    }
+  }
+
+  .ant-tabs-ink-bar {
+    background: ${props => props.$isDark ? '#1890ff' : '#1890ff'};
+  }
+
+  .ant-tabs-content {
+    background: ${props => props.$isDark ? '#1f1f1f' : '#fff'};
+    border-radius: 0 0 6px 6px;
+    padding: 24px 0;
+  }
+
+  .ant-tabs-tabpane {
+    color: ${props => props.$isDark ? '#fff' : '#000'};
+  }
 `
 
 export default TestApp

@@ -49,9 +49,9 @@ function MyComponent() {
 ## 迁移概览
 
 - **总组件数**: 236
-- **已迁移**: 38
+- **已迁移**: 43
 - **已重构**: 0
-- **待迁移**: 198
+- **待迁移**: 193
 
 ## 组件状态表
 
@@ -75,6 +75,7 @@ function MyComponent() {
 | | ThinkingEffect | ✅ | ❌ | 思考效果动画 |
 | | EmojiAvatar | ✅ | ❌ | 表情头像 |
 | | ListItem | ✅ | ❌ | 列表项 |
+| | MaxContextCount | ✅ | ❌ | 最大上下文数显示 |
 | | CodeViewer | ❌ | ❌ | 代码查看器 (外部依赖) |
 | | OGCard | ❌ | ❌ | OG 卡片 |
 | | MarkdownShadowDOMRenderer | ❌ | ❌ | Markdown 渲染器 |
@@ -107,8 +108,11 @@ function MyComponent() {
 | | HelpTooltip | ✅ | ❌ | 帮助提示 |
 | | WarnTooltip | ✅ | ❌ | 警告提示 |
 | | EditableNumber | ✅ | ❌ | 可编辑数字 |
-| | DraggableList | ❌ | ❌ | 可拖拽列表 |
-| | EmojiPicker | ❌ | ❌ | 表情选择器 |
+| | InfoPopover | ✅ | ❌ | 信息弹出框 |
+| | CollapsibleSearchBar | ✅ | ❌ | 可折叠搜索栏 |
+| | ImageToolButton | ✅ | ❌ | 图片工具按钮 |
+| | DraggableList | ✅ | ❌ | 可拖拽列表 |
+| | EmojiPicker | ❌ | ❌ | 表情选择器 (useTheme 依赖) |
 | | Selector | ✅ | ❌ | 选择器 (i18n 依赖) |
 | | ModelSelector | ❌ | ❌ | 模型选择器 (Redux 依赖) |
 | | LanguageSelect | ❌ | ❌ | 语言选择 |

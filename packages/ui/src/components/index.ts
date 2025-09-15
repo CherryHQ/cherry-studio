@@ -16,6 +16,7 @@ export { default as Ellipsis } from './display/Ellipsis'
 export { default as EmojiAvatar } from './display/EmojiAvatar'
 export { default as ExpandableText } from './display/ExpandableText'
 export { default as ListItem } from './display/ListItem'
+export { default as MaxContextCount } from './display/MaxContextCount'
 export { default as ThinkingEffect } from './display/ThinkingEffect'
 
 // Layout Components
@@ -40,9 +41,13 @@ export { default as WebSearchIcon } from './icons/WebSearchIcon'
 export { default as WrapIcon } from './icons/WrapIcon'
 
 // Interactive Components
+export { default as CollapsibleSearchBar } from './interactive/CollapsibleSearchBar'
+export { DraggableList, useDraggableReorder } from './interactive/DraggableList'
 export type { EditableNumberProps } from './interactive/EditableNumber'
 export { default as EditableNumber } from './interactive/EditableNumber'
 export { default as HelpTooltip } from './interactive/HelpTooltip'
+export { default as ImageToolButton } from './interactive/ImageToolButton'
+export { default as InfoPopover } from './interactive/InfoPopover'
 export { default as InfoTooltip } from './interactive/InfoTooltip'
 export { default as Selector } from './interactive/Selector'
 export { default as WarnTooltip } from './interactive/WarnTooltip'

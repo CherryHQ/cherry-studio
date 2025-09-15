@@ -182,6 +182,7 @@ if (!app.requestSingleInstanceLock()) {
     //   const [x, y] = testWindow1.getPosition()
     //   testWindow2.setPosition(x + 50, y + 50)
     // })
+
     /************FOR TESTING ONLY END****************/
 
     // Set app user model id for windows
