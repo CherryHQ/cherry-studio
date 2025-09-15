@@ -12,7 +12,20 @@ import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
 
 import { isDev, isLinux, isWin } from './constant'
+
+// Enable live-reload for Electron app in development
+// This will automatically restart the app when files change during development
+if (isDev) {
+  require('electron-reload')(__dirname, {
+    electron: require('electron'),
+    hardResetMethod: 'exit'
+  })
+}
+import process from 'node:process'
+
 import { registerIpc } from './ipc'
+import { agentService } from './services/agents'
+import { apiServerService } from './services/ApiServerService'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
@@ -26,9 +39,6 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import process from 'node:process'
-import { apiServerService } from './services/ApiServerService'
-import { agentService } from './services/agents'
 
 const logger = loggerService.withContext('MainEntry')
 
