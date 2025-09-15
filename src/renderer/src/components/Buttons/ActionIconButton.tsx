@@ -1,7 +1,6 @@
-import { classNames } from '@renderer/utils'
+import { cn } from '@heroui/react'
 import { Button, ButtonProps } from 'antd'
 import React, { memo } from 'react'
-import styled from 'styled-components'
 
 interface ActionIconButtonProps extends ButtonProps {
   children: React.ReactNode
@@ -13,46 +12,19 @@ interface ActionIconButtonProps extends ButtonProps {
  */
 const ActionIconButton: React.FC<ActionIconButtonProps> = ({ children, active = false, className, ...props }) => {
   return (
-    <StyledActionButton type="text" shape="circle" className={classNames({ active }, className)} {...props}>
+    <Button
+      type="text"
+      shape="circle"
+      className={cn(
+        'flex h-[30px] w-[30px] cursor-pointer flex-row items-center justify-center border-none p-0 text-base transition-all duration-300 ease-in-out [&_.anticon]:text-icon [&_.icon-a-addchat]:mb-[-2px] [&_.icon-a-addchat]:text-lg [&_.icon]:text-icon [&_.iconfont]:text-icon [&_.lucide]:text-icon',
+        active &&
+          '[&_.anticon]:text-primary! [&_.icon]:text-primary! [&_.iconfont]:text-primary! [&_.lucide]:text-primary!',
+        className
+      )}
+      {...props}>
       {children}
-    </StyledActionButton>
+    </Button>
   )
 }
-
-const StyledActionButton = styled(Button)`
-  height: 30px;
-  width: 30px;
-  font-size: 16px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  cursor: pointer;
-  border: none;
-  transition: all 0.3s ease;
-
-  color: var(--color-icon);
-  .icon,
-  .anticon,
-  .iconfont,
-  .lucide {
-    color: var(--color-icon);
-  }
-
-  .icon-a-addchat {
-    font-size: 18px;
-    margin-bottom: -2px;
-  }
-
-  &.active {
-    .icon,
-    .anticon,
-    .iconfont,
-    .lucide {
-      color: var(--color-primary);
-    }
-  }
-`
 
 export default memo(ActionIconButton)
