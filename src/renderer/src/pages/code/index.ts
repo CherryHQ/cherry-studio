@@ -137,6 +137,7 @@ export const generateToolEnvironment = ({
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = baseUrl
       env.OPENAI_MODEL = model.id
+      break
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = baseUrl

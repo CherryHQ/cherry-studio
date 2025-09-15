@@ -13,6 +13,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, HelpCircle, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -20,15 +21,14 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import styled from 'styled-components'
 
-import { codeTools } from '@shared/config/constant'
 import {
   CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
   CLI_TOOL_PROVIDER_MAP,
   CLI_TOOLS,
   generateToolEnvironment,
   getClaudeSupportedProviders,
-  parseEnvironmentVariables,
-  OPENAI_CODEX_SUPPORTED_PROVIDERS
+  OPENAI_CODEX_SUPPORTED_PROVIDERS,
+  parseEnvironmentVariables
 } from '.'
 
 const logger = loggerService.withContext('CodeToolsPage')
