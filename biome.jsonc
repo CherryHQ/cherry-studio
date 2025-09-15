@@ -76,12 +76,18 @@
   },
   "linter": {
     "enabled": true,
-    "includes": ["!**/tailwind.css"],
+    "includes": ["!**/tailwind.css", "src/renderer/**/*.{tsx,ts}"],
     // only enable sorted tailwind css rule. used as formatter instead of linter
     "rules": {
       "nursery": {
         // to sort tailwind css classes
-        "useSortedClasses": "error"
+        "useSortedClasses": {
+          "fix": "unsafe",
+          "level": "info",
+          "options": {
+            "functions": ["cn"]
+          }
+        }
       },
       "recommended": false,
       "suspicious": "off"
