@@ -1171,7 +1171,7 @@ export const updateMessageAndBlocksThunk =
     try {
       // 1. 更新 Redux Store
       if (messageUpdates && messageId) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        // oxlint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: msgId, ...actualMessageChanges } = messageUpdates // Separate ID from actual changes
 
         // Only dispatch message update if there are actual changes beyond the ID

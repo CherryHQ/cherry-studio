@@ -298,7 +298,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     // Set form data from painting's input params
     if (newPainting.inputParams) {
       // Filter out the prompt from inputParams since it's handled separately
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // oxlint-disable-next-line @typescript-eslint/no-unused-vars
       const { prompt, ...formInputParams } = newPainting.inputParams
       setFormData(formInputParams)
     } else {
