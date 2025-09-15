@@ -44,24 +44,24 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
     ({ pid, size = 18, color }: { pid?: WebSearchProviderId; size?: number; color?: string }) => {
       switch (pid) {
         case 'bocha':
-          return <BochaLogo width={size} height={size} color={color} />
+          return <BochaLogo className="icon" width={size} height={size} color={color} />
         case 'exa':
           // size微调，视觉上和其他图标平衡一些
-          return <ExaLogo width={size - 2} height={size} color={color} />
+          return <ExaLogo className="icon" width={size - 2} height={size} color={color} />
         case 'tavily':
-          return <TavilyLogo width={size} height={size} color={color} />
+          return <TavilyLogo className="icon" width={size} height={size} color={color} />
         case 'zhipu':
-          return <ZhipuLogo width={size} height={size} color={color} />
+          return <ZhipuLogo className="icon" width={size} height={size} color={color} />
         case 'searxng':
-          return <SearXNGLogo width={size} height={size} color={color} />
+          return <SearXNGLogo className="icon" width={size} height={size} color={color} />
         case 'local-baidu':
           return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
         case 'local-bing':
-          return <BingLogo width={size} height={size} color={color} />
+          return <BingLogo className="icon" width={size} height={size} color={color} />
         case 'local-google':
           return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
         default:
-          return <Globe size={size} style={{ color, fontSize: size }} />
+          return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
       }
     },
     []

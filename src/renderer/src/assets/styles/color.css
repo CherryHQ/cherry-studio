@@ -68,9 +68,6 @@
   --color-status-success: green;
   --color-status-error: var(--color-error);
   --color-status-warning: #faad14;
-
-  --button-background-hover: rgba(255, 255, 255, 0.08);
-  --button-background-active: rgba(255, 255, 255, 0.18);
 }
 
 [theme-mode='light'] {
@@ -137,9 +134,6 @@
   --chat-background-user: rgba(0, 0, 0, 0.045);
   --chat-background-assistant: transparent;
   --chat-text-user: var(--color-text);
-
-  --button-background-hover: rgba(0, 0, 0, 0.04);
-  --button-background-active: rgba(0, 0, 0, 0.15);
 }
 
 [navbar-position='left'][theme-mode='light'] {
