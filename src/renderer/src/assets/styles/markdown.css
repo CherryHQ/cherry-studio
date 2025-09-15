@@ -121,6 +121,7 @@
   border-radius: 5px;
   word-break: keep-all;
   white-space: pre;
+  text-wrap: wrap;
 }
 
 .markdown code {
@@ -131,7 +132,7 @@
   border-radius: 8px;
   overflow-x: auto;
   font-family: var(--code-font-family);
-  background-color: var(--color-background-mute);
+  background-color: var(--color-background-mute) !important;
 }
 
 .markdown pre:has(.special-preview) {

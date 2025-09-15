@@ -846,7 +846,8 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
 `
 
 const AreaContainer = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   flex: 1;
   gap: 8px;
 `
@@ -917,6 +918,7 @@ const OutputContainer = styled.div`
   border-radius: 10px;
   padding: 10px 5px;
   height: calc(100vh - var(--navbar-height) - 70px);
+  overflow: hidden;
 
   &:hover .copy-button {
     opacity: 1;
