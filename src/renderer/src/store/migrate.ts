@@ -2463,6 +2463,15 @@ const migrateConfig = {
       logger.error('migrate 154 error', error as Error)
       return state
     }
+  },
+  '155': (state: RootState) => {
+    try {
+      addProvider(state, 'aionly')
+      return state
+    } catch (error) {
+      logger.error('migrate 155 error', error as Error)
+      return state
+    }
   }
 }
 
