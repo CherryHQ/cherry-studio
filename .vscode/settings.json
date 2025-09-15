@@ -44,7 +44,7 @@
   "i18n-ally.sourceLanguage": "zh-cn", // 翻译源语言
   "i18n-ally.usage.derivedKeyRules": ["{key}_one", "{key}_other"], // 标记单复数形式的键为已翻译
   "search.exclude": {
-    ".yarn/releases/**": true,
-    "**/dist/**": true
+    "**/dist/**": true,
+    ".yarn/releases/**": true
   }
 }
