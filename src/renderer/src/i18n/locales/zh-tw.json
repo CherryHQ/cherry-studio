@@ -1063,10 +1063,6 @@
       "error": {
         "failed": "遷移失敗"
       },
-      "migrate_to_langchain": {
-        "content": "知識庫遷移不會刪除舊知識庫，而是建立一個副本後重新處理所有知識庫條目，可能消耗大量 tokens，請謹慎操作。",
-        "info": "知識庫架構已更新，點擊遷移到新架構"
-      },
       "source_dimensions": "源維度",
       "source_model": "源模型",
       "target_dimensions": "目標維度",
@@ -1085,20 +1081,6 @@
     "quota": "{{name}} 剩餘配額：{{quota}}",
     "quota_infinity": "{{name}} 配額：無限制",
     "rename": "重新命名",
-    "retriever": "搜尋模式",
-    "retriever_bm25": "全文搜尋",
-    "retriever_bm25_desc": "根據關鍵字的相關性和頻率查找文件。",
-    "retriever_hybrid": "混合搜尋（推薦）",
-    "retriever_hybrid_desc": "結合關鍵字搜索和語義搜索，以實現最佳檢索準確性。",
-    "retriever_hybrid_weight": {
-      "bm25": "全文",
-      "recommended": "推薦",
-      "title": "混合搜尋權重調整 (全文/向量)",
-      "vector": "向量"
-    },
-    "retriever_tooltip": "使用不同的檢索方式檢索知識庫",
-    "retriever_vector": "向量搜尋",
-    "retriever_vector_desc": "根據語意相似性和含義查找文件。",
     "search": "搜尋知識庫",
     "search_placeholder": "輸入查詢內容",
     "settings": {

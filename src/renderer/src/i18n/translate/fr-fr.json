@@ -1063,10 +1063,6 @@
       "error": {
         "failed": "Erreur lors de la migration"
       },
-      "migrate_to_langchain": {
-        "content": "La migration de la base de connaissances ne supprime pas l'ancienne base, mais crée une copie avant de retraiter tous les éléments, ce qui peut consommer un grand nombre de tokens. Veuillez agir avec prudence.",
-        "info": "L'architecture de la base de connaissances a été mise à jour, cliquez pour migrer vers la nouvelle architecture."
-      },
       "source_dimensions": "Dimensions source",
       "source_model": "Modèle source",
       "target_dimensions": "Dimensions cible",
@@ -1085,20 +1081,6 @@
     "quota": "Quota restant pour {{name}} : {{quota}}",
     "quota_infinity": "Quota restant pour {{name}} : illimité",
     "rename": "Renommer",
-    "retriever": "Mode de recherche",
-    "retriever_bm25": "Recherche plein texte",
-    "retriever_bm25_desc": "Rechercher des documents en fonction de la pertinence et de la fréquence des mots-clés.",
-    "retriever_hybrid": "Recherche hybride (recommandé)",
-    "retriever_hybrid_desc": "Associez la recherche par mots-clés et la recherche sémantique pour une précision de recherche optimale.",
-    "retriever_hybrid_weight": {
-      "bm25": "texte intégral",
-      "recommended": "Recommandé",
-      "title": "Ajustement des pondérations de recherche hybride (texte intégral/vecteur)",
-      "vector": "vecteur"
-    },
-    "retriever_tooltip": "Utiliser différentes méthodes de recherche pour interroger la base de connaissances",
-    "retriever_vector": "Recherche vectorielle",
-    "retriever_vector_desc": "Rechercher des documents selon la similarité sémantique et le sens.",
     "search": "Rechercher dans la base de connaissances",
     "search_placeholder": "Entrez votre requête",
     "settings": {
