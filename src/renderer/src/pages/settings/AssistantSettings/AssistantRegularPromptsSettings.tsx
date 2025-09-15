@@ -1,7 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { Flex } from '@renderer/components/Layout'
 import FileItem from '@renderer/pages/files/FileItem'
 import { Assistant, QuickPhrase } from '@renderer/types'
 import { Button, Input, Modal, Popconfirm, Space } from 'antd'

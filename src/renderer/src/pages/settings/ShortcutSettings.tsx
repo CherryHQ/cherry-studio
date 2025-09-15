@@ -1,5 +1,5 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'

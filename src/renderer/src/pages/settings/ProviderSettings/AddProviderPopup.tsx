@@ -1,5 +1,5 @@
+import { Center, ColFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Center, ColFlex } from '@renderer/components/Layout'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
 import { TopView } from '@renderer/components/TopView'

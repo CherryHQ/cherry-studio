@@ -12,7 +12,7 @@ import {
   GlobalOutlined,
   LinkOutlined
 } from '@ant-design/icons'
-import { ColFlex } from '@renderer/components/Layout'
+import { ColFlex } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'

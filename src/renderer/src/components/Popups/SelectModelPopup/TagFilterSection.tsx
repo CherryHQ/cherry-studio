@@ -1,5 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Flex } from '@renderer/components/Layout'
 import {
   EmbeddingTag,
   FreeTag,

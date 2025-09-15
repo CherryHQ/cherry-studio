@@ -1,4 +1,4 @@
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'

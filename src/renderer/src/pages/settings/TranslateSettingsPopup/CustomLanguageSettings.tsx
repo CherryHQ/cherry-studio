@@ -1,6 +1,6 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { RowFlex } from '@renderer/components/Layout'
 import { deleteCustomLanguage, getAllCustomLanguages } from '@renderer/services/TranslateService'
 import { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Popconfirm, Space, Table, TableProps } from 'antd'

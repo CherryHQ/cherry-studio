@@ -1,11 +1,10 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { Button, Input } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
-
-import { RowFlex } from './Layout'
 
 interface NewFolderProps {
   onConfirm: (name: string) => void

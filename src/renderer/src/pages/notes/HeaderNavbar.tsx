@@ -1,7 +1,7 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { BreadcrumbItem, Breadcrumbs } from '@heroui/react'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
-import { RowFlex } from '@renderer/components/Layout'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'

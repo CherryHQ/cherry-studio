@@ -1,4 +1,4 @@
-import { ColFlex, Flex } from '@renderer/components/Layout'
+import { ColFlex, Flex } from '@cherrystudio/ui'
 import { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Badge, Descriptions, Empty, Switch, Table, Tag, Tooltip, Typography } from 'antd'

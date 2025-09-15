@@ -1,5 +1,5 @@
+import { SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
-import { SpaceBetweenRowFlex } from '@renderer/components/Layout'
 import RichEditor from '@renderer/components/RichEditor'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'

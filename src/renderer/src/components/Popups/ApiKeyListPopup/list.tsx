@@ -1,6 +1,6 @@
+import { Flex } from '@cherrystudio/ui'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
-import { Flex } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { useProvider } from '@renderer/hooks/useProvider'

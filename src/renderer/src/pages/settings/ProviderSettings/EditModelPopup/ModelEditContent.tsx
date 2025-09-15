@@ -1,5 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { Flex } from '@renderer/components/Layout'
 import {
   EmbeddingTag,
   ReasoningTag,

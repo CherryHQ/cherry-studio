@@ -1,5 +1,5 @@
 import { CheckOutlined } from '@ant-design/icons'
-import { Box } from '@renderer/components/Layout'
+import { Box } from '@cherrystudio/ui'
 import { useAppSelector } from '@renderer/store'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Row, Segmented, Select, SelectProps, Tooltip } from 'antd'

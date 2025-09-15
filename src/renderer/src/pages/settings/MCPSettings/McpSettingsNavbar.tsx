@@ -1,5 +1,5 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { NavbarRight } from '@renderer/components/app/Navbar'
-import { RowFlex } from '@renderer/components/Layout'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { Button } from 'antd'

@@ -1,5 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
 import CustomCollapse from '@renderer/components/CustomCollapse'
-import { Flex } from '@renderer/components/Layout'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { Model } from '@renderer/types'
 import { ModelWithStatus } from '@renderer/types/healthCheck'

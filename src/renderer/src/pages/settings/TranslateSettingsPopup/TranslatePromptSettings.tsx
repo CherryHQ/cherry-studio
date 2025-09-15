@@ -1,6 +1,6 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { Input, Tooltip } from 'antd'

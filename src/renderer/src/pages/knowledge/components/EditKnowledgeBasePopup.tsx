@@ -1,6 +1,6 @@
+import { ColFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { ColFlex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { useKnowledgeBaseForm } from '@renderer/hooks/useKnowledgeBaseForm'

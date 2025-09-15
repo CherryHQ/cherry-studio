@@ -1,7 +1,7 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
+import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { ColFlex, Flex, RowFlex } from '@renderer/components/Layout'
 import { Button, Divider, Input, Modal, Popover, Switch } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'

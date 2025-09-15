@@ -1,4 +1,4 @@
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/useAgents'
 import { useAssistant } from '@renderer/hooks/useAssistant'

@@ -1,4 +1,4 @@
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch } from '@renderer/store'

@@ -1,5 +1,5 @@
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { ColFlex, RowFlex } from '@renderer/components/Layout'
 import MaxContextCount from '@renderer/components/MaxContextCount'
 import { Divider, Popover } from 'antd'
 import { ArrowUp, MenuIcon } from 'lucide-react'

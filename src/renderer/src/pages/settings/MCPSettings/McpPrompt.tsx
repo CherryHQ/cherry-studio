@@ -1,4 +1,4 @@
-import { ColFlex, Flex } from '@renderer/components/Layout'
+import { ColFlex, Flex } from '@cherrystudio/ui'
 import { MCPPrompt } from '@renderer/types'
 import { Collapse, Descriptions, Empty, Tooltip, Typography } from 'antd'
 import { useTranslation } from 'react-i18next'

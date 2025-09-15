@@ -1,6 +1,6 @@
 // import { loggerService } from '@logger'
+import { Flex } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { Flex } from '@renderer/components/Layout'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useOcrProviders } from '@renderer/hooks/useOcrProvider'

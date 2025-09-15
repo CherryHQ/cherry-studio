@@ -1,6 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { Box } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Box } from '@renderer/components/Layout'
 import MemoriesSettingsModal from '@renderer/pages/memory/settings-modal'
 import MemoryService from '@renderer/services/MemoryService'
 import { selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'

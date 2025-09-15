@@ -1,6 +1,6 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
+import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { ColFlex, Flex, RowFlex } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'

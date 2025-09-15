@@ -6,7 +6,7 @@ import {
   NumberOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
 import type { Topic } from '@renderer/types'

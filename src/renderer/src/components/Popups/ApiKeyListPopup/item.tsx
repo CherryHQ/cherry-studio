@@ -1,7 +1,7 @@
+import { Flex } from '@cherrystudio/ui'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
-import { Flex } from '@renderer/components/Layout'
 import { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Button, Input, InputRef, List, Popconfirm, Tooltip, Typography } from 'antd'

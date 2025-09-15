@@ -1,5 +1,5 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { RowFlex } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
 import { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'

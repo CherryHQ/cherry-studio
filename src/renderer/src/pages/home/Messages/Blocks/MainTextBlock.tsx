@@ -1,5 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { Flex } from '@renderer/components/Layout'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'

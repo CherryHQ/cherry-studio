@@ -1,4 +1,4 @@
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button, Input } from 'antd'
 import React, { useCallback, useEffect, useRef, useState } from 'react'

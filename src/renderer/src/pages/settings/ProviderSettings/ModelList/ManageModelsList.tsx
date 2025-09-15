@@ -1,5 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
-import { Flex } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'

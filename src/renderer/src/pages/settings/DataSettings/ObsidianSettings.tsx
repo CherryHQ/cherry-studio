@@ -1,6 +1,6 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { RowFlex } from '@renderer/components/Layout'
 import { Empty, Select, Spin } from 'antd'
 import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

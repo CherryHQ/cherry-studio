@@ -1,5 +1,5 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'

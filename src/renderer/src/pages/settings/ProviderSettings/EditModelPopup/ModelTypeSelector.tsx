@@ -1,4 +1,4 @@
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { ModelCapability, ModelType } from '@renderer/types'
 import { getDifference, uniqueObjectArray } from '@renderer/utils'
 import { Button, Checkbox } from 'antd'

@@ -5,10 +5,10 @@ import {
   LoadingOutlined,
   YuqueOutlined
 } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
-import { RowFlex } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'

@@ -1,6 +1,6 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { RowFlex } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'

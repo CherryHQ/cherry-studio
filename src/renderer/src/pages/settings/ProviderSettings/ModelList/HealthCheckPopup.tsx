@@ -1,5 +1,5 @@
-import { Box, ColFlex } from '@renderer/components/Layout'
-import { Flex } from '@renderer/components/Layout'
+import { Box, ColFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'

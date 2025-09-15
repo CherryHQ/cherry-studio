@@ -1,4 +1,4 @@
-import { Box } from '@renderer/components/Layout'
+import { Box } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { Modal } from 'antd'
 import { useState } from 'react'

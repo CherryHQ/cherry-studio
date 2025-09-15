@@ -1,6 +1,6 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import { RowFlex } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'

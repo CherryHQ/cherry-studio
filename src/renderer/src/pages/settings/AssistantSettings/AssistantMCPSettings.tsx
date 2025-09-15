@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { Box } from '@renderer/components/Layout'
+import { Box } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { Assistant, AssistantSettings } from '@renderer/types'
 import { Empty, Switch, Tooltip } from 'antd'

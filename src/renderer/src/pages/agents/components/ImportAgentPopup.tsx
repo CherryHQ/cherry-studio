@@ -1,4 +1,4 @@
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'

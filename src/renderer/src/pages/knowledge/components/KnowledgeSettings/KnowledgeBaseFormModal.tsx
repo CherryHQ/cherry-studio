@@ -1,4 +1,4 @@
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { Menu, Modal, ModalProps } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'

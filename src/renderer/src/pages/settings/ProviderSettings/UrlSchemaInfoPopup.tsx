@@ -1,4 +1,4 @@
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { Provider, ProviderType } from '@renderer/types'

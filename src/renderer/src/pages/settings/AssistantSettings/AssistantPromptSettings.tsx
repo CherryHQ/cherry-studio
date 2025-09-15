@@ -1,9 +1,9 @@
 import 'emoji-picker-element'
 
 import { CloseCircleFilled } from '@ant-design/icons'
+import { Box, RowFlex, SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { Box, RowFlex, SpaceBetweenRowFlex } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'

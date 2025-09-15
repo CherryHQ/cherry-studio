@@ -1,5 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { ColFlex } from '@renderer/components/Layout'
+import { ColFlex } from '@cherrystudio/ui'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { selectAllTopics } from '@renderer/store/assistants'
 import { Topic } from '@renderer/types'

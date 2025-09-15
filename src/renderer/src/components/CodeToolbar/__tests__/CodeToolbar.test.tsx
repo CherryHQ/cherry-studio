@@ -43,7 +43,7 @@ vi.mock('antd', () => ({
   Tooltip: mocks.Tooltip
 }))
 
-vi.mock('@renderer/components/Layout', () => ({
+vi.mock('@cherrystudio/ui', () => ({
   RowFlex: mocks.RowFlex
 }))
 

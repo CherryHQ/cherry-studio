@@ -13,7 +13,7 @@ import {
   LinkOutlined,
   VideoCameraFilled
 } from '@ant-design/icons'
-import { ColFlex } from '@renderer/components/Layout'
+import { ColFlex } from '@cherrystudio/ui'
 import { videoExts } from '@shared/config/constant'
 import React, { memo } from 'react'
 import styled from 'styled-components'

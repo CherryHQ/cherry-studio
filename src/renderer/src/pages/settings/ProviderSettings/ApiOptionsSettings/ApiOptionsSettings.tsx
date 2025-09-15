@@ -1,4 +1,4 @@
-import { ColFlex, RowFlex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { Provider } from '@renderer/types'

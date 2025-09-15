@@ -1,5 +1,5 @@
 import { InboxOutlined, LinkOutlined, LoadingOutlined, UploadOutlined } from '@ant-design/icons'
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { Button, Input, message, Modal, Spin, Tabs, Upload } from 'antd'
 
 const { Dragger } = Upload

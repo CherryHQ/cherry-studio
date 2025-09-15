@@ -1,4 +1,4 @@
-import { RowFlex } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { Input, InputRef } from 'antd'
 import { Search } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'

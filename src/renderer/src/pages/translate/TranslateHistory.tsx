@@ -1,6 +1,6 @@
 import { DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { ColFlex, RowFlex } from '@renderer/components/Layout'
-import { Flex } from '@renderer/components/Layout'
+import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'

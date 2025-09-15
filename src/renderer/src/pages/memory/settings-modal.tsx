@@ -1,7 +1,7 @@
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
-import { Flex } from '@renderer/components/Layout'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'

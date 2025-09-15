@@ -1,5 +1,5 @@
 // import { loggerService } from '@logger'
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { TESSERACT_LANG_MAP } from '@renderer/config/ocr'

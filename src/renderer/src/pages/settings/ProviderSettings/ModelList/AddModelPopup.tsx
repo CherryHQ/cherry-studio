@@ -1,4 +1,4 @@
-import { Flex } from '@renderer/components/Layout'
+import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
