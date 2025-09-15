@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -228,7 +228,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: menuItems,
-      symbol: 'mcp',
+      symbol: QuickPanelReservedSymbol.Mcp,
       multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
@@ -377,7 +377,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: prompts,
-      symbol: 'mcp-prompt',
+      symbol: QuickPanelReservedSymbol.McpPrompt,
       multiple: true
     })
   }, [promptList, quickPanel, t])
@@ -465,13 +465,13 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: resourcesList,
-      symbol: 'mcp-resource',
+      symbol: QuickPanelReservedSymbol.McpResource,
       multiple: true
     })
   }, [resourcesList, quickPanel, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === 'mcp') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Mcp) {
       quickPanel.close()
     } else {
       openQuickPanel()

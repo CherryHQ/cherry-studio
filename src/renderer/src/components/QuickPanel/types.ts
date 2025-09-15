@@ -7,7 +7,10 @@ export enum QuickPanelReservedSymbol {
   MentionModels = '@',
   QuickPhrases = 'quick-phrases',
   Thinking = 'thinking',
-  WebSearch = '?'
+  WebSearch = '?',
+  Mcp = 'mcp',
+  McpPrompt = 'mcp-prompt',
+  McpResource = 'mcp-resource'
 }
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined

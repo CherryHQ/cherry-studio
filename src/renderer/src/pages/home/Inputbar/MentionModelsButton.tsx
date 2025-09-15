@@ -272,7 +272,7 @@ const MentionModelsButton: FC<Props> = ({
   )
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '@') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
       quickPanel.close()
     } else {
       openQuickPanel({ type: 'button' })
@@ -284,7 +284,7 @@ const MentionModelsButton: FC<Props> = ({
   useEffect(() => {
     // 检查files是否变化
     if (filesRef.current !== files) {
-      if (quickPanel.isVisible && quickPanel.symbol === '@') {
+      if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
         quickPanel.close()
       }
       filesRef.current = files
@@ -293,7 +293,7 @@ const MentionModelsButton: FC<Props> = ({
 
   // 监听 mentionedModels 变化，动态更新已打开的 QuickPanel 列表状态
   useEffect(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '@') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
       // 直接使用重新计算的 modelItems，因为它已经包含了最新的 isSelected 状态
       quickPanel.updateList(modelItems)
     }
