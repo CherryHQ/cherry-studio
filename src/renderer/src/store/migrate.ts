@@ -2376,8 +2376,8 @@ const migrateConfig = {
   '147': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2398,8 +2398,8 @@ const migrateConfig = {
   '149': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2461,6 +2461,19 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 154 error', error as Error)
+      return state
+    }
+  },
+  '155': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if ((base as any).framework) {
+          delete (base as any).framework
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 149 error', error as Error)
       return state
     }
   }

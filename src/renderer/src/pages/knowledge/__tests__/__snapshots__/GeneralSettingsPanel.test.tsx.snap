@@ -176,50 +176,6 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     <div
       class="settings-label"
     >
-      knowledge.retriever
-      <span
-        data-placement="right"
-        data-testid="info-tooltip"
-        title="knowledge.retriever_tooltip"
-      >
-        ℹ️
-      </span>
-    </div>
-    <div
-      data-testid="retriever-segmented"
-    >
-      <button
-        data-active="true"
-        data-testid="segmented-option-hybrid"
-        style="background-color: rgb(22, 119, 255); color: rgb(255, 255, 255);"
-        type="button"
-      >
-        knowledge.retriever_hybrid
-      </button>
-      <button
-        data-active="false"
-        data-testid="segmented-option-vector"
-        style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"
-        type="button"
-      >
-        knowledge.retriever_vector
-      </button>
-      <button
-        data-active="false"
-        data-testid="segmented-option-bm25"
-        style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"
-        type="button"
-      >
-        knowledge.retriever_bm25
-      </button>
-    </div>
-  </div>
-  <div
-    class="c1"
-  >
-    <div
-      class="settings-label"
-    >
       knowledge.retriever_hybrid_weight.title
     </div>
     <input

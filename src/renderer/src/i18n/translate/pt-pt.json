@@ -1063,10 +1063,6 @@
       "error": {
         "failed": "Falha na migração"
       },
-      "migrate_to_langchain": {
-        "content": "A migração da base de conhecimento não elimina a base antiga, mas sim cria uma cópia e reprocessa todas as entradas, o que pode consumir muitos tokens. Por favor, proceda com cautela.",
-        "info": "A arquitetura da base de conhecimento foi atualizada, clique para migrar para a nova arquitetura."
-      },
       "source_dimensions": "Dimensões de origem",
       "source_model": "Modelo de origem",
       "target_dimensions": "Dimensões de destino",
@@ -1085,20 +1081,6 @@
     "quota": "Cota restante de {{name}}: {{quota}}",
     "quota_infinity": "Cota restante de {{name}}: ilimitada",
     "rename": "Renomear",
-    "retriever": "Modo de pesquisa",
-    "retriever_bm25": "pesquisa de texto completo",
-    "retriever_bm25_desc": "Pesquisar documentos com base na relevância e frequência das palavras-chave.",
-    "retriever_hybrid": "Pesquisa híbrida (recomendada)",
-    "retriever_hybrid_desc": "Combine a pesquisa por palavras-chave com a pesquisa semântica para alcançar a melhor precisão de recuperação.",
-    "retriever_hybrid_weight": {
-      "bm25": "texto integral",
-      "recommended": "Recomendar",
-      "title": "Ajuste de ponderação de pesquisa híbrida (texto completo/vetorial)",
-      "vector": "vetor"
-    },
-    "retriever_tooltip": "Utilize diferentes métodos de pesquisa para consultar a base de conhecimento.",
-    "retriever_vector": "pesquisa vetorial",
-    "retriever_vector_desc": "Encontrar documentos com base na similaridade semântica e significado.",
     "search": "Pesquisar repositório de conhecimento",
     "search_placeholder": "Digite o conteúdo da consulta",
     "settings": {

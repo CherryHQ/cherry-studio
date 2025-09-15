@@ -6,7 +6,7 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import { Input, Segmented, Select, SelectProps, Slider } from 'antd'
+import { Input, Select, SelectProps, Slider } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
@@ -105,55 +105,6 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           allowClear
         />
       </SettingsItem>
-
-      {newBase.framework !== 'embedjs' && (
-        <>
-          <SettingsItem>
-            <div className="settings-label">
-              {t('knowledge.retriever')}
-              <InfoTooltip title={t('knowledge.retriever_tooltip')} placement="right" />
-            </div>
-            <Segmented
-              value={newBase.retriever?.mode || 'hybrid'}
-              onChange={(value) =>
-                setNewBase({ ...newBase, retriever: { mode: value as 'vector' | 'bm25' | 'hybrid' } })
-              }
-              options={[
-                { label: t('knowledge.retriever_hybrid'), value: 'hybrid' },
-                { label: t('knowledge.retriever_vector'), value: 'vector' },
-                { label: t('knowledge.retriever_bm25'), value: 'bm25' }
-              ]}
-            />
-          </SettingsItem>
-          {newBase.retriever?.mode === 'hybrid' && (
-            <SettingsItem>
-              <div className="settings-label">{t('knowledge.retriever_hybrid_weight.title')}</div>
-              <Slider
-                style={{ width: '100%' }}
-                min={0}
-                max={1}
-                step={0.1}
-                value={newBase.retriever?.weight || 0.5}
-                marks={{
-                  0: t('knowledge.retriever_hybrid_weight.bm25'),
-                  0.5: t('knowledge.retriever_hybrid_weight.recommended'),
-                  1: t('knowledge.retriever_hybrid_weight.vector')
-                }}
-                onChange={(value) =>
-                  setNewBase({
-                    ...newBase,
-                    retriever: {
-                      ...newBase.retriever,
-                      mode: 'hybrid',
-                      weight: value
-                    }
-                  })
-                }
-              />
-            </SettingsItem>
-          )}
-        </>
-      )}
 
       <SettingsItem>
         <div className="settings-label">
