@@ -1,14 +1,5 @@
 import { BasicSetupOptions, Extension } from '@uiw/react-codemirror'
 
-/**
- * Language data from linguist-languages
- */
-export type LanguageData = {
-  type: string
-  aliases?: string[]
-  extensions?: string[]
-}
-
 export type CodeMirrorTheme = 'light' | 'dark' | 'none' | Extension
 
 export interface CodeEditorHandles {

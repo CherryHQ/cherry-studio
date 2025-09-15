@@ -2,7 +2,8 @@ import * as cmThemes from '@uiw/codemirror-themes-all'
 import { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 
-import { CodeMirrorTheme, LanguageData } from './types'
+import { getExtensionByLanguage } from '../../../utils/codeLanguage'
+import { CodeMirrorTheme } from './types'
 
 /**
  * Computes code changes using fast-diff and converts them to CodeMirror changes.
@@ -55,10 +56,9 @@ const _customLanguageExtensions: Record<string, string> = {
  * - Then, search for github linguist extensions
  * - Finally, assume the name is already an extension
  * @param language language name
- * @param linguistLanguages linguist languages
  * @returns file extension (without `.` prefix)
  */
-export async function getNormalizedExtension(language: string, linguistLanguages?: Record<string, LanguageData>) {
+export async function getNormalizedExtension(language: string) {
   let lang = language
 
   // If the language name looks like an extension, remove the dot
@@ -75,52 +75,13 @@ export async function getNormalizedExtension(language: string, linguistLanguages
   }
 
   // 2. Search for github linguist extensions
-  if (linguistLanguages) {
-    const linguistExt = getExtensionByLanguage(lang, linguistLanguages)
-    if (linguistExt) {
-      return linguistExt.slice(1)
-    }
+  const linguistExt = getExtensionByLanguage(lang)
+  if (linguistExt) {
+    return linguistExt.slice(1)
   }
 
   // Fallback to language name
   return lang
-}
-
-/**
- * Get the file extension of the language, by language name
- * - First, exact match
- * - Then, case-insensitive match
- * - Finally, match aliases
- * If there are multiple file extensions, only the first one will be returned
- * @param language language name
- * @param linguistLanguages linguist languages
- * @returns file extension
- */
-export function getExtensionByLanguage(language: string, linguistLanguages: Record<string, LanguageData>): string {
-  const lowerLanguage = language.toLowerCase()
-
-  // Exact match language name
-  const directMatch = linguistLanguages[language]
-  if (directMatch?.extensions?.[0]) {
-    return directMatch.extensions[0]
-  }
-
-  // Case-insensitive match language name
-  for (const [langName, data] of Object.entries(linguistLanguages)) {
-    if (langName.toLowerCase() === lowerLanguage && data.extensions?.[0]) {
-      return data.extensions[0]
-    }
-  }
-
-  // Match aliases
-  for (const [, data] of Object.entries(linguistLanguages)) {
-    if (data.aliases?.some((alias) => alias.toLowerCase() === lowerLanguage)) {
-      return data.extensions?.[0] || `.${language}`
-    }
-  }
-
-  // Fallback to language name
-  return `.${language}`
 }
 
 /**

@@ -2630,16 +2630,21 @@ __metadata:
     "@types/react": "npm:^19.0.12"
     "@types/react-dom": "npm:^19.0.4"
     "@types/styled-components": "npm:^5.1.34"
+    "@uiw/codemirror-extensions-langs": "npm:^4.25.1"
+    "@uiw/codemirror-themes-all": "npm:^4.25.1"
+    "@uiw/react-codemirror": "npm:^4.25.1"
     antd: "npm:^5.22.5"
     clsx: "npm:^2.1.1"
     eslint-plugin-storybook: "npm:9.1.6"
     framer-motion: "npm:^12.23.12"
+    linguist-languages: "npm:^9.0.0"
     lucide-react: "npm:^0.525.0"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
     storybook: "npm:^9.1.6"
     styled-components: "npm:^6.1.15"
     tsdown: "npm:^0.12.9"
+    tsx: "npm:^4.20.5"
     typescript: "npm:^5.6.2"
     vitest: "npm:^3.2.4"
   peerDependencies:
@@ -22627,6 +22632,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"linguist-languages@npm:^9.0.0":
+  version: 9.0.0
+  resolution: "linguist-languages@npm:9.0.0"
+  checksum: 10c0/c3fe0f158d0e4a68b925324ea3f69f229daf7438d7206b0775b818e6e84317770bc9742c6ce68711e9ca772f996a897f8f22c8a775f07dbdb7fb4b28d0c8c509
+  languageName: node
+  linkType: hard
+
 "linkify-it@npm:^5.0.0":
   version: 5.0.0
   resolution: "linkify-it@npm:5.0.0"
@@ -30021,6 +30033,22 @@ __metadata:
   bin:
     tsx: dist/cli.mjs
   checksum: 10c0/6ff0d91ed046ec743fac7ed60a07f3c025e5b71a5aaf58f3d2a6b45e4db114c83e59ebbb078c8e079e48d3730b944a02bc0de87695088aef4ec8bbc705dc791b
+  languageName: node
+  linkType: hard
+
+"tsx@npm:^4.20.5":
+  version: 4.20.5
+  resolution: "tsx@npm:4.20.5"
+  dependencies:
+    esbuild: "npm:~0.25.0"
+    fsevents: "npm:~2.3.3"
+    get-tsconfig: "npm:^4.7.5"
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    tsx: dist/cli.mjs
+  checksum: 10c0/70f9bf746be69281312a369c712902dbf9bcbdd9db9184a4859eb4859c36ef0c5a6d79b935c1ec429158ee73fd6584089400ae8790345dae34c5b0222bdb94f3
   languageName: node
   linkType: hard
 
