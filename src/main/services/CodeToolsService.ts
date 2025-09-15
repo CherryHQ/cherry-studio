@@ -308,6 +308,24 @@ class CodeToolsService {
 
     // Build command to execute
     let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
+
+    // Add configuration parameters for OpenAI Codex
+    if (cliTool === codeTools.openaiCodex && env.OPENAI_MODEL_PROVIDER && env.OPENAI_MODEL_PROVIDER != 'openai') {
+      const provider = env.OPENAI_MODEL_PROVIDER
+      const model = env.OPENAI_MODEL
+      // delete the latest /
+      const baseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+
+      const configParams = [
+        `--config model_provider="${provider}"`,
+        `--config model="${model}"`,
+        `--config model_providers.${provider}.name="${provider}"`,
+        `--config model_providers.${provider}.base_url="${baseUrl}"`,
+        `--config model_providers.${provider}.env_key="OPENAI_API_KEY"`
+      ].join(' ')
+      baseCommand = `${baseCommand} ${configParams}`
+    }
+
     const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
 
     if (isInstalled) {

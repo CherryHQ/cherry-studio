@@ -13,6 +13,7 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
+import { codeTools } from '@shared/config/constant'
 import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, HelpCircle, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
@@ -26,6 +27,7 @@ import {
   CLI_TOOLS,
   generateToolEnvironment,
   getClaudeSupportedProviders,
+  OPENAI_CODEX_SUPPORTED_PROVIDERS,
   parseEnvironmentVariables
 } from '.'
 
@@ -65,11 +67,14 @@ const CodeToolsPage: FC = () => {
       if (m.provider === 'cherryin') {
         return false
       }
-      if (selectedCliTool === 'claude-code') {
+      if (selectedCliTool === codeTools.claudeCode) {
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
-      if (selectedCliTool === 'gemini-cli') {
+      if (selectedCliTool === codeTools.geminiCli) {
         return m.id.includes('gemini')
+      }
+      if (selectedCliTool === codeTools.openaiCodex) {
+        return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
       return true
     },
@@ -153,8 +158,8 @@ const CodeToolsPage: FC = () => {
 
     const modelProvider = getProviderByModel(selectedModel)
     const aiProvider = new AiProvider(modelProvider)
-    const baseUrl = await aiProvider.getBaseURL()
-    const apiKey = await aiProvider.getApiKey()
+    const baseUrl = aiProvider.getBaseURL()
+    const apiKey = aiProvider.getApiKey()
 
     // 生成工具特定的环境变量
     const toolEnv = generateToolEnvironment({
@@ -173,7 +178,9 @@ const CodeToolsPage: FC = () => {
 
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
-    window.api.codeTools.run(selectedCliTool, selectedModel?.id!, currentDirectory, env, { autoUpdateToLatest })
+    window.api.codeTools.run(selectedCliTool, selectedModel?.id!, currentDirectory, env, {
+      autoUpdateToLatest
+    })
     window.toast.success(t('code.launch.success'))
   }
 
@@ -197,7 +204,7 @@ const CodeToolsPage: FC = () => {
 
       await executeLaunch(env)
     } catch (error) {
-      logger.error('启动失败:', error as Error)
+      logger.error('start code tools failed:', error as Error)
       window.toast.error(t('code.launch.error'))
     } finally {
       setIsLaunching(false)
