@@ -11,7 +11,7 @@ function intrinsicFactory<Tag extends keyof React.JSX.IntrinsicElements>(tag: Ta
 }
 
 const createSemantic = () => {
-  function semantic<T extends React.FC>(component: T) {
+  function semantic<T extends React.FC<any>>(component: T) {
     return React.forwardRef<
       React.ComponentRef<T>,
       React.ComponentProps<T>
