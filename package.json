@@ -63,11 +63,11 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:e2e": "yarn playwright test",
-    "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
+    "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:scripts": "vitest scripts",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
+    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && yarn typecheck && yarn check:i18n",
+    "format": "biome format --write && biome lint --write",
+    "format:check": "biome format && biome lint",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
     "claude": "dotenv -e .env -- claude"
   },
@@ -77,7 +77,6 @@
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
     "@strongtz/win32-arm64-msvc": "^0.4.7",
     "express": "^5.1.0",
-    "faiss-node": "^0.5.1",
     "font-list": "^2.0.0",
     "graceful-fs": "^4.2.11",
     "jsdom": "26.1.0",
@@ -105,6 +104,7 @@
     "@aws-sdk/client-bedrock": "^3.840.0",
     "@aws-sdk/client-bedrock-runtime": "^3.840.0",
     "@aws-sdk/client-s3": "^3.840.0",
+    "@biomejs/biome": "2.2.4",
     "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/embedjs": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
@@ -123,7 +123,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -137,9 +136,6 @@
     "@heroui/react": "^2.8.3",
     "@kangfenmao/keyv-storage": "^0.1.0",
     "@langchain/community": "^0.3.50",
-    "@langchain/core": "^0.3.68",
-    "@langchain/ollama": "^0.2.1",
-    "@langchain/openai": "^0.6.7",
     "@mistralai/mistralai": "^1.7.5",
     "@modelcontextprotocol/sdk": "^1.17.5",
     "@mozilla/readability": "^0.6.0",
@@ -249,6 +245,7 @@
     "emoji-picker-element": "^1.22.1",
     "epub": "patch:epub@npm%3A1.3.0#~/.yarn/patches/epub-npm-1.3.0-8325494ffe.patch",
     "eslint": "^9.22.0",
+    "eslint-plugin-oxlint": "^1.15.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
@@ -284,13 +281,12 @@
     "notion-helper": "^1.3.22",
     "npx-scope-finder": "^1.2.0",
     "openai": "patch:openai@npm%3A5.12.2#~/.yarn/patches/openai-npm-5.12.2-30b075401c.patch",
+    "oxlint": "^1.15.0",
+    "oxlint-tsgolint": "^0.2.0",
     "p-queue": "^8.1.0",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "playwright": "^1.52.0",
-    "prettier": "^3.5.3",
-    "prettier-plugin-sort-json": "^4.1.1",
-    "prettier-plugin-tailwindcss": "^0.6.14",
     "proxy-agent": "^6.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -373,11 +369,11 @@
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
     "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
-      "prettier --write",
+      "biome format --write",
       "eslint --fix"
     ],
     "*.{json,yml,yaml,css,html}": [
-      "prettier --write"
+      "biome format --write"
     ]
   }
 }
