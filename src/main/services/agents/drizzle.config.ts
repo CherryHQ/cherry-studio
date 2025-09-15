@@ -2,13 +2,12 @@
  * Drizzle Kit configuration for agents database
  */
 
-import { defineConfig } from 'drizzle-kit'
-import { app } from 'electron'
-import path from 'path'
+import os from 'node:os'
+import path from 'node:path'
 
-// Get the database path (same as BaseService)
-const userDataPath = app.getPath('userData')
-const dbPath = path.join(userDataPath, 'agents.db')
+import { defineConfig } from 'drizzle-kit'
+
+export const dbPath = path.join(os.homedir(), '.cherrystudio', 'data', 'agents.db')
 
 export default defineConfig({
   dialect: 'sqlite',

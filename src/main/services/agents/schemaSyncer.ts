@@ -1,39 +1,104 @@
-import { execSync } from 'child_process'
+import { type Client } from '@libsql/client'
 import { loggerService } from '@logger'
+import { drizzle } from 'drizzle-orm/libsql'
+import { migrate } from 'drizzle-orm/libsql/migrator'
+import fs from 'fs'
 import path from 'path'
+
+import * as schema from './database/schema'
 
 const logger = loggerService.withContext('SchemaSyncer')
 
+export interface MigrationResult {
+  success: boolean
+  version?: string
+  error?: Error
+  executionTime?: number
+}
+
 /**
- * Synchronizes database schema using Drizzle Kit push command.
- * This automatically detects schema differences and applies necessary changes.
- *
- * Uses the existing drizzle.config.ts configuration to push schema changes
- * to the agents database on service startup.
+ * Simplified database schema synchronization using native Drizzle migrations.
+ * This replaces the complex custom MigrationManager with Drizzle's built-in migration system.
  */
-export async function syncDatabaseSchema(): Promise<void> {
-  const configPath = path.join(process.cwd(), 'src/main/services/agents/drizzle.config.ts')
+export async function syncDatabaseSchema(client: Client): Promise<MigrationResult> {
+  const startTime = Date.now()
 
   try {
     logger.info('Starting database schema synchronization...')
 
-    // Use drizzle-kit push to sync schema automatically
-    const output = execSync(`npx drizzle-kit push --config ${configPath}`, {
-      stdio: 'pipe',
-      encoding: 'utf-8',
-      cwd: process.cwd(),
-      timeout: 30000 // 30 second timeout
-    })
+    const db = drizzle(client, { schema })
+    const migrationsFolder = path.resolve('./src/main/services/agents/database/drizzle')
 
-    logger.info('Database schema synchronized successfully')
-
-    // Log output for debugging if needed
-    if (output && output.trim()) {
-      logger.debug('Drizzle Kit output:', output.trim())
+    // Check if migrations folder exists
+    if (!fs.existsSync(migrationsFolder)) {
+      logger.warn('No migrations folder found, skipping migration')
+      return {
+        success: true,
+        version: 'none',
+        executionTime: Date.now() - startTime
+      }
     }
 
+    // Run migrations using Drizzle's built-in migrator
+    await migrate(db, { migrationsFolder })
+
+    const executionTime = Date.now() - startTime
+    logger.info(`Database schema synchronized successfully in ${executionTime}ms`)
+
+    return {
+      success: true,
+      version: 'latest',
+      executionTime
+    }
   } catch (error) {
+    const executionTime = Date.now() - startTime
     logger.error('Schema synchronization failed:', error as Error)
-    throw new Error(`Database schema sync failed: ${(error as Error).message}`)
+    return {
+      success: false,
+      error: error as Error,
+      executionTime
+    }
+  }
+}
+
+/**
+ * Check if database needs initialization (simplified check)
+ */
+export async function needsInitialization(client: Client): Promise<boolean> {
+  try {
+    // Simple check - try to query the agents table
+    await client.execute('SELECT COUNT(*) FROM agents LIMIT 1')
+    return false
+  } catch (error) {
+    // If query fails, database likely needs initialization
+    return true
+  }
+}
+
+/**
+ * Get basic schema information for debugging
+ */
+export async function getSchemaInfo(client: Client) {
+  try {
+    // Get list of tables
+    const result = await client.execute(`
+      SELECT name FROM sqlite_master
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `)
+
+    const tables = result.rows.map((row) => row.name as string)
+
+    return {
+      tables,
+      status: 'ready'
+    }
+  } catch (error) {
+    logger.error('Failed to get schema info:', error as Error)
+    return {
+      tables: [],
+      status: 'error',
+      error: error as Error
+    }
   }
 }

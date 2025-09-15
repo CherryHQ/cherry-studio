@@ -41,9 +41,9 @@ const logger = loggerService.withContext('moduleName')
 logger.info('message', CONTEXT)
 ```
 
-## Session Tracking (Plan Mode)
+## Session Tracking
 
-When in **plan mode**, maintain a session log in `.sessions/YYYY-MM-DD-HH-MM-SS-<feature>.md`. This is critical for tracking progress and decisions:
+ALWAYS maintain a session log in `.sessions/YYYY-MM-DD-HH-MM-SS-<feature>.md`. This is critical for tracking progress and decisions:
 
 ```md
 # <feature> — SDLC Session (<YYYY-MM-DD HH:MM>)
@@ -84,6 +84,6 @@ When in **plan mode**, maintain a session log in `.sessions/YYYY-MM-DD-HH-MM-SS-
 1.  **Code Search**: Use `ast-grep` for semantic code pattern searches when available. Fallback to `rg` (ripgrep) or `grep` for text-based searches.
 2.  **UI Framework**: Exclusively use **HeroUI** for all new UI components. The use of `antd` or `styled-components` is strictly **PROHIBITED**.
 3.  **Quality Assurance**: **Always** run `yarn build:check` before finalizing your work or making any commits. This ensures code quality (linting, testing, and type checking).
-4.  **Session Documentation**: When working in plan mode, consistently maintain the session SDLC log file following the template structure outlined in the Session Tracking section.
+4.  **Session Documentation**: Consistently maintain the session SDLC log file following the template structure outlined in the Session Tracking section.
 5.  **Centralized Logging**: Use the `loggerService` exclusively for all application logging (info, warn, error levels) with proper context. Do not use `console.log`.
 6.  **External Research**: Leverage `subagent` for gathering external information, including latest documentation, API references, news, or web-based research. This keeps the main conversation focused on the task at hand.

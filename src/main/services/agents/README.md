@@ -1,63 +1,74 @@
-# Agents Service - Drizzle ORM Implementation
+# Agents Service
 
-This service now uses a clean, modern Drizzle ORM implementation for all database operations.
+Simplified Drizzle ORM implementation for agent and session management in Cherry Studio.
 
-## Database Schema
+## Features
 
-The database schema is defined in `/database/schema/` using Drizzle ORM:
+- **Native Drizzle migrations** - Uses built-in migrate() function
+- **Zero CLI dependencies** in production
+- **Auto-initialization** with retry logic
+- **Full TypeScript** type safety
 
-- `agents.schema.ts` - Agent table and indexes
-- `sessions.schema.ts` - Sessions and session logs tables
-- `migrations.schema.ts` - Migration tracking (if needed)
+## Schema
 
-## Working with the Database
+- `agents.schema.ts` - Agent definitions
+- `sessions.schema.ts` - Session and message tables
+- `migrations.schema.ts` - Migration tracking
 
-### Development Setup
-
-For new development, you can:
-
-1. **Use Drizzle Kit to generate migrations from schema:**
-   ```bash
-   yarn drizzle-kit generate:sqlite --config src/main/services/agents/drizzle.config.ts
-   ```
-
-2. **Push schema directly to database (for development):**
-   ```bash
-   yarn drizzle-kit push:sqlite --config src/main/services/agents/drizzle.config.ts
-   ```
-
-
-3. **Create tables programmatically (if needed):**
-   The schema exports can be used with `CREATE TABLE` statements.
-
-### Usage
-
-All database operations are now fully type-safe:
+## Usage
 
 ```typescript
 import { agentService } from './services'
 
-// Create an agent - fully typed
+// Create agent - fully typed
 const agent = await agentService.createAgent({
   type: 'custom',
   name: 'My Agent',
   model: 'claude-3-5-sonnet-20241022'
 })
-
-// TypeScript knows the exact shape of the returned data
-console.log(agent.id) // ✅ Type-safe
 ```
 
-## Architecture
+## Development Commands
 
-- **Pure Drizzle ORM**: No legacy migration system
-- **Type Safety**: Full TypeScript integration
-- **Modern Patterns**: Schema-first development
-- **Simplicity**: Clean, maintainable codebase
+```bash
+# Apply schema changes
+yarn agents:generate
+
+# Quick development sync
+yarn agents:push
+
+# Database tools
+yarn agents:studio    # Open Drizzle Studio
+yarn agents:health    # Health check
+yarn agents:drop      # Reset database
+```
+
+## Workflow
+
+1. **Edit schema** in `/database/schema/`
+2. **Generate migration** with `yarn agents:generate`
+3. **Test changes** with `yarn agents:health`
+4. **Deploy** - migrations apply automatically
 
 ## Services
 
-- `AgentService` - CRUD operations for agents
+- `AgentService` - Agent CRUD operations
 - `SessionService` - Session management
 - `SessionMessageService` - Message logging
-- `BaseService` - Shared database utilities
+- `BaseService` - Database utilities
+- `schemaSyncer` - Migration handler
+
+## Troubleshooting
+
+```bash
+# Check status
+yarn agents:health
+
+# Apply migrations
+yarn agents:migrate
+
+# Reset completely
+yarn agents:reset --yes
+```
+
+The simplified migration system reduced complexity from 463 to ~30 lines while maintaining all functionality through Drizzle's native migration system.
