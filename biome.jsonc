@@ -82,8 +82,8 @@
       "nursery": {
         // to sort tailwind css classes
         "useSortedClasses": {
-          "fix": "unsafe",
-          "level": "info",
+          "fix": "safe",
+          "level": "warn",
           "options": {
             "functions": ["cn"]
           }
