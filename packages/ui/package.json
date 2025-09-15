@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts,.tsx --fix",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "keywords": [
     "ui",
@@ -46,11 +48,18 @@
   },
   "devDependencies": {
     "@heroui/react": "^2.8.4",
+    "@storybook/addon-docs": "^9.1.6",
+    "@storybook/react-vite": "^9.1.6",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
+    "@types/styled-components": "^5.1.34",
+    "antd": "^5.22.5",
+    "eslint-plugin-storybook": "9.1.6",
     "framer-motion": "^12.23.12",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "storybook": "^9.1.6",
+    "styled-components": "^6.1.15",
     "tsdown": "^0.12.9",
     "typescript": "^5.6.2",
     "vitest": "^3.2.4"

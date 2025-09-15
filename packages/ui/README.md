@@ -22,54 +22,34 @@ npm install @heroui/react framer-motion react react-dom tailwindcss
 
 ## 配置
 
-### 1. Tailwind CSS 配置
+### 1. Tailwind CSS v4 配置
 
-在你的项目根目录创建 `tailwind.config.js` 文件：
+本组件库使用 Tailwind CSS v4，配置方式已改变。在你的主 CSS 文件（如 `src/styles/tailwind.css`）中：
 
-```javascript
-const { heroui } = require('@heroui/react')
+```css
+@import 'tailwindcss';
 
-/** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: [
-    // 你的应用内容
-    './src/**/*.{js,ts,jsx,tsx}',
-    './app/**/*.{js,ts,jsx,tsx}',
-    './pages/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}',
+/* 必须扫描组件库文件以提取类名 */
+@source '../node_modules/@cherrystudio/ui/dist/**/*.{js,mjs}';
 
-    // 包含 @cherrystudio/ui 组件
-    './node_modules/@cherrystudio/ui/dist/**/*.{js,ts,jsx,tsx}',
+/* 你的应用源文件 */
+@source './src/**/*.{js,ts,jsx,tsx}';
 
-    // 包含 HeroUI 主题
-    './node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}'
-  ],
-  theme: {
-    extend: {
-      // 你的自定义主题扩展
-    }
-  },
-  darkMode: 'class',
-  plugins: [
-    heroui({
-      // HeroUI 主题配置
-      // 参考: https://heroui.com/docs/customization/theme
-    })
-  ]
+/*
+ * 如果你的应用直接使用 HeroUI 组件，需要添加：
+ * @source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+ * @plugin '@heroui/react/plugin';
+ */
+
+/* 自定义主题配置（可选） */
+@theme {
+  /* 你的主题扩展 */
 }
 ```
 
-### 2. CSS 导入
+注意：Tailwind CSS v4 不再使用 `tailwind.config.js` 文件，所有配置都在 CSS 中完成。
 
-在你的主 CSS 文件中导入 Tailwind：
-
-```css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-```
-
-### 3. Provider 配置
+### 2. Provider 配置
 
 在你的 App 根组件中添加 HeroUI Provider：
 

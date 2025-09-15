@@ -1,0 +1,13 @@
+/* Storybook 专用的 Tailwind CSS 配置 */
+@import 'tailwindcss';
+
+/* 扫描组件文件 */
+@source '../src/components/**/*.{js,ts,jsx,tsx}';
+
+/* 扫描 stories 文件 */
+@source './components/**/*.{js,ts,jsx,tsx}';
+
+/* HeroUI 组件样式 */
+@plugin './hero.ts';
+@source '../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@custom-variant dark (&:is(.dark *));
