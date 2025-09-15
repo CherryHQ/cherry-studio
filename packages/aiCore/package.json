@@ -81,6 +81,5 @@
       "require": "./dist/provider/index.js",
       "default": "./dist/provider/index.js"
     }
-  },
-  "stableVersion": "1.0.0-alpha.15"
+  }
 }
