@@ -3,6 +3,7 @@
     "dbaeumer.vscode-eslint",
     "editorconfig.editorconfig",
     "lokalise.i18n-ally",
+    "oxc.oxc-vscode",
     "biomejs.biome"
   ]
 }

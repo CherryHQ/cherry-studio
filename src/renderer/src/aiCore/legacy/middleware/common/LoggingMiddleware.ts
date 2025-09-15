@@ -44,7 +44,7 @@ const stringifyArgsForLogging = (args: any[]): string => {
  */
 export const createGenericLoggingMiddleware: () => MethodMiddleware = () => {
   const middlewareName = 'GenericLoggingMiddleware'
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   return (_: MiddlewareAPI<BaseContext, any[]>) => (next) => async (ctx, args) => {
     const methodName = ctx.methodName
     const logPrefix = `[${middlewareName} (${methodName})]`

@@ -1,13 +1,7 @@
 import { isLinux, isWin } from '@main/constant'
 import { loadOcrImage } from '@main/utils/ocr'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
-import {
-  ImageFileMetadata,
-  isImageFileMetadata as isImageFileMetadata,
-  OcrResult,
-  OcrSystemConfig,
-  SupportedOcrFile
-} from '@types'
+import { ImageFileMetadata, isImageFileMetadata, OcrResult, OcrSystemConfig, SupportedOcrFile } from '@types'
 
 import { OcrBaseService } from './OcrBaseService'
 

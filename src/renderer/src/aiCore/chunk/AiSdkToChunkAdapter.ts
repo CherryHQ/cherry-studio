@@ -314,7 +314,7 @@ export class AiSdkToChunkAdapter {
       // === 源和文件相关事件 ===
       case 'source':
         if (chunk.sourceType === 'url') {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          // oxlint-disable-next-line @typescript-eslint/no-unused-vars
           const { sourceType: _, ...rest } = chunk
           final.webSearchResults.push(rest)
         }

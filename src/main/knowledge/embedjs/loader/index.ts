@@ -139,9 +139,9 @@ export async function addFileLoader(
 
       if (jsonParsed) {
         loaderReturn = await ragApplication.addLoader(new JsonLoader({ object: jsonObject }), forceReload)
-        break
       }
     // fallthrough - JSON 解析失败时作为文本处理
+    // oxlint-disable-next-line no-fallthrough 利用switch特性，刻意不break
     default:
       // 文本类型处理（默认）
       // 如果是其他文本类型且尚未读取文件，则读取文件

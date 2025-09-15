@@ -26,6 +26,7 @@
   "editor.codeActionsOnSave": {
     "source.fixAll.biome": "explicit",
     "source.fixAll.eslint": "explicit",
+    "source.fixAll.oxc": "explicit",
     "source.organizeImports": "never"
   },
   "editor.formatOnSave": true,
