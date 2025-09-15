@@ -25,6 +25,7 @@ export const CLI_TOOLS = [
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
 export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
 export const CLAUDE_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS]
+export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api']
 
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
@@ -33,7 +34,8 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
   [codeTools.geminiCli]: (providers) =>
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
-  [codeTools.openaiCodex]: (providers) => providers.filter((p) => p.id === 'openai')
+  [codeTools.openaiCodex]: (providers) =>
+    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -132,10 +134,14 @@ export const generateToolEnvironment = ({
     }
 
     case codeTools.qwenCode:
+      env.OPENAI_API_KEY = apiKey
+      env.OPENAI_BASE_URL = baseUrl
+      env.OPENAI_MODEL = model.id
     case codeTools.openaiCodex:
       env.OPENAI_API_KEY = apiKey
       env.OPENAI_BASE_URL = baseUrl
       env.OPENAI_MODEL = model.id
+      env.OPENAI_MODEL_PROVIDER = modelProvider.id
       break
   }
 
