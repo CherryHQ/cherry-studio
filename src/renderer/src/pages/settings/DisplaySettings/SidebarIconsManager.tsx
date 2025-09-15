@@ -8,7 +8,7 @@ import {
   DropResult
 } from '@hello-pangea/dnd'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
-import { SidebarIcon } from '@shared/data/preferenceTypes'
+import { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { message } from 'antd'
 import {
   Code,

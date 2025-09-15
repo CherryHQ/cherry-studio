@@ -1,4 +1,4 @@
-import { ThemeMode } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState } from 'react'

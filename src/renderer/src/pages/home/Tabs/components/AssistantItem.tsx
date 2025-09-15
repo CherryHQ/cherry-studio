@@ -11,7 +11,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
-import type { AssistantTabSortType } from '@shared/data/preferenceTypes'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import { Dropdown, MenuProps } from 'antd'
 import { omit } from 'lodash'
 import {

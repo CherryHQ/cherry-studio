@@ -33,8 +33,8 @@ import {
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { DefaultPreferences } from '@shared/data/preferences'
-import { UpgradeChannel } from '@shared/data/preferenceTypes'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 

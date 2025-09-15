@@ -1,5 +1,5 @@
 import { preferenceService } from '@data/PreferenceService'
-import { ThemeMode } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, nativeTheme } from 'electron'
 

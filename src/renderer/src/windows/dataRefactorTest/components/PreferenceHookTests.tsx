@@ -1,7 +1,7 @@
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import { loggerService } from '@renderer/services/LoggerService'
-import { type PreferenceKeyType, ThemeMode } from '@shared/data/preferenceTypes'
+import { type PreferenceKeyType, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Button, Card, message, Space, Typography } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'

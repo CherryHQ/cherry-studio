@@ -1,3 +1,4 @@
+import { Scrollbar } from '@cherrystudio/ui'
 import {
   DragDropContext,
   Draggable,
@@ -8,7 +9,6 @@ import {
   OnDragStartResponder,
   ResponderProvided
 } from '@hello-pangea/dnd'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { droppableReorder } from '@renderer/utils'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type Key, memo, useCallback, useImperativeHandle, useRef } from 'react'

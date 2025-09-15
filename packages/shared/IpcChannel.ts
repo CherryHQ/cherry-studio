@@ -300,7 +300,7 @@ export enum IpcChannel {
   Memory_DeleteAllMemoriesForUser = 'memory:delete-all-memories-for-user',
   Memory_GetUsersList = 'memory:get-users-list',
 
-  // Preference
+  // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
   Preference_GetMultiple = 'preference:get-multiple',
@@ -309,9 +309,12 @@ export enum IpcChannel {
   Preference_Subscribe = 'preference:subscribe',
   Preference_Changed = 'preference:changed',
 
-  // Data API channels
+  // Data: Cache
+  Cache_Sync = 'cache:sync',
+  Cache_SyncBatch = 'cache:sync-batch',
+
+  // Data: API Channels
   DataApi_Request = 'data-api:request',
-  DataApi_Response = 'data-api:response',
   DataApi_Batch = 'data-api:batch',
   DataApi_Transaction = 'data-api:transaction',
   DataApi_Subscribe = 'data-api:subscribe',

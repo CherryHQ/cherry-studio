@@ -13,7 +13,7 @@ import {
 import { pauseTrace } from '@renderer/services/SpanManagerService'
 import { Assistant, Topic } from '@renderer/types'
 import { abortCompletion } from '@renderer/utils/abortController'
-import type { SelectionActionItem } from '@shared/data/preferenceTypes'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { ChevronDown } from 'lucide-react'
 import React, { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

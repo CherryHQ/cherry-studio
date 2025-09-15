@@ -12,7 +12,7 @@ import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/pro
 import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
-import { UpgradeChannel } from '@shared/data/preferenceTypes'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { FileMetadata, Provider, Shortcut } from '@types'
 import checkDiskSpace from 'check-disk-space'

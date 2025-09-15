@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
-import { DefaultPreferences } from '@shared/data/preferences'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   PreferenceDefaultScopeType,
   PreferenceKeyType,
   PreferenceUpdateOptions
-} from '@shared/data/preferenceTypes'
+} from '@shared/data/preference/preferenceTypes'
 
 const logger = loggerService.withContext('PreferenceService')
 

@@ -1,5 +1,5 @@
 import type { DraggableProvided } from '@hello-pangea/dnd'
-import type { SelectionActionItem } from '@shared/data/preferenceTypes'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Button } from 'antd'
 import { Pencil, Settings2, Trash } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'

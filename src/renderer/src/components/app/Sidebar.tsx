@@ -12,7 +12,7 @@ import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
-import { ThemeMode } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Avatar, Tooltip } from 'antd'
 import {
   Code,

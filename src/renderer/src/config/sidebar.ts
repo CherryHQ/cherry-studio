@@ -1,4 +1,4 @@
-import { SidebarIcon } from '@shared/data/preferenceTypes'
+import { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 
 //TODO 这个文件是否还有存在的价值？ fullex @ data refactor
 

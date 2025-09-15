@@ -3,8 +3,13 @@ import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
-import type { PreferenceDefaultScopeType, PreferenceKeyType, SelectionActionItem } from '@shared/data/preferenceTypes'
-import { UpgradeChannel } from '@shared/data/preferenceTypes'
+import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type {
+  PreferenceDefaultScopeType,
+  PreferenceKeyType,
+  SelectionActionItem
+} from '@shared/data/preference/preferenceTypes'
+import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   AddMemoryOptions,
@@ -455,6 +460,19 @@ const api = {
       }
     }
   },
+  // CacheService related APIs
+  cache: {
+    // Broadcast sync message to other windows
+    broadcastSync: (message: CacheSyncMessage): void => ipcRenderer.send(IpcChannel.Cache_Sync, message),
+
+    // Listen for sync messages from other windows
+    onSync: (callback: (message: CacheSyncMessage) => void) => {
+      const listener = (_: any, message: CacheSyncMessage) => callback(message)
+      ipcRenderer.on(IpcChannel.Cache_Sync, listener)
+      return () => ipcRenderer.off(IpcChannel.Cache_Sync, listener)
+    }
+  },
+
   // PreferenceService related APIs
   // DO NOT MODIFY THIS SECTION
   preference: {
