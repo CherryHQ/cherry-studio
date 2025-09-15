@@ -139,8 +139,10 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
           serializedError.message += ' ' + message
         }
       }
+      serializedError.responseBody = JSON.stringify(body, null, 2)
+    } else {
+      serializedError.responseBody = error.responseBody
     }
-    serializedError.responseBody = error.responseBody
   }
   if ('isRetryable' in error) serializedError.isRetryable = error.isRetryable
   if ('data' in error) serializedError.data = safeSerialize(error.data)
