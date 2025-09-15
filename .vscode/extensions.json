@@ -3,6 +3,7 @@
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
     "editorconfig.editorconfig",
-    "lokalise.i18n-ally"
+    "lokalise.i18n-ally",
+    "typescriptteam.native-preview"
   ]
 }

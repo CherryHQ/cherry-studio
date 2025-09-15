@@ -36,15 +36,15 @@
     "ai": "^5.0.26"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.5",
-    "@ai-sdk/azure": "^2.0.16",
-    "@ai-sdk/deepseek": "^1.0.9",
-    "@ai-sdk/google": "^2.0.13",
-    "@ai-sdk/openai": "^2.0.26",
-    "@ai-sdk/openai-compatible": "^1.0.9",
+    "@ai-sdk/anthropic": "^2.0.17",
+    "@ai-sdk/azure": "^2.0.30",
+    "@ai-sdk/deepseek": "^1.0.17",
+    "@ai-sdk/google": "^2.0.14",
+    "@ai-sdk/openai": "^2.0.30",
+    "@ai-sdk/openai-compatible": "^1.0.17",
     "@ai-sdk/provider": "^2.0.0",
-    "@ai-sdk/provider-utils": "^3.0.4",
-    "@ai-sdk/xai": "^2.0.9",
+    "@ai-sdk/provider-utils": "^3.0.9",
+    "@ai-sdk/xai": "^2.0.18",
     "zod": "^4.1.5"
   },
   "devDependencies": {

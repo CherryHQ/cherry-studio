@@ -45,5 +45,6 @@
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true
-  }
+  },
+  "typescript.experimental.useTsgo": true
 }
