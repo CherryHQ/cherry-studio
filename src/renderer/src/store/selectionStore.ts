@@ -2,8 +2,8 @@
  * @deprecated The whole file will be removed after data refactoring
  */
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
-import type { SelectionActionItem } from '@shared/data/preferenceTypes'
-import { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preferenceTypes'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
 export interface SelectionState {
   selectionEnabled: boolean

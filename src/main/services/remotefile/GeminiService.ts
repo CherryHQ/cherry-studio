@@ -1,10 +1,10 @@
+import { cacheService } from '@data/CacheService'
 import { File, Files, FileState, GoogleGenAI } from '@google/genai'
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
 import { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { CacheService } from '../CacheService'
 import { BaseFileService } from './BaseFileService'
 
 const logger = loggerService.withContext('GeminiService')
@@ -67,7 +67,7 @@ export class GeminiService extends BaseFileService {
       // 只缓存成功的文件
       if (status === 'success') {
         const cacheKey = `${GeminiService.FILE_LIST_CACHE_KEY}_${response.fileId}`
-        CacheService.set<FileUploadResponse>(cacheKey, response, GeminiService.FILE_CACHE_DURATION)
+        cacheService.set<FileUploadResponse>(cacheKey, response, GeminiService.FILE_CACHE_DURATION)
       }
 
       return response
@@ -84,7 +84,7 @@ export class GeminiService extends BaseFileService {
 
   async retrieveFile(fileId: string): Promise<FileUploadResponse> {
     try {
-      const cachedResponse = CacheService.get<FileUploadResponse>(`${GeminiService.FILE_LIST_CACHE_KEY}_${fileId}`)
+      const cachedResponse = cacheService.get<FileUploadResponse>(`${GeminiService.FILE_LIST_CACHE_KEY}_${fileId}`)
       logger.debug('[GeminiService] cachedResponse', cachedResponse)
       if (cachedResponse) {
         return cachedResponse
@@ -130,7 +130,7 @@ export class GeminiService extends BaseFileService {
 
   async listFiles(): Promise<FileListResponse> {
     try {
-      const cachedList = CacheService.get<FileListResponse>(GeminiService.FILE_LIST_CACHE_KEY)
+      const cachedList = cacheService.get<FileListResponse>(GeminiService.FILE_LIST_CACHE_KEY)
       if (cachedList) {
         return cachedList
       }
@@ -153,7 +153,7 @@ export class GeminiService extends BaseFileService {
                 file
               }
             }
-            CacheService.set(
+            cacheService.set(
               `${GeminiService.FILE_LIST_CACHE_KEY}_${file.name}`,
               fileResponse,
               GeminiService.FILE_CACHE_DURATION
@@ -173,7 +173,7 @@ export class GeminiService extends BaseFileService {
       }
 
       // 更新文件列表缓存
-      CacheService.set(GeminiService.FILE_LIST_CACHE_KEY, fileList, GeminiService.LIST_CACHE_DURATION)
+      cacheService.set(GeminiService.FILE_LIST_CACHE_KEY, fileList, GeminiService.LIST_CACHE_DURATION)
       return fileList
     } catch (error) {
       logger.error('Error listing files from Gemini:', error as Error)

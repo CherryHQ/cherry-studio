@@ -12,7 +12,7 @@ import {
 } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import { DefaultPreferences } from '@shared/data/preferences'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
   AssistantIconType,
   AssistantTabSortType,
@@ -20,8 +20,8 @@ import type {
   MultiModelMessageStyle,
   SendMessageShortcut,
   SidebarIcon
-} from '@shared/data/preferenceTypes'
-import { ThemeMode, UpgradeChannel } from '@shared/data/preferenceTypes'
+} from '@shared/data/preference/preferenceTypes'
+import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { OpenAIVerbosity } from '@types'
 
 import { RemoteSyncState } from './backup'

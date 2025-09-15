@@ -1,6 +1,6 @@
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { preferenceService } from '@renderer/data/PreferenceService'
-import { type PreferenceKeyType, ThemeMode } from '@shared/data/preferenceTypes'
+import { type PreferenceKeyType, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Button, Input, message, Space, Typography } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'

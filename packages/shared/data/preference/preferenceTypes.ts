@@ -1,6 +1,6 @@
-import { PreferencesType } from './preferences'
+import { PreferenceSchemas } from './preferenceSchemas'
 
-export type PreferenceDefaultScopeType = PreferencesType['default']
+export type PreferenceDefaultScopeType = PreferenceSchemas['default']
 export type PreferenceKeyType = keyof PreferenceDefaultScopeType
 
 export type PreferenceUpdateOptions = {

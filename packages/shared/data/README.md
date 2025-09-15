@@ -12,7 +12,7 @@ This directory contains shared data structures and API type definitions for the 
 ### API Types (`api/` subdirectory)
 
 - **`api/index.ts`** - Barrel export file providing clean imports for all API types
-- **`api/apiTypes.ts`** - Core request/response types and API infrastructure  
+- **`api/apiTypes.ts`** - Core request/response types and API infrastructure
 - **`api/apiModels.ts`** - Business entity types and Data Transfer Objects (DTOs)
 - **`api/apiSchemas.ts`** - Complete API endpoint definitions with type mappings
 - **`api/errorCodes.ts`** - Error handling utilities and standardized error codes
@@ -29,6 +29,7 @@ These files are part of the **Renderer-Main Virtual Data Acquisition Architectur
 ## 🔄 Classification Status
 
 **Important**: These files are **NOT classified** in the data refactor system because they are:
+
 - ✅ **Type definitions** - Not actual data storage
 - ✅ **Compile-time artifacts** - Exist only during TypeScript compilation
 - ✅ **Framework infrastructure** - Enable the data API architecture
@@ -40,13 +41,7 @@ These files are part of the **Renderer-Main Virtual Data Acquisition Architectur
 
 ```typescript
 // Import API types from the api subdirectory
-import { 
-  Topic, 
-  CreateTopicDto, 
-  DataRequest, 
-  ApiSchemas,
-  ErrorCode 
-} from '@shared/data/api'
+import { Topic, CreateTopicDto, DataRequest, ApiSchemas, ErrorCode } from '@shared/data/api'
 
 // Import specific groups
 import type { TopicTypes, MessageTypes } from '@shared/data/api'
@@ -64,7 +59,7 @@ import type { ApiSchemas, ApiResponse } from '@shared/data/api'
 type TopicsListResponse = ApiResponse<'/topics', 'GET'>
 // Result: PaginatedResponse<Topic>
 
-type CreateTopicResponse = ApiResponse<'/topics', 'POST'>  
+type CreateTopicResponse = ApiResponse<'/topics', 'POST'>
 // Result: Topic
 ```
 
@@ -169,18 +164,22 @@ export interface ApiSchemas {
 ## 🔗 Related Files
 
 ### Main Process Implementation
+
 - `src/main/data/DataApiService.ts` - Main process data service
 - `src/main/data/api/` - Controllers, services, and routing
 
-### Renderer Process Implementation  
+### Renderer Process Implementation
+
 - `src/renderer/src/data/DataApiService.ts` - Renderer API client
 - `src/renderer/src/data/hooks/` - React hooks for data fetching
 
 ### Shared Data Types
+
 - `packages/shared/data/api/` - API contract definitions
 - `packages/shared/data/preferences.ts` - User preference schemas
 
 ### Architecture Documentation
+
 - `.claude/data-request-arch.md` - Complete architecture documentation
 - `CLAUDE.md` - Project development guidelines
 
@@ -195,4 +194,4 @@ The type system is designed to support:
 
 ---
 
-*This README is part of the Cherry Studio data refactor project. For more information, see the project documentation in `.claude/` directory.*
+_This README is part of the Cherry Studio data refactor project. For more information, see the project documentation in `.claude/` directory._

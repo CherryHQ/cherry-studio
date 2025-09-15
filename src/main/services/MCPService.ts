@@ -2,6 +2,7 @@ import crypto from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { createInMemoryMCPServer } from '@main/mcpServers/factory'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
@@ -46,7 +47,6 @@ import { EventEmitter } from 'events'
 import { memoize } from 'lodash'
 import { v4 as uuidv4 } from 'uuid'
 
-import { CacheService } from './CacheService'
 import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
@@ -116,9 +116,9 @@ function withCache<T extends unknown[], R>(
   return async (...args: T): Promise<R> => {
     const cacheKey = getCacheKey(...args)
 
-    if (CacheService.has(cacheKey)) {
+    if (cacheService.has(cacheKey)) {
       logger.debug(`${logPrefix} loaded from cache`, { cacheKey })
-      const cachedData = CacheService.get<R>(cacheKey)
+      const cachedData = cacheService.get<R>(cacheKey)
       if (cachedData) {
         return cachedData
       }
@@ -126,7 +126,7 @@ function withCache<T extends unknown[], R>(
 
     const start = Date.now()
     const result = await fn(...args)
-    CacheService.set(cacheKey, result, ttl)
+    cacheService.set(cacheKey, result, ttl)
     logger.debug(`${logPrefix} cached`, { cacheKey, ttlMs: ttl, durationMs: Date.now() - start })
     return result
   }
@@ -469,21 +469,21 @@ class McpService {
       client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
         logger.debug(`Tools list changed for server: ${server.name}`)
         // Clear tools cache
-        CacheService.remove(`mcp:list_tool:${serverKey}`)
+        cacheService.delete(`mcp:list_tool:${serverKey}`)
       })
 
       // Set up resources list changed notification handler
       client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
         logger.debug(`Resources list changed for server: ${server.name}`)
         // Clear resources cache
-        CacheService.remove(`mcp:list_resources:${serverKey}`)
+        cacheService.delete(`mcp:list_resources:${serverKey}`)
       })
 
       // Set up prompts list changed notification handler
       client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
         logger.debug(`Prompts list changed for server: ${server.name}`)
         // Clear prompts cache
-        CacheService.remove(`mcp:list_prompts:${serverKey}`)
+        cacheService.delete(`mcp:list_prompts:${serverKey}`)
       })
 
       // Set up resource updated notification handler
@@ -513,16 +513,16 @@ class McpService {
    * Clear resource-specific caches for a server
    */
   private clearResourceCaches(serverKey: string) {
-    CacheService.remove(`mcp:list_resources:${serverKey}`)
+    cacheService.delete(`mcp:list_resources:${serverKey}`)
   }
 
   /**
    * Clear all caches for a specific server
    */
   private clearServerCache(serverKey: string) {
-    CacheService.remove(`mcp:list_tool:${serverKey}`)
-    CacheService.remove(`mcp:list_prompts:${serverKey}`)
-    CacheService.remove(`mcp:list_resources:${serverKey}`)
+    cacheService.delete(`mcp:list_tool:${serverKey}`)
+    cacheService.delete(`mcp:list_prompts:${serverKey}`)
+    cacheService.delete(`mcp:list_resources:${serverKey}`)
     logger.debug(`Cleared all caches for server`, { serverKey })
   }
 

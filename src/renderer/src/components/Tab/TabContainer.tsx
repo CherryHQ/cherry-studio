@@ -13,7 +13,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
 import { classNames } from '@renderer/utils'
-import { ThemeMode } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Tooltip } from 'antd'
 import {
   FileSearch,

@@ -1,7 +1,7 @@
 import { AppLogo } from '@renderer/config/env'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
-import { ThemeMode } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Button, Card, Col, Divider, Layout, Row, Space, Typography } from 'antd'
 import { Activity, AlertTriangle, Database, FlaskConical, Settings, TestTube, TrendingUp, Zap } from 'lucide-react'
 import React from 'react'

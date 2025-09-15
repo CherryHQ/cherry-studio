@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import type { SelectionActionItem } from '@shared/data/preferenceTypes'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { Globe } from 'lucide-react'
 import { FC, useEffect } from 'react'

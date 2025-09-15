@@ -1,0 +1,97 @@
+{
+  "name": "@cherrystudio/ui",
+  "version": "1.0.0-alpha.1",
+  "description": "Cherry Studio UI Component Library - React Components for Cherry Studio",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "react-native": "dist/index.js",
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsc -w",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src --ext .ts,.tsx --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "ui",
+    "components",
+    "react",
+    "tailwindcss",
+    "typescript",
+    "cherry-studio"
+  ],
+  "author": "Cherry Studio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CherryHQ/cherry-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CherryHQ/cherry-studio/issues"
+  },
+  "homepage": "https://github.com/CherryHQ/cherry-studio#readme",
+  "peerDependencies": {
+    "@heroui/react": "^2.8.4",
+    "framer-motion": "^11.0.0 || ^12.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.1.13"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.525.0"
+  },
+  "devDependencies": {
+    "@heroui/react": "^2.8.4",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.4",
+    "framer-motion": "^12.23.12",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsdown": "^0.12.9",
+    "typescript": "^5.6.2",
+    "vitest": "^3.2.4"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "react-native": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "react-native": "./dist/components/index.js",
+      "import": "./dist/components/index.mjs",
+      "require": "./dist/components/index.js",
+      "default": "./dist/components/index.js"
+    },
+    "./hooks": {
+      "types": "./dist/hooks/index.d.ts",
+      "react-native": "./dist/hooks/index.js",
+      "import": "./dist/hooks/index.mjs",
+      "require": "./dist/hooks/index.js",
+      "default": "./dist/hooks/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "react-native": "./dist/utils/index.js",
+      "import": "./dist/utils/index.mjs",
+      "require": "./dist/utils/index.js",
+      "default": "./dist/utils/index.js"
+    }
+  },
+  "packageManager": "yarn@4.9.1"
+}

@@ -1,4 +1,4 @@
-import { ThemeMode } from '@shared/data/preferenceTypes'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
 import styled, { CSSProp } from 'styled-components'

@@ -10,14 +10,14 @@
  */
 
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
-import * as PreferenceTypes from '@shared/data/preferenceTypes'
+import * as PreferenceTypes from '@shared/data/preference/preferenceTypes'
 
 /* eslint @typescript-eslint/member-ordering: ["error", {
   "interfaces": { "order": "alphabetically" },
   "typeLiterals": { "order": "alphabetically" }
 }] */
 
-export interface PreferencesType {
+export interface PreferenceSchemas {
   default: {
     // redux/settings/enableDeveloperMode
     'app.developer_mode.enabled': boolean
@@ -413,7 +413,7 @@ export interface PreferencesType {
 }
 
 /* eslint sort-keys: ["error", "asc", {"caseSensitive": true, "natural": false}] */
-export const DefaultPreferences: PreferencesType = {
+export const DefaultPreferences: PreferenceSchemas = {
   default: {
     'app.developer_mode.enabled': false,
     'app.disable_hardware_acceleration': false,

@@ -1,7 +1,7 @@
 import { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
-import { DefaultPreferences } from '@shared/data/preferences'
-import type { SelectionActionItem } from '@shared/data/preferenceTypes'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

@@ -1,7 +1,7 @@
 import { dbService } from '@data/db/DbService'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { loggerService } from '@logger'
-import { DefaultPreferences } from '@shared/data/preferences'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { and, eq } from 'drizzle-orm'
 
 import { configManager } from '../../../../services/ConfigManager'
