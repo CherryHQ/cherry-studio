@@ -1,3 +1,8 @@
+/src/renderer/src/store/ @0xfullex
+/src/main/services/ConfigManager.ts @0xfullex
+/packages/shared/IpcChannel.ts @0xfullex
+/src/main/ipc.ts @0xfullex
+
 /migrations/ @0xfullex 
 /packages/shared/data/ @0xfullex
 /src/main/data/ @0xfullex
