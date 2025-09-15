@@ -65,8 +65,8 @@
     "test:e2e": "yarn playwright test",
     "test:lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts",
     "test:scripts": "vitest scripts",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "biome format --write && biome lint --write",
+    "format:check": "biome format && biome lint",
     "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix && yarn typecheck && yarn check:i18n",
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && husky",
     "claude": "dotenv -e .env -- claude"
@@ -104,6 +104,7 @@
     "@aws-sdk/client-bedrock": "^3.840.0",
     "@aws-sdk/client-bedrock-runtime": "^3.840.0",
     "@aws-sdk/client-s3": "^3.840.0",
+    "@biomejs/biome": "2.2.4",
     "@cherrystudio/ai-core": "workspace:*",
     "@cherrystudio/embedjs": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
@@ -122,7 +123,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.0.0",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/tsconfig": "^1.0.1",
@@ -284,9 +284,6 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "playwright": "^1.52.0",
-    "prettier": "^3.5.3",
-    "prettier-plugin-sort-json": "^4.1.1",
-    "prettier-plugin-tailwindcss": "^0.6.14",
     "proxy-agent": "^6.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -369,11 +366,11 @@
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
     "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
-      "prettier --write",
+      "biome format --write",
       "eslint --fix"
     ],
     "*.{json,yml,yaml,css,html}": [
-      "prettier --write"
+      "biome format --write"
     ]
   }
 }

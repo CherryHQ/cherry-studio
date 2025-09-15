@@ -2,7 +2,9 @@
 
 ## IDE Setup
 
-[Cursor](https://www.cursor.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- Editor: [Cursor](https://www.cursor.com/), etc. Any VS Code compatible editor.
+- Linter: [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint)
+- Formatter: [Biome](https://marketplace.visualstudio.com/items?itemName=biomejs.biome)
 
 ## Project Setup
 

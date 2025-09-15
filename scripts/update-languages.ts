@@ -75,17 +75,17 @@ export const languages: Record<string, LanguageData> = ${languagesObjectString};
 }
 
 /**
- * Formats a file using Prettier.
+ * Formats a file using Biome.
  * @param filePath The path to the file to format.
  */
-async function formatWithPrettier(filePath: string): Promise<void> {
-  console.log('🎨 Formatting file with Prettier...')
+async function format(filePath: string): Promise<void> {
+  console.log('🎨 Formatting file with Biome...')
   try {
-    await execAsync(`yarn prettier --write ${filePath}`)
-    console.log('✅ Prettier formatting complete.')
+    await execAsync(`yarn biome format --write ${filePath}`)
+    console.log('✅ Biome formatting complete.')
   } catch (e: any) {
-    console.error('❌ Prettier formatting failed:', e.stdout || e.stderr)
-    throw new Error('Prettier formatting failed.')
+    console.error('❌ Biome formatting failed:', e.stdout || e.stderr)
+    throw new Error('Biome formatting failed.')
   }
 }
 
@@ -116,7 +116,7 @@ async function updateLanguagesFile(): Promise<void> {
     await fs.writeFile(LANGUAGES_FILE_PATH, fileContent, 'utf-8')
     console.log(`✅ Successfully wrote to ${LANGUAGES_FILE_PATH}`)
 
-    await formatWithPrettier(LANGUAGES_FILE_PATH)
+    await format(LANGUAGES_FILE_PATH)
     await checkTypeScript(LANGUAGES_FILE_PATH)
 
     console.log('🎉 Successfully updated languages.ts file!')
