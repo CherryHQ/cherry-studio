@@ -11,7 +11,11 @@
     "dev": "tsc -w",
     "clean": "rm -rf dist",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "yarn build",
+    "release:alpha": "yarn run prepublishOnly && npm version prerelease --preid alpha && npm publish --tag alpha",
+    "release:beta": "yarn run prepublishOnly && npm version prerelease --preid beta && npm publish --tag beta",
+    "release": "yarn run prepublishOnly && npm version patch && npm publish"
   },
   "keywords": [
     "ai",
