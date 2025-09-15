@@ -54,82 +54,82 @@ When submitting PRs, please place components in the correct directory based on t
 
 ## Component Status Table
 
-| Category | Component Name | Migration Status | Refactoring Status | Description |
-|----------|----------------|------------------|--------------------|-------------|
-| **base** | | | | Base components |
-| | CopyButton | ✅ | ❌ | Copy button |
-| | CustomTag | ✅ | ❌ | Custom tag |
-| | DividerWithText | ✅ | ❌ | Divider with text |
-| | EmojiIcon | ✅ | ❌ | Emoji icon |
-| | ErrorTag | ✅ | ❌ | Error tag |
-| | IndicatorLight | ✅ | ❌ | Indicator light |
-| | Spinner | ✅ | ❌ | Loading spinner |
-| | SuccessTag | ✅ | ❌ | Success tag |
-| | TextBadge | ✅ | ❌ | Text badge |
-| | WarnTag | ✅ | ❌ | Warning tag |
-| | CustomCollapse | ✅ | ❌ | Custom collapse panel |
-| **display** | | | | Display components |
-| | Ellipsis | ✅ | ❌ | Text ellipsis |
-| | ExpandableText | ✅ | ❌ | Expandable text |
-| | ThinkingEffect | ✅ | ❌ | Thinking effect animation |
-| | EmojiAvatar | ✅ | ❌ | Emoji avatar |
-| | ListItem | ✅ | ❌ | List item |
-| | MaxContextCount | ✅ | ❌ | Max context count display |
-| | CodeViewer | ❌ | ❌ | Code viewer (external deps) |
-| | OGCard | ❌ | ❌ | OG card |
-| | MarkdownShadowDOMRenderer | ❌ | ❌ | Markdown renderer |
-| | Preview/* | ❌ | ❌ | Preview components |
-| **layout** | | | | Layout components |
-| | HorizontalScrollContainer | ✅ | ❌ | Horizontal scroll container |
-| | Scrollbar | ✅ | ❌ | Scrollbar |
-| | Layout/* | ❌ | ❌ | Layout components |
-| | Tab/* | ❌ | ❌ | Tab (Redux dependency) |
-| | TopView | ❌ | ❌ | Top view (window.api dependency) |
-| **icons** | | | | Icon components |
-| | CopyIcon | ✅ | ❌ | Copy icon |
-| | DeleteIcon | ✅ | ❌ | Delete icon |
-| | EditIcon | ✅ | ❌ | Edit icon |
-| | FileIcons | ✅ | ❌ | File icons (includes FileSvgIcon, FilePngIcon) |
-| | ReasoningIcon | ✅ | ❌ | Reasoning icon |
-| | RefreshIcon | ✅ | ❌ | Refresh icon |
-| | ResetIcon | ✅ | ❌ | Reset icon |
-| | SvgSpinners180Ring | ✅ | ❌ | Spinners icon |
-| | ToolsCallingIcon | ✅ | ❌ | Tools calling icon |
-| | VisionIcon | ✅ | ❌ | Vision icon |
-| | WebSearchIcon | ✅ | ❌ | Web search icon |
-| | WrapIcon | ✅ | ❌ | Wrap icon |
-| | UnWrapIcon | ✅ | ❌ | Unwrap icon |
-| | OcrIcon | ✅ | ❌ | OCR icon |
-| | ToolIcon | ✅ | ❌ | Tool icon |
-| | Other icons | ❌ | ❌ | Other icon files |
-| **interactive** | | | | Interactive components |
-| | InfoTooltip | ✅ | ❌ | Info tooltip |
-| | HelpTooltip | ✅ | ❌ | Help tooltip |
-| | WarnTooltip | ✅ | ❌ | Warning tooltip |
-| | EditableNumber | ✅ | ❌ | Editable number |
-| | InfoPopover | ✅ | ❌ | Info popover |
-| | CollapsibleSearchBar | ✅ | ❌ | Collapsible search bar |
-| | ImageToolButton | ✅ | ❌ | Image tool button |
-| | DraggableList | ✅ | ❌ | Draggable list |
-| | EmojiPicker | ❌ | ❌ | Emoji picker (useTheme dependency) |
-| | Selector | ✅ | ❌ | Selector (i18n dependency) |
-| | ModelSelector | ❌ | ❌ | Model selector (Redux dependency) |
-| | LanguageSelect | ❌ | ❌ | Language select |
-| | TranslateButton | ❌ | ❌ | Translate button (window.api dependency) |
-| **composite** | | | | Composite components |
-| | - | - | - | No composite components yet |
-| **Uncategorized** | | | | Components needing categorization |
-| | Popups/* (16+ files) | ❌ | ❌ | Popup components (business coupled) |
-| | RichEditor/* (30+ files) | ❌ | ❌ | Rich text editor |
-| | CodeEditor/* | ❌ | ❌ | Code editor |
-| | MarkdownEditor/* | ❌ | ❌ | Markdown editor |
-| | MinApp/* | ❌ | ❌ | Mini app (Redux dependency) |
-| | Avatar/* | ❌ | ❌ | Avatar components |
-| | ActionTools/* | ❌ | ❌ | Action tools |
-| | CodeBlockView/* | ❌ | ❌ | Code block view (window.api dependency) |
-| | ContextMenu | ❌ | ❌ | Context menu (Electron API) |
-| | WindowControls | ❌ | ❌ | Window controls (Electron API) |
-| | ErrorBoundary | ❌ | ❌ | Error boundary (window.api dependency) |
+| Category          | Component Name            | Migration Status | Refactoring Status | Description                                    |
+| ----------------- | ------------------------- | ---------------- | ------------------ | ---------------------------------------------- |
+| **base**          |                           |                  |                    | Base components                                |
+|                   | CopyButton                | ✅                | ❌                  | Copy button                                    |
+|                   | CustomTag                 | ✅                | ❌                  | Custom tag                                     |
+|                   | DividerWithText           | ✅                | ❌                  | Divider with text                              |
+|                   | EmojiIcon                 | ✅                | ❌                  | Emoji icon                                     |
+|                   | ErrorTag                  | ✅                | ❌                  | Error tag                                      |
+|                   | IndicatorLight            | ✅                | ❌                  | Indicator light                                |
+|                   | Spinner                   | ✅                | ❌                  | Loading spinner                                |
+|                   | SuccessTag                | ✅                | ❌                  | Success tag                                    |
+|                   | TextBadge                 | ✅                | ❌                  | Text badge                                     |
+|                   | WarnTag                   | ✅                | ❌                  | Warning tag                                    |
+|                   | CustomCollapse            | ✅                | ❌                  | Custom collapse panel                          |
+| **display**       |                           |                  |                    | Display components                             |
+|                   | Ellipsis                  | ✅                | ❌                  | Text ellipsis                                  |
+|                   | ExpandableText            | ✅                | ❌                  | Expandable text                                |
+|                   | ThinkingEffect            | ✅                | ❌                  | Thinking effect animation                      |
+|                   | EmojiAvatar               | ✅                | ❌                  | Emoji avatar                                   |
+|                   | ListItem                  | ✅                | ❌                  | List item                                      |
+|                   | MaxContextCount           | ✅                | ❌                  | Max context count display                      |
+|                   | CodeViewer                | ❌                | ❌                  | Code viewer (external deps)                    |
+|                   | OGCard                    | ❌                | ❌                  | OG card                                        |
+|                   | MarkdownShadowDOMRenderer | ❌                | ❌                  | Markdown renderer                              |
+|                   | Preview/*                 | ❌                | ❌                  | Preview components                             |
+| **layout**        |                           |                  |                    | Layout components                              |
+|                   | HorizontalScrollContainer | ✅                | ❌                  | Horizontal scroll container                    |
+|                   | Scrollbar                 | ✅                | ❌                  | Scrollbar                                      |
+|                   | Layout/*                  | ✅                | ✅                  | Layout components                              |
+|                   | Tab/*                     | ❌                | ❌                  | Tab (Redux dependency)                         |
+|                   | TopView                   | ❌                | ❌                  | Top view (window.api dependency)               |
+| **icons**         |                           |                  |                    | Icon components                                |
+|                   | CopyIcon                  | ✅                | ❌                  | Copy icon                                      |
+|                   | DeleteIcon                | ✅                | ❌                  | Delete icon                                    |
+|                   | EditIcon                  | ✅                | ❌                  | Edit icon                                      |
+|                   | FileIcons                 | ✅                | ❌                  | File icons (includes FileSvgIcon, FilePngIcon) |
+|                   | ReasoningIcon             | ✅                | ❌                  | Reasoning icon                                 |
+|                   | RefreshIcon               | ✅                | ❌                  | Refresh icon                                   |
+|                   | ResetIcon                 | ✅                | ❌                  | Reset icon                                     |
+|                   | SvgSpinners180Ring        | ✅                | ❌                  | Spinners icon                                  |
+|                   | ToolsCallingIcon          | ✅                | ❌                  | Tools calling icon                             |
+|                   | VisionIcon                | ✅                | ❌                  | Vision icon                                    |
+|                   | WebSearchIcon             | ✅                | ❌                  | Web search icon                                |
+|                   | WrapIcon                  | ✅                | ❌                  | Wrap icon                                      |
+|                   | UnWrapIcon                | ✅                | ❌                  | Unwrap icon                                    |
+|                   | OcrIcon                   | ✅                | ❌                  | OCR icon                                       |
+|                   | ToolIcon                  | ✅                | ❌                  | Tool icon                                      |
+|                   | Other icons               | ❌                | ❌                  | Other icon files                               |
+| **interactive**   |                           |                  |                    | Interactive components                         |
+|                   | InfoTooltip               | ✅                | ❌                  | Info tooltip                                   |
+|                   | HelpTooltip               | ✅                | ❌                  | Help tooltip                                   |
+|                   | WarnTooltip               | ✅                | ❌                  | Warning tooltip                                |
+|                   | EditableNumber            | ✅                | ❌                  | Editable number                                |
+|                   | InfoPopover               | ✅                | ❌                  | Info popover                                   |
+|                   | CollapsibleSearchBar      | ✅                | ❌                  | Collapsible search bar                         |
+|                   | ImageToolButton           | ✅                | ❌                  | Image tool button                              |
+|                   | DraggableList             | ✅                | ❌                  | Draggable list                                 |
+|                   | EmojiPicker               | ❌                | ❌                  | Emoji picker (useTheme dependency)             |
+|                   | Selector                  | ✅                | ❌                  | Selector (i18n dependency)                     |
+|                   | ModelSelector             | ❌                | ❌                  | Model selector (Redux dependency)              |
+|                   | LanguageSelect            | ❌                | ❌                  | Language select                                |
+|                   | TranslateButton           | ❌                | ❌                  | Translate button (window.api dependency)       |
+| **composite**     |                           |                  |                    | Composite components                           |
+|                   | -                         | -                | -                  | No composite components yet                    |
+| **Uncategorized** |                           |                  |                    | Components needing categorization              |
+|                   | Popups/* (16+ files)      | ❌                | ❌                  | Popup components (business coupled)            |
+|                   | RichEditor/* (30+ files)  | ❌                | ❌                  | Rich text editor                               |
+|                   | CodeEditor/*              | ❌                | ❌                  | Code editor                                    |
+|                   | MarkdownEditor/*          | ❌                | ❌                  | Markdown editor                                |
+|                   | MinApp/*                  | ❌                | ❌                  | Mini app (Redux dependency)                    |
+|                   | Avatar/*                  | ❌                | ❌                  | Avatar components                              |
+|                   | ActionTools/*             | ❌                | ❌                  | Action tools                                   |
+|                   | CodeBlockView/*           | ❌                | ❌                  | Code block view (window.api dependency)        |
+|                   | ContextMenu               | ❌                | ❌                  | Context menu (Electron API)                    |
+|                   | WindowControls            | ❌                | ❌                  | Window controls (Electron API)                 |
+|                   | ErrorBoundary             | ❌                | ❌                  | Error boundary (window.api dependency)         |
 
 ## Migration Steps
 
