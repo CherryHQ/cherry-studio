@@ -77,6 +77,7 @@
     "claude": "dotenv -e .env -- claude"
   },
   "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.113",
     "@libsql/client": "0.14.0",
     "@libsql/win32-x64-msvc": "^0.4.7",
     "@napi-rs/system-ocr": "patch:@napi-rs/system-ocr@npm%3A1.0.2#~/.yarn/patches/@napi-rs-system-ocr-npm-1.0.2-59e7a78e8b.patch",
