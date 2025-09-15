@@ -37,6 +37,7 @@
         "src/renderer/**/*.{ts,tsx}",
         "packages/aiCore/**",
         "packages/extension-table-plus/**",
+        "packages/ui/**",
         "resources/js/**"
       ]
     },
