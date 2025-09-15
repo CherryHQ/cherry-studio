@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import { Request, Response } from 'express'
 
 import { agentService, sessionMessageService, sessionService } from '../../../../services/agents'
-import { loggerService } from '../../../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerMessagesHandlers')
 
@@ -28,9 +28,11 @@ export const createMessage = async (req: Request, res: Response): Promise<Respon
   try {
     const { agentId, sessionId } = req.params
 
-    await verifyAgentAndSession(agentId, sessionId)
+    const session = await verifyAgentAndSession(agentId, sessionId)
 
     const messageData = { ...req.body, session_id: sessionId }
+
+    session.external_session_id
 
     logger.info(`Creating new message for session: ${sessionId}`)
     logger.debug('Message data:', messageData)

@@ -2,29 +2,13 @@
  * Database entity types for Agent, Session, and SessionMessage
  * Shared between main and renderer processes
  */
-
+import { TextStreamPart } from 'ai'
 export type SessionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'stopped'
-export type PermissionMode = 'readOnly' | 'acceptEdits' | 'bypassPermissions'
-export type SessionMessageRole = 'user' | 'agent' | 'system' | 'tool'
-export type AgentType = 'claude-code' | 'codex' | 'qwen-cli' | 'gemini-cli' | 'custom'
+export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+export type SessionMessageRole = 'assistant' | 'user' | 'system' | 'tool'
+export type AgentType = 'claude-code' | 'codex' | 'gemini-cli'
 
-export function isAgentType(value: string): value is AgentType {
-  return ['claude-code', 'codex', 'qwen-cli', 'gemini-cli', 'custom'].includes(value)
-}
-
-export type SessionMessageType =
-  | 'message' // User or agent message
-  | 'thought' // Agent's internal reasoning/planning
-  | 'action' // Tool/function call initiated
-  | 'observation' // Result from tool/function
-  | 'error' // Error occurred during execution
-  | 'plan' // Planning/strategy phase
-  | 'summary' // Summarization of steps
-  | 'status_change' // Session status changed
-  | 'tool_call' // Specific tool invocation
-  | 'tool_result' // Tool execution result
-  | 'completion' // Task/step completion
-  | 'interrupt' // User interrupted execution
+export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
 // Shared configuration interface for both agents and sessions
 export interface AgentConfiguration {
