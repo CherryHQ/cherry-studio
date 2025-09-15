@@ -225,6 +225,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-plus-2025-04-28',
     'qwen-plus-0714',
     'qwen-plus-2025-07-14',
+    'qwen-plus-2025-07-28',
+    'qwen-plus-2025-09-11',
     'qwen-turbo',
     'qwen-turbo-latest',
     'qwen-turbo-0428',
