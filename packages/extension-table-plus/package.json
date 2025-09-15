@@ -3,7 +3,10 @@
   "description": "table extension for tiptap forked from tiptap/extension-table",
   "version": "3.0.11",
   "homepage": "https://cherry-ai.com",
-  "keywords": ["tiptap", "tiptap extension"],
+  "keywords": [
+    "tiptap",
+    "tiptap extension"
+  ],
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -59,15 +62,18 @@
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["src", "dist"],
+  "files": [
+    "src",
+    "dist"
+  ],
   "devDependencies": {
+    "@biomejs/biome": "2.2.4",
     "@tiptap/core": "^3.2.0",
     "@tiptap/pm": "^3.2.0",
     "eslint": "^9.22.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "eslint-plugin-unused-imports": "^4.1.4",
-    "prettier": "^3.5.3",
     "tsdown": "^0.13.3"
   },
   "peerDependencies": {
@@ -81,7 +87,7 @@
   },
   "scripts": {
     "build": "tsdown",
-    "lint": "prettier ./src/ --write && eslint --fix ./src/"
+    "lint": "biome format ./src/ --write && eslint --fix ./src/"
   },
   "packageManager": "yarn@4.9.1"
 }
