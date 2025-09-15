@@ -132,7 +132,7 @@
   border-radius: 8px;
   overflow-x: auto;
   font-family: var(--code-font-family);
-  background-color: var(--color-background-mute) !important;
+  background-color: var(--color-background-mute);
 }
 
 .markdown pre:has(.special-preview) {

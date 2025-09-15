@@ -920,6 +920,10 @@ const OutputContainer = styled.div`
   height: calc(100vh - var(--navbar-height) - 70px);
   overflow: hidden;
 
+  & > div > .markdown > pre {
+    background-color: var(--color-background-mute) !important;
+  }
+
   &:hover .copy-button {
     opacity: 1;
     visibility: visible;
