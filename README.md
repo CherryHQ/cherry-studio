@@ -267,8 +267,8 @@ We believe the Enterprise Edition will become your team's AI productivity engine
 
 # 🚀 Contributors
 
-<a href="https://github.com/CherryHQ/cherry-studio/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=CherryHQ/cherry-studio" />
+<a href="https://openomy.com/CherryHQ/cherry-studio" target="_blank" style="display: block; width: 100%;" align="center">
+  <img src="https://openomy.com/svg?repo=CherryHQ/cherry-studio&chart=bubble&latestMonth=3" target="_blank" alt="Contribution Leaderboard" style="display: block; width: 100%;" />
 </a>
 <br /><br />
 
