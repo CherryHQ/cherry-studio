@@ -318,7 +318,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
           })
 
           await handlePromptResponse(response)
-        } catch (error: Error | any) {
+        } catch (error: any) {
           if (error.message !== 'cancelled') {
             window.modal.error({
               title: t('common.error'),
@@ -335,7 +335,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
             name: prompt.name
           })
           await handlePromptResponse(response)
-        } catch (error: Error | any) {
+        } catch (error: any) {
           window.modal.error({
             title: t('common.error'),
             content: error.message || t('settings.mcp.prompts.genericError')
@@ -416,7 +416,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
           } else {
             processResourceContent(response as ResourceData)
           }
-        } catch (error: Error | any) {
+        } catch (error: any) {
           window.modal.error({
             title: t('common.error'),
             content: error.message || t('settings.mcp.resources.genericError')

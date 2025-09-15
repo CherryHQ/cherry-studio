@@ -1063,10 +1063,6 @@
       "error": {
         "failed": "Error en la migración"
       },
-      "migrate_to_langchain": {
-        "content": "La migración de la base de conocimiento no elimina la base antigua, sino que crea una copia y luego reprocesa todas las entradas, lo que puede consumir una gran cantidad de tokens. Proceda con precaución.",
-        "info": "La estructura de la base de conocimiento ha sido actualizada. Haz clic para migrar a la nueva estructura."
-      },
       "source_dimensions": "Dimensiones de origen",
       "source_model": "Modelo de origen",
       "target_dimensions": "Dimensiones de destino",
@@ -1085,20 +1081,6 @@
     "quota": "Cupo restante de {{name}}: {{quota}}",
     "quota_infinity": "Cupo restante de {{name}}: ilimitado",
     "rename": "Renombrar",
-    "retriever": "modo de recuperación",
-    "retriever_bm25": "búsqueda de texto completo",
-    "retriever_bm25_desc": "Encontrar documentos basados en la relevancia y frecuencia de las palabras clave.",
-    "retriever_hybrid": "Búsqueda híbrida (recomendada)",
-    "retriever_hybrid_desc": "Combinar la búsqueda por palabras clave con la búsqueda semántica para lograr la máxima precisión en la recuperación.",
-    "retriever_hybrid_weight": {
-      "bm25": "texto completo",
-      "recommended": "Recomendado",
-      "title": "Ajuste de ponderación en búsqueda híbrida (texto completo/vectorial)",
-      "vector": "vector"
-    },
-    "retriever_tooltip": "Usar diferentes métodos de búsqueda para consultar la base de conocimiento",
-    "retriever_vector": "búsqueda vectorial",
-    "retriever_vector_desc": "Buscar documentos según similitud semántica y significado.",
     "search": "Buscar en la base de conocimientos",
     "search_placeholder": "Ingrese el contenido de la consulta",
     "settings": {
@@ -3115,6 +3097,13 @@
           "label": "CSS personalizado",
           "placeholder": "/* Escribe tu CSS personalizado aquí */"
         }
+      },
+      "font": {
+        "code": "fuente de código",
+        "default": "predeterminado",
+        "global": "Fuente global",
+        "select": "Seleccionar fuente",
+        "title": "Configuración de fuente"
       },
       "navbar": {
         "position": {

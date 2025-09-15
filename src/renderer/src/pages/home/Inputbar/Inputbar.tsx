@@ -327,37 +327,40 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     //other keys should be ignored
     const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
     if (isEnterPressed) {
-      if (quickPanel.isVisible) return event.preventDefault()
-
+      // 1) 优先判断是否为“发送”（当前仅支持纯 Enter 发送；其余 Enter 组合键均换行）
       if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
         sendMessage()
         return event.preventDefault()
-      } else {
-        //shift+enter's default behavior is to add a new line, ignore it
-        if (!event.shiftKey) {
-          event.preventDefault()
+      }
 
-          const textArea = textareaRef.current?.resizableTextArea?.textArea
-          if (textArea) {
-            const start = textArea.selectionStart
-            const end = textArea.selectionEnd
-            const text = textArea.value
-            const newText = text.substring(0, start) + '\n' + text.substring(end)
+      // 2) 不再基于 quickPanel.isVisible 主动拦截。
+      //    纯 Enter 的处理权交由 QuickPanel 的全局捕获（其只在纯 Enter 时拦截），
+      //    其它带修饰键的 Enter 则由输入框处理为换行。
 
-            // update text by setState, not directly modify textarea.value
-            setText(newText)
+      if (event.shiftKey) {
+        return
+      }
 
-            // set cursor position in the next render cycle
-            setTimeoutTimer(
-              'handleKeyDown',
-              () => {
-                textArea.selectionStart = textArea.selectionEnd = start + 1
-                onInput() // trigger resizeTextArea
-              },
-              0
-            )
-          }
-        }
+      event.preventDefault()
+      const textArea = textareaRef.current?.resizableTextArea?.textArea
+      if (textArea) {
+        const start = textArea.selectionStart
+        const end = textArea.selectionEnd
+        const text = textArea.value
+        const newText = text.substring(0, start) + '\n' + text.substring(end)
+
+        // update text by setState, not directly modify textarea.value
+        setText(newText)
+
+        // set cursor position in the next render cycle
+        setTimeoutTimer(
+          'handleKeyDown',
+          () => {
+            textArea.selectionStart = textArea.selectionEnd = start + 1
+            onInput() // trigger resizeTextArea
+          },
+          0
+        )
       }
     }
 

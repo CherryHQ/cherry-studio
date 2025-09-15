@@ -11,9 +11,10 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, Provider, Shortcut, ThemeMode } from '@types'
+import { FileMetadata, OcrProvider, Provider, Shortcut, SupportedOcrFile, ThemeMode } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
+import fontList from 'font-list'
 import { Notification } from 'src/renderer/src/types/notification'
 
 import { apiServerService } from './services/ApiServerService'
@@ -27,7 +28,7 @@ import DxtService from './services/DxtService'
 import { ExportService } from './services/ExportService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import KnowledgeService from './services/knowledge/KnowledgeService'
+import KnowledgeService from './services/KnowledgeService'
 import mcpService from './services/MCPService'
 import MemoryService from './services/memory/MemoryService'
 import { openTraceWindow, setTraceWindowTitle } from './services/NodeTraceService'
@@ -217,6 +218,17 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_IsFullScreen, (): boolean => {
     return mainWindow.isFullScreen()
+  })
+
+  // Get System Fonts
+  ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
+    try {
+      const fonts = await fontList.getFonts()
+      return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
+    } catch (error) {
+      logger.error('Failed to get system fonts:', error as Error)
+      return []
+    }
   })
 
   ipcMain.handle(IpcChannel.Config_Set, (_, key: string, value: any, isNotify: boolean = false) => {
@@ -815,7 +827,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
 
   // OCR
-  ipcMain.handle(IpcChannel.OCR_ocr, (_, ...args: Parameters<typeof ocrService.ocr>) => ocrService.ocr(...args))
+  ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>
+    ocrService.ocr(file, provider)
+  )
 
   // CherryIN
   ipcMain.handle(IpcChannel.Cherryin_GetSignature, (_, params) => generateSignature(params))

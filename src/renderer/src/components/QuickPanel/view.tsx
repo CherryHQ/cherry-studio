@@ -341,11 +341,12 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
     scrollTriggerRef.current = 'none'
   }, [index])
 
-  // 处理键盘事件（折叠时不拦截全局键盘）
+  // 处理键盘事件：
+  // - 可见且未折叠时：拦截 Enter 及其组合键（纯 Enter 选择项；带修饰键仅拦截不处理）。
+  // - 软隐藏/折叠时：不拦截 Enter，允许输入框处理（用于发送消息等）。
+  // - 不可见时：不拦截，输入框按常规处理。
   useEffect(() => {
-    const hasSearchTextFlag = searchText.replace(/^[/@]/, '').length > 0
-    const isCollapsed = hasSearchTextFlag && list.length === 0
-    if (!ctx.isVisible || isCollapsed) return
+    if (!ctx.isVisible) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isMac ? e.metaKey : e.ctrlKey) {
@@ -438,8 +439,23 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           break
 
         case 'Enter':
-        case 'NumpadEnter':
+        case 'NumpadEnter': {
           if (isComposing.current) return
+
+          // 折叠/软隐藏时不拦截，让输入框处理（用于发送消息）
+          const hasSearch = searchText.replace(/^[/@]/, '').length > 0
+          const nonPinnedCount = list.filter((i) => !i.alwaysVisible).length
+          const isCollapsed = hasSearch && nonPinnedCount === 0
+          if (isCollapsed) return
+
+          // 面板可见且未折叠时：拦截所有 Enter 变体；
+          // 纯 Enter 选择项，带修饰键仅拦截不处理
+          if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsMouseOver(false)
+            break
+          }
 
           if (list?.[index]) {
             e.preventDefault()
@@ -451,6 +467,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             handleClose('enter_empty')
           }
           break
+        }
         case 'Escape':
           e.stopPropagation()
           handleClose('esc')

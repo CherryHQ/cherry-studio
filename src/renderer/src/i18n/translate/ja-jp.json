@@ -1063,10 +1063,6 @@
       "error": {
         "failed": "移行が失敗しました"
       },
-      "migrate_to_langchain": {
-        "content": "ナレッジベースの移行は旧ナレッジベースを削除せず、すべてのエントリーを再処理したコピーを作成します。大量のトークンを消費する可能性があるため、操作には十分注意してください。",
-        "info": "ナレッジベースのアーキテクチャが更新されました、新しいアーキテクチャに移行するにはクリックしてください"
-      },
       "source_dimensions": "ソース次元",
       "source_model": "ソースモデル",
       "target_dimensions": "ターゲット次元",
@@ -1085,20 +1081,6 @@
     "quota": "{{name}} 残りクォータ: {{quota}}",
     "quota_infinity": "{{name}} クォータ: 無制限",
     "rename": "名前を変更",
-    "retriever": "検索モード",
-    "retriever_bm25": "全文検索",
-    "retriever_bm25_desc": "キーワードの関連性と頻度に基づいてドキュメントを検索します。",
-    "retriever_hybrid": "ハイブリッド検索（おすすめ）",
-    "retriever_hybrid_desc": "キーワード検索と意味検索を組み合わせて、最高の検索精度を実現します。",
-    "retriever_hybrid_weight": {
-      "bm25": "全文（ぜんぶん）",
-      "recommended": "おすすめ",
-      "title": "ハイブリッド検索の重み付け調整 (全文/ベクトル)",
-      "vector": "ベクトル"
-    },
-    "retriever_tooltip": "異なる検索方法を使用してナレッジベースを検索する",
-    "retriever_vector": "ベクトル検索",
-    "retriever_vector_desc": "意味的な類似性と意味に基づいて文書を検索します。",
     "search": "ナレッジベースを検索",
     "search_placeholder": "検索するテキストを入力",
     "settings": {
@@ -3115,6 +3097,13 @@
           "label": "カスタムCSS",
           "placeholder": "/* ここにカスタムCSSを入力 */"
         }
+      },
+      "font": {
+        "code": "コードフォント",
+        "default": "デフォルト",
+        "global": "グローバルフォント",
+        "select": "フォントを選択",
+        "title": "フォント設定"
       },
       "navbar": {
         "position": {

@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - develop
+      - v2
 
 jobs:
   build:
@@ -45,11 +46,11 @@ jobs:
       - name: Install Dependencies
         run: yarn install
 
-      - name: Format Check
-        run: yarn format:check
-
       - name: Lint Check
         run: yarn test:lint
+
+      - name: Format Check
+        run: yarn format:check
 
       - name: Type Check
         run: yarn typecheck
