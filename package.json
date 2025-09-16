@@ -374,11 +374,11 @@
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
     "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
-      "biome format --write",
+      "biome format --write --no-errors-on-unmatched",
       "eslint --fix"
     ],
     "*.{json,yml,yaml,css,html}": [
-      "biome format --write"
+      "biome format --write --no-errors-on-unmatched"
     ]
   }
 }
