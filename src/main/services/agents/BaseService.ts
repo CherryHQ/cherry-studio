@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'path'
 
 import * as schema from './database/schema'
+import { MigrationService } from './database/MigrationService'
 import { dbPath } from './drizzle.config'
 
 const logger = loggerService.withContext('BaseService')
@@ -65,6 +66,10 @@ export abstract class BaseService {
         })
 
         BaseService.db = drizzle(BaseService.client, { schema })
+
+        // Run database migrations
+        const migrationService = new MigrationService(BaseService.db, BaseService.client)
+        await migrationService.runMigrations()
 
         BaseService.isInitialized = true
         logger.info('Agent database initialized successfully')
