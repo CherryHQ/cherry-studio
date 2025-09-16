@@ -68,7 +68,6 @@ function ItemCard({ item, dragging }: { item: ExampleItem; dragging: boolean }) 
         dragging ? 'opacity-50 ring-2 ring-blue-400' : 'bg-white'
       )}>
       <div className="text-sm font-medium">{item.label}</div>
-      <div className="text-xs text-gray-500">ID: {item.id}</div>
     </div>
   )
 }
@@ -145,7 +144,7 @@ function HorizontalDemo(args: any) {
           useDragOverlay={args.useDragOverlay as boolean}
           showGhost={args.showGhost as boolean}
           renderItem={(item, { dragging }) => (
-            <div className="min-w-[160px]">
+            <div className="min-w-[100px]">
               <ItemCard item={item} dragging={dragging} />
             </div>
           )}
