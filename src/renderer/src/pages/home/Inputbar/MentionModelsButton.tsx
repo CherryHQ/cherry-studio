@@ -1,6 +1,6 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
-import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { QuickPanelListItem } from '@renderer/components/QuickPanel/types'
+import { type QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -27,7 +27,6 @@ interface Props {
   onClearMentionModels: () => void
   couldMentionNotVisionModel: boolean
   files: FileType[]
-  ToolbarButton: any
   setText: React.Dispatch<React.SetStateAction<string>>
 }
 
@@ -38,7 +37,6 @@ const MentionModelsButton: FC<Props> = ({
   onClearMentionModels,
   couldMentionNotVisionModel,
   files,
-  ToolbarButton,
   setText
 }) => {
   const { providers } = useProviders()
@@ -242,7 +240,7 @@ const MentionModelsButton: FC<Props> = ({
       quickPanel.open({
         title: t('agents.edit.model.select.title'),
         list: modelItems,
-        symbol: '@',
+        symbol: QuickPanelReservedSymbol.MentionModels,
         multiple: true,
         triggerInfo: triggerInfo || { type: 'button' },
         afterAction({ item }) {
@@ -274,7 +272,7 @@ const MentionModelsButton: FC<Props> = ({
   )
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '@') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
       quickPanel.close()
     } else {
       openQuickPanel({ type: 'button' })
@@ -286,7 +284,7 @@ const MentionModelsButton: FC<Props> = ({
   useEffect(() => {
     // 检查files是否变化
     if (filesRef.current !== files) {
-      if (quickPanel.isVisible && quickPanel.symbol === '@') {
+      if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
         quickPanel.close()
       }
       filesRef.current = files
@@ -295,7 +293,7 @@ const MentionModelsButton: FC<Props> = ({
 
   // 监听 mentionedModels 变化，动态更新已打开的 QuickPanel 列表状态
   useEffect(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '@') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.MentionModels) {
       // 直接使用重新计算的 modelItems，因为它已经包含了最新的 isSelected 状态
       quickPanel.updateList(modelItems)
     }
@@ -307,9 +305,9 @@ const MentionModelsButton: FC<Props> = ({
 
   return (
     <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <AtSign size={18} color={mentionedModels.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'} />
-      </ToolbarButton>
+      <ActionIconButton onClick={handleOpenQuickPanel} active={mentionedModels.length > 0}>
+        <AtSign size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

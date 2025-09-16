@@ -363,8 +363,9 @@
       "translate": "翻译成 {{target_language}}",
       "translating": "翻译中...",
       "upload": {
+        "attachment": "上传附件",
         "document": "上传文档（模型不支持图片）",
-        "label": "上传图片或文档",
+        "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
       "url_context": "网页上下文",

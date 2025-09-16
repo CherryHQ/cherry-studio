@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
 - **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
 - **Install Dependencies**: `yarn install`
+- **Add New Dependencies**: `yarn add -D` for renderer-specific dependencies, `yarn add` for others.
 
 ### Development
 

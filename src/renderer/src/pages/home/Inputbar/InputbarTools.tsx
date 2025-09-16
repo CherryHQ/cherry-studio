@@ -1,12 +1,26 @@
 import { DragDropContext, Draggable, Droppable, DropResult } from '@hello-pangea/dnd'
+import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelListItem } from '@renderer/components/QuickPanel'
-import { isGeminiModel, isGenerateImageModel, isMandatoryWebSearchModel } from '@renderer/config/models'
+import {
+  isGeminiModel,
+  isGenerateImageModel,
+  isMandatoryWebSearchModel,
+  isSupportedReasoningEffortModel,
+  isSupportedThinkingTokenModel,
+  isVisionModel
+} from '@renderer/config/models'
 import { isSupportUrlContextProvider } from '@renderer/config/providers'
+import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getProviderByModel } from '@renderer/services/AssistantService'
+import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsCollapsed, setToolOrder } from '@renderer/store/inputTools'
-import { Assistant, FileType, KnowledgeBase, Model } from '@renderer/types'
+import { FileType, FileTypes, KnowledgeBase, Model } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/mcp-tools'
 import { Divider, Dropdown, Tooltip } from 'antd'
 import { ItemType } from 'antd/es/menu/interface'
 import {
@@ -32,7 +46,6 @@ import styled from 'styled-components'
 
 import AttachmentButton, { AttachmentButtonRef } from './AttachmentButton'
 import GenerateImageButton from './GenerateImageButton'
-import { ToolbarButton } from './Inputbar'
 import KnowledgeBaseButton, { KnowledgeBaseButtonRef } from './KnowledgeBaseButton'
 import MCPToolsButton, { MCPToolsButtonRef } from './MCPToolsButton'
 import MentionModelsButton, { MentionModelsButtonRef } from './MentionModelsButton'
@@ -42,47 +55,33 @@ import ThinkingButton, { ThinkingButtonRef } from './ThinkingButton'
 import UrlContextButton, { UrlContextButtonRef } from './UrlContextbutton'
 import WebSearchButton, { WebSearchButtonRef } from './WebSearchButton'
 
+const logger = loggerService.withContext('InputbarTools')
+
 export interface InputbarToolsRef {
-  getQuickPanelMenu: (params: {
-    t: (key: string, options?: any) => string
-    files: FileType[]
-    couldAddImageFile: boolean
-    text: string
-    openSelectFileMenu: () => void
-    translate: () => void
-  }) => QuickPanelListItem[]
+  getQuickPanelMenu: (params: { text: string; translate: () => void }) => QuickPanelListItem[]
   openMentionModelsPanel: (triggerInfo?: { type: 'input' | 'button'; position?: number; originalText?: string }) => void
   openAttachmentQuickPanel: () => void
 }
 
 export interface InputbarToolsProps {
-  assistant: Assistant
+  assistantId: string
   model: Model
   files: FileType[]
-  setFiles: (files: FileType[]) => void
+  setFiles: Dispatch<SetStateAction<FileType[]>>
   extensions: string[]
-  showThinkingButton: boolean
-  showKnowledgeIcon: boolean
-  showMcpTools: boolean
-  selectedKnowledgeBases: KnowledgeBase[]
-  handleKnowledgeBaseSelect: (bases?: KnowledgeBase[]) => void
   setText: Dispatch<SetStateAction<string>>
   resizeTextArea: () => void
-  mentionModels: Model[]
-  onMentionModel: (model: Model) => void
-  onClearMentionModels: () => void
-  couldMentionNotVisionModel: boolean
+  selectedKnowledgeBases: KnowledgeBase[]
+  setSelectedKnowledgeBases: Dispatch<SetStateAction<KnowledgeBase[]>>
+  mentionedModels: Model[]
+  setMentionedModels: Dispatch<SetStateAction<Model[]>>
   couldAddImageFile: boolean
-  onEnableGenerateImage: () => void
   isExpanded: boolean
   onToggleExpanded: () => void
 
   addNewTopic: () => void
   clearTopic: () => void
   onNewContext: () => void
-
-  newTopicShortcut: string
-  cleanTopicShortcut: string
 }
 
 interface ToolButtonConfig {
@@ -100,34 +99,27 @@ const DraggablePortal = ({ children, isDragging }) => {
 
 const InputbarTools = ({
   ref,
-  assistant,
+  assistantId,
   model,
   files,
   setFiles,
-  showThinkingButton,
-  showKnowledgeIcon,
-  showMcpTools,
-  selectedKnowledgeBases,
-  handleKnowledgeBaseSelect,
   setText,
   resizeTextArea,
-  mentionModels,
-  onMentionModel,
-  onClearMentionModels,
-  couldMentionNotVisionModel,
+  selectedKnowledgeBases,
+  setSelectedKnowledgeBases,
+  mentionedModels,
+  setMentionedModels,
   couldAddImageFile,
-  onEnableGenerateImage,
   isExpanded: isExpended,
   onToggleExpanded: onToggleExpended,
   addNewTopic,
   clearTopic,
   onNewContext,
-  newTopicShortcut,
-  cleanTopicShortcut,
   extensions
 }: InputbarToolsProps & { ref?: React.RefObject<InputbarToolsRef | null> }) => {
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
+  const { assistant, updateAssistant } = useAssistant(assistantId)
 
   const quickPhrasesButtonRef = useRef<QuickPhrasesButtonRef>(null)
   const mentionModelsButtonRef = useRef<MentionModelsButtonRef>(null)
@@ -142,6 +134,54 @@ const InputbarTools = ({
   const isCollapse = useAppSelector((state) => state.inputTools.isCollapsed)
 
   const [targetTool, setTargetTool] = useState<ToolButtonConfig | null>(null)
+
+  const showThinkingButton = useMemo(
+    () => isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model),
+    [model]
+  )
+
+  const showMcpServerButton = useMemo(() => isSupportedToolUse(assistant) || isPromptToolUse(assistant), [assistant])
+
+  const knowledgeSidebarEnabled = useSidebarIconShow('knowledge')
+  const showKnowledgeBaseButton = knowledgeSidebarEnabled && showMcpServerButton
+
+  const handleKnowledgeBaseSelect = useCallback(
+    (bases?: KnowledgeBase[]) => {
+      updateAssistant({ knowledge_bases: bases })
+      setSelectedKnowledgeBases(bases ?? [])
+    },
+    [setSelectedKnowledgeBases, updateAssistant]
+  )
+
+  // 仅允许在不含图片文件时mention非视觉模型
+  const couldMentionNotVisionModel = useMemo(() => {
+    return !files.some((file) => file.type === FileTypes.IMAGE)
+  }, [files])
+
+  const onMentionModel = useCallback(
+    (model: Model) => {
+      // 我想应该没有模型是只支持视觉而不支持文本的？
+      if (isVisionModel(model) || couldMentionNotVisionModel) {
+        setMentionedModels((prev) => {
+          const modelId = getModelUniqId(model)
+          const exists = prev.some((m) => getModelUniqId(m) === modelId)
+          return exists ? prev.filter((m) => getModelUniqId(m) !== modelId) : [...prev, model]
+        })
+      } else {
+        logger.error('Cannot add non-vision model when images are uploaded')
+      }
+    },
+    [couldMentionNotVisionModel, setMentionedModels]
+  )
+
+  const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
+
+  const onEnableGenerateImage = useCallback(() => {
+    updateAssistant({ enableGenerateImage: !assistant.enableGenerateImage })
+  }, [assistant.enableGenerateImage, updateAssistant])
+
+  const newTopicShortcut = useShortcutDisplay('new_topic')
+  const clearTopicShortcut = useShortcutDisplay('clear_topic')
 
   const toggleToolVisibility = useCallback(
     (toolKey: string, isVisible: boolean | undefined) => {
@@ -164,15 +204,8 @@ const InputbarTools = ({
     [dispatch, toolOrder.hidden, toolOrder.visible]
   )
 
-  const getQuickPanelMenuImpl = (params: {
-    t: (key: string, options?: any) => string
-    files: FileType[]
-    couldAddImageFile: boolean
-    text: string
-    openSelectFileMenu: () => void
-    translate: () => void
-  }): QuickPanelListItem[] => {
-    const { t, files, couldAddImageFile, text, openSelectFileMenu, translate } = params
+  const getQuickPanelMenuImpl = (params: { text: string; translate: () => void }): QuickPanelListItem[] => {
+    const { text, translate } = params
 
     return [
       {
@@ -249,11 +282,13 @@ const InputbarTools = ({
         }
       },
       {
-        label: couldAddImageFile ? t('chat.input.upload.label') : t('chat.input.upload.document'),
+        label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
         description: '',
         icon: <Paperclip />,
         isMenu: true,
-        action: openSelectFileMenu
+        action: () => {
+          attachmentButtonRef.current?.openQuickPanel()
+        }
       },
       {
         label: t('translate.title'),
@@ -313,15 +348,15 @@ const InputbarTools = ({
             title={t('chat.input.new_topic', { Command: newTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
-            <ToolbarButton type="text" onClick={addNewTopic}>
+            <ActionIconButton onClick={addNewTopic}>
               <MessageSquareDiff size={19} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )
       },
       {
         key: 'attachment',
-        label: t('chat.input.upload.label'),
+        label: t('chat.input.upload.image_or_document'),
         component: (
           <AttachmentButton
             ref={attachmentButtonRef}
@@ -329,28 +364,25 @@ const InputbarTools = ({
             extensions={extensions}
             files={files}
             setFiles={setFiles}
-            ToolbarButton={ToolbarButton}
           />
         )
       },
       {
         key: 'thinking',
         label: t('chat.input.thinking.label'),
-        component: (
-          <ThinkingButton ref={thinkingButtonRef} model={model} assistant={assistant} ToolbarButton={ToolbarButton} />
-        ),
+        component: <ThinkingButton ref={thinkingButtonRef} model={model} assistantId={assistant.id} />,
         condition: showThinkingButton
       },
       {
         key: 'web_search',
         label: t('chat.input.web_search.label'),
-        component: <WebSearchButton ref={webSearchButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        component: <WebSearchButton ref={webSearchButtonRef} assistantId={assistant.id} />,
         condition: !isMandatoryWebSearchModel(model)
       },
       {
         key: 'url_context',
         label: t('chat.input.url_context'),
-        component: <UrlContextButton ref={urlContextButtonRef} assistant={assistant} ToolbarButton={ToolbarButton} />,
+        component: <UrlContextButton ref={urlContextButtonRef} assistantId={assistant.id} />,
         condition: isGeminiModel(model) && isSupportUrlContextProvider(getProviderByModel(model))
       },
       {
@@ -361,36 +393,29 @@ const InputbarTools = ({
             ref={knowledgeBaseButtonRef}
             selectedBases={selectedKnowledgeBases}
             onSelect={handleKnowledgeBaseSelect}
-            ToolbarButton={ToolbarButton}
             disabled={files.length > 0}
           />
         ),
-        condition: showKnowledgeIcon
+        condition: showKnowledgeBaseButton
       },
       {
         key: 'mcp_tools',
         label: t('settings.mcp.title'),
         component: (
           <MCPToolsButton
-            assistant={assistant}
+            assistantId={assistant.id}
             ref={mcpToolsButtonRef}
-            ToolbarButton={ToolbarButton}
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
           />
         ),
-        condition: showMcpTools
+        condition: showMcpServerButton
       },
       {
         key: 'generate_image',
         label: t('chat.input.generate_image'),
         component: (
-          <GenerateImageButton
-            model={model}
-            assistant={assistant}
-            onEnableGenerateImage={onEnableGenerateImage}
-            ToolbarButton={ToolbarButton}
-          />
+          <GenerateImageButton model={model} assistant={assistant} onEnableGenerateImage={onEnableGenerateImage} />
         ),
         condition: isGenerateImageModel(model)
       },
@@ -400,10 +425,9 @@ const InputbarTools = ({
         component: (
           <MentionModelsButton
             ref={mentionModelsButtonRef}
-            mentionedModels={mentionModels}
+            mentionedModels={mentionedModels}
             onMentionModel={onMentionModel}
             onClearMentionModels={onClearMentionModels}
-            ToolbarButton={ToolbarButton}
             couldMentionNotVisionModel={couldMentionNotVisionModel}
             files={files}
             setText={setText}
@@ -418,8 +442,7 @@ const InputbarTools = ({
             ref={quickPhrasesButtonRef}
             setInputValue={setText}
             resizeTextArea={resizeTextArea}
-            ToolbarButton={ToolbarButton}
-            assistantObj={assistant}
+            assistantId={assistant.id}
           />
         )
       },
@@ -429,12 +452,12 @@ const InputbarTools = ({
         component: (
           <Tooltip
             placement="top"
-            title={t('chat.input.clear.label', { Command: cleanTopicShortcut })}
+            title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
-            <ToolbarButton type="text" onClick={clearTopic}>
+            <ActionIconButton onClick={clearTopic}>
               <PaintbrushVertical size={18} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )
       },
@@ -447,22 +470,22 @@ const InputbarTools = ({
             title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
             mouseLeaveDelay={0}
             arrow>
-            <ToolbarButton type="text" onClick={onToggleExpended}>
+            <ActionIconButton onClick={onToggleExpended}>
               {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )
       },
       {
         key: 'new_context',
         label: t('chat.input.new.context', { Command: '' }),
-        component: <NewContextButton onNewContext={onNewContext} ToolbarButton={ToolbarButton} />
+        component: <NewContextButton onNewContext={onNewContext} />
       }
     ]
   }, [
     addNewTopic,
     assistant,
-    cleanTopicShortcut,
+    clearTopicShortcut,
     clearTopic,
     couldAddImageFile,
     couldMentionNotVisionModel,
@@ -470,7 +493,7 @@ const InputbarTools = ({
     files,
     handleKnowledgeBaseSelect,
     isExpended,
-    mentionModels,
+    mentionedModels,
     model,
     newTopicShortcut,
     onClearMentionModels,
@@ -482,8 +505,8 @@ const InputbarTools = ({
     selectedKnowledgeBases,
     setFiles,
     setText,
-    showKnowledgeIcon,
-    showMcpTools,
+    showKnowledgeBaseButton,
+    showMcpServerButton,
     showThinkingButton,
     t
   ])
@@ -628,14 +651,14 @@ const InputbarTools = ({
             placement="top"
             title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
             arrow>
-            <ToolbarButton type="text" onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
+            <ActionIconButton onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
               <CircleChevronRight
                 size={18}
                 style={{
                   transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
                 }}
               />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
         )}
       </ToolsContainer>

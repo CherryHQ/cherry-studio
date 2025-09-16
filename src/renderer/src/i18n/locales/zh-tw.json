@@ -362,8 +362,9 @@
       "translate": "翻譯成 {{target_language}}",
       "translating": "翻譯中...",
       "upload": {
+        "attachment": "上傳附件",
         "document": "上傳文件（模型不支援圖片）",
-        "label": "上傳圖片或文件",
+        "image_or_document": "上傳圖片或文件",
         "upload_from_local": "上傳本地文件..."
       },
       "url_context": "網頁上下文",
