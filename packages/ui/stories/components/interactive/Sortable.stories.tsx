@@ -20,13 +20,13 @@ const meta: Meta<typeof Sortable> = {
     docs: {
       description: {
         component:
-          '基础拖拽排序组件，支持纵向/横向列表与网格布局。每个演示包含搜索框来筛选列表，并通过 useDndReorder 确保在“过滤视图”中拖拽时正确更新原始列表顺序。'
+          'A basic drag-and-drop sorting component that supports vertical/horizontal lists and grid layout. Each demo includes a search box to filter items, and useDndReorder ensures drags in the filtered view correctly update the original list order.'
       }
     }
   },
   tags: ['autodocs'],
   argTypes: {
-    gap: { control: 'text', description: 'CSS gap 值，如 8px、0.5rem、12px' },
+    gap: { control: 'text', description: 'CSS gap value, e.g., 8px, 0.5rem, 12px' },
     useDragOverlay: { control: 'boolean' },
     showGhost: { control: 'boolean' }
   },
@@ -89,11 +89,11 @@ function VerticalDemo(args: any) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
-    <div className="w-[720px] space-y-3">
+    <div className="w-full space-y-3">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索（模糊匹配 label）"
+        placeholder="Search (fuzzy match label)"
         className="w-full rounded-md border px-3 py-2 text-sm"
       />
 
@@ -116,7 +116,7 @@ function VerticalDemo(args: any) {
       </div>
 
       <p className="text-xs text-gray-500">
-        在过滤后的列表中拖拽也会正确更新原始顺序（由 useDndReorder 处理索引映射）。
+        Dragging within a filtered view correctly updates the original order (handled by useDndReorder).
       </p>
     </div>
   )
@@ -126,11 +126,11 @@ function HorizontalDemo(args: any) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
-    <div className="w-[720px] space-y-3">
+    <div className="w-full space-y-3">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索（模糊匹配 label）"
+        placeholder="Search (fuzzy match label)"
         className="w-full rounded-md border px-3 py-2 text-sm"
       />
 
@@ -152,7 +152,7 @@ function HorizontalDemo(args: any) {
         />
       </div>
 
-      <p className="text-xs text-gray-500">可横向拖拽并支持溢出滚动。</p>
+      <p className="text-xs text-gray-500">Horizontal dragging with overflow scrolling.</p>
     </div>
   )
 }
@@ -161,11 +161,11 @@ function GridDemo(args: any) {
   const { query, setQuery, filteredList, onSortEnd } = useExampleData()
 
   return (
-    <div className="w-[900px] space-y-3">
+    <div className="w-full space-y-3">
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="搜索（模糊匹配 label）"
+        placeholder="Search (fuzzy match label)"
         className="w-full rounded-md border px-3 py-2 text-sm"
       />
 
@@ -180,7 +180,7 @@ function GridDemo(args: any) {
         renderItem={(item, { dragging }) => <ItemCard item={item} dragging={dragging} />}
       />
 
-      <p className="text-xs text-gray-500">网格布局自动响应列宽，拖拽排序同样生效。</p>
+      <p className="text-xs text-gray-500">Responsive grid layout with drag-and-drop sorting.</p>
     </div>
   )
 }
