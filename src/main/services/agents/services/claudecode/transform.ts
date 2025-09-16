@@ -3,7 +3,7 @@
 import { SDKMessage } from '@anthropic-ai/claude-code'
 import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
-import { UIMessageChunk } from 'ai'
+import { ProviderMetadata, UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('ClaudeCodeTransform')
@@ -72,6 +72,13 @@ export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageC
   return chunks
 }
 
+function sdkMessageToProviderMetadata(message: SDKMessage): ProviderMetadata {
+  const meta: ProviderMetadata = {
+    raw: message as Record<string, any>
+  }
+  return meta
+}
+
 // Handle assistant messages
 function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant' }>): UIMessageChunk[] {
   const chunks: UIMessageChunk[] = []
@@ -88,7 +95,8 @@ function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant'
           anthropic: {
             uuid: message.uuid,
             session_id: message.session_id
-          }
+          },
+          raw: sdkMessageToProviderMetadata(message)
         }
       },
       {
@@ -99,7 +107,8 @@ function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant'
           anthropic: {
             uuid: message.uuid,
             session_id: message.session_id
-          }
+          },
+          raw: sdkMessageToProviderMetadata(message)
         }
       },
       {
@@ -109,7 +118,8 @@ function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant'
           anthropic: {
             uuid: message.uuid,
             session_id: message.session_id
-          }
+          },
+          raw: sdkMessageToProviderMetadata(message)
         }
       }
     )
@@ -195,7 +205,8 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
               uuid: message.uuid,
               session_id: message.session_id,
               content_block_index: event.index
-            }
+            },
+            raw: sdkMessageToProviderMetadata(message)
           }
         })
       } else if (event.content_block?.type === 'tool_use') {
@@ -219,7 +230,8 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
               uuid: message.uuid,
               session_id: message.session_id,
               content_block_index: event.index
-            }
+            },
+            raw: sdkMessageToProviderMetadata(message)
           }
         })
       } else if (event.delta?.type === 'input_json_delta') {
@@ -242,7 +254,8 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
             uuid: message.uuid,
             session_id: message.session_id,
             content_block_index: event.index
-          }
+          },
+          raw: sdkMessageToProviderMetadata(message)
         }
       })
       break
@@ -277,7 +290,8 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
         cwd: message.cwd,
         tools: message.tools,
         model: message.model,
-        mcp_servers: message.mcp_servers
+        mcp_servers: message.mcp_servers,
+        raw: message
       }
     })
   } else if (message.subtype === 'compact_boundary') {
@@ -285,7 +299,8 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
       type: 'data-system' as any,
       data: {
         type: 'compact_boundary',
-        metadata: message.compact_metadata
+        metadata: message.compact_metadata,
+        raw: message
       }
     })
   }
@@ -310,7 +325,8 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
               uuid: message.uuid,
               session_id: message.session_id,
               final_result: true
-            }
+            },
+            raw: sdkMessageToProviderMetadata(message)
           }
         },
         {
@@ -322,7 +338,8 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
               uuid: message.uuid,
               session_id: message.session_id,
               final_result: true
-            }
+            },
+            raw: sdkMessageToProviderMetadata(message)
           }
         },
         {
@@ -333,7 +350,8 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
               uuid: message.uuid,
               session_id: message.session_id,
               final_result: true
-            }
+            },
+            raw: sdkMessageToProviderMetadata(message)
           }
         }
       )
