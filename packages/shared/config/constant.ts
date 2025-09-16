@@ -216,5 +216,6 @@ export enum codeTools {
   qwenCode = 'qwen-code',
   claudeCode = 'claude-code',
   geminiCli = 'gemini-cli',
-  openaiCodex = 'openai-codex'
+  openaiCodex = 'openai-codex',
+  iFlowCli = 'iflow-cli'
 }
