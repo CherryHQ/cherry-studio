@@ -49,33 +49,33 @@ function MyComponent() {
 ## 迁移概览
 
 - **总组件数**: 236
-- **已迁移**: 46
-- **已重构**: 2
-- **待迁移**: 190
+- **已迁移**: 34
+- **已重构**: 14
+- **待迁移**: 188
 
 ## 组件状态表
 
 | Category | Component Name | Migration Status | Refactoring Status | Description |
 |----------|----------------|------------------|--------------------|-------------|
 | **base** | | | | 基础组件 |
-| | CopyButton | ✅ | ❌ | 复制按钮 |
-| | CustomTag | ✅ | ❌ | 自定义标签 |
-| | DividerWithText | ✅ | ❌ | 带文本的分隔线 |
-| | EmojiIcon | ✅ | ❌ | 表情图标 |
-| | ErrorBoundary | ✅ | ❌ | 错误边界 (通过 props 解耦) |
+| | CopyButton | ✅ | ✅ | 复制按钮 |
+| | CustomTag | ✅ | ✅ | 自定义标签 |
+| | DividerWithText | ✅ | ✅ | 带文本的分隔线 |
+| | EmojiIcon | ✅ | ✅ | 表情图标 |
+| | ErrorBoundary | ✅ | ✅ | 错误边界 (通过 props 解耦) |
 | | StatusTag | ✅ | ✅ | 统一状态标签（合并了 ErrorTag、SuccessTag、WarnTag、InfoTag）|
-| | IndicatorLight | ✅ | ❌ | 指示灯 |
-| | Spinner | ✅ | ❌ | 加载动画 |
-| | TextBadge | ✅ | ❌ | 文本徽标 |
-| | CustomCollapse | ✅ | ❌ | 自定义折叠面板 |
+| | IndicatorLight | ✅ | ✅ | 指示灯 |
+| | Spinner | ✅ | ✅ | 加载动画 |
+| | TextBadge | ✅ | ✅ | 文本徽标 |
+| | CustomCollapse | ✅ | ✅ | 自定义折叠面板 |
 | **display** | | | | 显示组件 |
 | | Ellipsis | ✅ | ❌ | 文本省略 |
-| | ExpandableText | ✅ | ❌ | 可展开文本 |
+| | ExpandableText | ✅ | ✅ | 可展开文本 |
 | | ThinkingEffect | ✅ | ❌ | 思考效果动画 |
-| | EmojiAvatar | ✅ | ❌ | 表情头像 |
+| | EmojiAvatar | ✅ | ✅ | 表情头像 |
 | | ListItem | ✅ | ❌ | 列表项 |
 | | MaxContextCount | ✅ | ❌ | 最大上下文数显示 |
-| | ProviderAvatar | ✅ | ❌ | 提供者头像 |
+| | ProviderAvatar | ✅ | ✅ | 提供者头像 |
 | | CodeViewer | ❌ | ❌ | 代码查看器 (外部依赖) |
 | | OGCard | ❌ | ❌ | OG 卡片 |
 | | MarkdownShadowDOMRenderer | ❌ | ❌ | Markdown 渲染器 |

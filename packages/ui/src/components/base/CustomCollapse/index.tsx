@@ -1,24 +1,18 @@
 // Original path: src/renderer/src/components/CustomCollapse.tsx
-import { Collapse } from 'antd'
-import { merge } from 'lodash'
 import { ChevronRight } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useMemo, useState } from 'react'
+import { memo, useState } from 'react'
 
 interface CustomCollapseProps {
   label: React.ReactNode
-  extra: React.ReactNode
+  extra?: React.ReactNode
   children: React.ReactNode
   destroyInactivePanel?: boolean
   defaultActiveKey?: string[]
   activeKey?: string[]
   collapsible?: 'header' | 'icon' | 'disabled'
   onChange?: (activeKeys: string | string[]) => void
-  style?: React.CSSProperties
-  styles?: {
-    header?: React.CSSProperties
-    body?: React.CSSProperties
-  }
+  className?: string
 }
 
 const CustomCollapse: FC<CustomCollapseProps> = ({
@@ -30,80 +24,47 @@ const CustomCollapse: FC<CustomCollapseProps> = ({
   activeKey,
   collapsible = undefined,
   onChange,
-  style,
-  styles
+  className = ''
 }) => {
-  const [activeKeys, setActiveKeys] = useState(activeKey || defaultActiveKey)
+  const [isOpen, setIsOpen] = useState(activeKey ? activeKey.includes('1') : defaultActiveKey.includes('1'))
 
-  const defaultCollapseStyle = {
-    width: '100%',
-    background: 'transparent',
-    border: '0.5px solid var(--color-border)'
+  const handleToggle = () => {
+    if (collapsible === 'disabled') return
+
+    const newState = !isOpen
+    setIsOpen(newState)
+    onChange?.(newState ? ['1'] : [])
   }
 
-  const defaultCollpaseHeaderStyle = {
-    padding: '3px 16px',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    background: 'var(--color-background-soft)'
-  }
-
-  const getHeaderStyle = () => {
-    return activeKeys && activeKeys.length > 0
-      ? {
-          ...defaultCollpaseHeaderStyle,
-          borderTopLeftRadius: '8px',
-          borderTopRightRadius: '8px'
-        }
-      : {
-          ...defaultCollpaseHeaderStyle,
-          borderRadius: '8px'
-        }
-  }
-
-  const defaultCollapseItemStyles = {
-    header: getHeaderStyle(),
-    body: {
-      borderTop: 'none'
-    }
-  }
-
-  const collapseStyle = merge({}, defaultCollapseStyle, style)
-  const collapseItemStyles = useMemo(() => {
-    return merge({}, defaultCollapseItemStyles, styles)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKeys])
+  const shouldRenderContent = !destroyInactivePanel || isOpen
 
   return (
-    <Collapse
-      bordered={false}
-      style={collapseStyle}
-      defaultActiveKey={defaultActiveKey}
-      activeKey={activeKey}
-      destroyOnHidden={destroyInactivePanel}
-      collapsible={collapsible}
-      onChange={(keys) => {
-        setActiveKeys(keys)
-        onChange?.(keys)
-      }}
-      expandIcon={({ isActive }) => (
-        <ChevronRight
-          size={16}
-          color="var(--color-text-3)"
-          strokeWidth={1.5}
-          style={{ transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)' }}
-        />
-      )}
-      items={[
-        {
-          styles: collapseItemStyles,
-          key: '1',
-          label,
-          extra,
-          children
-        }
-      ]}
-    />
+    <div className={`w-full bg-transparent border border-gray-200 dark:border-gray-700 ${className}`}>
+      <div
+        className={`flex items-center justify-between px-4 py-1 cursor-pointer bg-gray-50 dark:bg-gray-800 ${
+          isOpen ? 'rounded-t-lg' : 'rounded-lg'
+        } ${collapsible === 'disabled' ? 'cursor-default' : ''}`}
+        onClick={collapsible === 'header' || collapsible === undefined ? handleToggle : undefined}>
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center">
+            {(collapsible === 'icon' || collapsible === undefined) && (
+              <div className="mr-2 cursor-pointer" onClick={collapsible === 'icon' ? handleToggle : undefined}>
+                <ChevronRight
+                  size={16}
+                  className={`text-gray-500 dark:text-gray-400 transition-transform duration-200 ${
+                    isOpen ? 'rotate-90' : 'rotate-0'
+                  }`}
+                  strokeWidth={1.5}
+                />
+              </div>
+            )}
+            {label}
+          </div>
+          {extra && <div>{extra}</div>}
+        </div>
+      </div>
+      {isOpen && <div className="border-t-0">{shouldRenderContent && children}</div>}
+    </div>
   )
 }
 

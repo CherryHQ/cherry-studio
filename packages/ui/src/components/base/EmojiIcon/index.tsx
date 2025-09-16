@@ -1,6 +1,5 @@
 // Original path: src/renderer/src/components/EmojiIcon.tsx
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 interface EmojiIconProps {
   emoji: string
@@ -9,41 +8,27 @@ interface EmojiIconProps {
   fontSize?: number
 }
 
-const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className, size = 26, fontSize = 15 }) => {
+const EmojiIcon: FC<EmojiIconProps> = ({ emoji, className = '', size = 26, fontSize = 15 }) => {
   return (
-    <Container className={className} $size={size} $fontSize={fontSize}>
-      <EmojiBackground>{emoji || '⭐️'}</EmojiBackground>
+    <div
+      className={`flex items-center justify-center flex-shrink-0 relative overflow-hidden mr-1 rounded-full ${className}`}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius: `${size / 2}px`,
+        fontSize: `${fontSize}px`
+      }}>
+      <div
+        className="absolute inset-0 flex items-center justify-center blur-sm opacity-40"
+        style={{
+          fontSize: '200%',
+          transform: 'scale(1.5)'
+        }}>
+        {emoji || '⭐️'}
+      </div>
       {emoji}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div<{ $size: number; $fontSize: number }>`
-  width: ${({ $size }) => $size}px;
-  height: ${({ $size }) => $size}px;
-  border-radius: ${({ $size }) => $size / 2}px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: ${({ $fontSize }) => $fontSize}px;
-  position: relative;
-  overflow: hidden;
-  margin-right: 3px;
-`
-
-const EmojiBackground = styled.div`
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 200%;
-  transform: scale(1.5);
-  filter: blur(5px);
-  opacity: 0.4;
-`
 
 export default EmojiIcon

@@ -7,14 +7,14 @@ import styled from 'styled-components'
 
 import { lightbulbVariants } from './defaultVariants'
 
-interface Props {
+interface ThinkingEffectProps {
   isThinking: boolean
   thinkingTimeText: React.ReactNode
   content: string
   expanded: boolean
 }
 
-const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content, expanded }) => {
+const ThinkingEffect: React.FC<ThinkingEffectProps> = ({ isThinking, thinkingTimeText, content, expanded }) => {
   const [messages, setMessages] = useState<string[]>([])
 
   useEffect(() => {

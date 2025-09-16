@@ -1,6 +1,5 @@
 // Original path: src/renderer/src/components/Avatar/EmojiAvatar.tsx
-import React, { memo } from 'react'
-import styled from 'styled-components'
+import { memo } from 'react'
 
 interface EmojiAvatarProps {
   children: string
@@ -9,46 +8,28 @@ interface EmojiAvatarProps {
   onClick?: React.MouseEventHandler<HTMLDivElement>
   className?: string
   style?: React.CSSProperties
+  ref?: React.RefObject<HTMLDivElement>
 }
 
-const EmojiAvatar = ({
-  ref,
-  children,
-  size = 31,
-  fontSize,
-  onClick,
-  className,
-  style
-}: EmojiAvatarProps & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <StyledEmojiAvatar
-    ref={ref}
-    $size={size}
-    $fontSize={fontSize ?? size * 0.5}
-    onClick={onClick}
-    className={className}
-    style={style}>
-    {children}
-  </StyledEmojiAvatar>
-)
+const EmojiAvatar = ({ children, size = 31, fontSize, onClick, className = '', style, ref }: EmojiAvatarProps) => {
+  const computedFontSize = fontSize ?? size * 0.5
+
+  return (
+    <div
+      ref={ref}
+      onClick={onClick}
+      className={`flex items-center justify-center rounded-[20%] border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 cursor-pointer transition-opacity hover:opacity-80 ${className}`}
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        fontSize: `${computedFontSize}px`,
+        ...style
+      }}>
+      {children}
+    </div>
+  )
+}
 
 EmojiAvatar.displayName = 'EmojiAvatar'
-
-const StyledEmojiAvatar = styled.div<{ $size: number; $fontSize: number }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-  border-radius: 20%;
-  cursor: pointer;
-  width: ${(props) => props.$size}px;
-  height: ${(props) => props.$size}px;
-  font-size: ${(props) => props.$fontSize}px;
-  transition: opacity 0.3s ease;
-
-  &:hover {
-    opacity: 0.8;
-  }
-`
 
 export default memo(EmojiAvatar)

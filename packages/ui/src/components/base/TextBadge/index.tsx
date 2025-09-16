@@ -1,23 +1,20 @@
 // Original: src/renderer/src/components/TextBadge.tsx
 import type { FC } from 'react'
-import styled from 'styled-components'
 
-interface Props {
+interface TextBadgeProps {
   text: string
   style?: React.CSSProperties
+  className?: string
 }
 
-const TextBadge: FC<Props> = ({ text, style }) => {
-  return <Container style={style}>{text}</Container>
+const TextBadge: FC<TextBadgeProps> = ({ text, style, className = '' }) => {
+  return (
+    <span
+      className={`text-xs text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded font-medium ${className}`}
+      style={style}>
+      {text}
+    </span>
+  )
 }
-
-const Container = styled.span`
-  font-size: 12px;
-  color: var(--color-primary);
-  background: var(--color-primary-bg);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-weight: 500;
-`
 
 export default TextBadge

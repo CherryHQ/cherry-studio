@@ -48,35 +48,33 @@ When submitting PRs, please place components in the correct directory based on t
 ## Migration Overview
 
 - **Total Components**: 236
-- **Migrated**: 46
-- **Refactored**: 0
-- **Pending Migration**: 190
+- **Migrated**: 34
+- **Refactored**: 14
+- **Pending Migration**: 188
 
 ## Component Status Table
 
 | Category | Component Name | Migration Status | Refactoring Status | Description |
 |----------|----------------|------------------|--------------------|-------------|
 | **base** | | | | Base components |
-| | CopyButton | ✅ | ❌ | Copy button |
-| | CustomTag | ✅ | ❌ | Custom tag |
-| | DividerWithText | ✅ | ❌ | Divider with text |
-| | EmojiIcon | ✅ | ❌ | Emoji icon |
-| | ErrorBoundary | ✅ | ❌ | Error boundary (decoupled via props) |
-| | ErrorTag | ✅ | ❌ | Error tag |
-| | IndicatorLight | ✅ | ❌ | Indicator light |
-| | Spinner | ✅ | ❌ | Loading spinner |
-| | SuccessTag | ✅ | ❌ | Success tag |
-| | TextBadge | ✅ | ❌ | Text badge |
-| | WarnTag | ✅ | ❌ | Warning tag |
-| | CustomCollapse | ✅ | ❌ | Custom collapse panel |
+| | CopyButton | ✅ | ✅ | Copy button |
+| | CustomTag | ✅ | ✅ | Custom tag |
+| | DividerWithText | ✅ | ✅ | Divider with text |
+| | EmojiIcon | ✅ | ✅ | Emoji icon |
+| | ErrorBoundary | ✅ | ✅ | Error boundary (decoupled via props) |
+| | StatusTag | ✅ | ✅ | Unified status tag (merged ErrorTag, SuccessTag, WarnTag, InfoTag) |
+| | IndicatorLight | ✅ | ✅ | Indicator light |
+| | Spinner | ✅ | ✅ | Loading spinner |
+| | TextBadge | ✅ | ✅ | Text badge |
+| | CustomCollapse | ✅ | ✅ | Custom collapse panel |
 | **display** | | | | Display components |
 | | Ellipsis | ✅ | ❌ | Text ellipsis |
-| | ExpandableText | ✅ | ❌ | Expandable text |
+| | ExpandableText | ✅ | ✅ | Expandable text |
 | | ThinkingEffect | ✅ | ❌ | Thinking effect animation |
-| | EmojiAvatar | ✅ | ❌ | Emoji avatar |
+| | EmojiAvatar | ✅ | ✅ | Emoji avatar |
 | | ListItem | ✅ | ❌ | List item |
 | | MaxContextCount | ✅ | ❌ | Max context count display |
-| | ProviderAvatar | ✅ | ❌ | Provider avatar |
+| | ProviderAvatar | ✅ | ✅ | Provider avatar |
 | | CodeViewer | ❌ | ❌ | Code viewer (external deps) |
 | | OGCard | ❌ | ❌ | OG card |
 | | MarkdownShadowDOMRenderer | ❌ | ❌ | Markdown renderer |
@@ -88,22 +86,11 @@ When submitting PRs, please place components in the correct directory based on t
 | | Tab/* | ❌ | ❌ | Tab (Redux dependency) |
 | | TopView | ❌ | ❌ | Top view (window.api dependency) |
 | **icons** | | | | Icon components |
-| | CopyIcon | ✅ | ❌ | Copy icon |
-| | DeleteIcon | ✅ | ❌ | Delete icon |
-| | EditIcon | ✅ | ❌ | Edit icon |
-| | FileIcons | ✅ | ❌ | File icons (includes FileSvgIcon, FilePngIcon) |
+| | Icon | ✅ | ✅ | Icon factory function and predefined icons (merged CopyIcon, DeleteIcon, EditIcon, RefreshIcon, ResetIcon, ToolIcon, VisionIcon, WebSearchIcon, WrapIcon, UnWrapIcon, OcrIcon) |
+| | FileIcons | ✅ | ❌ | File icons (FileSvgIcon, FilePngIcon) |
 | | ReasoningIcon | ✅ | ❌ | Reasoning icon |
-| | RefreshIcon | ✅ | ❌ | Refresh icon |
-| | ResetIcon | ✅ | ❌ | Reset icon |
-| | SvgSpinners180Ring | ✅ | ❌ | Spinners icon |
+| | SvgSpinners180Ring | ✅ | ❌ | Spinner loading icon |
 | | ToolsCallingIcon | ✅ | ❌ | Tools calling icon |
-| | VisionIcon | ✅ | ❌ | Vision icon |
-| | WebSearchIcon | ✅ | ❌ | Web search icon |
-| | WrapIcon | ✅ | ❌ | Wrap icon |
-| | UnWrapIcon | ✅ | ❌ | Unwrap icon |
-| | OcrIcon | ✅ | ❌ | OCR icon |
-| | ToolIcon | ✅ | ❌ | Tool icon |
-| | Other icons | ❌ | ❌ | Other icon files |
 | **interactive** | | | | Interactive components |
 | | InfoTooltip | ✅ | ❌ | Info tooltip |
 | | HelpTooltip | ✅ | ❌ | Help tooltip |

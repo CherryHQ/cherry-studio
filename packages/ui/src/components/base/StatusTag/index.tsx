@@ -12,6 +12,7 @@ export interface StatusTagProps {
   iconSize?: number
   icon?: React.ReactNode
   color?: string
+  className?: string
 }
 
 const statusConfig: Record<StatusType, { Icon: LucideIcon; color: string }> = {
@@ -21,14 +22,14 @@ const statusConfig: Record<StatusType, { Icon: LucideIcon; color: string }> = {
   info: { Icon: InfoIcon, color: '#3B82F6' } // blue-500
 }
 
-export const StatusTag: React.FC<StatusTagProps> = ({ type, message, iconSize = 14, icon, color }) => {
+export const StatusTag: React.FC<StatusTagProps> = ({ type, message, iconSize = 14, icon, color, className }) => {
   const config = statusConfig[type]
   const Icon = config.Icon
   const finalColor = color || config.color
   const finalIcon = icon || <Icon size={iconSize} color={finalColor} />
 
   return (
-    <CustomTag icon={finalIcon} color={finalColor}>
+    <CustomTag icon={finalIcon} color={finalColor} className={className}>
       {message}
     </CustomTag>
   )
