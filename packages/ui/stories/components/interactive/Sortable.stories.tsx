@@ -97,21 +97,23 @@ function VerticalDemo(args: any) {
         className="w-full rounded-md border px-3 py-2 text-sm"
       />
 
-      <Sortable<ExampleItem>
-        items={filteredList}
-        itemKey="id"
-        onSortEnd={onSortEnd}
-        layout="list"
-        horizontal={false}
-        gap={args.gap as string}
-        useDragOverlay={args.useDragOverlay as boolean}
-        showGhost={args.showGhost as boolean}
-        renderItem={(item, { dragging }) => (
-          <div className="min-w-[200px]">
-            <ItemCard item={item} dragging={dragging} />
-          </div>
-        )}
-      />
+      <div className="overflow-x-auto h-[500px]">
+        <Sortable<ExampleItem>
+          items={filteredList}
+          itemKey="id"
+          onSortEnd={onSortEnd}
+          layout="list"
+          horizontal={false}
+          gap={args.gap as string}
+          useDragOverlay={args.useDragOverlay as boolean}
+          showGhost={args.showGhost as boolean}
+          renderItem={(item, { dragging }) => (
+            <div className="min-w-[200px]">
+              <ItemCard item={item} dragging={dragging} />
+            </div>
+          )}
+        />
+      </div>
 
       <p className="text-xs text-gray-500">
         在过滤后的列表中拖拽也会正确更新原始顺序（由 useDndReorder 处理索引映射）。
