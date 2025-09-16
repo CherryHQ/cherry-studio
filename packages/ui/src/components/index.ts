@@ -64,6 +64,7 @@ export { default as ImageToolButton } from './interactive/ImageToolButton'
 export { default as InfoPopover } from './interactive/InfoPopover'
 export { default as InfoTooltip } from './interactive/InfoTooltip'
 export { default as Selector } from './interactive/Selector'
+export { Sortable, useDndReorder, useDndState } from './interactive/Sortable'
 export { default as WarnTooltip } from './interactive/WarnTooltip'
 
 // Composite Components (复合组件)
