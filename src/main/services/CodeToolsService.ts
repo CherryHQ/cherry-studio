@@ -4,13 +4,13 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
+import { isMac } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
 import { codeTools, MACOS_TERMINALS, MACOS_TERMINALS_WITH_COMMANDS, terminalApps, TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
-import { isMac } from '@main/constant'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')

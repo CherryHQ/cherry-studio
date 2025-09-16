@@ -1,7 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
-import { UpgradeChannel, TerminalConfig } from '@shared/config/constant'
+import { TerminalConfig,UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
