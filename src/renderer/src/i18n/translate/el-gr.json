@@ -362,8 +362,9 @@
       "translate": "Μετάφραση στο {{target_language}}",
       "translating": "Μετάφραση...",
       "upload": {
+        "attachment": "[to be translated]:上传附件",
         "document": "Φόρτωση έγγραφου (το μοντέλο δεν υποστηρίζει εικόνες)",
-        "label": "Φόρτωση εικόνας ή έγγραφου",
+        "image_or_document": "[to be translated]:上传图片或文档",
         "upload_from_local": "Μεταφόρτωση αρχείου από τον υπολογιστή..."
       },
       "url_context": "Περιεχόμενο ιστοσελίδας",
@@ -659,7 +660,12 @@
       "title": "Θέματα",
       "unpin": "Ξεκαρφίτσωμα"
     },
-    "translate": "Μετάφραση"
+    "translate": "Μετάφραση",
+    "web_search": {
+      "warning": {
+        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "Έλεγχος για ενημερώσεις και εγκατάσταση της τελευταίας έκδοσης",

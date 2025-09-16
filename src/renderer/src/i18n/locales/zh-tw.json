@@ -261,11 +261,6 @@
     "whole_word": "全字匹配"
   },
   "chat": {
-    "web_search": {
-      "warning": {
-        "openai": "GPT-5 模型的最小推理力度不支援網路搜尋。"
-      }
-    },
     "add": {
       "assistant": {
         "title": "新增助手"
@@ -665,7 +660,12 @@
       "title": "話題",
       "unpin": "取消固定"
     },
-    "translate": "翻譯"
+    "translate": "翻譯",
+    "web_search": {
+      "warning": {
+        "openai": "GPT-5 模型的最小推理力度不支援網路搜尋。"
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "檢查更新並安裝最新版本",

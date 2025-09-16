@@ -362,8 +362,9 @@
       "translate": "Перевести на {{target_language}}",
       "translating": "Перевод...",
       "upload": {
+        "attachment": "[to be translated]:上传附件",
         "document": "Загрузить документ (модель не поддерживает изображения)",
-        "label": "Загрузить изображение или документ",
+        "image_or_document": "[to be translated]:上传图片或文档",
         "upload_from_local": "Загрузить локальный файл..."
       },
       "url_context": "Контекст страницы",
@@ -659,7 +660,12 @@
       "title": "Топики",
       "unpin": "Открепленные темы"
     },
-    "translate": "Перевести"
+    "translate": "Перевести",
+    "web_search": {
+      "warning": {
+        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "Автоматически обновлять до последней версии",
