@@ -38,7 +38,7 @@ export function useAppInit() {
     customCss,
     enableDataCollection
   } = useSettings()
-  const { isTopNavbar, isLeftNavbar } = useNavbarPosition()
+  const { isLeftNavbar } = useNavbarPosition()
   const { minappShow } = useRuntime()
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
   const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
@@ -110,7 +110,7 @@ export function useAppInit() {
     }
 
     window.root.style.background = isMacTransparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow, theme])
+  }, [windowStyle, minappShow, theme, isLeftNavbar])
 
   useEffect(() => {
     if (isLocalAi) {

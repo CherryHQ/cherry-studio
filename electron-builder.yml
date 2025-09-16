@@ -126,24 +126,19 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ✨ 新功能：
-    - 重构知识库模块，提升文档处理能力和搜索性能
-    - 新增 PaddleOCR 支持，增强文档识别能力
-    - 支持自定义窗口控制按钮样式
-    - 新增 AI SDK 包，扩展 AI 能力集成
-    - 支持标签页拖拽重排序功能
-    - 增强笔记编辑器的同步和日志功能
+    - 集成 Perplexity SDK 和 Anthropic OAuth
+    - 支持 API 服务器模式，提供外部调用接口
+    - 新增字体自定义设置功能
+    - 笔记支持文件夹批量上传
+    - 集成 HeroUI 和 Tailwind CSS 提升界面体验
 
-    🔧 性能优化：
-    - 优化 MCP 服务的日志记录和错误处理
-    - 改进 WebView 服务的 User-Agent 处理
-    - 优化迷你应用的标题栏样式和状态栏适配
-    - 重构依赖管理，清理和优化 package.json
+    🚀 性能优化：
+    - 优化大文件上传，支持 OpenAI 标准文件服务
+    - 重构 MCP 服务，改进错误处理和状态管理
 
     🐛 问题修复：
-    - 修复输入栏无限状态更新循环问题
-    - 修复窗口控制提示框的鼠标悬停延迟
-    - 修复翻译输入框粘贴多内容源的处理
-    - 修复导航服务初始化时序问题
-    - 修复 MCP 通过 JSON 添加时的参数转换
-    - 修复模型作用域服务器同步时的 URL 格式
-    - 标准化工具提示图标样式
+    - 修复 WebSearch RAG 并发问题
+    - 修复翻译页面长文本渲染布局问题
+    - 修复笔记拖拽排序和无限循环问题
+    - 修复 macOS CodeTool 工作目录错误
+    - 修复多个 UI 组件的响应式设计问题
