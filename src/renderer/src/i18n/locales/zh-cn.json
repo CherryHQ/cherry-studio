@@ -1260,6 +1260,26 @@
     "user_switched": "用户上下文已切换到 {{user}}",
     "users": "用户"
   },
+  "mention_group": {
+    "delete_confirm_content": "确定要删除此分组吗？",
+    "delete_confirm_title": "删除分组",
+    "delete_group": "删除分组",
+    "deleted": "已删除",
+    "group_name": "分组名称",
+    "invalid_name": "分组名称不合法",
+    "load_failed": "加载模型分组失败",
+    "name_exists": "名称已存在",
+    "no_selection_warning": "请至少选择一个模型",
+    "no_usable_models_warning": "当前附件限制下，此分组无可用模型",
+    "pin_group": "置顶分组",
+    "rename_group": "重命名分组",
+    "save_as_group": "保存选择为分组",
+    "save_failed": "保存模型分组失败",
+    "saved": "已保存",
+    "skipped_info": "有 {{count}} 个模型因附件限制被跳过",
+    "title": "模型分组",
+    "unpin_group": "取消置顶"
+  },
   "message": {
     "agents": {
       "import": {
