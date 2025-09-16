@@ -4,7 +4,7 @@ import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerErrorHandler')
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// oxlint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('API Server Error:', err)
 

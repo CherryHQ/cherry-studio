@@ -362,8 +362,9 @@
       "translate": "Translate to {{target_language}}",
       "translating": "Translating...",
       "upload": {
+        "attachment": "Upload attachment",
         "document": "Upload document file (model does not support images)",
-        "label": "Upload image or document file",
+        "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
       "url_context": "URL Context",
@@ -1063,10 +1064,6 @@
       "error": {
         "failed": "Migration failed"
       },
-      "migrate_to_langchain": {
-        "content": "The knowledge base migration does not delete the old knowledge base but creates a copy and reprocesses all entries, which may consume a significant number of tokens. Please proceed with caution.",
-        "info": "The knowledge base architecture has been updated. Click to migrate to the new architecture."
-      },
       "source_dimensions": "Source Dimensions",
       "source_model": "Source Model",
       "target_dimensions": "Target Dimensions",
@@ -1085,20 +1082,6 @@
     "quota": "{{name}} Left Quota: {{quota}}",
     "quota_infinity": "{{name}} Quota: Unlimited",
     "rename": "Rename",
-    "retriever": "Retrieve mode",
-    "retriever_bm25": "full-text search",
-    "retriever_bm25_desc": "Search for documents based on keyword relevance and frequency.",
-    "retriever_hybrid": "Hybrid Search (Recommended)",
-    "retriever_hybrid_desc": "Combine keyword search and semantic search to achieve optimal retrieval accuracy.",
-    "retriever_hybrid_weight": {
-      "bm25": "full text",
-      "recommended": "recommend",
-      "title": "Hybrid Search Weight Adjustment (Full-text/Vector)",
-      "vector": "vector"
-    },
-    "retriever_tooltip": "Using different retrieval methods to search the knowledge base",
-    "retriever_vector": "vector search",
-    "retriever_vector_desc": "Retrieve documents based on semantic similarity and meaning.",
     "search": "Search knowledge base",
     "search_placeholder": "Enter text to search",
     "settings": {

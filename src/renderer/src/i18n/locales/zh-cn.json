@@ -363,8 +363,9 @@
       "translate": "翻译成 {{target_language}}",
       "translating": "翻译中...",
       "upload": {
+        "attachment": "上传附件",
         "document": "上传文档（模型不支持图片）",
-        "label": "上传图片或文档",
+        "image_or_document": "上传图片或文档",
         "upload_from_local": "上传本地文件..."
       },
       "url_context": "网页上下文",
@@ -1064,10 +1065,6 @@
       "error": {
         "failed": "迁移失败"
       },
-      "migrate_to_langchain": {
-        "content": "知识库迁移不会删除旧知识库，而是创建一个副本之后重新处理所有知识库条目，可能消耗大量 tokens，请谨慎操作。",
-        "info": "知识库架构已更新，点击迁移到新架构"
-      },
       "source_dimensions": "源维度",
       "source_model": "源模型",
       "target_dimensions": "目标维度",
@@ -1086,20 +1083,6 @@
     "quota": "{{name}} 剩余额度：{{quota}}",
     "quota_infinity": "{{name}} 剩余额度：无限制",
     "rename": "重命名",
-    "retriever": "检索模式",
-    "retriever_bm25": "全文搜索",
-    "retriever_bm25_desc": "根据关键字的相关性和频率查找文档。",
-    "retriever_hybrid": "混合搜索 (推荐)",
-    "retriever_hybrid_desc": "结合关键词搜索和语义搜索，以实现最佳检索准确性。",
-    "retriever_hybrid_weight": {
-      "bm25": "全文",
-      "recommended": "推荐",
-      "title": "混合搜索权重调整 (全文/向量)",
-      "vector": "向量"
-    },
-    "retriever_tooltip": "使用不同的检索方式检索知识库",
-    "retriever_vector": "向量搜索",
-    "retriever_vector_desc": "根据语义相似性和含义查找文档。",
     "search": "搜索知识库",
     "search_placeholder": "输入查询内容",
     "settings": {

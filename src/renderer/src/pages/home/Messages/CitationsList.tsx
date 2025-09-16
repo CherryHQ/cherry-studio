@@ -185,7 +185,7 @@ const KnowledgeCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           <CitationIndex>{citation.number}</CitationIndex>
           {citation.content && <CopyButton content={citation.content} />}
         </WebSearchCardHeader>
-        <WebSearchCardContent className="selectable-text">{citation.content && citation.content}</WebSearchCardContent>
+        <WebSearchCardContent className="selectable-text">{citation.content ?? ''}</WebSearchCardContent>
       </WebSearchCard>
     </ContextMenu>
   )
