@@ -1,7 +1,8 @@
 // Original path: src/renderer/src/components/ListItem/index.tsx
-import { Typography } from 'antd'
+import { Tooltip } from '@heroui/react'
 import type { ReactNode } from 'react'
-import styled from 'styled-components'
+
+import { cn } from '../../../utils'
 
 interface ListItemProps {
   active?: boolean
@@ -12,81 +13,49 @@ interface ListItemProps {
   onClick?: () => void
   rightContent?: ReactNode
   style?: React.CSSProperties
+  className?: string
+  ref?: React.Ref<HTMLDivElement>
 }
 
-const ListItem = ({ active, icon, title, subtitle, titleStyle, onClick, rightContent, style }: ListItemProps) => {
+const ListItem = ({
+  active,
+  icon,
+  title,
+  subtitle,
+  titleStyle,
+  onClick,
+  rightContent,
+  style,
+  className,
+  ref
+}: ListItemProps) => {
   return (
-    <ListItemContainer className={active ? 'active' : ''} onClick={onClick} style={style}>
-      <ListItemContent>
-        {icon && <IconWrapper>{icon}</IconWrapper>}
-        <TextContainer>
-          <Typography.Text style={titleStyle} ellipsis={{ expanded: false, tooltip: title }}>
-            {title}
-          </Typography.Text>
-          {subtitle && <SubtitleText>{subtitle}</SubtitleText>}
-        </TextContainer>
-        {rightContent && <RightContentWrapper>{rightContent}</RightContentWrapper>}
-      </ListItemContent>
-    </ListItemContainer>
+    <div
+      ref={ref}
+      className={cn(
+        'px-3 py-1.5 rounded-md text-xs flex flex-col justify-between relative cursor-pointer border border-transparent',
+        'hover:bg-gray-50 dark:hover:bg-gray-800',
+        active && 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700',
+        className
+      )}
+      onClick={onClick}
+      style={style}>
+      <div className="flex items-center gap-0.5 overflow-hidden text-xs">
+        {icon && <span className="flex items-center justify-center mr-2">{icon}</span>}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Tooltip content={title} placement="top">
+            <div className="truncate text-gray-900 dark:text-gray-100" style={titleStyle}>
+              {title}
+            </div>
+          </Tooltip>
+          {subtitle && (
+            <div className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">{subtitle}</div>
+          )}
+        </div>
+        {rightContent && <div className="ml-auto">{rightContent}</div>}
+      </div>
+    </div>
   )
 }
-
-const ListItemContainer = styled.div`
-  padding: 7px 12px;
-  border-radius: var(--list-item-border-radius);
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  position: relative;
-  cursor: pointer;
-  border: 1px solid transparent;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-  }
-
-  &.active {
-    background-color: var(--color-background-soft);
-    border: 1px solid var(--color-border-soft);
-  }
-`
-
-const ListItemContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  overflow: hidden;
-  font-size: 13px;
-`
-
-const IconWrapper = styled.span`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 8px;
-`
-
-const TextContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-`
-
-const SubtitleText = styled.div`
-  font-size: 10px;
-  color: var(--color-text-soft);
-  margin-top: 2px;
-  display: -webkit-box;
-  -webkit-line-clamp: 1;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  color: var(--color-text-3);
-`
-
-const RightContentWrapper = styled.div`
-  margin-left: auto;
-`
 
 export default ListItem

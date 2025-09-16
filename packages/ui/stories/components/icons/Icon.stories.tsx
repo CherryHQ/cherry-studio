@@ -178,13 +178,13 @@ export const IconStates: Story = {
   render: () => (
     <div className="space-y-4">
       <div className="flex items-center gap-4">
-        <button className="rounded p-2 hover:bg-gray-100">
+        <button type="button" className="rounded p-2 hover:bg-gray-100">
           <EditIcon size={20} />
         </button>
-        <button className="rounded p-2 hover:bg-gray-100" disabled>
+        <button type="button" className="rounded p-2 hover:bg-gray-100" disabled>
           <EditIcon size={20} className="opacity-50" />
         </button>
-        <button className="rounded bg-blue-500 p-2 text-white hover:bg-blue-600">
+        <button type="button" className="rounded bg-blue-500 p-2 text-white hover:bg-blue-600">
           <EditIcon size={20} />
         </button>
       </div>
@@ -205,13 +205,13 @@ export const InContext: Story = {
         <div className="flex items-center justify-between">
           <h3 className="font-semibold">Document.pdf</h3>
           <div className="flex gap-2">
-            <button className="rounded p-1 hover:bg-gray-100">
+            <button type="button" className="rounded p-1 hover:bg-gray-100">
               <CopyIcon size={16} />
             </button>
-            <button className="rounded p-1 hover:bg-gray-100">
+            <button type="button" className="rounded p-1 hover:bg-gray-100">
               <EditIcon size={16} />
             </button>
-            <button className="rounded p-1 hover:bg-gray-100">
+            <button type="button" className="rounded p-1 hover:bg-gray-100">
               <DeleteIcon size={16} />
             </button>
           </div>
@@ -224,7 +224,9 @@ export const InContext: Story = {
           <span className="font-medium">Image Processing</span>
         </div>
         <p className="mb-3 text-sm text-gray-600">Process your images with advanced AI tools</p>
-        <button className="flex items-center gap-2 rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600">
+        <button
+          type="button"
+          className="flex items-center gap-2 rounded bg-blue-500 px-3 py-1 text-sm text-white hover:bg-blue-600">
           <OcrIcon size={16} />
           <span>Extract Text</span>
         </button>

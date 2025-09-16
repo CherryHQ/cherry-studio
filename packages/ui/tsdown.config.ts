@@ -12,9 +12,6 @@ export default defineConfig({
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
-  alias: {
-    '@shared': '../shared'
-  },
   // 将 HeroUI、Tailwind 和其他 peer dependencies 标记为外部依赖
   external: [
     'react',

@@ -1,197 +1,106 @@
 # Cherry Studio Shared Data
 
-This directory contains shared data structures and API type definitions for the Cherry Studio application. It includes both persistent data schemas and API contract definitions.
+This directory contains shared type definitions and schemas for the Cherry Studio data management systems. These files provide type safety and consistency across the entire application.
 
-## 📁 File Organization
+## 📁 Directory Structure
 
-### Persistent Data (Root Level)
+```
+packages/shared/data/
+├── api/                     # Data API type system
+│   ├── index.ts            # Barrel exports for clean imports
+│   ├── apiSchemas.ts       # API endpoint definitions and mappings
+│   ├── apiTypes.ts         # Core request/response infrastructure types
+│   ├── apiModels.ts        # Business entity types and DTOs
+│   ├── apiPaths.ts         # API path definitions and utilities
+│   └── errorCodes.ts       # Standardized error handling
+├── cache/                   # Cache system type definitions
+│   ├── cacheTypes.ts       # Core cache infrastructure types
+│   ├── cacheSchemas.ts     # Cache key schemas and type mappings
+│   └── cacheValueTypes.ts  # Cache value type definitions
+├── preference/              # Preference system type definitions
+│   ├── preferenceTypes.ts  # Core preference system types
+│   └── preferenceSchemas.ts # Preference schemas and default values
+└── README.md               # This file
+```
 
-- **`preferences.ts`** - User preference data schema and default values
-- **`preferenceTypes.ts`** - TypeScript types for preference system
+## 🏗️ System Overview
 
-### API Types (`api/` subdirectory)
+This directory provides type definitions for three main data management systems:
 
-- **`api/index.ts`** - Barrel export file providing clean imports for all API types
-- **`api/apiTypes.ts`** - Core request/response types and API infrastructure
-- **`api/apiModels.ts`** - Business entity types and Data Transfer Objects (DTOs)
-- **`api/apiSchemas.ts`** - Complete API endpoint definitions with type mappings
-- **`api/errorCodes.ts`** - Error handling utilities and standardized error codes
+### API System (`api/`)
+- **Purpose**: Type-safe IPC communication between Main and Renderer processes
+- **Features**: RESTful patterns, error handling, business entity definitions
+- **Usage**: Ensures type safety for all data API operations
 
-## 🏗️ Architecture Overview
+### Cache System (`cache/`)
+- **Purpose**: Type definitions for three-layer caching architecture
+- **Features**: Memory/shared/persist cache schemas, TTL support, hook integration
+- **Usage**: Type-safe caching operations across the application
 
-These files are part of the **Renderer-Main Virtual Data Acquisition Architecture** that enables:
+### Preference System (`preference/`)
+- **Purpose**: User configuration and settings management
+- **Features**: 158 configuration items, default values, nested key support
+- **Usage**: Type-safe preference access and synchronization
 
-- **Type-safe IPC communication** between Electron processes
-- **RESTful API patterns** within the Electron application
-- **Standardized error handling** across the application
-- **Future extensibility** to standalone API servers
+## 📋 File Categories
 
-## 🔄 Classification Status
-
-**Important**: These files are **NOT classified** in the data refactor system because they are:
-
-- ✅ **Type definitions** - Not actual data storage
-- ✅ **Compile-time artifacts** - Exist only during TypeScript compilation
-- ✅ **Framework infrastructure** - Enable the data API architecture
-- ✅ **Development tools** - Similar to interfaces in other languages
+**Framework Infrastructure** - These are TypeScript type definitions that:
+- ✅ Exist only at compile time
+- ✅ Provide type safety and IntelliSense support
+- ✅ Define contracts between application layers
+- ✅ Enable static analysis and error detection
 
 ## 📖 Usage Examples
 
-### Basic Imports
-
+### API Types
 ```typescript
-// Import API types from the api subdirectory
-import { Topic, CreateTopicDto, DataRequest, ApiSchemas, ErrorCode } from '@shared/data/api'
-
-// Import specific groups
-import type { TopicTypes, MessageTypes } from '@shared/data/api'
-
-// Import preferences
-import type { UserPreferences } from '@shared/data/preferences'
+// Import API types
+import type { DataRequest, DataResponse, ApiSchemas } from '@shared/data/api'
 ```
 
-### API Schema Usage
-
+### Cache Types
 ```typescript
-import type { ApiSchemas, ApiResponse } from '@shared/data/api'
-
-// Get the response type for a specific endpoint
-type TopicsListResponse = ApiResponse<'/topics', 'GET'>
-// Result: PaginatedResponse<Topic>
-
-type CreateTopicResponse = ApiResponse<'/topics', 'POST'>
-// Result: Topic
+// Import cache types
+import type { UseCacheKey, UseSharedCacheKey } from '@shared/data/cache'
 ```
 
-### Error Handling
-
+### Preference Types
 ```typescript
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
-
-// Create standardized errors
-const notFoundError = DataApiErrorFactory.notFound('Topic', '123')
-const validationError = DataApiErrorFactory.validation({
-  title: ['Title is required']
-})
-
-// Check if error is a Data API error
-if (isDataApiError(error)) {
-  console.log(`Error ${error.code}: ${error.message}`)
-}
-```
-
-### Request/Response Types
-
-```typescript
-import type { DataRequest, DataResponse, PaginatedResponse, Topic } from '@shared/data/api'
-
-// Type-safe request construction
-const request: DataRequest = {
-  id: 'req_123',
-  method: 'GET',
-  path: '/topics',
-  params: { page: 1, limit: 10 }
-}
-
-// Type-safe response handling
-const response: DataResponse<PaginatedResponse<Topic>> = {
-  id: 'req_123',
-  status: 200,
-  data: {
-    items: [...],
-    total: 100,
-    page: 1,
-    pageCount: 10,
-    hasNext: true,
-    hasPrev: false
-  }
-}
+// Import preference types
+import type { PreferenceKeyType, PreferenceDefaultScopeType } from '@shared/data/preference'
 ```
 
 ## 🔧 Development Guidelines
 
-### Adding New Domain Models
+### Adding Cache Types
+1. Add cache key to `cache/cacheSchemas.ts`
+2. Define value type in `cache/cacheValueTypes.ts`
+3. Update type mappings for type safety
 
-1. Add the interface to `api/apiModels.ts`
-2. Create corresponding DTOs (Create/Update)
-3. Export from `api/index.ts`
-4. Update API schemas if needed
+### Adding Preference Types
+1. Add preference key to `preference/preferenceSchemas.ts`
+2. Define default value and type
+3. Preference system automatically picks up new keys
 
-```typescript
-// In api/apiModels.ts
-export interface NewEntity {
-  id: string
-  name: string
-  createdAt: string
-  updatedAt: string
-}
+### Adding API Types
+1. Define business entities in `api/apiModels.ts`
+2. Add endpoint definitions to `api/apiSchemas.ts`
+3. Export types from `api/index.ts`
 
-export interface CreateNewEntityDto {
-  name: string
-}
-```
+### Best Practices
+- Use `import type` for type-only imports
+- Follow existing naming conventions
+- Document complex types with JSDoc
+- Maintain type safety across all imports
 
-### Adding New API Endpoints
+## 🔗 Related Implementation
 
-1. Add endpoint definition to `api/apiSchemas.ts`
-2. Include JSDoc comments with examples
-3. Ensure all types are properly referenced
+### Main Process Services
+- `src/main/data/CacheService.ts` - Main process cache management
+- `src/main/data/PreferenceService.ts` - Preference management service
+- `src/main/data/DataApiService.ts` - Data API coordination service
 
-```typescript
-// In api/apiSchemas.ts
-export interface ApiSchemas {
-  /**
-   * New entity endpoint
-   * @example GET /entities?page=1&limit=10
-   */
-  '/entities': {
-    /** List all entities */
-    GET: {
-      query?: PaginationParams
-      response: PaginatedResponse<NewEntity>
-    }
-  }
-}
-```
-
-### Type Safety Best Practices
-
-- Always use `import type` for type-only imports
-- Leverage the type helpers (`ApiResponse`, `ApiParams`, etc.)
-- Use the barrel export for clean imports
-- Document complex types with JSDoc comments
-
-## 🔗 Related Files
-
-### Main Process Implementation
-
-- `src/main/data/DataApiService.ts` - Main process data service
-- `src/main/data/api/` - Controllers, services, and routing
-
-### Renderer Process Implementation
-
+### Renderer Process Services
+- `src/renderer/src/data/CacheService.ts` - Renderer cache service
+- `src/renderer/src/data/PreferenceService.ts` - Renderer preference service
 - `src/renderer/src/data/DataApiService.ts` - Renderer API client
-- `src/renderer/src/data/hooks/` - React hooks for data fetching
-
-### Shared Data Types
-
-- `packages/shared/data/api/` - API contract definitions
-- `packages/shared/data/preferences.ts` - User preference schemas
-
-### Architecture Documentation
-
-- `.claude/data-request-arch.md` - Complete architecture documentation
-- `CLAUDE.md` - Project development guidelines
-
-## 🚀 Future Enhancements
-
-The type system is designed to support:
-
-- **HTTP API Server** - Types can be reused for standalone HTTP APIs
-- **GraphQL Integration** - Schema can be mapped to GraphQL resolvers
-- **Real-time Subscriptions** - WebSocket/SSE event types are defined
-- **Advanced Caching** - Cache-related types are ready for implementation
-
----
-
-_This README is part of the Cherry Studio data refactor project. For more information, see the project documentation in `.claude/` directory._
