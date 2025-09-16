@@ -226,13 +226,18 @@ export enum terminalApps {
   kitty = 'kitty',
   alacritty = 'Alacritty',
   wezterm = 'WezTerm',
-  ghostty = 'Ghostty'
+  ghostty = 'Ghostty',
+  // Windows terminals
+  windowsTerminal = 'WindowsTerminal',
+  powershell = 'PowerShell',
+  cmd = 'CMD'
 }
 
 export interface TerminalConfig {
   id: string
   name: string
   bundleId?: string
+  customPath?: string // For user-configured terminal paths on Windows
 }
 
 export interface TerminalConfigWithCommand extends TerminalConfig {
@@ -274,6 +279,74 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
     id: terminalApps.ghostty,
     name: 'Ghostty',
     bundleId: 'com.mitchellh.ghostty'
+  }
+]
+
+export const WINDOWS_TERMINALS: TerminalConfig[] = [
+  {
+    id: terminalApps.cmd,
+    name: 'Command Prompt'
+  },
+  {
+    id: terminalApps.powershell,
+    name: 'PowerShell'
+  },
+  {
+    id: terminalApps.windowsTerminal,
+    name: 'Windows Terminal'
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty'
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm'
+  }
+]
+
+export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
+  {
+    id: terminalApps.cmd,
+    name: 'Command Prompt',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'cmd',
+      args: ['/c', 'start', 'cmd', '/k', `cd /d "${directory}" && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}`]
+    })
+  },
+  {
+    id: terminalApps.powershell,
+    name: 'PowerShell',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'powershell',
+      args: ['-Command', `Start-Process powershell -ArgumentList '-NoExit', '-Command', 'Set-Location "${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"; ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}'`]
+    })
+  },
+  {
+    id: terminalApps.windowsTerminal,
+    name: 'Windows Terminal',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'wt',
+      args: ['-d', directory, 'cmd', '/k', fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')]
+    })
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty',
+    customPath: '', // Will be set by user in settings
+    command: (directory: string, fullCommand: string) => ({
+      command: 'alacritty', // Will be replaced with customPath if set
+      args: ['--working-directory', directory, '-e', 'cmd', '/k', fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')]
+    })
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm',
+    customPath: '', // Will be set by user in settings
+    command: (directory: string, fullCommand: string) => ({
+      command: 'wezterm', // Will be replaced with customPath if set
+      args: ['start', '--cwd', directory, 'cmd', '/k', fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')]
+    })
   }
 ]
 

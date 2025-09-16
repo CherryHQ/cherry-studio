@@ -12,6 +12,8 @@ import {
   codeTools,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
+  WINDOWS_TERMINALS,
+  WINDOWS_TERMINALS_WITH_COMMANDS,
   terminalApps,
   TerminalConfig,
   TerminalConfigWithCommand
@@ -31,6 +33,7 @@ interface VersionInfo {
 class CodeToolsService {
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
   private terminalsCache: { terminals: TerminalConfig[]; timestamp: number } | null = null
+  private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
   private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
@@ -43,8 +46,8 @@ class CodeToolsService {
     this.updatePackage = this.updatePackage.bind(this)
     this.run = this.run.bind(this)
 
-    // Preload terminals on macOS for faster UI response
-    if (process.platform === 'darwin') {
+    // Preload terminals on macOS and Windows for faster UI response
+    if (process.platform === 'darwin' || process.platform === 'win32') {
       this.preloadTerminals()
     }
   }
@@ -104,16 +107,19 @@ class CodeToolsService {
    */
   private async checkTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
-      if (terminal.bundleId) {
-        // Check if application is installed via bundle ID with timeout
+      if (process.platform === 'darwin' && terminal.bundleId) {
+        // macOS: Check if application is installed via bundle ID with timeout
         const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, {
           timeout: 3000
         })
         if (stdout.trim()) {
           return terminal
         }
+      } else if (process.platform === 'win32') {
+        // Windows: Check terminal availability
+        return await this.checkWindowsTerminalAvailability(terminal)
       } else {
-        // Check if command-line terminal is available with timeout
+        // Unix-like systems: Check if command-line terminal is available with timeout
         await execAsync(`which ${terminal.id}`, { timeout: 2000 })
         return terminal
       }
@@ -124,7 +130,102 @@ class CodeToolsService {
   }
 
   /**
-   * Get available terminals on macOS (with caching and parallel checking)
+   * Check Windows terminal availability (simplified - user configured paths)
+   */
+  private async checkWindowsTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    try {
+      switch (terminal.id) {
+        case terminalApps.cmd:
+          // CMD is always available on Windows
+          return terminal
+
+        case terminalApps.powershell:
+          // Check for PowerShell in PATH
+          try {
+            await execAsync('powershell -Command "Get-Host"', { timeout: 3000 })
+            return terminal
+          } catch {
+            try {
+              await execAsync('pwsh -Command "Get-Host"', { timeout: 3000 })
+              return terminal
+            } catch {
+              return null
+            }
+          }
+
+        case terminalApps.windowsTerminal:
+          // Check for Windows Terminal via wt command
+          try {
+            await execAsync('wt --version', { timeout: 3000 })
+            return terminal
+          } catch {
+            return null
+          }
+
+        default:
+          // For other terminals (Alacritty, WezTerm), check if user has configured custom path
+          return await this.checkCustomTerminalPath(terminal)
+      }
+    } catch (error) {
+      logger.debug(`Windows terminal ${terminal.id} not available:`, error as Error)
+      return null
+    }
+  }
+
+  /**
+   * Check if user has configured custom path for terminal
+   */
+  private async checkCustomTerminalPath(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    // Check if user has configured custom path
+    const customPath = this.customTerminalPaths.get(terminal.id)
+    if (customPath && fs.existsSync(customPath)) {
+      try {
+        await execAsync(`"${customPath}" --version`, { timeout: 3000 })
+        return { ...terminal, customPath }
+      } catch {
+        return null
+      }
+    }
+
+    // Fallback to PATH check
+    try {
+      const command = terminal.id === terminalApps.alacritty ? 'alacritty' : 'wezterm'
+      await execAsync(`${command} --version`, { timeout: 3000 })
+      return terminal
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Set custom path for a terminal (called from settings UI)
+   */
+  public setCustomTerminalPath(terminalId: string, path: string): void {
+    logger.info(`Setting custom path for terminal ${terminalId}: ${path}`)
+    this.customTerminalPaths.set(terminalId, path)
+    // Clear terminals cache to force refresh
+    this.terminalsCache = null
+  }
+
+  /**
+   * Get custom path for a terminal
+   */
+  public getCustomTerminalPath(terminalId: string): string | undefined {
+    return this.customTerminalPaths.get(terminalId)
+  }
+
+  /**
+   * Remove custom path for a terminal
+   */
+  public removeCustomTerminalPath(terminalId: string): void {
+    logger.info(`Removing custom path for terminal ${terminalId}`)
+    this.customTerminalPaths.delete(terminalId)
+    // Clear terminals cache to force refresh
+    this.terminalsCache = null
+  }
+
+  /**
+   * Get available terminals (with caching and parallel checking)
    */
   private async getAvailableTerminals(): Promise<TerminalConfig[]> {
     const now = Date.now()
@@ -138,8 +239,11 @@ class CodeToolsService {
     logger.info('Checking available terminals in parallel...')
     const startTime = Date.now()
 
+    // Get terminal list based on platform
+    const terminalList = process.platform === 'win32' ? WINDOWS_TERMINALS : MACOS_TERMINALS
+
     // Check all terminals in parallel
-    const terminalPromises = MACOS_TERMINALS.map((terminal) => this.checkTerminalAvailability(terminal))
+    const terminalPromises = terminalList.map((terminal) => this.checkTerminalAvailability(terminal))
 
     try {
       // Wait for all checks to complete with a global timeout
@@ -182,12 +286,20 @@ class CodeToolsService {
    */
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
+    const terminalCommands = process.platform === 'win32' ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
+    const defaultTerminal = process.platform === 'win32' ? terminalApps.cmd : terminalApps.systemDefault
 
     if (terminalId) {
-      const requestedTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(
+      let requestedTerminal = terminalCommands.find(
         (t) => t.id === terminalId && availableTerminals.some((at) => at.id === t.id)
       )
+
       if (requestedTerminal) {
+        // Apply custom path if configured
+        const customPath = this.customTerminalPaths.get(terminalId)
+        if (customPath && process.platform === 'win32') {
+          requestedTerminal = this.applyCustomPath(requestedTerminal, customPath)
+        }
         return requestedTerminal
       } else {
         logger.warn(`Requested terminal ${terminalId} not available, falling back to system default`)
@@ -195,21 +307,38 @@ class CodeToolsService {
     }
 
     // Fallback to system default Terminal
-    const systemTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(
-      (t) => t.id === terminalApps.systemDefault && availableTerminals.some((at) => at.id === t.id)
+    const systemTerminal = terminalCommands.find(
+      (t) => t.id === defaultTerminal && availableTerminals.some((at) => at.id === t.id)
     )
     if (systemTerminal) {
       return systemTerminal
     }
 
-    // If even system Terminal is not found (shouldn't happen on macOS), return the first available
-    const firstAvailable = MACOS_TERMINALS_WITH_COMMANDS.find((t) => availableTerminals.some((at) => at.id === t.id))
+    // If even system Terminal is not found, return the first available
+    const firstAvailable = terminalCommands.find((t) => availableTerminals.some((at) => at.id === t.id))
     if (firstAvailable) {
       return firstAvailable
     }
 
     // Last resort fallback
-    return MACOS_TERMINALS_WITH_COMMANDS.find((t) => t.id === terminalApps.systemDefault)!
+    return terminalCommands.find((t) => t.id === defaultTerminal)!
+  }
+
+  /**
+   * Apply custom path to terminal configuration
+   */
+  private applyCustomPath(terminal: TerminalConfigWithCommand, customPath: string): TerminalConfigWithCommand {
+    return {
+      ...terminal,
+      customPath,
+      command: (directory: string, fullCommand: string) => {
+        const originalCommand = terminal.command(directory, fullCommand)
+        return {
+          ...originalCommand,
+          command: customPath // Replace command with custom path
+        }
+      }
+    }
   }
 
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
@@ -332,7 +461,7 @@ class CodeToolsService {
    * Get available terminals for the current platform
    */
   public async getAvailableTerminalsForPlatform(): Promise<TerminalConfig[]> {
-    if (isMac) {
+    if (isMac || isWin) {
       return this.getAvailableTerminals()
     }
     // For other platforms, return empty array for now
