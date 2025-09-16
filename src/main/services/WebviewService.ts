@@ -1,5 +1,7 @@
 import { session, shell, webContents } from 'electron'
 
+import { windowService } from './WindowService'
+
 /**
  * init the useragent of the webview session
  * remove the CherryStudio and Electron from the useragent
@@ -11,6 +13,13 @@ export function initSessionUserAgent() {
 
   wvSession.setUserAgent(newUA)
   wvSession.webRequest.onBeforeSendHeaders((details, cb) => {
+    // Skip header modification for main window requests
+    const mainWindow = windowService.getMainWindow()
+    if (mainWindow && details.webContentsId === mainWindow.webContents.id) {
+      cb({ requestHeaders: details.requestHeaders })
+      return
+    }
+
     const headers = {
       ...details.requestHeaders,
       'User-Agent': details.url.includes('google.com') ? originUA : newUA
