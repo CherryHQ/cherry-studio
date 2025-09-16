@@ -59,7 +59,7 @@ export function createGoogleOptions(options: ExtractProviderOptions<'google'>) {
 /**
  * 创建OpenRouter供应商选项的便捷函数
  */
-export function createOpenRouterOptions(options: ExtractProviderOptions<'openrouter'>) {
+export function createOpenRouterOptions(options: ExtractProviderOptions<'openrouter'> | Record<string, any>) {
   return createProviderOptions('openrouter', options)
 }
 

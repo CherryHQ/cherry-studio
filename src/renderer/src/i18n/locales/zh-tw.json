@@ -261,6 +261,11 @@
     "whole_word": "全字匹配"
   },
   "chat": {
+    "web_search": {
+      "warning": {
+        "openai": "GPT-5 模型的最小推理力度不支援網路搜尋。"
+      }
+    },
     "add": {
       "assistant": {
         "title": "新增助手"

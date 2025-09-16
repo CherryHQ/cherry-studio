@@ -261,6 +261,11 @@
     "whole_word": "Whole Word"
   },
   "chat": {
+    "web_search": {
+      "warning": {
+        "openai": "The GPT-5 model's minimal reasoning effort does not support web search."
+      }
+    },
     "add": {
       "assistant": {
         "title": "Add Assistant"
