@@ -1,4 +1,4 @@
-import { ToolbarButton } from '@renderer/pages/home/Inputbar/Inputbar'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
@@ -364,23 +364,23 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               <ToolBar>
                 {showUserToggle && (
                   <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
-                    <ToolbarButton type="text" onClick={userOutlinedButtonOnClick}>
+                    <ActionIconButton onClick={userOutlinedButtonOnClick}>
                       <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                    </ToolbarButton>
+                    </ActionIconButton>
                   </Tooltip>
                 )}
                 <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={caseSensitiveButtonOnClick}>
+                  <ActionIconButton onClick={caseSensitiveButtonOnClick}>
                     <CaseSensitive
                       size={18}
                       style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
                     />
-                  </ToolbarButton>
+                  </ActionIconButton>
                 </Tooltip>
                 <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
-                  <ToolbarButton type="text" onClick={wholeWordButtonOnClick}>
+                  <ActionIconButton onClick={wholeWordButtonOnClick}>
                     <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
-                  </ToolbarButton>
+                  </ActionIconButton>
                 </Tooltip>
               </ToolBar>
             </InputWrapper>
@@ -397,15 +397,15 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               )}
             </SearchResults>
             <ToolBar>
-              <ToolbarButton type="text" onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
+              <ActionIconButton onClick={prevButtonOnClick} disabled={allRanges.length === 0}>
                 <ChevronUp size={18} />
-              </ToolbarButton>
-              <ToolbarButton type="text" onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
+              </ActionIconButton>
+              <ActionIconButton onClick={nextButtonOnClick} disabled={allRanges.length === 0}>
                 <ChevronDown size={18} />
-              </ToolbarButton>
-              <ToolbarButton type="text" onClick={closeButtonOnClick}>
+              </ActionIconButton>
+              <ActionIconButton onClick={closeButtonOnClick}>
                 <X size={18} />
-              </ToolbarButton>
+              </ActionIconButton>
             </ToolBar>
           </SearchBarContainer>
         </NarrowLayout>

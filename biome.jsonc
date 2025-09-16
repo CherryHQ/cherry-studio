@@ -1,0 +1,97 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
+  "assist": {
+    // to sort json
+    "actions": {
+      "source": {
+        "organizeImports": "on",
+        "useSortedKeys": {
+          "level": "on",
+          "options": {
+            "sortOrder": "lexicographic"
+          }
+        }
+      }
+    },
+    "enabled": true,
+    "includes": ["**/*.json", "!*.json", "!**/package.json"]
+  },
+  "css": {
+    "formatter": {
+      "quoteStyle": "single"
+    }
+  },
+  "files": { "ignoreUnknown": false },
+  "formatter": {
+    "attributePosition": "auto",
+    "bracketSameLine": false,
+    "bracketSpacing": true,
+    "enabled": true,
+    "expand": "auto",
+    "formatWithErrors": true,
+    "includes": [
+      "**",
+      "!out/**",
+      "!**/dist/**",
+      "!build/**",
+      "!.yarn/**",
+      "!.github/**",
+      "!.husky/**",
+      "!.vscode/**",
+      "!*.yaml",
+      "!*.yml",
+      "!*.mjs",
+      "!*.cjs",
+      "!*.md",
+      "!*.json",
+      "!src/main/integration/**",
+      "!**/tailwind.css",
+      "!**/package.json"
+    ],
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 120,
+    "useEditorconfig": true
+  },
+  "html": { "formatter": { "selfCloseVoidElements": "always" } },
+  "javascript": {
+    "formatter": {
+      "arrowParentheses": "always",
+      "attributePosition": "auto",
+      // To minimize changes in this PR as much as possible, it's set to true. However, setting it to false would make it more convenient to add attributes at the end.
+      "bracketSameLine": true,
+      "bracketSpacing": true,
+      "jsxQuoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "none"
+    }
+  },
+  "json": {
+    "parser": {
+      "allowComments": true
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "includes": ["!**/tailwind.css", "src/renderer/**/*.{tsx,ts}"],
+    // only enable sorted tailwind css rule. used as formatter instead of linter
+    "rules": {
+      "nursery": {
+        // to sort tailwind css classes
+        "useSortedClasses": {
+          "fix": "safe",
+          "level": "warn",
+          "options": {
+            "functions": ["cn"]
+          }
+        }
+      },
+      "recommended": false,
+      "suspicious": "off"
+    }
+  },
+  "vcs": { "clientKind": "git", "enabled": false, "useIgnoreFile": false }
+}

@@ -100,12 +100,6 @@ export interface KnowledgeBase {
     type: 'preprocess'
     provider: PreprocessProvider
   }
-  framework: 'embedjs' | 'langchain'
-  // default is hybrid
-  retriever?: {
-    mode: 'vector' | 'bm25' | 'hybrid'
-    weight?: number
-  }
 }
 
 export type ProcessingStatus = 'pending' | 'processing' | 'completed' | 'failed'
@@ -145,11 +139,6 @@ export type KnowledgeBaseParams = {
     type: 'preprocess'
     provider: PreprocessProvider
   }
-  framework: 'embedjs' | 'langchain'
-  retriever?: {
-    mode: 'vector' | 'bm25' | 'hybrid'
-    weight?: number
-  }
 }
 
 export type KnowledgeReference = {
@@ -165,9 +154,4 @@ export interface KnowledgeSearchResult {
   pageContent: string
   score: number
   metadata: Record<string, any>
-}
-
-export enum MigrationModeEnum {
-  EmbeddingModelChange = 'EmbeddingModelChange',
-  MigrationToLangChain = 'MigrationToLangChain'
 }

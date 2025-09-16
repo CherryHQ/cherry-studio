@@ -1,6 +1,6 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { Assistant } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
@@ -13,13 +13,12 @@ export interface UrlContextButtonRef {
 
 interface Props {
   ref?: React.RefObject<UrlContextButtonRef | null>
-  assistant: Assistant
-  ToolbarButton: any
+  assistantId: string
 }
 
-const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
+const UrlContextButton: FC<Props> = ({ assistantId }) => {
   const { t } = useTranslation()
-  const { updateAssistant } = useAssistant(assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
   const urlContentNewState = !assistant.enableUrlContext
@@ -48,14 +47,9 @@ const UrlContextButton: FC<Props> = ({ assistant, ToolbarButton }) => {
 
   return (
     <Tooltip placement="top" title={t('chat.input.url_context')} arrow>
-      <ToolbarButton type="text" onClick={handleToggle}>
-        <Link
-          size={18}
-          style={{
-            color: assistant.enableUrlContext ? 'var(--color-primary)' : 'var(--color-icon)'
-          }}
-        />
-      </ToolbarButton>
+      <ActionIconButton onClick={handleToggle} active={assistant.enableUrlContext}>
+        <Link size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

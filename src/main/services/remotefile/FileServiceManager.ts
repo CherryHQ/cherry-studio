@@ -9,7 +9,7 @@ export class FileServiceManager {
   private static instance: FileServiceManager
   private services: Map<string, BaseFileService> = new Map()
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  // oxlint-disable-next-line @typescript-eslint/no-empty-function
   private constructor() {}
 
   static getInstance(): FileServiceManager {
