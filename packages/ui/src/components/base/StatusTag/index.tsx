@@ -1,4 +1,5 @@
-import { AlertTriangleIcon, CheckIcon, CircleXIcon, InfoIcon, LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { AlertTriangleIcon, CheckIcon, CircleXIcon, InfoIcon } from 'lucide-react'
 import React from 'react'
 
 import CustomTag from '../CustomTag'

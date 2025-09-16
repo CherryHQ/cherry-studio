@@ -1,7 +1,8 @@
 import { preferenceService } from '@data/PreferenceService'
 import { isLinux, isMac, isWin } from '@main/constant'
 import { getI18n } from '@main/utils/language'
-import { app, Menu, MenuItemConstructorOptions, nativeImage, nativeTheme, Tray } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
+import { app, Menu, nativeImage, nativeTheme, Tray } from 'electron'
 
 import icon from '../../../build/tray_icon.png?asset'
 import iconDark from '../../../build/tray_icon_dark.png?asset'

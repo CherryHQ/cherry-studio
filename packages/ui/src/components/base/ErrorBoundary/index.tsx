@@ -1,8 +1,9 @@
 // Original path: src/renderer/src/components/ErrorBoundary.tsx
 import { Button } from '@heroui/button'
 import { Alert, Space } from 'antd'
-import { ComponentType, ReactNode } from 'react'
-import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
+import type { ComponentType, ReactNode } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { ErrorBoundary } from 'react-error-boundary'
 import styled from 'styled-components'
 
 import { formatErrorMessage } from './utils'

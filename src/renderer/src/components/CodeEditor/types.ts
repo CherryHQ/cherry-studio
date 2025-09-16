@@ -1,4 +1,4 @@
-import { BasicSetupOptions, Extension } from '@uiw/react-codemirror'
+import type { BasicSetupOptions, Extension } from '@uiw/react-codemirror'
 
 export type CodeMirrorTheme = 'light' | 'dark' | 'none' | Extension
 

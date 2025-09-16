@@ -1,5 +1,5 @@
 import { ZOOM_SHORTCUTS } from '@shared/config/constant'
-import { Shortcut } from '@types'
+import type { Shortcut } from '@types'
 import Store from 'electron-store'
 
 export enum ConfigKeys {

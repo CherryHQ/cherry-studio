@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
-import CustomTag, { CustomTagProps } from '../CustomTag'
+import type { CustomTagProps } from '../CustomTag'
+import CustomTag from '../CustomTag'
 
 type Props = {
   size?: number

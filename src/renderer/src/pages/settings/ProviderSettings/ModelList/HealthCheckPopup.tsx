@@ -1,6 +1,6 @@
 import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { Flex, InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'

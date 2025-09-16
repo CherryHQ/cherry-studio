@@ -1,5 +1,5 @@
 import { isOpenAIWebSearchChatCompletionOnlyModel } from '@renderer/config/models'
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from '@shared/config/prompts'
 
 export function getWebSearchParams(model: Model): Record<string, any> {

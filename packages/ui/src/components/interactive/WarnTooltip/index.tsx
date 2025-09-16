@@ -1,5 +1,6 @@
 // Original path: src/renderer/src/components/TooltipIcons/WarnTooltip.tsx
-import { Tooltip, TooltipProps } from 'antd'
+import type { TooltipProps } from 'antd'
+import { Tooltip } from 'antd'
 import { AlertTriangle } from 'lucide-react'
 
 type InheritedTooltipProps = Omit<TooltipProps, 'children'>

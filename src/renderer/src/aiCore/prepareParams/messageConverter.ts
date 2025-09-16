@@ -6,7 +6,7 @@
 import { loggerService } from '@logger'
 import { isVisionModel } from '@renderer/config/models'
 import type { Message, Model } from '@renderer/types'
-import { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
+import type { FileMessageBlock, ImageMessageBlock, ThinkingMessageBlock } from '@renderer/types/newMessage'
 import {
   findFileBlocks,
   findImageBlocks,

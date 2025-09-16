@@ -1,6 +1,7 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
-import { Agent, AssistantSettings } from '@renderer/types'
+import type { Agent, AssistantSettings } from '@renderer/types'
 
 export interface AgentsState {
   agents: Agent[]

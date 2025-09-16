@@ -1,9 +1,10 @@
-import CodeMirror, { Annotation, BasicSetupOptions, EditorView } from '@uiw/react-codemirror'
+import type { BasicSetupOptions } from '@uiw/react-codemirror'
+import CodeMirror, { Annotation, EditorView } from '@uiw/react-codemirror'
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { memo } from 'react'
 
 import { useBlurHandler, useHeightListener, useLanguageExtensions, useSaveKeymap } from './hooks'
-import { CodeEditorProps } from './types'
+import type { CodeEditorProps } from './types'
 import { prepareCodeChanges } from './utils'
 
 /**

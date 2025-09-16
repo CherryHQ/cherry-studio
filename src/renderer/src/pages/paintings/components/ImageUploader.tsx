@@ -1,7 +1,7 @@
 import { DeleteOutlined } from '@ant-design/icons'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { Popconfirm, Upload } from 'antd'
 import { Button } from 'antd'
 import type { RcFile, UploadProps } from 'antd/es/upload'

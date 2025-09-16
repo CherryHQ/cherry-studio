@@ -1,7 +1,7 @@
 // Original path: src/renderer/src/components/CopyButton.tsx
 import { Tooltip } from 'antd'
 import { Copy } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface CopyButtonProps {

@@ -1,5 +1,5 @@
 // Original: src/renderer/src/components/TextBadge.tsx
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface Props {

@@ -1,9 +1,10 @@
 /**
  * //TODO @deprecated this file will be removed after data refactor
  */
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
-import {
+import type {
   ApiServerConfig,
   CodeStyleVarious,
   MathEngine,
@@ -25,9 +26,9 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { OpenAIVerbosity } from '@types'
+import type { OpenAIVerbosity } from '@types'
 
-import { RemoteSyncState } from './backup'
+import type { RemoteSyncState } from './backup'
 
 // export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 

@@ -11,9 +11,10 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
-import { Model, ThinkingOption } from '@renderer/types'
+import type { Model, ThinkingOption } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { FC, ReactElement, useCallback, useImperativeHandle, useMemo } from 'react'
+import type { FC, ReactElement } from 'react'
+import { useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface ThinkingButtonRef {

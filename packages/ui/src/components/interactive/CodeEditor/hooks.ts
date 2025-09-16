@@ -1,9 +1,10 @@
 import { linter } from '@codemirror/lint' // statically imported by @uiw/codemirror-extensions-basic-setup
 import { EditorView } from '@codemirror/view'
-import { Extension, keymap } from '@uiw/react-codemirror'
+import type { Extension } from '@uiw/react-codemirror'
+import { keymap } from '@uiw/react-codemirror'
 import { useEffect, useMemo, useState } from 'react'
 
-import { LanguageConfig } from './types'
+import type { LanguageConfig } from './types'
 import { getNormalizedExtension } from './utils'
 
 /** 语言对应的 linter 加载器

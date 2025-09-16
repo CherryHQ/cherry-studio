@@ -1,6 +1,6 @@
-import { ApiClient, Model } from '@types'
+import type { ApiClient, Model } from '@types'
 
-import { FileMetadata } from './file'
+import type { FileMetadata } from './file'
 
 export type KnowledgeItemType = 'file' | 'url' | 'note' | 'sitemap' | 'directory' | 'memory' | 'video'
 

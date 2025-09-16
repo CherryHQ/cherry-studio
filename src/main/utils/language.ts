@@ -1,6 +1,6 @@
 import { preferenceService } from '@data/PreferenceService'
 import { defaultLanguage } from '@shared/config/constant'
-import { LanguageVarious } from '@shared/data/preference/preferenceTypes'
+import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { app } from 'electron'
 
 import EnUs from '../../renderer/src/i18n/locales/en-us.json'

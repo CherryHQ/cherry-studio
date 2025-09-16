@@ -1,5 +1,5 @@
 // Original path: src/renderer/src/components/EmojiIcon.tsx
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 interface EmojiIconProps {

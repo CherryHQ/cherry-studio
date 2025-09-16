@@ -1,5 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { FC, HTMLAttributes } from 'react'
+import type { FC, HTMLAttributes } from 'react'
 import styled from 'styled-components'
 
 interface Props extends HTMLAttributes<HTMLDivElement> {

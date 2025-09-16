@@ -10,7 +10,7 @@ import {
   removeNodeFromTree,
   renameNodeFromTree
 } from '@renderer/services/NotesTreeService'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
 import { v4 as uuidv4 } from 'uuid'
 

@@ -1,8 +1,8 @@
+import type { LucideIcon } from 'lucide-react'
 import {
   AlignLeft,
   Copy,
   Eye,
-  LucideIcon,
   Pencil,
   RefreshCw,
   RotateCcw,

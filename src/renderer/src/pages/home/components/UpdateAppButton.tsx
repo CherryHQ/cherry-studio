@@ -2,7 +2,7 @@ import { SyncOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { Button } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

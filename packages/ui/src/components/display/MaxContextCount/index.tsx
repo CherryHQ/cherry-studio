@@ -1,6 +1,6 @@
 // Original path: src/renderer/src/components/MaxContextCount.tsx
 import { Infinity as InfinityIcon } from 'lucide-react'
-import { CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 
 const MAX_CONTEXT_COUNT = 100
 

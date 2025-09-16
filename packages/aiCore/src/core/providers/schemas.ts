@@ -10,7 +10,8 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { createOpenAI, type OpenAIProviderSettings } from '@ai-sdk/openai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { createXai } from '@ai-sdk/xai'
-import { customProvider, Provider } from 'ai'
+import type { Provider } from 'ai'
+import { customProvider } from 'ai'
 import { z } from 'zod'
 
 /**

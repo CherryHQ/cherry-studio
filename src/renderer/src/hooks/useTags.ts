@@ -1,5 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit'
-import { RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import type { RootState } from '@renderer/store'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setTagsOrder, updateTagCollapse } from '@renderer/store/assistants'
 import { flatMap, groupBy, uniq } from 'lodash'
 import { useCallback, useMemo } from 'react'

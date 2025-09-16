@@ -1,12 +1,12 @@
 import OpenAI from 'openai'
-import { ChatCompletionCreateParams } from 'openai/resources'
+import type { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
+import type { OpenAICompatibleModel } from '../utils'
 import {
   getProviderByModel,
   getRealProviderModel,
   listAllAvailableModels,
-  OpenAICompatibleModel,
   transformModelToOpenAI,
   validateProvider
 } from '../utils'

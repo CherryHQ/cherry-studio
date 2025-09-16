@@ -2,7 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
-import { Agent } from '@renderer/types'
+import type { Agent } from '@renderer/types'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('useSystemAgents')

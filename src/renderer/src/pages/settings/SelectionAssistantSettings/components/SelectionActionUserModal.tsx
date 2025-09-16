@@ -6,7 +6,8 @@ import type { SelectionActionItem } from '@shared/data/preference/preferenceType
 import { Col, Input, Modal, Radio, Row, Select, Space, Tooltip } from 'antd'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

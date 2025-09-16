@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { WebviewTag } from 'electron'
+import type { WebviewTag } from 'electron'
 import { memo, useEffect, useRef } from 'react'
 
 const logger = loggerService.withContext('WebviewContainer')

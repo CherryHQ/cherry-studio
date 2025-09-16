@@ -1,5 +1,6 @@
-import { Model } from '@renderer/types'
-import { Button, Tooltip, TooltipProps } from 'antd'
+import type { Model } from '@renderer/types'
+import type { TooltipProps } from 'antd'
+import { Button, Tooltip } from 'antd'
 import { useCallback, useMemo } from 'react'
 
 import ModelAvatar from './Avatar/ModelAvatar'

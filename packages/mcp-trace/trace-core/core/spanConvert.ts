@@ -1,7 +1,7 @@
 import { SpanKind, SpanStatusCode } from '@opentelemetry/api'
-import { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
-import { SpanEntity } from '../types/config'
+import type { SpanEntity } from '../types/config'
 
 /**
  * convert ReadableSpan to SpanEntity

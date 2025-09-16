@@ -1,7 +1,8 @@
 /**
  * @deprecated The whole file will be removed after data refactoring
  */
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
 
