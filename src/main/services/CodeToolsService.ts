@@ -8,7 +8,14 @@ import { isMac } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
-import { codeTools, MACOS_TERMINALS, MACOS_TERMINALS_WITH_COMMANDS, terminalApps, TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
+import {
+  codeTools,
+  MACOS_TERMINALS,
+  MACOS_TERMINALS_WITH_COMMANDS,
+  terminalApps,
+  TerminalConfig,
+  TerminalConfigWithCommand
+} from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -99,7 +106,9 @@ class CodeToolsService {
     try {
       if (terminal.bundleId) {
         // Check if application is installed via bundle ID with timeout
-        const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, { timeout: 3000 })
+        const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, {
+          timeout: 3000
+        })
         if (stdout.trim()) {
           return terminal
         }
@@ -130,16 +139,15 @@ class CodeToolsService {
     const startTime = Date.now()
 
     // Check all terminals in parallel
-    const terminalPromises = MACOS_TERMINALS.map(terminal => this.checkTerminalAvailability(terminal))
+    const terminalPromises = MACOS_TERMINALS.map((terminal) => this.checkTerminalAvailability(terminal))
 
     try {
       // Wait for all checks to complete with a global timeout
-      const results = await Promise.allSettled(terminalPromises.map(p =>
-        Promise.race([
-          p,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
-        ])
-      ))
+      const results = await Promise.allSettled(
+        terminalPromises.map((p) =>
+          Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))])
+        )
+      )
 
       const availableTerminals: TerminalConfig[] = []
       results.forEach((result, index) => {
@@ -151,7 +159,9 @@ class CodeToolsService {
       })
 
       const endTime = Date.now()
-      logger.info(`Terminal availability check completed in ${endTime - startTime}ms, found ${availableTerminals.length} terminals`)
+      logger.info(
+        `Terminal availability check completed in ${endTime - startTime}ms, found ${availableTerminals.length} terminals`
+      )
 
       // Cache the results
       this.terminalsCache = {
@@ -174,8 +184,8 @@ class CodeToolsService {
     const availableTerminals = await this.getAvailableTerminals()
 
     if (terminalId) {
-      const requestedTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(t =>
-        t.id === terminalId && availableTerminals.some(at => at.id === t.id)
+      const requestedTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(
+        (t) => t.id === terminalId && availableTerminals.some((at) => at.id === t.id)
       )
       if (requestedTerminal) {
         return requestedTerminal
@@ -185,23 +195,21 @@ class CodeToolsService {
     }
 
     // Fallback to system default Terminal
-    const systemTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(t =>
-      t.id === terminalApps.systemDefault && availableTerminals.some(at => at.id === t.id)
+    const systemTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(
+      (t) => t.id === terminalApps.systemDefault && availableTerminals.some((at) => at.id === t.id)
     )
     if (systemTerminal) {
       return systemTerminal
     }
 
     // If even system Terminal is not found (shouldn't happen on macOS), return the first available
-    const firstAvailable = MACOS_TERMINALS_WITH_COMMANDS.find(t =>
-      availableTerminals.some(at => at.id === t.id)
-    )
+    const firstAvailable = MACOS_TERMINALS_WITH_COMMANDS.find((t) => availableTerminals.some((at) => at.id === t.id))
     if (firstAvailable) {
       return firstAvailable
     }
 
     // Last resort fallback
-    return MACOS_TERMINALS_WITH_COMMANDS.find(t => t.id === terminalApps.systemDefault)!
+    return MACOS_TERMINALS_WITH_COMMANDS.find((t) => t.id === terminalApps.systemDefault)!
   }
 
   private async isPackageInstalled(cliTool: string): Promise<boolean> {

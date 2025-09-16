@@ -132,7 +132,10 @@ const CodeToolsPage: FC = () => {
       setIsLoadingTerminals(true)
       const terminals = await window.api.codeTools.getAvailableTerminals()
       setAvailableTerminals(terminals)
-      logger.info(`Found ${terminals.length} available terminals:`, terminals.map(t => t.name))
+      logger.info(
+        `Found ${terminals.length} available terminals:`,
+        terminals.map((t) => t.name)
+      )
     } catch (error) {
       logger.error('Failed to load available terminals:', error as Error)
       setAvailableTerminals([])

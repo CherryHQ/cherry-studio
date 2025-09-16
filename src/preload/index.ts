@@ -1,7 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { SpanContext } from '@opentelemetry/api'
-import { TerminalConfig,UpgradeChannel } from '@shared/config/constant'
+import { TerminalConfig, UpgradeChannel } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -441,7 +441,8 @@ const api = {
       env: Record<string, string>,
       options?: { autoUpdateToLatest?: boolean; terminal?: string }
     ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
-    getAvailableTerminals: (): Promise<TerminalConfig[]> => ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals)
+    getAvailableTerminals: (): Promise<TerminalConfig[]> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals)
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
