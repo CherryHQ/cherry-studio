@@ -218,3 +218,144 @@ export enum codeTools {
   geminiCli = 'gemini-cli',
   openaiCodex = 'openai-codex'
 }
+
+export enum terminalApps {
+  systemDefault = 'Terminal',
+  iterm2 = 'iTerm2',
+  warp = 'Warp',
+  kitty = 'kitty',
+  alacritty = 'Alacritty'
+}
+
+export interface TerminalConfig {
+  id: string
+  name: string
+  bundleId?: string
+}
+
+export interface TerminalConfigWithCommand extends TerminalConfig {
+  command: (directory: string, fullCommand: string) => { command: string; args: string[] }
+}
+
+export const MACOS_TERMINALS: TerminalConfig[] = [
+  {
+    id: terminalApps.systemDefault,
+    name: 'Terminal',
+    bundleId: 'com.apple.Terminal'
+  },
+  {
+    id: terminalApps.iterm2,
+    name: 'iTerm2',
+    bundleId: 'com.googlecode.iterm2'
+  },
+  {
+    id: terminalApps.warp,
+    name: 'Warp',
+    bundleId: 'dev.warp.Warp-Stable'
+  },
+  {
+    id: terminalApps.kitty,
+    name: 'kitty',
+    bundleId: 'net.kovidgoyal.kitty'
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty',
+    bundleId: 'org.alacritty'
+  }
+]
+
+export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
+  {
+    id: terminalApps.systemDefault,
+    name: 'Terminal',
+    bundleId: 'com.apple.Terminal',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'osascript',
+      args: [
+        '-e',
+        `tell application "Terminal"
+  if (count of windows) = 0 then
+    do script "${fullCommand.replace(/"/g, '\\"')}"
+  else
+    tell window 1
+      do script "${fullCommand.replace(/"/g, '\\"')}" in (do script "" in window 1)
+    end tell
+  end if
+  activate
+  tell front window
+    set index to 1
+  end tell
+end tell`
+      ]
+    })
+  },
+  {
+    id: terminalApps.iterm2,
+    name: 'iTerm2',
+    bundleId: 'com.googlecode.iterm2',
+    command: (_directory: string, fullCommand: string) => ({
+      command: 'osascript',
+      args: [
+        '-e',
+        `tell application "iTerm2"
+  if (count of windows) = 0 then
+    create window with default profile
+  else
+    tell current window
+      create tab with default profile
+    end tell
+  end if
+  tell current session of current window
+    write text "${fullCommand.replace(/"/g, '\\"')}"
+  end tell
+  activate
+  tell front window
+    set index to 1
+  end tell
+end tell`
+      ]
+    })
+  },
+  {
+    id: terminalApps.warp,
+    name: 'Warp',
+    bundleId: 'dev.warp.Warp-Stable',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'osascript',
+      args: [
+        '-e',
+        `tell application "Warp"
+  activate
+  delay 0.8
+end tell
+tell application "System Events"
+  tell process "Warp"
+    keystroke "t" using {command down}
+    delay 0.4
+    keystroke "cd '${directory.replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/'/g, "\\'")}"
+    key code 36
+  end tell
+end tell`
+      ]
+    })
+  },
+  {
+    id: terminalApps.kitty,
+    name: 'kitty',
+    bundleId: 'net.kovidgoyal.kitty',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'kitty',
+      args: ['--directory', directory, 'bash', '-c', `${fullCommand}; exec bash`]
+    })
+  },
+  {
+    id: terminalApps.alacritty,
+    name: 'Alacritty',
+    bundleId: 'org.alacritty',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'alacritty',
+      args: ['--working-directory', directory, '-e', 'bash', '-c', `${fullCommand}; exec bash`]
+    })
+  }
+]

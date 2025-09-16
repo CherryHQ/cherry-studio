@@ -825,6 +825,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
+  ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
 
   // OCR
   ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>

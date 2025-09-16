@@ -7,9 +7,10 @@ import { isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
-import { codeTools } from '@shared/config/constant'
+import { codeTools, MACOS_TERMINALS, MACOS_TERMINALS_WITH_COMMANDS, terminalApps, TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
+import { isMac } from '@main/constant'
 
 const execAsync = promisify(require('child_process').exec)
 const logger = loggerService.withContext('CodeToolsService')
@@ -22,7 +23,9 @@ interface VersionInfo {
 
 class CodeToolsService {
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
+  private terminalsCache: { terminals: TerminalConfig[]; timestamp: number } | null = null
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
+  private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
   constructor() {
     this.getBunPath = this.getBunPath.bind(this)
@@ -32,6 +35,24 @@ class CodeToolsService {
     this.getVersionInfo = this.getVersionInfo.bind(this)
     this.updatePackage = this.updatePackage.bind(this)
     this.run = this.run.bind(this)
+
+    // Preload terminals on macOS for faster UI response
+    if (process.platform === 'darwin') {
+      this.preloadTerminals()
+    }
+  }
+
+  /**
+   * Preload available terminals in background
+   */
+  private async preloadTerminals(): Promise<void> {
+    try {
+      logger.info('Preloading available terminals...')
+      await this.getAvailableTerminals()
+      logger.info('Terminal preloading completed')
+    } catch (error) {
+      logger.warn('Terminal preloading failed:', error as Error)
+    }
   }
 
   public async getBunPath() {
@@ -69,6 +90,118 @@ class CodeToolsService {
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
+  }
+
+  /**
+   * Check if a single terminal is available
+   */
+  private async checkTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    try {
+      if (terminal.bundleId) {
+        // Check if application is installed via bundle ID with timeout
+        const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, { timeout: 3000 })
+        if (stdout.trim()) {
+          return terminal
+        }
+      } else {
+        // Check if command-line terminal is available with timeout
+        await execAsync(`which ${terminal.id}`, { timeout: 2000 })
+        return terminal
+      }
+    } catch (error) {
+      logger.debug(`Terminal ${terminal.id} not available:`, error as Error)
+    }
+    return null
+  }
+
+  /**
+   * Get available terminals on macOS (with caching and parallel checking)
+   */
+  private async getAvailableTerminals(): Promise<TerminalConfig[]> {
+    const now = Date.now()
+
+    // Check cache first
+    if (this.terminalsCache && now - this.terminalsCache.timestamp < this.TERMINALS_CACHE_DURATION) {
+      logger.info(`Using cached terminals list (${this.terminalsCache.terminals.length} terminals)`)
+      return this.terminalsCache.terminals
+    }
+
+    logger.info('Checking available terminals in parallel...')
+    const startTime = Date.now()
+
+    // Check all terminals in parallel
+    const terminalPromises = MACOS_TERMINALS.map(terminal => this.checkTerminalAvailability(terminal))
+
+    try {
+      // Wait for all checks to complete with a global timeout
+      const results = await Promise.allSettled(terminalPromises.map(p =>
+        Promise.race([
+          p,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ])
+      ))
+
+      const availableTerminals: TerminalConfig[] = []
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          availableTerminals.push(result.value as TerminalConfig)
+        } else if (result.status === 'rejected') {
+          logger.debug(`Terminal check failed for ${MACOS_TERMINALS[index].id}:`, result.reason)
+        }
+      })
+
+      const endTime = Date.now()
+      logger.info(`Terminal availability check completed in ${endTime - startTime}ms, found ${availableTerminals.length} terminals`)
+
+      // Cache the results
+      this.terminalsCache = {
+        terminals: availableTerminals,
+        timestamp: now
+      }
+
+      return availableTerminals
+    } catch (error) {
+      logger.error('Error checking terminal availability:', error as Error)
+      // Return cached result if available, otherwise empty array
+      return this.terminalsCache?.terminals || []
+    }
+  }
+
+  /**
+   * Get terminal config by ID, fallback to system default
+   */
+  private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
+    const availableTerminals = await this.getAvailableTerminals()
+
+    if (terminalId) {
+      const requestedTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(t =>
+        t.id === terminalId && availableTerminals.some(at => at.id === t.id)
+      )
+      if (requestedTerminal) {
+        return requestedTerminal
+      } else {
+        logger.warn(`Requested terminal ${terminalId} not available, falling back to system default`)
+      }
+    }
+
+    // Fallback to system default Terminal
+    const systemTerminal = MACOS_TERMINALS_WITH_COMMANDS.find(t =>
+      t.id === terminalApps.systemDefault && availableTerminals.some(at => at.id === t.id)
+    )
+    if (systemTerminal) {
+      return systemTerminal
+    }
+
+    // If even system Terminal is not found (shouldn't happen on macOS), return the first available
+    const firstAvailable = MACOS_TERMINALS_WITH_COMMANDS.find(t =>
+      availableTerminals.some(at => at.id === t.id)
+    )
+    if (firstAvailable) {
+      return firstAvailable
+    }
+
+    // Last resort fallback
+    return MACOS_TERMINALS_WITH_COMMANDS.find(t => t.id === terminalApps.systemDefault)!
   }
 
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
@@ -188,6 +321,17 @@ class CodeToolsService {
   }
 
   /**
+   * Get available terminals for the current platform
+   */
+  public async getAvailableTerminalsForPlatform(): Promise<TerminalConfig[]> {
+    if (isMac) {
+      return this.getAvailableTerminals()
+    }
+    // For other platforms, return empty array for now
+    return []
+  }
+
+  /**
    * Update a CLI tool to the latest version
    */
   public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
@@ -237,7 +381,7 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -291,7 +435,13 @@ class CodeToolsService {
 
     // Build environment variable prefix (based on platform)
     const buildEnvPrefix = (isWindows: boolean) => {
-      if (Object.keys(env).length === 0) return ''
+      if (Object.keys(env).length === 0) {
+        logger.info('No environment variables to set')
+        return ''
+      }
+
+      logger.info('Setting environment variables:', Object.keys(env))
+      logger.info('Environment variable values:', env)
 
       if (isWindows) {
         // Windows uses set command
@@ -300,13 +450,29 @@ class CodeToolsService {
           .join(' && ')
       } else {
         // Unix-like systems use export command
-        return Object.entries(env)
-          .map(([key, value]) => `export ${key}="${value.replace(/"/g, '\\"')}"`)
+        const validEntries = Object.entries(env).filter(([key, value]) => {
+          if (!key || key.trim() === '') {
+            return false
+          }
+          if (value === undefined || value === null) {
+            return false
+          }
+          return true
+        })
+
+        const envCommands = validEntries
+          .map(([key, value]) => {
+            const sanitizedValue = String(value).replace(/"/g, '\\"')
+            const exportCmd = `export ${key}="${sanitizedValue}"`
+            logger.info(`Setting env var: ${key}="${sanitizedValue}"`)
+            logger.info(`Export command: ${exportCmd}`)
+            return exportCmd
+          })
           .join(' && ')
+        return envCommands
       }
     }
 
-    // Build command to execute
     let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
 
     // Add configuration parameters for OpenAI Codex
@@ -347,20 +513,20 @@ class CodeToolsService {
 
     switch (platform) {
       case 'darwin': {
-        // macOS - Use osascript to launch terminal and execute command directly, without showing startup command
+        // macOS - Support multiple terminals
         const envPrefix = buildEnvPrefix(false)
+
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+
         // Combine directory change with the main command to ensure they execute in the same shell session
         const fullCommand = `cd '${directory.replace(/'/g, "\\'")}' && clear && ${command}`
 
-        terminalCommand = 'osascript'
-        terminalArgs = [
-          '-e',
-          `tell application "Terminal"
-  do script "${fullCommand.replace(/"/g, '\\"')}"
-  activate
-end tell`
-        ]
+        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
+
+        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+        terminalCommand = cmd
+        terminalArgs = args
         break
       }
       case 'win32': {

@@ -13,13 +13,14 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
-import { codeTools } from '@shared/config/constant'
+import { codeTools, TerminalConfig } from '@shared/config/constant'
 import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, HelpCircle, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import styled from 'styled-components'
+import { isMac } from '@renderer/config/constant'
 
 import {
   CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS,
@@ -42,12 +43,14 @@ const CodeToolsPage: FC = () => {
   const {
     selectedCliTool,
     selectedModel,
+    selectedTerminal,
     environmentVariables,
     directories,
     currentDirectory,
     canLaunch,
     setCliTool,
     setModel,
+    setTerminal,
     setEnvVars,
     setCurrentDir,
     removeDir,
@@ -58,6 +61,8 @@ const CodeToolsPage: FC = () => {
   const [isLaunching, setIsLaunching] = useState(false)
   const [isInstallingBun, setIsInstallingBun] = useState(false)
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
+  const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
+  const [isLoadingTerminals, setIsLoadingTerminals] = useState(false)
 
   const modelPredicate = useCallback(
     (m: Model) => {
@@ -119,6 +124,23 @@ const CodeToolsPage: FC = () => {
     }
   }, [dispatch])
 
+  // 获取可用终端
+  const loadAvailableTerminals = useCallback(async () => {
+    if (!isMac) return // 仅 macOS 支持
+
+    try {
+      setIsLoadingTerminals(true)
+      const terminals = await window.api.codeTools.getAvailableTerminals()
+      setAvailableTerminals(terminals)
+      logger.info(`Found ${terminals.length} available terminals:`, terminals.map(t => t.name))
+    } catch (error) {
+      logger.error('Failed to load available terminals:', error as Error)
+      setAvailableTerminals([])
+    } finally {
+      setIsLoadingTerminals(false)
+    }
+  }, [])
+
   // 安装 bun
   const handleInstallBun = async () => {
     try {
@@ -179,7 +201,8 @@ const CodeToolsPage: FC = () => {
   // 执行启动操作
   const executeLaunch = async (env: Record<string, string>) => {
     window.api.codeTools.run(selectedCliTool, selectedModel?.id!, currentDirectory, env, {
-      autoUpdateToLatest
+      autoUpdateToLatest,
+      terminal: selectedTerminal
     })
     window.toast.success(t('code.launch.success'))
   }
@@ -215,6 +238,11 @@ const CodeToolsPage: FC = () => {
   useEffect(() => {
     checkBunInstallation()
   }, [checkBunInstallation])
+
+  // 页面加载时获取可用终端
+  useEffect(() => {
+    loadAvailableTerminals()
+  }, [loadAvailableTerminals])
 
   return (
     <Container>
@@ -349,6 +377,24 @@ const CodeToolsPage: FC = () => {
               />
               <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>{t('code.env_vars_help')}</div>
             </SettingsItem>
+
+            {/* 终端选择 (仅 macOS) */}
+            {isMac && availableTerminals.length > 0 && (
+              <SettingsItem>
+                <div className="settings-label">Terminal</div>
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder="Select terminal application"
+                  value={selectedTerminal}
+                  onChange={setTerminal}
+                  loading={isLoadingTerminals}
+                  options={availableTerminals.map((terminal) => ({
+                    value: terminal.id,
+                    label: terminal.name
+                  }))}
+                />
+              </SettingsItem>
+            )}
 
             <SettingsItem>
               <div className="settings-label">{t('code.update_options')}</div>

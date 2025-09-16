@@ -321,6 +321,7 @@ export enum IpcChannel {
 
   // CodeTools
   CodeTools_Run = 'code-tools:run',
+  CodeTools_GetAvailableTerminals = 'code-tools:get-available-terminals',
 
   // OCR
   OCR_ocr = 'ocr:ocr',
