@@ -1,6 +1,5 @@
 import '@renderer/databases'
 
-import { HeroUIProvider } from '@heroui/react'
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -11,6 +10,7 @@ import { ToastPortal } from './components/ToastPortal'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
+import { HeroUIProvider } from './context/HeroUIProvider'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
@@ -34,7 +34,7 @@ function App(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <HeroUIProvider className="flex h-full w-full flex-1">
+        <HeroUIProvider>
           <StyleSheetManager>
             <ThemeProvider>
               <AntdProvider>

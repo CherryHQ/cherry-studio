@@ -37,6 +37,7 @@ dist
 out
 mcp_server
 stats.html
+.eslintcache
 
 # ENV
 .env

@@ -235,7 +235,7 @@ class McpService {
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
-            } catch (error: Error | any) {
+            } catch (error: any) {
               getServerLogger(server).error(`Error starting in-memory server`, error as Error)
               throw new Error(`Failed to start in-memory server: ${error.message}`)
             }
@@ -419,7 +419,7 @@ class McpService {
           const transport = await initTransport()
           try {
             await client.connect(transport)
-          } catch (error: Error | any) {
+          } catch (error: any) {
             if (
               error instanceof Error &&
               (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
@@ -852,7 +852,7 @@ class McpService {
       return {
         contents: contents
       }
-    } catch (error: Error | any) {
+    } catch (error: any) {
       getServerLogger(server, { uri }).error(`Failed to get resource`, error as Error)
       throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
     }

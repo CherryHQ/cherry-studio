@@ -121,6 +121,7 @@
   border-radius: 5px;
   word-break: keep-all;
   white-space: pre;
+  text-wrap: wrap;
 }
 
 .markdown code {

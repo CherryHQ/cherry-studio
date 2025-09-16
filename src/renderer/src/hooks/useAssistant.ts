@@ -172,7 +172,7 @@ export function useAssistant(id: string) {
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]
     ),
-    updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
+    updateAssistant: useCallback((assistant: Partial<Assistant>) => dispatch(updateAssistant(assistant)), [dispatch]),
     updateAssistantSettings
   }
 }

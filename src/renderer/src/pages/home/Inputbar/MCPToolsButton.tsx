@@ -1,4 +1,5 @@
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { ActionIconButton } from '@renderer/components/Buttons'
+import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -6,7 +7,7 @@ import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import { Assistant, MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
+import { MCPPrompt, MCPResource, MCPServer } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Form, Input, Tooltip } from 'antd'
 import { CircleX, Hammer, Plus } from 'lucide-react'
@@ -21,11 +22,10 @@ export interface MCPToolsButtonRef {
 }
 
 interface Props {
-  assistant: Assistant
+  assistantId: string
   ref?: React.RefObject<MCPToolsButtonRef | null>
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  ToolbarButton: any
 }
 
 // 添加类型定义
@@ -113,14 +113,14 @@ const extractPromptContent = (response: any): string | null => {
   return null
 }
 
-const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, ToolbarButton, ...props }) => {
+const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assistantId }) => {
   const { activedMcpServers } = useMCPServers()
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const navigate = useNavigate()
   const [form] = Form.useForm()
 
-  const { updateAssistant, assistant } = useAssistant(props.assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const model = assistant.model
   const { setTimeoutTimer } = useTimer()
 
@@ -228,7 +228,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: menuItems,
-      symbol: 'mcp',
+      symbol: QuickPanelReservedSymbol.Mcp,
       multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
@@ -318,7 +318,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           })
 
           await handlePromptResponse(response)
-        } catch (error: Error | any) {
+        } catch (error: any) {
           if (error.message !== 'cancelled') {
             window.modal.error({
               title: t('common.error'),
@@ -335,7 +335,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
             name: prompt.name
           })
           await handlePromptResponse(response)
-        } catch (error: Error | any) {
+        } catch (error: any) {
           window.modal.error({
             title: t('common.error'),
             content: error.message || t('settings.mcp.prompts.genericError')
@@ -377,7 +377,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: prompts,
-      symbol: 'mcp-prompt',
+      symbol: QuickPanelReservedSymbol.McpPrompt,
       multiple: true
     })
   }, [promptList, quickPanel, t])
@@ -416,7 +416,7 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
           } else {
             processResourceContent(response as ResourceData)
           }
-        } catch (error: Error | any) {
+        } catch (error: any) {
           window.modal.error({
             title: t('common.error'),
             content: error.message || t('settings.mcp.resources.genericError')
@@ -465,13 +465,13 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
     quickPanel.open({
       title: t('settings.mcp.title'),
       list: resourcesList,
-      symbol: 'mcp-resource',
+      symbol: QuickPanelReservedSymbol.McpResource,
       multiple: true
     })
   }, [resourcesList, quickPanel, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === 'mcp') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.Mcp) {
       quickPanel.close()
     } else {
       openQuickPanel()
@@ -486,12 +486,9 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, Toolbar
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
-        <Hammer
-          size={18}
-          color={assistant.mcpServers && assistant.mcpServers.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
-        />
-      </ToolbarButton>
+      <ActionIconButton onClick={handleOpenQuickPanel} active={assistant.mcpServers && assistant.mcpServers.length > 0}>
+        <Hammer size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

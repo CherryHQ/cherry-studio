@@ -230,7 +230,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
         break
       case WebSearchSource.AISDK:
         formattedCitations =
-          (block.response.results && (block.response.results as AISDKWebSearchResult[]))?.map((result, index) => ({
+          (block.response?.results as AISDKWebSearchResult[])?.map((result, index) => ({
             number: index + 1,
             url: result.url,
             title: result.title || new URL(result.url).hostname,

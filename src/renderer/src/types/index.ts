@@ -18,6 +18,7 @@ import type { BaseTool, MCPTool } from './tool'
 export * from './agent'
 export * from './knowledge'
 export * from './mcp'
+export * from './notification'
 export * from './ocr'
 
 export type Assistant = {

@@ -75,9 +75,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       baseURL: rerankHost
     },
     documentCount: base.documentCount,
-    preprocessProvider: updatedPreprocessProvider,
-    framework: base.framework,
-    retriever: base.retriever || { mode: 'hybrid' }
+    preprocessProvider: updatedPreprocessProvider
   }
 }
 

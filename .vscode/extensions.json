@@ -1,8 +1,12 @@
 {
   "recommendations": [
     "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
     "editorconfig.editorconfig",
-    "lokalise.i18n-ally"
+    "lokalise.i18n-ally",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer",
+    "oxc.oxc-vscode",
+    "biomejs.biome",
+    "typescriptteam.native-preview"
   ]
 }
