@@ -3,7 +3,7 @@ import clsx from 'clsx'
 import { useMemo, useState } from 'react'
 
 import { Sortable } from '../../../src/components/interactive/Sortable'
-import { useDndReorder } from '../../../src/components/interactive/Sortable/useDndReorder'
+import { useDndReorder } from '../../../src/hooks'
 
 type ExampleItem = { id: number; label: string }
 
