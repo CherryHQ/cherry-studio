@@ -1,14 +1,5 @@
-import type { ConcreteApiPaths } from '@shared/data/api/apiSchemas'
-import type {
-  ApiClient,
-  BatchRequest,
-  BatchResponse,
-  DataRequest,
-  DataResponse,
-  SubscriptionCallback,
-  SubscriptionOptions,
-  TransactionRequest
-} from '@shared/data/api/apiTypes'
+import type { ApiClient, ConcreteApiPaths } from '@shared/data/api/apiSchemas'
+import type { DataResponse } from '@shared/data/api/apiTypes'
 import { vi } from 'vitest'
 
 /**
@@ -18,20 +9,21 @@ import { vi } from 'vitest'
 
 // Mock response utilities
 const createMockResponse = <T>(data: T, success = true): DataResponse<T> => ({
-  success,
+  id: 'mock-id',
+  status: success ? 200 : 500,
   data,
-  timestamp: new Date().toISOString(),
-  ...(success ? {} : { error: { code: 'MOCK_ERROR', message: 'Mock error', details: {} } })
+  ...(success ? {} : { error: { code: 'MOCK_ERROR', message: 'Mock error', details: {}, status: 500 } })
 })
 
 const createMockError = (message: string): DataResponse<never> => ({
-  success: false,
+  id: 'mock-error-id',
+  status: 500,
   error: {
     code: 'MOCK_ERROR',
     message,
-    details: {}
-  },
-  timestamp: new Date().toISOString()
+    details: {},
+    status: 500
+  }
 })
 
 /**
@@ -40,80 +32,25 @@ const createMockError = (message: string): DataResponse<never> => ({
 export const createMockDataApiService = (customBehavior: Partial<ApiClient> = {}): ApiClient => {
   const mockService: ApiClient = {
     // HTTP Methods
-    get: vi.fn(async (path: ConcreteApiPaths, options?: any) => {
-      // Default mock behavior - return empty data based on path
-      const mockData = getMockDataForPath(path, 'GET')
-      return createMockResponse(mockData)
+    get: vi.fn(async (path: ConcreteApiPaths) => {
+      // Default mock behavior - return raw data based on path
+      return getMockDataForPath(path, 'GET') as any
     }),
 
-    post: vi.fn(async (path: ConcreteApiPaths, options?: any) => {
-      const mockData = getMockDataForPath(path, 'POST')
-      return createMockResponse(mockData)
+    post: vi.fn(async (path: ConcreteApiPaths) => {
+      return getMockDataForPath(path, 'POST') as any
     }),
 
-    put: vi.fn(async (path: ConcreteApiPaths, options?: any) => {
-      const mockData = getMockDataForPath(path, 'PUT')
-      return createMockResponse(mockData)
+    put: vi.fn(async (path: ConcreteApiPaths) => {
+      return getMockDataForPath(path, 'PUT') as any
     }),
 
-    patch: vi.fn(async (path: ConcreteApiPaths, options?: any) => {
-      const mockData = getMockDataForPath(path, 'PATCH')
-      return createMockResponse(mockData)
+    patch: vi.fn(async (path: ConcreteApiPaths) => {
+      return getMockDataForPath(path, 'PATCH') as any
     }),
 
-    delete: vi.fn(async (path: ConcreteApiPaths, options?: any) => {
-      return createMockResponse({ deleted: true })
-    }),
-
-    // Batch operations
-    batch: vi.fn(async (requests: BatchRequest[]): Promise<BatchResponse> => {
-      const responses = requests.map((request, index) => ({
-        id: request.id || `batch_${index}`,
-        success: true,
-        data: getMockDataForPath(request.path as ConcreteApiPaths, request.method),
-        timestamp: new Date().toISOString()
-      }))
-
-      return {
-        success: true,
-        responses,
-        timestamp: new Date().toISOString()
-      }
-    }),
-
-    // Transaction support
-    transaction: vi.fn(async (operations: TransactionRequest[]): Promise<DataResponse<any[]>> => {
-      const results = operations.map((op, index) => ({
-        operation: op.operation,
-        result: getMockDataForPath(op.path as ConcreteApiPaths, 'POST'),
-        success: true
-      }))
-
-      return createMockResponse(results)
-    }),
-
-    // Subscription methods
-    subscribe: vi.fn((path: ConcreteApiPaths, callback: SubscriptionCallback, options?: SubscriptionOptions) => {
-      // Return a mock unsubscribe function
-      return vi.fn()
-    }),
-
-    unsubscribe: vi.fn((path: ConcreteApiPaths) => {
-      // Mock unsubscribe
-    }),
-
-    // Connection management
-    connect: vi.fn(async () => {
-      return createMockResponse({ connected: true })
-    }),
-
-    disconnect: vi.fn(async () => {
-      return createMockResponse({ disconnected: true })
-    }),
-
-    // Health check
-    ping: vi.fn(async () => {
-      return createMockResponse({ pong: true, timestamp: new Date().toISOString() })
+    delete: vi.fn(async () => {
+      return { deleted: true } as any
     }),
 
     // Apply custom behavior overrides
@@ -229,34 +166,6 @@ export const MockDataApiService = {
     async delete(path: ConcreteApiPaths, options?: any) {
       return mockDataApiService.delete(path, options)
     }
-
-    async batch(requests: BatchRequest[]) {
-      return mockDataApiService.batch(requests)
-    }
-
-    async transaction(operations: TransactionRequest[]) {
-      return mockDataApiService.transaction(operations)
-    }
-
-    subscribe(path: ConcreteApiPaths, callback: SubscriptionCallback, options?: SubscriptionOptions) {
-      return mockDataApiService.subscribe(path, callback, options)
-    }
-
-    unsubscribe(path: ConcreteApiPaths) {
-      return mockDataApiService.unsubscribe(path)
-    }
-
-    async connect() {
-      return mockDataApiService.connect()
-    }
-
-    async disconnect() {
-      return mockDataApiService.disconnect()
-    }
-
-    async ping() {
-      return mockDataApiService.ping()
-    }
   },
   dataApiService: mockDataApiService
 }
@@ -269,7 +178,7 @@ export const MockDataApiUtils = {
    * Reset all mock function call counts and implementations
    */
   resetMocks: () => {
-    Object.values(mockDataApiService).forEach(method => {
+    Object.values(mockDataApiService).forEach((method) => {
       if (vi.isMockFunction(method)) {
         method.mockClear()
       }
@@ -282,7 +191,7 @@ export const MockDataApiUtils = {
   setCustomResponse: (path: ConcreteApiPaths, method: string, response: any) => {
     const methodFn = mockDataApiService[method.toLowerCase() as keyof ApiClient] as any
     if (vi.isMockFunction(methodFn)) {
-      methodFn.mockImplementation(async (requestPath: string, options?: any) => {
+      methodFn.mockImplementation(async (requestPath: string) => {
         if (requestPath === path) {
           return createMockResponse(response)
         }
@@ -298,7 +207,7 @@ export const MockDataApiUtils = {
   setErrorResponse: (path: ConcreteApiPaths, method: string, errorMessage: string) => {
     const methodFn = mockDataApiService[method.toLowerCase() as keyof ApiClient] as any
     if (vi.isMockFunction(methodFn)) {
-      methodFn.mockImplementation(async (requestPath: string, options?: any) => {
+      methodFn.mockImplementation(async (requestPath: string) => {
         if (requestPath === path) {
           return createMockError(errorMessage)
         }

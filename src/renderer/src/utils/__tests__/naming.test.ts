@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@renderer/i18n/label', () => ({
   getProviderLabel: vi.fn((id: string) => {
     const labelMap: Record<string, string> = {
-      'dashscope': 'Alibaba Cloud',
-      'openai': 'OpenAI',
-      'anthropic': 'Anthropic'
+      dashscope: 'Alibaba Cloud',
+      openai: 'OpenAI',
+      anthropic: 'Anthropic'
     }
     return labelMap[id] || id
   })

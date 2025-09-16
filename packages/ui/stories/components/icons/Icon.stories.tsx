@@ -1,35 +1,19 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import {
-  Copy,
-  Trash,
-  Pencil,
-  RefreshCw,
-  RotateCcw,
-  Wrench,
-  Eye,
-  Search,
-  WrapText,
-  AlignLeft,
-  ScanLine,
-  Settings,
-  Download,
-  Upload,
-  ChevronRight
-} from 'lucide-react'
+import { ChevronRight, Download, Settings, Upload } from 'lucide-react'
 
 import {
-  createIcon,
   CopyIcon,
+  createIcon,
   DeleteIcon,
   EditIcon,
+  OcrIcon,
   RefreshIcon,
   ResetIcon,
   ToolIcon,
+  UnWrapIcon,
   VisionIcon,
   WebSearchIcon,
-  WrapIcon,
-  UnWrapIcon,
-  OcrIcon
+  WrapIcon
 } from '../../../src/components/icons/Icon'
 
 // Create a dummy component for the story
@@ -278,8 +262,7 @@ export const IconGrid: Story = {
         {AllIcons.map(({ Icon, name }) => (
           <div
             key={name}
-            className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 p-4 hover:border-blue-500"
-          >
+            className="flex flex-col items-center gap-2 rounded-lg border border-gray-200 p-4 hover:border-blue-500">
             <Icon size={24} />
             <span className="text-xs">{name}</span>
           </div>

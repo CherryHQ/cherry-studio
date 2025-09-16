@@ -100,7 +100,8 @@ vi.mock('@renderer/utils', () => ({
 
 vi.mock('@shared/config/prompts', () => ({
   WEB_SEARCH_PROMPT_FOR_OPENROUTER: 'mock-prompt',
-  TRANSLATE_PROMPT: 'You are a translation expert. Your only task is to translate text enclosed with <translate_input> from input language to {{target_language}}, provide the translation result directly without any explanation, without `TRANSLATE` and keep original format.'
+  TRANSLATE_PROMPT:
+    'You are a translation expert. Your only task is to translate text enclosed with <translate_input> from input language to {{target_language}}, provide the translation result directly without any explanation, without `TRANSLATE` and keep original format.'
 }))
 
 vi.mock('@renderer/config/systemModels', () => ({

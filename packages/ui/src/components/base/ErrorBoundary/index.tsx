@@ -98,4 +98,4 @@ const ErrorContainer = styled.div`
 `
 
 export { ErrorBoundaryCustomized as ErrorBoundary }
-export type { ErrorBoundaryCustomizedProps, CustomFallbackProps }
+export type { CustomFallbackProps, ErrorBoundaryCustomizedProps }

@@ -35,11 +35,11 @@ export class MockMainDataApiService {
   private static instance: MockMainDataApiService
   private initialized = false
   private apiServer: MockApiServer
-  private ipcAdapter: MockIpcAdapter
+  private _ipcAdapter: MockIpcAdapter // Used for mock setup (referenced in constructor)
 
   private constructor() {
     this.apiServer = new MockApiServer()
-    this.ipcAdapter = new MockIpcAdapter()
+    this._ipcAdapter = new MockIpcAdapter()
   }
 
   public static getInstance(): MockMainDataApiService {
@@ -82,6 +82,11 @@ export class MockMainDataApiService {
   public shutdown = vi.fn(async (): Promise<void> => {
     this.initialized = false
   })
+
+  // Getter for testing purposes
+  public get ipcAdapter() {
+    return this._ipcAdapter
+  }
 }
 
 // Mock singleton instance
@@ -112,7 +117,7 @@ export const MockMainDataApiServiceUtils = {
    */
   resetMocks: () => {
     // Reset all method mocks
-    Object.values(mockInstance).forEach(method => {
+    Object.values(mockInstance).forEach((method) => {
       if (vi.isMockFunction(method)) {
         method.mockClear()
       }
@@ -139,7 +144,7 @@ export const MockMainDataApiServiceUtils = {
   /**
    * Mock system info for testing
    */
-  mockSystemInfo: (info: Record<string, any>) => {
+  mockSystemInfo: (info: { server: string; version: string; handlers: string[]; middlewares: string[] }) => {
     mockInstance.getApiServer().getSystemInfo.mockReturnValue(info)
   },
 

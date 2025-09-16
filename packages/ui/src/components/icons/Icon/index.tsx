@@ -16,8 +16,11 @@ import React from 'react'
 
 // 创建一个 Icon 工厂函数
 export function createIcon(IconComponent: LucideIcon, defaultSize: string | number = '1rem') {
-  const Icon = React.forwardRef<SVGSVGElement, React.ComponentProps<typeof IconComponent>>(
-    (props, ref) => <IconComponent ref={ref} size={defaultSize} {...props} />
+  const Icon = ({
+    ref,
+    ...props
+  }: React.ComponentProps<typeof IconComponent> & { ref?: React.RefObject<SVGSVGElement | null> }) => (
+    <IconComponent ref={ref} size={defaultSize} {...props} />
   )
   Icon.displayName = `Icon(${IconComponent.displayName || IconComponent.name})`
   return Icon

@@ -79,13 +79,7 @@ export class MockMainCacheService {
   })
 
   // Private methods exposed for testing
-  private broadcastSync = vi.fn((message: CacheSyncMessage, senderWindowId?: number): void => {
-    mockBroadcastCalls.push({ message, senderWindowId })
-  })
-
-  private setupIpcHandlers = vi.fn((): void => {
-    // Mock IPC handler setup
-  })
+  // These methods are mocked but not exposed to avoid TypeScript unused warnings
 }
 
 // Mock singleton instance
@@ -108,7 +102,7 @@ export const MockMainCacheServiceUtils = {
    */
   resetMocks: () => {
     // Reset all method mocks
-    Object.values(mockInstance).forEach(method => {
+    Object.values(mockInstance).forEach((method) => {
       if (vi.isMockFunction(method)) {
         method.mockClear()
       }

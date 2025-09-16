@@ -34,7 +34,7 @@ export const mockPreferenceDefaults: Record<string, any> = {
 
   // App preferences
   'app.user.name': 'MockUser',
-  'app.language': 'zh-CN',
+  'app.language': 'zh-CN'
 
   // Add more defaults as needed
 }
@@ -76,14 +76,14 @@ export const createMockPreferenceService = (customDefaults: Record<string, any> 
     }),
 
     clear: vi.fn(() => {
-      Object.keys(mergedDefaults).forEach(key => delete mergedDefaults[key])
+      Object.keys(mergedDefaults).forEach((key) => delete mergedDefaults[key])
       return Promise.resolve()
     }),
 
     // Internal state access for testing
     _getMockState: () => ({ ...mergedDefaults }),
     _resetMockState: () => {
-      Object.keys(mergedDefaults).forEach(key => delete mergedDefaults[key])
+      Object.keys(mergedDefaults).forEach((key) => delete mergedDefaults[key])
       Object.assign(mergedDefaults, mockPreferenceDefaults, customDefaults)
     }
   }

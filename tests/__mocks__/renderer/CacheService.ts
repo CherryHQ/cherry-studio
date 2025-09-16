@@ -2,9 +2,7 @@ import type {
   RendererPersistCacheKey,
   RendererPersistCacheSchema,
   UseCacheKey,
-  UseCacheSchema,
-  UseSharedCacheKey,
-  UseSharedCacheSchema
+  UseSharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
 import { DefaultRendererPersistCache, DefaultUseCache, DefaultUseSharedCache } from '@shared/data/cache/cacheSchemas'
 import type { CacheSubscriber } from '@shared/data/cache/cacheTypes'
@@ -18,11 +16,13 @@ import { vi } from 'vitest'
 /**
  * Create a mock CacheService with realistic behavior
  */
-export const createMockCacheService = (options: {
-  initialMemoryCache?: Map<string, any>
-  initialSharedCache?: Map<string, any>
-  initialPersistCache?: Map<RendererPersistCacheKey, any>
-} = {}) => {
+export const createMockCacheService = (
+  options: {
+    initialMemoryCache?: Map<string, any>
+    initialSharedCache?: Map<string, any>
+    initialPersistCache?: Map<RendererPersistCacheKey, any>
+  } = {}
+) => {
   // Mock cache storage
   const memoryCache = new Map<string, any>(options.initialMemoryCache || [])
   const sharedCache = new Map<string, any>(options.initialSharedCache || [])
@@ -32,10 +32,10 @@ export const createMockCacheService = (options: {
   const subscribers = new Map<string, Set<CacheSubscriber>>()
 
   // Helper function to notify subscribers
-  const notifySubscribers = (key: string, value: any) => {
+  const notifySubscribers = (key: string) => {
     const keySubscribers = subscribers.get(key)
     if (keySubscribers) {
-      keySubscribers.forEach(callback => {
+      keySubscribers.forEach((callback) => {
         try {
           callback()
         } catch (error) {
@@ -56,11 +56,11 @@ export const createMockCacheService = (options: {
       return defaultValue !== undefined ? defaultValue : null
     }),
 
-    set: vi.fn(<T>(key: string, value: T, ttl?: number): void => {
+    set: vi.fn(<T>(key: string, value: T): void => {
       const oldValue = memoryCache.get(key)
       memoryCache.set(key, value)
       if (oldValue !== value) {
-        notifySubscribers(key, value)
+        notifySubscribers(key)
       }
     }),
 
@@ -68,7 +68,7 @@ export const createMockCacheService = (options: {
       const existed = memoryCache.has(key)
       memoryCache.delete(key)
       if (existed) {
-        notifySubscribers(key, null)
+        notifySubscribers(key)
       }
       return existed
     }),
@@ -76,7 +76,7 @@ export const createMockCacheService = (options: {
     clear: vi.fn((): void => {
       const keys = Array.from(memoryCache.keys())
       memoryCache.clear()
-      keys.forEach(key => notifySubscribers(key, null))
+      keys.forEach((key) => notifySubscribers(key))
     }),
 
     has: vi.fn((key: string): boolean => {
@@ -96,11 +96,11 @@ export const createMockCacheService = (options: {
       return defaultValue !== undefined ? defaultValue : null
     }),
 
-    setShared: vi.fn(<T>(key: string, value: T, ttl?: number): void => {
+    setShared: vi.fn(<T>(key: string, value: T): void => {
       const oldValue = sharedCache.get(key)
       sharedCache.set(key, value)
       if (oldValue !== value) {
-        notifySubscribers(`shared:${key}`, value)
+        notifySubscribers(`shared:${key}`)
       }
     }),
 
@@ -108,7 +108,7 @@ export const createMockCacheService = (options: {
       const existed = sharedCache.has(key)
       sharedCache.delete(key)
       if (existed) {
-        notifySubscribers(`shared:${key}`, null)
+        notifySubscribers(`shared:${key}`)
       }
       return existed
     }),
@@ -116,7 +116,7 @@ export const createMockCacheService = (options: {
     clearShared: vi.fn((): void => {
       const keys = Array.from(sharedCache.keys())
       sharedCache.clear()
-      keys.forEach(key => notifySubscribers(`shared:${key}`, null))
+      keys.forEach((key) => notifySubscribers(`shared:${key}`))
     }),
 
     // Persist cache methods
@@ -131,7 +131,7 @@ export const createMockCacheService = (options: {
       const oldValue = persistCache.get(key)
       persistCache.set(key, value)
       if (oldValue !== value) {
-        notifySubscribers(`persist:${key}`, value)
+        notifySubscribers(`persist:${key}`)
       }
     }),
 
@@ -139,7 +139,7 @@ export const createMockCacheService = (options: {
       const existed = persistCache.has(key)
       persistCache.delete(key)
       if (existed) {
-        notifySubscribers(`persist:${key}`, DefaultRendererPersistCache[key])
+        notifySubscribers(`persist:${key}`)
       }
       return existed
     }),
@@ -147,7 +147,7 @@ export const createMockCacheService = (options: {
     clearPersist: vi.fn((): void => {
       const keys = Array.from(persistCache.keys()) as RendererPersistCacheKey[]
       persistCache.clear()
-      keys.forEach(key => notifySubscribers(`persist:${key}`, DefaultRendererPersistCache[key]))
+      keys.forEach((key) => notifySubscribers(`persist:${key}`))
     }),
 
     // Subscription methods
@@ -184,11 +184,11 @@ export const createMockCacheService = (options: {
     }),
 
     // Hook reference tracking (for advanced cache management)
-    addHookReference: vi.fn((key: string): void => {
+    addHookReference: vi.fn((): void => {
       // Mock implementation - in real service this prevents cache cleanup
     }),
 
-    removeHookReference: vi.fn((key: string): void => {
+    removeHookReference: vi.fn((): void => {
       // Mock implementation
     }),
 
@@ -253,11 +253,11 @@ export const MockCacheService = {
 
     // Delegate all methods to the mock
     get<T>(key: string): T | null {
-      return mockCacheService.get<T>(key)
+      return mockCacheService.get(key) as T | null
     }
 
-    set<T>(key: string, value: T, ttl?: number): void {
-      return mockCacheService.set(key, value, ttl)
+    set<T>(key: string, value: T): void {
+      return mockCacheService.set(key, value)
     }
 
     delete(key: string): boolean {
@@ -277,11 +277,11 @@ export const MockCacheService = {
     }
 
     getShared<T>(key: string): T | null {
-      return mockCacheService.getShared<T>(key)
+      return mockCacheService.getShared(key) as T | null
     }
 
-    setShared<T>(key: string, value: T, ttl?: number): void {
-      return mockCacheService.setShared(key, value, ttl)
+    setShared<T>(key: string, value: T): void {
+      return mockCacheService.setShared(key, value)
     }
 
     deleteShared(key: string): boolean {
@@ -316,12 +316,12 @@ export const MockCacheService = {
       return mockCacheService.unsubscribe(key, callback)
     }
 
-    addHookReference(key: string): void {
-      return mockCacheService.addHookReference(key)
+    addHookReference(): void {
+      return mockCacheService.addHookReference()
     }
 
-    removeHookReference(key: string): void {
-      return mockCacheService.removeHookReference(key)
+    removeHookReference(): void {
+      return mockCacheService.removeHookReference()
     }
 
     getAllKeys(): string[] {
@@ -343,7 +343,7 @@ export const MockCacheUtils = {
    * Reset all mock function call counts and state
    */
   resetMocks: () => {
-    Object.values(mockCacheService).forEach(method => {
+    Object.values(mockCacheService).forEach((method) => {
       if (vi.isMockFunction(method)) {
         method.mockClear()
       }

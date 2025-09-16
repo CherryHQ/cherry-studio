@@ -41,7 +41,7 @@ const mockPersistSubscribers = new Map<RendererPersistCacheKey, Set<() => void>>
 const notifyMemorySubscribers = (key: UseCacheKey) => {
   const subscribers = mockMemorySubscribers.get(key)
   if (subscribers) {
-    subscribers.forEach(callback => {
+    subscribers.forEach((callback) => {
       try {
         callback()
       } catch (error) {
@@ -54,7 +54,7 @@ const notifyMemorySubscribers = (key: UseCacheKey) => {
 const notifySharedSubscribers = (key: UseSharedCacheKey) => {
   const subscribers = mockSharedSubscribers.get(key)
   if (subscribers) {
-    subscribers.forEach(callback => {
+    subscribers.forEach((callback) => {
       try {
         callback()
       } catch (error) {
@@ -67,7 +67,7 @@ const notifySharedSubscribers = (key: UseSharedCacheKey) => {
 const notifyPersistSubscribers = (key: RendererPersistCacheKey) => {
   const subscribers = mockPersistSubscribers.get(key)
   if (subscribers) {
-    subscribers.forEach(callback => {
+    subscribers.forEach((callback) => {
       try {
         callback()
       } catch (error) {
@@ -80,77 +80,83 @@ const notifyPersistSubscribers = (key: RendererPersistCacheKey) => {
 /**
  * Mock useCache hook (memory cache)
  */
-export const mockUseCache = vi.fn(<K extends UseCacheKey>(
-  key: K,
-  initValue?: UseCacheSchema[K]
-): [UseCacheSchema[K], (value: UseCacheSchema[K]) => void] => {
-  // Get current value
-  let currentValue = mockMemoryCache.get(key)
-  if (currentValue === undefined) {
-    currentValue = initValue ?? DefaultUseCache[key]
-    if (currentValue !== undefined) {
-      mockMemoryCache.set(key, currentValue)
+export const mockUseCache = vi.fn(
+  <K extends UseCacheKey>(
+    key: K,
+    initValue?: UseCacheSchema[K]
+  ): [UseCacheSchema[K], (value: UseCacheSchema[K]) => void] => {
+    // Get current value
+    let currentValue = mockMemoryCache.get(key)
+    if (currentValue === undefined) {
+      currentValue = initValue ?? DefaultUseCache[key]
+      if (currentValue !== undefined) {
+        mockMemoryCache.set(key, currentValue)
+      }
     }
+
+    // Mock setValue function
+    const setValue = vi.fn((value: UseCacheSchema[K]) => {
+      mockMemoryCache.set(key, value)
+      notifyMemorySubscribers(key)
+    })
+
+    return [currentValue, setValue]
   }
-
-  // Mock setValue function
-  const setValue = vi.fn((value: UseCacheSchema[K]) => {
-    mockMemoryCache.set(key, value)
-    notifyMemorySubscribers(key)
-  })
-
-  return [currentValue, setValue]
-})
+)
 
 /**
  * Mock useSharedCache hook (shared cache)
  */
-export const mockUseSharedCache = vi.fn(<K extends UseSharedCacheKey>(
-  key: K,
-  initValue?: UseSharedCacheSchema[K]
-): [UseSharedCacheSchema[K], (value: UseSharedCacheSchema[K]) => void] => {
-  // Get current value
-  let currentValue = mockSharedCache.get(key)
-  if (currentValue === undefined) {
-    currentValue = initValue ?? DefaultUseSharedCache[key]
-    if (currentValue !== undefined) {
-      mockSharedCache.set(key, currentValue)
+export const mockUseSharedCache = vi.fn(
+  <K extends UseSharedCacheKey>(
+    key: K,
+    initValue?: UseSharedCacheSchema[K]
+  ): [UseSharedCacheSchema[K], (value: UseSharedCacheSchema[K]) => void] => {
+    // Get current value
+    let currentValue = mockSharedCache.get(key)
+    if (currentValue === undefined) {
+      currentValue = initValue ?? DefaultUseSharedCache[key]
+      if (currentValue !== undefined) {
+        mockSharedCache.set(key, currentValue)
+      }
     }
+
+    // Mock setValue function
+    const setValue = vi.fn((value: UseSharedCacheSchema[K]) => {
+      mockSharedCache.set(key, value)
+      notifySharedSubscribers(key)
+    })
+
+    return [currentValue, setValue]
   }
-
-  // Mock setValue function
-  const setValue = vi.fn((value: UseSharedCacheSchema[K]) => {
-    mockSharedCache.set(key, value)
-    notifySharedSubscribers(key)
-  })
-
-  return [currentValue, setValue]
-})
+)
 
 /**
  * Mock usePersistCache hook (persistent cache)
  */
-export const mockUsePersistCache = vi.fn(<K extends RendererPersistCacheKey>(
-  key: K,
-  initValue?: RendererPersistCacheSchema[K]
-): [RendererPersistCacheSchema[K], (value: RendererPersistCacheSchema[K]) => void] => {
-  // Get current value
-  let currentValue = mockPersistCache.get(key)
-  if (currentValue === undefined) {
-    currentValue = initValue ?? DefaultRendererPersistCache[key]
-    if (currentValue !== undefined) {
-      mockPersistCache.set(key, currentValue)
+export const mockUsePersistCache = vi.fn(
+  <K extends RendererPersistCacheKey>(
+    key: K,
+    initValue?: RendererPersistCacheSchema[K]
+  ): [RendererPersistCacheSchema[K], (value: RendererPersistCacheSchema[K]) => void] => {
+    // Get current value
+    let currentValue = mockPersistCache.get(key)
+    if (currentValue === undefined) {
+      currentValue = initValue ?? DefaultRendererPersistCache[key]
+      if (currentValue !== undefined) {
+        mockPersistCache.set(key, currentValue)
+      }
     }
+
+    // Mock setValue function
+    const setValue = vi.fn((value: RendererPersistCacheSchema[K]) => {
+      mockPersistCache.set(key, value)
+      notifyPersistSubscribers(key)
+    })
+
+    return [currentValue, setValue]
   }
-
-  // Mock setValue function
-  const setValue = vi.fn((value: RendererPersistCacheSchema[K]) => {
-    mockPersistCache.set(key, value)
-    notifyPersistSubscribers(key)
-  })
-
-  return [currentValue, setValue]
-})
+)
 
 /**
  * Export all mocks as a unified module
@@ -292,18 +298,12 @@ export const MockUseCacheUtils = {
   ) => {
     mockUseCache.mockImplementation((cacheKey, initValue) => {
       if (cacheKey === key) {
-        return [
-          value,
-          setValue || vi.fn()
-        ]
+        return [value, setValue || vi.fn()]
       }
 
       // Default behavior for other keys
       const defaultValue = mockMemoryCache.get(cacheKey) ?? initValue ?? DefaultUseCache[cacheKey]
-      return [
-        defaultValue,
-        vi.fn()
-      ]
+      return [defaultValue, vi.fn()]
     })
   },
 
@@ -317,18 +317,12 @@ export const MockUseCacheUtils = {
   ) => {
     mockUseSharedCache.mockImplementation((cacheKey, initValue) => {
       if (cacheKey === key) {
-        return [
-          value,
-          setValue || vi.fn()
-        ]
+        return [value, setValue || vi.fn()]
       }
 
       // Default behavior for other keys
       const defaultValue = mockSharedCache.get(cacheKey) ?? initValue ?? DefaultUseSharedCache[cacheKey]
-      return [
-        defaultValue,
-        vi.fn()
-      ]
+      return [defaultValue, vi.fn()]
     })
   },
 
@@ -342,18 +336,12 @@ export const MockUseCacheUtils = {
   ) => {
     mockUsePersistCache.mockImplementation((cacheKey, initValue) => {
       if (cacheKey === key) {
-        return [
-          value,
-          setValue || vi.fn()
-        ]
+        return [value, setValue || vi.fn()]
       }
 
       // Default behavior for other keys
       const defaultValue = mockPersistCache.get(cacheKey) ?? initValue ?? DefaultRendererPersistCache[cacheKey]
-      return [
-        defaultValue,
-        vi.fn()
-      ]
+      return [defaultValue, vi.fn()]
     })
   },
 

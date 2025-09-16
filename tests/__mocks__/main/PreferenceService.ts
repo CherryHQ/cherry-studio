@@ -1,8 +1,5 @@
-import type {
-  PreferenceDefaultScopeType,
-  PreferenceKeyType
-} from '@shared/data/preference/preferenceTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { PreferenceDefaultScopeType, PreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { vi } from 'vitest'
 
 /**
@@ -26,7 +23,7 @@ const mockMainSubscribers = new Map<string, Set<(newValue: any, oldValue?: any) 
 const notifyMainSubscribers = (key: string, newValue: any, oldValue?: any) => {
   const subscribers = mockMainSubscribers.get(key)
   if (subscribers) {
-    subscribers.forEach(callback => {
+    subscribers.forEach((callback) => {
       try {
         callback(newValue, oldValue)
       } catch (error) {
@@ -41,7 +38,7 @@ const notifyMainSubscribers = (key: string, newValue: any, oldValue?: any) => {
  */
 export class MockMainPreferenceService {
   private static instance: MockMainPreferenceService
-  private initialized = false
+  private _initialized = false // Used in initialize method
 
   private constructor() {}
 
@@ -54,7 +51,7 @@ export class MockMainPreferenceService {
 
   // Mock initialization
   public initialize = vi.fn(async (): Promise<void> => {
-    this.initialized = true
+    this._initialized = true
   })
 
   // Mock get method
@@ -63,19 +60,18 @@ export class MockMainPreferenceService {
   })
 
   // Mock set method
-  public set = vi.fn(async <K extends PreferenceKeyType>(
-    key: K,
-    value: PreferenceDefaultScopeType[K]
-  ): Promise<void> => {
-    const oldValue = mockPreferenceState.get(key)
-    mockPreferenceState.set(key, value)
-    notifyMainSubscribers(key, value, oldValue)
-  })
+  public set = vi.fn(
+    async <K extends PreferenceKeyType>(key: K, value: PreferenceDefaultScopeType[K]): Promise<void> => {
+      const oldValue = mockPreferenceState.get(key)
+      mockPreferenceState.set(key, value)
+      notifyMainSubscribers(key, value, oldValue)
+    }
+  )
 
   // Mock getMultiple method
   public getMultiple = vi.fn(<K extends PreferenceKeyType>(keys: K[]) => {
     const result: any = {}
-    keys.forEach(key => {
+    keys.forEach((key) => {
       result[key] = mockPreferenceState.get(key) ?? DefaultPreferences.default[key]
     })
     return result
@@ -98,7 +94,7 @@ export class MockMainPreferenceService {
       mockSubscriptions.set(windowId, new Set())
     }
     const windowKeys = mockSubscriptions.get(windowId)!
-    keys.forEach(key => windowKeys.add(key))
+    keys.forEach((key) => windowKeys.add(key))
   })
 
   public unsubscribeForWindow = vi.fn((windowId: number): void => {
@@ -106,45 +102,50 @@ export class MockMainPreferenceService {
   })
 
   // Mock main process subscription methods
-  public subscribeChange = vi.fn(<K extends PreferenceKeyType>(
-    key: K,
-    callback: (newValue: PreferenceDefaultScopeType[K], oldValue?: PreferenceDefaultScopeType[K]) => void
-  ): (() => void) => {
-    if (!mockMainSubscribers.has(key)) {
-      mockMainSubscribers.set(key, new Set())
-    }
-    mockMainSubscribers.get(key)!.add(callback)
+  public subscribeChange = vi.fn(
+    <K extends PreferenceKeyType>(
+      key: K,
+      callback: (newValue: PreferenceDefaultScopeType[K], oldValue?: PreferenceDefaultScopeType[K]) => void
+    ): (() => void) => {
+      if (!mockMainSubscribers.has(key)) {
+        mockMainSubscribers.set(key, new Set())
+      }
+      mockMainSubscribers.get(key)!.add(callback)
 
-    // Return unsubscribe function
-    return () => {
-      const subscribers = mockMainSubscribers.get(key)
-      if (subscribers) {
-        subscribers.delete(callback)
-        if (subscribers.size === 0) {
-          mockMainSubscribers.delete(key)
+      // Return unsubscribe function
+      return () => {
+        const subscribers = mockMainSubscribers.get(key)
+        if (subscribers) {
+          subscribers.delete(callback)
+          if (subscribers.size === 0) {
+            mockMainSubscribers.delete(key)
+          }
         }
       }
     }
-  })
+  )
 
-  public subscribeMultipleChanges = vi.fn((
-    keys: PreferenceKeyType[],
-    callback: (key: PreferenceKeyType, newValue: any, oldValue: any) => void
-  ): (() => void) => {
-    const unsubscribeFunctions = keys.map(key =>
-      this.subscribeChange(key, (newValue, oldValue) => callback(key, newValue, oldValue))
-    )
+  public subscribeMultipleChanges = vi.fn(
+    (
+      keys: PreferenceKeyType[],
+      callback: (key: PreferenceKeyType, newValue: any, oldValue: any) => void
+    ): (() => void) => {
+      const unsubscribeFunctions = keys.map((key) =>
+        this.subscribeChange(key, (newValue, oldValue) => callback(key, newValue, oldValue))
+      )
 
-    return () => {
-      unsubscribeFunctions.forEach(unsubscribe => unsubscribe())
+      return () => {
+        unsubscribeFunctions.forEach((unsubscribe) => unsubscribe())
+      }
     }
-  })
+  )
 
   // Mock utility methods
   public getAll = vi.fn((): PreferenceDefaultScopeType => {
     const result: any = {}
-    Object.keys(DefaultPreferences.default).forEach(key => {
-      result[key] = mockPreferenceState.get(key as PreferenceKeyType) ?? DefaultPreferences.default[key as PreferenceKeyType]
+    Object.keys(DefaultPreferences.default).forEach((key) => {
+      result[key] =
+        mockPreferenceState.get(key as PreferenceKeyType) ?? DefaultPreferences.default[key as PreferenceKeyType]
     })
     return result
   })
@@ -157,7 +158,7 @@ export class MockMainPreferenceService {
 
   public getChangeListenerCount = vi.fn((): number => {
     let total = 0
-    mockMainSubscribers.forEach(subscribers => {
+    mockMainSubscribers.forEach((subscribers) => {
       total += subscribers.size
     })
     return total
@@ -178,6 +179,11 @@ export class MockMainPreferenceService {
     })
     return stats
   })
+
+  // Getter for testing purposes
+  public get isInitialized() {
+    return this._initialized
+  }
 
   // Static methods
   public static registerIpcHandler = vi.fn((): void => {
@@ -205,7 +211,7 @@ export const MockMainPreferenceServiceUtils = {
    */
   resetMocks: () => {
     // Reset all method mocks
-    Object.values(mockInstance).forEach(method => {
+    Object.values(mockInstance).forEach((method) => {
       if (vi.isMockFunction(method)) {
         method.mockClear()
       }
