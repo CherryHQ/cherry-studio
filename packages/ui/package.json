@@ -36,14 +36,14 @@
     "tailwindcss": "^4.1.13"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.525.0"
-  },
-  "devDependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.525.0"
+  },
+  "devDependencies": {
     "@heroui/react": "^2.8.4",
     "@storybook/addon-docs": "^9.1.6",
     "@storybook/react-vite": "^9.1.6",
