@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import clsx from 'clsx'
-import React, { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Sortable } from '../../../src/components/interactive/Sortable'
 import { useDndReorder } from '../../../src/components/interactive/Sortable/useDndReorder'
