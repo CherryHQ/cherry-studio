@@ -289,7 +289,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
         `tell application "Terminal"
   if (count of windows) = 0 then
     -- 没有窗口时，do script 会自动创建第一个窗口
-    do script "cd '${directory.replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/"/g, '\\"')}"
+    do script "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
   else
     -- 有窗口时，创建新标签页
     tell application "System Events"
@@ -298,7 +298,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       end tell
     end tell
     delay 0.5
-    do script "cd '${directory.replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/"/g, '\\"')}" in front window
+    do script "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" in front window
   end if
   activate
 end tell`
@@ -322,7 +322,7 @@ end tell`
     end tell
   end if
   tell current session of current window
-    write text "${fullCommand.replace(/"/g, '\\"')}"
+    write text "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
   end tell
   activate
   tell front window
@@ -340,7 +340,7 @@ end tell`
       command: 'osascript',
       args: [
         '-e',
-        `set the clipboard to "cd \\"${directory.replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/"/g, '\\"')}"
+        `set the clipboard to "cd \\"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
 tell application "Warp"
   activate
   delay 0.8
@@ -367,7 +367,7 @@ end tell`
       command: 'sh',
       args: [
         '-c',
-        `cd "${directory}" && open -na kitty --args --directory="${directory}" sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "kitty" to activate'`
+        `cd "${directory}" && open -na kitty --args --directory="${directory}" sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "kitty" to activate'`
       ]
     })
   },
@@ -379,7 +379,7 @@ end tell`
       command: 'sh',
       args: [
         '-c',
-        `open -na Alacritty --args --working-directory "${directory}" -e sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Alacritty" to activate'`
+        `open -na Alacritty --args --working-directory "${directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Alacritty" to activate'`
       ]
     })
   },
@@ -391,7 +391,7 @@ end tell`
       command: 'sh',
       args: [
         '-c',
-        `open -na WezTerm --args start --new-tab --cwd "${directory}" -- sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
+        `open -na WezTerm --args start --new-tab --cwd "${directory}" -- sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
       ]
     })
   },
@@ -403,7 +403,7 @@ end tell`
       command: 'sh',
       args: [
         '-c',
-        `cd "${directory}" && open -na Ghostty --args --working-directory="${directory}" -e sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
+        `cd "${directory}" && open -na Ghostty --args --working-directory="${directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
       ]
     })
   }
