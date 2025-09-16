@@ -11,7 +11,6 @@ type Props = {
   estimateTokenCount: number
   inputTokenCount: number
   contextCount: { current: number; max: number }
-  ToolbarButton: any
 } & React.HTMLAttributes<HTMLDivElement>
 
 const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount }) => {

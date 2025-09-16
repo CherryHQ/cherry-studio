@@ -1394,7 +1394,7 @@ const migrateConfig = {
       if (state.websearch?.providers) {
         state.websearch.providers = state.websearch.providers.map((provider) => {
           if (provider.id === 'exa' || provider.id === 'tavily') {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            // oxlint-disable-next-line @typescript-eslint/no-unused-vars
             const { basicAuthUsername, basicAuthPassword, ...rest } = provider
             return rest
           }
@@ -2376,8 +2376,8 @@ const migrateConfig = {
   '147': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2398,8 +2398,8 @@ const migrateConfig = {
   '149': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2467,6 +2467,11 @@ const migrateConfig = {
   '155': (state: RootState) => {
     try {
       addProvider(state, 'aionly')
+      state.knowledge.bases.forEach((base) => {
+        if ((base as any).framework) {
+          delete (base as any).framework
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 155 error', error as Error)

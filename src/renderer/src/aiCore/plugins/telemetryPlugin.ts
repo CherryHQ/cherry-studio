@@ -66,6 +66,7 @@ class AdapterTracer {
       spanName: name,
       topicId: this.topicId,
       modelName: this.modelName,
+      // oxlint-disable-next-line no-undef False alarm. see https://github.com/oxc-project/oxc/issues/4232
       argCount: arguments.length
     })
 

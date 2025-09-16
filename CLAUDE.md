@@ -9,6 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
 - **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
 - **Install Dependencies**: `yarn install`
+- **Add New Dependencies**: `yarn add -D` for renderer-specific dependencies, `yarn add` for others.
 
 ### Development
 
@@ -21,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Run E2E Tests**: `yarn test:e2e` - Playwright end-to-end tests
 - **Type Check**: `yarn typecheck` - Checks TypeScript for both node and web
 - **Lint**: `yarn lint` - ESLint with auto-fix
-- **Format**: `yarn format` - Prettier formatting
+- **Format**: `yarn format` - Biome formatting
 
 ### Build & Release
 

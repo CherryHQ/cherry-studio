@@ -17,52 +17,52 @@ protocols:
     schemes:
       - cherrystudio
 files:
-  - '**/*'
-  - '!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}'
-  - '!electron.vite.config.{js,ts,mjs,cjs}}'
-  - '!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}'
-  - '!**/{.editorconfig,.jekyll-metadata}'
-  - '!src'
-  - '!scripts'
-  - '!local'
-  - '!docs'
-  - '!packages'
-  - '!.swc'
-  - '!.bin'
-  - '!._*'
-  - '!*.log'
-  - '!stats.html'
-  - '!*.md'
-  - '!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}'
-  - '!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}'
-  - '!**/{test,tests,__tests__,powered-test,coverage}/**'
-  - '!**/{example,examples}/**'
-  - '!**/*.{spec,test}.{js,jsx,ts,tsx}'
-  - '!**/*.min.*.map'
-  - '!**/*.d.ts'
-  - '!**/dist/es6/**'
-  - '!**/dist/demo/**'
-  - '!**/amd/**'
-  - '!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}'
-  - '!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}'
-  - '!node_modules/rollup-plugin-visualizer'
-  - '!node_modules/js-tiktoken'
-  - '!node_modules/@tavily/core/node_modules/js-tiktoken'
-  - '!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}'
-  - '!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}'
-  - '!node_modules/selection-hook/prebuilds/**/*' # we rebuild .node, don't use prebuilds
-  - '!node_modules/selection-hook/node_modules' # we don't need what in the node_modules dir
-  - '!node_modules/selection-hook/src' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}' # we don't need source files
-  - '!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}' # we don't need source files
-  - '!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}' # filter .node build files
+  - "**/*"
+  - "!**/{.vscode,.yarn,.yarn-lock,.github,.cursorrules,.prettierrc}"
+  - "!electron.vite.config.{js,ts,mjs,cjs}}"
+  - "!**/{.eslintignore,.eslintrc.js,.eslintrc.json,.eslintcache,root.eslint.config.js,eslint.config.js,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,eslint.config.mjs,dev-app-update.yml,CHANGELOG.md,README.md,biome.jsonc}"
+  - "!**/{.env,.env.*,.npmrc,pnpm-lock.yaml}"
+  - "!**/{tsconfig.json,tsconfig.tsbuildinfo,tsconfig.node.json,tsconfig.web.json}"
+  - "!**/{.editorconfig,.jekyll-metadata}"
+  - "!src"
+  - "!scripts"
+  - "!local"
+  - "!docs"
+  - "!packages"
+  - "!.swc"
+  - "!.bin"
+  - "!._*"
+  - "!*.log"
+  - "!stats.html"
+  - "!*.md"
+  - "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+  - "!**/*.{map,ts,tsx,jsx,less,scss,sass,css.d.ts,d.cts,d.mts,md,markdown,yaml,yml}"
+  - "!**/{test,tests,__tests__,powered-test,coverage}/**"
+  - "!**/{example,examples}/**"
+  - "!**/*.{spec,test}.{js,jsx,ts,tsx}"
+  - "!**/*.min.*.map"
+  - "!**/*.d.ts"
+  - "!**/dist/es6/**"
+  - "!**/dist/demo/**"
+  - "!**/amd/**"
+  - "!**/{.DS_Store,Thumbs.db,thumbs.db,__pycache__}"
+  - "!**/{LICENSE,license,LICENSE.*,*.LICENSE.txt,NOTICE.txt,README.md,readme.md,CHANGELOG.md}"
+  - "!node_modules/rollup-plugin-visualizer"
+  - "!node_modules/js-tiktoken"
+  - "!node_modules/@tavily/core/node_modules/js-tiktoken"
+  - "!node_modules/pdf-parse/lib/pdf.js/{v1.9.426,v1.10.88,v2.0.550}"
+  - "!node_modules/mammoth/{mammoth.browser.js,mammoth.browser.min.js}"
+  - "!node_modules/selection-hook/prebuilds/**/*" # we rebuild .node, don't use prebuilds
+  - "!node_modules/selection-hook/node_modules" # we don't need what in the node_modules dir
+  - "!node_modules/selection-hook/src" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
 asarUnpack:
   - resources/**
-  - '**/*.{metal,exp,lib}'
-  - 'node_modules/@img/sharp-libvips-*/**'
+  - "**/*.{metal,exp,lib}"
+  - "node_modules/@img/sharp-libvips-*/**"
 win:
   executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
@@ -88,7 +88,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
   artifactName: ${productName}-${version}-${arch}.${ext}
-  minimumSystemVersion: '20.1.0' # 最低支持 macOS 11.0
+  minimumSystemVersion: "20.1.0" # 最低支持 macOS 11.0
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -113,7 +113,7 @@ linux:
 rpm:
   # Workaround for electron build issue on rpm package:
   # https://github.com/electron/forge/issues/3594
-  fpm: ['--rpm-rpmbuild-define=_build_id_links none']
+  fpm: ["--rpm-rpmbuild-define=_build_id_links none"]
 publish:
   provider: generic
   url: https://releases.cherry-ai.com
@@ -126,24 +126,19 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ✨ 新功能：
-    - 重构知识库模块，提升文档处理能力和搜索性能
-    - 新增 PaddleOCR 支持，增强文档识别能力
-    - 支持自定义窗口控制按钮样式
-    - 新增 AI SDK 包，扩展 AI 能力集成
-    - 支持标签页拖拽重排序功能
-    - 增强笔记编辑器的同步和日志功能
+    - 集成 Perplexity SDK 和 Anthropic OAuth
+    - 支持 API 服务器模式，提供外部调用接口
+    - 新增字体自定义设置功能
+    - 笔记支持文件夹批量上传
+    - 集成 HeroUI 和 Tailwind CSS 提升界面体验
 
-    🔧 性能优化：
-    - 优化 MCP 服务的日志记录和错误处理
-    - 改进 WebView 服务的 User-Agent 处理
-    - 优化迷你应用的标题栏样式和状态栏适配
-    - 重构依赖管理，清理和优化 package.json
+    🚀 性能优化：
+    - 优化大文件上传，支持 OpenAI 标准文件服务
+    - 重构 MCP 服务，改进错误处理和状态管理
 
     🐛 问题修复：
-    - 修复输入栏无限状态更新循环问题
-    - 修复窗口控制提示框的鼠标悬停延迟
-    - 修复翻译输入框粘贴多内容源的处理
-    - 修复导航服务初始化时序问题
-    - 修复 MCP 通过 JSON 添加时的参数转换
-    - 修复模型作用域服务器同步时的 URL 格式
-    - 标准化工具提示图标样式
+    - 修复 WebSearch RAG 并发问题
+    - 修复翻译页面长文本渲染布局问题
+    - 修复笔记拖拽排序和无限循环问题
+    - 修复 macOS CodeTool 工作目录错误
+    - 修复多个 UI 组件的响应式设计问题
