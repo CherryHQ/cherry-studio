@@ -685,6 +685,13 @@
     "model_required": "請選擇模型",
     "select_folder": "選擇資料夾",
     "supported_providers": "支援的供應商",
+    "terminal": "終端機",
+    "terminal_placeholder": "選擇終端機應用程式",
+    "set_custom_path": "設定自訂終端機路徑",
+    "custom_path": "自訂路徑",
+    "custom_path_required": "此終端機需要設定自訂路徑",
+    "custom_path_set": "自訂終端機路徑設定成功",
+    "custom_path_error": "設定自訂終端機路徑失敗",
     "title": "程式碼工具",
     "update_options": "更新選項",
     "working_directory": "工作目錄"

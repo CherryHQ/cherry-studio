@@ -686,6 +686,13 @@
     "model_required": "请选择模型",
     "select_folder": "选择文件夹",
     "supported_providers": "支持的服务商",
+    "terminal": "终端",
+    "terminal_placeholder": "选择终端应用",
+    "set_custom_path": "设置自定义终端路径",
+    "custom_path": "自定义路径",
+    "custom_path_required": "此终端需要设置自定义路径",
+    "custom_path_set": "自定义终端路径设置成功",
+    "custom_path_error": "设置自定义终端路径失败",
     "title": "代码工具",
     "update_options": "更新选项",
     "working_directory": "工作目录"

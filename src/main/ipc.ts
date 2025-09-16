@@ -825,6 +825,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   // CodeTools
   ipcMain.handle(IpcChannel.CodeTools_Run, codeToolsService.run)
   ipcMain.handle(IpcChannel.CodeTools_GetAvailableTerminals, () => codeToolsService.getAvailableTerminalsForPlatform())
+  ipcMain.handle(IpcChannel.CodeTools_SetCustomTerminalPath, (_, terminalId: string, path: string) =>
+    codeToolsService.setCustomTerminalPath(terminalId, path)
+  )
+  ipcMain.handle(IpcChannel.CodeTools_GetCustomTerminalPath, (_, terminalId: string) =>
+    codeToolsService.getCustomTerminalPath(terminalId)
+  )
+  ipcMain.handle(IpcChannel.CodeTools_RemoveCustomTerminalPath, (_, terminalId: string) =>
+    codeToolsService.removeCustomTerminalPath(terminalId)
+  )
 
   // OCR
   ipcMain.handle(IpcChannel.OCR_ocr, (_, file: SupportedOcrFile, provider: OcrProvider) =>

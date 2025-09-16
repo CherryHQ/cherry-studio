@@ -12,12 +12,11 @@ import {
   codeTools,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
-  WINDOWS_TERMINALS,
-  WINDOWS_TERMINALS_WITH_COMMANDS,
   terminalApps,
   TerminalConfig,
-  TerminalConfigWithCommand
-} from '@shared/config/constant'
+  TerminalConfigWithCommand,
+  WINDOWS_TERMINALS,
+  WINDOWS_TERMINALS_WITH_COMMANDS} from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -154,9 +153,18 @@ class CodeToolsService {
           }
 
         case terminalApps.windowsTerminal:
-          // Check for Windows Terminal via wt command
+          // Check for Windows Terminal via where command (doesn't launch the terminal)
           try {
-            await execAsync('wt --version', { timeout: 3000 })
+            await execAsync('where wt', { timeout: 3000 })
+            return terminal
+          } catch {
+            return null
+          }
+
+        case terminalApps.wsl:
+          // Check for WSL
+          try {
+            await execAsync('wsl --status', { timeout: 3000 })
             return terminal
           } catch {
             return null
@@ -723,9 +731,23 @@ class CodeToolsService {
           throw new Error(`Failed to create launch script: ${error}`)
         }
 
-        // Launch bat file - Use safest start syntax, no title parameter
-        terminalCommand = 'cmd'
-        terminalArgs = ['/c', 'start', batFilePath]
+        // Use selected terminal configuration
+        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
+
+        // Get command and args from terminal configuration
+        // Pass the bat file path as the command to execute
+        const fullCommand = batFilePath
+        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+
+        // Override if it's a custom terminal with a custom path
+        if (terminalConfig.customPath) {
+          terminalCommand = terminalConfig.customPath
+          terminalArgs = args
+        } else {
+          terminalCommand = cmd
+          terminalArgs = args
+        }
 
         // Set cleanup task (delete temp file after 5 minutes)
         setTimeout(() => {

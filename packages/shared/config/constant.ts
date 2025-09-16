@@ -230,7 +230,8 @@ export enum terminalApps {
   // Windows terminals
   windowsTerminal = 'WindowsTerminal',
   powershell = 'PowerShell',
-  cmd = 'CMD'
+  cmd = 'CMD',
+  wsl = 'WSL'
 }
 
 export interface TerminalConfig {
@@ -296,6 +297,10 @@ export const WINDOWS_TERMINALS: TerminalConfig[] = [
     name: 'Windows Terminal'
   },
   {
+    id: terminalApps.wsl,
+    name: 'WSL (Ubuntu/Debian)'
+  },
+  {
     id: terminalApps.alacritty,
     name: 'Alacritty'
   },
@@ -311,15 +316,15 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Command Prompt',
     command: (directory: string, fullCommand: string) => ({
       command: 'cmd',
-      args: ['/c', 'start', 'cmd', '/k', `cd /d "${directory}" && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}`]
+      args: ['/c', 'start', 'cmd', '/k', fullCommand]
     })
   },
   {
     id: terminalApps.powershell,
     name: 'PowerShell',
     command: (directory: string, fullCommand: string) => ({
-      command: 'powershell',
-      args: ['-Command', `Start-Process powershell -ArgumentList '-NoExit', '-Command', 'Set-Location "${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"; ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}'`]
+      command: 'cmd',
+      args: ['/c', 'start', 'powershell', '-NoExit', '-Command', `& '${fullCommand}'`]
     })
   },
   {
@@ -327,8 +332,20 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Windows Terminal',
     command: (directory: string, fullCommand: string) => ({
       command: 'wt',
-      args: ['-d', directory, 'cmd', '/k', fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')]
+      args: ['cmd', '/k', fullCommand]
     })
+  },
+  {
+    id: terminalApps.wsl,
+    name: 'WSL (Ubuntu/Debian)',
+    command: (directory: string, fullCommand: string) => {
+      // Start WSL in a new window and execute the batch file from within WSL using cmd.exe
+      // The batch file will run in Windows context but output will be in WSL terminal
+      return {
+        command: 'cmd',
+        args: ['/c', 'start', 'wsl', '-e', 'bash', '-c', `cmd.exe /c '${fullCommand}' ; exec bash`]
+      }
+    }
   },
   {
     id: terminalApps.alacritty,
@@ -336,7 +353,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     customPath: '', // Will be set by user in settings
     command: (directory: string, fullCommand: string) => ({
       command: 'alacritty', // Will be replaced with customPath if set
-      args: ['--working-directory', directory, '-e', 'cmd', '/k', fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')]
+      args: ['-e', 'cmd', '/k', fullCommand]
     })
   },
   {
@@ -345,7 +362,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     customPath: '', // Will be set by user in settings
     command: (directory: string, fullCommand: string) => ({
       command: 'wezterm', // Will be replaced with customPath if set
-      args: ['start', '--cwd', directory, 'cmd', '/k', fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')]
+      args: ['start', 'cmd', '/k', fullCommand]
     })
   }
 ]

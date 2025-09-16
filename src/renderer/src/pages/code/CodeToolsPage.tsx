@@ -1,7 +1,7 @@
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
-import { isMac } from '@renderer/config/constant'
+import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { getProviderLogo } from '@renderer/config/providers'
 import { useCodeTools } from '@renderer/hooks/useCodeTools'
@@ -14,9 +14,9 @@ import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
 import { Model } from '@renderer/types'
-import { codeTools, TerminalConfig } from '@shared/config/constant'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
-import { ArrowUpRight, Download, HelpCircle, Terminal, X } from 'lucide-react'
+import { codeTools, terminalApps, TerminalConfig } from '@shared/config/constant'
+import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
+import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
 import { FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -63,6 +63,7 @@ const CodeToolsPage: FC = () => {
   const [autoUpdateToLatest, setAutoUpdateToLatest] = useState(false)
   const [availableTerminals, setAvailableTerminals] = useState<TerminalConfig[]>([])
   const [isLoadingTerminals, setIsLoadingTerminals] = useState(false)
+  const [terminalCustomPaths, setTerminalCustomPaths] = useState<Record<string, string>>({})
 
   const modelPredicate = useCallback(
     (m: Model) => {
@@ -126,7 +127,7 @@ const CodeToolsPage: FC = () => {
 
   // 获取可用终端
   const loadAvailableTerminals = useCallback(async () => {
-    if (!isMac) return // 仅 macOS 支持
+    if (!isMac && !isWin) return // 仅 macOS 和 Windows 支持
 
     try {
       setIsLoadingTerminals(true)
@@ -208,6 +209,31 @@ const CodeToolsPage: FC = () => {
       terminal: selectedTerminal
     })
     window.toast.success(t('code.launch.success'))
+  }
+
+  // 设置终端自定义路径
+  const handleSetCustomPath = async (terminalId: string) => {
+    try {
+      const result = await window.api.file.select({
+        properties: ['openFile'],
+        filters: [
+          { name: 'Executable', extensions: ['exe'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      })
+
+      if (result && result.length > 0) {
+        const path = result[0].path
+        await window.api.codeTools.setCustomTerminalPath(terminalId, path)
+        setTerminalCustomPaths(prev => ({ ...prev, [terminalId]: path }))
+        window.toast.success(t('code.custom_path_set'))
+        // Reload terminals to reflect changes
+        loadAvailableTerminals()
+      }
+    } catch (error) {
+      logger.error('Failed to set custom terminal path:', error as Error)
+      window.toast.error(t('code.custom_path_error'))
+    }
   }
 
   // 处理启动
@@ -381,21 +407,47 @@ const CodeToolsPage: FC = () => {
               <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>{t('code.env_vars_help')}</div>
             </SettingsItem>
 
-            {/* 终端选择 (仅 macOS) */}
-            {isMac && availableTerminals.length > 0 && (
+            {/* 终端选择 (macOS 和 Windows) */}
+            {(isMac || isWin) && availableTerminals.length > 0 && (
               <SettingsItem>
-                <div className="settings-label">Terminal</div>
-                <Select
-                  style={{ width: '100%' }}
-                  placeholder="Select terminal application"
-                  value={selectedTerminal}
-                  onChange={setTerminal}
-                  loading={isLoadingTerminals}
-                  options={availableTerminals.map((terminal) => ({
-                    value: terminal.id,
-                    label: terminal.name
-                  }))}
-                />
+                <div className="settings-label">{t('code.terminal')}</div>
+                <Space.Compact style={{ width: '100%', display: 'flex' }}>
+                  <Select
+                    style={{ flex: 1 }}
+                    placeholder={t('code.terminal_placeholder')}
+                    value={selectedTerminal}
+                    onChange={setTerminal}
+                    loading={isLoadingTerminals}
+                    options={availableTerminals.map((terminal) => ({
+                      value: terminal.id,
+                      label: terminal.name
+                    }))}
+                  />
+                  {/* Show custom path button for Windows terminals except cmd/powershell */}
+                  {isWin &&
+                   selectedTerminal &&
+                   selectedTerminal !== terminalApps.cmd &&
+                   selectedTerminal !== terminalApps.powershell &&
+                   selectedTerminal !== terminalApps.windowsTerminal && (
+                    <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                      <Button
+                        icon={<FolderOpen size={16} />}
+                        onClick={() => handleSetCustomPath(selectedTerminal)}
+                      />
+                    </Tooltip>
+                  )}
+                </Space.Compact>
+                {isWin &&
+                 selectedTerminal &&
+                 selectedTerminal !== terminalApps.cmd &&
+                 selectedTerminal !== terminalApps.powershell &&
+                 selectedTerminal !== terminalApps.windowsTerminal && (
+                  <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>
+                    {terminalCustomPaths[selectedTerminal]
+                      ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                      : t('code.custom_path_required')}
+                  </div>
+                )}
               </SettingsItem>
             )}
 

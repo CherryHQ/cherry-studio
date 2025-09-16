@@ -685,6 +685,13 @@
     "model_required": "Please select a model",
     "select_folder": "Select Folder",
     "supported_providers": "Supported Providers",
+    "terminal": "Terminal",
+    "terminal_placeholder": "Select terminal application",
+    "set_custom_path": "Set custom terminal path",
+    "custom_path": "Custom path",
+    "custom_path_required": "Custom path required for this terminal",
+    "custom_path_set": "Custom terminal path set successfully",
+    "custom_path_error": "Failed to set custom terminal path",
     "title": "Code Tools",
     "update_options": "Update Options",
     "working_directory": "Working Directory"
