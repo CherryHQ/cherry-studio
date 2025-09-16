@@ -340,7 +340,8 @@ end tell`
       command: 'osascript',
       args: [
         '-e',
-        `tell application "Warp"
+        `set the clipboard to "cd \\"${directory.replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/"/g, '\\"')}"
+tell application "Warp"
   activate
   delay 0.8
 end tell
@@ -348,7 +349,10 @@ tell application "System Events"
   tell process "Warp"
     keystroke "t" using {command down}
     delay 0.4
-    keystroke "cd '${directory.replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/'/g, "\\'")}"
+    -- Switch to English input method before pasting
+    key code 49 using {control down}
+    delay 0.2
+    keystroke "v" using {command down}
     key code 36
   end tell
 end tell`
@@ -360,8 +364,11 @@ end tell`
     name: 'kitty',
     bundleId: 'net.kovidgoyal.kitty',
     command: (directory: string, fullCommand: string) => ({
-      command: 'kitty',
-      args: ['--directory', directory, 'bash', '-c', `${fullCommand}; exec bash`]
+      command: 'sh',
+      args: [
+        '-c',
+        `cd "${directory}" && open -na kitty --args --directory="${directory}" sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "kitty" to activate'`
+      ]
     })
   },
   {
@@ -369,8 +376,11 @@ end tell`
     name: 'Alacritty',
     bundleId: 'org.alacritty',
     command: (directory: string, fullCommand: string) => ({
-      command: 'alacritty',
-      args: ['--working-directory', directory, '-e', 'bash', '-c', `${fullCommand}; exec bash`]
+      command: 'sh',
+      args: [
+        '-c',
+        `open -na Alacritty --args --working-directory "${directory}" -e sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Alacritty" to activate'`
+      ]
     })
   },
   {
