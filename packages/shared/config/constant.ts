@@ -276,22 +276,25 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     id: terminalApps.systemDefault,
     name: 'Terminal',
     bundleId: 'com.apple.Terminal',
-    command: (_directory: string, fullCommand: string) => ({
+    command: (directory: string, fullCommand: string) => ({
       command: 'osascript',
       args: [
         '-e',
         `tell application "Terminal"
   if (count of windows) = 0 then
-    do script "${fullCommand.replace(/"/g, '\\"')}"
+    -- 没有窗口时，do script 会自动创建第一个窗口
+    do script "cd '${directory.replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/"/g, '\\"')}"
   else
-    tell window 1
-      do script "${fullCommand.replace(/"/g, '\\"')}" in (do script "" in window 1)
+    -- 有窗口时，创建新标签页
+    tell application "System Events"
+      tell process "Terminal"
+        keystroke "t" using {command down}
+      end tell
     end tell
+    delay 0.5
+    do script "cd '${directory.replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/"/g, '\\"')}" in front window
   end if
   activate
-  tell front window
-    set index to 1
-  end tell
 end tell`
       ]
     })
