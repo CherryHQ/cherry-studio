@@ -470,7 +470,7 @@ class CodeToolsService {
 
         const envCommands = validEntries
           .map(([key, value]) => {
-            const sanitizedValue = String(value).replace(/"/g, '\\"')
+            const sanitizedValue = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
             const exportCmd = `export ${key}="${sanitizedValue}"`
             logger.info(`Setting env var: ${key}="${sanitizedValue}"`)
             logger.info(`Export command: ${exportCmd}`)
