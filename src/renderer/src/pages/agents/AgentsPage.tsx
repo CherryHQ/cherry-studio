@@ -12,7 +12,7 @@ import { uuid } from '@renderer/utils'
 import { Button, Empty, Flex, Input } from 'antd'
 import { omit } from 'lodash'
 import { Search } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
@@ -30,6 +30,7 @@ const AgentsPage: FC = () => {
   const [activeGroup, setActiveGroup] = useState('我的')
   const [agentGroups, setAgentGroups] = useState<Record<string, Agent[]>>({})
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const systemAgents = useSystemAgents()
   const { agents: userAgents } = useAgents()
   const { isTopNavbar } = useNavbarPosition()
@@ -62,6 +63,12 @@ const AgentsPage: FC = () => {
     })
     return Array.from(uniqueAgents.values())
   }, [agentGroups, activeGroup, search])
+
+  const resetScroll = useCallback(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0 })
+    }
+  }, [scrollRef])
 
   const { t, i18n } = useTranslation()
 
@@ -158,6 +165,7 @@ const AgentsPage: FC = () => {
     setSearch('')
     setSearchInput('')
     setActiveGroup(group)
+    resetScroll()
   }
 
   const handleAddAgent = () => {
@@ -283,7 +291,7 @@ const AgentsPage: FC = () => {
           </AgentsListHeader>
 
           {filteredAgents.length > 0 ? (
-            <AgentsList>
+            <AgentsList ref={scrollRef}>
               {filteredAgents.map((agent, index) => (
                 <AgentCard
                   key={agent.id || index}
