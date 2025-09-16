@@ -362,9 +362,9 @@
       "translate": "Traducir a {{target_language}}",
       "translating": "Traduciendo...",
       "upload": {
-        "attachment": "[to be translated]:上传附件",
+        "attachment": "Subir archivo adjunto",
         "document": "Subir documento (el modelo no admite imágenes)",
-        "image_or_document": "[to be translated]:上传图片或文档",
+        "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
       "url_context": "Contexto de la página web",
@@ -663,7 +663,7 @@
     "translate": "Traducir",
     "web_search": {
       "warning": {
-        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+        "openai": "El modelo GPT5 con intensidad de pensamiento mínima no admite búsqueda en la web."
       }
     }
   },

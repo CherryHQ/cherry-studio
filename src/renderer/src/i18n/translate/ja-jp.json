@@ -362,9 +362,9 @@
       "translate": "{{target_language}}に翻訳",
       "translating": "翻訳中...",
       "upload": {
-        "attachment": "[to be translated]:上传附件",
+        "attachment": "添付ファイルをアップロード",
         "document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
-        "image_or_document": "[to be translated]:上传图片或文档",
+        "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
       "url_context": "URLコンテキスト",
@@ -663,7 +663,7 @@
     "translate": "翻訳",
     "web_search": {
       "warning": {
-        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+        "openai": "GPT5モデルの最小思考強度ではネット検索はサポートされません"
       }
     }
   },

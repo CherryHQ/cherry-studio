@@ -362,9 +362,9 @@
       "translate": "Перевести на {{target_language}}",
       "translating": "Перевод...",
       "upload": {
-        "attachment": "[to be translated]:上传附件",
+        "attachment": "Загрузить вложение",
         "document": "Загрузить документ (модель не поддерживает изображения)",
-        "image_or_document": "[to be translated]:上传图片或文档",
+        "image_or_document": "Загрузить изображение или документ",
         "upload_from_local": "Загрузить локальный файл..."
       },
       "url_context": "Контекст страницы",
@@ -663,7 +663,7 @@
     "translate": "Перевести",
     "web_search": {
       "warning": {
-        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+        "openai": "Модель GPT5 с минимальной интенсивностью мышления не поддерживает поиск в интернете"
       }
     }
   },

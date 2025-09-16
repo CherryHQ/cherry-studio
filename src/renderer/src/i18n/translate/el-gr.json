@@ -362,9 +362,9 @@
       "translate": "Μετάφραση στο {{target_language}}",
       "translating": "Μετάφραση...",
       "upload": {
-        "attachment": "[to be translated]:上传附件",
+        "attachment": "Μεταφόρτωση συνημμένου",
         "document": "Φόρτωση έγγραφου (το μοντέλο δεν υποστηρίζει εικόνες)",
-        "image_or_document": "[to be translated]:上传图片或文档",
+        "image_or_document": "Μεταφόρτωση εικόνας ή εγγράφου",
         "upload_from_local": "Μεταφόρτωση αρχείου από τον υπολογιστή..."
       },
       "url_context": "Περιεχόμενο ιστοσελίδας",
@@ -663,7 +663,7 @@
     "translate": "Μετάφραση",
     "web_search": {
       "warning": {
-        "openai": "[to be translated]:GPT5 模型 minimal 思考强度不支持网络搜索"
+        "openai": "Το μοντέλο GPT5 με ελάχιστη ένταση σκέψης δεν υποστηρίζει αναζήτηση στο διαδίκτυο"
       }
     }
   },
