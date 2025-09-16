@@ -225,7 +225,8 @@ export enum terminalApps {
   warp = 'Warp',
   kitty = 'kitty',
   alacritty = 'Alacritty',
-  wezterm = 'WezTerm'
+  wezterm = 'WezTerm',
+  ghostty = 'Ghostty'
 }
 
 export interface TerminalConfig {
@@ -268,6 +269,11 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
     id: terminalApps.wezterm,
     name: 'WezTerm',
     bundleId: 'com.github.wez.wezterm'
+  },
+  {
+    id: terminalApps.ghostty,
+    name: 'Ghostty',
+    bundleId: 'com.mitchellh.ghostty'
   }
 ]
 
@@ -376,6 +382,18 @@ end tell`
       args: [
         '-c',
         `open -na WezTerm --args start --new-tab --cwd "${directory}" -- sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.ghostty,
+    name: 'Ghostty',
+    bundleId: 'com.mitchellh.ghostty',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `cd "${directory}" && open -na Ghostty --args --working-directory="${directory}" -e sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
       ]
     })
   }
