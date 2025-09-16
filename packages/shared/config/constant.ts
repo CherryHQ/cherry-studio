@@ -224,7 +224,8 @@ export enum terminalApps {
   iterm2 = 'iTerm2',
   warp = 'Warp',
   kitty = 'kitty',
-  alacritty = 'Alacritty'
+  alacritty = 'Alacritty',
+  wezterm = 'WezTerm'
 }
 
 export interface TerminalConfig {
@@ -262,6 +263,11 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
     id: terminalApps.alacritty,
     name: 'Alacritty',
     bundleId: 'org.alacritty'
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm',
+    bundleId: 'com.github.wez.wezterm'
   }
 ]
 
@@ -356,6 +362,18 @@ end tell`
     command: (directory: string, fullCommand: string) => ({
       command: 'alacritty',
       args: ['--working-directory', directory, '-e', 'bash', '-c', `${fullCommand}; exec bash`]
+    })
+  },
+  {
+    id: terminalApps.wezterm,
+    name: 'WezTerm',
+    bundleId: 'com.github.wez.wezterm',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `open -na WezTerm --args start --new-tab --cwd "${directory}" -- sh -c "${fullCommand.replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "WezTerm" to activate'`
+      ]
     })
   }
 ]
