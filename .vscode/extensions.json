@@ -6,6 +6,7 @@
     "bradlc.vscode-tailwindcss",
     "vitest.explorer",
     "oxc.oxc-vscode",
-    "biomejs.biome"
+    "biomejs.biome",
+    "typescriptteam.native-preview"
   ]
 }

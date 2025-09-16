@@ -19,14 +19,13 @@
       "electron-vite/node",
       "vitest/globals"
     ],
-    "baseUrl": ".",
     "paths": {
-      "@logger": ["src/main/services/LoggerService"],
-      "@main/*": ["src/main/*"],
-      "@types": ["src/renderer/src/types/index.ts"],
-      "@shared/*": ["packages/shared/*"],
-      "@mcp-trace/*": ["packages/mcp-trace/*"],
-      "@modelcontextprotocol/sdk/*": ["node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
+      "@logger": ["./src/main/services/LoggerService"],
+      "@main/*": ["./src/main/*"],
+      "@types": ["./src/renderer/src/types/index.ts"],
+      "@shared/*": ["./packages/shared/*"],
+      "@mcp-trace/*": ["./packages/mcp-trace/*"],
+      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/esm/*"]
     },
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
