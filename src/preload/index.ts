@@ -5,6 +5,7 @@ import { UpgradeChannel, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
+import type { Notification } from '@types'
 import {
   AddMemoryOptions,
   AssistantMessage,
@@ -28,7 +29,6 @@ import {
   WebDavConfig
 } from '@types'
 import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { Notification } from 'src/renderer/src/types/notification'
 import { CreateDirectoryOptions } from 'webdav'
 
 import type { ActionItem } from '../renderer/src/types/selectionTypes'

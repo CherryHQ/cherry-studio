@@ -18,7 +18,7 @@ import {
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
-import type { ModelMessage } from 'ai'
+import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
 import { getAiSdkProviderId } from '../provider/factory'
@@ -28,6 +28,8 @@ import { getAnthropicThinkingBudget } from '../utils/reasoning'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
+
+type ProviderDefinedTool = Extract<Tool<any, any>, { type: 'provider-defined' }>
 
 /**
  * 构建 AI SDK 流式参数
@@ -113,9 +115,9 @@ export async function buildStreamTextParams(
       tools = {}
     }
     if (aiSdkProviderId === 'google-vertex') {
-      tools.google_search = vertex.tools.googleSearch({})
+      tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
     } else if (aiSdkProviderId === 'google-vertex-anthropic') {
-      tools.web_search = vertexAnthropic.tools.webSearch_20250305({})
+      tools.web_search = vertexAnthropic.tools.webSearch_20250305({}) as ProviderDefinedTool
     }
   }
 
@@ -124,7 +126,7 @@ export async function buildStreamTextParams(
     if (!tools) {
       tools = {}
     }
-    tools.url_context = vertex.tools.urlContext({})
+    tools.url_context = vertex.tools.urlContext({}) as ProviderDefinedTool
   }
 
   // 构建基础参数
