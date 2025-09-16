@@ -78,7 +78,6 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
     }
 
     // Verify session belongs to the agent
-    if (session.main_agent_id !== agentId) {
       logger.warn(`Session ${sessionId} does not belong to agent ${agentId}`)
       return res.status(404).json({
         error: {
@@ -121,7 +120,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
 
     // First check if session exists and belongs to agent
     const existingSession = await sessionService.getSession(sessionId)
-    if (!existingSession || existingSession.main_agent_id !== agentId) {
+    if (!existingSession || existingSession.agent_id !== agentId) {
       logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
       return res.status(404).json({
         error: {
@@ -169,7 +168,7 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
 
     // First check if session exists and belongs to agent
     const existingSession = await sessionService.getSession(sessionId)
-    if (!existingSession || existingSession.main_agent_id !== agentId) {
+    if (!existingSession || existingSession.agent_id !== agentId) {
       logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
       return res.status(404).json({
         error: {
@@ -215,7 +214,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
 
     // First check if session exists and belongs to agent
     const existingSession = await sessionService.getSession(sessionId)
-    if (!existingSession || existingSession.main_agent_id !== agentId) {
+    if (!existingSession || existingSession.agent_id !== agentId) {
       logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
       return res.status(404).json({
         error: {

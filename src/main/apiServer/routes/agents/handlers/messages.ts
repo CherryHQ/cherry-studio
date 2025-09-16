@@ -17,7 +17,7 @@ const verifyAgentAndSession = async (agentId: string, sessionId: string) => {
     throw { status: 404, code: 'session_not_found', message: 'Session not found' }
   }
 
-  if (session.main_agent_id !== agentId) {
+  if (session.agent_id !== agentId) {
     throw { status: 404, code: 'session_not_found', message: 'Session not found for this agent' }
   }
 
@@ -43,7 +43,7 @@ export const createMessageStream = async (req: Request, res: Response): Promise<
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
 
     // Send initial connection event
-    res.write('data: {"type":"connected"}\n\n')
+    res.write('data: {"type":"start"}\n\n')
 
     const messageStream = sessionMessageService.createSessionMessageStream(session, messageData)
 

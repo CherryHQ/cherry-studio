@@ -1,52 +1,15 @@
-import type { AgentSessionEntity, PermissionMode, SessionStatus } from '@types'
+import type {
+  AgentSessionEntity,
+  CreateSessionRequest,
+  GetAgentSessionResponse,
+  ListOptions,
+  UpdateSessionRequest
+} from '@types'
 import { and, count, eq, type SQL } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 
-export interface CreateSessionRequest {
-  name?: string
-  main_agent_id: string
-  sub_agent_ids?: string[]
-  user_goal?: string
-  status?: SessionStatus
-  external_session_id?: string
-  model?: string
-  plan_model?: string
-  small_model?: string
-  built_in_tools?: string[]
-  mcps?: string[]
-  knowledges?: string[]
-  configuration?: Record<string, any>
-  accessible_paths?: string[]
-  permission_mode?: PermissionMode
-  max_steps?: number
-}
-
-export interface UpdateSessionRequest {
-  name?: string
-  main_agent_id?: string
-  sub_agent_ids?: string[]
-  user_goal?: string
-  status?: SessionStatus
-  external_session_id?: string
-  model?: string
-  plan_model?: string
-  small_model?: string
-  built_in_tools?: string[]
-  mcps?: string[]
-  knowledges?: string[]
-  configuration?: Record<string, any>
-  accessible_paths?: string[]
-  permission_mode?: PermissionMode
-  max_steps?: number
-}
-
-export interface ListSessionsOptions {
-  limit?: number
-  offset?: number
-  status?: SessionStatus
-}
 
 export class SessionService extends BaseService {
   private static instance: SessionService | null = null
@@ -62,18 +25,14 @@ export class SessionService extends BaseService {
     await BaseService.initialize()
   }
 
-  async createSession(sessionData: CreateSessionRequest): Promise<AgentSessionEntity> {
+  async createSession(req: CreateSessionRequest): Promise<AgentSessionEntity> {
     this.ensureInitialized()
 
     // Validate agent exists - we'll need to import AgentService for this check
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
 
-    const agents = await this.database
-      .select()
-      .from(agentsTable)
-      .where(eq(agentsTable.id, sessionData.main_agent_id))
-      .limit(1)
+    const agents = await this.database.select().from(agentsTable).where(eq(agentsTable.id, req.agent_id)).limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
     }
@@ -83,20 +42,9 @@ export class SessionService extends BaseService {
     const now = new Date().toISOString()
 
     // inherit configuration from agent by default, can be overridden by sessionData
-    sessionData = {
-      ...{
-        model: agent.model,
-        plan_model: agent.plan_model,
-        small_model: agent.small_model,
-        mcps: agent.mcps,
-        knowledges: agent.knowledges,
-        configuration: agent.configuration,
-        accessible_paths: agent.accessible_paths,
-        permission_mode: agent.permission_mode,
-        max_steps: agent.max_steps,
-        status: 'idle'
-      },
-      ...sessionData
+    const sessionData: Partial<CreateSessionRequest> = {
+      ...agent,
+      ...req
     }
 
     const serializedData = this.serializeJsonFields(sessionData)
@@ -104,20 +52,14 @@ export class SessionService extends BaseService {
     const insertData: InsertSessionRow = {
       id,
       name: serializedData.name || null,
-      main_agent_id: serializedData.main_agent_id,
-      sub_agent_ids: serializedData.sub_agent_ids || null,
-      user_goal: serializedData.user_goal || null,
-      status: serializedData.status || 'idle',
-      external_session_id: serializedData.external_session_id || null,
+      agent_id: serializedData.agent_id,
+      description: serializedData.description || null,
       model: serializedData.model || null,
       plan_model: serializedData.plan_model || null,
       small_model: serializedData.small_model || null,
       mcps: serializedData.mcps || null,
-      knowledges: serializedData.knowledges || null,
       configuration: serializedData.configuration || null,
       accessible_paths: serializedData.accessible_paths || null,
-      permission_mode: serializedData.permission_mode || 'readOnly',
-      max_steps: serializedData.max_steps || 10,
       created_at: now,
       updated_at: now
     }
@@ -133,7 +75,7 @@ export class SessionService extends BaseService {
     return this.deserializeJsonFields(result[0]) as AgentSessionEntity
   }
 
-  async getSession(id: string): Promise<AgentSessionEntity | null> {
+  async getSession(id: string): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
@@ -142,7 +84,9 @@ export class SessionService extends BaseService {
       return null
     }
 
-    return this.deserializeJsonFields(result[0]) as AgentSessionEntity
+    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+
+    return session
   }
 
   async getSessionWithAgent(id: string): Promise<any | null> {
@@ -155,17 +99,14 @@ export class SessionService extends BaseService {
 
   async listSessions(
     agentId?: string,
-    options: ListSessionsOptions = {}
+    options: ListOptions = {}
   ): Promise<{ sessions: AgentSessionEntity[]; total: number }> {
     this.ensureInitialized()
 
     // Build where conditions
     const whereConditions: SQL[] = []
     if (agentId) {
-      whereConditions.push(eq(sessionsTable.main_agent_id, agentId))
-    }
-    if (options.status) {
-      whereConditions.push(eq(sessionsTable.status, options.status))
+      whereConditions.push(eq(sessionsTable.agent_id, agentId))
     }
 
     const whereClause =
@@ -190,12 +131,12 @@ export class SessionService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const sessions = result.map((row) => this.deserializeJsonFields(row)) as AgentSessionEntity[]
+    const sessions = result.map((row) => this.deserializeJsonFields(row)) as GetAgentSessionResponse[]
 
     return { sessions, total }
   }
 
-  async updateSession(id: string, updates: UpdateSessionRequest): Promise<AgentSessionEntity | null> {
+  async updateSession(id: string, updates: UpdateSessionRequest): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     // Check if session exists
@@ -216,42 +157,18 @@ export class SessionService extends BaseService {
 
     // Only update fields that are provided
     if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
-    if (serializedUpdates.main_agent_id !== undefined) updateData.main_agent_id = serializedUpdates.main_agent_id
-    if (serializedUpdates.sub_agent_ids !== undefined) updateData.sub_agent_ids = serializedUpdates.sub_agent_ids
-    if (serializedUpdates.user_goal !== undefined) updateData.user_goal = serializedUpdates.user_goal
-    if (serializedUpdates.status !== undefined) updateData.status = serializedUpdates.status
-    if (serializedUpdates.external_session_id !== undefined)
-      updateData.external_session_id = serializedUpdates.external_session_id
+
     if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
     if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
     if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
-    if (serializedUpdates.built_in_tools !== undefined) updateData.built_in_tools = serializedUpdates.built_in_tools
+
     if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
-    if (serializedUpdates.knowledges !== undefined) updateData.knowledges = serializedUpdates.knowledges
+
     if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
     if (serializedUpdates.accessible_paths !== undefined)
       updateData.accessible_paths = serializedUpdates.accessible_paths
-    if (serializedUpdates.permission_mode !== undefined) updateData.permission_mode = serializedUpdates.permission_mode
-    if (serializedUpdates.max_steps !== undefined) updateData.max_steps = serializedUpdates.max_steps
 
     await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
-
-    return await this.getSession(id)
-  }
-
-  async updateSessionStatus(id: string, status: SessionStatus): Promise<AgentSessionEntity | null> {
-    this.ensureInitialized()
-
-    const now = new Date().toISOString()
-
-    const result = await this.database
-      .update(sessionsTable)
-      .set({ status, updated_at: now })
-      .where(eq(sessionsTable.id, id))
-
-    if (result.rowsAffected === 0) {
-      return null
-    }
 
     return await this.getSession(id)
   }

@@ -1,7 +1,12 @@
 import { EventEmitter } from 'node:events'
 
 import { loggerService } from '@logger'
-import type { AgentSessionEntity, SessionMessageEntity } from '@types'
+import type {
+  AgentSessionMessageEntity,
+  CreateSessionMessageRequest,
+  GetAgentSessionResponse,
+  ListOptions,
+} from '@types'
 import { UIMessageChunk } from 'ai'
 import { count, eq } from 'drizzle-orm'
 
@@ -11,27 +16,9 @@ import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')
 
-export interface CreateSessionMessageRequest {
-  session_id: string
-  parent_id?: number
-  role: 'user' | 'agent' | 'system' | 'tool'
-  type: string
-  content: string
-  metadata?: Record<string, any>
-}
-
-export interface UpdateSessionMessageRequest {
-  content?: Record<string, any>
-  metadata?: Record<string, any>
-}
-
-export interface ListSessionMessagesOptions {
-  limit?: number
-  offset?: number
-}
-
 export class SessionMessageService extends BaseService {
   private static instance: SessionMessageService | null = null
+  private cc: ClaudeCodeService = new ClaudeCodeService()
 
   static getInstance(): SessionMessageService {
     if (!SessionMessageService.instance) {
@@ -58,8 +45,8 @@ export class SessionMessageService extends BaseService {
 
   async listSessionMessages(
     sessionId: string,
-    options: ListSessionMessagesOptions = {}
-  ): Promise<{ messages: SessionMessageEntity[]; total: number }> {
+    options: ListOptions = {}
+  ): Promise<{ messages: AgentSessionMessageEntity[]; total: number }> {
     this.ensureInitialized()
 
     // Get total count
@@ -84,128 +71,144 @@ export class SessionMessageService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const messages = result.map((row) => this.deserializeSessionMessage(row)) as SessionMessageEntity[]
+    const messages = result.map((row) => this.deserializeSessionMessage(row)) as AgentSessionMessageEntity[]
 
     return { messages, total }
   }
 
-  createSessionMessageStream(session: AgentSessionEntity, messageData: CreateSessionMessageRequest): EventEmitter {
+  createSessionMessageStream(session: GetAgentSessionResponse, messageData: CreateSessionMessageRequest): EventEmitter {
     this.ensureInitialized()
 
     // Create a new EventEmitter to manage the session message lifecycle
     const sessionStream = new EventEmitter()
 
-    // Validate parent exists if specified
-    if (messageData.parent_id) {
-      this.sessionMessageExists(messageData.parent_id)
-        .then((exists) => {
-          if (!exists) {
-            process.nextTick(() => {
-              sessionStream.emit('data', {
-                type: 'error',
-                error: new Error(`Parent message with id ${messageData.parent_id} does not exist`)
-              })
-            })
-            return
-          }
-
-          // Start the Claude Code stream after validation passes
-          this.startClaudeCodeStream(session, messageData, sessionStream)
-        })
-        .catch((error) => {
-          process.nextTick(() => {
-            sessionStream.emit('data', {
-              type: 'error',
-              error: error as Error
-            })
-          })
-        })
-    } else {
-      // No parent validation needed, start immediately
-      this.startClaudeCodeStream(session, messageData, sessionStream)
-    }
+    // No parent validation needed, start immediately
+    this.startClaudeCodeStream(session, messageData, sessionStream)
 
     return sessionStream
   }
 
   private startClaudeCodeStream(
-    session: AgentSessionEntity,
-    messageData: CreateSessionMessageRequest,
+    session: GetAgentSessionResponse,
+    req: CreateSessionMessageRequest,
     sessionStream: EventEmitter
   ): void {
-    const cc = new ClaudeCodeService()
+    const previousMessages = session.messages || []
+    let session_id: string = ''
+    if (previousMessages.length > 0) {
+      session_id = previousMessages[0].session_id
+    }
 
-    // Create the streaming Claude Code invocation
-    const claudeStream = cc.invokeStream(
-      messageData.content,
-      session.accessible_paths[0],
-      session.external_session_id,
-      {
-        permissionMode: session.permission_mode,
-        maxTurns: session.max_steps
-      }
-    )
+    logger.debug('Claude Code stream message data:', { message: req, session_id })
 
-    let sessionMessage: SessionMessageEntity | null = null
+    // Create the streaming agent invocation (using invokeStream for streaming)
+    const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], session_id, {
+      permissionMode: session.configuration?.permissionMode || 'default',
+      maxTurns: session.configuration?.maxTurns || 10
+    })
 
-    // Handle Claude Code stream events
+    let sessionMessage: AgentSessionMessageEntity | null = null
+    const streamedChunks: UIMessageChunk[] = []
+    const rawAgentMessages: any[] = [] // Generic agent messages storage
+
+    // Handle agent stream events (agent-agnostic)
     claudeStream.on('data', async (event: any) => {
       try {
         switch (event.type) {
           case 'chunk':
-            // Forward UIMessageChunk directly
-            sessionStream.emit('data', {
-              type: 'chunk',
-              chunk: event.chunk as UIMessageChunk
-            })
+            // Forward UIMessageChunk directly and collect raw agent messages
+            if (event.chunk) {
+              const chunk = event.chunk as UIMessageChunk
+              streamedChunks.push(chunk)
+
+              // Collect raw agent message if available (agent-agnostic)
+              if (event.rawAgentMessage) {
+                rawAgentMessages.push(event.rawAgentMessage)
+              }
+
+              sessionStream.emit('data', {
+                type: 'chunk',
+                chunk
+              })
+            } else {
+              logger.warn('Received agent chunk event without chunk payload')
+            }
             break
 
           case 'error':
             sessionStream.emit('data', {
               type: 'error',
-              error: event.error
+              error: event.error || (event.data?.stderr ? new Error(event.data.stderr) : undefined)
             })
             break
 
           case 'complete': {
-            // Save the final message to database when Claude Code completes
-            logger.info('Claude Code stream completed, saving message to database')
+            // Save the final message to database when agent completes
+            logger.info('Agent stream completed, saving message to database')
 
-            const now = new Date().toISOString()
-            const insertData: InsertSessionMessageRow = {
-              session_id: messageData.session_id,
-              parent_id: messageData.parent_id || null,
-              role: messageData.role,
-              type: messageData.type,
-              content: JSON.stringify(event.result),
-              metadata: messageData.metadata ? JSON.stringify(messageData.metadata) : null,
-              created_at: now,
-              updated_at: now
+            // Extract additional raw agent messages from agentResult if available
+            if (event.agentResult?.rawSDKMessages) {
+              rawAgentMessages.push(...event.agentResult.rawSDKMessages)
             }
 
-            const result = await this.database.insert(sessionMessagesTable).values(insertData).returning()
-
-            if (result[0]) {
-              sessionMessage = this.deserializeSessionMessage(result[0]) as SessionMessageEntity
-              logger.info(`Session message saved with ID: ${sessionMessage.id}`)
-
-              // Emit the complete event with the saved message
-              sessionStream.emit('data', {
-                type: 'complete',
-                result: event.result,
-                message: sessionMessage
-              })
-            } else {
-              sessionStream.emit('data', {
-                type: 'error',
-                error: new Error('Failed to save session message to database')
-              })
+            // Create structured content with both AI SDK format and raw data
+            const structuredContent = {
+              aiSDKChunks: streamedChunks, // For UI consumption
+              rawAgentMessages: rawAgentMessages, // Original agent-specific messages
+              agentResult: event.agentResult, // Complete result from the agent
+              agentType: event.agentResult?.agentType || 'unknown' // Store agent type for future reference
             }
+
+            // const now = new Date().toISOString()
+            // const insertData: InsertSessionMessageRow = {
+            //   session_id: req.session_id,
+            //   parent_id: req.parent_id || null,
+            //   role: req.role,
+            //   type: req.type,
+            //   content: JSON.stringify(structuredContent),
+            //   metadata: req.metadata
+            //     ? JSON.stringify({
+            //         ...req.metadata,
+            //         chunkCount: streamedChunks.length,
+            //         rawMessageCount: rawAgentMessages.length,
+            //         agentType: event.agentResult?.agentType || 'unknown',
+            //         completedAt: now
+            //       })
+            //     : JSON.stringify({
+            //         chunkCount: streamedChunks.length,
+            //         rawMessageCount: rawAgentMessages.length,
+            //         agentType: event.agentResult?.agentType || 'unknown',
+            //         completedAt: now
+            //       }),
+            //   created_at: now,
+            //   updated_at: now
+            // }
+
+            // const result = await this.database.insert(sessionMessagesTable).values(insertData).returning()
+
+            // if (result[0]) {
+            //   sessionMessage = this.deserializeSessionMessage(result[0]) as AgentSessionMessageEntity
+            //   logger.info(`Session message saved with ID: ${sessionMessage.id}`)
+
+            //   // Emit the complete event with the saved message and structured data
+            //   sessionStream.emit('data', {
+            //     type: 'complete',
+            //     result: structuredContent,
+            //     message: sessionMessage
+            //   })
+            // } else {
+            //   sessionStream.emit('data', {
+            //     type: 'error',
+            //     error: new Error('Failed to save session message to database')
+            //   })
+            // }
             break
           }
 
           default:
-            logger.warn('Unknown event type from Claude Code service:', { type: event.type })
+            logger.warn('Unknown event type from Claude Code service:', {
+              type: event.type
+            })
             break
         }
       } catch (error) {
@@ -218,7 +221,7 @@ export class SessionMessageService extends BaseService {
     })
   }
 
-  private deserializeSessionMessage(data: any): SessionMessageEntity {
+  private deserializeSessionMessage(data: any): AgentSessionMessageEntity {
     if (!data) return data
 
     const deserialized = { ...data }

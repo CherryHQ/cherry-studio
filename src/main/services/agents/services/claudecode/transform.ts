@@ -74,7 +74,14 @@ export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageC
 
 function sdkMessageToProviderMetadata(message: SDKMessage): ProviderMetadata {
   const meta: ProviderMetadata = {
-    raw: message as Record<string, any>
+    raw: message as Record<string, any>,
+    claudeCode: {
+      originalSDKMessage: JSON.parse(JSON.stringify(message)), // Serialize to ensure JSON compatibility
+      uuid: message.uuid || null,
+      session_id: message.session_id || null,
+      timestamp: new Date().toISOString(),
+      type: message.type
+    }
   }
   return meta
 }
@@ -392,6 +399,10 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
     })
   }
 
+  // Always emit a finish chunk at the end
+  chunks.push({
+    type: 'finish'
+  })
   return chunks
 }
 

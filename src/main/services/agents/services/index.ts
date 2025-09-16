@@ -16,10 +16,5 @@ export { sessionMessageService } from './SessionMessageService'
 export { sessionService } from './SessionService'
 
 // Type definitions for service requests and responses
-export type { CreateAgentRequest, ListAgentsOptions, UpdateAgentRequest } from './AgentService'
-export type {
-  CreateSessionMessageRequest,
-  ListSessionMessagesOptions,
-  UpdateSessionMessageRequest
-} from './SessionMessageService'
+
 export type { CreateSessionRequest, ListSessionsOptions, UpdateSessionRequest } from './SessionService'

@@ -5,8 +5,8 @@ import { createRequire } from 'node:module'
 
 import { Options, SDKMessage } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
-import { UIMessageChunk } from 'ai'
 
+import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { transformSDKMessageToUIChunk } from './transform'
 
 const require_ = createRequire(import.meta.url)
@@ -21,34 +21,13 @@ interface ClaudeCodeResult {
   exitCode?: number
 }
 
-interface ClaudeCodeStreamEvent {
-  type: 'message' | 'error' | 'complete'
-  data?: any
-  error?: Error
-  result?: ClaudeCodeResult
+class ClaudeCodeStream extends EventEmitter implements AgentStream {
+  declare emit: (event: 'data', data: AgentStreamEvent) => boolean
+  declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
+  declare once: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
 }
 
-class ClaudeCodeStream extends EventEmitter {
-  declare emit: (event: 'data', data: ClaudeCodeStreamEvent) => boolean
-  declare on: (event: 'data', listener: (data: ClaudeCodeStreamEvent) => void) => this
-  declare once: (event: 'data', listener: (data: ClaudeCodeStreamEvent) => void) => this
-}
-
-// AI SDK compatible stream events
-interface AISDKStreamEvent {
-  type: 'chunk' | 'error' | 'complete'
-  chunk?: UIMessageChunk
-  error?: Error
-  result?: ClaudeCodeResult
-}
-
-class AISDKStream extends EventEmitter {
-  declare emit: (event: 'data', data: AISDKStreamEvent) => boolean
-  declare on: (event: 'data', listener: (data: AISDKStreamEvent) => void) => this
-  declare once: (event: 'data', listener: (data: AISDKStreamEvent) => void) => this
-}
-
-class ClaudeCodeService {
+class ClaudeCodeService implements AgentServiceInterface {
   private claudeExecutablePath: string
 
   constructor() {
@@ -56,48 +35,8 @@ class ClaudeCodeService {
     this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-code/cli.js')
   }
 
-  async invoke(prompt: string, cwd: string, session_id?: string, base?: Options): Promise<ClaudeCodeResult> {
-    // Ensure Electron behaves like Node for any child process that resolves to process.execPath
-    // process.env.ELECTRON_RUN_AS_NODE = '1'
-
-    const args: string[] = [this.claudeExecutablePath, '--output-format', 'stream-json', '--verbose', 'cwd', cwd]
-
-    if (session_id) {
-      args.push('--resume', session_id)
-    }
-    if (base?.maxTurns) {
-      args.push('--max-turns', base.maxTurns.toString())
-    }
-    if (base?.permissionMode) {
-      args.push('--permission-mode', base.permissionMode)
-    }
-
-    args.push('--print', prompt)
-
-    logger.info('Spawning Claude Code process', { args, cwd })
-
-    const p = spawn(process.execPath, args, {
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-      stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,
-      detached: false
-    })
-
-    // Log process creation
-    logger.info('Process created', { pid: p.pid })
-
-    // Close stdin immediately since we're passing the prompt via --print
-    if (p.stdin) {
-      p.stdin.end()
-      logger.debug('Closed stdin')
-    }
-
-    return this.setupProcessHandlers(p)
-  }
-
-  invokeStream(prompt: string, cwd: string, session_id?: string, base?: Options): EventEmitter {
-    const aiStream = new AISDKStream()
-    const rawStream = new ClaudeCodeStream()
+  invoke(prompt: string, cwd: string, session_id?: string, base?: Options): AgentStream {
+    const aiStream = new ClaudeCodeStream()
 
     // Spawn process with same parameters as invoke
     const args: string[] = [this.claudeExecutablePath, '--output-format', 'stream-json', '--verbose']
@@ -132,8 +71,7 @@ class ClaudeCodeService {
       logger.debug('Closed stdin for streaming process')
     }
 
-    this.setupStreamingHandlers(p, rawStream)
-    this.setupAISDKTransform(rawStream, aiStream)
+    this.setupStreamingHandlers(p, aiStream)
 
     return aiStream
   }
@@ -146,34 +84,59 @@ class ClaudeCodeService {
     let stderrData = ''
     const jsonOutput: any[] = []
     let hasCompleted = false
+    let stdoutBuffer = ''
 
     const startTime = Date.now()
+
+    const emitChunks = (sdkMessage: SDKMessage) => {
+      jsonOutput.push(sdkMessage)
+      const chunks = transformSDKMessageToUIChunk(sdkMessage)
+      for (const chunk of chunks) {
+        stream.emit('data', {
+          type: 'chunk',
+          chunk,
+          rawAgentMessage: sdkMessage // Store Claude Code specific SDKMessage as generic agent message
+        })
+      }
+    }
 
     // Handle stdout with streaming events
     if (process.stdout) {
       process.stdout.setEncoding('utf8')
       process.stdout.on('data', (data: string) => {
         stdoutData += data
+        stdoutBuffer += data
         logger.debug('Streaming stdout chunk:', { length: data.length })
 
-        // Parse JSON stream output line by line and emit events
-        const lines = data.split('\n')
-        for (const line of lines) {
+        let newlineIndex = stdoutBuffer.indexOf('\n')
+        while (newlineIndex !== -1) {
+          const line = stdoutBuffer.slice(0, newlineIndex)
+          stdoutBuffer = stdoutBuffer.slice(newlineIndex + 1)
           const trimmed = line.trim()
-          if (!trimmed) continue
-          try {
-            const parsed = JSON.parse(trimmed)
-            stream.emit('data', { type: 'message', data: parsed })
-            logger.debug('Parsed JSON line', { parsed })
-          } catch {
-            // If you expect NDJSON only, you may want to keep this in buffer instead of emitting.
-            stream.emit('data', { type: 'message', data: { text: trimmed } })
-            logger.debug('Non-JSON line', { line: trimmed })
+          if (trimmed) {
+            try {
+              const parsed = JSON.parse(trimmed) as SDKMessage
+              emitChunks(parsed)
+              logger.debug('Parsed JSON line', { parsed })
+            } catch (error) {
+              logger.debug('Non-JSON line', { line: trimmed })
+            }
           }
+          newlineIndex = stdoutBuffer.indexOf('\n')
         }
       })
 
       process.stdout.on('end', () => {
+        const trimmed = stdoutBuffer.trim()
+        if (trimmed) {
+          try {
+            const parsed = JSON.parse(trimmed) as SDKMessage
+            emitChunks(parsed)
+            logger.debug('Parsed JSON line on stream end', { parsed })
+          } catch (error) {
+            logger.debug('Non-JSON remainder on stdout end', { line: trimmed })
+          }
+        }
         logger.debug('Streaming stdout ended')
       })
     }
@@ -183,12 +146,12 @@ class ClaudeCodeService {
       process.stderr.setEncoding('utf8')
       process.stderr.on('data', (data: string) => {
         stderrData += data
-        logger.warn('Streaming stderr chunk:', { data: data.trim() })
-
-        // Emit stderr as error events
+        const message = data.trim()
+        if (!message) return
+        logger.warn('Streaming stderr chunk:', { data: message })
         stream.emit('data', {
           type: 'error',
-          data: { stderr: data.trim() }
+          error: new Error(message)
         })
       })
 
@@ -225,10 +188,14 @@ class ClaudeCodeService {
         error
       }
 
-      // Emit completion event
+      // Emit completion event with agent-specific result
       stream.emit('data', {
         type: 'complete',
-        result
+        agentResult: {
+          ...result,
+          rawSDKMessages: jsonOutput, // Claude Code specific: all collected SDK messages
+          agentType: 'claude-code' // Identify the agent type
+        }
       })
     }
 
@@ -273,45 +240,6 @@ class ClaudeCodeService {
     // Clear timeout when process ends
     process.on('exit', () => clearTimeout(timeout))
     process.on('error', () => clearTimeout(timeout))
-  }
-
-  /**
-   * Transform raw Claude Code stream events to AI SDK format
-   */
-  private setupAISDKTransform(rawStream: ClaudeCodeStream, aiStream: AISDKStream): void {
-    rawStream.on('data', (event: ClaudeCodeStreamEvent) => {
-      try {
-        switch (event.type) {
-          case 'message':
-            // Transform SDKMessage to UIMessageChunk
-            if (event.data) {
-              const chunks = transformSDKMessageToUIChunk(event.data as SDKMessage)
-              for (const chunk of chunks) {
-                aiStream.emit('data', { type: 'chunk', chunk })
-              }
-            }
-            break
-
-          case 'error':
-            aiStream.emit('data', { type: 'error', error: event.error })
-            break
-
-          case 'complete':
-            aiStream.emit('data', { type: 'complete', result: event.result })
-            break
-
-          default:
-            logger.warn('Unknown raw stream event type:', { type: (event as any).type })
-            break
-        }
-      } catch (error) {
-        logger.error('Error transforming stream event:', { error, event })
-        aiStream.emit('data', {
-          type: 'error',
-          error: error instanceof Error ? error : new Error('Transform error')
-        })
-      }
-    })
   }
 
   /**

@@ -26,6 +26,7 @@ export abstract class BaseService {
   protected static db: ReturnType<typeof drizzle> | null = null
   protected static isInitialized = false
   protected static initializationPromise: Promise<void> | null = null
+  protected jsonFields: string[] = ['built_in_tools', 'mcps', 'configuration', 'accessible_paths']
 
   /**
    * Initialize database with retry logic and proper error handling
@@ -116,9 +117,8 @@ export abstract class BaseService {
 
   protected serializeJsonFields(data: any): any {
     const serialized = { ...data }
-    const jsonFields = ['built_in_tools', 'mcps', 'knowledges', 'configuration', 'accessible_paths', 'sub_agent_ids']
 
-    for (const field of jsonFields) {
+    for (const field of this.jsonFields) {
       if (serialized[field] !== undefined) {
         serialized[field] =
           Array.isArray(serialized[field]) || typeof serialized[field] === 'object'
@@ -134,9 +134,8 @@ export abstract class BaseService {
     if (!data) return data
 
     const deserialized = { ...data }
-    const jsonFields = ['built_in_tools', 'mcps', 'knowledges', 'configuration', 'accessible_paths', 'sub_agent_ids']
 
-    for (const field of jsonFields) {
+    for (const field of this.jsonFields) {
       if (deserialized[field] && typeof deserialized[field] === 'string') {
         try {
           deserialized[field] = JSON.parse(deserialized[field])

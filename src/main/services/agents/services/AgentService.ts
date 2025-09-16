@@ -1,50 +1,12 @@
 import path from 'node:path'
 
 import { getDataPath } from '@main/utils'
-import type { AgentEntity, AgentType, PermissionMode } from '@types'
+import type { AgentEntity, CreateAgentRequest, GetAgentResponse, ListOptions, UpdateAgentRequest } from '@types'
 import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
-// import { builtinTools } from './claudecode/tools'
-
-export interface CreateAgentRequest {
-  type: AgentType
-  name: string
-  description?: string
-  avatar?: string
-  instructions?: string
-  model: string
-  // plan_model?: string
-  // small_model?: string
-  // mcps?: string[]
-  // knowledges?: string[]
-  // configuration?: Record<string, any>
-  accessible_paths?: string[]
-  permission_mode?: PermissionMode
-  max_steps?: number
-}
-
-export interface UpdateAgentRequest {
-  name?: string
-  description?: string
-  avatar?: string
-  instructions?: string
-  model?: string
-  // plan_model?: string
-  // small_model?: string
-  // mcps?: string[]
-  // knowledges?: string[]
-  // configuration?: Record<string, any>
-  accessible_paths?: string[]
-  permission_mode?: PermissionMode
-  max_steps?: number
-}
-
-export interface ListAgentsOptions {
-  limit?: number
-  offset?: number
-}
+import { builtinTools } from './claudecode/tools'
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null
@@ -61,49 +23,36 @@ export class AgentService extends BaseService {
   }
 
   // Agent Methods
-  async createAgent(agentData: CreateAgentRequest): Promise<AgentEntity> {
+  async createAgent(req: CreateAgentRequest): Promise<AgentEntity> {
     this.ensureInitialized()
 
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
-    if (!agentData.accessible_paths || agentData.accessible_paths.length === 0) {
+    if (!req.accessible_paths || req.accessible_paths.length === 0) {
       const defaultPath = path.join(getDataPath(), 'agents', id)
-      agentData.accessible_paths = [defaultPath]
+      req.accessible_paths = [defaultPath]
     }
 
-    const serializedData = this.serializeJsonFields(agentData)
+    const serializedReq = this.serializeJsonFields(req)
 
     const insertData: InsertAgentRow = {
       id,
-      type: serializedData.type,
-      name: serializedData.name,
-      description: serializedData.description || null,
-      avatar: serializedData.avatar || null,
-      instructions: serializedData.instructions || null,
-      model: serializedData.model,
-      plan_model: serializedData.plan_model || null,
-      small_model: serializedData.small_model || null,
-      built_in_tools: serializedData.built_in_tools || null,
-      mcps: serializedData.mcps || null,
-      knowledges: serializedData.knowledges || null,
-      configuration: serializedData.configuration || null,
-      accessible_paths: serializedData.accessible_paths || null,
-      permission_mode: serializedData.permission_mode || 'default',
-      max_steps: serializedData.max_steps || 10,
+      type: req.type,
+      name: req.name || 'New Agent',
+      description: req.description,
+      instructions: req.instructions || 'You are a helpful assistant.',
+      model: req.model,
+      plan_model: req.plan_model,
+      small_model: req.small_model,
+      configuration: serializedReq.configuration,
+      accessible_paths: serializedReq.accessible_paths,
       created_at: now,
       updated_at: now
     }
 
-    if (serializedData.name === 'claude-code') {
-      // insertData.built_in_tools = JSON.stringify(builtinTools)
-      insertData.built_in_tools = JSON.stringify([])
-    }
-
     await this.database.insert(agentsTable).values(insertData)
-
     const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
-
     if (!result[0]) {
       throw new Error('Failed to create agent')
     }
@@ -112,7 +61,7 @@ export class AgentService extends BaseService {
     return agent
   }
 
-  async getAgent(id: string): Promise<AgentEntity | null> {
+  async getAgent(id: string): Promise<GetAgentResponse | null> {
     this.ensureInitialized()
 
     const result = await this.database.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1)
@@ -121,18 +70,19 @@ export class AgentService extends BaseService {
       return null
     }
 
-    return this.deserializeJsonFields(result[0]) as AgentEntity
+    const agent = this.deserializeJsonFields(result[0]) as GetAgentResponse
+    if (agent.type === 'claude-code') {
+      agent.built_in_tools = builtinTools
+    }
+
+    return agent
   }
 
-  async listAgents(options: ListAgentsOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
-    this.ensureInitialized()
+  async listAgents(options: ListOptions = {}): Promise<{ agents: GetAgentResponse[]; total: number }> {
+    this.ensureInitialized() // Build query with pagination
 
-    // Get total count
     const totalResult = await this.database.select({ count: count() }).from(agentsTable)
 
-    const total = totalResult[0].count
-
-    // Build query with pagination
     const baseQuery = this.database.select().from(agentsTable).orderBy(agentsTable.created_at)
 
     const result =
@@ -142,12 +92,18 @@ export class AgentService extends BaseService {
           : await baseQuery.limit(options.limit)
         : await baseQuery
 
-    const agents = result.map((row) => this.deserializeJsonFields(row)) as AgentEntity[]
+    const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
 
-    return { agents, total }
+    agents.forEach((agent) => {
+      if (agent.type === 'claude-code') {
+        agent.built_in_tools = builtinTools
+      }
+    })
+
+    return { agents, total: totalResult[0].count }
   }
 
-  async updateAgent(id: string, updates: UpdateAgentRequest): Promise<AgentEntity | null> {
+  async updateAgent(id: string, updates: UpdateAgentRequest): Promise<GetAgentResponse | null> {
     this.ensureInitialized()
 
     // Check if agent exists
@@ -166,22 +122,15 @@ export class AgentService extends BaseService {
     // Only update fields that are provided
     if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
     if (serializedUpdates.description !== undefined) updateData.description = serializedUpdates.description
-    if (serializedUpdates.avatar !== undefined) updateData.avatar = serializedUpdates.avatar
     if (serializedUpdates.instructions !== undefined) updateData.instructions = serializedUpdates.instructions
     if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
     if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
     if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
-    if (serializedUpdates.built_in_tools !== undefined) updateData.built_in_tools = serializedUpdates.built_in_tools
     if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
-    if (serializedUpdates.knowledges !== undefined) updateData.knowledges = serializedUpdates.knowledges
     if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
     if (serializedUpdates.accessible_paths !== undefined)
       updateData.accessible_paths = serializedUpdates.accessible_paths
-    if (serializedUpdates.permission_mode !== undefined) updateData.permission_mode = serializedUpdates.permission_mode
-    if (serializedUpdates.max_steps !== undefined) updateData.max_steps = serializedUpdates.max_steps
-
     await this.database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
-
     return await this.getAgent(id)
   }
 
