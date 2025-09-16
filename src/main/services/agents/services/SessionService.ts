@@ -1,8 +1,8 @@
-import type { AgentSessionEntity, SessionStatus } from '@types'
+import type { AgentSessionEntity, PermissionMode, SessionStatus } from '@types'
 import { and, count, eq, type SQL } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
+import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 
 export interface CreateSessionRequest {
   name?: string
@@ -19,7 +19,7 @@ export interface CreateSessionRequest {
   knowledges?: string[]
   configuration?: Record<string, any>
   accessible_paths?: string[]
-  permission_mode?: 'readOnly' | 'acceptEdits' | 'bypassPermissions'
+  permission_mode?: PermissionMode
   max_steps?: number
 }
 
@@ -38,7 +38,7 @@ export interface UpdateSessionRequest {
   knowledges?: string[]
   configuration?: Record<string, any>
   accessible_paths?: string[]
-  permission_mode?: 'readOnly' | 'acceptEdits' | 'bypassPermissions'
+  permission_mode?: PermissionMode
   max_steps?: number
 }
 
@@ -69,8 +69,35 @@ export class SessionService extends BaseService {
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
 
+    const agents = await this.database
+      .select()
+      .from(agentsTable)
+      .where(eq(agentsTable.id, sessionData.main_agent_id))
+      .limit(1)
+    if (!agents[0]) {
+      throw new Error('Agent not found')
+    }
+    const agent = this.deserializeJsonFields(agents[0]) as AgentSessionEntity
+
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
+
+    // inherit configuration from agent by default, can be overridden by sessionData
+    sessionData = {
+      ...{
+        model: agent.model,
+        plan_model: agent.plan_model,
+        small_model: agent.small_model,
+        mcps: agent.mcps,
+        knowledges: agent.knowledges,
+        configuration: agent.configuration,
+        accessible_paths: agent.accessible_paths,
+        permission_mode: agent.permission_mode,
+        max_steps: agent.max_steps,
+        status: 'idle'
+      },
+      ...sessionData
+    }
 
     const serializedData = this.serializeJsonFields(sessionData)
 
@@ -85,7 +112,6 @@ export class SessionService extends BaseService {
       model: serializedData.model || null,
       plan_model: serializedData.plan_model || null,
       small_model: serializedData.small_model || null,
-      built_in_tools: serializedData.built_in_tools || null,
       mcps: serializedData.mcps || null,
       knowledges: serializedData.knowledges || null,
       configuration: serializedData.configuration || null,

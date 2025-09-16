@@ -6,22 +6,33 @@ import { TextStreamPart } from 'ai'
 export type SessionStatus = 'idle' | 'running' | 'completed' | 'failed' | 'stopped'
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
 export type SessionMessageRole = 'assistant' | 'user' | 'system' | 'tool'
-export type AgentType = 'claude-code' | 'codex' | 'gemini-cli'
+export type AgentType = 'claude-code'
+
+export const isAgentType = (type: string): type is AgentType => {
+  return ['claude-code'].includes(type)
+}
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
+
+export interface Tool {
+  id: string
+  name: string
+  description: string
+  requirePermissions: boolean
+}
 
 // Shared configuration interface for both agents and sessions
 export interface AgentConfiguration {
   model: string // Main Model ID (required)
   plan_model?: string // Optional plan/thinking model ID
   small_model?: string // Optional small/fast model ID
-  built_in_tools?: string[] // Array of built-in tool IDs
+  built_in_tools?: Tool[] // Array of built-in tool IDs
   mcps?: string[] // Array of MCP tool IDs
   knowledges?: string[] // Array of enabled knowledge base IDs
   configuration?: Record<string, any> // Extensible settings like temperature, top_p
-  accessible_paths?: string[] // Array of directory paths the agent can access
-  permission_mode?: PermissionMode // Permission mode
-  max_steps?: number // Maximum number of steps the agent can take
+  accessible_paths: string[] // Array of directory paths the agent can access
+  permission_mode: PermissionMode // Permission mode
+  max_steps: number // Maximum number of steps the agent can take
 }
 
 // Agent entity representing an autonomous agent configuration

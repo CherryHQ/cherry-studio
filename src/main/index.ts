@@ -10,17 +10,8 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
-
 import { isDev, isLinux, isWin } from './constant'
 
-// Enable live-reload for Electron app in development
-// This will automatically restart the app when files change during development
-if (isDev) {
-  require('electron-reload')(__dirname, {
-    electron: require('electron'),
-    hardResetMethod: 'exit'
-  })
-}
 import process from 'node:process'
 
 import { registerIpc } from './ipc'

@@ -14119,6 +14119,7 @@ __metadata:
     "@types/swagger-ui-express": "npm:^4.1.8"
     "@types/tinycolor2": "npm:^1"
     "@types/turndown": "npm:^5.0.5"
+    "@types/uuid": "npm:^10.0.0"
     "@types/word-extractor": "npm:^1"
     "@uiw/codemirror-extensions-langs": "npm:^4.25.1"
     "@uiw/codemirror-themes-all": "npm:^4.25.1"
@@ -14269,7 +14270,7 @@ __metadata:
     typescript: "npm:^5.6.2"
     undici: "npm:6.21.2"
     unified: "npm:^11.0.5"
-    uuid: "npm:^10.0.0"
+    uuid: "npm:^13.0.0"
     vite: "npm:rolldown-vite@latest"
     vitest: "npm:^3.2.4"
     webdav: "npm:^5.8.0"
@@ -29615,6 +29616,15 @@ __metadata:
   bin:
     uuid: dist/esm/bin/uuid
   checksum: 10c0/34aa51b9874ae398c2b799c88a127701408cd581ee89ec3baa53509dd8728cbb25826f2a038f9465f8b7be446f0fbf11558862965b18d21c993684297628d4d3
+  languageName: node
+  linkType: hard
+
+"uuid@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "uuid@npm:13.0.0"
+  bin:
+    uuid: dist-node/bin/uuid
+  checksum: 10c0/950e4c18d57fef6c69675344f5700a08af21e26b9eff2bf2180427564297368c538ea11ac9fb2e6528b17fc3966a9fd2c5049361b0b63c7d654f3c550c9b3d67
   languageName: node
   linkType: hard
 

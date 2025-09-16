@@ -6,13 +6,10 @@ import {
   validateAgent,
   validateAgentId,
   validateAgentUpdate,
-  validateBulkSessionMessages,
-  validateMessageId,
   validatePagination,
   validateSession,
   validateSessionId,
   validateSessionMessage,
-  validateSessionMessageUpdate,
   validateSessionUpdate
 } from './validators'
 
@@ -191,19 +188,7 @@ const createMessagesRouter = (): express.Router => {
   const messagesRouter = express.Router({ mergeParams: true })
 
   // Message CRUD routes (nested under agent/session)
-  messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessage)
-  messagesRouter.post('/bulk', validateBulkSessionMessages, handleValidationErrors, messageHandlers.createBulkMessages)
-  messagesRouter.get('/', validatePagination, handleValidationErrors, messageHandlers.listMessages)
-  messagesRouter.get('/:messageId', validateMessageId, handleValidationErrors, messageHandlers.getMessage)
-  messagesRouter.put(
-    '/:messageId',
-    validateMessageId,
-    validateSessionMessageUpdate,
-    handleValidationErrors,
-    messageHandlers.updateMessage
-  )
-  messagesRouter.delete('/:messageId', validateMessageId, handleValidationErrors, messageHandlers.deleteMessage)
-
+  messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessageStream)
   return messagesRouter
 }
 

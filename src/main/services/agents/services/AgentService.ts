@@ -1,8 +1,12 @@
+import path from 'node:path'
+
+import { getDataPath } from '@main/utils'
 import type { AgentEntity, AgentType, PermissionMode } from '@types'
 import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
+// import { builtinTools } from './claudecode/tools'
 
 export interface CreateAgentRequest {
   type: AgentType
@@ -11,12 +15,11 @@ export interface CreateAgentRequest {
   avatar?: string
   instructions?: string
   model: string
-  plan_model?: string
-  small_model?: string
-  built_in_tools?: string[]
-  mcps?: string[]
-  knowledges?: string[]
-  configuration?: Record<string, any>
+  // plan_model?: string
+  // small_model?: string
+  // mcps?: string[]
+  // knowledges?: string[]
+  // configuration?: Record<string, any>
   accessible_paths?: string[]
   permission_mode?: PermissionMode
   max_steps?: number
@@ -28,12 +31,11 @@ export interface UpdateAgentRequest {
   avatar?: string
   instructions?: string
   model?: string
-  plan_model?: string
-  small_model?: string
-  built_in_tools?: string[]
-  mcps?: string[]
-  knowledges?: string[]
-  configuration?: Record<string, any>
+  // plan_model?: string
+  // small_model?: string
+  // mcps?: string[]
+  // knowledges?: string[]
+  // configuration?: Record<string, any>
   accessible_paths?: string[]
   permission_mode?: PermissionMode
   max_steps?: number
@@ -65,6 +67,11 @@ export class AgentService extends BaseService {
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
 
+    if (!agentData.accessible_paths || agentData.accessible_paths.length === 0) {
+      const defaultPath = path.join(getDataPath(), 'agents', id)
+      agentData.accessible_paths = [defaultPath]
+    }
+
     const serializedData = this.serializeJsonFields(agentData)
 
     const insertData: InsertAgentRow = {
@@ -82,10 +89,15 @@ export class AgentService extends BaseService {
       knowledges: serializedData.knowledges || null,
       configuration: serializedData.configuration || null,
       accessible_paths: serializedData.accessible_paths || null,
-      permission_mode: serializedData.permission_mode || 'readOnly',
+      permission_mode: serializedData.permission_mode || 'default',
       max_steps: serializedData.max_steps || 10,
       created_at: now,
       updated_at: now
+    }
+
+    if (serializedData.name === 'claude-code') {
+      // insertData.built_in_tools = JSON.stringify(builtinTools)
+      insertData.built_in_tools = JSON.stringify([])
     }
 
     await this.database.insert(agentsTable).values(insertData)
@@ -96,7 +108,8 @@ export class AgentService extends BaseService {
       throw new Error('Failed to create agent')
     }
 
-    return this.deserializeJsonFields(result[0]) as AgentEntity
+    const agent = this.deserializeJsonFields(result[0]) as AgentEntity
+    return agent
   }
 
   async getAgent(id: string): Promise<AgentEntity | null> {

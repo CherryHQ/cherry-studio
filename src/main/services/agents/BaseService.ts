@@ -6,7 +6,6 @@ import path from 'path'
 
 import * as schema from './database/schema'
 import { dbPath } from './drizzle.config'
-import { getSchemaInfo, needsInitialization, syncDatabaseSchema } from './schemaSyncer'
 
 const logger = loggerService.withContext('BaseService')
 
@@ -66,15 +65,8 @@ export abstract class BaseService {
 
         BaseService.db = drizzle(BaseService.client, { schema })
 
-        // Auto-sync database schema on startup
-        const result = await syncDatabaseSchema(BaseService.client)
-
-        if (!result.success) {
-          throw result.error || new Error('Schema synchronization failed')
-        }
-
         BaseService.isInitialized = true
-        logger.info(`Agent database initialized successfully (version: ${result.version})`)
+        logger.info('Agent database initialized successfully')
         return
       } catch (error) {
         lastError = error as Error
@@ -155,61 +147,6 @@ export abstract class BaseService {
     }
 
     return deserialized
-  }
-
-  /**
-   * Check if database is healthy and initialized
-   */
-  static async healthCheck(): Promise<{
-    isHealthy: boolean
-    version?: string
-    error?: string
-  }> {
-    try {
-      if (!BaseService.isInitialized || !BaseService.client) {
-        return { isHealthy: false, error: 'Database not initialized' }
-      }
-
-      const schemaInfo = await getSchemaInfo(BaseService.client)
-      if (!schemaInfo) {
-        return { isHealthy: false, error: 'Failed to get schema info' }
-      }
-
-      return {
-        isHealthy: true,
-        version: schemaInfo.status === 'ready' ? 'latest' : 'unknown'
-      }
-    } catch (error) {
-      return {
-        isHealthy: false,
-        error: (error as Error).message
-      }
-    }
-  }
-
-  /**
-   * Get database status for debugging
-   */
-  static async getStatus() {
-    try {
-      if (!BaseService.client) {
-        return { status: 'not_initialized' }
-      }
-
-      const schemaInfo = await getSchemaInfo(BaseService.client)
-      const needsInit = await needsInitialization(BaseService.client)
-
-      return {
-        status: BaseService.isInitialized ? 'initialized' : 'initializing',
-        needsInitialization: needsInit,
-        schemaInfo
-      }
-    } catch (error) {
-      return {
-        status: 'error',
-        error: (error as Error).message
-      }
-    }
   }
 
   /**

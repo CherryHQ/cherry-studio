@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "eaa59638-309f-4902-92fb-7528051ad1c3",
+  "id": "c8b65142-dcf4-4d20-8f0e-a17625b34fa7",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "agents": {
@@ -20,7 +20,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'custom'"
+          "default": "'claude-code'"
         },
         "name": {
           "name": "name",
@@ -112,7 +112,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'readOnly'"
+          "default": "'default'"
         },
         "max_steps": {
           "name": "max_steps",
@@ -134,44 +134,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "migrations": {
-      "name": "migrations",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "executed_at": {
-          "name": "executed_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "execution_time": {
-          "name": "execution_time",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         }
       },
@@ -369,7 +331,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'readOnly'"
+          "default": "'default'"
         },
         "max_steps": {
           "name": "max_steps",

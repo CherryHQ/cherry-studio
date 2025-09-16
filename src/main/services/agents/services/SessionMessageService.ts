@@ -1,9 +1,13 @@
+import { EventEmitter } from 'node:events'
+
 import { loggerService } from '@logger'
-import type { SessionMessageEntity } from '@types'
+import type { AgentSessionEntity, SessionMessageEntity } from '@types'
+import { UIMessageChunk } from 'ai'
 import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { type InsertSessionMessageRow, type SessionMessageRow, sessionMessagesTable } from '../database/schema'
+import { type InsertSessionMessageRow, sessionMessagesTable } from '../database/schema'
+import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')
 
@@ -12,7 +16,7 @@ export interface CreateSessionMessageRequest {
   parent_id?: number
   role: 'user' | 'agent' | 'system' | 'tool'
   type: string
-  content: Record<string, any>
+  content: string
   metadata?: Record<string, any>
 }
 
@@ -40,57 +44,16 @@ export class SessionMessageService extends BaseService {
     await BaseService.initialize()
   }
 
-  async createSessionMessage(messageData: CreateSessionMessageRequest): Promise<SessionMessageEntity> {
-    this.ensureInitialized()
-
-    // Validate session exists - we'll need to import SessionService for this check
-    // For now, we'll skip this validation to avoid circular dependencies
-    // The database foreign key constraint will handle this
-
-    // Validate parent exists if specified
-    if (messageData.parent_id) {
-      const parentExists = await this.sessionMessageExists(messageData.parent_id)
-      if (!parentExists) {
-        throw new Error(`Parent message with id ${messageData.parent_id} does not exist`)
-      }
-    }
-
-    const now = new Date().toISOString()
-
-    const insertData: InsertSessionMessageRow = {
-      session_id: messageData.session_id,
-      parent_id: messageData.parent_id || null,
-      role: messageData.role,
-      type: messageData.type,
-      content: JSON.stringify(messageData.content),
-      metadata: messageData.metadata ? JSON.stringify(messageData.metadata) : null,
-      created_at: now,
-      updated_at: now
-    }
-
-    const result = await this.database.insert(sessionMessagesTable).values(insertData).returning()
-
-    if (!result[0]) {
-      throw new Error('Failed to create session message')
-    }
-
-    return this.deserializeSessionMessage(result[0]) as SessionMessageEntity
-  }
-
-  async getSessionMessage(id: number): Promise<SessionMessageEntity | null> {
+  async sessionMessageExists(id: number): Promise<boolean> {
     this.ensureInitialized()
 
     const result = await this.database
-      .select()
+      .select({ id: sessionMessagesTable.id })
       .from(sessionMessagesTable)
       .where(eq(sessionMessagesTable.id, id))
       .limit(1)
 
-    if (!result[0]) {
-      return null
-    }
-
-    return this.deserializeSessionMessage(result[0]) as SessionMessageEntity
+    return result.length > 0
   }
 
   async listSessionMessages(
@@ -126,66 +89,133 @@ export class SessionMessageService extends BaseService {
     return { messages, total }
   }
 
-  async updateSessionMessage(id: number, updates: UpdateSessionMessageRequest): Promise<SessionMessageEntity | null> {
+  createSessionMessageStream(session: AgentSessionEntity, messageData: CreateSessionMessageRequest): EventEmitter {
     this.ensureInitialized()
 
-    // Check if message exists
-    const existing = await this.getSessionMessage(id)
-    if (!existing) {
-      return null
+    // Create a new EventEmitter to manage the session message lifecycle
+    const sessionStream = new EventEmitter()
+
+    // Validate parent exists if specified
+    if (messageData.parent_id) {
+      this.sessionMessageExists(messageData.parent_id)
+        .then((exists) => {
+          if (!exists) {
+            process.nextTick(() => {
+              sessionStream.emit('data', {
+                type: 'error',
+                error: new Error(`Parent message with id ${messageData.parent_id} does not exist`)
+              })
+            })
+            return
+          }
+
+          // Start the Claude Code stream after validation passes
+          this.startClaudeCodeStream(session, messageData, sessionStream)
+        })
+        .catch((error) => {
+          process.nextTick(() => {
+            sessionStream.emit('data', {
+              type: 'error',
+              error: error as Error
+            })
+          })
+        })
+    } else {
+      // No parent validation needed, start immediately
+      this.startClaudeCodeStream(session, messageData, sessionStream)
     }
 
-    const now = new Date().toISOString()
-
-    const updateData: Partial<SessionMessageRow> = {
-      updated_at: now
-    }
-
-    if (updates.content !== undefined) {
-      updateData.content = JSON.stringify(updates.content)
-    }
-
-    if (updates.metadata !== undefined) {
-      updateData.metadata = updates.metadata ? JSON.stringify(updates.metadata) : null
-    }
-
-    await this.database.update(sessionMessagesTable).set(updateData).where(eq(sessionMessagesTable.id, id))
-
-    return await this.getSessionMessage(id)
+    return sessionStream
   }
 
-  async deleteSessionMessage(id: number): Promise<boolean> {
-    this.ensureInitialized()
+  private startClaudeCodeStream(
+    session: AgentSessionEntity,
+    messageData: CreateSessionMessageRequest,
+    sessionStream: EventEmitter
+  ): void {
+    const cc = new ClaudeCodeService()
 
-    const result = await this.database.delete(sessionMessagesTable).where(eq(sessionMessagesTable.id, id))
+    // Create the streaming Claude Code invocation
+    const claudeStream = cc.invokeStream(
+      messageData.content,
+      session.accessible_paths[0],
+      session.external_session_id,
+      {
+        permissionMode: session.permission_mode,
+        maxTurns: session.max_steps
+      }
+    )
 
-    return result.rowsAffected > 0
-  }
+    let sessionMessage: SessionMessageEntity | null = null
 
-  async sessionMessageExists(id: number): Promise<boolean> {
-    this.ensureInitialized()
+    // Handle Claude Code stream events
+    claudeStream.on('data', async (event: any) => {
+      try {
+        switch (event.type) {
+          case 'chunk':
+            // Forward UIMessageChunk directly
+            sessionStream.emit('data', {
+              type: 'chunk',
+              chunk: event.chunk as UIMessageChunk
+            })
+            break
 
-    const result = await this.database
-      .select({ id: sessionMessagesTable.id })
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.id, id))
-      .limit(1)
+          case 'error':
+            sessionStream.emit('data', {
+              type: 'error',
+              error: event.error
+            })
+            break
 
-    return result.length > 0
-  }
+          case 'complete': {
+            // Save the final message to database when Claude Code completes
+            logger.info('Claude Code stream completed, saving message to database')
 
-  async bulkCreateSessionMessages(messages: CreateSessionMessageRequest[]): Promise<SessionMessageEntity[]> {
-    this.ensureInitialized()
+            const now = new Date().toISOString()
+            const insertData: InsertSessionMessageRow = {
+              session_id: messageData.session_id,
+              parent_id: messageData.parent_id || null,
+              role: messageData.role,
+              type: messageData.type,
+              content: JSON.stringify(event.result),
+              metadata: messageData.metadata ? JSON.stringify(messageData.metadata) : null,
+              created_at: now,
+              updated_at: now
+            }
 
-    const results: SessionMessageEntity[] = []
+            const result = await this.database.insert(sessionMessagesTable).values(insertData).returning()
 
-    // Use a transaction for bulk insert
-    for (const messageData of messages) {
-      const result = await this.createSessionMessage(messageData)
-      results.push(result)
-    }
+            if (result[0]) {
+              sessionMessage = this.deserializeSessionMessage(result[0]) as SessionMessageEntity
+              logger.info(`Session message saved with ID: ${sessionMessage.id}`)
 
-    return results
+              // Emit the complete event with the saved message
+              sessionStream.emit('data', {
+                type: 'complete',
+                result: event.result,
+                message: sessionMessage
+              })
+            } else {
+              sessionStream.emit('data', {
+                type: 'error',
+                error: new Error('Failed to save session message to database')
+              })
+            }
+            break
+          }
+
+          default:
+            logger.warn('Unknown event type from Claude Code service:', { type: event.type })
+            break
+        }
+      } catch (error) {
+        logger.error('Error handling Claude Code stream event:', { error })
+        sessionStream.emit('data', {
+          type: 'error',
+          error: error as Error
+        })
+      }
+    })
   }
 
   private deserializeSessionMessage(data: any): SessionMessageEntity {

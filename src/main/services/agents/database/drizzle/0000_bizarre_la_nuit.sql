@@ -1,6 +1,6 @@
 CREATE TABLE `agents` (
 	`id` text PRIMARY KEY NOT NULL,
-	`type` text DEFAULT 'custom' NOT NULL,
+	`type` text DEFAULT 'claude-code' NOT NULL,
 	`name` text NOT NULL,
 	`description` text,
 	`avatar` text,
@@ -13,17 +13,10 @@ CREATE TABLE `agents` (
 	`knowledges` text,
 	`configuration` text,
 	`accessible_paths` text,
-	`permission_mode` text DEFAULT 'readOnly',
+	`permission_mode` text DEFAULT 'default',
 	`max_steps` integer DEFAULT 10,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE `migrations` (
-	`id` text PRIMARY KEY NOT NULL,
-	`description` text NOT NULL,
-	`executed_at` text NOT NULL,
-	`execution_time` integer
 );
 --> statement-breakpoint
 CREATE TABLE `session_messages` (
@@ -54,7 +47,7 @@ CREATE TABLE `sessions` (
 	`knowledges` text,
 	`configuration` text,
 	`accessible_paths` text,
-	`permission_mode` text DEFAULT 'readOnly',
+	`permission_mode` text DEFAULT 'default',
 	`max_steps` integer DEFAULT 10,
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL

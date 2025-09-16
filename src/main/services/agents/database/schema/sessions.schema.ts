@@ -21,7 +21,7 @@ export const sessionsTable = sqliteTable('sessions', {
   knowledges: text('knowledges'), // JSON array of enabled knowledge base IDs
   configuration: text('configuration'), // JSON, extensible settings like temperature, top_p
   accessible_paths: text('accessible_paths'), // JSON array of directory paths the agent can access
-  permission_mode: text('permission_mode').default('readOnly'), // 'readOnly', 'acceptEdits', 'bypassPermissions'
+  permission_mode: text('permission_mode').default('default'),
   max_steps: integer('max_steps').default(10), // Maximum number of steps the agent can take
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()

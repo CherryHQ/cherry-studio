@@ -6,7 +6,7 @@ import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const agentsTable = sqliteTable('agents', {
   id: text('id').primaryKey(),
-  type: text('type').notNull().default('custom'), // 'claudeCode', 'codex', 'custom'
+  type: text('type').notNull().default('claude-code'),
   name: text('name').notNull(),
   description: text('description'),
   avatar: text('avatar'),
@@ -19,7 +19,7 @@ export const agentsTable = sqliteTable('agents', {
   knowledges: text('knowledges'), // JSON array of enabled knowledge base IDs
   configuration: text('configuration'), // JSON, extensible settings like temperature, top_p
   accessible_paths: text('accessible_paths'), // JSON array of directory paths the agent can access
-  permission_mode: text('permission_mode').default('readOnly'), // 'readOnly', 'acceptEdits', 'bypassPermissions'
+  permission_mode: text('permission_mode').default('default'), // 'readOnly', 'acceptEdits', 'bypassPermissions'
   max_steps: integer('max_steps').default(10), // Maximum number of steps the agent can take
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()

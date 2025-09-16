@@ -1,7 +1,8 @@
 
 @host=http://localhost:23333
 @token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
-@agent_id=agent_1757663884173_4tyeh3vqq
+@agent_id=agent_1757947603408_t1y2mbnq4
+@session_id=session_1757947684264_z2wcwn8t7
 
 ### List Sessions
 GET {{host}}/v1/agents/{{agent_id}}/sessions
@@ -15,8 +16,8 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "name": "Code Review Session",
-  "user_goal": "Review the newly implemented feature for bugs and improvements"
+  "name": "Joke telling Session",
+  "user_goal": "Tell me a funny joke"
 }
 
 ### Get Session Details
@@ -41,12 +42,22 @@ Content-Type: application/json
 
 
 ### Create Session Message
-POST {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815260195_eldvompnv/messages
+POST {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}/messages
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "role": "assistant",
-  "content": "Sure! Please provide the code or details of the feature you would like me to review.",
-  "parent_message_id": null
+  "role": "user",
+  "content": "a joke about programmers"
+}
+
+
+### Create Session Message Stream
+POST {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}/messages/stream
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role": "user",
+  "content": "a joke about programmers"
 }
