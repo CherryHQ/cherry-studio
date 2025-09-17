@@ -50,8 +50,8 @@ export class MigrationService {
       const appliedMigrations = await this.getAppliedMigrations()
       const appliedVersions = new Set(appliedMigrations.map(m => m.version))
 
-      // Find pending migrations
-      const pendingMigrations = journal.entries.filter(entry => !appliedVersions.has(entry.idx))
+      // Find pending migrations (compare journal idx with stored version, which is the same value)
+      const pendingMigrations = journal.entries.filter((entry) => !appliedVersions.has(entry.idx))
 
       if (pendingMigrations.length === 0) {
         logger.info('Database is up to date')
@@ -67,7 +67,7 @@ export class MigrationService {
 
       logger.info('All migrations completed successfully')
     } catch (error) {
-      logger.error('Migration failed:', error)
+      logger.error('Migration failed:', { error })
       throw error
     }
   }
@@ -82,7 +82,7 @@ export class MigrationService {
         )
       `)
     } catch (error) {
-      logger.error('Failed to create migrations table:', error)
+      logger.error('Failed to create migrations table:', { error })
       throw error
     }
   }
@@ -91,7 +91,7 @@ export class MigrationService {
     const journalPath = path.join(this.migrationDir, 'meta', '_journal.json')
 
     if (!fs.existsSync(journalPath)) {
-      logger.warn('Migration journal not found:', journalPath)
+      logger.warn('Migration journal not found:', { journalPath })
       return { version: '7', dialect: 'sqlite', entries: [] }
     }
 
@@ -99,7 +99,7 @@ export class MigrationService {
       const journalContent = fs.readFileSync(journalPath, 'utf-8')
       return JSON.parse(journalContent)
     } catch (error) {
-      logger.error('Failed to read migration journal:', error)
+      logger.error('Failed to read migration journal:', { error })
       throw error
     }
   }
@@ -129,7 +129,7 @@ export class MigrationService {
       const sqlContent = fs.readFileSync(sqlFilePath, 'utf-8')
       await this.client.execute(sqlContent)
 
-      // Record migration as applied
+      // Record migration as applied (store journal idx as version for tracking)
       const newMigration: NewMigration = {
         version: migration.idx,
         tag: migration.tag,
@@ -141,7 +141,7 @@ export class MigrationService {
       const executionTime = Date.now() - startTime
       logger.info(`Migration ${migration.tag} completed in ${executionTime}ms`)
     } catch (error) {
-      logger.error(`Migration ${migration.tag} failed:`, error)
+      logger.error(`Migration ${migration.tag} failed:`, { error })
       throw error
     }
   }
