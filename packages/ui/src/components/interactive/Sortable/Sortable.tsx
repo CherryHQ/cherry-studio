@@ -1,16 +1,18 @@
-import {
+import type {
   Active,
-  defaultDropAnimationSideEffects,
-  DndContext,
   DragEndEvent,
-  DragOverlay,
   DragStartEvent,
   DropAnimation,
-  KeyboardSensor,
   Modifier,
   Over,
+  UniqueIdentifier
+} from '@dnd-kit/core'
+import {
+  defaultDropAnimationSideEffects,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
   TouchSensor,
-  UniqueIdentifier,
   useSensor,
   useSensors
 } from '@dnd-kit/core'
@@ -33,7 +35,7 @@ import styled from 'styled-components'
 
 import { ItemRenderer } from './ItemRenderer'
 import { SortableItem } from './SortableItem'
-import { RenderItemType } from './types'
+import type { RenderItemType } from './types'
 import { PortalSafePointerSensor } from './utils'
 
 interface SortableProps<T> {
