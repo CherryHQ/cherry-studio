@@ -353,26 +353,6 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     }
   },
   {
-    id: terminalApps.hyper,
-    name: 'Hyper',
-    command: (directory: string, fullCommand: string) => {
-      // Hyper is installed in AppData\Local by default
-      const hyperPaths = [
-        `${process.env.LOCALAPPDATA}\\hyper\\Hyper.exe`,
-        `${process.env.PROGRAMFILES}\\Hyper\\Hyper.exe`,
-        `${process.env['PROGRAMFILES(X86)']}\\Hyper\\Hyper.exe`
-      ]
-
-      const fs = require('fs')
-      const hyperPath = hyperPaths.find(path => fs.existsSync(path)) || `${process.env.LOCALAPPDATA}\\hyper\\Hyper.exe`
-
-      return {
-        command: hyperPath,
-        args: ['cmd', '/k', fullCommand]
-      }
-    }
-  },
-  {
     id: terminalApps.alacritty,
     name: 'Alacritty',
     customPath: '', // Will be set by user in settings
