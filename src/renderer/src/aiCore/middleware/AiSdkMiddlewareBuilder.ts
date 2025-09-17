@@ -140,7 +140,7 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
   return builder.build()
 }
 
-const tagNameArray = ['think', 'thought']
+const tagNameArray = ['think', 'thought', 'reasoning']
 
 /**
  * 添加provider特定的中间件
@@ -167,6 +167,16 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
     case 'gemini':
       // Gemini特定中间件
       break
+    case 'aws-bedrock': {
+      if (config.model?.id.includes('gpt-oss')) {
+        const tagName = tagNameArray[2]
+        builder.add({
+          name: 'thinking-tag-extraction',
+          middleware: extractReasoningMiddleware({ tagName })
+        })
+      }
+      break
+    }
     default:
       // 其他provider的通用处理
       break
