@@ -228,6 +228,7 @@ export enum terminalApps {
   alacritty = 'Alacritty',
   wezterm = 'WezTerm',
   ghostty = 'Ghostty',
+  tabby = 'Tabby',
   // Windows terminals
   windowsTerminal = 'WindowsTerminal',
   powershell = 'PowerShell',
@@ -281,6 +282,11 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
     id: terminalApps.ghostty,
     name: 'Ghostty',
     bundleId: 'com.mitchellh.ghostty'
+  },
+  {
+    id: terminalApps.tabby,
+    name: 'Tabby',
+    bundleId: 'org.tabby'
   }
 ]
 
@@ -450,6 +456,22 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       args: [
         '-c',
         `cd "${directory}" && open -na Ghostty --args --working-directory="${directory}" -e sh -c "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}; exec \\$SHELL" && sleep 0.5 && osascript -e 'tell application "Ghostty" to activate'`
+      ]
+    })
+  },
+  {
+    id: terminalApps.tabby,
+    name: 'Tabby',
+    bundleId: 'org.tabby',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'sh',
+      args: [
+        '-c',
+        `if pgrep -x "Tabby" > /dev/null; then
+          open -na Tabby --args open && sleep 0.3
+        else
+          open -na Tabby --args open && sleep 2
+        fi && osascript -e 'tell application "Tabby" to activate' -e 'set the clipboard to "cd \\"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"' -e 'tell application "System Events" to tell process "Tabby" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
       ]
     })
   }
