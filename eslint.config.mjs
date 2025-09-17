@@ -144,7 +144,7 @@ export default defineConfig([
           paths: [
             {
               name: 'antd',
-              importNames: ['Flex'],
+              importNames: ['Flex', 'message'],
               message:
                 '❌ Do not import Flex from antd. Use our custom Layout components instead: import { Flex } from "@cherrystudio/ui"'
             }
