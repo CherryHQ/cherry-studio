@@ -156,7 +156,13 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
     case 'openai':
     case 'azure-openai': {
       if (config.enableReasoning) {
-        const tagName = config.model?.id.includes('gemini') ? tagNameArray[1] : tagNameArray[0]
+        let tagName = tagNameArray[0]
+        // aws-bedrock 的OpenAI 兼容端点会出现
+        if (config.model?.id.includes('gpt-oss')) {
+          tagName = tagNameArray[2]
+        } else if (config.model?.id.includes('gemini')) {
+          tagName = tagNameArray[1]
+        }
         builder.add({
           name: 'thinking-tag-extraction',
           middleware: extractReasoningMiddleware({ tagName })
@@ -168,13 +174,6 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
       // Gemini特定中间件
       break
     case 'aws-bedrock': {
-      if (config.model?.id.includes('gpt-oss')) {
-        const tagName = tagNameArray[2]
-        builder.add({
-          name: 'thinking-tag-extraction',
-          middleware: extractReasoningMiddleware({ tagName })
-        })
-      }
       break
     }
     default:
