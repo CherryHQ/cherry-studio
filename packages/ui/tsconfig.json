@@ -12,6 +12,10 @@
     "moduleResolution": "bundler",
     "noFallthroughCasesInSwitch": true,
     "outDir": "./dist",
+    "paths": {
+      "@types": ["src/types"],
+      "@utils": ["src/utils"]
+    },
     "resolveJsonModule": true,
     "rootDir": ".",
     "skipLibCheck": true,
