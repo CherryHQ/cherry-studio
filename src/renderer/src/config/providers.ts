@@ -1020,7 +1020,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   },
   anthropic: {
     api: {
-      url: 'https://api.anthropic.com/'
+      url: 'https://api.anthropic.com'
     },
     websites: {
       official: 'https://anthropic.com/',
