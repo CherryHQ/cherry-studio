@@ -3,8 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
-import { isMac } from '@main/constant'
+import { isMac,isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -46,8 +45,7 @@ class CodeToolsService {
     this.updatePackage = this.updatePackage.bind(this)
     this.run = this.run.bind(this)
 
-    // Preload terminals on macOS and Windows for faster UI response
-    if (process.platform === 'darwin' || process.platform === 'win32') {
+    if (isMac || isWin) {
       this.preloadTerminals()
     }
   }
@@ -111,7 +109,7 @@ class CodeToolsService {
    */
   private async checkTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
     try {
-      if (process.platform === 'darwin' && terminal.bundleId) {
+      if (isMac && terminal.bundleId) {
         // macOS: Check if application is installed via bundle ID with timeout
         const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, {
           timeout: 3000
@@ -119,11 +117,11 @@ class CodeToolsService {
         if (stdout.trim()) {
           return terminal
         }
-      } else if (process.platform === 'win32') {
+      } else if (isWin) {
         // Windows: Check terminal availability
         return await this.checkWindowsTerminalAvailability(terminal)
       } else {
-        // Unix-like systems: Check if command-line terminal is available with timeout
+        // TODO: Check if terminal is available in linux
         await execAsync(`which ${terminal.id}`, { timeout: 2000 })
         return terminal
       }
@@ -253,7 +251,7 @@ class CodeToolsService {
     const startTime = Date.now()
 
     // Get terminal list based on platform
-    const terminalList = process.platform === 'win32' ? WINDOWS_TERMINALS : MACOS_TERMINALS
+    const terminalList = isWin ? WINDOWS_TERMINALS : MACOS_TERMINALS
 
     // Check all terminals in parallel
     const terminalPromises = terminalList.map((terminal) => this.checkTerminalAvailability(terminal))
@@ -300,8 +298,8 @@ class CodeToolsService {
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
     const terminalCommands =
-      process.platform === 'win32' ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
-    const defaultTerminal = process.platform === 'win32' ? terminalApps.cmd : terminalApps.systemDefault
+      isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
+    const defaultTerminal = isWin ? terminalApps.cmd : terminalApps.systemDefault
 
     if (terminalId) {
       let requestedTerminal = terminalCommands.find(
@@ -311,7 +309,7 @@ class CodeToolsService {
       if (requestedTerminal) {
         // Apply custom path if configured
         const customPath = this.customTerminalPaths.get(terminalId)
-        if (customPath && process.platform === 'win32') {
+        if (customPath && isWin) {
           requestedTerminal = this.applyCustomPath(requestedTerminal, customPath)
         }
         return requestedTerminal
@@ -358,7 +356,7 @@ class CodeToolsService {
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
     const executableName = await this.getCliExecutableName(cliTool)
     const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-    const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
     // Ensure bin directory exists
     if (!fs.existsSync(binDir)) {
@@ -385,7 +383,7 @@ class CodeToolsService {
       try {
         const executableName = await this.getCliExecutableName(cliTool)
         const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-        const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+        const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
         const { stdout } = await execAsync(`"${executablePath}" --version`, { timeout: 10000 })
         // Extract version number from output (format may vary by tool)
@@ -494,7 +492,7 @@ class CodeToolsService {
       const registryUrl = await this.getNpmRegistryUrl()
 
       const installEnvPrefix =
-        process.platform === 'win32'
+        isWin
           ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
           : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
@@ -542,7 +540,7 @@ class CodeToolsService {
     const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
     const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-    const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
     logger.debug(`Package name: ${packageName}`)
     logger.debug(`Bun path: ${bunPath}`)
