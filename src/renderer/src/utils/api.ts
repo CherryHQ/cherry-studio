@@ -28,6 +28,10 @@ export function formatApiHost(host: string, apiVersion: string = 'v1'): string {
     return host.endsWith('volces.com/api/v3')
   }
 
+  if (!host) {
+    return ''
+  }
+
   return forceUseOriginalHost() ? host : `${host}/${apiVersion}/`
 }
 
