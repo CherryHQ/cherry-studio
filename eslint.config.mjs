@@ -48,8 +48,8 @@ export default defineConfig([
       '@eslint-react/no-children-to-array': 'off'
     }
   },
+  // LoggerService Custom Rules - only apply to src directory
   {
-    // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
@@ -63,6 +63,7 @@ export default defineConfig([
       ]
     }
   },
+  // i18n
   {
     files: ['**/*.{ts,tsx,js,jsx}'],
     languageOptions: {
@@ -110,6 +111,7 @@ export default defineConfig([
       'i18n/no-template-in-t': 'warn'
     }
   },
+  // ui migration
   {
     // Component Rules - prevent importing antd components when migration completed
     files: ['src/**/*.{ts,tsx,js,jsx}'],
@@ -121,7 +123,7 @@ export default defineConfig([
             {
               name: 'antd',
               // TODO: migrate message again
-              importNames: ['Flex'],
+              importNames: ['Flex', 'message'],
               message:
                 '❌ Do not import Flex from antd. Use our custom Layout components instead: import { Flex } from "@cherrystudio/ui"'
             }
