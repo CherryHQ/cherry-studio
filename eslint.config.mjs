@@ -48,6 +48,28 @@ export default defineConfig([
       '@eslint-react/no-children-to-array': 'off'
     }
   },
+  {
+    ignores: [
+      'node_modules/**',
+      'build/**',
+      'dist/**',
+      'out/**',
+      'local/**',
+      '.yarn/**',
+      '.gitignore',
+      'scripts/cloudflare-worker.js',
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/main/integration/cherryin/index.js',
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/renderer/src/ui/**',
+      'packages/**/dist'
+    ]
+  },
+  // turn off oxlint supported rules.
+  ...oxlint.configs['flat/eslint'],
+  ...oxlint.configs['flat/typescript'],
+  ...oxlint.configs['flat/unicorn'],
+  // Custom rules should be after oxlint to overwrite
   // LoggerService Custom Rules - only apply to src directory
   {
     files: ['src/**/*.{ts,tsx,js,jsx}'],
@@ -114,7 +136,7 @@ export default defineConfig([
   // ui migration
   {
     // Component Rules - prevent importing antd components when migration completed
-    files: ['src/**/*.{ts,tsx,js,jsx}'],
+    files: ['**/*.{ts,tsx,js,jsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -122,8 +144,7 @@ export default defineConfig([
           paths: [
             {
               name: 'antd',
-              // TODO: migrate message again
-              importNames: ['Flex', 'message'],
+              importNames: ['Flex'],
               message:
                 '❌ Do not import Flex from antd. Use our custom Layout components instead: import { Flex } from "@cherrystudio/ui"'
             }
@@ -132,25 +153,4 @@ export default defineConfig([
       ]
     }
   },
-  {
-    ignores: [
-      'node_modules/**',
-      'build/**',
-      'dist/**',
-      'out/**',
-      'local/**',
-      '.yarn/**',
-      '.gitignore',
-      'scripts/cloudflare-worker.js',
-      'src/main/integration/nutstore/sso/lib/**',
-      'src/main/integration/cherryin/index.js',
-      'src/main/integration/nutstore/sso/lib/**',
-      'src/renderer/src/ui/**',
-      'packages/**/dist'
-    ]
-  },
-  // turn off oxlint supported rules.
-  ...oxlint.configs['flat/eslint'],
-  ...oxlint.configs['flat/typescript'],
-  ...oxlint.configs['flat/unicorn']
 ])
