@@ -1,7 +1,7 @@
 import { BailianStrategy } from './BailianStrategy'
 import { DefaultStrategy } from './DefaultStrategy'
 import { JinaStrategy } from './JinaStrategy'
-import { RerankStrategy } from './RerankStrategy'
+import type { RerankStrategy } from './RerankStrategy'
 import { TEIStrategy } from './TeiStrategy'
 import { isTEIProvider, RERANKER_PROVIDERS } from './types'
 import { VoyageAIStrategy } from './VoyageStrategy'

@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import {
+import type {
   AddMemoryOptions,
   AssistantMessage,
   MemoryHistoryItem,

@@ -2,7 +2,7 @@ import type { StorybookConfig } from '@storybook/react-vite'
 
 const config: StorybookConfig = {
   stories: ['../stories/components/**/*.stories.@(js|jsx|ts|tsx)'],
-  addons: ['@storybook/addon-docs'],
+  addons: ['@storybook/addon-docs', '@storybook/addon-themes'],
   framework: '@storybook/react-vite',
   viteFinal: async (config) => {
     const { mergeConfig } = await import('vite')

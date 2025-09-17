@@ -1,4 +1,4 @@
-import {
+import type {
   AISDKError,
   APICallError,
   DownloadError,
@@ -20,7 +20,7 @@ import {
   UnsupportedFunctionalityError
 } from 'ai'
 
-import { Serializable } from './serialize'
+import type { Serializable } from './serialize'
 
 export interface SerializedError {
   name: string | null

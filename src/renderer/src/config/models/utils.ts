@@ -1,7 +1,7 @@
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { getLowerBaseModelName } from '@renderer/utils'
 import { WEB_SEARCH_PROMPT_FOR_OPENROUTER } from '@shared/config/prompts'
-import OpenAI from 'openai'
+import type OpenAI from 'openai'
 
 import { getWebSearchTools } from '../tools'
 import { isOpenAIReasoningModel } from './reasoning'

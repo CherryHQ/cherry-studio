@@ -1,8 +1,8 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
+import type { WebSearchState } from '@renderer/store/websearch'
+import type { WebSearchProvider, WebSearchProviderResponse, WebSearchProviderResult } from '@renderer/types'
 import { createAbortPromise } from '@renderer/utils/abortController'
 import { isAbortError } from '@renderer/utils/error'
 import { fetchWebContent, noContent } from '@renderer/utils/fetch'
@@ -95,7 +95,7 @@ export default class LocalSearchProvider extends BaseWebSearchProvider {
     return query
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   protected parseValidUrls(_htmlContent: string): SearchItem[] {
     throw new Error('Not implemented')
   }

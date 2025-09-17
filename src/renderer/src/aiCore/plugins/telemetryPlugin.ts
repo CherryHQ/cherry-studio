@@ -8,10 +8,11 @@
 
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
-import { Context, context as otelContext, Span, SpanContext, trace, Tracer } from '@opentelemetry/api'
+import type { Context, Span, SpanContext, Tracer } from '@opentelemetry/api'
+import { context as otelContext, trace } from '@opentelemetry/api'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import { webTraceService } from '@renderer/services/WebTraceService'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 
 import { AiSdkSpanAdapter } from '../trace/AiSdkSpanAdapter'
 
@@ -66,6 +67,7 @@ class AdapterTracer {
       spanName: name,
       topicId: this.topicId,
       modelName: this.modelName,
+      // oxlint-disable-next-line no-undef False alarm. see https://github.com/oxc-project/oxc/issues/4232
       argCount: arguments.length
     })
 

@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { DEFAULT_CONTEXTCOUNT, MAX_CONTEXT_COUNT, UNLIMITED_CONTEXT_COUNT } from '@renderer/config/constant'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import { getTopicById } from '@renderer/hooks/useTopic'
-import i18n from '@renderer/i18n'
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import store from '@renderer/store'
 import { messageBlocksSelectors, removeManyBlocks } from '@renderer/store/messageBlock'
@@ -25,7 +25,7 @@ import { filterContextMessages } from '@renderer/utils/messageUtils/filters'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import dayjs from 'dayjs'
 import { t } from 'i18next'
-import { NavigateFunction } from 'react-router'
+import type { NavigateFunction } from 'react-router'
 
 import { getAssistantById, getAssistantProvider, getDefaultModel } from './AssistantService'
 import { EVENT_NAMES, EventEmitter } from './EventService'
@@ -67,16 +67,8 @@ export function deleteMessageFiles(message: Message) {
   })
 }
 
-export function isGenerating() {
-  return new Promise((resolve, reject) => {
-    const generating = store.getState().runtime.generating
-    generating && window.toast.warning(i18n.t('message.switch.disabled'))
-    generating ? reject(false) : resolve(true)
-  })
-}
-
 export async function locateToMessage(navigate: NavigateFunction, message: Message) {
-  await isGenerating()
+  await modelGenerating()
 
   SearchPopup.hide()
   const assistant = getAssistantById(message.assistantId)

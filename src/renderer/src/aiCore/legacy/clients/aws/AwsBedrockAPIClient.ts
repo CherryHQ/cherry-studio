@@ -6,7 +6,7 @@ import {
   InvokeModelWithResponseStreamCommand
 } from '@aws-sdk/client-bedrock-runtime'
 import { loggerService } from '@logger'
-import { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
+import type { GenericChunk } from '@renderer/aiCore/legacy/middleware/schemas'
 import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
 import { findTokenLimit, isReasoningModel } from '@renderer/config/models'
 import {
@@ -16,10 +16,8 @@ import {
 } from '@renderer/hooks/useAwsBedrock'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import {
+import type {
   Assistant,
-  EFFORT_RATIO,
-  FileTypes,
   GenerateImageParams,
   MCPCallToolResponse,
   MCPTool,
@@ -28,15 +26,11 @@ import {
   Provider,
   ToolCallResponse
 } from '@renderer/types'
-import {
-  ChunkType,
-  MCPToolCreatedChunk,
-  TextDeltaChunk,
-  ThinkingDeltaChunk,
-  ThinkingStartChunk
-} from '@renderer/types/chunk'
-import { Message } from '@renderer/types/newMessage'
-import {
+import { EFFORT_RATIO, FileTypes } from '@renderer/types'
+import type { MCPToolCreatedChunk, TextDeltaChunk, ThinkingDeltaChunk, ThinkingStartChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   AwsBedrockSdkInstance,
   AwsBedrockSdkMessageParam,
   AwsBedrockSdkParams,
@@ -58,7 +52,7 @@ import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/fi
 import { t } from 'i18next'
 
 import { BaseApiClient } from '../BaseApiClient'
-import { RequestTransformer, ResponseChunkTransformer } from '../types'
+import type { RequestTransformer, ResponseChunkTransformer } from '../types'
 
 const logger = loggerService.withContext('AwsBedrockAPIClient')
 
@@ -455,7 +449,7 @@ export class AwsBedrockAPIClient extends BaseApiClient<
   }
 
   // @ts-ignore sdk未提供
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   override async generateImage(_generateImageParams: GenerateImageParams): Promise<string[]> {
     return []
   }

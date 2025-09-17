@@ -1,5 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
@@ -9,23 +10,27 @@ import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { FileMetadata, FileTypes } from '@renderer/types'
-import { Message, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { getFilesFromDropEvent, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createFileBlock, createImageBlock } from '@renderer/utils/messageUtils/create'
 import { findAllBlocks } from '@renderer/utils/messageUtils/find'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
 import { Space, Tooltip } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { Save, Send, X } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
+import type { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
+import AttachmentButton from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
-import { ToolbarButton } from '../Inputbar/Inputbar'
 
 interface Props {
   message: Message
@@ -349,27 +354,26 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
               setFiles={setFiles}
               couldAddImageFile={couldAddImageFile}
               extensions={extensions}
-              ToolbarButton={ToolbarButton}
             />
           )}
         </ActionBarLeft>
         <ActionBarMiddle />
         <ActionBarRight>
           <Tooltip title={t('common.cancel')}>
-            <ToolbarButton type="text" onClick={onCancel}>
+            <ActionIconButton onClick={onCancel}>
               <X size={16} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
           <Tooltip title={t('common.save')}>
-            <ToolbarButton type="text" onClick={handleSave}>
+            <ActionIconButton onClick={handleSave}>
               <Save size={16} />
-            </ToolbarButton>
+            </ActionIconButton>
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
-              <ToolbarButton type="text" onClick={handleResend}>
+              <ActionIconButton onClick={handleResend}>
                 <Send size={16} />
-              </ToolbarButton>
+              </ActionIconButton>
             </Tooltip>
           )}
         </ActionBarRight>

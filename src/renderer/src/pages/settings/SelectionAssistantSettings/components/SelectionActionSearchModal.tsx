@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Button, Form, Input, Modal, Select } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, useEffect } from 'react'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')

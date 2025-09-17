@@ -11,22 +11,20 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useSettings } from '@renderer/hooks/useSettings'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { SettingDivider, SettingRow, SettingRowTitle } from '@renderer/pages/settings'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
 import { getDefaultModel } from '@renderer/services/AssistantService'
-import { useAppDispatch } from '@renderer/store'
-import { setCodeFancyBlock } from '@renderer/store/settings'
-import { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
+import type { Assistant, AssistantSettings, CodeStyleVarious, MathEngine } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Button, Col, InputNumber, Row, Slider, Switch } from 'antd'
 import { Settings2 } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -85,6 +83,7 @@ const SettingsTab: FC<Props> = (props) => {
     enabled: 'chat.code.execution.enabled',
     timeoutMinutes: 'chat.code.execution.timeout_minutes'
   })
+  const [codeFancyBlock, setCodeFancyBlock] = usePreference('chat.code.fancy_block')
 
   const { assistant, updateAssistantSettings } = useAssistant(props.assistant.id)
   const { provider } = useProvider(assistant.model.provider)
@@ -102,10 +101,6 @@ const SettingsTab: FC<Props> = (props) => {
   const { translateLanguages } = useTranslate()
 
   const { t } = useTranslation()
-
-  const dispatch = useAppDispatch()
-
-  const { codeFancyBlock } = useSettings()
 
   const onUpdateAssistantSettings = (settings: Partial<AssistantSettings>) => {
     updateAssistantSettings(settings)
@@ -446,11 +441,7 @@ const SettingsTab: FC<Props> = (props) => {
               {t('chat.settings.code_fancy_block.label')}
               <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
             </SettingRowTitleSmall>
-            <Switch
-              size="small"
-              checked={codeFancyBlock}
-              onChange={(checked) => dispatch(setCodeFancyBlock(checked))}
-            />
+            <Switch size="small" checked={codeFancyBlock} onChange={(checked) => setCodeFancyBlock(checked)} />
           </SettingRow>
           <SettingDivider />
           <SettingRow>

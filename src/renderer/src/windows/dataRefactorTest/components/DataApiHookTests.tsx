@@ -218,7 +218,7 @@ const DataApiHookTests: React.FC = () => {
     }
 
     const optimisticData = {
-      ...(singleItem || {}),
+      ...singleItem,
       title: `${(singleItem as any)?.title || 'Unknown'} (Optimistic Update)`,
       updatedAt: new Date().toISOString()
     }

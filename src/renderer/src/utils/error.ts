@@ -1,16 +1,18 @@
-import { McpError } from '@modelcontextprotocol/sdk/types.js'
-import {
+import type { McpError } from '@modelcontextprotocol/sdk/types.js'
+import type {
   AiSdkErrorUnion,
-  isSerializedAiSdkAPICallError,
   SerializedAiSdkError,
   SerializedAiSdkInvalidToolInputError,
   SerializedAiSdkNoSuchToolError,
   SerializedError
 } from '@renderer/types/error'
-import { InvalidToolInputError, NoSuchToolError } from 'ai'
+import { isSerializedAiSdkAPICallError } from '@renderer/types/error'
+import type { NoSuchToolError } from 'ai'
+import { InvalidToolInputError } from 'ai'
 import { t } from 'i18next'
-import { z } from 'zod'
+import type { z } from 'zod'
 
+import { parseJSON } from './json'
 import { safeSerialize } from './serialize'
 
 // const logger = loggerService.withContext('Utils:error')
@@ -126,7 +128,23 @@ export const serializeError = (error: AiSdkErrorUnion): SerializedError => {
   if ('url' in error) serializedError.url = error.url
   if ('requestBodyValues' in error) serializedError.requestBodyValues = safeSerialize(error.requestBodyValues)
   if ('statusCode' in error) serializedError.statusCode = error.statusCode ?? null
-  if ('responseBody' in error) serializedError.responseBody = error.responseBody ?? null
+  if ('responseBody' in error && error.responseBody) {
+    const body = parseJSON(error.responseBody)
+    if (body) {
+      // try to parse internal msg
+      const message = body.message || body.msg
+      if (message) {
+        if (serializedError.message === null) {
+          serializedError.message = message
+        } else {
+          serializedError.message += ' ' + message
+        }
+      }
+      serializedError.responseBody = JSON.stringify(body, null, 2)
+    } else {
+      serializedError.responseBody = error.responseBody
+    }
+  }
   if ('isRetryable' in error) serializedError.isRetryable = error.isRetryable
   if ('data' in error) serializedError.data = safeSerialize(error.data)
   if ('responseHeaders' in error) serializedError.responseHeaders = error.responseHeaders ?? null

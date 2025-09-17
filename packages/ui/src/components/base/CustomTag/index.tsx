@@ -1,8 +1,8 @@
 // Original path: src/renderer/src/components/Tags/CustomTag.tsx
-import { CloseOutlined } from '@ant-design/icons'
-import { Tooltip } from 'antd'
-import { CSSProperties, FC, memo, MouseEventHandler, useMemo } from 'react'
-import styled from 'styled-components'
+import { Tooltip } from '@heroui/react'
+import { X } from 'lucide-react'
+import type { CSSProperties, FC, MouseEventHandler } from 'react'
+import { memo, useMemo } from 'react'
 
 export interface CustomTagProps {
   icon?: React.ReactNode
@@ -16,6 +16,7 @@ export interface CustomTagProps {
   onClick?: MouseEventHandler<HTMLDivElement>
   disabled?: boolean
   inactive?: boolean
+  className?: string
 }
 
 const CustomTag: FC<CustomTagProps> = ({
@@ -29,39 +30,53 @@ const CustomTag: FC<CustomTagProps> = ({
   onClose,
   onClick,
   disabled,
-  inactive
+  inactive,
+  className = ''
 }) => {
   const actualColor = inactive ? '#aaaaaa' : color
+
   const tagContent = useMemo(
     () => (
-      <Tag
-        $color={actualColor}
-        $size={size}
-        $closable={closable}
-        $clickable={!disabled && !!onClick}
-        onClick={disabled ? undefined : onClick}
+      <div
+        className={`inline-flex items-center gap-1 rounded-full whitespace-nowrap relative transition-opacity duration-200 ${
+          !disabled && onClick ? 'cursor-pointer hover:opacity-80' : disabled ? 'cursor-not-allowed' : 'cursor-auto'
+        } ${className}`}
         style={{
-          ...(disabled && { cursor: 'not-allowed' }),
+          padding: `${size / 3}px ${closable ? size * 1.8 : size * 0.8}px ${size / 3}px ${size * 0.8}px`,
+          color: actualColor,
+          backgroundColor: actualColor + '20',
+          fontSize: `${size}px`,
+          lineHeight: 1,
           ...style
-        }}>
-        {icon && icon} {children}
+        }}
+        onClick={disabled ? undefined : onClick}>
+        {icon && <span style={{ fontSize: `${size}px`, color: actualColor }}>{icon}</span>}
+        {children}
         {closable && (
-          <CloseIcon
-            $size={size}
-            $color={actualColor}
+          <div
+            className="absolute flex items-center justify-center cursor-pointer rounded-full transition-all duration-200 hover:bg-[#da8a8a] hover:text-white"
+            style={{
+              right: `${size * 0.2}px`,
+              top: `${size * 0.2}px`,
+              bottom: `${size * 0.2}px`,
+              fontSize: `${size * 0.8}px`,
+              color: actualColor,
+              aspectRatio: 1
+            }}
             onClick={(e) => {
               e.stopPropagation()
               onClose?.()
-            }}
-          />
+            }}>
+            <X size={size * 0.8} />
+          </div>
         )}
-      </Tag>
+      </div>
     ),
-    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style]
+    [actualColor, children, closable, disabled, icon, onClick, onClose, size, style, className]
   )
 
   return tooltip ? (
-    <Tooltip title={tooltip} placement="top" mouseEnterDelay={0.3}>
+    <Tooltip content={tooltip} placement="top" delay={300}>
       {tagContent}
     </Tooltip>
   ) : (
@@ -70,49 +85,3 @@ const CustomTag: FC<CustomTagProps> = ({
 }
 
 export default memo(CustomTag)
-
-const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $clickable: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: ${({ $size }) => $size / 3}px ${({ $size }) => $size * 0.8}px;
-  padding-right: ${({ $closable, $size }) => ($closable ? $size * 1.8 : $size * 0.8)}px;
-  border-radius: 99px;
-  color: ${({ $color }) => $color};
-  background-color: ${({ $color }) => $color + '20'};
-  font-size: ${({ $size }) => $size}px;
-  line-height: 1;
-  white-space: nowrap;
-  position: relative;
-  cursor: ${({ $clickable }) => ($clickable ? 'pointer' : 'auto')};
-  .iconfont {
-    font-size: ${({ $size }) => $size}px;
-    color: ${({ $color }) => $color};
-  }
-
-  transition: opacity 0.2s ease;
-  &:hover {
-    opacity: ${({ $clickable }) => ($clickable ? 0.8 : 1)};
-  }
-`
-
-const CloseIcon = styled(CloseOutlined)<{ $size: number; $color: string }>`
-  cursor: pointer;
-  font-size: ${({ $size }) => $size * 0.8}px;
-  color: ${({ $color }) => $color};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: absolute;
-  right: ${({ $size }) => $size * 0.2}px;
-  top: ${({ $size }) => $size * 0.2}px;
-  bottom: ${({ $size }) => $size * 0.2}px;
-  border-radius: 99px;
-  transition: all 0.2s ease;
-  aspect-ratio: 1;
-  line-height: 1;
-  &:hover {
-    background-color: #da8a8a;
-    color: #ffffff;
-  }
-`

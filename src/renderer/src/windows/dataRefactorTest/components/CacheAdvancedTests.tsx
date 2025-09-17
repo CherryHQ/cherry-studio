@@ -3,12 +3,12 @@ import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Input, message, Space, Typography, Card, Row, Col, Divider, Progress, Badge, Tag } from 'antd'
-import { Clock, Shield, Zap, Activity, AlertTriangle, CheckCircle, XCircle, Timer } from 'lucide-react'
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Badge, Button, Card, Col, Divider, message, Progress, Row, Space, Tag, Typography } from 'antd'
+import { Activity, AlertTriangle, CheckCircle, Clock, Shield, Timer, XCircle, Zap } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-const { Text, Title } = Typography
+const { Text } = Typography
 
 const logger = loggerService.withContext('CacheAdvancedTests')
 
@@ -21,37 +21,37 @@ const CacheAdvancedTests: React.FC = () => {
   const isDarkTheme = currentTheme === ThemeMode.dark
 
   // TTL Testing
-  const [ttlKey] = useState('test-ttl-cache')
-  const [ttlValue, setTtlValue] = useCache(ttlKey)
+  const [ttlKey] = useState('test-ttl-cache' as const)
+  const [ttlValue, setTtlValue] = useCache(ttlKey as any, 'test-ttl-cache')
   const [ttlExpireTime, setTtlExpireTime] = useState<number | null>(null)
   const [ttlProgress, setTtlProgress] = useState(0)
 
   // Hook Reference Tracking
-  const [protectedKey] = useState('test-protected-cache')
-  const [protectedValue, setProtectedValue] = useCache(protectedKey, 'protected-value')
+  const [protectedKey] = useState('test-protected-cache' as const)
+  const [protectedValue] = useCache(protectedKey as any, 'protected-value')
   const [deleteAttemptResult, setDeleteAttemptResult] = useState<string>('')
 
   // Deep Equality Testing
-  const [deepEqualKey] = useState('test-deep-equal')
-  const [objectValue, setObjectValue] = useCache(deepEqualKey, { nested: { count: 0 }, tags: ['initial'] })
-  const [updateSkipCount, setUpdateSkipCount] = useState(0)
+  const [deepEqualKey] = useState('test-deep-equal' as const)
+  const [objectValue, setObjectValue] = useCache(deepEqualKey as any, { nested: { count: 0 }, tags: ['initial'] })
+  const [updateSkipCount] = useState(0)
 
   // Performance Testing
-  const [perfKey] = useState('test-performance')
-  const [perfValue, setPerfValue] = useCache(perfKey, 0)
+  const [perfKey] = useState('test-performance' as const)
+  const [perfValue, setPerfValue] = useCache(perfKey as any, 0)
   const [rapidUpdateCount, setRapidUpdateCount] = useState(0)
   const [subscriptionTriggers, setSubscriptionTriggers] = useState(0)
   const renderCountRef = useRef(0)
   const [displayRenderCount, setDisplayRenderCount] = useState(0)
 
   // Multi-hook testing
-  const [multiKey] = useState('test-multi-hook')
-  const [value1] = useCache(multiKey, 'hook-1-default')
-  const [value2] = useCache(multiKey, 'hook-2-default')
-  const [value3] = useSharedCache(multiKey, 'hook-3-shared')
+  const [multiKey] = useState('test-multi-hook' as const)
+  const [value1] = useCache(multiKey as any, 'hook-1-default')
+  const [value2] = useCache(multiKey as any, 'hook-2-default')
+  const [value3] = useSharedCache(multiKey as any, 'hook-3-shared')
 
-  const intervalRef = useRef<NodeJS.Timeout>()
-  const performanceTestRef = useRef<NodeJS.Timeout>()
+  const intervalRef = useRef<NodeJS.Timeout>(null)
+  const performanceTestRef = useRef<NodeJS.Timeout>(null)
 
   // Update render count without causing re-renders
   renderCountRef.current += 1
@@ -59,53 +59,56 @@ const CacheAdvancedTests: React.FC = () => {
   // Track subscription changes
   useEffect(() => {
     const unsubscribe = cacheService.subscribe(perfKey, () => {
-      setSubscriptionTriggers(prev => prev + 1)
+      setSubscriptionTriggers((prev) => prev + 1)
     })
     return unsubscribe
   }, [perfKey])
 
   // TTL Testing Functions
-  const startTTLTest = useCallback((ttlMs: number) => {
-    const testValue = { message: 'TTL Test', timestamp: Date.now() }
-    cacheService.set(ttlKey, testValue, ttlMs)
-    setTtlValue(testValue)
+  const startTTLTest = useCallback(
+    (ttlMs: number) => {
+      const testValue = { message: 'TTL Test', timestamp: Date.now() }
+      cacheService.set(ttlKey, testValue, ttlMs)
+      setTtlValue(testValue.message)
 
-    const expireAt = Date.now() + ttlMs
-    setTtlExpireTime(expireAt)
+      const expireAt = Date.now() + ttlMs
+      setTtlExpireTime(expireAt)
 
-    // Clear previous interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-    }
-
-    // Update progress every 100ms
-    intervalRef.current = setInterval(() => {
-      const now = Date.now()
-      const remaining = Math.max(0, expireAt - now)
-      const progress = Math.max(0, 100 - (remaining / ttlMs) * 100)
-
-      setTtlProgress(progress)
-
-      if (remaining <= 0) {
-        clearInterval(intervalRef.current!)
-        setTtlExpireTime(null)
-        message.info('TTL expired, checking value...')
-
-        // Check if value is actually expired
-        setTimeout(() => {
-          const currentValue = cacheService.get(ttlKey)
-          if (currentValue === undefined) {
-            message.success('TTL expiration working correctly!')
-          } else {
-            message.warning('TTL expiration may have failed')
-          }
-        }, 100)
+      // Clear previous interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
       }
-    }, 100)
 
-    message.info(`TTL test started: ${ttlMs}ms`)
-    logger.info('TTL test started', { key: ttlKey, ttl: ttlMs, expireAt })
-  }, [ttlKey, setTtlValue])
+      // Update progress every 100ms
+      intervalRef.current = setInterval(() => {
+        const now = Date.now()
+        const remaining = Math.max(0, expireAt - now)
+        const progress = Math.max(0, 100 - (remaining / ttlMs) * 100)
+
+        setTtlProgress(progress)
+
+        if (remaining <= 0) {
+          clearInterval(intervalRef.current!)
+          setTtlExpireTime(null)
+          message.info('TTL expired, checking value...')
+
+          // Check if value is actually expired
+          setTimeout(() => {
+            const currentValue = cacheService.get(ttlKey)
+            if (currentValue === undefined) {
+              message.success('TTL expiration working correctly!')
+            } else {
+              message.warning('TTL expiration may have failed')
+            }
+          }, 100)
+        }
+      }, 100)
+
+      message.info(`TTL test started: ${ttlMs}ms`)
+      logger.info('TTL test started', { key: ttlKey, ttl: ttlMs, expireAt })
+    },
+    [ttlKey, setTtlValue]
+  )
 
   // Hook Reference Tracking Test
   const testDeleteProtection = () => {
@@ -126,7 +129,7 @@ const CacheAdvancedTests: React.FC = () => {
     switch (operation) {
       case 'same-reference':
         // Set same reference - should skip
-        setObjectValue(objectValue)
+        setObjectValue(objectValue as { nested: { count: number }; tags: string[] })
         break
 
       case 'same-content':
@@ -198,12 +201,19 @@ const CacheAdvancedTests: React.FC = () => {
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Space>
-            <Text type="secondary">Advanced Features • Renders: {displayRenderCount || renderCountRef.current} • Subscriptions: {subscriptionTriggers}</Text>
-            <Button size="small" onClick={() => {
-              renderCountRef.current = 0
-              setDisplayRenderCount(0)
-              setSubscriptionTriggers(0)
-            }}>Reset Stats</Button>
+            <Text type="secondary">
+              Advanced Features • Renders: {displayRenderCount || renderCountRef.current} • Subscriptions:{' '}
+              {subscriptionTriggers}
+            </Text>
+            <Button
+              size="small"
+              onClick={() => {
+                renderCountRef.current = 0
+                setDisplayRenderCount(0)
+                setSubscriptionTriggers(0)
+              }}>
+              Reset Stats
+            </Button>
           </Space>
         </div>
 
@@ -221,10 +231,11 @@ const CacheAdvancedTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Text>Key: <code>{ttlKey}</code></Text>
+                <Text>
+                  Key: <code>{ttlKey}</code>
+                </Text>
 
                 <Space wrap>
                   <Button size="small" onClick={() => startTTLTest(2000)} icon={<Clock size={12} />}>
@@ -270,27 +281,19 @@ const CacheAdvancedTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Text>Key: <code>{protectedKey}</code></Text>
-                <Badge
-                  status="processing"
-                  text="This hook is actively using the cache key"
-                />
+                <Text>
+                  Key: <code>{protectedKey}</code>
+                </Text>
+                <Badge status="processing" text="This hook is actively using the cache key" />
 
-                <Button
-                  danger
-                  onClick={testDeleteProtection}
-                  icon={<AlertTriangle size={12} />}
-                >
+                <Button danger onClick={testDeleteProtection} icon={<AlertTriangle size={12} />}>
                   Attempt to Delete Key
                 </Button>
 
                 {deleteAttemptResult && (
-                  <Tag color={deleteAttemptResult.includes('Protected') ? 'green' : 'red'}>
-                    {deleteAttemptResult}
-                  </Tag>
+                  <Tag color={deleteAttemptResult.includes('Protected') ? 'green' : 'red'}>{deleteAttemptResult}</Tag>
                 )}
 
                 <ResultDisplay $isDark={isDarkTheme}>
@@ -316,17 +319,23 @@ const CacheAdvancedTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Text>Key: <code>{deepEqualKey}</code></Text>
-                <Text>Skip Count: <Badge count={updateSkipCount} /></Text>
+                <Text>
+                  Key: <code>{deepEqualKey}</code>
+                </Text>
+                <Text>
+                  Skip Count: <Badge count={updateSkipCount} />
+                </Text>
 
                 <Space direction="vertical">
                   <Button size="small" onClick={() => testDeepEquality('same-reference')} icon={<XCircle size={12} />}>
                     Set Same Reference
                   </Button>
-                  <Button size="small" onClick={() => testDeepEquality('same-content')} icon={<CheckCircle size={12} />}>
+                  <Button
+                    size="small"
+                    onClick={() => testDeepEquality('same-content')}
+                    icon={<CheckCircle size={12} />}>
                     Set Same Content
                   </Button>
                   <Button size="small" onClick={() => testDeepEquality('different-content')} icon={<Zap size={12} />}>
@@ -355,11 +364,14 @@ const CacheAdvancedTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Text>Key: <code>{perfKey}</code></Text>
-                <Text>Updates: <Badge count={rapidUpdateCount} /></Text>
+                <Text>
+                  Key: <code>{perfKey}</code>
+                </Text>
+                <Text>
+                  Updates: <Badge count={rapidUpdateCount} />
+                </Text>
 
                 <Space>
                   <Button type="primary" onClick={startRapidUpdates} icon={<Zap size={12} />}>
@@ -393,10 +405,11 @@ const CacheAdvancedTests: React.FC = () => {
           style={{
             backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
             borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-          }}
-        >
+          }}>
           <Space direction="vertical" style={{ width: '100%' }}>
-            <Text>Testing multiple hooks using the same key: <code>{multiKey}</code></Text>
+            <Text>
+              Testing multiple hooks using the same key: <code>{multiKey}</code>
+            </Text>
 
             <Row gutter={16}>
               <Col span={8}>
@@ -423,14 +436,11 @@ const CacheAdvancedTests: React.FC = () => {
             </Row>
 
             <Space>
-              <Button
-                onClick={() => cacheService.set(multiKey, `Updated at ${new Date().toLocaleTimeString()}`)}
-              >
+              <Button onClick={() => cacheService.set(multiKey, `Updated at ${new Date().toLocaleTimeString()}`)}>
                 Update via CacheService
               </Button>
               <Button
-                onClick={() => cacheService.setShared(multiKey, `Shared update at ${new Date().toLocaleTimeString()}`)}
-              >
+                onClick={() => cacheService.setShared(multiKey, `Shared update at ${new Date().toLocaleTimeString()}`)}>
                 Update via Shared Cache
               </Button>
             </Space>
@@ -448,12 +458,12 @@ const CacheAdvancedTests: React.FC = () => {
 }
 
 const TestContainer = styled.div<{ $isDark: boolean }>`
-  color: ${props => props.$isDark ? '#fff' : '#000'};
+  color: ${(props) => (props.$isDark ? '#fff' : '#000')};
 `
 
 const ResultDisplay = styled.div<{ $isDark: boolean }>`
-  background: ${props => props.$isDark ? '#0d1117' : '#f6f8fa'};
-  border: 1px solid ${props => props.$isDark ? '#30363d' : '#d0d7de'};
+  background: ${(props) => (props.$isDark ? '#0d1117' : '#f6f8fa')};
+  border: 1px solid ${(props) => (props.$isDark ? '#30363d' : '#d0d7de')};
   border-radius: 6px;
   padding: 8px;
   font-size: 11px;
@@ -464,7 +474,7 @@ const ResultDisplay = styled.div<{ $isDark: boolean }>`
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
-    color: ${props => props.$isDark ? '#e6edf3' : '#1f2328'};
+    color: ${(props) => (props.$isDark ? '#e6edf3' : '#1f2328')};
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   }
 `

@@ -6,7 +6,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { useAppSelector } from '@renderer/store'
 import store from '@renderer/store'
-import { SettingsState } from '@renderer/store/settings'
+import type { SettingsState } from '@renderer/store/settings'
 
 export function useSettings() {
   const settings = useAppSelector((state) => state.settings)

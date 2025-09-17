@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import MaxContextCount from '@renderer/components/MaxContextCount'
 import { Divider, Popover } from 'antd'
 import { ArrowUp, MenuIcon } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -11,7 +11,6 @@ type Props = {
   estimateTokenCount: number
   inputTokenCount: number
   contextCount: { current: number; max: number }
-  ToolbarButton: any
 } & React.HTMLAttributes<HTMLDivElement>
 
 const TokenCount: FC<Props> = ({ estimateTokenCount, inputTokenCount, contextCount }) => {

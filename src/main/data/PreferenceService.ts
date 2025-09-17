@@ -26,12 +26,7 @@ class PreferenceNotifier {
    * @param metadata - Optional metadata for debugging (unused but kept for API compatibility)
    * @returns Unsubscribe function
    */
-  subscribe = (
-    key: string,
-    callback: (key: string, newValue: any, oldValue?: any) => void,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _metadata?: string
-  ): (() => void) => {
+  subscribe = (key: string, callback: (key: string, newValue: any, oldValue?: any) => void): (() => void) => {
     if (!this.subscriptions.has(key)) {
       this.subscriptions.set(key, new Set())
     }
@@ -383,7 +378,7 @@ export class PreferenceService {
       }
     }
 
-    return this.notifier.subscribe(key, listener, `subscribeChange-${key}`)
+    return this.notifier.subscribe(key, listener)
   }
 
   /**
@@ -401,9 +396,7 @@ export class PreferenceService {
     }
 
     // Subscribe to all keys and collect unsubscribe functions
-    const unsubscribeFunctions = keys.map((key) =>
-      this.notifier.subscribe(key, listener, `subscribeMultipleChanges-${key}`)
-    )
+    const unsubscribeFunctions = keys.map((key) => this.notifier.subscribe(key, listener))
 
     // Return a function that unsubscribes from all keys
     return () => {

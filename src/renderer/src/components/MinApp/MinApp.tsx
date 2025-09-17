@@ -5,14 +5,11 @@ import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { setOpenedKeepAliveMinapps } from '@renderer/store/runtime'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useDispatch } from 'react-redux'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
 
@@ -28,9 +25,18 @@ const logger = loggerService.withContext('App')
 const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
   const { openMinappKeepAlive } = useMinappPopup()
   const { t } = useTranslation()
-  const { minapps, pinned, disabled, updateMinapps, updateDisabledMinapps, updatePinnedMinapps } = useMinapps()
-  const { openedKeepAliveMinapps, currentMinappId, minappShow } = useRuntime()
-  const dispatch = useDispatch()
+  const {
+    minapps,
+    pinned,
+    disabled,
+    openedKeepAliveMinapps,
+    currentMinappId,
+    minappShow,
+    setOpenedKeepAliveMinapps,
+    updateMinapps,
+    updateDisabledMinapps,
+    updatePinnedMinapps
+  } = useMinapps()
   const navigate = useNavigate()
   const isPinned = pinned.some((p) => p.id === app.id)
   const isVisible = minapps.some((m) => m.id === app.id)
@@ -76,7 +82,7 @@ const MinApp: FC<Props> = ({ app, onClick, size = 60, isLast }) => {
         updatePinnedMinapps(newPinned)
         // 更新 openedKeepAliveMinapps
         const newOpenedKeepAliveMinapps = openedKeepAliveMinapps.filter((item) => item.id !== app.id)
-        dispatch(setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps))
+        setOpenedKeepAliveMinapps(newOpenedKeepAliveMinapps)
       }
     },
     ...(app.type === 'Custom'

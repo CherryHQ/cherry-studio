@@ -4,11 +4,12 @@ import { usePreference } from '@data/hooks/usePreference'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { useRuntime } from '@renderer/hooks/useRuntime'
+// import { useRuntime } from '@renderer/hooks/useRuntime'
 import i18n from '@renderer/i18n'
-import { handleSaveData, useAppDispatch } from '@renderer/store'
-import { setUpdateState } from '@renderer/store/runtime'
+import { handleSaveData } from '@renderer/store'
+// import { setUpdateState as setAppUpdateState } from '@renderer/store/runtime'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
@@ -16,7 +17,8 @@ import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 import { Link } from 'react-router-dom'
@@ -33,23 +35,25 @@ const AboutSettings: FC = () => {
   const [isPortable, setIsPortable] = useState(false)
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
-  const { update } = useRuntime()
+  // const dispatch = useAppDispatch()
+  // const { update } = useRuntime()
   const { openMinapp } = useMinappPopup()
+
+  const { appUpdateState, updateAppUpdateState } = useAppUpdateState()
 
   const onCheckUpdate = debounce(
     async () => {
-      if (update.checking || update.downloading) {
+      if (appUpdateState.checking || appUpdateState.downloading) {
         return
       }
 
-      if (update.downloaded) {
+      if (appUpdateState.downloaded) {
         await handleSaveData()
         window.api.showUpdateDialog()
         return
       }
 
-      dispatch(setUpdateState({ checking: true }))
+      updateAppUpdateState({ checking: true })
 
       try {
         await window.api.checkForUpdate()
@@ -57,7 +61,7 @@ const AboutSettings: FC = () => {
         window.toast.error(t('settings.about.updateError'))
       }
 
-      dispatch(setUpdateState({ checking: false }))
+      updateAppUpdateState({ checking: false })
     },
     2000,
     { leading: true, trailing: false }
@@ -112,16 +116,14 @@ const AboutSettings: FC = () => {
     }
     setTestChannel(value)
     // Clear update info when switching upgrade channel
-    dispatch(
-      setUpdateState({
-        available: false,
-        info: null,
-        downloaded: false,
-        checking: false,
-        downloading: false,
-        downloadProgress: 0
-      })
-    )
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0
+    })
   }
 
   // Get available test version options based on current version
@@ -142,16 +144,14 @@ const AboutSettings: FC = () => {
 
   const handleSetTestPlan = (value: boolean) => {
     setTestPlan(value)
-    dispatch(
-      setUpdateState({
-        available: false,
-        info: null,
-        downloaded: false,
-        checking: false,
-        downloading: false,
-        downloadProgress: 0
-      })
-    )
+    updateAppUpdateState({
+      available: false,
+      info: null,
+      downloaded: false,
+      checking: false,
+      downloading: false,
+      downloadProgress: 0
+    })
 
     if (value === true) {
       setTestChannel(getTestChannel())
@@ -196,11 +196,11 @@ const AboutSettings: FC = () => {
         <AboutHeader>
           <Row align="middle">
             <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
-              {update.downloadProgress > 0 && (
+              {appUpdateState.downloadProgress > 0 && (
                 <ProgressCircle
                   type="circle"
                   size={84}
-                  percent={update.downloadProgress}
+                  percent={appUpdateState.downloadProgress}
                   showInfo={false}
                   strokeLinecap="butt"
                   strokeColor="#67ad5b"
@@ -222,11 +222,11 @@ const AboutSettings: FC = () => {
           {!isPortable && (
             <CheckUpdateButton
               onClick={onCheckUpdate}
-              loading={update.checking}
-              disabled={update.downloading || update.checking}>
-              {update.downloading
+              loading={appUpdateState.checking}
+              disabled={appUpdateState.downloading || appUpdateState.checking}>
+              {appUpdateState.downloading
                 ? t('settings.about.downloading')
-                : update.available
+                : appUpdateState.available
                   ? t('settings.about.checkUpdate.available')
                   : t('settings.about.checkUpdate.label')}
             </CheckUpdateButton>
@@ -268,19 +268,19 @@ const AboutSettings: FC = () => {
           </>
         )}
       </SettingGroup>
-      {update.info && update.available && (
+      {appUpdateState.info && appUpdateState.available && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>
-              {t('settings.about.updateAvailable', { version: update.info.version })}
+              {t('settings.about.updateAvailable', { version: appUpdateState.info.version })}
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
           <UpdateNotesWrapper>
             <Markdown>
-              {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
-                : update.info.releaseNotes?.map((note) => note.note).join('\n')}
+              {typeof appUpdateState.info.releaseNotes === 'string'
+                ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')
+                : appUpdateState.info.releaseNotes?.map((note) => note.note).join('\n')}
             </Markdown>
           </UpdateNotesWrapper>
         </SettingGroup>

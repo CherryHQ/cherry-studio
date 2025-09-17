@@ -5,7 +5,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'

@@ -3,12 +3,12 @@ import { useCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Input, message, Space, Typography, Card, Row, Col, Progress, Statistic, Tag, Alert } from 'antd'
-import { Zap, AlertTriangle, TrendingUp, HardDrive, Users, Clock, Database } from 'lucide-react'
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { Alert, Button, Card, Col, message, Progress, Row, Space, Statistic, Tag, Typography } from 'antd'
+import { AlertTriangle, Database, HardDrive, TrendingUp, Users, Zap } from 'lucide-react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
-const { Text, Title } = Typography
+const { Text } = Typography
 
 const logger = loggerService.withContext('CacheStressTests')
 
@@ -39,14 +39,14 @@ const CacheStressTests: React.FC = () => {
   const [concurrentShared, setConcurrentShared] = useSharedCache('concurrent-shared', 0)
 
   // Large Data Testing
-  const [largeDataKey] = useState('large-data-test')
+  const [largeDataKey] = useState('large-data-test' as const)
   const [largeDataSize, setLargeDataSize] = useState(0)
-  const [largeDataValue, setLargeDataValue] = useCache(largeDataKey)
+  const [, setLargeDataValue] = useCache(largeDataKey as any, {})
 
   // Timers and refs
-  const testTimerRef = useRef<NodeJS.Timeout>()
-  const metricsTimerRef = useRef<NodeJS.Timeout>()
-  const concurrentTimerRef = useRef<NodeJS.Timeout>()
+  const testTimerRef = useRef<NodeJS.Timeout>(null)
+  const metricsTimerRef = useRef<NodeJS.Timeout>(null)
+  const concurrentTimerRef = useRef<NodeJS.Timeout>(null)
 
   // Update render count without causing re-renders
   renderCountRef.current += 1
@@ -56,7 +56,7 @@ const CacheStressTests: React.FC = () => {
     try {
       // Rough estimation based on localStorage size and objects
       const persistSize = localStorage.getItem('cs_cache_persist')?.length || 0
-      const estimatedSize = persistSize + (totalOperations * 50) // Rough estimate
+      const estimatedSize = persistSize + totalOperations * 50 // Rough estimate
       setMemoryUsage(estimatedSize)
     } catch (error) {
       logger.error('Memory usage estimation failed', error as Error)
@@ -206,7 +206,8 @@ const CacheStressTests: React.FC = () => {
       let testSize = 1
       let maxSize = 0
 
-      while (testSize <= 10240) { // Test up to 10MB
+      while (testSize <= 10240) {
+        // Test up to 10MB
         try {
           const testData = 'x'.repeat(testSize * 1024) // testSize KB
           localStorage.setItem('storage-limit-test', testData)
@@ -230,20 +231,21 @@ const CacheStressTests: React.FC = () => {
     setIsRunning(false)
     if (testTimerRef.current) {
       clearTimeout(testTimerRef.current)
-      testTimerRef.current = undefined
+      testTimerRef.current = null
     }
     if (concurrentTimerRef.current) {
       clearInterval(concurrentTimerRef.current)
-      concurrentTimerRef.current = undefined
+      concurrentTimerRef.current = null
     }
     message.info('All tests stopped')
   }
 
   // Cleanup
   useEffect(() => {
+    const metricsCleanup = metricsTimerRef.current
     return () => {
       if (testTimerRef.current) clearTimeout(testTimerRef.current)
-      if (metricsTimerRef.current) clearInterval(metricsTimerRef.current)
+      if (metricsCleanup) clearInterval(metricsCleanup)
       if (concurrentTimerRef.current) clearInterval(concurrentTimerRef.current)
     }
   }, [])
@@ -253,37 +255,31 @@ const CacheStressTests: React.FC = () => {
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Space>
-            <Text type="secondary">Stress Testing • Renders: {displayRenderCount || renderCountRef.current} • Errors: {errorCount}</Text>
-            <Button size="small" onClick={() => {
-              renderCountRef.current = 0
-              setDisplayRenderCount(0)
-              setErrorCount(0)
-            }}>Reset Stats</Button>
+            <Text type="secondary">
+              Stress Testing • Renders: {displayRenderCount || renderCountRef.current} • Errors: {errorCount}
+            </Text>
+            <Button
+              size="small"
+              onClick={() => {
+                renderCountRef.current = 0
+                setDisplayRenderCount(0)
+                setErrorCount(0)
+              }}>
+              Reset Stats
+            </Button>
           </Space>
         </div>
 
         {/* Performance Metrics */}
         <Row gutter={[16, 8]}>
           <Col span={6}>
-            <Statistic
-              title="Operations/Second"
-              value={operationsPerSecond}
-              prefix={<TrendingUp size={16} />}
-            />
+            <Statistic title="Operations/Second" value={operationsPerSecond} prefix={<TrendingUp size={16} />} />
           </Col>
           <Col span={6}>
-            <Statistic
-              title="Total Operations"
-              value={totalOperations}
-              prefix={<Database size={16} />}
-            />
+            <Statistic title="Total Operations" value={totalOperations} prefix={<Database size={16} />} />
           </Col>
           <Col span={6}>
-            <Statistic
-              title="Memory Usage (bytes)"
-              value={memoryUsage}
-              prefix={<HardDrive size={16} />}
-            />
+            <Statistic title="Memory Usage (bytes)" value={memoryUsage} prefix={<HardDrive size={16} />} />
           </Col>
           <Col span={6}>
             <Statistic
@@ -309,8 +305,7 @@ const CacheStressTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Text>High-frequency cache operations test (1000 ops in 10s)</Text>
 
@@ -321,12 +316,7 @@ const CacheStressTests: React.FC = () => {
                 />
 
                 <Space>
-                  <Button
-                    type="primary"
-                    onClick={runRapidFireTest}
-                    disabled={isRunning}
-                    icon={<Zap size={12} />}
-                  >
+                  <Button type="primary" onClick={runRapidFireTest} disabled={isRunning} icon={<Zap size={12} />}>
                     Start Rapid Fire Test
                   </Button>
                   <Button onClick={stopAllTests} disabled={!isRunning} danger>
@@ -357,8 +347,7 @@ const CacheStressTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Text>Multiple hooks updating simultaneously</Text>
 
@@ -381,16 +370,10 @@ const CacheStressTests: React.FC = () => {
                 </Row>
 
                 <Space>
-                  <Button
-                    type="primary"
-                    onClick={startConcurrentTest}
-                    icon={<Users size={12} />}
-                  >
+                  <Button type="primary" onClick={startConcurrentTest} icon={<Users size={12} />}>
                     Start Concurrent Test
                   </Button>
-                  <Button onClick={stopConcurrentTest}>
-                    Stop
-                  </Button>
+                  <Button onClick={stopConcurrentTest}>Stop</Button>
                 </Space>
               </Space>
             </Card>
@@ -411,8 +394,7 @@ const CacheStressTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Text>Test cache with large objects</Text>
 
@@ -438,9 +420,11 @@ const CacheStressTests: React.FC = () => {
                 )}
 
                 <ResultDisplay $isDark={isDarkTheme}>
-                  <Text strong>Large Data Key: </Text><code>{largeDataKey}</code>
+                  <Text strong>Large Data Key: </Text>
+                  <code>{largeDataKey}</code>
                   <br />
-                  <Text strong>Current Size: </Text>{largeDataSize}KB
+                  <Text strong>Current Size: </Text>
+                  {largeDataSize}KB
                 </ResultDisplay>
               </Space>
             </Card>
@@ -459,8 +443,7 @@ const CacheStressTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Text>Test localStorage capacity and limits</Text>
 
@@ -471,17 +454,15 @@ const CacheStressTests: React.FC = () => {
                   showIcon
                 />
 
-                <Button
-                  onClick={testLocalStorageLimit}
-                  icon={<Database size={12} />}
-                >
+                <Button onClick={testLocalStorageLimit} icon={<Database size={12} />}>
                   Test Storage Limits
                 </Button>
 
                 <Space direction="vertical">
                   <Tag color="blue">Persist Cache Size Check</Tag>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    Current persist cache: ~{Math.round(JSON.stringify(localStorage.getItem('cs_cache_persist')).length / 1024)}KB
+                    Current persist cache: ~
+                    {Math.round(JSON.stringify(localStorage.getItem('cs_cache_persist')).length / 1024)}KB
                   </Text>
                 </Space>
               </Space>
@@ -500,12 +481,12 @@ const CacheStressTests: React.FC = () => {
 }
 
 const TestContainer = styled.div<{ $isDark: boolean }>`
-  color: ${props => props.$isDark ? '#fff' : '#000'};
+  color: ${(props) => (props.$isDark ? '#fff' : '#000')};
 `
 
 const ResultDisplay = styled.div<{ $isDark: boolean }>`
-  background: ${props => props.$isDark ? '#0d1117' : '#f6f8fa'};
-  border: 1px solid ${props => props.$isDark ? '#30363d' : '#d0d7de'};
+  background: ${(props) => (props.$isDark ? '#0d1117' : '#f6f8fa')};
+  border: 1px solid ${(props) => (props.$isDark ? '#30363d' : '#d0d7de')};
   border-radius: 6px;
   padding: 8px;
   font-size: 11px;
@@ -516,7 +497,7 @@ const ResultDisplay = styled.div<{ $isDark: boolean }>`
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
-    color: ${props => props.$isDark ? '#e6edf3' : '#1f2328'};
+    color: ${(props) => (props.$isDark ? '#e6edf3' : '#1f2328')};
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   }
 `

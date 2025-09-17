@@ -35,29 +35,26 @@ export type MatchApiPath<Path extends string> = {
 /**
  * Extract query parameters type for a given concrete path
  */
-export type QueryParamsForPath<Path extends string> =
-  MatchApiPath<Path> extends keyof ApiSchemas
-    ? ApiSchemas[MatchApiPath<Path>] extends { GET: { query?: infer Q } }
-      ? Q
-      : Record<string, any>
+export type QueryParamsForPath<Path extends string> = MatchApiPath<Path> extends keyof ApiSchemas
+  ? ApiSchemas[MatchApiPath<Path>] extends { GET: { query?: infer Q } }
+    ? Q
     : Record<string, any>
+  : Record<string, any>
 
 /**
  * Extract request body type for a given concrete path and HTTP method
  */
-export type BodyForPath<Path extends string, Method extends string> =
-  MatchApiPath<Path> extends keyof ApiSchemas
-    ? ApiSchemas[MatchApiPath<Path>] extends { [M in Method]: { body: infer B } }
-      ? B
-      : any
+export type BodyForPath<Path extends string, Method extends string> = MatchApiPath<Path> extends keyof ApiSchemas
+  ? ApiSchemas[MatchApiPath<Path>] extends { [M in Method]: { body: infer B } }
+    ? B
     : any
+  : any
 
 /**
  * Extract response type for a given concrete path and HTTP method
  */
-export type ResponseForPath<Path extends string, Method extends string> =
-  MatchApiPath<Path> extends keyof ApiSchemas
-    ? ApiSchemas[MatchApiPath<Path>] extends { [M in Method]: { response: infer R } }
-      ? R
-      : any
+export type ResponseForPath<Path extends string, Method extends string> = MatchApiPath<Path> extends keyof ApiSchemas
+  ? ApiSchemas[MatchApiPath<Path>] extends { [M in Method]: { response: infer R } }
+    ? R
     : any
+  : any

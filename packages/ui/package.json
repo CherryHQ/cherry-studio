@@ -49,20 +49,31 @@
   "devDependencies": {
     "@heroui/react": "^2.8.4",
     "@storybook/addon-docs": "^9.1.6",
+    "@storybook/addon-themes": "^9.1.6",
     "@storybook/react-vite": "^9.1.6",
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.4",
     "@types/styled-components": "^5.1.34",
+    "@uiw/codemirror-extensions-langs": "^4.25.1",
+    "@uiw/codemirror-themes-all": "^4.25.1",
+    "@uiw/react-codemirror": "^4.25.1",
     "antd": "^5.22.5",
     "eslint-plugin-storybook": "9.1.6",
     "framer-motion": "^12.23.12",
+    "linguist-languages": "^9.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "storybook": "^9.1.6",
     "styled-components": "^6.1.15",
     "tsdown": "^0.12.9",
+    "tsx": "^4.20.5",
     "typescript": "^5.6.2",
     "vitest": "^3.2.4"
+  },
+  "resolutions": {
+    "@codemirror/language": "6.11.3",
+    "@codemirror/lint": "6.8.5",
+    "@codemirror/view": "6.38.1"
   },
   "sideEffects": false,
   "engines": {

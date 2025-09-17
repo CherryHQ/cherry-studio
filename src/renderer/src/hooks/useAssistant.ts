@@ -25,7 +25,7 @@ import {
   updateTopics
 } from '@renderer/store/assistants'
 import { setDefaultModel, setQuickModel, setTranslateModel } from '@renderer/store/llm'
-import { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
+import type { Assistant, AssistantSettings, Model, ThinkingOption, Topic } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -172,7 +172,7 @@ export function useAssistant(id: string) {
       (model: Model) => assistant && dispatch(setModel({ assistantId: assistant?.id, model })),
       [assistant, dispatch]
     ),
-    updateAssistant: (assistant: Assistant) => dispatch(updateAssistant(assistant)),
+    updateAssistant: useCallback((assistant: Partial<Assistant>) => dispatch(updateAssistant(assistant)), [dispatch]),
     updateAssistantSettings
   }
 }

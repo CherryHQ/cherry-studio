@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import type { MCPTool, Message, Model, Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
-import { extractReasoningMiddleware, LanguageModelMiddleware, simulateStreamingMiddleware } from 'ai'
+import type { LanguageModelMiddleware } from 'ai'
+import { extractReasoningMiddleware, simulateStreamingMiddleware } from 'ai'
 
 const logger = loggerService.withContext('AiSdkMiddlewareBuilder')
 

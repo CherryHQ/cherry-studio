@@ -1,10 +1,10 @@
 import { CheckCircleFilled, CloseCircleFilled, ExclamationCircleFilled, LoadingOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { Tooltip, Typography } from 'antd'
 import React, { memo } from 'react'
 import styled from 'styled-components'
 
-import { Flex } from '../Layout'
-import { HealthResult } from './types'
+import type { HealthResult } from './types'
 import { useHealthStatus } from './useHealthStatus'
 
 export interface HealthStatusIndicatorProps {

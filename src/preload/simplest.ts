@@ -8,7 +8,6 @@ if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
   } catch (error) {
-    // eslint-disable-next-line no-restricted-syntax
     console.error('[Preload]Failed to expose APIs:', error as Error)
   }
 } else {

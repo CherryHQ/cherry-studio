@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 
 import { DefaultCompletionsNamedMiddlewares } from './register'
-import { BaseContext, CompletionsMiddleware, MethodMiddleware } from './types'
+import type { BaseContext, CompletionsMiddleware, MethodMiddleware } from './types'
 
 const logger = loggerService.withContext('aiCore:MiddlewareBuilder')
 

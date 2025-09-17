@@ -6,7 +6,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { Button, Tooltip } from 'antd'
 import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
@@ -155,7 +155,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
                     strokeWidth={1.5}
                     className={isCollapsed ? '' : 'rotate-90'}
                   />
-                  <span className="text-sm font-bold">{row.groupName}</span>
+                  <span className="font-bold text-sm">{row.groupName}</span>
                   <CustomTag color="#02B96B" size={10}>
                     {row.models.length}
                   </CustomTag>

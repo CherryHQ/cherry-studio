@@ -2,12 +2,12 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import { ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { ImageModelV2, LanguageModelV2, LanguageModelV2Middleware } from '@ai-sdk/provider'
+import type { LanguageModel } from 'ai'
 import {
   experimental_generateImage as _generateImage,
   generateObject as _generateObject,
   generateText as _generateText,
-  LanguageModel,
   streamObject as _streamObject,
   streamText as _streamText
 } from 'ai'

@@ -1,7 +1,7 @@
 import { Box, ColFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils/api'
 import { InputNumber, Modal, Radio, Segmented, Typography } from 'antd'
 import { Alert } from 'antd'

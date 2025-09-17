@@ -192,14 +192,15 @@ export const LongArticle: Story = {
 
         <p className="mb-4">
           Scrolling is a fundamental interaction pattern in user interfaces. It allows users to navigate through content
-          that exceeds the visible viewport, making it possible to present large amounts of information in a limited space.
+          that exceeds the visible viewport, making it possible to present large amounts of information in a limited
+          space.
         </p>
 
         <h2 className="mb-3 text-xl font-semibold">History of Scrolling</h2>
         <p className="mb-4">
           The concept of scrolling dates back to the early days of computing, when terminal displays could only show a
-          limited number of lines. As content grew beyond what could fit on a single screen, the need for scrolling became
-          apparent.
+          limited number of lines. As content grew beyond what could fit on a single screen, the need for scrolling
+          became apparent.
         </p>
 
         <h2 className="mb-3 text-xl font-semibold">Types of Scrolling</h2>
@@ -211,9 +212,7 @@ export const LongArticle: Story = {
         </ul>
 
         <h2 className="mb-3 text-xl font-semibold">Best Practices</h2>
-        <p className="mb-4">
-          When implementing scrolling in your applications, consider the following best practices:
-        </p>
+        <p className="mb-4">When implementing scrolling in your applications, consider the following best practices:</p>
 
         <ol className="mb-4 ml-6 list-decimal">
           <li className="mb-2">Always provide visual feedback for scrollable areas</li>
@@ -243,8 +242,8 @@ export const LongArticle: Story = {
         </ul>
 
         <p className="mb-4">
-          To optimize scrolling performance, consider using techniques like virtual scrolling for large lists, debouncing
-          scroll event handlers, and leveraging CSS transforms for animations.
+          To optimize scrolling performance, consider using techniques like virtual scrolling for large lists,
+          debouncing scroll event handlers, and leveraging CSS transforms for animations.
         </p>
       </article>
     )

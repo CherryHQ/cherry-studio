@@ -1,5 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Input, InputRef } from 'antd'
+import type { InputRef } from 'antd'
+import { Input } from 'antd'
 import { Search } from 'lucide-react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

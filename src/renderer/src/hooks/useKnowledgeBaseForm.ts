@@ -2,7 +2,7 @@ import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { usePreprocessProviders } from '@renderer/hooks/usePreprocess'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { nanoid } from 'nanoid'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,11 +14,7 @@ const createInitialKnowledgeBase = (): KnowledgeBase => ({
   items: [],
   created_at: Date.now(),
   updated_at: Date.now(),
-  version: 1,
-  framework: 'langchain',
-  retriever: {
-    mode: 'hybrid'
-  }
+  version: 1
 })
 
 /**

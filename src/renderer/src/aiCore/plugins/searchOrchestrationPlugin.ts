@@ -12,7 +12,8 @@ import { getDefaultModel, getProviderByModel } from '@renderer/services/Assistan
 import store from '@renderer/store'
 import { selectCurrentUserId, selectGlobalMemoryEnabled, selectMemoryConfig } from '@renderer/store/memory'
 import type { Assistant } from '@renderer/types'
-import { extractInfoFromXML, ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
+import { extractInfoFromXML } from '@renderer/utils/extract'
 // import { generateObject } from '@cherrystudio/ai-core'
 import {
   SEARCH_SUMMARY_PROMPT,

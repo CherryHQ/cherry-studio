@@ -1,19 +1,20 @@
 import { loggerService } from '@logger'
-import { Span } from '@opentelemetry/api'
+import type { Span } from '@opentelemetry/api'
 import AiProvider from '@renderer/aiCore'
 import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import { getEmbeddingMaxContext } from '@renderer/config/embedings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import {
+import type {
   FileMetadata,
   KnowledgeBase,
   KnowledgeBaseParams,
   KnowledgeReference,
   KnowledgeSearchResult
 } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { isEmpty } from 'lodash'
 
 import { getProviderByModel } from './AssistantService'
@@ -75,9 +76,7 @@ export const getKnowledgeBaseParams = (base: KnowledgeBase): KnowledgeBaseParams
       baseURL: rerankHost
     },
     documentCount: base.documentCount,
-    preprocessProvider: updatedPreprocessProvider,
-    framework: base.framework,
-    retriever: base.retriever || { mode: 'hybrid' }
+    preprocessProvider: updatedPreprocessProvider
   }
 }
 

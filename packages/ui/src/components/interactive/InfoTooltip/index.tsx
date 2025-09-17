@@ -1,5 +1,6 @@
 // Original: src/renderer/src/components/TooltipIcons/InfoTooltip.tsx
-import { Tooltip, TooltipProps } from 'antd'
+import type { TooltipProps } from 'antd'
+import { Tooltip } from 'antd'
 import { Info } from 'lucide-react'
 
 type InheritedTooltipProps = Omit<TooltipProps, 'children'>

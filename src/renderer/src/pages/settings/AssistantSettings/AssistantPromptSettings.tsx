@@ -2,12 +2,14 @@ import 'emoji-picker-element'
 
 import { CloseCircleFilled } from '@ant-design/icons'
 import { Box, RowFlex, SpaceBetweenRowFlex } from '@cherrystudio/ui'
-import CodeEditor from '@renderer/components/CodeEditor'
+import { CodeEditor } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { Assistant, AssistantSettings } from '@renderer/types'
+import type { Assistant, AssistantSettings } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { Button, Input, Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
@@ -26,6 +28,8 @@ interface Props {
 }
 
 const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }) => {
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [emoji, setEmoji] = useState(getLeadingEmoji(assistant.name) || assistant.emoji)
   const [name, setName] = useState(assistant.name.replace(getLeadingEmoji(assistant.name) || '', '').trim())
   const [prompt, setPrompt] = useState(assistant.prompt)
@@ -130,6 +134,8 @@ const AssistantPromptSettings: React.FC<Props> = ({ assistant, updateAssistant }
             </MarkdownContainer>
           ) : (
             <CodeEditor
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
               value={prompt}
               language="markdown"
               onChange={setPrompt}

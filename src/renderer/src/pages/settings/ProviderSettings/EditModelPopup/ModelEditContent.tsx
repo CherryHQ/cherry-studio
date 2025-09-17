@@ -19,12 +19,14 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
+import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
-import { Button, Divider, Form, Input, InputNumber, message, Modal, ModalProps, Select, Switch, Tooltip } from 'antd'
+import type { ModalProps } from 'antd'
+import { Button, Divider, Form, Input, InputNumber, message, Modal, Select, Switch, Tooltip } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

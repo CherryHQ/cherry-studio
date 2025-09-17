@@ -1,12 +1,12 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { setWebSearchStatus } from '@renderer/store/runtime'
-import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
-import {
+import type { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
+import type {
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeReference,
@@ -18,7 +18,7 @@ import {
 import { hasObjectKey, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'
@@ -202,12 +202,15 @@ class WebSearchService {
    * 设置网络搜索状态
    */
   private async setWebSearchStatus(requestId: string, status: WebSearchStatus, delayMs?: number) {
-    store.dispatch(setWebSearchStatus({ requestId, status }))
+    const activeSearches = cacheService.get('chat.websearch.active_searches')
+    activeSearches[requestId] = status
+
+    cacheService.set('chat.websearch.active_searches', activeSearches)
+
     if (delayMs) {
       await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
-
   /**
    * 确保搜索压缩知识库存在并配置正确
    */
@@ -244,8 +247,7 @@ class WebSearchService {
       items: [],
       created_at: Date.now(),
       updated_at: Date.now(),
-      version: 1,
-      framework: 'langchain'
+      version: 1
     }
 
     // 更新LRU cache

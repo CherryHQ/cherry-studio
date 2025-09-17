@@ -5,10 +5,11 @@ import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/con
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getProviderName } from '@renderer/services/ProviderService'
 import { useAppSelector } from '@renderer/store'
-import { Assistant, Model } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
 import { Button, Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
-import { FC, useEffect, useRef } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

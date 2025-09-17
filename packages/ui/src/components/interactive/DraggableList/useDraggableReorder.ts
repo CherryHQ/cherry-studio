@@ -1,6 +1,7 @@
 // Original path: src/renderer/src/components/DraggableList/useDraggableReorder.ts
-import { DropResult } from '@hello-pangea/dnd'
-import { Key, useCallback, useMemo } from 'react'
+import type { DropResult } from '@hello-pangea/dnd'
+import type { Key } from 'react'
+import { useCallback, useMemo } from 'react'
 
 interface UseDraggableReorderParams<T> {
   /** 原始的、完整的数据列表 */

@@ -8,29 +8,31 @@ import {
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
-import {
+import type {
   Assistant,
-  FileTypes,
   GenerateImageParams,
-  GroqServiceTiers,
-  isGroqServiceTier,
-  isOpenAIServiceTier,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   MemoryItem,
   Model,
-  OpenAIServiceTiers,
   OpenAIVerbosity,
   Provider,
-  SystemProviderIds,
   ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
 import {
+  FileTypes,
+  GroqServiceTiers,
+  isGroqServiceTier,
+  isOpenAIServiceTier,
+  OpenAIServiceTiers,
+  SystemProviderIds
+} from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -49,8 +51,8 @@ import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
-import { CompletionsContext } from '../middleware/types'
-import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
+import type { CompletionsContext } from '../middleware/types'
+import type { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
 
 const logger = loggerService.withContext('BaseApiClient')
 
@@ -84,7 +86,7 @@ export abstract class BaseApiClient<
    * 用于判断客户端是否支持特定功能，避免instanceof检查的类型收窄问题
    * 对于装饰器模式的客户端（如AihubmixAPIClient），应该返回其内部实际使用的客户端类型
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // oxlint-disable-next-line @typescript-eslint/no-unused-vars
   public getClientCompatibilityType(_model?: Model): string[] {
     // 默认返回类的名称
     return [this.constructor.name]

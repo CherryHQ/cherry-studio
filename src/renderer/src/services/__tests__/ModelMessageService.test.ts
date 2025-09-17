@@ -1,5 +1,5 @@
 import type { Model } from '@renderer/types'
-import { ChatCompletionMessageParam } from 'openai/resources'
+import type { ChatCompletionMessageParam } from 'openai/resources'
 import { describe, expect, it } from 'vitest'
 
 import { processReqMessages } from '../ModelMessageService'

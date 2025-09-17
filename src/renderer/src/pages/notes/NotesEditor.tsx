@@ -1,12 +1,14 @@
 import { SpaceBetweenRowFlex } from '@cherrystudio/ui'
 import CodeEditor from '@renderer/components/CodeEditor'
 import RichEditor from '@renderer/components/RichEditor'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { EditorView } from '@renderer/types'
+import type { EditorView } from '@renderer/types'
 import { Empty, Spin } from 'antd'
-import { FC, memo, RefObject, useCallback, useMemo, useState } from 'react'
+import type { FC, RefObject } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -23,6 +25,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, tokenCount, isLoading, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
         return settings.defaultEditMode
@@ -61,14 +64,15 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           {tmpViewMode === 'source' ? (
             <SourceEditorWrapper isFullWidth={settings.isFullWidth} fontSize={settings.fontSize}>
               <CodeEditor
+                theme={activeCmTheme}
+                fontSize={settings.fontSize}
                 value={currentContent}
                 language="markdown"
                 onChange={onMarkdownChange}
                 className="h-full"
                 expanded={false}
                 style={{
-                  height: '100%',
-                  fontSize: `${settings.fontSize}px`
+                  height: '100%'
                 }}
               />
             </SourceEditorWrapper>

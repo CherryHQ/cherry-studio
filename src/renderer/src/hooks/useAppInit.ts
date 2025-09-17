@@ -1,9 +1,11 @@
+import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
+import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import i18n from '@renderer/i18n'
 import KnowledgeQueue from '@renderer/queue/KnowledgeQueue'
 import MemoryService from '@renderer/services/MemoryService'
@@ -11,7 +13,6 @@ import { useAppDispatch } from '@renderer/store'
 import { useAppSelector } from '@renderer/store'
 import { handleSaveData } from '@renderer/store'
 import { selectMemoryConfig } from '@renderer/store/memory'
-import { setAvatar, setFilesPath, setResourcesPath, setUpdateState } from '@renderer/store/runtime'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
@@ -21,9 +22,8 @@ import { useEffect } from 'react'
 
 import { useDefaultModel } from './useAssistant'
 import useFullScreenNotice from './useFullScreenNotice'
+import { useMinapps } from './useMinapps'
 import { useNavbarPosition } from './useNavbar'
-import { useRuntime } from './useRuntime'
-import useUpdateHandler from './useUpdateHandler'
 const logger = loggerService.withContext('useAppInit')
 
 export function useAppInit() {
@@ -37,10 +37,11 @@ export function useAppInit() {
   const [proxyMode] = usePreference('app.proxy.mode')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
 
-  const { isTopNavbar } = useNavbarPosition()
-  const { minappShow } = useRuntime()
+  const { isLeftNavbar } = useNavbarPosition()
+  const { minappShow } = useMinapps()
+  const { updateAppUpdateState } = useAppUpdateState()
   const { setDefaultModel, setQuickModel, setTranslateModel } = useDefaultModel()
-  const avatar = useLiveQuery(() => db.settings.get('image://avatar'))
+  const savedAvatar = useLiveQuery(() => db.settings.get('image://avatar'))
   const { theme } = useTheme()
   const memoryConfig = useAppSelector(selectMemoryConfig)
 
@@ -67,12 +68,12 @@ export function useAppInit() {
     })
   }, [])
 
-  useUpdateHandler()
+  useAppUpdateHandler()
   useFullScreenNotice()
 
   useEffect(() => {
-    avatar?.value && dispatch(setAvatar(avatar.value))
-  }, [avatar, dispatch])
+    savedAvatar?.value && cacheService.set('avatar', savedAvatar.value)
+  }, [savedAvatar, dispatch])
 
   useEffect(() => {
     runAsyncFunction(async () => {
@@ -80,10 +81,10 @@ export function useAppInit() {
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
         const { updateInfo } = await window.api.checkForUpdate()
-        dispatch(setUpdateState({ info: updateInfo }))
+        updateAppUpdateState({ info: updateInfo })
       }
     })
-  }, [dispatch, autoCheckUpdate])
+  }, [autoCheckUpdate, updateAppUpdateState])
 
   useEffect(() => {
     if (proxyMode === 'system') {
@@ -101,16 +102,15 @@ export function useAppInit() {
   }, [language])
 
   useEffect(() => {
-    const transparentWindow = windowStyle === 'transparent' && isMac && !minappShow
+    const isMacTransparentWindow = windowStyle === 'transparent' && isMac
 
-    if (minappShow && isTopNavbar) {
-      window.root.style.background =
-        windowStyle === 'transparent' && isMac ? 'var(--color-background)' : 'var(--navbar-background)'
+    if (minappShow && isLeftNavbar) {
+      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : 'var(--navbar-background)'
       return
     }
 
-    window.root.style.background = transparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
-  }, [windowStyle, minappShow, theme, isTopNavbar])
+    window.root.style.background = isMacTransparentWindow ? 'var(--navbar-background-mac)' : 'var(--navbar-background)'
+  }, [windowStyle, minappShow, theme, isLeftNavbar])
 
   useEffect(() => {
     if (isLocalAi) {
@@ -125,8 +125,8 @@ export function useAppInit() {
   useEffect(() => {
     // set files path
     window.api.getAppInfo().then((info) => {
-      dispatch(setFilesPath(info.filesPath))
-      dispatch(setResourcesPath(info.resourcesPath))
+      cacheService.set('filesPath', info.filesPath)
+      cacheService.set('resourcesPath', info.resourcesPath)
     })
   }, [dispatch])
 

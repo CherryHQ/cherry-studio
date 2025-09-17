@@ -1,9 +1,10 @@
 import { cn } from '@heroui/react'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
 import React from 'react'
-import styled, { CSSProp } from 'styled-components'
+import type { CSSProp } from 'styled-components'
+import styled from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;
@@ -35,7 +36,7 @@ export const SettingSubtitle = ({
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
   <div
     ref={ref}
-    className={cn('mt-4 text-sm font-bold text-[var(--color-text-1)] select-none', className)}
+    className={cn('mt-4 select-none font-bold text-[var(--color-text-1)] text-sm', className)}
     {...props}
   />
 )

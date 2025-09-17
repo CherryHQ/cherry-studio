@@ -4,7 +4,7 @@ import React, { memo, useCallback } from 'react'
 import { useDebouncedRender } from './hooks/useDebouncedRender'
 import ImagePreviewLayout from './ImagePreviewLayout'
 import { ShadowWhiteContainer } from './styles'
-import { BasicPreviewHandles, BasicPreviewProps } from './types'
+import type { BasicPreviewHandles, BasicPreviewProps } from './types'
 import { renderSvgInShadowHost } from './utils'
 
 // 管理 viz 实例

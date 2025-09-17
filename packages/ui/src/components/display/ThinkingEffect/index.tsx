@@ -3,20 +3,28 @@ import { isEqual } from 'lodash'
 import { ChevronRight, Lightbulb } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { useEffect, useMemo, useState } from 'react'
-import styled from 'styled-components'
 
+import { cn } from '../../../utils'
 import { lightbulbVariants } from './defaultVariants'
 
-interface Props {
+interface ThinkingEffectProps {
   isThinking: boolean
   thinkingTimeText: React.ReactNode
   content: string
   expanded: boolean
+  className?: string
+  ref?: React.Ref<HTMLDivElement>
 }
 
-const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content, expanded }) => {
+const ThinkingEffect: React.FC<ThinkingEffectProps> = ({
+  isThinking,
+  thinkingTimeText,
+  content,
+  expanded,
+  className,
+  ref
+}) => {
   const [messages, setMessages] = useState<string[]>([])
-
   useEffect(() => {
     const allLines = (content || '').split('\n')
     const newMessages = isThinking ? allLines.slice(0, -1) : allLines
@@ -39,22 +47,44 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
   }, [showThinking, messages.length])
 
   return (
-    <ThinkingContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
-      <LoadingContainer>
-        <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
+    <div
+      ref={ref}
+      style={{ height: containerHeight }}
+      className={cn(
+        'w-full rounded-xl overflow-hidden relative flex items-center border-0.5 border-gray-200 dark:border-gray-700 transition-all duration-150 pointer-events-none select-none',
+        expanded && 'rounded-b-none',
+        className
+      )}>
+      <div className="w-12 flex justify-center items-center h-full flex-shrink-0 relative pl-1.5 transition-all duration-150">
+        <motion.div
+          variants={lightbulbVariants}
+          animate={isThinking ? 'active' : 'idle'}
+          initial="idle"
+          className="flex justify-center items-center">
           <Lightbulb
             size={!showThinking || messages.length < 2 ? 20 : 30}
             style={{ transition: 'width,height, 150ms' }}
           />
         </motion.div>
-      </LoadingContainer>
+      </div>
 
-      <TextContainer>
-        <Title className={!showThinking || !messages.length ? 'showThinking' : ''}>{thinkingTimeText}</Title>
+      <div className="flex-1 h-full py-1.5 overflow-hidden relative">
+        <div
+          className={cn(
+            'absolute inset-x-0 top-0 text-sm leading-3.5 font-medium py-2.5 z-50 transition-all duration-150',
+            (!showThinking || !messages.length) && 'pt-3'
+          )}>
+          {thinkingTimeText}
+        </div>
 
         {showThinking && (
-          <Content>
-            <Messages
+          <div
+            className="w-full h-full relative"
+            style={{
+              mask: 'linear-gradient(to bottom, rgb(0 0 0 / 0%) 0%, rgb(0 0 0 / 0%) 35%, rgb(0 0 0 / 25%) 40%, rgb(0 0 0 / 100%) 90%, rgb(0 0 0 / 100%) 100%)'
+            }}>
+            <motion.div
+              className="w-full absolute top-full flex flex-col justify-end"
               style={{
                 height: messages.length * LINE_HEIGHT
               }}
@@ -71,120 +101,28 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
               {messages.map((message, index) => {
                 if (index < messages.length - 5) return null
 
-                return <Message key={index}>{message}</Message>
+                return (
+                  <div
+                    key={index}
+                    className="w-full leading-3.5 text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap overflow-hidden text-ellipsis">
+                    {message}
+                  </div>
+                )
               })}
-            </Messages>
-          </Content>
+            </motion.div>
+          </div>
         )}
-      </TextContainer>
-      <ArrowContainer className={expanded ? 'expanded' : ''}>
-        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1} />
-      </ArrowContainer>
-    </ThinkingContainer>
+      </div>
+
+      <div
+        className={cn(
+          'w-10 flex justify-center items-center h-full flex-shrink-0 relative text-gray-400 dark:text-gray-500 transition-transform duration-150',
+          expanded && 'rotate-90'
+        )}>
+        <ChevronRight size={20} strokeWidth={1} />
+      </div>
+    </div>
   )
 }
-
-const ThinkingContainer = styled.div`
-  width: 100%;
-  border-radius: 10px;
-  overflow: hidden;
-  position: relative;
-  display: flex;
-  align-items: center;
-  border: 0.5px solid var(--color-border);
-  transition: height, border-radius, 150ms;
-  pointer-events: none;
-  user-select: none;
-  &.expanded {
-    border-radius: 10px 10px 0 0;
-  }
-`
-
-const Title = styled.div`
-  position: absolute;
-  inset: 0 0 auto 0;
-  font-size: 14px;
-  line-height: 14px;
-  font-weight: 500;
-  padding: 10px 0;
-  z-index: 99;
-  transition: padding-top 150ms;
-  &.showThinking {
-    padding-top: 12px;
-  }
-`
-
-const LoadingContainer = styled.div`
-  width: 50px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  flex-shrink: 0;
-  position: relative;
-  padding-left: 5px;
-  transition: width 150ms;
-  > div {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-`
-
-const TextContainer = styled.div`
-  flex: 1;
-  height: 100%;
-  padding: 5px 0;
-  overflow: hidden;
-  position: relative;
-`
-
-const Content = styled.div`
-  width: 100%;
-  height: 100%;
-  mask: linear-gradient(
-    to bottom,
-    rgb(0 0 0 / 0%) 0%,
-    rgb(0 0 0 / 0%) 35%,
-    rgb(0 0 0 / 25%) 40%,
-    rgb(0 0 0 / 100%) 90%,
-    rgb(0 0 0 / 100%) 100%
-  );
-  position: relative;
-`
-
-const Messages = styled(motion.div)`
-  width: 100%;
-  position: absolute;
-  top: 100%;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-`
-
-const Message = styled.div`
-  width: 100%;
-  line-height: 14px;
-  font-size: 11px;
-  color: var(--color-text-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`
-
-const ArrowContainer = styled.div`
-  width: 40px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  flex-shrink: 0;
-  position: relative;
-  color: var(--color-border);
-  transition: transform 150ms;
-  &.expanded {
-    transform: rotate(90deg);
-  }
-`
 
 export default ThinkingEffect

@@ -1,6 +1,6 @@
 import { processKnowledgeSearch } from '@renderer/services/KnowledgeService'
 import type { Assistant, KnowledgeReference } from '@renderer/types'
-import { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults, KnowledgeExtractResults } from '@renderer/utils/extract'
 import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
 import { isEmpty } from 'lodash'

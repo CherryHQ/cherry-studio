@@ -1,10 +1,10 @@
 // Original: src/renderer/src/components/Spinner.tsx
 import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
-import styled from 'styled-components'
 
 interface Props {
   text: React.ReactNode
+  className?: string
 }
 
 // Define variants for the spinner animation
@@ -17,9 +17,10 @@ const spinnerVariants = {
   }
 }
 
-export default function Spinner({ text }: Props) {
+export default function Spinner({ text, className = '' }: Props) {
   return (
-    <Searching
+    <motion.div
+      className={`flex items-center gap-1 p-0 ${className}`}
       variants={spinnerVariants}
       initial="defaultColor"
       animate={['defaultColor', 'dimmed']}
@@ -31,15 +32,6 @@ export default function Spinner({ text }: Props) {
       }}>
       <Search size={16} style={{ color: 'unset' }} />
       <span>{text}</span>
-    </Searching>
+    </motion.div>
   )
 }
-const SearchWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  /* font-size: 14px; */
-  padding: 0px;
-  /* padding-left: 0; */
-`
-const Searching = motion.create(SearchWrapper)

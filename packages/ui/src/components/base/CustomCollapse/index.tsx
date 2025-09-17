@@ -1,108 +1,45 @@
-// Original path: src/renderer/src/components/CustomCollapse.tsx
-import { Collapse } from 'antd'
-import { merge } from 'lodash'
-import { ChevronRight } from 'lucide-react'
-import { FC, memo, useMemo, useState } from 'react'
+import { Accordion, AccordionItem, type AccordionItemProps, type AccordionProps } from '@heroui/react'
+import type { FC } from 'react'
+import { memo } from 'react'
+
+// 重新导出 HeroUI 的组件，方便直接使用
+export { Accordion, AccordionItem } from '@heroui/react'
 
 interface CustomCollapseProps {
-  label: React.ReactNode
-  extra: React.ReactNode
   children: React.ReactNode
-  destroyInactivePanel?: boolean
-  defaultActiveKey?: string[]
-  activeKey?: string[]
-  collapsible?: 'header' | 'icon' | 'disabled'
-  onChange?: (activeKeys: string | string[]) => void
-  style?: React.CSSProperties
-  styles?: {
-    header?: React.CSSProperties
-    body?: React.CSSProperties
-  }
+  accordionProps?: Omit<AccordionProps, 'children'>
+  accordionItemProps?: Omit<AccordionItemProps, 'children'>
 }
 
-const CustomCollapse: FC<CustomCollapseProps> = ({
-  label,
-  extra,
-  children,
-  destroyInactivePanel = false,
-  defaultActiveKey = ['1'],
-  activeKey,
-  collapsible = undefined,
-  onChange,
-  style,
-  styles
-}) => {
-  const [activeKeys, setActiveKeys] = useState(activeKey || defaultActiveKey)
+const CustomCollapse: FC<CustomCollapseProps> = ({ children, accordionProps = {}, accordionItemProps = {} }) => {
+  // 解构 Accordion 的 props
+  const {
+    defaultExpandedKeys = ['1'],
+    variant = 'bordered',
+    className = '',
+    isDisabled = false,
+    ...restAccordionProps
+  } = accordionProps
 
-  const defaultCollapseStyle = {
-    width: '100%',
-    background: 'transparent',
-    border: '0.5px solid var(--color-border)'
-  }
-
-  const defaultCollpaseHeaderStyle = {
-    padding: '3px 16px',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    background: 'var(--color-background-soft)'
-  }
-
-  const getHeaderStyle = () => {
-    return activeKeys && activeKeys.length > 0
-      ? {
-          ...defaultCollpaseHeaderStyle,
-          borderTopLeftRadius: '8px',
-          borderTopRightRadius: '8px'
-        }
-      : {
-          ...defaultCollpaseHeaderStyle,
-          borderRadius: '8px'
-        }
-  }
-
-  const defaultCollapseItemStyles = {
-    header: getHeaderStyle(),
-    body: {
-      borderTop: 'none'
-    }
-  }
-
-  const collapseStyle = merge({}, defaultCollapseStyle, style)
-  const collapseItemStyles = useMemo(() => {
-    return merge({}, defaultCollapseItemStyles, styles)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeKeys])
+  // 解构 AccordionItem 的 props
+  const { title = 'Collapse Panel', ...restAccordionItemProps } = accordionItemProps
 
   return (
-    <Collapse
-      bordered={false}
-      style={collapseStyle}
-      defaultActiveKey={defaultActiveKey}
-      activeKey={activeKey}
-      destroyOnHidden={destroyInactivePanel}
-      collapsible={collapsible}
-      onChange={(keys) => {
-        setActiveKeys(keys)
-        onChange?.(keys)
-      }}
-      expandIcon={({ isActive }) => (
-        <ChevronRight
-          size={16}
-          color="var(--color-text-3)"
-          strokeWidth={1.5}
-          style={{ transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)' }}
-        />
-      )}
-      items={[
-        {
-          styles: collapseItemStyles,
-          key: '1',
-          label,
-          extra,
-          children
-        }
-      ]}
-    />
+    <Accordion
+      defaultExpandedKeys={defaultExpandedKeys}
+      variant={variant}
+      className={className}
+      isDisabled={isDisabled}
+      selectionMode="multiple"
+      {...restAccordionProps}>
+      <AccordionItem
+        key="1"
+        aria-label={typeof title === 'string' ? title : 'collapse-item'}
+        title={title}
+        {...restAccordionItemProps}>
+        {children}
+      </AccordionItem>
+    </Accordion>
   )
 }
 

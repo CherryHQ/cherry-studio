@@ -1,8 +1,8 @@
 import { ColFlex, Flex } from '@cherrystudio/ui'
-import { MCPServer, MCPTool } from '@renderer/types'
+import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { Badge, Descriptions, Empty, Switch, Table, Tag, Tooltip, Typography } from 'antd'
-import { ColumnsType } from 'antd/es/table'
+import type { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 

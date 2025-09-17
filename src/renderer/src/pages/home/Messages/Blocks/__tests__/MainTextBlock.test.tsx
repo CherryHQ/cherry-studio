@@ -12,10 +12,15 @@ import MainTextBlock from '../MainTextBlock'
 // Mock dependencies
 const mockUseSettings = vi.fn()
 const mockUseSelector = vi.fn()
+let mockUsePreference: any
 
 // Mock hooks
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => mockUseSettings()
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: vi.fn()
 }))
 
 vi.mock('react-redux', async () => {
@@ -107,12 +112,15 @@ describe('MainTextBlock', () => {
     // Get the mocked functions
     const { getModelUniqId } = await import('@renderer/services/ModelService')
     const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
+    const { usePreference } = await import('@data/hooks/usePreference')
     mockGetModelUniqId = getModelUniqId as any
     mockWithCitationTags = withCitationTags as any
     mockDetermineCitationSource = determineCitationSource as any
+    mockUsePreference = usePreference as any
 
     // Default mock implementations
     mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+    mockUsePreference.mockReturnValue([false, vi.fn()]) // usePreference returns [value, setter]
     mockUseSelector.mockReturnValue([]) // Empty citations by default
     mockGetModelUniqId.mockImplementation((model: Model) => `${model.id}-${model.name}`)
   })
@@ -167,7 +175,7 @@ describe('MainTextBlock', () => {
     })
 
     it('should render in plain text mode for user messages when setting disabled', () => {
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+      mockUsePreference.mockReturnValue([false, vi.fn()])
       const block = createMainTextBlock({ content: 'User message\nWith line breaks' })
       renderMainTextBlock({ block, role: 'user' })
 
@@ -182,7 +190,7 @@ describe('MainTextBlock', () => {
     })
 
     it('should render user messages as markdown when setting enabled', () => {
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: true })
+      mockUsePreference.mockReturnValue([true, vi.fn()])
       const block = createMainTextBlock({ content: 'User **bold** content' })
       renderMainTextBlock({ block, role: 'user' })
 
@@ -191,7 +199,7 @@ describe('MainTextBlock', () => {
     })
 
     it('should preserve complex formatting in plain text mode', () => {
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+      mockUsePreference.mockReturnValue([false, vi.fn()])
       const complexContent = `Line 1
   Indented line
 **Bold not parsed**
@@ -416,13 +424,13 @@ describe('MainTextBlock', () => {
       const block = createMainTextBlock({ content: 'Settings test content' })
 
       // Test with markdown enabled
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: true })
+      mockUsePreference.mockReturnValue([true, vi.fn()])
       const { unmount } = renderMainTextBlock({ block, role: 'user' })
       expect(getRenderedMarkdown()).toBeInTheDocument()
       unmount()
 
       // Test with markdown disabled
-      mockUseSettings.mockReturnValue({ renderInputMessageAsMarkdown: false })
+      mockUsePreference.mockReturnValue([false, vi.fn()])
       renderMainTextBlock({ block, role: 'user' })
       expect(getRenderedPlainText()).toBeInTheDocument()
       expect(getRenderedMarkdown()).not.toBeInTheDocument()

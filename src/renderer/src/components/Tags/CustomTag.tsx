@@ -1,6 +1,7 @@
 import { CloseOutlined } from '@ant-design/icons'
 import { Tooltip } from 'antd'
-import { CSSProperties, FC, memo, MouseEventHandler, useMemo } from 'react'
+import type { CSSProperties, FC, MouseEventHandler } from 'react'
+import { memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 export interface CustomTagProps {
@@ -43,7 +44,7 @@ const CustomTag: FC<CustomTagProps> = ({
           ...(disabled && { cursor: 'not-allowed' }),
           ...style
         }}>
-        {icon && icon} {children}
+        {icon} {children}
         {closable && (
           <CloseIcon
             $size={size}

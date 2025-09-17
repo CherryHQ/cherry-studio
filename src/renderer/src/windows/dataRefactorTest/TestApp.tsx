@@ -2,7 +2,7 @@ import { AppLogo } from '@renderer/config/env'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Card, Col, Divider, Layout, Row, Space, Typography, Tabs } from 'antd'
+import { Button, Card, Col, Divider, Layout, Row, Space, Tabs, Typography } from 'antd'
 import { Activity, AlertTriangle, Database, FlaskConical, Settings, TestTube, TrendingUp, Zap } from 'lucide-react'
 import React from 'react'
 import styled from 'styled-components'
@@ -104,11 +104,12 @@ const TestApp: React.FC = () => {
                     </Title>
                   </Space>
                   <Text style={{ color: isDarkTheme ? '#d9d9d9' : 'rgba(0, 0, 0, 0.45)' }}>
-                    此测试窗口用于验证数据重构项目的各项功能，包括 PreferenceService、CacheService、DataApiService 和相关 React hooks
-                    的完整测试套件。
+                    此测试窗口用于验证数据重构项目的各项功能，包括 PreferenceService、CacheService、DataApiService
+                    和相关 React hooks 的完整测试套件。
                   </Text>
                   <Text style={{ color: isDarkTheme ? '#d9d9d9' : 'rgba(0, 0, 0, 0.45)' }}>
-                    PreferenceService 测试使用真实的偏好设置系统，CacheService 测试使用三层缓存架构，DataApiService 测试使用专用的测试路由和假数据。
+                    PreferenceService 测试使用真实的偏好设置系统，CacheService 测试使用三层缓存架构，DataApiService
+                    测试使用专用的测试路由和假数据。
                   </Text>
                   <Text style={{ color: 'var(--color-primary)', fontWeight: 'bold' }}>
                     📋 跨窗口测试指南：在一个窗口中修改偏好设置，观察其他窗口是否实时同步更新。
@@ -403,39 +404,39 @@ const Container = styled.div`
 
 const StyledTabs = styled(Tabs)<{ $isDark: boolean }>`
   .ant-tabs-nav {
-    background: ${props => props.$isDark ? '#262626' : '#fafafa'};
+    background: ${(props) => (props.$isDark ? '#262626' : '#fafafa')};
     border-radius: 6px 6px 0 0;
     margin-bottom: 0;
   }
 
   .ant-tabs-tab {
-    color: ${props => props.$isDark ? '#d9d9d9' : '#666'} !important;
+    color: ${(props) => (props.$isDark ? '#d9d9d9' : '#666')} !important;
 
     &:hover {
-      color: ${props => props.$isDark ? '#fff' : '#000'} !important;
+      color: ${(props) => (props.$isDark ? '#fff' : '#000')} !important;
     }
 
     &.ant-tabs-tab-active {
-      color: ${props => props.$isDark ? '#1890ff' : '#1890ff'} !important;
+      color: ${(props) => (props.$isDark ? '#1890ff' : '#1890ff')} !important;
 
       .ant-tabs-tab-btn {
-        color: ${props => props.$isDark ? '#1890ff' : '#1890ff'} !important;
+        color: ${(props) => (props.$isDark ? '#1890ff' : '#1890ff')} !important;
       }
     }
   }
 
   .ant-tabs-ink-bar {
-    background: ${props => props.$isDark ? '#1890ff' : '#1890ff'};
+    background: ${(props) => (props.$isDark ? '#1890ff' : '#1890ff')};
   }
 
   .ant-tabs-content {
-    background: ${props => props.$isDark ? '#1f1f1f' : '#fff'};
+    background: ${(props) => (props.$isDark ? '#1f1f1f' : '#fff')};
     border-radius: 0 0 6px 6px;
     padding: 24px 0;
   }
 
   .ant-tabs-tabpane {
-    color: ${props => props.$isDark ? '#fff' : '#000'};
+    color: ${(props) => (props.$isDark ? '#fff' : '#000')};
   }
 `
 

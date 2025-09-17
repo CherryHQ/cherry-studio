@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import store from '@renderer/store'
-import { MCPTool } from '@renderer/types'
+import type { MCPTool } from '@renderer/types'
 import { defaultLanguage } from '@shared/config/constant'
 
 const logger = loggerService.withContext('Utils:Prompt')

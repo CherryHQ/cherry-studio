@@ -1,9 +1,12 @@
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import { ActionIconButton } from '@renderer/components/Buttons'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
@@ -16,10 +19,9 @@ interface Props {
   selectedBases?: KnowledgeBase[]
   onSelect: (bases: KnowledgeBase[]) => void
   disabled?: boolean
-  ToolbarButton: any
 }
 
-const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled, ToolbarButton }) => {
+const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const quickPanel = useQuickPanel()
@@ -77,7 +79,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
     quickPanel.open({
       title: t('chat.input.knowledge_base'),
       list: baseItems,
-      symbol: '#',
+      symbol: QuickPanelReservedSymbol.KnowledgeBase,
       multiple: true,
       afterAction({ item }) {
         item.isSelected = !item.isSelected
@@ -86,7 +88,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   }, [baseItems, quickPanel, t])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '#') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.KnowledgeBase) {
       quickPanel.close()
     } else {
       openQuickPanel()
@@ -95,7 +97,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
 
   // 监听 selectedBases 变化，动态更新已打开的 QuickPanel 列表状态
   useEffect(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '#') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.KnowledgeBase) {
       // 直接使用重新计算的 baseItems，因为它已经包含了最新的 isSelected 状态
       quickPanel.updateList(baseItems)
     }
@@ -107,12 +109,12 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
 
   return (
     <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
-      <ToolbarButton type="text" onClick={handleOpenQuickPanel} disabled={disabled}>
-        <FileSearch
-          size={18}
-          color={selectedBases && selectedBases.length > 0 ? 'var(--color-primary)' : 'var(--color-icon)'}
-        />
-      </ToolbarButton>
+      <ActionIconButton
+        onClick={handleOpenQuickPanel}
+        active={selectedBases && selectedBases.length > 0}
+        disabled={disabled}>
+        <FileSearch size={18} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

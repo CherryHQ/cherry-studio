@@ -4,8 +4,10 @@
  */
 
 import { loggerService } from '@logger'
-import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
-import { Chunk, ChunkType } from '@renderer/types/chunk'
+import type { AISDKWebSearchResult, MCPTool, WebSearchResults } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
+import type { Chunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
 import type { TextStreamPart, ToolSet } from 'ai'
 
@@ -314,7 +316,7 @@ export class AiSdkToChunkAdapter {
       // === 源和文件相关事件 ===
       case 'source':
         if (chunk.sourceType === 'url') {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          // oxlint-disable-next-line @typescript-eslint/no-unused-vars
           const { sourceType: _, ...rest } = chunk
           final.webSearchResults.push(rest)
         }

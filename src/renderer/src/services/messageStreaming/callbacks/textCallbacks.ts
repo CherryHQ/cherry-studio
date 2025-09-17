@@ -1,9 +1,10 @@
 import { loggerService } from '@logger'
 import { WebSearchSource } from '@renderer/types'
-import { CitationMessageBlock, MessageBlock, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { createMainTextBlock } from '@renderer/utils/messageUtils/create'
 
-import { BlockManager } from '../BlockManager'
+import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('TextCallbacks')
 

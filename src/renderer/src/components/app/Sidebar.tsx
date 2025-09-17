@@ -7,8 +7,8 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
@@ -29,7 +29,7 @@ import {
   Sparkle,
   Sun
 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -39,8 +39,7 @@ import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
-  const { minappShow } = useRuntime()
-  const { pinned } = useMinapps()
+  const { pinned, minappShow } = useMinapps()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
 
   const { pathname } = useLocation()
@@ -122,10 +121,11 @@ const Sidebar: FC = () => {
 
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
+  const { minappShow } = useMinapps()
+
   const { pathname } = useLocation()
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { defaultPaintingProvider } = useSettings()
-  const { minappShow } = useRuntime()
   const navigate = useNavigate()
   const { theme } = useTheme()
 

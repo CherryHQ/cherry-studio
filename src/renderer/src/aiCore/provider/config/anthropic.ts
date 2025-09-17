@@ -1,4 +1,4 @@
-import { SystemModelMessage } from 'ai'
+import type { SystemModelMessage } from 'ai'
 
 export function buildClaudeCodeSystemMessage(system?: string): Array<SystemModelMessage> {
   const defaultClaudeCodeSystem = `You are Claude Code, Anthropic's official CLI for Claude.`

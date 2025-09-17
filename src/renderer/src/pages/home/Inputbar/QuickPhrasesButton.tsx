@@ -1,11 +1,14 @@
+import { ActionIconButton } from '@renderer/components/Buttons'
+import {
+  type QuickPanelListItem,
+  type QuickPanelOpenOptions,
+  QuickPanelReservedSymbol
+} from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import { QuickPanelListItem, QuickPanelOpenOptions } from '@renderer/components/QuickPanel/types'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
-import { useAppSelector } from '@renderer/store'
-import { QuickPhrase } from '@renderer/types'
-import { Assistant } from '@renderer/types'
+import type { QuickPhrase } from '@renderer/types'
 import { Input, Modal, Radio, Space, Tooltip } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
@@ -20,21 +23,16 @@ interface Props {
   ref?: React.RefObject<QuickPhrasesButtonRef | null>
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
-  ToolbarButton: any
-  assistantObj: Assistant
+  assistantId: string
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton, assistantObj }: Props) => {
+const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
-  const activeAssistantId = useAppSelector(
-    (state) =>
-      state.assistants.assistants.find((a) => a.id === assistantObj.id)?.id || state.assistants.defaultAssistant.id
-  )
-  const { assistant, updateAssistant } = useAssistant(activeAssistantId)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
   const loadQuickListPhrases = useCallback(
@@ -135,7 +133,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
     () => ({
       title: t('settings.quickPhrase.title'),
       list: phraseItems,
-      symbol: 'quick-phrases'
+      symbol: QuickPanelReservedSymbol.QuickPhrases
     }),
     [phraseItems, t]
   )
@@ -145,7 +143,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   }, [quickPanel, quickPanelOpenOptions])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === 'quick-phrases') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.QuickPhrases) {
       quickPanel.close()
     } else {
       openQuickPanel()
@@ -159,9 +157,9 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, ToolbarButton,
   return (
     <>
       <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
-        <ToolbarButton type="text" onClick={handleOpenQuickPanel}>
+        <ActionIconButton onClick={handleOpenQuickPanel}>
           <Zap size={18} />
-        </ToolbarButton>
+        </ActionIconButton>
       </Tooltip>
 
       <Modal

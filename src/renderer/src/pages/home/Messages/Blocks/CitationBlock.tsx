@@ -1,4 +1,5 @@
-import { GroundingMetadata } from '@google/genai'
+import { cacheService } from '@data/CacheService'
+import type { GroundingMetadata } from '@google/genai'
 import Spinner from '@renderer/components/Spinner'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
@@ -14,7 +15,7 @@ import CitationsList from '../CitationsList'
 function CitationBlock({ block }: { block: CitationMessageBlock }) {
   const { t } = useTranslation()
   const formattedCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, block.id))
-  const { websearch } = useSelector((state: RootState) => state.runtime)
+  // const { websearch } = useSelector((state: RootState) => state.runtime)
   const message = useSelector((state: RootState) => state.messages.entities[block.messageId])
   const userMessageId = message?.askId || block.messageId // 如果没有 askId 则回退到 messageId
 
@@ -29,7 +30,7 @@ function CitationBlock({ block }: { block: CitationMessageBlock }) {
   }, [formattedCitations, block.knowledge, block.memories, hasGeminiBlock])
 
   const getWebSearchStatusText = (requestId: string) => {
-    const status = websearch.activeSearches[requestId] ?? { phase: 'default' }
+    const status = cacheService.get('activeSearches')?.[requestId] ?? { phase: 'default' }
 
     switch (status.phase) {
       case 'fetch_complete':

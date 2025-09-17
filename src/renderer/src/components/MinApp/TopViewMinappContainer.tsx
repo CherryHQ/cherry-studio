@@ -1,9 +1,9 @@
 import MinappPopupContainer from '@renderer/components/MinApp/MinappPopupContainer'
+import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 
 const TopViewMinappContainer = () => {
-  const { openedKeepAliveMinapps, openedOneOffMinapp } = useRuntime()
+  const { openedKeepAliveMinapps, openedOneOffMinapp } = useMinapps()
   const { isLeftNavbar } = useNavbarPosition()
   const isCreate = openedKeepAliveMinapps.length > 0 || openedOneOffMinapp !== null
 

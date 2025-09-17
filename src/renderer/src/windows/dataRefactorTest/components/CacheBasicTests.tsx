@@ -1,16 +1,15 @@
-import { useCache, useSharedCache, usePersistCache } from '@renderer/data/hooks/useCache'
+import { useCache, usePersistCache, useSharedCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { PersistCacheKey } from '@shared/data/cache/cacheSchemas'
+import type { RendererPersistCacheKey } from '@shared/data/cache/cacheSchemas'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Input, message, Select, Space, Typography, Card, Row, Col, Divider, Slider } from 'antd'
-import { Zap, Database, Eye, Edit, RefreshCw, Users, HardDrive } from 'lucide-react'
-import React, { useState, useEffect, useRef } from 'react'
+import { Button, Card, Col, Divider, Input, message, Row, Select, Slider, Space, Typography } from 'antd'
+import { Database, Edit, Eye, HardDrive, RefreshCw, Users, Zap } from 'lucide-react'
+import React, { useRef, useState } from 'react'
 import styled from 'styled-components'
 
-const { Text, Title } = Typography
+const { Text } = Typography
 const { Option } = Select
-const { TextArea } = Input
 
 const logger = loggerService.withContext('CacheBasicTests')
 
@@ -26,25 +25,25 @@ const CacheBasicTests: React.FC = () => {
   const [memoryCacheKey, setMemoryCacheKey] = useState('test-hook-memory-1')
   const [memoryCacheDefault, setMemoryCacheDefault] = useState('default-memory-value')
   const [newMemoryValue, setNewMemoryValue] = useState('')
-  const [memoryValue, setMemoryValue] = useCache(memoryCacheKey, memoryCacheDefault)
+  const [memoryValue, setMemoryValue] = useCache(memoryCacheKey as any, memoryCacheDefault)
 
   // useSharedCache testing
   const [sharedCacheKey, setSharedCacheKey] = useState('test-hook-shared-1')
   const [sharedCacheDefault, setSharedCacheDefault] = useState('default-shared-value')
   const [newSharedValue, setNewSharedValue] = useState('')
-  const [sharedValue, setSharedValue] = useSharedCache(sharedCacheKey, sharedCacheDefault)
+  const [sharedValue, setSharedValue] = useSharedCache(sharedCacheKey as any, sharedCacheDefault)
 
   // usePersistCache testing
-  const [persistCacheKey, setPersistCacheKey] = useState<PersistCacheKey>('example-1')
+  const [persistCacheKey, setPersistCacheKey] = useState<RendererPersistCacheKey>('example-1')
   const [newPersistValue, setNewPersistValue] = useState('')
   const [persistValue, setPersistValue] = usePersistCache(persistCacheKey)
 
   // Testing different data types
-  const [numberKey] = useState('test-number-cache')
-  const [numberValue, setNumberValue] = useCache(numberKey, 42)
+  const [numberKey] = useState('test-number-cache' as const)
+  const [numberValue, setNumberValue] = useCache(numberKey as any, 42)
 
-  const [objectKey] = useState('test-object-cache')
-  const [objectValue, setObjectValue] = useCache(objectKey, { name: 'test', count: 0, active: true })
+  const [objectKey] = useState('test-object-cache' as const)
+  const [objectValue, setObjectValue] = useCache(objectKey as any, { name: 'test', count: 0, active: true })
 
   // Stats
   const renderCountRef = useRef(0)
@@ -52,7 +51,7 @@ const CacheBasicTests: React.FC = () => {
   const [updateCount, setUpdateCount] = useState(0)
 
   // Available persist keys
-  const persistKeys: PersistCacheKey[] = ['example-1', 'example-2', 'example-3', 'example-4']
+  const persistKeys: RendererPersistCacheKey[] = ['example-1', 'example-2', 'example-3', 'example-4']
 
   // Update render count without causing re-renders
   renderCountRef.current += 1
@@ -79,7 +78,7 @@ const CacheBasicTests: React.FC = () => {
       const parsed = parseValue(newMemoryValue)
       setMemoryValue(parsed)
       setNewMemoryValue('')
-      setUpdateCount(prev => prev + 1)
+      setUpdateCount((prev) => prev + 1)
       message.success(`Memory cache updated: ${memoryCacheKey}`)
       logger.info('Memory cache updated via hook', { key: memoryCacheKey, value: parsed })
     } catch (error) {
@@ -93,7 +92,7 @@ const CacheBasicTests: React.FC = () => {
       const parsed = parseValue(newSharedValue)
       setSharedValue(parsed)
       setNewSharedValue('')
-      setUpdateCount(prev => prev + 1)
+      setUpdateCount((prev) => prev + 1)
       message.success(`Shared cache updated: ${sharedCacheKey} (broadcasted to other windows)`)
       logger.info('Shared cache updated via hook', { key: sharedCacheKey, value: parsed })
     } catch (error) {
@@ -118,7 +117,7 @@ const CacheBasicTests: React.FC = () => {
 
       setPersistValue(parsed as any)
       setNewPersistValue('')
-      setUpdateCount(prev => prev + 1)
+      setUpdateCount((prev) => prev + 1)
       message.success(`Persist cache updated: ${persistCacheKey} (saved + broadcasted)`)
       logger.info('Persist cache updated via hook', { key: persistCacheKey, value: parsed })
     } catch (error) {
@@ -129,13 +128,14 @@ const CacheBasicTests: React.FC = () => {
   // Test different data types
   const handleNumberUpdate = (newValue: number) => {
     setNumberValue(newValue)
-    setUpdateCount(prev => prev + 1)
+    setUpdateCount((prev) => prev + 1)
     logger.info('Number cache updated', { value: newValue })
   }
 
   const handleObjectUpdate = (field: string, value: any) => {
-    setObjectValue(prev => ({ ...prev, [field]: value }))
-    setUpdateCount(prev => prev + 1)
+    const currentValue = objectValue || { name: 'test', count: 0, active: true }
+    setObjectValue({ ...currentValue, [field]: value })
+    setUpdateCount((prev) => prev + 1)
     logger.info('Object cache updated', { field, value })
   }
 
@@ -144,12 +144,18 @@ const CacheBasicTests: React.FC = () => {
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
           <Space>
-            <Text type="secondary">React Hook Tests • Renders: {displayRenderCount || renderCountRef.current} • Updates: {updateCount}</Text>
-            <Button size="small" onClick={() => {
-              renderCountRef.current = 0
-              setDisplayRenderCount(0)
-              setUpdateCount(0)
-            }}>Reset Stats</Button>
+            <Text type="secondary">
+              React Hook Tests • Renders: {displayRenderCount || renderCountRef.current} • Updates: {updateCount}
+            </Text>
+            <Button
+              size="small"
+              onClick={() => {
+                renderCountRef.current = 0
+                setDisplayRenderCount(0)
+                setUpdateCount(0)
+              }}>
+              Reset Stats
+            </Button>
           </Space>
         </div>
 
@@ -167,8 +173,7 @@ const CacheBasicTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Input
                   placeholder="Cache Key"
@@ -192,12 +197,7 @@ const CacheBasicTests: React.FC = () => {
                   prefix={<Edit size={14} />}
                 />
 
-                <Button
-                  type="primary"
-                  onClick={handleMemoryUpdate}
-                  disabled={!newMemoryValue}
-                  block
-                >
+                <Button type="primary" onClick={handleMemoryUpdate} disabled={!newMemoryValue} block>
                   Update Memory Cache
                 </Button>
 
@@ -222,8 +222,7 @@ const CacheBasicTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Input
                   placeholder="Cache Key"
@@ -247,12 +246,7 @@ const CacheBasicTests: React.FC = () => {
                   prefix={<Edit size={14} />}
                 />
 
-                <Button
-                  type="primary"
-                  onClick={handleSharedUpdate}
-                  disabled={!newSharedValue}
-                  block
-                >
+                <Button type="primary" onClick={handleSharedUpdate} disabled={!newSharedValue} block>
                   Update Shared Cache
                 </Button>
 
@@ -277,17 +271,17 @@ const CacheBasicTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Select
                   value={persistCacheKey}
                   onChange={setPersistCacheKey}
                   style={{ width: '100%' }}
-                  placeholder="Select persist key"
-                >
-                  {persistKeys.map(key => (
-                    <Option key={key} value={key}>{key}</Option>
+                  placeholder="Select persist key">
+                  {persistKeys.map((key) => (
+                    <Option key={key} value={key}>
+                      {key}
+                    </Option>
                   ))}
                 </Select>
 
@@ -299,12 +293,7 @@ const CacheBasicTests: React.FC = () => {
                   prefix={<Edit size={14} />}
                 />
 
-                <Button
-                  type="primary"
-                  onClick={handlePersistUpdate}
-                  disabled={!newPersistValue}
-                  block
-                >
+                <Button type="primary" onClick={handlePersistUpdate} disabled={!newPersistValue} block>
                   Update Persist Cache
                 </Button>
 
@@ -333,11 +322,14 @@ const CacheBasicTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Text>Key: <code>{numberKey}</code></Text>
-                <Text>Current Value: <strong>{numberValue}</strong></Text>
+                <Text>
+                  Key: <code>{numberKey}</code>
+                </Text>
+                <Text>
+                  Current Value: <strong>{numberValue}</strong>
+                </Text>
 
                 <Slider
                   min={0}
@@ -347,7 +339,9 @@ const CacheBasicTests: React.FC = () => {
                 />
 
                 <Space>
-                  <Button size="small" onClick={() => handleNumberUpdate(0)}>Reset to 0</Button>
+                  <Button size="small" onClick={() => handleNumberUpdate(0)}>
+                    Reset to 0
+                  </Button>
                   <Button size="small" onClick={() => handleNumberUpdate(Math.floor(Math.random() * 100))}>
                     Random
                   </Button>
@@ -368,10 +362,11 @@ const CacheBasicTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" style={{ width: '100%' }}>
-                <Text>Key: <code>{objectKey}</code></Text>
+                <Text>
+                  Key: <code>{objectKey}</code>
+                </Text>
 
                 <Space>
                   <Input
@@ -389,8 +384,7 @@ const CacheBasicTests: React.FC = () => {
                   />
                   <Button
                     type={objectValue?.active ? 'primary' : 'default'}
-                    onClick={() => handleObjectUpdate('active', !objectValue?.active)}
-                  >
+                    onClick={() => handleObjectUpdate('active', !objectValue?.active)}>
                     {objectValue?.active ? 'Active' : 'Inactive'}
                   </Button>
                 </Space>
@@ -414,12 +408,12 @@ const CacheBasicTests: React.FC = () => {
 }
 
 const TestContainer = styled.div<{ $isDark: boolean }>`
-  color: ${props => props.$isDark ? '#fff' : '#000'};
+  color: ${(props) => (props.$isDark ? '#fff' : '#000')};
 `
 
 const ResultDisplay = styled.div<{ $isDark: boolean }>`
-  background: ${props => props.$isDark ? '#0d1117' : '#f6f8fa'};
-  border: 1px solid ${props => props.$isDark ? '#30363d' : '#d0d7de'};
+  background: ${(props) => (props.$isDark ? '#0d1117' : '#f6f8fa')};
+  border: 1px solid ${(props) => (props.$isDark ? '#30363d' : '#d0d7de')};
   border-radius: 6px;
   padding: 8px;
   font-size: 11px;
@@ -430,7 +424,7 @@ const ResultDisplay = styled.div<{ $isDark: boolean }>`
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
-    color: ${props => props.$isDark ? '#e6edf3' : '#1f2328'};
+    color: ${(props) => (props.$isDark ? '#e6edf3' : '#1f2328')};
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   }
 `

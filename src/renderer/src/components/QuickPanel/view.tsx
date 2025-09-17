@@ -1,4 +1,5 @@
 import { RightOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -11,9 +12,8 @@ import React, { use, useCallback, useDeferredValue, useEffect, useLayoutEffect, 
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'
 
-import { Flex } from '../Layout'
 import { QuickPanelContext } from './provider'
-import {
+import type {
   QuickPanelCallBackOptions,
   QuickPanelCloseAction,
   QuickPanelListItem,

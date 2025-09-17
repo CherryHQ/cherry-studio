@@ -1,3 +1,6 @@
+/**
+ * @deprecated this file will be removed after data refactor
+ */
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE, isMac } from '@renderer/config/constant'
@@ -19,17 +22,16 @@ import {
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import {
+import type {
   Assistant,
   BuiltinOcrProvider,
-  isSystemProvider,
   Model,
   Provider,
   ProviderApiOptions,
-  SystemProviderIds,
   TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
+import { isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
@@ -38,7 +40,7 @@ import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { isEmpty } from 'lodash'
 import { createMigrate } from 'redux-persist'
 
-import { RootState } from '.'
+import type { RootState } from '.'
 import { DEFAULT_TOOL_ORDER } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
@@ -1396,7 +1398,7 @@ const migrateConfig = {
       if (state.websearch?.providers) {
         state.websearch.providers = state.websearch.providers.map((provider) => {
           if (provider.id === 'exa' || provider.id === 'tavily') {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            // oxlint-disable-next-line @typescript-eslint/no-unused-vars
             const { basicAuthUsername, basicAuthPassword, ...rest } = provider
             return rest
           }
@@ -2378,8 +2380,8 @@ const migrateConfig = {
   '147': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2400,8 +2402,8 @@ const migrateConfig = {
   '149': (state: RootState) => {
     try {
       state.knowledge.bases.forEach((base) => {
-        if (!base.framework) {
-          base.framework = 'embedjs'
+        if ((base as any).framework) {
+          delete (base as any).framework
         }
       })
       return state
@@ -2463,6 +2465,19 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 154 error', error as Error)
+      return state
+    }
+  },
+  '155': (state: RootState) => {
+    try {
+      state.knowledge.bases.forEach((base) => {
+        if ((base as any).framework) {
+          delete (base as any).framework
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 155 error', error as Error)
       return state
     }
   }

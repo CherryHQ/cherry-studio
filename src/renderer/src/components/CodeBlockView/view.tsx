@@ -1,7 +1,7 @@
-import { usePreference } from '@data/hooks/usePreference'
+import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { ActionTool } from '@renderer/components/ActionTools'
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import type { ActionTool } from '@renderer/components/ActionTools'
 import {
   CodeToolbar,
   useCopyTool,
@@ -15,8 +15,9 @@ import {
 } from '@renderer/components/CodeToolbar'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ImageViewer from '@renderer/components/ImageViewer'
-import { BasicPreviewHandles } from '@renderer/components/Preview'
+import type { BasicPreviewHandles } from '@renderer/components/Preview'
 import { MAX_COLLAPSED_CODE_HEIGHT } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { pyodideService } from '@renderer/services/PyodideService'
 import { getExtensionByLanguage } from '@renderer/utils/code-language'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -27,7 +28,8 @@ import styled, { css } from 'styled-components'
 
 import { SPECIAL_VIEW_COMPONENTS, SPECIAL_VIEWS } from './constants'
 import StatusBar from './StatusBar'
-import { ViewMode } from './types'
+import type { ViewMode } from './types'
+
 const logger = loggerService.withContext('CodeBlockView')
 
 interface Props {
@@ -55,12 +57,24 @@ interface Props {
 export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave }) => {
   const { t } = useTranslation()
 
-  const [codeEditorEnabled] = usePreference('chat.code.editor.enabled')
   const [codeExecutionEnabled] = usePreference('chat.code.execution.enabled')
   const [codeExecutionTimeoutMinutes] = usePreference('chat.code.execution.timeout_minutes')
   const [codeCollapsible] = usePreference('chat.code.collapsible')
   const [codeWrappable] = usePreference('chat.code.wrappable')
   const [codeImageTools] = usePreference('chat.code.image_tools')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [codeShowLineNumbers] = usePreference('chat.code.show_line_numbers')
+  const [codeEditor] = useMultiplePreferences({
+    enabled: 'chat.code.editor.enabled',
+    autocompletion: 'chat.code.editor.autocompletion',
+    foldGutter: 'chat.code.editor.fold_gutter',
+    highlightActiveLine: 'chat.code.editor.highlight_active_line',
+    keymap: 'chat.code.editor.keymap',
+    themeLight: 'chat.code.editor.theme_light',
+    themeDark: 'chat.code.editor.theme_dark'
+  })
+
+  const { activeCmTheme } = useCodeStyle()
 
   const [viewState, setViewState] = useState({
     mode: 'special' as ViewMode,
@@ -196,7 +210,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 特殊视图的编辑/查看源码按钮，在分屏模式下不可用
   useViewSourceTool({
     enabled: hasSpecialView,
-    editable: codeEditorEnabled,
+    editable: codeEditor.enabled,
     viewMode,
     onViewModeChange: setViewMode,
     setTools
@@ -238,7 +252,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
 
   // 代码编辑器的保存按钮
   useSaveTool({
-    enabled: codeEditorEnabled && !isInSpecialView,
+    enabled: codeEditor.enabled && !isInSpecialView,
     sourceViewRef,
     setTools
   })
@@ -246,16 +260,18 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
   // 源代码视图组件
   const sourceView = useMemo(
     () =>
-      codeEditorEnabled ? (
+      codeEditor.enabled ? (
         <CodeEditor
           className="source-view"
           ref={sourceViewRef}
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={children}
           language={language}
           onSave={onSave}
           onHeightChange={handleHeightChange}
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
-          options={{ stream: true }}
+          options={{ stream: true, lineNumbers: codeShowLineNumbers, ...codeEditor }}
           expanded={shouldExpand}
           wrapped={shouldWrap}
         />
@@ -270,7 +286,18 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
           maxHeight={`${MAX_COLLAPSED_CODE_HEIGHT}px`}
         />
       ),
-    [children, codeEditorEnabled, handleHeightChange, language, onSave, shouldExpand, shouldWrap]
+    [
+      activeCmTheme,
+      children,
+      codeEditor,
+      codeShowLineNumbers,
+      fontSize,
+      handleHeightChange,
+      language,
+      onSave,
+      shouldExpand,
+      shouldWrap
+    ]
   )
 
   // 特殊视图组件映射

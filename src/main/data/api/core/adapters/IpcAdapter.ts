@@ -4,7 +4,7 @@ import { toDataApiError } from '@shared/data/api/errorCodes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
-import { ApiServer } from '../ApiServer'
+import type { ApiServer } from '../ApiServer'
 
 const logger = loggerService.withContext('DataApiIpcAdapter')
 

@@ -1,5 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -7,15 +8,13 @@ import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -70,8 +69,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -118,7 +116,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
     const controller = new AbortController()
     setAbortController(controller)
 
@@ -225,7 +223,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }

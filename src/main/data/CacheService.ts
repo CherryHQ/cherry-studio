@@ -105,33 +105,7 @@ export class CacheService {
 
   // ============ Persist Cache Interface (Reserved) ============
 
-  /**
-   * Get persist cache value (interface reserved for future)
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getPersist<T>(_key: string): T | undefined {
-    // TODO: Implement persist cache in future
-    logger.warn('getPersist not implemented yet')
-    return undefined
-  }
-
-  /**
-   * Set persist cache value (interface reserved for future)
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setPersist<T>(_key: string, _value: T): void {
-    // TODO: Implement persist cache in future
-    logger.warn('setPersist not implemented yet')
-  }
-
-  /**
-   * Check persist cache key (interface reserved for future)
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  hasPersist(_key: string): boolean {
-    // TODO: Implement persist cache in future
-    return false
-  }
+  // TODO: Implement persist cache in future
 
   // ============ IPC Handlers for Cache Synchronization ============
 

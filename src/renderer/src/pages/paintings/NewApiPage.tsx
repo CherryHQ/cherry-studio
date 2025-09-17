@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
@@ -12,7 +13,6 @@ import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import {
   getPaintingsBackgroundOptionsLabel,
   getPaintingsImageSizeOptionsLabel,
@@ -24,14 +24,13 @@ import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
-import { FileMetadata } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import React, { FC } from 'react'
+import type { FC } from 'react'
+import React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -81,8 +80,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
@@ -251,7 +249,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     let body: string | FormData = ''
     const headers: Record<string, string> = {
@@ -343,7 +341,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }

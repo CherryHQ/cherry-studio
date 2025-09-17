@@ -20,8 +20,7 @@ exports[`DraggableVirtualList > snapshot > should match snapshot with custom sty
           </div>
         </div>
         <div
-          class="virtual-scroller"
-          data-testid="scrollbar"
+          class="ScrollBarContainer-eGlIoO jgKpou virtual-scroller"
           style="height: 100%; width: 100%; overflow-y: auto; position: relative;"
         >
           <div

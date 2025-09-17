@@ -2,9 +2,10 @@ import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
 import { getKnowledgeBaseParams } from '@renderer/services/KnowledgeService'
-import { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
+import type { KnowledgeBase, PreprocessProviderId } from '@renderer/types'
 import { Tag } from 'antd'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('QuotaTag')
@@ -31,18 +32,10 @@ const QuotaTag: FC<{ base: KnowledgeBase; providerId: PreprocessProviderId; quot
         const userId = await preferenceService.get('app.user.id')
         const baseParams = getKnowledgeBaseParams(base)
         try {
-          let response: number
-          if (base.framework === 'langchain') {
-            response = await window.api.knowledgeBase.checkQuota({
-              base: baseParams,
-              userId: userId as string
-            })
-          } else {
-            response = await window.api.knowledgeBase.checkQuota({
-              base: baseParams,
-              userId: userId as string
-            })
-          }
+          const response = await window.api.knowledgeBase.checkQuota({
+            base: baseParams,
+            userId: userId as string
+          })
           setQuota(response)
         } catch (error) {
           logger.error('[KnowledgeContent] Error checking quota:', error as Error)

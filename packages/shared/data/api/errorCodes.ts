@@ -3,7 +3,8 @@
  * Provides consistent error handling across renderer and main processes
  */
 
-import { DataApiError, ErrorCode } from './apiTypes'
+import type { DataApiError } from './apiTypes'
+import { ErrorCode } from './apiTypes'
 
 // Re-export ErrorCode for convenience
 export { ErrorCode } from './apiTypes'
@@ -68,7 +69,7 @@ export class DataApiErrorFactory {
       message: customMessage || ERROR_MESSAGES[code],
       status: ERROR_STATUS_MAP[code],
       details,
-      stack: process.env.NODE_ENV === 'development' ? stack : undefined
+      stack: stack || undefined
     }
   }
 

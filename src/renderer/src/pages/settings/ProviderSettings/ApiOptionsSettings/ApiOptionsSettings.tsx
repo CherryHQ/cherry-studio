@@ -1,7 +1,7 @@
 import { ColFlex, RowFlex } from '@cherrystudio/ui'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 import { Switch } from 'antd'
 import { startTransition, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'

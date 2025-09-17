@@ -1,6 +1,10 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit'
+/**
+ * //TODO @deprecated this file will be removed after data refactor
+ */
+import type { PayloadAction } from '@reduxjs/toolkit'
+import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
-import {
+import type {
   ApiServerConfig,
   CodeStyleVarious,
   MathEngine,
@@ -22,9 +26,9 @@ import type {
   SidebarIcon
 } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
-import { OpenAIVerbosity } from '@types'
+import type { OpenAIVerbosity } from '@types'
 
-import { RemoteSyncState } from './backup'
+import type { RemoteSyncState } from './backup'
 
 // export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Command+Enter' | 'Alt+Enter'
 
@@ -621,9 +625,9 @@ const settingsSlice = createSlice({
     // setCodeImageTools: (state, action: PayloadAction<boolean>) => {
     //   state.codeImageTools = action.payload
     // },
-    setCodeFancyBlock: (state, action: PayloadAction<boolean>) => {
-      state.codeFancyBlock = action.payload
-    },
+    // setCodeFancyBlock: (state, action: PayloadAction<boolean>) => {
+    //   state.codeFancyBlock = action.payload
+    // },
     // setMathEngine: (state, action: PayloadAction<MathEngine>) => {
     //   state.mathEngine = action.payload
     // },
@@ -822,18 +826,18 @@ const settingsSlice = createSlice({
     setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
       state.defaultPaintingProvider = action.payload
     },
-    setS3: (state, action: PayloadAction<S3Config>) => {
-      state.s3 = action.payload
-    },
-    setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
-      state.s3 = { ...state.s3, ...action.payload }
-    },
-    setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
-      state.enableDeveloperMode = action.payload
-    },
-    setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
-      state.navbarPosition = action.payload
-    },
+    // setS3: (state, action: PayloadAction<S3Config>) => {
+    //   state.s3 = action.payload
+    // },
+    // setS3Partial: (state, action: PayloadAction<Partial<S3Config>>) => {
+    //   state.s3 = { ...state.s3, ...action.payload }
+    // },
+    // setEnableDeveloperMode: (state, action: PayloadAction<boolean>) => {
+    //   state.enableDeveloperMode = action.payload
+    // },
+    // setNavbarPosition: (state, action: PayloadAction<'left' | 'top'>) => {
+    //   state.navbarPosition = action.payload
+    // },
     // API Server actions
     setApiServerEnabled: (state, action: PayloadAction<boolean>) => {
       state.apiServer = {
@@ -913,7 +917,7 @@ export const {
   // setCodeCollapsible,
   // setCodeWrappable,
   // setCodeImageTools,
-  setCodeFancyBlock,
+  // setCodeFancyBlock,
   // setMathEngine,
   // setMathEnableSingleDollar,
   // setFoldDisplayMode,

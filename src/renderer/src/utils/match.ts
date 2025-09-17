@@ -1,5 +1,6 @@
 import { getProviderLabel } from '@renderer/i18n/label'
-import { isSystemProvider, Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
+import { isSystemProvider } from '@renderer/types'
 
 /**
  * 判断一个字符串是否包含由另一个字符串表示的 keywords

@@ -4,9 +4,10 @@ import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

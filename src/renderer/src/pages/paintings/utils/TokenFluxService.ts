@@ -1,6 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { FileMetadata, TokenFluxPainting } from '@renderer/types'
+import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
 

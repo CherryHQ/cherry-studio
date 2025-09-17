@@ -1,52 +1,50 @@
 // Original: src/renderer/src/components/ExpandableText.tsx
-import { Button } from 'antd'
-import { memo, useCallback, useMemo, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import { Button } from '@heroui/react'
+import { memo, useCallback, useState } from 'react'
 
 interface ExpandableTextProps {
   text: string
   style?: React.CSSProperties
+  className?: string
+  expandText?: string
+  collapseText?: string
+  lineClamp?: number
+  ref?: React.RefObject<HTMLDivElement>
 }
 
 const ExpandableText = ({
-  ref,
   text,
-  style
-}: ExpandableTextProps & { ref?: React.RefObject<HTMLParagraphElement> | null }) => {
-  const { t } = useTranslation()
+  style,
+  className = '',
+  expandText = 'Expand',
+  collapseText = 'Collapse',
+  lineClamp = 1,
+  ref
+}: ExpandableTextProps) => {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const toggleExpand = useCallback(() => {
     setIsExpanded((prev) => !prev)
   }, [])
 
-  const button = useMemo(() => {
-    return (
-      <Button type="link" onClick={toggleExpand} style={{ alignSelf: 'flex-end' }}>
-        {isExpanded ? t('common.collapse') : t('common.expand')}
-      </Button>
-    )
-  }, [isExpanded, t, toggleExpand])
-
   return (
-    <Container ref={ref} style={style} $expanded={isExpanded}>
-      <TextContainer $expanded={isExpanded}>{text}</TextContainer>
-      {button}
-    </Container>
+    <div
+      ref={ref}
+      className={`flex ${isExpanded ? 'flex-col' : 'flex-row items-center'} gap-2 ${className}`}
+      style={style}>
+      <div
+        className={`overflow-hidden ${
+          isExpanded ? '' : lineClamp === 1 ? 'text-ellipsis whitespace-nowrap' : `line-clamp-${lineClamp}`
+        } ${isExpanded ? '' : 'flex-1'}`}>
+        {text}
+      </div>
+      <Button size="sm" variant="light" color="primary" onClick={toggleExpand} className="min-w-fit px-2">
+        {isExpanded ? collapseText : expandText}
+      </Button>
+    </div>
   )
 }
 
-const Container = styled.div<{ $expanded?: boolean }>`
-  display: flex;
-  flex-direction: ${(props) => (props.$expanded ? 'column' : 'row')};
-`
-
-const TextContainer = styled.div<{ $expanded?: boolean }>`
-  overflow: hidden;
-  text-overflow: ${(props) => (props.$expanded ? 'unset' : 'ellipsis')};
-  white-space: ${(props) => (props.$expanded ? 'normal' : 'nowrap')};
-  line-height: ${(props) => (props.$expanded ? 'unset' : '30px')};
-`
+ExpandableText.displayName = 'ExpandableText'
 
 export default memo(ExpandableText)

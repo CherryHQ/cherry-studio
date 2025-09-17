@@ -1,8 +1,8 @@
 import { Flex } from '@cherrystudio/ui'
-import CustomCollapse from '@renderer/components/CustomCollapse'
+import { CustomCollapse } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import { Model } from '@renderer/types'
-import { ModelWithStatus } from '@renderer/types/healthCheck'
+import type { Model } from '@renderer/types'
+import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { Button, Tooltip } from 'antd'
 import { Minus } from 'lucide-react'
 import React, { memo, useCallback, useRef } from 'react'
@@ -37,8 +37,13 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const { t } = useTranslation()
   const listRef = useRef<DynamicVirtualListRef>(null)
 
-  const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
-    const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
+  const handleCollapseChange = useCallback((keys: 'all' | Set<React.Key>) => {
+    if (keys === 'all') {
+      return
+    }
+    const stringKeys = Array.from(keys)
+
+    const isNowExpanded = Array.isArray(stringKeys) ? stringKeys.length > 0 : !!stringKeys
     if (isNowExpanded) {
       // 延迟到 DOM 可见后测量
       requestAnimationFrame(() => listRef.current?.measure())
@@ -48,31 +53,34 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   return (
     <CustomCollapseWrapper>
       <CustomCollapse
-        defaultActiveKey={defaultOpen ? ['1'] : []}
-        onChange={handleCollapseChange}
-        label={
-          <Flex className="items-center gap-2.5">
-            <span className="font-bold">{groupName}</span>
-          </Flex>
-        }
-        extra={
-          <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseLeaveDelay={0}>
-            <Button
-              type="text"
-              className="toolbar-item"
-              icon={<Minus size={14} />}
-              onClick={(e) => {
-                e.stopPropagation()
-                onRemoveGroup()
-              }}
-              disabled={disabled}
-            />
-          </Tooltip>
-        }
-        styles={{
-          header: {
-            padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
-          }
+        accordionProps={{
+          variant: 'shadow',
+          defaultExpandedKeys: defaultOpen ? ['1'] : [],
+          onSelectionChange: handleCollapseChange
+        }}
+        accordionItemProps={{
+          startContent: (
+            <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseLeaveDelay={0}>
+              <Button
+                type="text"
+                className="toolbar-item"
+                icon={<Minus size={14} />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRemoveGroup()
+                }}
+                disabled={disabled}
+              />
+            </Tooltip>
+          ),
+          classNames: {
+            trigger: 'p-[3px_calc(6px_+_var(--scrollbar-width))_3px_16px]'
+          },
+          title: (
+            <Flex className="items-center gap-[10px]">
+              <span style={{ fontWeight: 'bold' }}>{groupName}</span>
+            </Flex>
+          )
         }}>
         <DynamicVirtualList
           ref={listRef}
@@ -117,6 +125,7 @@ const CustomCollapseWrapper = styled.div`
   .ant-collapse-content-box {
     padding: 0 !important;
   }
+
 `
 
 export default memo(ModelListGroup)

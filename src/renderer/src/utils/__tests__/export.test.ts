@@ -35,6 +35,11 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
+// Mock getProviderLabel
+vi.mock('@renderer/i18n/label', () => ({
+  getProviderLabel: vi.fn((providerId: string) => providerId || 'Unknown Provider')
+}))
+
 // Mock the find utility functions - crucial for the test
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   // Provide type safety for mocked message
@@ -66,16 +71,18 @@ vi.mock('@renderer/hooks/useTopic', () => ({
   }
 }))
 
+// PreferenceService is now mocked globally in tests/renderer.setup.ts
+
 vi.mock('@renderer/utils/markdown', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...(actual as any),
-    markdownToPlainText: vi.fn((str) => str) // Simple pass-through for testing export logic
+    markdownToPlainText: vi.fn((str: string) => str) // Simple pass-through for testing export logic
   }
 })
 
 // Import the functions to test AFTER setting up mocks
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 
 import { copyMessageAsPlainText } from '../copy'
@@ -311,7 +318,7 @@ describe('export', () => {
       const markdown = await messageToMarkdown(msgWithCitation)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Main content')
-      expect(markdown).toContain('[1] [https://example1.com](Example Citation 1)')
+      expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
     })
   })
 
@@ -352,34 +359,34 @@ describe('export', () => {
       expect(sections.length).toBeGreaterThanOrEqual(2)
     })
 
-    it('should handle <think> tag and replace newlines with <br> in reasoning', () => {
+    it('should handle <think> tag and replace newlines with <br> in reasoning', async () => {
       const msg = mockedMessages.find((m) => m.id === 'a3')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = await messageToMarkdownWithReasoning(msg!)
       expect(markdown).toContain('Answer B')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Line1<br>Line2')
       expect(markdown).not.toContain('<think>')
     })
 
-    it('should not include details section if no thinking block exists', () => {
+    it('should not include details section if no thinking block exists', async () => {
       const msg = mockedMessages.find((m) => m.id === 'a4')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = await messageToMarkdownWithReasoning(msg!)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Simple Answer')
       expect(markdown).not.toContain('<details')
     })
 
-    it('should include both reasoning and citation content', () => {
+    it('should include both reasoning and citation content', async () => {
       const msg = mockedMessages.find((m) => m.id === 'a5')
       expect(msg).toBeDefined()
-      const markdown = messageToMarkdownWithReasoning(msg!)
+      const markdown = await messageToMarkdownWithReasoning(msg!)
       expect(markdown).toContain('## 🤖 Assistant')
       expect(markdown).toContain('Answer with citation')
       expect(markdown).toContain('<details')
       expect(markdown).toContain('Some thinking')
-      expect(markdown).toContain('[1] [https://example1.com](Example Citation 1)')
+      expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
     })
 
     it('should format citations as footnotes when standardize citations is enabled', () => {
@@ -415,7 +422,7 @@ describe('export', () => {
     })
 
     it('should handle an empty array of messages', async () => {
-      expect(messagesToMarkdown([])).toBe('')
+      expect(await messagesToMarkdown([])).toBe('')
     })
 
     it('should handle a single message without separator', async () => {
@@ -458,7 +465,7 @@ describe('export', () => {
       const { TopicManager } = await import('@renderer/hooks/useTopic')
       ;(TopicManager.getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
-      ;(markdownToPlainText as any).mockImplementation(async (str: string) => str.replace(/[#*]/g, ''))
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
 
       const plainText = await topicToPlainText(testTopic)
 
@@ -475,7 +482,7 @@ describe('export', () => {
       const testMessage = createMessage({ role: 'user', id: 'single_msg_plain' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '### Single Message Content' }
       ])
-      ;(markdownToPlainText as any).mockImplementation(async (str: string) => str.replace(/[#*_]/g, ''))
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await messageToPlainText(testMessage)
       expect(result).toBe('Single Message Content')
@@ -1002,7 +1009,7 @@ describe('Citation formatting in Markdown export', () => {
     expect(processedContent).not.toContain('<sup')
   })
 
-  test('should properly test formatCitationsAsFootnotes through messageToMarkdown', () => {
+  test('should properly test formatCitationsAsFootnotes through messageToMarkdown', async () => {
     const msgWithCitations = createMessage({ role: 'assistant', id: 'test_footnotes' }, [
       {
         type: MessageBlockType.MAIN_TEXT,
@@ -1012,13 +1019,13 @@ describe('Citation formatting in Markdown export', () => {
     ])
 
     // This tests the complete flow including formatCitationsAsFootnotes
-    const markdown = messageToMarkdown(msgWithCitations)
+    const markdown = await messageToMarkdown(msgWithCitations)
 
     // Should contain the title and content
     expect(markdown).toContain('## 🤖 Assistant')
     expect(markdown).toContain('Content with citations')
 
     // Should include citation content (mocked by getCitationContent)
-    expect(markdown).toContain('[1] [https://example1.com](Example Citation 1)')
+    expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
   })
 })

@@ -3,7 +3,8 @@ import { cleanString } from '@cherrystudio/embedjs-utils'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 import { loggerService } from '@logger'
 import md5 from 'md5'
-import { OfficeParserConfig, parseOfficeAsync } from 'officeparser'
+import type { OfficeParserConfig } from 'officeparser'
+import { parseOfficeAsync } from 'officeparser'
 
 const logger = loggerService.withContext('OdLoader')
 
@@ -11,7 +12,7 @@ export enum OdType {
   OdtLoader = 'OdtLoader',
   OdsLoader = 'OdsLoader',
   OdpLoader = 'OdpLoader',
-  undefined = 'undefined'
+  Undefined = 'undefined'
 }
 
 export class OdLoader<OdType> extends BaseLoader<{ type: string }> {

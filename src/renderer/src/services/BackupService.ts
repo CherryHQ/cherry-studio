@@ -8,7 +8,7 @@ import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
-import { S3Config, WebDavConfig } from '@renderer/types'
+import type { S3Config, WebDavConfig } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import dayjs from 'dayjs'
 
@@ -145,7 +145,11 @@ export async function backupToWebdav({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')
@@ -337,7 +341,11 @@ export async function backupToS3({
   showMessage = false,
   customFileName = '',
   autoBackupProcess = false
-}: { showMessage?: boolean; customFileName?: string; autoBackupProcess?: boolean } = {}) {
+}: {
+  showMessage?: boolean
+  customFileName?: string
+  autoBackupProcess?: boolean
+} = {}) {
   const notificationService = NotificationService.getInstance()
   if (isManualBackupRunning) {
     logger.verbose('Manual backup already in progress')

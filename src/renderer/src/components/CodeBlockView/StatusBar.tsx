@@ -1,7 +1,7 @@
-import { FC, memo, ReactNode } from 'react'
+import { Flex } from '@cherrystudio/ui'
+import type { FC, ReactNode } from 'react'
+import { memo } from 'react'
 import styled from 'styled-components'
-
-import { Flex } from '../Layout'
 
 interface Props {
   children: string | ReactNode

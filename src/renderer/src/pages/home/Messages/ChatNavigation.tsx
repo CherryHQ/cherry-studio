@@ -7,10 +7,11 @@ import {
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
-import { RootState } from '@renderer/store'
+import type { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Button, Drawer, Tooltip } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'

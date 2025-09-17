@@ -1,6 +1,7 @@
-import { Context } from '@opentelemetry/api'
-import { BatchSpanProcessor, BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
-import { EventEmitter } from 'stream'
+import type { Context } from '@opentelemetry/api'
+import type { BufferConfig, ReadableSpan, Span, SpanExporter } from '@opentelemetry/sdk-trace-base'
+import { BatchSpanProcessor } from '@opentelemetry/sdk-trace-base'
+import type { EventEmitter } from 'stream'
 
 import { convertSpanToSpanEntity } from '../core/spanConvert'
 

@@ -1,7 +1,9 @@
 import { BaiduOutlined, GoogleOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
-import { QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
+import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
+import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { isGeminiModel, isWebSearchModel } from '@renderer/config/models'
 import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
@@ -9,12 +11,13 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { Assistant, WebSearchProvider, WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
 import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useImperativeHandle, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface WebSearchButtonRef {
@@ -23,17 +26,16 @@ export interface WebSearchButtonRef {
 
 interface Props {
   ref?: React.RefObject<WebSearchButtonRef | null>
-  assistant: Assistant
-  ToolbarButton: any
+  assistantId: string
 }
 
 const logger = loggerService.withContext('WebSearchButton')
 
-const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
+const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
   const { providers } = useWebSearchProviders()
-  const { updateAssistant } = useAssistant(assistant.id)
+  const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
   // 注意：assistant.enableWebSearch 有不同的语义
@@ -44,24 +46,24 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     ({ pid, size = 18, color }: { pid?: WebSearchProviderId; size?: number; color?: string }) => {
       switch (pid) {
         case 'bocha':
-          return <BochaLogo width={size} height={size} color={color} />
+          return <BochaLogo className="icon" width={size} height={size} color={color} />
         case 'exa':
           // size微调，视觉上和其他图标平衡一些
-          return <ExaLogo width={size - 2} height={size} color={color} />
+          return <ExaLogo className="icon" width={size - 2} height={size} color={color} />
         case 'tavily':
-          return <TavilyLogo width={size} height={size} color={color} />
+          return <TavilyLogo className="icon" width={size} height={size} color={color} />
         case 'zhipu':
-          return <ZhipuLogo width={size} height={size} color={color} />
+          return <ZhipuLogo className="icon" width={size} height={size} color={color} />
         case 'searxng':
-          return <SearXNGLogo width={size} height={size} color={color} />
+          return <SearXNGLogo className="icon" width={size} height={size} color={color} />
         case 'local-baidu':
           return <BaiduOutlined size={size} style={{ color, fontSize: size }} />
         case 'local-bing':
-          return <BingLogo width={size} height={size} color={color} />
+          return <BingLogo className="icon" width={size} height={size} color={color} />
         case 'local-google':
           return <GoogleOutlined size={size} style={{ color, fontSize: size }} />
         default:
-          return <Globe size={size} style={{ color, fontSize: size }} />
+          return <Globe className="icon" size={size} style={{ color, fontSize: size }} />
       }
     },
     []
@@ -165,13 +167,13 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     quickPanel.open({
       title: t('chat.input.web_search.label'),
       list: providerItems,
-      symbol: '?',
+      symbol: QuickPanelReservedSymbol.WebSearch,
       pageSize: 9
     })
   }, [quickPanel, t, providerItems])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === '?') {
+    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.WebSearch) {
       quickPanel.close()
     } else {
       openQuickPanel()
@@ -190,17 +192,15 @@ const WebSearchButton: FC<Props> = ({ ref, assistant, ToolbarButton }) => {
     openQuickPanel
   }))
 
-  const color = enableWebSearch ? 'var(--color-primary)' : 'var(--color-icon)'
-
   return (
     <Tooltip
       placement="top"
       title={enableWebSearch ? t('common.close') : t('chat.input.web_search.label')}
       mouseLeaveDelay={0}
       arrow>
-      <ToolbarButton type="text" onClick={onClick}>
-        <WebSearchIcon color={color} pid={assistant.webSearchProviderId} />
-      </ToolbarButton>
+      <ActionIconButton onClick={onClick} active={!!enableWebSearch}>
+        <WebSearchIcon pid={assistant.webSearchProviderId} />
+      </ActionIconButton>
     </Tooltip>
   )
 }

@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -9,12 +10,9 @@ import { getProviderLogo } from '@renderer/config/providers'
 import { LanguagesEnum } from '@renderer/config/translate'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, Select, Tooltip } from 'antd'
@@ -38,6 +36,7 @@ import TokenFluxService from './utils/TokenFluxService'
 const logger = loggerService.withContext('TokenFluxPage')
 
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
+  const [generating, setGenerating] = useCache('chat.generating')
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
@@ -70,8 +69,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   })
 
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
@@ -163,7 +160,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     try {
       const requestBody = {
@@ -197,12 +194,12 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     } catch (error: unknown) {
       handleError(error)
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -210,7 +207,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onCancel = () => {
     abortController?.abort()
     setIsLoading(false)
-    dispatch(setGenerating(false))
+    setGenerating(false)
     setAbortController(null)
   }
 
@@ -298,7 +295,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     // Set form data from painting's input params
     if (newPainting.inputParams) {
       // Filter out the prompt from inputParams since it's handled separately
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // oxlint-disable-next-line @typescript-eslint/no-unused-vars
       const { prompt, ...formInputParams } = newPainting.inputParams
       setFormData(formInputParams)
     } else {

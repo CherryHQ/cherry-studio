@@ -8,11 +8,12 @@ import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
 import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
-import { Dropdown, MenuProps } from 'antd'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
 import { omit } from 'lodash'
 import {
   AlignJustify,
@@ -27,7 +28,8 @@ import {
   Tag,
   Tags
 } from 'lucide-react'
-import { FC, memo, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import * as tinyPinyin from 'tiny-pinyin'

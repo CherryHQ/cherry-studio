@@ -4,7 +4,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { Button, Switch } from 'antd'
 import Input from 'antd/es/input/Input'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'

@@ -15,7 +15,7 @@ import type {
   WebSearchResponse,
   WebSearchSource
 } from '.'
-import { SerializedError } from './error'
+import type { SerializedError } from './error'
 
 // MessageBlock 类型枚举 - 根据实际API返回特性优化
 export enum MessageBlockType {

@@ -1,9 +1,9 @@
+import { Flex } from '@cherrystudio/ui'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { Flex } from '../Layout'
-import { HealthResult } from './types'
+import type { HealthResult } from './types'
 
 interface UseHealthStatusProps {
   results: HealthResult[]

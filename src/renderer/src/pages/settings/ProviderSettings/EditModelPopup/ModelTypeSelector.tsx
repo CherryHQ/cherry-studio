@@ -1,8 +1,9 @@
 import { Flex } from '@cherrystudio/ui'
-import { ModelCapability, ModelType } from '@renderer/types'
+import type { ModelCapability, ModelType } from '@renderer/types'
 import { getDifference, uniqueObjectArray } from '@renderer/utils'
 import { Button, Checkbox } from 'antd'
-import { FC, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ModelTypeSelectorProps {

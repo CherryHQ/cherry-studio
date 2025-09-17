@@ -76,13 +76,7 @@ export class TestService {
    * Get paginated list of test items
    */
   async getItems(
-    params: {
-      page?: number
-      limit?: number
-      type?: string
-      status?: string
-      search?: string
-    } = {}
+    params: { page?: number; limit?: number; type?: string; status?: string; search?: string } = {}
   ): Promise<{
     items: any[]
     total: number

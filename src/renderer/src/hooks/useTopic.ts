@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { preferenceService } from '@data/PreferenceService'
 import db from '@renderer/databases'
 import i18n from '@renderer/i18n'
@@ -6,9 +7,8 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { deleteMessageFiles } from '@renderer/services/MessagesService'
 import store from '@renderer/store'
 import { updateTopic } from '@renderer/store/assistants'
-import { setNewlyRenamedTopics, setRenamingTopics } from '@renderer/store/runtime'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Assistant, Topic } from '@renderer/types'
+import type { Assistant, Topic } from '@renderer/types'
 import { findMainTextBlocks } from '@renderer/utils/messageUtils/find'
 import { find, isEmpty } from 'lodash'
 import { useEffect, useState } from 'react'
@@ -71,9 +71,9 @@ export async function getTopicById(topicId: string) {
  * 开始重命名指定话题
  */
 export const startTopicRenaming = (topicId: string) => {
-  const currentIds = store.getState().runtime.chat.renamingTopics
+  const currentIds = cacheService.get<string[]>('renamingTopics') ?? []
   if (!currentIds.includes(topicId)) {
-    store.dispatch(setRenamingTopics([...currentIds, topicId]))
+    cacheService.set('renamingTopics', [...currentIds, topicId])
   }
 }
 
@@ -81,20 +81,26 @@ export const startTopicRenaming = (topicId: string) => {
  * 完成重命名指定话题
  */
 export const finishTopicRenaming = (topicId: string) => {
-  const state = store.getState()
-
   // 1. 立即从 renamingTopics 移除
-  const currentRenaming = state.runtime.chat.renamingTopics
-  store.dispatch(setRenamingTopics(currentRenaming.filter((id) => id !== topicId)))
+  const renamingTopics = cacheService.get<string[]>('renamingTopics')
+  if (renamingTopics && renamingTopics.includes(topicId)) {
+    cacheService.set(
+      'renamingTopics',
+      renamingTopics.filter((id) => id !== topicId)
+    )
+  }
 
   // 2. 立即添加到 newlyRenamedTopics
-  const currentNewlyRenamed = state.runtime.chat.newlyRenamedTopics
-  store.dispatch(setNewlyRenamedTopics([...currentNewlyRenamed, topicId]))
+  const currentNewlyRenamed = cacheService.get<string[]>('newlyRenamedTopics') ?? []
+  cacheService.set('newlyRenamedTopics', [...currentNewlyRenamed, topicId])
 
   // 3. 延迟从 newlyRenamedTopics 移除
   setTimeout(() => {
-    const current = store.getState().runtime.chat.newlyRenamedTopics
-    store.dispatch(setNewlyRenamedTopics(current.filter((id) => id !== topicId)))
+    const current = cacheService.get<string[]>('newlyRenamedTopics') ?? []
+    cacheService.set(
+      'newlyRenamedTopics',
+      current.filter((id) => id !== topicId)
+    )
   }, 700)
 }
 

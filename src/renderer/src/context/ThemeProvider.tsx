@@ -4,7 +4,8 @@ import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import React, { createContext, PropsWithChildren, use, useEffect, useState } from 'react'
+import type { PropsWithChildren } from 'react'
+import React, { createContext, use, useEffect, useState } from 'react'
 interface ThemeContextType {
   theme: ThemeMode
   settedTheme: ThemeMode

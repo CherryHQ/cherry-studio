@@ -1,7 +1,7 @@
 import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { Provider, ProviderType } from '@renderer/types'
+import type { Provider, ProviderType } from '@renderer/types'
 import { getFancyProviderName, maskApiKey } from '@renderer/utils'
 import { Button, Descriptions, Modal } from 'antd'
 import { Eye, EyeOff } from 'lucide-react'

@@ -19,14 +19,13 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+// import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
+import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import {
   type AutoDetectionMethod,
-  FileMetadata,
   isSupportedOcrFile,
   type Model,
-  SupportedOcrFile,
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
@@ -43,10 +42,12 @@ import {
 } from '@renderer/utils/translate'
 import { imageExts, MB, textExts } from '@shared/config/constant'
 import { Button, FloatButton, Popover, Tooltip, Typography } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
 import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -89,11 +90,13 @@ const TranslatePage: FC = () => {
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
   const [isProcessing, setIsProcessing] = useState(false)
 
+  const [translating, setTranslating] = useState(false)
+  const [abortKey, setTranslateAbortKey] = useState<string>('')
   // redux states
   const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
-  const translating = useAppSelector((state) => state.runtime.translating)
-  const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
+  // const translating = useAppSelector((state) => state.runtime.translating)
+  // const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
@@ -127,12 +130,12 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
-  const setTranslating = useCallback(
-    (translating: boolean) => {
-      dispatch(setTranslatingAction(translating))
-    },
-    [dispatch]
-  )
+  // const setTranslating = useCallback(
+  //   (translating: boolean) => {
+  //     dispatch(setTranslatingAction(translating))
+  //   },
+  //   [dispatch]
+  // )
 
   // 控制复制行为
   const onCopy = useCallback(async () => {
@@ -164,7 +167,7 @@ const TranslatePage: FC = () => {
 
         let translated: string
         const abortKey = uuid()
-        dispatch(setTranslateAbortKey(abortKey))
+        setTranslateAbortKey(abortKey)
 
         try {
           translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
@@ -201,7 +204,7 @@ const TranslatePage: FC = () => {
         window.toast.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [autoCopy, dispatch, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
@@ -847,7 +850,8 @@ const ContentContainer = styled.div<{ $historyDrawerVisible: boolean }>`
 `
 
 const AreaContainer = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   flex: 1;
   gap: 8px;
 `
@@ -918,6 +922,11 @@ const OutputContainer = styled.div`
   border-radius: 10px;
   padding: 10px 5px;
   height: calc(100vh - var(--navbar-height) - 70px);
+  overflow: hidden;
+
+  & > div > .markdown > pre {
+    background-color: var(--color-background-mute) !important;
+  }
 
   &:hover .copy-button {
     opacity: 1;

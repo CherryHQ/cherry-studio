@@ -1,14 +1,14 @@
 import { cacheService } from '@renderer/data/CacheService'
-import { loggerService } from '@renderer/services/LoggerService'
-import type { PersistCacheKey, PersistCacheSchema } from '@shared/data/cache/cacheSchemas'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import { loggerService } from '@renderer/services/LoggerService'
+import type { RendererPersistCacheKey, RendererPersistCacheSchema } from '@shared/data/cache/cacheSchemas'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Input, message, Select, Space, Typography, Card, Row, Col, Divider } from 'antd'
-import { Database, Clock, Trash2, Eye, Edit, Zap } from 'lucide-react'
-import React, { useState, useEffect } from 'react'
+import { Button, Card, Col, Divider, Input, message, Row, Select, Space, Typography } from 'antd'
+import { Clock, Database, Edit, Eye, Trash2, Zap } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
 
-const { Text, Title } = Typography
+const { Text } = Typography
 const { Option } = Select
 const { TextArea } = Input
 
@@ -31,7 +31,7 @@ const CacheServiceTests: React.FC = () => {
   const [sharedValue, setSharedValue] = useState('{"type": "shared", "data": "cross-window"}')
   const [sharedTTL, setSharedTTL] = useState<string>('10000')
 
-  const [persistKey, setPersistKey] = useState<PersistCacheKey>('example-1')
+  const [persistKey, setPersistKey] = useState<RendererPersistCacheKey>('example-1')
   const [persistValue, setPersistValue] = useState('updated-example-value')
 
   // Display states
@@ -42,7 +42,7 @@ const CacheServiceTests: React.FC = () => {
   const [updateCount, setUpdateCount] = useState(0)
 
   // Available persist keys from schema
-  const persistKeys: PersistCacheKey[] = ['example-1', 'example-2', 'example-3', 'example-4']
+  const persistKeys: RendererPersistCacheKey[] = ['example-1', 'example-2', 'example-3', 'example-4']
 
   const parseValue = (value: string): any => {
     if (!value) return undefined
@@ -67,7 +67,7 @@ const CacheServiceTests: React.FC = () => {
       const ttl = memoryTTL ? parseInt(memoryTTL) : undefined
       cacheService.set(memoryKey, parsed, ttl)
       message.success(`Memory cache set: ${memoryKey}`)
-      setUpdateCount(prev => prev + 1)
+      setUpdateCount((prev) => prev + 1)
       logger.info('Memory cache set', { key: memoryKey, value: parsed, ttl })
     } catch (error) {
       message.error(`Memory cache set failed: ${(error as Error).message}`)
@@ -115,7 +115,7 @@ const CacheServiceTests: React.FC = () => {
       const ttl = sharedTTL ? parseInt(sharedTTL) : undefined
       cacheService.setShared(sharedKey, parsed, ttl)
       message.success(`Shared cache set: ${sharedKey} (broadcasted to other windows)`)
-      setUpdateCount(prev => prev + 1)
+      setUpdateCount((prev) => prev + 1)
       logger.info('Shared cache set', { key: sharedKey, value: parsed, ttl })
     } catch (error) {
       message.error(`Shared cache set failed: ${(error as Error).message}`)
@@ -171,9 +171,9 @@ const CacheServiceTests: React.FC = () => {
         parsed = parseValue(persistValue) // object
       }
 
-      cacheService.setPersist(persistKey, parsed as PersistCacheSchema[typeof persistKey])
+      cacheService.setPersist(persistKey, parsed as RendererPersistCacheSchema[typeof persistKey])
       message.success(`Persist cache set: ${persistKey} (saved to localStorage + broadcasted)`)
-      setUpdateCount(prev => prev + 1)
+      setUpdateCount((prev) => prev + 1)
       logger.info('Persist cache set', { key: persistKey, value: parsed })
     } catch (error) {
       message.error(`Persist cache set failed: ${(error as Error).message}`)
@@ -227,9 +227,7 @@ const CacheServiceTests: React.FC = () => {
     <TestContainer $isDark={isDarkTheme}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ textAlign: 'center' }}>
-          <Text type="secondary">
-            直接测试 CacheService API • Updates: {updateCount} • Auto-refresh: 1s
-          </Text>
+          <Text type="secondary">直接测试 CacheService API • Updates: {updateCount} • Auto-refresh: 1s</Text>
         </div>
 
         <Row gutter={[16, 16]}>
@@ -246,8 +244,7 @@ const CacheServiceTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Input
                   placeholder="Cache Key"
@@ -257,7 +254,7 @@ const CacheServiceTests: React.FC = () => {
                 />
 
                 <TextArea
-                  placeholder='Value (JSON or string)'
+                  placeholder="Value (JSON or string)"
                   value={memoryValue}
                   onChange={(e) => setMemoryValue(e.target.value)}
                   rows={2}
@@ -306,8 +303,7 @@ const CacheServiceTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Input
                   placeholder="Cache Key"
@@ -317,7 +313,7 @@ const CacheServiceTests: React.FC = () => {
                 />
 
                 <TextArea
-                  placeholder='Value (JSON or string)'
+                  placeholder="Value (JSON or string)"
                   value={sharedValue}
                   onChange={(e) => setSharedValue(e.target.value)}
                   rows={2}
@@ -366,22 +362,22 @@ const CacheServiceTests: React.FC = () => {
               style={{
                 backgroundColor: isDarkTheme ? '#1f1f1f' : '#fff',
                 borderColor: isDarkTheme ? '#303030' : '#d9d9d9'
-              }}
-            >
+              }}>
               <Space direction="vertical" size="small" style={{ width: '100%' }}>
                 <Select
                   value={persistKey}
                   onChange={setPersistKey}
                   style={{ width: '100%' }}
-                  placeholder="Select persist key"
-                >
-                  {persistKeys.map(key => (
-                    <Option key={key} value={key}>{key}</Option>
+                  placeholder="Select persist key">
+                  {persistKeys.map((key) => (
+                    <Option key={key} value={key}>
+                      {key}
+                    </Option>
                   ))}
                 </Select>
 
                 <TextArea
-                  placeholder='Value (type depends on key)'
+                  placeholder="Value (type depends on key)"
                   value={persistValue}
                   onChange={(e) => setPersistValue(e.target.value)}
                   rows={2}
@@ -421,12 +417,12 @@ const CacheServiceTests: React.FC = () => {
 }
 
 const TestContainer = styled.div<{ $isDark: boolean }>`
-  color: ${props => props.$isDark ? '#fff' : '#000'};
+  color: ${(props) => (props.$isDark ? '#fff' : '#000')};
 `
 
 const ResultDisplay = styled.div<{ $isDark: boolean }>`
-  background: ${props => props.$isDark ? '#0d1117' : '#f6f8fa'};
-  border: 1px solid ${props => props.$isDark ? '#30363d' : '#d0d7de'};
+  background: ${(props) => (props.$isDark ? '#0d1117' : '#f6f8fa')};
+  border: 1px solid ${(props) => (props.$isDark ? '#30363d' : '#d0d7de')};
   border-radius: 6px;
   padding: 8px;
   font-size: 11px;
@@ -435,7 +431,7 @@ const ResultDisplay = styled.div<{ $isDark: boolean }>`
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
-    color: ${props => props.$isDark ? '#e6edf3' : '#1f2328'};
+    color: ${(props) => (props.$isDark ? '#e6edf3' : '#1f2328')};
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   }
 `

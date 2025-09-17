@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import axios from 'axios'
-import { app, ProxyConfig, session } from 'electron'
+import type { ProxyConfig } from 'electron'
+import { app, session } from 'electron'
 import { socksDispatcher } from 'fetch-socks'
 import http from 'http'
 import https from 'https'
@@ -235,7 +236,7 @@ export class ProxyManager {
     https.request = this.bindHttpMethod(this.originalHttpsRequest, agent)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  // oxlint-disable-next-line @typescript-eslint/no-unsafe-function-type
   private bindHttpMethod(originalMethod: Function, agent: http.Agent | https.Agent) {
     return (...args: any[]) => {
       let url: string | URL | undefined

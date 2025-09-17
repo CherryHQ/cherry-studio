@@ -8,7 +8,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { MCPProgressEvent } from '@shared/config/types'
+import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   Button,
@@ -34,7 +34,8 @@ import {
   TriangleAlert,
   X
 } from 'lucide-react'
-import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

@@ -1,8 +1,8 @@
-import electronConfigPrettier from '@electron-toolkit/eslint-config-prettier'
 import tseslint from '@electron-toolkit/eslint-config-ts'
 import eslint from '@eslint/js'
 import eslintReact from '@eslint-react/eslint-plugin'
 import { defineConfig } from 'eslint/config'
+import oxlint from 'eslint-plugin-oxlint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
@@ -10,7 +10,6 @@ import unusedImports from 'eslint-plugin-unused-imports'
 export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
-  electronConfigPrettier,
   eslintReact.configs['recommended-typescript'],
   reactHooks.configs['recommended-latest'],
   {
@@ -26,7 +25,6 @@ export default defineConfig([
       'simple-import-sort/exports': 'error',
       'unused-imports/no-unused-imports': 'error',
       '@eslint-react/no-prop-types': 'error',
-      'prettier/prettier': ['error']
     }
   },
   // Configuration for ensuring compatibility with the original ESLint(8.x) rules
@@ -53,7 +51,7 @@ export default defineConfig([
   {
     // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
-    ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*'],
+    ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
     rules: {
       'no-restricted-syntax': [
         process.env.PRCI ? 'error' : 'warn',
@@ -148,5 +146,9 @@ export default defineConfig([
       'src/renderer/src/ui/**',
       'packages/**/dist'
     ]
-  }
+  },
+  // turn off oxlint supported rules.
+  ...oxlint.configs['flat/eslint'],
+  ...oxlint.configs['flat/typescript'],
+  ...oxlint.configs['flat/unicorn']
 ])

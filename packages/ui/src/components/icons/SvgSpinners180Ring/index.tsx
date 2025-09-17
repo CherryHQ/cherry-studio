@@ -1,8 +1,14 @@
 // Original path: src/renderer/src/components/Icons/SvgSpinners180Ring.tsx
-import { SVGProps } from 'react'
+import type { SVGProps } from 'react'
 
-export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement> & { size?: number | string }) {
-  const { size = '1em', ...svgProps } = props
+import { cn } from '../../../utils'
+
+interface SvgSpinners180RingProps extends SVGProps<SVGSVGElement> {
+  size?: number | string
+}
+
+export function SvgSpinners180Ring(props: SvgSpinners180RingProps) {
+  const { size = '1em', className, ...svgProps } = props
 
   return (
     <svg
@@ -11,7 +17,7 @@ export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement> & { size?: num
       height={size}
       viewBox="0 0 24 24"
       {...svgProps}
-      className={`animation-rotate ${svgProps.className || ''}`.trim()}>
+      className={cn('animate-spin', className)}>
       {/* Icon from SVG Spinners by Utkarsh Verma - https://github.com/n3r4zzurr0/svg-spinners/blob/main/LICENSE */}
       <path
         fill="currentColor"
@@ -19,4 +25,5 @@ export function SvgSpinners180Ring(props: SVGProps<SVGSVGElement> & { size?: num
     </svg>
   )
 }
+
 export default SvgSpinners180Ring

@@ -10,13 +10,14 @@ export * from './note'
 import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
-import { KnowledgeBase, KnowledgeReference } from './knowledge'
-import { MCPConfigSample, McpServerType } from './mcp'
+import type { KnowledgeBase, KnowledgeReference } from './knowledge'
+import type { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './knowledge'
 export * from './mcp'
+export * from './notification'
 export * from './ocr'
 
 export type Assistant = {

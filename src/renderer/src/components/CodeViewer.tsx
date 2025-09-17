@@ -6,7 +6,7 @@ import { getReactStyleFromToken } from '@renderer/utils/shiki'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { debounce } from 'lodash'
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { ThemedToken } from 'shiki/core'
+import type { ThemedToken } from 'shiki/core'
 import styled from 'styled-components'
 
 interface CodeViewerProps {

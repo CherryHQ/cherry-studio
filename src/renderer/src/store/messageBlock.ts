@@ -1,7 +1,8 @@
-import { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
+import type { WebSearchResultBlock } from '@anthropic-ai/sdk/resources'
 import type { GroundingMetadata } from '@google/genai'
 import { createEntityAdapter, createSelector, createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import { AISDKWebSearchResult, Citation, WebSearchProviderResponse, WebSearchSource } from '@renderer/types'
+import type { AISDKWebSearchResult, Citation, WebSearchProviderResponse } from '@renderer/types'
+import { WebSearchSource } from '@renderer/types'
 import type { CitationMessageBlock, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 import type OpenAI from 'openai'
@@ -230,7 +231,7 @@ export const formatCitationsFromBlock = (block: CitationMessageBlock | undefined
         break
       case WebSearchSource.AISDK:
         formattedCitations =
-          (block.response.results && (block.response.results as AISDKWebSearchResult[]))?.map((result, index) => ({
+          (block.response?.results as AISDKWebSearchResult[])?.map((result, index) => ({
             number: index + 1,
             url: result.url,
             title: result.title || new URL(result.url).hostname,

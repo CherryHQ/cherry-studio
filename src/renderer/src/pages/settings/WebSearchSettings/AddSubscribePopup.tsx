@@ -1,6 +1,7 @@
 import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { Button, Form, FormProps, Input, Modal } from 'antd'
+import type { FormProps } from 'antd'
+import { Button, Form, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

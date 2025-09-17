@@ -1,5 +1,5 @@
+import type { Notification } from '@types'
 import { Notification as ElectronNotification } from 'electron'
-import { Notification } from 'src/renderer/src/types/notification'
 
 import { windowService } from './WindowService'
 

@@ -1,6 +1,8 @@
-import CodeEditor, { CodeEditorHandles } from '@renderer/components/CodeEditor'
+import { CodeEditor, type CodeEditorHandles } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { classNames } from '@renderer/utils'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -23,6 +25,8 @@ type ViewMode = 'split' | 'code' | 'preview'
 
 const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, html, onSave, onClose }) => {
   const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [saved, setSaved] = useTemporaryValue(false, 2000)
@@ -141,6 +145,8 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
       <CodeSection>
         <CodeEditor
           ref={codeEditorRef}
+          theme={activeCmTheme}
+          fontSize={fontSize - 1}
           value={html}
           language="html"
           editable={true}

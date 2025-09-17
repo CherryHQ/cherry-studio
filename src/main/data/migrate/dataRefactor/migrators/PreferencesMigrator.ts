@@ -5,7 +5,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import { and, eq } from 'drizzle-orm'
 
 import { configManager } from '../../../../services/ConfigManager'
-import { DataRefactorMigrateService } from '../DataRefactorMigrateService'
+import type { DataRefactorMigrateService } from '../DataRefactorMigrateService'
 import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from './PreferencesMappings'
 
 const logger = loggerService.withContext('PreferencesMigrator')

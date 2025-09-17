@@ -1,29 +1,23 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "declaration": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "jsx": "react-jsx",
-    "lib": ["DOM", "DOM.Iterable", "ES6"],
+    "baseUrl": ".",
+    "declaration": true,
+    "forceConsistentCasingInFileNames": true,
     "incremental": true,
     "isolatedModules": true,
-    "noFallthroughCasesInSwitch": true
+    "jsx": "react-jsx",
+    "lib": ["DOM", "DOM.Iterable", "ES6"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noFallthroughCasesInSwitch": true,
+    "outDir": "./dist",
+    "resolveJsonModule": true,
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2020"
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.*",
-    "**/__tests__/**"
-  ]
+  "exclude": ["node_modules", "dist", "**/*.test.*", "**/__tests__/**"],
+  "include": ["src/**/*", "stories/**/*"]
 }
