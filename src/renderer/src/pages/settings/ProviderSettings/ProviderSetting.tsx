@@ -220,7 +220,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     }
 
     if (provider.type === 'anthropic') {
-      return formatApiHost(apiHost) + 'message'
+      return formatApiHost(apiHost) + 'messages'
     }
     return formatApiHost(apiHost) + 'responses'
   }
