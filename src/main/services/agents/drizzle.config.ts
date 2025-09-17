@@ -16,12 +16,16 @@ function getDbPath() {
   return path.join(app.getPath('userData'), 'agents.db')
 }
 
+const resolvedDbPath = getDbPath()
+
+export const dbPath = resolvedDbPath
+
 export default defineConfig({
   dialect: 'sqlite',
   schema: './src/main/services/agents/database/schema/index.ts',
   out: './src/main/services/agents/database/drizzle',
   dbCredentials: {
-    url: `file:${getDbPath()}`
+    url: `file:${resolvedDbPath}`
   },
   verbose: true,
   strict: true

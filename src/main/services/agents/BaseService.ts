@@ -1,11 +1,11 @@
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import { drizzle } from 'drizzle-orm/libsql'
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
 
-import * as schema from './database/schema'
 import { MigrationService } from './database/MigrationService'
+import * as schema from './database/schema'
 import { dbPath } from './drizzle.config'
 
 const logger = loggerService.withContext('BaseService')
@@ -24,7 +24,7 @@ const logger = loggerService.withContext('BaseService')
  */
 export abstract class BaseService {
   protected static client: Client | null = null
-  protected static db: ReturnType<typeof drizzle> | null = null
+  protected static db: LibSQLDatabase<typeof schema> | null = null
   protected static isInitialized = false
   protected static initializationPromise: Promise<void> | null = null
   protected jsonFields: string[] = ['built_in_tools', 'mcps', 'configuration', 'accessible_paths']
@@ -110,7 +110,7 @@ export abstract class BaseService {
     }
   }
 
-  protected get database(): ReturnType<typeof drizzle> {
+  protected get database(): LibSQLDatabase<typeof schema> {
     this.ensureInitialized()
     return BaseService.db!
   }

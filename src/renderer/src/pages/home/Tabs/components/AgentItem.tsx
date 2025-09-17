@@ -22,13 +22,14 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
   // const { agents } = useAgents()
 
   const AgentLabel = useCallback(() => {
+    const displayName = agent.name ?? agent.id
     return (
       <>
-        {agent.avatar && <Avatar className="h-6 w-6" src={agent.avatar} />}
-        <span className="text-sm">{agent.name}</span>
+        <Avatar className="h-6 w-6" name={displayName} />
+        <span className="text-sm">{displayName}</span>
       </>
     )
-  }, [agent.avatar, agent.name])
+  }, [agent.id, agent.name])
 
   const handleClick = () => logger.debug('not implemented')
 
@@ -37,7 +38,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
           <Container onClick={handleClick} className={isActive ? 'active' : ''}>
-            <AssistantNameRow className="name" title={agent.name}>
+            <AssistantNameRow className="name" title={agent.name ?? agent.id}>
               <AgentLabel />
             </AssistantNameRow>
           </Container>

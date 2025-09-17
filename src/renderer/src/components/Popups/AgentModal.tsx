@@ -23,7 +23,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { AgentEntity, AgentType, isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { ChangeEvent, FormEvent, ReactNode, useCallback, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -45,12 +45,22 @@ interface AgentTypeOption extends Option {
 type ModelOption = Option
 
 type AgentForm = {
-  type: AgentEntity['type']
-  name: AgentEntity['name']
-  description?: AgentEntity['description']
-  instructions?: AgentEntity['instructions']
-  model?: AgentEntity['model']
+  type: AgentType
+  name: string
+  description?: string
+  instructions?: string
+  model: string
+  accessible_paths: string[]
 }
+
+const buildAgentForm = (existing?: AgentEntity): AgentForm => ({
+  type: existing?.type ?? 'claude-code',
+  name: existing?.name ?? 'Claude Code',
+  description: existing?.description,
+  instructions: existing?.instructions,
+  model: existing?.model ?? 'claude-4-sonnet',
+  accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : []
+})
 
 interface BaseProps {
   agent?: AgentEntity
@@ -88,16 +98,13 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { addAgent, updateAgent } = useAgents()
   const isEditing = (agent?: AgentEntity) => agent !== undefined
 
-  // default values. may change to undefined.
-  const [form, setForm] = useState<AgentForm>(
-    isEditing(agent)
-      ? agent
-      : {
-          type: 'claude-code',
-          name: 'Claude Code',
-          model: 'claude-4-sonnet'
-        }
-  )
+  const [form, setForm] = useState<AgentForm>(() => buildAgentForm(agent))
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm(buildAgentForm(agent))
+    }
+  }, [agent, isOpen])
 
   const Option = useCallback(
     ({ option }: { option?: Option | null }) => {
@@ -222,44 +229,51 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       // Additional validation check besides native HTML validation to ensure security
       if (!isAgentType(form.type)) {
         window.toast.error(t('agent.add.error.invalid_agent'))
+        loadingRef.current = false
         return
       }
-      if (form.model === undefined) {
+      if (!form.model) {
         window.toast.error(t('error.model.not_exists'))
+        loadingRef.current = false
         return
       }
 
-      let _agent: AgentEntity
+      let resultAgent: AgentEntity
       if (isEditing(agent)) {
-        _agent = {
-          ...agent,
-          // type: form.type,
+        if (!agent) {
+          throw new Error('Agent is required for editing mode')
+        }
+
+        const updatePayload: Partial<AgentEntity> & { id: string } = {
+          id: agent.id,
           name: form.name,
           description: form.description,
           instructions: form.instructions,
           updated_at: new Date().toISOString(),
           model: form.model
-          // avatar: getAvatar(form.type)
-        } satisfies AgentEntity
-        updateAgent(_agent)
+        }
+
+        updateAgent(updatePayload)
+        resultAgent = { ...agent, ...updatePayload }
         window.toast.success(t('common.update_success'))
       } else {
-        _agent = {
+        const now = new Date().toISOString()
+        resultAgent = {
           id: uuid(),
           type: form.type,
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          created_at: now,
+          updated_at: now,
           model: form.model,
-          avatar: getAvatar(form.type)
-        } satisfies AgentEntity
-        addAgent(_agent)
+          accessible_paths: [...form.accessible_paths]
+        }
+        addAgent(resultAgent)
         window.toast.success(t('common.add_success'))
       }
 
-      logger.debug('Agent', _agent)
+      logger.debug('Agent mutation payload', { agent: resultAgent })
       loadingRef.current = false
 
       setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
@@ -271,6 +285,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       form.name,
       form.description,
       form.instructions,
+      form.accessible_paths,
       agent,
       setTimeoutTimer,
       onClose,
@@ -339,8 +354,16 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                       </SelectItem>
                     )}
                   </Select>
-                  <Textarea label={t('common.description')} value={form.description} onValueChange={onDescChange} />
-                  <Textarea label={t('common.prompt')} value={form.instructions} onValueChange={onInstChange} />
+                  <Textarea
+                    label={t('common.description')}
+                    value={form.description ?? ''}
+                    onValueChange={onDescChange}
+                  />
+                  <Textarea
+                    label={t('common.prompt')}
+                    value={form.instructions ?? ''}
+                    onValueChange={onInstChange}
+                  />
                 </ModalBody>
                 <ModalFooter className="w-full">
                   <Button onPress={onClose}>{t('common.close')}</Button>
@@ -355,12 +378,4 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       </Modal>
     </ErrorBoundary>
   )
-}
-
-const getAvatar = (type: AgentType) => {
-  switch (type) {
-    case 'claude-code':
-      return ClaudeIcon
-  }
-  return undefined
 }

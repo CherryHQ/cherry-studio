@@ -1,19 +1,18 @@
 import { loggerService } from '@logger'
+import { sessionMessageService, sessionService } from '@main/services/agents'
 import { Request, Response } from 'express'
-
-import { sessionMessageService, sessionService } from '../../../../services/agents'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
 
 export const createSession = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId } = req.params
-    const sessionData = { ...req.body, main_agent_id: agentId }
+    const sessionData = req.body
 
     logger.info(`Creating new session for agent: ${agentId}`)
     logger.debug('Session data:', sessionData)
 
-    const session = await sessionService.createSession(sessionData)
+    const session = await sessionService.createSession(agentId, sessionData)
 
     logger.info(`Session created successfully: ${session.id}`)
     return res.status(201).json(session)
@@ -38,7 +37,7 @@ export const listSessions = async (req: Request, res: Response): Promise<Respons
 
     logger.info(`Listing sessions for agent: ${agentId} with limit=${limit}, offset=${offset}, status=${status}`)
 
-    const result = await sessionService.listSessions(agentId, { limit, offset, status })
+    const result = await sessionService.listSessions(agentId, { limit, offset })
 
     logger.info(`Retrieved ${result.sessions.length} sessions (total: ${result.total}) for agent: ${agentId}`)
     return res.json({
@@ -77,16 +76,16 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
       })
     }
 
-    // Verify session belongs to the agent
-      logger.warn(`Session ${sessionId} does not belong to agent ${agentId}`)
-      return res.status(404).json({
-        error: {
-          message: 'Session not found for this agent',
-          type: 'not_found',
-          code: 'session_not_found'
-        }
-      })
-    }
+    // // Verify session belongs to the agent
+    //   logger.warn(`Session ${sessionId} does not belong to agent ${agentId}`)
+    //   return res.status(404).json({
+    //     error: {
+    //       message: 'Session not found for this agent',
+    //       type: 'not_found',
+    //       code: 'session_not_found'
+    //     }
+    //   })
+    // }
 
     // Fetch session messages
     logger.info(`Fetching messages for session: ${sessionId}`)
@@ -261,7 +260,7 @@ export const listAllSessions = async (req: Request, res: Response): Promise<Resp
 
     logger.info(`Listing all sessions with limit=${limit}, offset=${offset}, status=${status}`)
 
-    const result = await sessionService.listSessions(undefined, { limit, offset, status })
+    const result = await sessionService.listSessions(undefined, { limit, offset })
 
     logger.info(`Retrieved ${result.sessions.length} sessions (total: ${result.total})`)
     return res.json({

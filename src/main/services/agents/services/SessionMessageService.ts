@@ -11,7 +11,7 @@ import { UIMessageChunk } from 'ai'
 import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { type InsertSessionMessageRow, sessionMessagesTable } from '../database/schema'
+import { sessionMessagesTable } from '../database/schema'
 import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -76,19 +76,19 @@ export class SessionMessageService extends BaseService {
     return { messages, total }
   }
 
-  createSessionMessageStream(session: GetAgentSessionResponse, messageData: CreateSessionMessageRequest): EventEmitter {
+  createSessionMessage(session: GetAgentSessionResponse, messageData: CreateSessionMessageRequest): EventEmitter {
     this.ensureInitialized()
 
     // Create a new EventEmitter to manage the session message lifecycle
     const sessionStream = new EventEmitter()
 
     // No parent validation needed, start immediately
-    this.startClaudeCodeStream(session, messageData, sessionStream)
+    this.startSessionMessageStream(session, messageData, sessionStream)
 
     return sessionStream
   }
 
-  private startClaudeCodeStream(
+  private startSessionMessageStream(
     session: GetAgentSessionResponse,
     req: CreateSessionMessageRequest,
     sessionStream: EventEmitter
@@ -99,7 +99,12 @@ export class SessionMessageService extends BaseService {
       session_id = previousMessages[0].session_id
     }
 
-    logger.debug('Claude Code stream message data:', { message: req, session_id })
+    logger.debug('Session Message stream message data:', { message: req, session_id })
+
+    if (session.agent_type !== 'claude-code') {
+      logger.error('Unsupported agent type for streaming:', { agent_type: session.agent_type })
+      throw new Error('Unsupported agent type for streaming')
+    }
 
     // Create the streaming agent invocation (using invokeStream for streaming)
     const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], session_id, {
@@ -107,7 +112,6 @@ export class SessionMessageService extends BaseService {
       maxTurns: session.configuration?.maxTurns || 10
     })
 
-    let sessionMessage: AgentSessionMessageEntity | null = null
     const streamedChunks: UIMessageChunk[] = []
     const rawAgentMessages: any[] = [] // Generic agent messages storage
 
@@ -202,6 +206,10 @@ export class SessionMessageService extends BaseService {
             //     error: new Error('Failed to save session message to database')
             //   })
             // }
+            sessionStream.emit('data', {
+              type: 'complete',
+              result: structuredContent
+            })
             break
           }
 

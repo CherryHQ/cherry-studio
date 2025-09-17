@@ -2,7 +2,7 @@
  * Database entity types for Agent, Session, and SessionMessage
  * Shared between main and renderer processes
  */
-import { TextStreamPart, UIMessageChunk, ModelMessage } from 'ai'
+import { ModelMessage, TextStreamPart, UIMessageChunk } from 'ai'
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
 export type SessionMessageRole = ModelMessage['role']
 export type AgentType = 'claude-code'
@@ -75,15 +75,14 @@ export interface ListOptions {
 export interface AgentSessionEntity extends AgentBase {
   id: string
   agent_id: string // Primary agent ID for the session
+  agent_type: AgentType
   // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
 
   created_at: string
   updated_at: string
 }
 
-export interface CreateSessionRequest extends AgentBase {
-  agent_id: string // Primary agent ID for the session
-}
+export type CreateSessionRequest = AgentBase
 
 export interface UpdateSessionRequest extends Partial<AgentBase> {}
 

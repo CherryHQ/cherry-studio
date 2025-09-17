@@ -1,4 +1,5 @@
 import { foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
 import { sessionsTable } from './sessions.schema'
 
 // session_messages table to log all messages, thoughts, actions, observations in a session

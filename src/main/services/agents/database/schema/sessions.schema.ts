@@ -3,10 +3,12 @@
  */
 
 import { foreignKey, index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+
 import { agentsTable } from './agents.schema'
 
 export const sessionsTable = sqliteTable('sessions', {
   id: text('id').primaryKey(),
+  agent_type: text('agent_type').notNull(),
   agent_id: text('agent_id').notNull(), // Primary agent ID for the session
   name: text('name').notNull(),
   description: text('description'),

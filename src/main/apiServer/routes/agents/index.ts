@@ -188,7 +188,7 @@ const createMessagesRouter = (): express.Router => {
   const messagesRouter = express.Router({ mergeParams: true })
 
   // Message CRUD routes (nested under agent/session)
-  messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessageStream)
+  messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessage)
   return messagesRouter
 }
 

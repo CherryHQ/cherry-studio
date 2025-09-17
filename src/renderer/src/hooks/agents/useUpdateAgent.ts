@@ -6,8 +6,9 @@ export const useUpdateAgent = () => {
 
   // TODO: use api
   return useMutation({
-    // @ts-expect-error not-implemented
-    mutationFn: async ({}: Partial<AgentEntity> & { id: string }) => {},
+    mutationFn: async (agentUpdate: Partial<AgentEntity> & { id: string }) => {
+      throw new Error(`useUpdateAgent mutationFn not implemented for agent ${agentUpdate.id}`)
+    },
     onSuccess: (updated: AgentEntity) => {
       qc.setQueryData<AgentEntity[]>(['todos'], (old) =>
         old ? old.map((t) => (t.id === updated.id ? updated : t)) : []

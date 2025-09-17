@@ -16,13 +16,14 @@ Content-Type: application/json
   "type": "claude-code",
   "model": "anthropic:claude-sonnet-4",
   "description": "An AI assistant specialized in code review and debugging",
-  "avatar": "https://example.com/avatar.png",
   "instructions": "You are a helpful coding assistant. Focus on writing clean, maintainable code and providing constructive feedback.",
   "accessible_paths": [
     "/tmp/workspace"
   ],
-  "permission_mode": "acceptEdits",
-  "max_steps": 10
+  "configuration": {
+    "permission_mode": "acceptEdits",
+    "max_turns": 5
+  }
 }
 
 ### Get Agent Details
@@ -42,14 +43,16 @@ Content-Type: application/json
 
 {
   "name": "Claude Code",
+  "type": "claude-code",
   "model": "anthropic:claude-sonnet-4",
   "description": "An AI assistant specialized in code review and debugging",
-  "avatar": "https://example.com/avatar.png",
   "instructions": "You are a helpful coding assistant. Focus on writing clean, maintainable code and providing constructive feedback.",
   "accessible_paths": [
     "/tmp/workspace"
   ],
-  "permission_mode": "acceptEdits",
-  "max_steps": 10
+  "configuration": {
+    "permission_mode": "acceptEdits",
+    "max_turns": 5
+  }
 }
 

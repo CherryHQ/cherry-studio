@@ -24,13 +24,13 @@ const verifyAgentAndSession = async (agentId: string, sessionId: string) => {
   return session
 }
 
-export const createMessageStream = async (req: Request, res: Response): Promise<void> => {
+export const createMessage = async (req: Request, res: Response): Promise<void> => {
   try {
     const { agentId, sessionId } = req.params
 
     const session = await verifyAgentAndSession(agentId, sessionId)
 
-    const messageData = { ...req.body, session_id: sessionId }
+    const messageData = req.body
 
     logger.info(`Creating streaming message for session: ${sessionId}`)
     logger.debug('Streaming message data:', messageData)
@@ -45,7 +45,7 @@ export const createMessageStream = async (req: Request, res: Response): Promise<
     // Send initial connection event
     res.write('data: {"type":"start"}\n\n')
 
-    const messageStream = sessionMessageService.createSessionMessageStream(session, messageData)
+    const messageStream = sessionMessageService.createSessionMessage(session, messageData)
 
     // Track if the response has ended to prevent further writes
     let responseEnded = false

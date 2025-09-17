@@ -1,8 +1,8 @@
 
 @host=http://localhost:23333
 @token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
-@agent_id=agent_1757947603408_t1y2mbnq4
-@session_id=session_1757947684264_z2wcwn8t7
+@agent_id=agent_1758084953648_my4oxnbm3
+@session_id=session_1758087299124_2etavjo2x
 
 ### List Sessions
 GET {{host}}/v1/agents/{{agent_id}}/sessions
@@ -15,29 +15,26 @@ POST {{host}}/v1/agents/{{agent_id}}/sessions
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{
-  "name": "Joke telling Session",
-  "user_goal": "Tell me a funny joke"
-}
+{}
 
 ### Get Session Details
-GET {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815260195_eldvompnv
+GET {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 ### Delete Session
-DELETE {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815245456_tfs6oogl0
+DELETE {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 ### Update Session
-PUT {{host}}/v1/agents/{{agent_id}}/sessions/session_1757815281790_q4yxgdk74
+PUT {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
   "name": "Code Review Session 1",
-  "user_goal": "Review the newly implemented feature for bugs and improvements"
+  "instructions": "Review the newly implemented feature for bugs and improvements"
 }
 
 
@@ -47,17 +44,5 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "role": "user",
-  "content": "a joke about programmers"
-}
-
-
-### Create Session Message Stream
-POST {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}/messages/stream
-Authorization: Bearer {{token}}
-Content-Type: application/json
-
-{
-  "role": "user",
   "content": "a joke about programmers"
 }

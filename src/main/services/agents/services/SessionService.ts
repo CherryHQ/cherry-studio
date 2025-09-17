@@ -1,4 +1,5 @@
 import type {
+  AgentEntity,
   AgentSessionEntity,
   CreateSessionRequest,
   GetAgentSessionResponse,
@@ -25,18 +26,18 @@ export class SessionService extends BaseService {
     await BaseService.initialize()
   }
 
-  async createSession(req: CreateSessionRequest): Promise<AgentSessionEntity> {
+  async createSession(agentId: string, req: CreateSessionRequest): Promise<AgentSessionEntity> {
     this.ensureInitialized()
 
     // Validate agent exists - we'll need to import AgentService for this check
     // For now, we'll skip this validation to avoid circular dependencies
     // The database foreign key constraint will handle this
 
-    const agents = await this.database.select().from(agentsTable).where(eq(agentsTable.id, req.agent_id)).limit(1)
+    const agents = await this.database.select().from(agentsTable).where(eq(agentsTable.id, agentId)).limit(1)
     if (!agents[0]) {
       throw new Error('Agent not found')
     }
-    const agent = this.deserializeJsonFields(agents[0]) as AgentSessionEntity
+    const agent = this.deserializeJsonFields(agents[0]) as AgentEntity
 
     const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
     const now = new Date().toISOString()
@@ -51,15 +52,17 @@ export class SessionService extends BaseService {
 
     const insertData: InsertSessionRow = {
       id,
+      agent_id: agentId,
+      agent_type: agent.type,
       name: serializedData.name || null,
-      agent_id: serializedData.agent_id,
       description: serializedData.description || null,
+      accessible_paths: serializedData.accessible_paths || null,
+      instructions: serializedData.instructions || null,
       model: serializedData.model || null,
       plan_model: serializedData.plan_model || null,
       small_model: serializedData.small_model || null,
       mcps: serializedData.mcps || null,
       configuration: serializedData.configuration || null,
-      accessible_paths: serializedData.accessible_paths || null,
       created_at: now,
       updated_at: now
     }
