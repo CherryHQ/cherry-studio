@@ -362,8 +362,9 @@
       "translate": "Translate to {{target_language}}",
       "translating": "Translating...",
       "upload": {
+        "attachment": "Upload attachment",
         "document": "Upload document file (model does not support images)",
-        "label": "Upload image or document file",
+        "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
       "url_context": "URL Context",
@@ -659,7 +660,12 @@
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
-    "translate": "Translate"
+    "translate": "Translate",
+    "web_search": {
+      "warning": {
+        "openai": "The GPT-5 model's minimal reasoning effort does not support web search."
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "Automatically update to latest version",

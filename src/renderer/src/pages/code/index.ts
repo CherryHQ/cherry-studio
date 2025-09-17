@@ -19,7 +19,8 @@ export const CLI_TOOLS = [
   { value: codeTools.claudeCode, label: 'Claude Code' },
   { value: codeTools.qwenCode, label: 'Qwen Code' },
   { value: codeTools.geminiCli, label: 'Gemini CLI' },
-  { value: codeTools.openaiCodex, label: 'OpenAI Codex' }
+  { value: codeTools.openaiCodex, label: 'OpenAI Codex' },
+  { value: codeTools.iFlowCli, label: 'iFlow CLI' }
 ]
 
 export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
@@ -35,7 +36,8 @@ export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Pr
     providers.filter((p) => p.type === 'gemini' || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
   [codeTools.qwenCode]: (providers) => providers.filter((p) => p.type.includes('openai')),
   [codeTools.openaiCodex]: (providers) =>
-    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id))
+    providers.filter((p) => p.id === 'openai' || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+  [codeTools.iFlowCli]: (providers) => providers.filter((p) => p.type.includes('openai'))
 }
 
 export const getCodeToolsApiBaseUrl = (model: Model, type: EndpointType) => {
@@ -143,6 +145,12 @@ export const generateToolEnvironment = ({
       env.OPENAI_BASE_URL = baseUrl
       env.OPENAI_MODEL = model.id
       env.OPENAI_MODEL_PROVIDER = modelProvider.id
+      break
+
+    case codeTools.iFlowCli:
+      env.IFLOW_API_KEY = apiKey
+      env.IFLOW_BASE_URL = baseUrl
+      env.IFLOW_MODEL_NAME = model.id
       break
   }
 
