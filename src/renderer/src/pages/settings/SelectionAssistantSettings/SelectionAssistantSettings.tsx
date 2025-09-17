@@ -102,7 +102,7 @@ const SelectionAssistantSettings: FC = () => {
           <Switch
             isSelected={isSupportedOS && selectionEnabled}
             onValueChange={handleEnableCheckboxChange}
-            disabled={!isSupportedOS}
+            isDisabled={!isSupportedOS}
           />
         </SettingRow>
 
