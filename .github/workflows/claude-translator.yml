@@ -91,7 +91,7 @@ jobs:
                - 根据环境信息中的Event类型选择正确的命令：
                  - 如果 Event 是 'issues': gh issue edit [ISSUE_NUMBER] --title "[英文标题]" --body "[翻译内容 + 原始内容]"
                  - 如果 Event 是 'issue_comment': gh api -X PATCH /repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }} -f body="[翻译内容 + 原始内容]"
-                 - 如果 Event 是 'pull_request_review': gh api -X PATCH /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }} -f body="[翻译内容]"
+                 - 如果 Event 是 'pull_request_review': gh api -X PUT /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${{ github.event.review.id }} -f body="[翻译内容]"
                  - 如果 Event 是 'pull_request_review_comment': gh api -X PATCH /repos/${{ github.repository }}/pulls/comments/${{ github.event.comment.id }} -f body="[翻译内容 + 原始内容]"
 
             环境信息：
