@@ -1,4 +1,4 @@
-import { ProcessingStatus } from '@types'
+import type { ProcessingStatus } from '@types'
 
 export type LoaderReturn = {
   entriesAdded: number

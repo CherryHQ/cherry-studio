@@ -1,5 +1,5 @@
-import { Link } from '@opentelemetry/api'
-import { TimedEvent } from '@opentelemetry/sdk-trace-base'
+import type { Link } from '@opentelemetry/api'
+import type { TimedEvent } from '@opentelemetry/sdk-trace-base'
 
 export type AttributeValue =
   | string

@@ -2,7 +2,8 @@ import { Button } from '@heroui/react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { useState } from 'react'
 
-import { CustomFallbackProps, ErrorBoundary } from '../../../src/components/base/ErrorBoundary'
+import type { CustomFallbackProps } from '../../../src/components/base/ErrorBoundary'
+import { ErrorBoundary } from '../../../src/components/base/ErrorBoundary'
 
 // 错误组件 - 用于触发错误
 const ThrowErrorComponent = ({ shouldThrow = false, errorMessage = '这是一个模拟错误' }) => {

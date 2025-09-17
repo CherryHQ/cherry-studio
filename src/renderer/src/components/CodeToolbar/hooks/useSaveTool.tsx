@@ -1,4 +1,5 @@
-import { ActionTool, TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
+import { TOOL_SPECS, useToolManager } from '@renderer/components/ActionTools'
 import { type CodeEditorHandles } from '@renderer/components/CodeEditor'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { Check, SaveIcon } from 'lucide-react'

@@ -1,5 +1,6 @@
 // Original path: src/renderer/src/components/CollapsibleSearchBar.tsx
-import { Input, InputRef, Tooltip } from 'antd'
+import type { InputRef } from 'antd'
+import { Input, Tooltip } from 'antd'
 import { Search } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'

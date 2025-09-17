@@ -1,15 +1,14 @@
 // Original path: src/renderer/src/components/DraggableList/list.tsx
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
+import type {
   DroppableProps,
   DropResult,
   OnDragEndResponder,
   OnDragStartResponder,
   ResponderProvided
 } from '@hello-pangea/dnd'
-import { HTMLAttributes, Key, useCallback } from 'react'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
+import type { HTMLAttributes, Key } from 'react'
+import { useCallback } from 'react'
 
 // Inline utility function from @renderer/utils
 function droppableReorder<T>(list: T[], sourceIndex: number, destIndex: number, len: number = 1): T[] {

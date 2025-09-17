@@ -1,5 +1,6 @@
 // Original: src/renderer/src/components/DividerWithText.tsx
-import React, { CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
+import React from 'react'
 
 interface DividerWithTextProps {
   text: string

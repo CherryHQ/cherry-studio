@@ -5,8 +5,8 @@ import i18n from '@renderer/i18n'
 import WebSearchEngineProvider from '@renderer/providers/WebSearchProvider'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
-import {
+import type { CompressionConfig, WebSearchState } from '@renderer/store/websearch'
+import type {
   KnowledgeBase,
   KnowledgeItem,
   KnowledgeReference,
@@ -18,7 +18,7 @@ import {
 import { hasObjectKey, uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { ExtractResults } from '@renderer/utils/extract'
+import type { ExtractResults } from '@renderer/utils/extract'
 import { fetchWebContents } from '@renderer/utils/fetch'
 import { consolidateReferencesByUrl, selectReferences } from '@renderer/utils/websearch'
 import dayjs from 'dayjs'

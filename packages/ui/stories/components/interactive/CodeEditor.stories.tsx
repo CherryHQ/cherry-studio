@@ -1,11 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { action } from 'storybook/actions'
 
-import CodeEditor, {
-  getCmThemeByName,
-  getCmThemeNames,
-  LanguageConfig
-} from '../../../src/components/interactive/CodeEditor'
+import type { LanguageConfig } from '../../../src/components/interactive/CodeEditor'
+import CodeEditor, { getCmThemeByName, getCmThemeNames } from '../../../src/components/interactive/CodeEditor'
 
 // 示例语言配置 - 为 Storybook 提供更丰富的语言支持演示
 const exampleLanguageConfig: LanguageConfig = {

@@ -1,7 +1,7 @@
 import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
-import { PaintingAction, PaintingsState } from '@renderer/types'
+import type { PaintingAction, PaintingsState } from '@renderer/types'
 
 export function usePaintings() {
   const siliconflow_paintings = useAppSelector((state) => state.paintings.siliconflow_paintings)

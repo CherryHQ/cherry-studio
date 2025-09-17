@@ -1,4 +1,4 @@
-import { Model } from '@renderer/types'
+import type { Model } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 export const COURSE_URL = 'https://docs.bigmodel.cn/cn/guide/models/image-generation/cogview-4'

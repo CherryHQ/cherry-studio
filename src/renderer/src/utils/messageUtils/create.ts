@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { Assistant, FileMetadata, Topic } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
-import { SerializedError } from '@renderer/types/error'
+import type { SerializedError } from '@renderer/types/error'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,

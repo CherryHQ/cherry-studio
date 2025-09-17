@@ -4,7 +4,7 @@ import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolb
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Row } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup } from '../..'

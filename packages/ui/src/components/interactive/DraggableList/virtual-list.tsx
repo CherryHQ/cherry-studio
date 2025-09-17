@@ -1,14 +1,12 @@
 import { Scrollbar } from '@cherrystudio/ui'
-import {
-  DragDropContext,
-  Draggable,
-  Droppable,
+import type {
   DroppableProps,
   DropResult,
   OnDragEndResponder,
   OnDragStartResponder,
   ResponderProvided
 } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type Key, memo, useCallback, useImperativeHandle, useRef } from 'react'
 

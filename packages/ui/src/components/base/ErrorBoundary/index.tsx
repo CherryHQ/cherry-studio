@@ -1,8 +1,9 @@
 // Original path: src/renderer/src/components/ErrorBoundary.tsx
 import { Button } from '@heroui/react'
 import { AlertTriangle } from 'lucide-react'
-import { ComponentType, ReactNode } from 'react'
-import { ErrorBoundary, FallbackProps } from 'react-error-boundary'
+import type { ComponentType, ReactNode } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
+import { ErrorBoundary } from 'react-error-boundary'
 
 import { formatErrorMessage } from './utils'
 

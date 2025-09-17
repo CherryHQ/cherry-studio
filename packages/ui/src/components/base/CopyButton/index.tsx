@@ -1,7 +1,7 @@
 // Original path: src/renderer/src/components/CopyButton.tsx
 import { Tooltip } from '@heroui/react'
 import { Copy } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 
 interface CopyButtonProps {
   tooltip?: string

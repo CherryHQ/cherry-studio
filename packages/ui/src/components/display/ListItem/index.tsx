@@ -1,6 +1,6 @@
 // Original path: src/renderer/src/components/ListItem/index.tsx
 import { Tooltip } from '@heroui/react'
-import { ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import { cn } from '../../../utils'
 

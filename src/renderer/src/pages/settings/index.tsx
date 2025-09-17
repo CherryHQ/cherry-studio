@@ -1,7 +1,8 @@
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
+import type { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Divider } from 'antd'
 import Link from 'antd/es/typography/Link'
-import styled, { CSSProp } from 'styled-components'
+import type { CSSProp } from 'styled-components'
+import styled from 'styled-components'
 
 export const SettingContainer = styled.div<{ theme?: ThemeMode }>`
   display: flex;

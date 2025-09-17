@@ -1,5 +1,5 @@
 import type { ImageModel, LanguageModel } from 'ai'
-import { generateObject, generateText, ModelMessage, streamObject, streamText } from 'ai'
+import type { generateObject, generateText, ModelMessage, streamObject, streamText } from 'ai'
 
 export type StreamTextParams = Omit<Parameters<typeof streamText>[0], 'model' | 'messages'> &
   (

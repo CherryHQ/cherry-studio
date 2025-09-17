@@ -1,6 +1,6 @@
 import { electronAPI } from '@electron-toolkit/preload'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { SpanContext } from '@opentelemetry/api'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanContext } from '@opentelemetry/api'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
@@ -9,10 +9,10 @@ import type {
   PreferenceKeyType,
   SelectionActionItem
 } from '@shared/data/preference/preferenceTypes'
-import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { Notification } from '@types'
-import {
+import type {
   AddMemoryOptions,
   AssistantMessage,
   FileListResponse,
@@ -33,8 +33,9 @@ import {
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
-import { contextBridge, ipcRenderer, OpenDialogOptions, shell, webUtils } from 'electron'
-import { CreateDirectoryOptions } from 'webdav'
+import type { OpenDialogOptions } from 'electron'
+import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
+import type { CreateDirectoryOptions } from 'webdav'
 
 export function tracedInvoke(channel: string, spanContext: SpanContext | undefined, ...args: any[]) {
   if (spanContext) {

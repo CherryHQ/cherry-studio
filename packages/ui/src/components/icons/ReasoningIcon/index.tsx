@@ -1,6 +1,7 @@
 // Original path: src/renderer/src/components/Icons/ReasoningIcon.tsx
 import { Tooltip } from 'antd'
-import React, { FC } from 'react'
+import type { FC } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

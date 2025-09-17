@@ -1,7 +1,8 @@
 // Original path: src/renderer/src/components/Tags/CustomTag.tsx
 import { Tooltip } from '@heroui/react'
 import { X } from 'lucide-react'
-import { CSSProperties, FC, memo, MouseEventHandler, useMemo } from 'react'
+import type { CSSProperties, FC, MouseEventHandler } from 'react'
+import { memo, useMemo } from 'react'
 
 export interface CustomTagProps {
   icon?: React.ReactNode

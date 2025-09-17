@@ -1,6 +1,6 @@
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { Model, Provider } from '@types'
+import type { Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 

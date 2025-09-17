@@ -24,7 +24,7 @@ vi.mock('@renderer/utils/naming', () => ({
 }))
 
 // Import after mocking
-import { Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
 
 import ModelSelector, { modelSelectFilter } from '../ModelSelector'
 

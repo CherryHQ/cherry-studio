@@ -3,7 +3,7 @@ import '@ant-design/v5-patch-for-react-19'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import SelectionToolbar from './SelectionToolbar'

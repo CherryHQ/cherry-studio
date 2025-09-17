@@ -1,5 +1,6 @@
 import { getI18n } from '@main/utils/language'
-import { Menu, MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
+import { Menu } from 'electron'
 
 class ContextMenu {
   public contextMenu(w: Electron.WebContents) {

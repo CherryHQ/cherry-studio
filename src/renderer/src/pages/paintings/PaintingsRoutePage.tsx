@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
 import { useAppDispatch } from '@renderer/store'
 import { setDefaultPaintingProvider } from '@renderer/store/settings'
-import { PaintingProvider } from '@renderer/types'
-import { FC, useEffect } from 'react'
+import type { PaintingProvider } from '@renderer/types'
+import type { FC } from 'react'
+import { useEffect } from 'react'
 import { Route, Routes, useParams } from 'react-router-dom'
 
 import AihubmixPage from './AihubmixPage'

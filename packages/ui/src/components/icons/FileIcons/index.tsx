@@ -1,5 +1,5 @@
 // Original path: src/renderer/src/components/Icons/FileIcons.tsx
-import { CSSProperties, SVGProps } from 'react'
+import type { CSSProperties, SVGProps } from 'react'
 
 interface BaseFileIconProps extends SVGProps<SVGSVGElement> {
   size?: string | number

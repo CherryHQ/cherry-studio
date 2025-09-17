@@ -1,4 +1,4 @@
-import { Provider, SystemProvider } from '@renderer/types'
+import type { Provider, SystemProvider } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 // Mock i18n to return English provider labels

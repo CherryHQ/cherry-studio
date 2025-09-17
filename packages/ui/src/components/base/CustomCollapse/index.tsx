@@ -1,6 +1,7 @@
 // Original path: src/renderer/src/components/CustomCollapse.tsx
 import { ChevronRight } from 'lucide-react'
-import { FC, memo, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useState } from 'react'
 
 interface CustomCollapseProps {
   label: React.ReactNode

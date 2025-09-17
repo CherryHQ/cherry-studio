@@ -1,6 +1,7 @@
 // Original: src/renderer/src/components/Scrollbar/index.tsx
 import { throttle } from 'lodash'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {

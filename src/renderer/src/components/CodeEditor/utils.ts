@@ -1,9 +1,9 @@
 import { languages } from '@shared/config/languages'
 import * as cmThemes from '@uiw/codemirror-themes-all'
-import { Extension } from '@uiw/react-codemirror'
+import type { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
 
-import { CodeMirrorTheme } from './types'
+import type { CodeMirrorTheme } from './types'
 
 /**
  * Computes code changes using fast-diff and converts them to CodeMirror changes.
