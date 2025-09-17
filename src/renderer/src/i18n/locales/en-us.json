@@ -660,7 +660,12 @@
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
-    "translate": "Translate"
+    "translate": "Translate",
+    "web_search": {
+      "warning": {
+        "openai": "The GPT-5 model's minimal reasoning effort does not support web search."
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "Automatically update to latest version",

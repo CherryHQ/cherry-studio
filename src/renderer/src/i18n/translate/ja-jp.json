@@ -362,8 +362,9 @@
       "translate": "{{target_language}}に翻訳",
       "translating": "翻訳中...",
       "upload": {
+        "attachment": "添付ファイルをアップロード",
         "document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
-        "label": "画像またはドキュメントをアップロード",
+        "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
       "url_context": "URLコンテキスト",
@@ -659,7 +660,12 @@
       "title": "トピック",
       "unpin": "固定解除"
     },
-    "translate": "翻訳"
+    "translate": "翻訳",
+    "web_search": {
+      "warning": {
+        "openai": "GPT5モデルの最小思考強度ではネット検索はサポートされません"
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "最新バージョンを自動的に更新する",
