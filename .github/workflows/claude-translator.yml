@@ -98,10 +98,9 @@ jobs:
             - Event: ${{ github.event_name }}
             - Issue Number: ${{ github.event.issue.number }}
             - Repository: ${{ github.repository }}
-            - Comment ID: ${{ github.event.comment.id || 'N/A' }}
+            - (Review) Comment ID: ${{ github.event.comment.id || 'N/A' }}
             - Pull Request Number: ${{ github.event.pull_request.number || 'N/A' }}
             - Review ID: ${{ github.event.review.id || 'N/A' }}
-            - Review Comment ID: ${{ github.event.comment.id || 'N/A' }}
 
 
             使用以下命令获取完整信息：
