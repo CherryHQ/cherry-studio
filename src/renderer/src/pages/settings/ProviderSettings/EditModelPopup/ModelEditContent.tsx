@@ -22,7 +22,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import type { ModalProps } from 'antd'
-import { Button, Divider, Form, Input, InputNumber, message, Modal, Select, Switch, Tooltip } from 'antd'
+import { Button, Divider, Form, Input, InputNumber, Modal, Select, Switch, Tooltip } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -280,7 +280,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
                   onClick={() => {
                     const val = form.getFieldValue('name')
                     navigator.clipboard.writeText((val.id || model.id) as string)
-                    message.success(t('message.copied'))
+                    window.toast.success(t('message.copied'))
                   }}
                 />
               }

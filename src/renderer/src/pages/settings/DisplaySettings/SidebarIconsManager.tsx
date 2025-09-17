@@ -3,7 +3,6 @@ import type { DraggableProvided, DroppableProvided, DropResult } from '@hello-pa
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
-import { message } from 'antd'
 import {
   Code,
   FileSearch,
@@ -44,7 +43,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
       // 如果是chat图标且目标是disabled区域,则不允许移动并提示
       const draggedItem = source.droppableId === 'visible' ? visibleIcons[source.index] : invisibleIcons[source.index]
       if (draggedItem === 'assistants' && destination.droppableId === 'disabled') {
-        message.warning(t('settings.display.sidebar.chat.hiddenMessage'))
+        window.toast.warning(t('settings.display.sidebar.chat.hiddenMessage'))
         return
       }
 
@@ -81,7 +80,7 @@ const SidebarIconsManager: FC<SidebarIconsManagerProps> = ({
     (icon: SidebarIcon, fromList: 'visible' | 'disabled') => {
       // 如果是chat图标且要移动到disabled列表,则不允许并提示
       if (icon === 'assistants' && fromList === 'visible') {
-        message.warning(t('settings.display.sidebar.chat.hiddenMessage'))
+        window.toast.warning(t('settings.display.sidebar.chat.hiddenMessage'))
         return
       }
 

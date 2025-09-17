@@ -7,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, message, Tooltip } from 'antd'
+import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -74,7 +74,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
       try {
         new URL(url)
         if (sitemapItems.find((item) => item.content === url)) {
-          message.success(t('knowledge.sitemap_added'))
+          window.toast.success(t('knowledge.sitemap_added'))
           return
         }
         addSitemap(url)

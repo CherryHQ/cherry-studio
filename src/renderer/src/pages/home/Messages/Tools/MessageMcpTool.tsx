@@ -10,18 +10,7 @@ import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import {
-  Button,
-  Collapse,
-  ConfigProvider,
-  Dropdown,
-  message as antdMessage,
-  Modal,
-  Progress,
-  Tabs,
-  Tooltip
-} from 'antd'
-import { message } from 'antd'
+import { Button, Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs, Tooltip } from 'antd'
 import {
   Check,
   ChevronDown,
@@ -153,7 +142,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const copyContent = (content: string, toolId: string) => {
     navigator.clipboard.writeText(content)
-    antdMessage.success({ content: t('message.copied'), key: 'copy-message' })
+    window.toast.success(t('message.copied'))
     setCopiedMap((prev) => ({ ...prev, [toolId]: true }))
     setTimeoutTimer('copyContent', () => setCopiedMap((prev) => ({ ...prev, [toolId]: false })), 2000)
   }
@@ -180,11 +169,11 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
         if (success) {
           window.toast.success(t('message.tools.aborted'))
         } else {
-          message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+          window.toast.error(t('message.tools.abort_failed'))
         }
       } catch (error) {
         logger.error('Failed to abort tool:', error as Error)
-        message.error({ content: t('message.tools.abort_failed'), key: 'abort-tool' })
+        window.toast.error(t('message.tools.abort_failed'))
       }
     }
   }
@@ -490,7 +479,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
                         ? expandedResponse.content
                         : JSON.stringify(expandedResponse.content, null, 2)
                     )
-                    antdMessage.success({ content: t('message.copied'), key: 'copy-expanded' })
+                    window.toast.success(t('message.copied'))
                   }}
                   aria-label={t('common.copy')}>
                   <i className="iconfont icon-copy"></i>

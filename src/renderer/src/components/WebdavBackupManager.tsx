@@ -1,7 +1,7 @@
 import { DeleteOutlined, ExclamationCircleOutlined, ReloadOutlined } from '@ant-design/icons'
 import { restoreFromWebdav } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
-import { Button, message, Modal, Table, Tooltip } from 'antd'
+import { Button, Modal, Table, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -101,7 +101,7 @@ export function WebdavBackupManager({
 
   const handleDeleteSelected = async () => {
     if (selectedRowKeys.length === 0) {
-      message.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
+      window.toast.warning(t('settings.data.webdav.backup.manager.select.files.delete'))
       return
     }
 

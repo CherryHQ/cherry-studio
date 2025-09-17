@@ -6,7 +6,7 @@ import type { Citation } from '@renderer/types'
 import { fetchWebContent } from '@renderer/utils/fetch'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { Button, message, Popover, Skeleton } from 'antd'
+import { Button, Popover, Skeleton } from 'antd'
 import { Check, Copy, FileSearch } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,7 +129,7 @@ const CopyButton: React.FC<{ content: string }> = ({ content }) => {
         window.toast.success(t('common.copied'))
       })
       .catch(() => {
-        message.error(t('message.copy.failed'))
+        window.toast.error(t('message.copy.failed'))
       })
   }
 
