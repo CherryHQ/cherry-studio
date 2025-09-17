@@ -35,6 +35,12 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     logger.info(`Creating streaming message for session: ${sessionId}`)
     logger.debug('Streaming message data:', messageData)
 
+    // Step 1: Save user message first
+    const userMessage = await sessionMessageService.saveUserMessage(
+      sessionId,
+      messageData.content
+    )
+
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
@@ -42,13 +48,36 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
 
-    // Send initial connection event
-    res.write('data: {"type":"start"}\n\n')
 
-    const messageStream = sessionMessageService.createSessionMessage(session, messageData)
+    const messageStream = sessionMessageService.createSessionMessage(session, messageData, userMessage.id)
 
-    // Track if the response has ended to prevent further writes
+    // Track stream lifecycle so we keep the SSE connection open until persistence finishes
     let responseEnded = false
+    let streamFinished = false
+    let awaitingPersistence = false
+    let persistenceResolved = false
+
+    const finalizeResponse = () => {
+      if (responseEnded) {
+        return
+      }
+
+      if (!streamFinished) {
+        return
+      }
+
+      if (awaitingPersistence && !persistenceResolved) {
+        return
+      }
+
+      responseEnded = true
+      try {
+        res.write('data: [DONE]\n\n')
+      } catch (writeError) {
+        logger.error('Error writing final sentinel to SSE stream:', { error: writeError as Error })
+      }
+      res.end()
+    }
 
     // Handle client disconnect
     req.on('close', () => {
@@ -76,18 +105,44 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             }
             res.write(`data: ${JSON.stringify(errorChunk)}\n\n`)
             logger.error(`Streaming message error for session: ${sessionId}:`, event.error)
-            responseEnded = true
-            res.write('data: [DONE]\n\n')
-            res.end()
+
+            streamFinished = true
+            awaitingPersistence = Boolean(event.persistScheduled)
+
+            if (!awaitingPersistence) {
+              persistenceResolved = true
+            }
+
+            finalizeResponse()
             break
           }
 
-          case 'complete':
-            // Send completion marker following AI SDK protocol
+          case 'complete': {
             logger.info(`Streaming message completed for session: ${sessionId}`)
-            responseEnded = true
-            res.write('data: [DONE]\n\n')
-            res.end()
+            res.write(`data: ${JSON.stringify({ type: 'complete', result: event.result })}\n\n`)
+
+            streamFinished = true
+            awaitingPersistence = true
+            finalizeResponse()
+            break
+          }
+
+          case 'persisted':
+            // Send persistence success event
+            res.write(`data: ${JSON.stringify(event)}\n\n`)
+            logger.debug(`Session message persisted for session: ${sessionId}`, { messageId: event.message?.id })
+
+            persistenceResolved = true
+            finalizeResponse()
+            break
+
+          case 'persist-error':
+            // Send persistence error event
+            res.write(`data: ${JSON.stringify(event)}\n\n`)
+            logger.error(`Failed to persist session message for session: ${sessionId}:`, event.error)
+
+            persistenceResolved = true
+            finalizeResponse()
             break
 
           default:

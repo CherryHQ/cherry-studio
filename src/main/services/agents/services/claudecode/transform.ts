@@ -74,14 +74,7 @@ export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageC
 
 function sdkMessageToProviderMetadata(message: SDKMessage): ProviderMetadata {
   const meta: ProviderMetadata = {
-    raw: message as Record<string, any>,
-    claudeCode: {
-      originalSDKMessage: JSON.parse(JSON.stringify(message)), // Serialize to ensure JSON compatibility
-      uuid: message.uuid || null,
-      session_id: message.session_id || null,
-      timestamp: new Date().toISOString(),
-      type: message.type
-    }
+    message: message as Record<string, any>
   }
   return meta
 }
@@ -89,7 +82,7 @@ function sdkMessageToProviderMetadata(message: SDKMessage): ProviderMetadata {
 // Handle assistant messages
 function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant' }>): UIMessageChunk[] {
   const chunks: UIMessageChunk[] = []
-  const messageId = generateMessageId()
+  const messageId = message.uuid
 
   // Extract text content
   const textContent = extractTextContent(message.message as MessageParam)
@@ -97,36 +90,18 @@ function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant'
     chunks.push(
       {
         type: 'text-start',
-        id: messageId,
-        providerMetadata: {
-          anthropic: {
-            uuid: message.uuid,
-            session_id: message.session_id
-          },
-          raw: sdkMessageToProviderMetadata(message)
-        }
+        id: messageId
       },
       {
         type: 'text-delta',
         id: messageId,
-        delta: textContent,
-        providerMetadata: {
-          anthropic: {
-            uuid: message.uuid,
-            session_id: message.session_id
-          },
-          raw: sdkMessageToProviderMetadata(message)
-        }
+        delta: textContent
       },
       {
         type: 'text-end',
         id: messageId,
         providerMetadata: {
-          anthropic: {
-            uuid: message.uuid,
-            session_id: message.session_id
-          },
-          raw: sdkMessageToProviderMetadata(message)
+          rawMessage: sdkMessageToProviderMetadata(message)
         }
       }
     )
@@ -289,15 +264,17 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
   const chunks: UIMessageChunk[] = []
 
   if (message.subtype === 'init') {
+    chunks.push({
+      type: 'start',
+      messageId: message.session_id
+    })
+
     // System initialization - could emit as a data chunk or skip
     chunks.push({
       type: 'data-system' as any,
       data: {
         type: 'init',
-        cwd: message.cwd,
-        tools: message.tools,
-        model: message.model,
-        mcp_servers: message.mcp_servers,
+        session_id: message.session_id,
         raw: message
       }
     })
@@ -319,63 +296,14 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
 function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): UIMessageChunk[] {
   const chunks: UIMessageChunk[] = []
 
+  const messageId = message.uuid
   if (message.subtype === 'success') {
-    // Emit the final result text if available
-    if (message.result) {
-      const messageId = generateMessageId()
-      chunks.push(
-        {
-          type: 'text-start',
-          id: messageId,
-          providerMetadata: {
-            anthropic: {
-              uuid: message.uuid,
-              session_id: message.session_id,
-              final_result: true
-            },
-            raw: sdkMessageToProviderMetadata(message)
-          }
-        },
-        {
-          type: 'text-delta',
-          id: messageId,
-          delta: message.result,
-          providerMetadata: {
-            anthropic: {
-              uuid: message.uuid,
-              session_id: message.session_id,
-              final_result: true
-            },
-            raw: sdkMessageToProviderMetadata(message)
-          }
-        },
-        {
-          type: 'text-end',
-          id: messageId,
-          providerMetadata: {
-            anthropic: {
-              uuid: message.uuid,
-              session_id: message.session_id,
-              final_result: true
-            },
-            raw: sdkMessageToProviderMetadata(message)
-          }
-        }
-      )
-    }
-
-    // Emit usage and cost data
+    // Emit final result data
     chunks.push({
-      type: 'data-usage' as any,
-      data: {
-        duration_ms: message.duration_ms,
-        duration_api_ms: message.duration_api_ms,
-        num_turns: message.num_turns,
-        total_cost_usd: message.total_cost_usd,
-        usage: message.usage,
-        modelUsage: message.modelUsage,
-        permission_denials: message.permission_denials
-      }
+      type: 'data-result' as any,
+      id: messageId,
+      data: message,
+      transient: true
     })
   } else {
     // Handle error cases
@@ -383,21 +311,22 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
       type: 'error',
       errorText: `${message.subtype}: Process failed after ${message.num_turns} turns`
     })
-
-    // Still emit usage data for failed requests
-    chunks.push({
-      type: 'data-usage' as any,
-      data: {
-        duration_ms: message.duration_ms,
-        duration_api_ms: message.duration_api_ms,
-        num_turns: message.num_turns,
-        total_cost_usd: message.total_cost_usd,
-        usage: message.usage,
-        modelUsage: message.modelUsage,
-        permission_denials: message.permission_denials
-      }
-    })
   }
+
+  // Emit usage and cost data
+  chunks.push({
+    type: 'data-usage' as any,
+    data: {
+      cost: message.total_cost_usd,
+      usage: {
+        input_tokens: message.usage.input_tokens,
+        cache_creation_input_tokens: message.usage.cache_creation_input_tokens,
+        cache_read_input_tokens: message.usage.cache_read_input_tokens,
+        output_tokens: message.usage.output_tokens,
+        service_tier: 'standard'
+      }
+    }
+  })
 
   // Always emit a finish chunk at the end
   chunks.push({
