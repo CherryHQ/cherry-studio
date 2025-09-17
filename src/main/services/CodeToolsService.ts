@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac,isWin } from '@main/constant'
+import { isMac, isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
@@ -297,8 +297,7 @@ class CodeToolsService {
    */
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
-    const terminalCommands =
-      isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
+    const terminalCommands = isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
     const defaultTerminal = isWin ? terminalApps.cmd : terminalApps.systemDefault
 
     if (terminalId) {
@@ -491,10 +490,9 @@ class CodeToolsService {
       const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
       const registryUrl = await this.getNpmRegistryUrl()
 
-      const installEnvPrefix =
-        isWin
-          ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-          : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
+      const installEnvPrefix = isWin
+        ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
+        : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
       const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)

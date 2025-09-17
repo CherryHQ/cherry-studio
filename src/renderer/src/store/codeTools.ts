@@ -16,7 +16,7 @@ export interface CodeToolsState {
   directories: string[]
   // 当前选择的目录
   currentDirectory: string
-  // 选择的终端 (仅 macOS)
+  // 选择的终端 ( macOS 和 Windows)
   selectedTerminal: string
 }
 
