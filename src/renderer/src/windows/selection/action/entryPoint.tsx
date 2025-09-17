@@ -3,7 +3,6 @@ import '@renderer/assets/styles/tailwind.css'
 import '@ant-design/v5-patch-for-react-19'
 
 import { preferenceService } from '@data/PreferenceService'
-import { HeroUIProvider } from '@heroui/react'
 import KeyvStorage from '@kangfenmao/keyv-storage'
 import { loggerService } from '@logger'
 import { ToastPortal } from '@renderer/components/ToastPortal'
@@ -11,6 +10,7 @@ import { getToastUtilities } from '@renderer/components/TopView/toast'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
+import { UIProvider } from '@renderer/context/UIProvider'
 import storeSyncService from '@renderer/services/StoreSyncService'
 import store, { persistor } from '@renderer/store'
 import type { FC } from 'react'
@@ -55,7 +55,7 @@ const App: FC = () => {
 
   return (
     <Provider store={store}>
-      <HeroUIProvider>
+      <UIProvider>
         <ThemeProvider>
           <AntdProvider>
             <CodeStyleProvider>
@@ -66,7 +66,7 @@ const App: FC = () => {
           </AntdProvider>
         </ThemeProvider>
         <ToastPortal />
-      </HeroUIProvider>
+      </UIProvider>
     </Provider>
   )
 }

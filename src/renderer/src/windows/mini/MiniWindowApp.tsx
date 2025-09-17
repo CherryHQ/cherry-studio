@@ -1,10 +1,10 @@
 import '@renderer/databases'
 
 import { usePreference } from '@data/hooks/usePreference'
-import { HeroUIProvider } from '@heroui/react'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ToastPortal } from '@renderer/components/ToastPortal'
 import { getToastUtilities } from '@renderer/components/TopView/toast'
+import { UIProvider } from '@renderer/context/UIProvider'
 import store, { persistor } from '@renderer/store'
 import { useEffect } from 'react'
 import { Provider } from 'react-redux'
@@ -43,7 +43,7 @@ function MiniWindow(): React.ReactElement {
 
   return (
     <Provider store={store}>
-      <HeroUIProvider>
+      <UIProvider>
         <ThemeProvider>
           <AntdProvider>
             <CodeStyleProvider>
@@ -56,7 +56,7 @@ function MiniWindow(): React.ReactElement {
           </AntdProvider>
         </ThemeProvider>
         <ToastPortal />
-      </HeroUIProvider>
+      </UIProvider>
     </Provider>
   )
 }

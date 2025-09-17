@@ -11,10 +11,10 @@ import { ToastPortal } from './components/ToastPortal'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
-import { HeroUIProvider } from './context/HeroUIProvider'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
 import { ThemeProvider } from './context/ThemeProvider'
+import { UIProvider } from './context/UIProvider'
 import Router from './Router'
 
 const logger = loggerService.withContext('App.tsx')
@@ -37,7 +37,7 @@ function App(): React.ReactElement {
   return (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
-        <HeroUIProvider>
+        <UIProvider>
           <StyleSheetManager>
             <ThemeProvider>
               <AntdProvider>
@@ -54,7 +54,7 @@ function App(): React.ReactElement {
             </ThemeProvider>
           </StyleSheetManager>
           <ToastPortal />
-        </HeroUIProvider>
+        </UIProvider>
       </QueryClientProvider>
     </Provider>
   )
