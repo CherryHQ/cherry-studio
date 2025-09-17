@@ -231,7 +231,8 @@ export enum terminalApps {
   windowsTerminal = 'WindowsTerminal',
   powershell = 'PowerShell',
   cmd = 'CMD',
-  wsl = 'WSL'
+  wsl = 'WSL',
+  hyper = 'Hyper'
 }
 
 export interface TerminalConfig {
@@ -301,6 +302,10 @@ export const WINDOWS_TERMINALS: TerminalConfig[] = [
     name: 'WSL (Ubuntu/Debian)'
   },
   {
+    id: terminalApps.hyper,
+    name: 'Hyper'
+  },
+  {
     id: terminalApps.alacritty,
     name: 'Alacritty'
   },
@@ -344,6 +349,26 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       return {
         command: 'cmd',
         args: ['/c', 'start', 'wsl', '-e', 'bash', '-c', `cmd.exe /c '${fullCommand}' ; exec bash`]
+      }
+    }
+  },
+  {
+    id: terminalApps.hyper,
+    name: 'Hyper',
+    command: (directory: string, fullCommand: string) => {
+      // Hyper is installed in AppData\Local by default
+      const hyperPaths = [
+        `${process.env.LOCALAPPDATA}\\hyper\\Hyper.exe`,
+        `${process.env.PROGRAMFILES}\\Hyper\\Hyper.exe`,
+        `${process.env['PROGRAMFILES(X86)']}\\Hyper\\Hyper.exe`
+      ]
+
+      const fs = require('fs')
+      const hyperPath = hyperPaths.find(path => fs.existsSync(path)) || `${process.env.LOCALAPPDATA}\\hyper\\Hyper.exe`
+
+      return {
+        command: hyperPath,
+        args: ['cmd', '/k', fullCommand]
       }
     }
   },

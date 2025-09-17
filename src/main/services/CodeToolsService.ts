@@ -170,6 +170,21 @@ class CodeToolsService {
             return null
           }
 
+        case terminalApps.hyper:
+          // Check for Hyper terminal
+          const hyperPaths = [
+            `${process.env.LOCALAPPDATA}\\hyper\\Hyper.exe`,
+            `${process.env.PROGRAMFILES}\\Hyper\\Hyper.exe`,
+            `${process.env['PROGRAMFILES(X86)']}\\Hyper\\Hyper.exe`
+          ]
+
+          for (const hyperPath of hyperPaths) {
+            if (fs.existsSync(hyperPath)) {
+              return terminal
+            }
+          }
+          return null
+
         default:
           // For other terminals (Alacritty, WezTerm), check if user has configured custom path
           return await this.checkCustomTerminalPath(terminal)
