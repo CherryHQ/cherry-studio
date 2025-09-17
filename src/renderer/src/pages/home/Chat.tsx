@@ -155,23 +155,23 @@ const Chat: FC<Props> = (props) => {
           flex={1}
           justify="space-between"
           style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
-          <Messages
-            key={props.activeTopic.id}
-            assistant={assistant}
-            topic={props.activeTopic}
-            setActiveTopic={props.setActiveTopic}
-            onComponentUpdate={messagesComponentUpdateHandler}
-            onFirstUpdate={messagesComponentFirstUpdateHandler}
-          />
-          <ContentSearch
-            ref={contentSearchRef}
-            searchTarget={mainRef as React.RefObject<HTMLElement>}
-            filter={contentSearchFilter}
-            includeUser={filterIncludeUser}
-            onIncludeUserChange={userOutlinedItemClickHandler}
-          />
-          {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
           <QuickPanelProvider>
+            <Messages
+              key={props.activeTopic.id}
+              assistant={assistant}
+              topic={props.activeTopic}
+              setActiveTopic={props.setActiveTopic}
+              onComponentUpdate={messagesComponentUpdateHandler}
+              onFirstUpdate={messagesComponentFirstUpdateHandler}
+            />
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={userOutlinedItemClickHandler}
+            />
+            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
             <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
@@ -215,7 +215,7 @@ const Container = styled.div`
   flex-direction: column;
   height: calc(100vh - var(--navbar-height));
   flex: 1;
-  [navbar-position='top'] & {
+  [navbar-position="top"] & {
     height: calc(100vh - var(--navbar-height) - 6px);
     background-color: var(--color-background);
     border-top-left-radius: 10px;
@@ -225,7 +225,7 @@ const Container = styled.div`
 `
 
 const Main = styled(Flex)`
-  [navbar-position='left'] & {
+  [navbar-position="left"] & {
     height: calc(100vh - var(--navbar-height));
   }
   transform: translateZ(0);
