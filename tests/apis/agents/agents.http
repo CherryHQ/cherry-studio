@@ -1,5 +1,6 @@
 @host=http://localhost:23333
 @token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
+@agent_id=agent_1758092281575_tn9dxio9k
 
 ### List Agents
 GET {{host}}/v1/agents
@@ -27,17 +28,17 @@ Content-Type: application/json
 }
 
 ### Get Agent Details
-GET {{host}}/v1/agents/agent_1757663884173_4tyeh3vqq
+GET {{host}}/v1/agents/{{agent_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 ### Delete Agent
-DELETE {{host}}/v1/agents/agent_1757663884173
+DELETE {{host}}/v1/agents/{{agent_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 ### Update Agent
-PATCH {{host}}/v1/agents/agent_1757663884173
+PATCH {{host}}/v1/agents/{{agent_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 

@@ -5,12 +5,11 @@
 import os from 'node:os'
 import path from 'node:path'
 
-import { isDev } from '@main/constant'
 import { defineConfig } from 'drizzle-kit'
 import { app } from 'electron'
 
 function getDbPath() {
-  if (isDev) {
+  if (process.env.NODE_ENV === 'development') {
     return path.join(os.homedir(), '.cherrystudio', 'data', 'agents.db')
   }
   return path.join(app.getPath('userData'), 'agents.db')
@@ -23,7 +22,7 @@ export const dbPath = resolvedDbPath
 export default defineConfig({
   dialect: 'sqlite',
   schema: './src/main/services/agents/database/schema/index.ts',
-  out: './src/main/services/agents/database/drizzle',
+  out: './resources/database/drizzle',
   dbCredentials: {
     url: `file:${resolvedDbPath}`
   },

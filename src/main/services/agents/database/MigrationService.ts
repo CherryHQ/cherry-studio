@@ -1,5 +1,6 @@
 import { type Client } from '@libsql/client'
 import { loggerService } from '@logger'
+import { getResourcePath } from '@main/utils'
 import { type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -29,15 +30,18 @@ export class MigrationService {
   constructor(db: LibSQLDatabase<typeof schema>, client: Client) {
     this.db = db
     this.client = client
-    this.migrationDir = path.join(__dirname, 'drizzle')
+    this.migrationDir = path.join(getResourcePath(), 'database', 'drizzle')
   }
 
   async runMigrations(): Promise<void> {
     try {
       logger.info('Starting migration check...')
 
-      // Ensure migrations table exists
-      await this.ensureMigrationsTable()
+      const hasMigrationsTable = await this.migrationsTableExists()
+
+      if (!hasMigrationsTable) {
+        logger.info('Migrations table not found; assuming fresh database state')
+      }
 
       // Read migration journal
       const journal = await this.readMigrationJournal()
@@ -47,7 +51,9 @@ export class MigrationService {
       }
 
       // Get applied migrations
-      const appliedMigrations = await this.getAppliedMigrations()
+      const appliedMigrations = hasMigrationsTable
+        ? await this.getAppliedMigrations()
+        : []
       const appliedVersions = new Set(appliedMigrations.map((m) => Number(m.version)))
 
       const latestAppliedVersion = appliedMigrations.reduce(
@@ -82,27 +88,14 @@ export class MigrationService {
     }
   }
 
-  private async ensureMigrationsTable(): Promise<void> {
+  private async migrationsTableExists(): Promise<boolean> {
     try {
-      const tableExists = await this.client.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`)
-
-      if (tableExists.rows.length === 0) {
-        logger.info('Migrations table missing, creating...')
-
-        await this.client.execute(`
-          CREATE TABLE IF NOT EXISTS migrations (
-            version INTEGER PRIMARY KEY,
-            tag TEXT NOT NULL,
-            executed_at INTEGER NOT NULL
-          )
-        `)
-
-        logger.info('Migrations table created successfully')
-      } else {
-        logger.debug('Migrations table already exists')
-      }
+      const table = await this.client.execute(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`
+      )
+      return table.rows.length > 0
     } catch (error) {
-      logger.error('Failed to ensure migrations table exists:', { error })
+      logger.error('Failed to check migrations table status:', { error })
       throw error
     }
   }
@@ -147,13 +140,17 @@ export class MigrationService {
 
       // Read and execute SQL
       const sqlContent = fs.readFileSync(sqlFilePath, 'utf-8')
-      await this.client.execute(sqlContent)
+      await this.client.executeMultiple(sqlContent)
 
       // Record migration as applied (store journal idx as version for tracking)
       const newMigration: NewMigration = {
         version: migration.idx,
         tag: migration.tag,
         executedAt: Date.now()
+      }
+
+      if (!(await this.migrationsTableExists())) {
+        throw new Error('Migrations table missing after executing migration; cannot record progress')
       }
 
       await this.db.insert(migrations).values(newMigration)

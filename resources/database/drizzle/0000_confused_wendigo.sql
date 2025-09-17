@@ -1,3 +1,10 @@
+--> statement-breakpoint
+CREATE TABLE `migrations` (
+	`version` integer PRIMARY KEY NOT NULL,
+	`tag` text NOT NULL,
+	`executed_at` integer NOT NULL
+);
+
 CREATE TABLE `agents` (
 	`id` text PRIMARY KEY NOT NULL,
 	`type` text NOT NULL,
@@ -14,9 +21,11 @@ CREATE TABLE `agents` (
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );
+
 --> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
+	`agent_type` text NOT NULL,
 	`agent_id` text NOT NULL,
 	`name` text NOT NULL,
 	`description` text,
@@ -31,6 +40,7 @@ CREATE TABLE `sessions` (
 	`created_at` text NOT NULL,
 	`updated_at` text NOT NULL
 );
+
 --> statement-breakpoint
 CREATE TABLE `session_messages` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
