@@ -1,10 +1,10 @@
 import '@renderer/databases'
 
+import { getToastUtilities } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { HeroUIProvider } from '@heroui/react'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { ToastPortal } from '@renderer/components/ToastPortal'
-import { getToastUtilities } from '@renderer/components/TopView/toast'
 import store, { persistor } from '@renderer/store'
 import { useEffect } from 'react'
 import { Provider } from 'react-redux'

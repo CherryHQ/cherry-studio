@@ -1,5 +1,5 @@
 import { addToast, closeAll, closeToast, getToastQueue, isToastClosing } from '@heroui/toast'
-import type { RequireSome } from '@renderer/types'
+import type { RequireSome } from '@types'
 
 type AddToastProps = Parameters<typeof addToast>[0]
 type ToastPropsColored = Omit<AddToastProps, 'color'>
@@ -21,35 +21,35 @@ const createToast = (color: 'danger' | 'success' | 'warning' | 'default') => {
  * @param arg - Toast content (string) or toast options object
  * @returns Toast ID or null
  */
-export const error = createToast('danger')
+const error = createToast('danger')
 
 /**
  * Display a success toast notification with green color
  * @param arg - Toast content (string) or toast options object
  * @returns Toast ID or null
  */
-export const success = createToast('success')
+const success = createToast('success')
 
 /**
  * Display a warning toast notification with yellow color
  * @param arg - Toast content (string) or toast options object
  * @returns Toast ID or null
  */
-export const warning = createToast('warning')
+const warning = createToast('warning')
 
 /**
  * Display an info toast notification with default color
  * @param arg - Toast content (string) or toast options object
  * @returns Toast ID or null
  */
-export const info = createToast('default')
+const info = createToast('default')
 
 /**
  * Display a loading toast notification that resolves with a promise
  * @param args - Toast options object containing a promise to resolve
  * @returns Toast ID or null
  */
-export const loading = (args: RequireSome<AddToastProps, 'promise'>) => {
+const loading = (args: RequireSome<AddToastProps, 'promise'>) => {
   // Disappear immediately by default
   if (args.timeout === undefined) {
     args.timeout = 1
@@ -57,7 +57,20 @@ export const loading = (args: RequireSome<AddToastProps, 'promise'>) => {
   return addToast(args)
 }
 
-export const getToastUtilities = () =>
+export type ToastUtilities = {
+  getToastQueue: typeof getToastQueue
+  addToast: typeof addToast
+  closeToast: typeof closeToast
+  closeAll: typeof closeAll
+  isToastClosing: typeof isToastClosing
+  error: typeof error
+  success: typeof success
+  warning: typeof warning
+  info: typeof info
+  loading: typeof loading
+}
+
+export const getToastUtilities = (): ToastUtilities =>
   ({
     getToastQueue,
     addToast,

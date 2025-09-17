@@ -1,13 +1,12 @@
 // import { loggerService } from '@logger'
 import { Box } from '@cherrystudio/ui'
+import { getToastUtilities } from '@cherrystudio/ui'
 import TopViewMinappContainer from '@renderer/components/MinApp/TopViewMinappContainer'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
 import { Modal } from 'antd'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-
-import { getToastUtilities } from './toast'
 
 let onPop = () => {}
 let onShow = ({ element, id }: { element: React.FC | React.ReactNode; id: string }) => {

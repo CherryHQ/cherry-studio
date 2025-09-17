@@ -11,6 +11,7 @@ export { default as Spinner } from './base/Spinner'
 export type { StatusTagProps, StatusType } from './base/StatusTag'
 export { ErrorTag, InfoTag, StatusTag, SuccessTag, WarnTag } from './base/StatusTag'
 export { default as TextBadge } from './base/TextBadge'
+export { getToastUtilities, type ToastUtilities } from './base/Toast'
 
 // Display Components
 export { default as Ellipsis } from './display/Ellipsis'

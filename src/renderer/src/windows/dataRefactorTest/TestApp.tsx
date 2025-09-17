@@ -1,4 +1,4 @@
-import { getToastUtilities } from '@renderer/components/TopView/toast'
+import { getToastUtilities } from '@cherrystudio/ui'
 import { AppLogo } from '@renderer/config/env'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
