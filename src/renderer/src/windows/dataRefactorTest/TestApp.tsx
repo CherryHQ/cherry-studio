@@ -1,10 +1,11 @@
+import { getToastUtilities } from '@renderer/components/TopView/toast'
 import { AppLogo } from '@renderer/config/env'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { loggerService } from '@renderer/services/LoggerService'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Button, Card, Col, Divider, Layout, Row, Space, Tabs, Typography } from 'antd'
 import { Activity, AlertTriangle, Database, FlaskConical, Settings, TestTube, TrendingUp, Zap } from 'lucide-react'
-import React from 'react'
+import React, { useEffect } from 'react'
 import styled from 'styled-components'
 
 import CacheAdvancedTests from './components/CacheAdvancedTests'
@@ -53,6 +54,10 @@ const TestApp: React.FC = () => {
     // Fallback: generate based on window creation time
     return Math.floor(Date.now() / 1000) % 100
   }
+
+  useEffect(() => {
+    window.toast = getToastUtilities()
+  }, [])
 
   const windowNumber = getWindowNumber()
 

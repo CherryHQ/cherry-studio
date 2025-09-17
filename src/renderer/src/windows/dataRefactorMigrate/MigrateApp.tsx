@@ -1,3 +1,4 @@
+import { getToastUtilities } from '@renderer/components/TopView/toast'
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -32,6 +33,10 @@ const MigrateApp: React.FC = () => {
     total: 100,
     message: 'Ready to start data migration'
   })
+
+  useEffect(() => {
+    window.toast = getToastUtilities()
+  }, [])
 
   useEffect(() => {
     // Listen for progress updates
