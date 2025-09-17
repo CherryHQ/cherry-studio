@@ -48,10 +48,20 @@ export class MigrationService {
 
       // Get applied migrations
       const appliedMigrations = await this.getAppliedMigrations()
-      const appliedVersions = new Set(appliedMigrations.map(m => m.version))
+      const appliedVersions = new Set(appliedMigrations.map((m) => Number(m.version)))
+
+      const latestAppliedVersion = appliedMigrations.reduce(
+        (max, migration) => Math.max(max, Number(migration.version)),
+        0
+      )
+      const latestJournalVersion = journal.entries.reduce((max, entry) => Math.max(max, entry.idx), 0)
+
+      logger.info(`Latest applied migration: v${latestAppliedVersion}, latest available: v${latestJournalVersion}`)
 
       // Find pending migrations (compare journal idx with stored version, which is the same value)
-      const pendingMigrations = journal.entries.filter((entry) => !appliedVersions.has(entry.idx))
+      const pendingMigrations = journal.entries
+        .filter((entry) => !appliedVersions.has(entry.idx))
+        .sort((a, b) => a.idx - b.idx)
 
       if (pendingMigrations.length === 0) {
         logger.info('Database is up to date')
@@ -74,15 +84,25 @@ export class MigrationService {
 
   private async ensureMigrationsTable(): Promise<void> {
     try {
-      await this.client.execute(`
-        CREATE TABLE IF NOT EXISTS migrations (
-          version INTEGER PRIMARY KEY,
-          tag TEXT NOT NULL,
-          executed_at INTEGER NOT NULL
-        )
-      `)
+      const tableExists = await this.client.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`)
+
+      if (tableExists.rows.length === 0) {
+        logger.info('Migrations table missing, creating...')
+
+        await this.client.execute(`
+          CREATE TABLE IF NOT EXISTS migrations (
+            version INTEGER PRIMARY KEY,
+            tag TEXT NOT NULL,
+            executed_at INTEGER NOT NULL
+          )
+        `)
+
+        logger.info('Migrations table created successfully')
+      } else {
+        logger.debug('Migrations table already exists')
+      }
     } catch (error) {
-      logger.error('Failed to create migrations table:', { error })
+      logger.error('Failed to ensure migrations table exists:', { error })
       throw error
     }
   }
@@ -108,9 +128,9 @@ export class MigrationService {
     try {
       return await this.db.select().from(migrations)
     } catch (error) {
-      // Table might not exist yet
-      logger.info('Migrations table not found, creating...')
-      return []
+      // This should not happen since we ensure the table exists in runMigrations()
+      logger.error('Failed to query applied migrations:', { error })
+      throw error
     }
   }
 
@@ -145,4 +165,5 @@ export class MigrationService {
       throw error
     }
   }
+
 }
