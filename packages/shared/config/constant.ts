@@ -398,25 +398,10 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Terminal',
     bundleId: 'com.apple.Terminal',
     command: (directory: string, fullCommand: string) => ({
-      command: 'osascript',
+      command: 'sh',
       args: [
-        '-e',
-        `tell application "Terminal"
-  if (count of windows) = 0 then
-    -- 没有窗口时，do script 会自动创建第一个窗口
-    do script "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
-  else
-    -- 有窗口时，创建新标签页
-    tell application "System Events"
-      tell process "Terminal"
-        keystroke "t" using {command down}
-      end tell
-    end tell
-    delay 0.5
-    do script "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" in front window
-  end if
-  activate
-end tell`
+        '-c',
+        `open -na Terminal && sleep 0.5 && osascript -e 'tell application "Terminal" to activate' -e 'tell application "Terminal" to do script "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" in front window'`
       ]
     })
   },
@@ -424,26 +409,11 @@ end tell`
     id: terminalApps.iterm2,
     name: 'iTerm2',
     bundleId: 'com.googlecode.iterm2',
-    command: (_directory: string, fullCommand: string) => ({
-      command: 'osascript',
+    command: (directory: string, fullCommand: string) => ({
+      command: 'sh',
       args: [
-        '-e',
-        `tell application "iTerm2"
-  if (count of windows) = 0 then
-    create window with default profile
-  else
-    tell current window
-      create tab with default profile
-    end tell
-  end if
-  tell current session of current window
-    write text "${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
-  end tell
-  activate
-  tell front window
-    set index to 1
-  end tell
-end tell`
+        '-c',
+        `open -na iTerm && sleep 0.8 && osascript -e 'on waitUntilRunning()\n  repeat 50 times\n    tell application "System Events"\n      if (exists process "iTerm2") then exit repeat\n    end tell\n    delay 0.1\n  end repeat\nend waitUntilRunning\n\nwaitUntilRunning()\n\ntell application "iTerm2"\n  if (count of windows) = 0 then\n    create window with default profile\n    delay 0.3\n  else\n    tell current window\n      create tab with default profile\n    end tell\n    delay 0.3\n  end if\n  tell current session of current window to write text "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"\n  activate\nend tell'`
       ]
     })
   },
@@ -452,25 +422,10 @@ end tell`
     name: 'Warp',
     bundleId: 'dev.warp.Warp-Stable',
     command: (directory: string, fullCommand: string) => ({
-      command: 'osascript',
+      command: 'sh',
       args: [
-        '-e',
-        `set the clipboard to "cd \\"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
-tell application "Warp"
-  activate
-  delay 0.8
-end tell
-tell application "System Events"
-  tell process "Warp"
-    keystroke "t" using {command down}
-    delay 0.4
-    -- Switch to English input method before pasting
-    key code 49 using {control down}
-    delay 0.2
-    keystroke "v" using {command down}
-    key code 36
-  end tell
-end tell`
+        '-c',
+        `open -na Warp && sleep 0.8 && osascript -e 'tell application "Warp" to activate' -e 'tell application "System Events" to tell process "Warp" to keystroke "t" using {command down}' -e 'delay 0.3' -e 'set the clipboard to "cd \"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"' -e 'tell application "System Events" to tell process "Warp" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
       ]
     })
   },
