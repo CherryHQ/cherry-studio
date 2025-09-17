@@ -1,6 +1,21 @@
-import { Switch } from '@heroui/react'
+import { Spinner, Switch } from '@heroui/react'
 
-// We could overwrite some default values here, but for now, we're just forwarding it.
-const CustomizedSwitch = Switch
+// Enhanced Switch component with loading state support
+const CustomizedSwitch = ({
+  isLoading,
+  children,
+  isDisabled,
+  ...props
+}: React.ComponentProps<typeof Switch> & {
+  isLoading?: boolean
+}) => {
+  return (
+    <Switch {...props} isDisabled={isDisabled || isLoading} thumbIcon={isLoading ? <Spinner size="sm" /> : undefined}>
+      {children}
+    </Switch>
+  )
+}
+
+CustomizedSwitch.displayName = 'Switch'
 
 export { CustomizedSwitch as Switch }

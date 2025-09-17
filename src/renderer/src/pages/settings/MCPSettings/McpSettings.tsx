@@ -748,7 +748,7 @@ const McpSettings: React.FC = () => {
             <Switch
               isSelected={server.isActive}
               key={server.id}
-              loading={loadingServer === server.id}
+              isLoading={loadingServer === server.id}
               onValueChange={onToggleActive}
             />
             <Button

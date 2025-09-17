@@ -135,7 +135,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
             <Switch
               isSelected={server.isActive}
               key={server.id}
-              loading={isLoading}
+              isLoading={isLoading}
               onValueChange={onToggle}
               size="sm"
               data-no-dnd
