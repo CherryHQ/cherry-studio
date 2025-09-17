@@ -49,7 +49,7 @@ jobs:
 
             - issues
             - issue_comment
-            - pull_request_review:
+            - pull_request_review
             - pull_request_review_comment
 
             请完成以下任务：
