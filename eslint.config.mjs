@@ -142,7 +142,7 @@ export default defineConfig([
             {
               name: 'antd',
               // TODO: migrate message again
-              importNames: ['Flex'],
+              importNames: ['Flex', 'Switch'],
               message:
                 '❌ Do not import Flex from antd. Use our custom Layout components instead: import { Flex } from "@cherrystudio/ui"'
             }
