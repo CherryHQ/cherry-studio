@@ -16,7 +16,8 @@ import {
   TerminalConfig,
   TerminalConfigWithCommand,
   WINDOWS_TERMINALS,
-  WINDOWS_TERMINALS_WITH_COMMANDS} from '@shared/config/constant'
+  WINDOWS_TERMINALS_WITH_COMMANDS
+} from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -174,21 +175,6 @@ class CodeToolsService {
             return null
           }
 
-        case terminalApps.hyper:
-          // Check for Hyper terminal
-          const hyperPaths = [
-            `${process.env.LOCALAPPDATA}\\hyper\\Hyper.exe`,
-            `${process.env.PROGRAMFILES}\\Hyper\\Hyper.exe`,
-            `${process.env['PROGRAMFILES(X86)']}\\Hyper\\Hyper.exe`
-          ]
-
-          for (const hyperPath of hyperPaths) {
-            if (fs.existsSync(hyperPath)) {
-              return terminal
-            }
-          }
-          return null
-
         default:
           // For other terminals (Alacritty, WezTerm), check if user has configured custom path
           return await this.checkCustomTerminalPath(terminal)
@@ -313,7 +299,8 @@ class CodeToolsService {
    */
   private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
     const availableTerminals = await this.getAvailableTerminals()
-    const terminalCommands = process.platform === 'win32' ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
+    const terminalCommands =
+      process.platform === 'win32' ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
     const defaultTerminal = process.platform === 'win32' ? terminalApps.cmd : terminalApps.systemDefault
 
     if (terminalId) {

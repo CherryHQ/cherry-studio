@@ -225,7 +225,7 @@ const CodeToolsPage: FC = () => {
       if (result && result.length > 0) {
         const path = result[0].path
         await window.api.codeTools.setCustomTerminalPath(terminalId, path)
-        setTerminalCustomPaths(prev => ({ ...prev, [terminalId]: path }))
+        setTerminalCustomPaths((prev) => ({ ...prev, [terminalId]: path }))
         window.toast.success(t('code.custom_path_set'))
         // Reload terminals to reflect changes
         loadAvailableTerminals()
@@ -425,29 +425,26 @@ const CodeToolsPage: FC = () => {
                   />
                   {/* Show custom path button for Windows terminals except cmd/powershell */}
                   {isWin &&
-                   selectedTerminal &&
-                   selectedTerminal !== terminalApps.cmd &&
-                   selectedTerminal !== terminalApps.powershell &&
-                   selectedTerminal !== terminalApps.windowsTerminal && (
-                    <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
-                      <Button
-                        icon={<FolderOpen size={16} />}
-                        onClick={() => handleSetCustomPath(selectedTerminal)}
-                      />
-                    </Tooltip>
-                  )}
+                    selectedTerminal &&
+                    selectedTerminal !== terminalApps.cmd &&
+                    selectedTerminal !== terminalApps.powershell &&
+                    selectedTerminal !== terminalApps.windowsTerminal && (
+                      <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                        <Button icon={<FolderOpen size={16} />} onClick={() => handleSetCustomPath(selectedTerminal)} />
+                      </Tooltip>
+                    )}
                 </Space.Compact>
                 {isWin &&
-                 selectedTerminal &&
-                 selectedTerminal !== terminalApps.cmd &&
-                 selectedTerminal !== terminalApps.powershell &&
-                 selectedTerminal !== terminalApps.windowsTerminal && (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>
-                    {terminalCustomPaths[selectedTerminal]
-                      ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
-                      : t('code.custom_path_required')}
-                  </div>
-                )}
+                  selectedTerminal &&
+                  selectedTerminal !== terminalApps.cmd &&
+                  selectedTerminal !== terminalApps.powershell &&
+                  selectedTerminal !== terminalApps.windowsTerminal && (
+                    <div style={{ fontSize: 12, color: 'var(--color-text-3)', marginTop: 4 }}>
+                      {terminalCustomPaths[selectedTerminal]
+                        ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
+                        : t('code.custom_path_required')}
+                    </div>
+                  )}
               </SettingsItem>
             )}
 

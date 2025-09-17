@@ -232,8 +232,7 @@ export enum terminalApps {
   windowsTerminal = 'WindowsTerminal',
   powershell = 'PowerShell',
   cmd = 'CMD',
-  wsl = 'WSL',
-  hyper = 'Hyper'
+  wsl = 'WSL'
 }
 
 export interface TerminalConfig {
@@ -303,10 +302,6 @@ export const WINDOWS_TERMINALS: TerminalConfig[] = [
     name: 'WSL (Ubuntu/Debian)'
   },
   {
-    id: terminalApps.hyper,
-    name: 'Hyper'
-  },
-  {
     id: terminalApps.alacritty,
     name: 'Alacritty'
   },
@@ -320,7 +315,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.cmd,
     name: 'Command Prompt',
-    command: (directory: string, fullCommand: string) => ({
+    command: (_: string, fullCommand: string) => ({
       command: 'cmd',
       args: ['/c', 'start', 'cmd', '/k', fullCommand]
     })
@@ -328,7 +323,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.powershell,
     name: 'PowerShell',
-    command: (directory: string, fullCommand: string) => ({
+    command: (_: string, fullCommand: string) => ({
       command: 'cmd',
       args: ['/c', 'start', 'powershell', '-NoExit', '-Command', `& '${fullCommand}'`]
     })
@@ -336,7 +331,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.windowsTerminal,
     name: 'Windows Terminal',
-    command: (directory: string, fullCommand: string) => ({
+    command: (_: string, fullCommand: string) => ({
       command: 'wt',
       args: ['cmd', '/k', fullCommand]
     })
@@ -344,7 +339,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
   {
     id: terminalApps.wsl,
     name: 'WSL (Ubuntu/Debian)',
-    command: (directory: string, fullCommand: string) => {
+    command: (_: string, fullCommand: string) => {
       // Start WSL in a new window and execute the batch file from within WSL using cmd.exe
       // The batch file will run in Windows context but output will be in WSL terminal
       return {
@@ -357,7 +352,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     id: terminalApps.alacritty,
     name: 'Alacritty',
     customPath: '', // Will be set by user in settings
-    command: (directory: string, fullCommand: string) => ({
+    command: (_: string, fullCommand: string) => ({
       command: 'alacritty', // Will be replaced with customPath if set
       args: ['-e', 'cmd', '/k', fullCommand]
     })
@@ -366,7 +361,7 @@ export const WINDOWS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     id: terminalApps.wezterm,
     name: 'WezTerm',
     customPath: '', // Will be set by user in settings
-    command: (directory: string, fullCommand: string) => ({
+    command: (_: string, fullCommand: string) => ({
       command: 'wezterm', // Will be replaced with customPath if set
       args: ['start', 'cmd', '/k', fullCommand]
     })
@@ -406,7 +401,7 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       command: 'sh',
       args: [
         '-c',
-        `open -na Warp && sleep 0.8 && osascript -e 'tell application "Warp" to activate' -e 'tell application "System Events" to tell process "Warp" to keystroke "t" using {command down}' -e 'delay 0.3' -e 'set the clipboard to "cd \"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"' -e 'tell application "System Events" to tell process "Warp" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
+        `open -na Warp && sleep 0.8 && osascript -e 'tell application "Warp" to activate' -e 'tell application "System Events" to tell process "Warp" to keystroke "t" using {command down}' -e 'delay 0.3' -e 'set the clipboard to "cd "${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"' -e 'tell application "System Events" to tell process "Warp" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
       ]
     })
   },
