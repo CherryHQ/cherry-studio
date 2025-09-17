@@ -49,6 +49,27 @@ export default defineConfig([
     }
   },
   {
+    ignores: [
+      'node_modules/**',
+      'build/**',
+      'dist/**',
+      'out/**',
+      'local/**',
+      '.yarn/**',
+      '.gitignore',
+      'scripts/cloudflare-worker.js',
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/main/integration/cherryin/index.js',
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/renderer/src/ui/**',
+      'packages/**/dist'
+    ]
+  },
+  // turn off oxlint supported rules.
+  ...oxlint.configs['flat/eslint'],
+  ...oxlint.configs['flat/typescript'],
+  ...oxlint.configs['flat/unicorn'],
+  {
     // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
@@ -129,26 +150,5 @@ export default defineConfig([
         }
       ]
     }
-  },
-  {
-    ignores: [
-      'node_modules/**',
-      'build/**',
-      'dist/**',
-      'out/**',
-      'local/**',
-      '.yarn/**',
-      '.gitignore',
-      'scripts/cloudflare-worker.js',
-      'src/main/integration/nutstore/sso/lib/**',
-      'src/main/integration/cherryin/index.js',
-      'src/main/integration/nutstore/sso/lib/**',
-      'src/renderer/src/ui/**',
-      'packages/**/dist'
-    ]
-  },
-  // turn off oxlint supported rules.
-  ...oxlint.configs['flat/eslint'],
-  ...oxlint.configs['flat/typescript'],
-  ...oxlint.configs['flat/unicorn']
+  }
 ])
