@@ -1,5 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -26,7 +27,7 @@ import {
   isOpenAIProvider
 } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Input, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Input, Select, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
@@ -272,9 +273,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           )}
         </Flex>
         <Switch
-          value={provider.enabled}
+          isSelected={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => {
+          onValueChange={(enabled) => {
             updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)

@@ -1,8 +1,9 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { Button, Divider, Input, Modal, Popover, Switch } from 'antd'
+import { Button, Divider, Input, Modal, Popover} from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -57,7 +58,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <ColFlex className="items-stretch gap-2">
         <RowFlex className="items-center gap-4">
           <div>{t('settings.models.topic_naming.auto')}</div>
-          <Switch checked={enableTopicNaming} onChange={(v) => setEnableTopicNaming(v)} />
+          <Switch isSelected={enableTopicNaming} onValueChange={setEnableTopicNaming} />
         </RowFlex>
         <Divider style={{ margin: 0 }} />
         <div>

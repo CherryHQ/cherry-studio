@@ -1,9 +1,10 @@
 import { UndoOutlined } from '@ant-design/icons' // 导入重置图标
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import { SettingDescription, SettingDivider, SettingRowTitle, SettingTitle } from '@renderer/pages/settings'
-import { Button, message, Slider, Switch, Tooltip } from 'antd'
+import { Button, message, Slider, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -97,7 +98,7 @@ const MiniAppSettings: FC = () => {
         <SettingLabelGroup>
           <SettingRowTitle>{t('settings.miniapps.open_link_external.title')}</SettingRowTitle>
         </SettingLabelGroup>
-        <Switch checked={minappsOpenLinkExternal} onChange={(checked) => setMinappsOpenLinkExternal(checked)} />
+        <Switch isSelected={minappsOpenLinkExternal} onValueChange={(checked) => setMinappsOpenLinkExternal(checked)} />
       </SettingRow>
       <SettingDivider />
       {/* 缓存小程序数量设置 */}
@@ -134,7 +135,10 @@ const MiniAppSettings: FC = () => {
           <SettingRowTitle>{t('settings.miniapps.sidebar_title')}</SettingRowTitle>
           <SettingDescription>{t('settings.miniapps.sidebar_description')}</SettingDescription>
         </SettingLabelGroup>
-        <Switch checked={showOpenedMinappsInSidebar} onChange={(checked) => setShowOpenedMinappsInSidebar(checked)} />
+        <Switch
+          isSelected={showOpenedMinappsInSidebar}
+          onValueChange={(checked) => setShowOpenedMinappsInSidebar(checked)}
+        />
       </SettingRow>
     </Container>
   )

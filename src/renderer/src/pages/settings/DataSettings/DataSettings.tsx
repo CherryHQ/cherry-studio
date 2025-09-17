@@ -6,6 +6,7 @@ import {
   YuqueOutlined
 } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
@@ -19,7 +20,7 @@ import { reset } from '@renderer/services/BackupService'
 import type { AppInfo } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
 import { occupiedDirs } from '@shared/config/constant'
-import { Button, Progress, Switch, Typography } from 'antd'
+import { Button, Progress, Typography } from 'antd'
 import { FileText, FolderCog, FolderInput, FolderOpen, SaveIcon, Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -288,10 +289,10 @@ const DataSettings: FC = () => {
         <MigrationPathRow style={{ marginTop: '20px', flexDirection: 'row', alignItems: 'center' }}>
           <Switch
             defaultChecked={shouldCopyData}
-            onChange={(checked) => {
+            onValueChange={(checked) => {
               shouldCopyData = checked
             }}
-            style={{ marginRight: '8px' }}
+            className="mr-2"
           />
           <MigrationPathLabel style={{ fontWeight: 'normal', fontSize: '14px' }}>
             {t('settings.data.app_data.copy_data_option')}
@@ -612,7 +613,7 @@ const DataSettings: FC = () => {
               <SettingDivider />
               <SettingRow>
                 <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-                <Switch checked={skipBackupFile} onChange={onSkipBackupFilesChange} />
+                <Switch isSelected={skipBackupFile} onValueChange={onSkipBackupFilesChange} />
               </SettingRow>
               <SettingRow>
                 <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

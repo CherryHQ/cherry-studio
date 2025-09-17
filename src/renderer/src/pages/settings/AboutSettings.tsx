@@ -1,5 +1,6 @@
 import { GithubOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
@@ -13,7 +14,7 @@ import { handleSaveData } from '@renderer/store'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
+import { Avatar, Button, Progress, Radio, Row, Tag, Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Github, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -237,13 +238,13 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-              <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+              <Switch isSelected={autoCheckUpdate} onValueChange={(v) => setAutoCheckUpdate(v)} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
               <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
+                <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
             {testPlan && (

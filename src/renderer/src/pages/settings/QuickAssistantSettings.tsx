@@ -1,5 +1,6 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -7,7 +8,7 @@ import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/h
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Button, Select, Switch, Tooltip } from 'antd'
+import { Button, Select, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -72,14 +73,14 @@ const QuickAssistantSettings: FC = () => {
               <InfoCircleOutlined style={{ cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
-          <Switch checked={enableQuickAssistant} onChange={handleEnableQuickAssistant} />
+          <Switch isSelected={enableQuickAssistant} onValueChange={handleEnableQuickAssistant} />
         </SettingRow>
         {enableQuickAssistant && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
-              <Switch checked={clickTrayToShowQuickAssistant} onChange={handleClickTrayToShowQuickAssistant} />
+              <Switch isSelected={clickTrayToShowQuickAssistant} onValueChange={handleClickTrayToShowQuickAssistant} />
             </SettingRow>
           </>
         )}
@@ -88,7 +89,7 @@ const QuickAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
-              <Switch checked={readClipboardAtStartup} onChange={handleClickReadClipboardAtStartup} />
+              <Switch isSelected={readClipboardAtStartup} onValueChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}

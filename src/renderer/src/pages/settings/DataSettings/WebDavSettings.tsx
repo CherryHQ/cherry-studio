@@ -1,5 +1,6 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -7,7 +8,7 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Button, Input, Switch, Tooltip } from 'antd'
+import { Button, Input, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -198,7 +199,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={webdavSkipBackupFile} onChange={onSkipBackupFilesChange} />
+        <Switch isSelected={webdavSkipBackupFile} onValueChange={onSkipBackupFilesChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
@@ -206,7 +207,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.webdav.disableStream.title')}</SettingRowTitle>
-        <Switch checked={webdavDisableStream} onChange={onDisableStreamChange} />
+        <Switch isSelected={webdavDisableStream} onValueChange={onDisableStreamChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.webdav.disableStream.help')}</SettingHelpText>

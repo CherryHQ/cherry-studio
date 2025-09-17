@@ -1,2 +1,2 @@
-import { heroui } from '@heroui/react'
-export default heroui()
+// Seems not used.
+// export default heroui()

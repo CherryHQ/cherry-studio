@@ -1,5 +1,6 @@
 import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -9,7 +10,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
 import type { AppInfo } from '@renderer/types'
-import { Button, Input, Switch, Tooltip } from 'antd'
+import { Button, Input, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -256,7 +257,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-        <Switch checked={localBackupSkipBackupFile} onChange={onSkipBackupFilesChange} />
+        <Switch isSelected={localBackupSkipBackupFile} onValueChange={onSkipBackupFilesChange} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

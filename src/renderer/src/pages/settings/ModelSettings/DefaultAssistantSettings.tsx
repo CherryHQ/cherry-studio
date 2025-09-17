@@ -1,6 +1,7 @@
 import { CloseCircleFilled, QuestionCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ResetIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -9,7 +10,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import type { AssistantSettings as AssistantSettingsType } from '@renderer/types'
 import { getLeadingEmoji, modalConfirm } from '@renderer/utils'
-import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Input, InputNumber, Modal, Popover, Row, Slider, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useState } from 'react'
@@ -171,8 +172,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          checked={enableTemperature}
-          onChange={(enabled) => {
+          isSelected={enableTemperature}
+          onValueChange={(enabled) => {
             setEnableTemperature(enabled)
             onUpdateAssistantSettings({ enableTemperature: enabled })
           }}
@@ -212,8 +213,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          checked={enableTopP}
-          onChange={(enabled) => {
+          isSelected={enableTopP}
+          onValueChange={(enabled) => {
             setEnableTopP(enabled)
             onUpdateAssistantSettings({ enableTopP: enabled })
           }}
@@ -275,8 +276,8 @@ const AssistantSettings: FC = () => {
         </RowFlex>
         <Switch
           style={{ marginLeft: 10 }}
-          checked={enableMaxTokens}
-          onChange={async (enabled) => {
+          isSelected={enableMaxTokens}
+          onValueChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),

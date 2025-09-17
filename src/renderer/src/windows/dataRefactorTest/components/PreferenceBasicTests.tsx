@@ -1,6 +1,7 @@
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { type PreferenceKeyType, ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Input, message, Select, Slider, Space, Switch, Typography } from 'antd'
+import { Button, Input, message, Select, Slider, Space, Typography } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'
 
@@ -144,12 +145,7 @@ const PreferenceBasicTests: React.FC = () => {
 
             {/* Boolean Toggle */}
             {selectedKey === 'app.spell_check.enabled' && (
-              <Switch
-                checked={value === true}
-                onChange={(checked) => setValue(checked)}
-                checkedChildren="启用"
-                unCheckedChildren="禁用"
-              />
+              <Switch isSelected={value === true} onValueChange={(checked) => setValue(checked)} />
             )}
 
             {/* Language Switch */}
