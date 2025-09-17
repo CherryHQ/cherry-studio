@@ -49,8 +49,8 @@ When submitting PRs, please place components in the correct directory based on t
 
 - **Total Components**: 236
 - **Migrated**: 34
-- **Refactored**: 14
-- **Pending Migration**: 188
+- **Refactored**: 18
+- **Pending Migration**: 184
 
 ## Component Status Table
 
@@ -68,12 +68,12 @@ When submitting PRs, please place components in the correct directory based on t
 | | TextBadge | ✅ | ✅ | Text badge |
 | | CustomCollapse | ✅ | ✅ | Custom collapse panel |
 | **display** | | | | Display components |
-| | Ellipsis | ✅ | ❌ | Text ellipsis |
+| | Ellipsis | ✅ | ✅ | Text ellipsis |
 | | ExpandableText | ✅ | ✅ | Expandable text |
-| | ThinkingEffect | ✅ | ❌ | Thinking effect animation |
+| | ThinkingEffect | ✅ | ✅ | Thinking effect animation |
 | | EmojiAvatar | ✅ | ✅ | Emoji avatar |
-| | ListItem | ✅ | ❌ | List item |
-| | MaxContextCount | ✅ | ❌ | Max context count display |
+| | ListItem | ✅ | ✅ | List item |
+| | MaxContextCount | ✅ | ✅ | Max context count display |
 | | ProviderAvatar | ✅ | ✅ | Provider avatar |
 | | CodeViewer | ❌ | ❌ | Code viewer (external deps) |
 | | OGCard | ❌ | ❌ | OG card |

@@ -1,36 +1,28 @@
 // Original: src/renderer/src/components/Ellipsis/index.tsx
 import type { HTMLAttributes } from 'react'
-import styled, { css } from 'styled-components'
+
+import { cn } from '../../../utils'
 
 type Props = {
   maxLine?: number
+  className?: string
+  ref?: React.Ref<HTMLDivElement>
 } & HTMLAttributes<HTMLDivElement>
 
 const Ellipsis = (props: Props) => {
-  const { maxLine = 1, children, ...rest } = props
+  const { maxLine = 1, children, className, ref, ...rest } = props
+
+  const ellipsisClasses = cn(
+    'overflow-hidden text-ellipsis',
+    maxLine > 1 ? `line-clamp-${maxLine} break-words` : 'block whitespace-nowrap',
+    className
+  )
+
   return (
-    <EllipsisContainer $maxLine={maxLine} {...rest}>
+    <div ref={ref} className={ellipsisClasses} {...rest}>
       {children}
-    </EllipsisContainer>
+    </div>
   )
 }
-
-const multiLineEllipsis = css<{ $maxLine: number }>`
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: ${({ $maxLine }) => $maxLine};
-  overflow-wrap: break-word;
-`
-
-const singleLineEllipsis = css`
-  display: block;
-  white-space: nowrap;
-`
-
-const EllipsisContainer = styled.div<{ $maxLine: number }>`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  ${({ $maxLine }) => ($maxLine > 1 ? multiLineEllipsis : singleLineEllipsis)}
-`
 
 export default Ellipsis

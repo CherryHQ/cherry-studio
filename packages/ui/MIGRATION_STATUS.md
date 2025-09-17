@@ -50,8 +50,8 @@ function MyComponent() {
 
 - **总组件数**: 236
 - **已迁移**: 34
-- **已重构**: 14
-- **待迁移**: 188
+- **已重构**: 18
+- **待迁移**: 184
 
 ## 组件状态表
 
@@ -69,12 +69,12 @@ function MyComponent() {
 | | TextBadge | ✅ | ✅ | 文本徽标 |
 | | CustomCollapse | ✅ | ✅ | 自定义折叠面板 |
 | **display** | | | | 显示组件 |
-| | Ellipsis | ✅ | ❌ | 文本省略 |
+| | Ellipsis | ✅ | ✅ | 文本省略 |
 | | ExpandableText | ✅ | ✅ | 可展开文本 |
-| | ThinkingEffect | ✅ | ❌ | 思考效果动画 |
+| | ThinkingEffect | ✅ | ✅ | 思考效果动画 |
 | | EmojiAvatar | ✅ | ✅ | 表情头像 |
-| | ListItem | ✅ | ❌ | 列表项 |
-| | MaxContextCount | ✅ | ❌ | 最大上下文数显示 |
+| | ListItem | ✅ | ✅ | 列表项 |
+| | MaxContextCount | ✅ | ✅ | 最大上下文数显示 |
 | | ProviderAvatar | ✅ | ✅ | 提供者头像 |
 | | CodeViewer | ❌ | ❌ | 代码查看器 (外部依赖) |
 | | OGCard | ❌ | ❌ | OG 卡片 |

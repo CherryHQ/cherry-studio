@@ -13,7 +13,7 @@
     "noFallthroughCasesInSwitch": true,
     "outDir": "./dist",
     "resolveJsonModule": true,
-    "rootDir": "./src",
+    "rootDir": ".",
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2020"
