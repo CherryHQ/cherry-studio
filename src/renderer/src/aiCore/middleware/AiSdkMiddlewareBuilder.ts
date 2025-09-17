@@ -142,6 +142,12 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
 
 const tagNameArray = ['think', 'thought', 'reasoning']
 
+function getReasoningTagName(modelId: string | undefined): string {
+  if (modelId?.includes('gpt-oss')) return tagNameArray[2]
+  if (modelId?.includes('gemini')) return tagNameArray[1]
+  return tagNameArray[0]
+}
+
 /**
  * 添加provider特定的中间件
  */
@@ -156,13 +162,7 @@ function addProviderSpecificMiddlewares(builder: AiSdkMiddlewareBuilder, config:
     case 'openai':
     case 'azure-openai': {
       if (config.enableReasoning) {
-        let tagName = tagNameArray[0]
-        // aws-bedrock 的OpenAI 兼容端点会出现
-        if (config.model?.id.includes('gpt-oss')) {
-          tagName = tagNameArray[2]
-        } else if (config.model?.id.includes('gemini')) {
-          tagName = tagNameArray[1]
-        }
+        const tagName = getReasoningTagName(config.model?.id.toLowerCase())
         builder.add({
           name: 'thinking-tag-extraction',
           middleware: extractReasoningMiddleware({ tagName })
