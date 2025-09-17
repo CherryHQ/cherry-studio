@@ -9,11 +9,14 @@ type CustomSwitchProps =
   | (SwitchProps & {
       isLoading: boolean
       thumbIcon?: never
-      ref?: React.Ref<HTMLInputElement>
     })
   | (SwitchProps & {
       isLoading?: never
-      ref?: React.Ref<HTMLInputElement>
+      thumbIcon: SwitchProps['thumbIcon']
+    })
+  | (SwitchProps & {
+      isLoading?: never
+      thumbIcon?: never
     })
 
 const CustomizedSwitch = ({ isLoading, children, ref, thumbIcon, ...props }: CustomSwitchProps) => {
