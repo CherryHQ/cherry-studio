@@ -31,7 +31,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
         <span className="text-sm">{displayName}</span>
       </Button>
     )
-  }, [agent.id, agent.name, agent.type])
+  }, [agent.id, agent.name, agent.type, onPress])
 
   const handleClick = () => logger.debug('not implemented')
 
