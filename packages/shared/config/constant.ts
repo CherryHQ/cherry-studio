@@ -404,10 +404,25 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
     name: 'Warp',
     bundleId: 'dev.warp.Warp-Stable',
     command: (directory: string, fullCommand: string) => ({
-      command: 'sh',
+      command: 'osascript',
       args: [
-        '-c',
-        `open -na Warp && sleep 0.8 && osascript -e 'tell application "Warp" to activate' -e 'tell application "System Events" to tell process "Warp" to keystroke "t" using {command down}' -e 'delay 0.3' -e 'set the clipboard to "cd "${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"' -e 'tell application "System Events" to tell process "Warp" to keystroke "v" using {command down}' -e 'tell application "System Events" to key code 36'`
+        '-e',
+        `set the clipboard to "cd \\"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
+tell application "Warp"
+  activate
+  delay 0.8
+end tell
+tell application "System Events"
+  tell process "Warp"
+    keystroke "t" using {command down}
+    delay 0.4
+    -- Switch to English input method before pasting
+    key code 49 using {control down}
+    delay 0.2
+    keystroke "v" using {command down}
+    key code 36
+  end tell
+end tell`
       ]
     })
   },
