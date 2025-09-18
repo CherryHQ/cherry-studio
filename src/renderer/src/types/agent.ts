@@ -112,6 +112,12 @@ export interface SessionMessageContent {
   agentType: string // The type of agent that generated this message (e.g., 'claude-code', 'openai', etc.)
 }
 
+// Not implemented fields:
+// - plan_model: Optional model for planning/thinking tasks
+// - small_model: Optional lightweight model for quick responses
+// - mcps: Optional array of MCP (Model Control Protocol) tool IDs
+// - allowed_tools: Optional array of permitted tool IDs
+// - configuration: Optional agent settings (temperature, top_p, etc.)
 export type AgentForm = {
   type: AgentType
   name: string

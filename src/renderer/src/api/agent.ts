@@ -1,4 +1,11 @@
-import { ListAgentsResponseSchema, type ListAgentsResponse } from '@types'
+import {
+  AgentForm,
+  CreateAgentRequest,
+  CreateAgentResponse,
+  CreateAgentResponseSchema,
+  type ListAgentsResponse,
+  ListAgentsResponseSchema
+} from '@types'
 import { Axios, AxiosRequestConfig } from 'axios'
 
 type ApiVersion = 'v1'
@@ -29,6 +36,20 @@ export class AgentClient {
       return result.data
     } catch (error) {
       throw new Error('Failed to list agents.', { cause: error })
+    }
+  }
+
+  public async createAgent(agent: AgentForm): Promise<CreateAgentResponse> {
+    const url = `/${this.apiVersion}/agents`
+    try {
+      const payload = {
+        ...agent
+      } satisfies CreateAgentRequest
+      const response = await this.axios.post(url, payload)
+      const data = CreateAgentResponseSchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw new Error('Failed to create agent.', { cause: error })
     }
   }
 }
