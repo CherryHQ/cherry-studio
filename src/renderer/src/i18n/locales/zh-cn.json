@@ -2,6 +2,7 @@
   "agent": {
     "add": {
       "error": {
+        "failed": "添加 Agent 失败",
         "invalid_agent": "无效的 Agent"
       },
       "title": "添加 Agent",
@@ -16,6 +17,14 @@
     },
     "edit": {
       "title": "编辑 Agent"
+    },
+    "session": {
+      "delete": {
+        "content": "确定要删除此会话吗？",
+        "title": "删除会话"
+      },
+      "label_one": "会话",
+      "label_other": "会话"
     }
   },
   "agents": {

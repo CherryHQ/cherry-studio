@@ -2,6 +2,7 @@
   "agent": {
     "add": {
       "error": {
+        "failed": "[to be translated]:Failed to add agent",
         "invalid_agent": "Agent invalide"
       },
       "title": "Ajouter un agent",
@@ -16,6 +17,14 @@
     },
     "edit": {
       "title": "Éditer Agent"
+    },
+    "session": {
+      "delete": {
+        "content": "[to be translated]:Are you sure to delete this session?",
+        "title": "[to be translated]:Delete session"
+      },
+      "label_one": "[to be translated]:Session",
+      "label_other": "[to be translated]:Sessions"
     }
   },
   "agents": {

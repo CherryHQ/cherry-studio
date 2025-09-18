@@ -2,6 +2,7 @@
   "agent": {
     "add": {
       "error": {
+        "failed": "Failed to add agent",
         "invalid_agent": "Invalid Agent"
       },
       "title": "Add Agent",
