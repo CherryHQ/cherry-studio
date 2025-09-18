@@ -15,7 +15,7 @@ import {
   UpdateAgentResponse,
   UpdateAgentResponseSchema
 } from '@types'
-import { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
+import axios, { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
 import { ZodError } from 'zod'
 
 type ApiVersion = 'v1'
@@ -46,7 +46,7 @@ export class AgentApiClient {
     if (config.baseURL.endsWith('/')) {
       throw new Error('baseURL should not end with /')
     }
-    this.axios = new Axios(config)
+    this.axios = axios.create(config)
     if (apiVersion) {
       this.apiVersion = apiVersion
     }
