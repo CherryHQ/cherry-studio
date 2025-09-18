@@ -35,14 +35,30 @@ export class AgentApiClient {
     if (!config.baseURL || !config.headers?.Authorization) {
       throw new Error('Please pass in baseUrl and Authroization header.')
     }
+    if (config.baseURL.endsWith('/')) {
+      throw new Error('baseURL should not end with /')
+    }
     this.axios = new Axios(config)
     if (apiVersion) {
       this.apiVersion = apiVersion
     }
   }
 
+  public agentPaths = {
+    base: `/${this.apiVersion}/agents`,
+    withId: (id: string) => `/${this.apiVersion}/agents/${id}`
+  }
+
+  public getSessionPaths = (agentId: string) => ({
+    base: `/${this.apiVersion}/agents/${agentId}/sessions`,
+    withId: (id: string) => `/${this.apiVersion}/agents/${agentId}/sessions/${id}`
+  })
+
+  public getSessionMessagesPath = (agentId: string, sessionId: string) =>
+    `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`
+
   public async listAgents(): Promise<ListAgentsResponse> {
-    const url = `/${this.apiVersion}/agents`
+    const url = this.agentPaths.base
     try {
       const response = await this.axios.get(url)
       const result = ListAgentsResponseSchema.safeParse(response.data)
@@ -56,7 +72,7 @@ export class AgentApiClient {
   }
 
   public async createAgent(agent: AgentForm): Promise<CreateAgentResponse> {
-    const url = `/${this.apiVersion}/agents`
+    const url = this.agentPaths.base
     try {
       const payload = {
         ...agent
@@ -70,7 +86,7 @@ export class AgentApiClient {
   }
 
   public async getAgent(id: string): Promise<GetAgentResponse> {
-    const url = `/${this.apiVersion}/agents/${id}`
+    const url = this.agentPaths.withId(id)
     try {
       const response = await this.axios.get(url)
       const data = GetAgentResponseSchema.parse(response.data)
@@ -81,7 +97,7 @@ export class AgentApiClient {
   }
 
   public async deleteAgent(id: string): Promise<void> {
-    const url = `/${this.apiVersion}/agents/${id}`
+    const url = this.agentPaths.withId(id)
     try {
       await this.axios.delete(url)
     } catch (error) {
@@ -90,7 +106,7 @@ export class AgentApiClient {
   }
 
   public async updateAgent(id: string, agent: Partial<AgentForm>): Promise<UpdateAgentResponse> {
-    const url = `/${this.apiVersion}/agents/${id}`
+    const url = this.agentPaths.withId(id)
     try {
       const payload = {
         ...agent
