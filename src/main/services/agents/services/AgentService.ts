@@ -1,7 +1,14 @@
 import path from 'node:path'
 
 import { getDataPath } from '@main/utils'
-import type { AgentEntity, CreateAgentRequest, GetAgentResponse, ListOptions, UpdateAgentRequest } from '@types'
+import type {
+  AgentEntity,
+  CreateAgentRequest,
+  CreateAgentResponse,
+  GetAgentResponse,
+  ListOptions,
+  UpdateAgentRequest
+} from '@types'
 import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
@@ -23,7 +30,7 @@ export class AgentService extends BaseService {
   }
 
   // Agent Methods
-  async createAgent(req: CreateAgentRequest): Promise<AgentEntity> {
+  async createAgent(req: CreateAgentRequest): Promise<CreateAgentResponse> {
     this.ensureInitialized()
 
     const id = `agent_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`

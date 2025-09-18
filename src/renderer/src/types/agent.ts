@@ -108,6 +108,8 @@ export interface CreateAgentRequest extends AgentBase {
   type: AgentType
 }
 
+export type CreateAgentResponse = AgentEntity
+
 export interface UpdateAgentRequest extends Partial<AgentBase> {}
 
 export interface GetAgentResponse extends AgentEntity {
