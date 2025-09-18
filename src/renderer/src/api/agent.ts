@@ -6,6 +6,10 @@ import {
   CreateAgentRequest,
   CreateAgentResponse,
   CreateAgentResponseSchema,
+  CreateSessionForm,
+  CreateSessionRequest,
+  CreateSessionResponse,
+  CreateSessionResponseSchema,
   GetAgentResponse,
   GetAgentResponseSchema,
   ListAgentSessionsResponse,
@@ -136,6 +140,18 @@ export class AgentApiClient {
       return result.data
     } catch (error) {
       throw processError(error, 'Failed to list sessions.')
+    }
+  }
+
+  public async createSession(agentId: string, session: CreateSessionForm): Promise<CreateSessionResponse> {
+    const url = this.getSessionPaths(agentId).base
+    try {
+      const payload = session satisfies CreateSessionRequest
+      const response = await this.axios.post(url, payload)
+      const data = CreateSessionResponseSchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to add session.')
     }
   }
 }
