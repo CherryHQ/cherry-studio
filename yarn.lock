@@ -385,7 +385,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@anthropic-ai/claude-code@npm:^1.0.113":
+"@anthropic-ai/claude-code@npm:1.0.118":
   version: 1.0.118
   resolution: "@anthropic-ai/claude-code@npm:1.0.118"
   dependencies:
@@ -411,6 +411,35 @@ __metadata:
   bin:
     claude: cli.js
   checksum: 10c0/90e9feac857bfcbdaa3797c70cccfad8588ed45bc9ea6c88664e2f08fa71d069cfb28ce17c20a67ddd841d9a8c7a50e61281687975f7d5ebde9b39f63551cefb
+  languageName: node
+  linkType: hard
+
+"@anthropic-ai/claude-code@patch:@anthropic-ai/claude-code@npm%3A1.0.118#~/.yarn/patches/@anthropic-ai-claude-code-npm-1.0.118-bbf4e9e59f.patch":
+  version: 1.0.118
+  resolution: "@anthropic-ai/claude-code@patch:@anthropic-ai/claude-code@npm%3A1.0.118#~/.yarn/patches/@anthropic-ai-claude-code-npm-1.0.118-bbf4e9e59f.patch::version=1.0.118&hash=d3554c"
+  dependencies:
+    "@img/sharp-darwin-arm64": "npm:^0.33.5"
+    "@img/sharp-darwin-x64": "npm:^0.33.5"
+    "@img/sharp-linux-arm": "npm:^0.33.5"
+    "@img/sharp-linux-arm64": "npm:^0.33.5"
+    "@img/sharp-linux-x64": "npm:^0.33.5"
+    "@img/sharp-win32-x64": "npm:^0.33.5"
+  dependenciesMeta:
+    "@img/sharp-darwin-arm64":
+      optional: true
+    "@img/sharp-darwin-x64":
+      optional: true
+    "@img/sharp-linux-arm":
+      optional: true
+    "@img/sharp-linux-arm64":
+      optional: true
+    "@img/sharp-linux-x64":
+      optional: true
+    "@img/sharp-win32-x64":
+      optional: true
+  bin:
+    claude: cli.js
+  checksum: 10c0/3d230f6e785e5c4fdcca30dc134ecaab09d1de11f020183b04bbd6b2cbc97593d2d9224a87a47546718d1795bd159be395a9af3f35ff3652e4b87804741223a1
   languageName: node
   linkType: hard
 
@@ -14162,7 +14191,7 @@ __metadata:
     "@ai-sdk/mistral": "npm:^2.0.14"
     "@ai-sdk/perplexity": "npm:^2.0.9"
     "@ant-design/v5-patch-for-react-19": "npm:^1.0.3"
-    "@anthropic-ai/claude-code": "npm:^1.0.113"
+    "@anthropic-ai/claude-code": "patch:@anthropic-ai/claude-code@npm%3A1.0.118#~/.yarn/patches/@anthropic-ai-claude-code-npm-1.0.118-bbf4e9e59f.patch"
     "@anthropic-ai/sdk": "npm:^0.41.0"
     "@anthropic-ai/vertex-sdk": "patch:@anthropic-ai/vertex-sdk@npm%3A0.11.4#~/.yarn/patches/@anthropic-ai-vertex-sdk-npm-0.11.4-c19cb41edb.patch"
     "@aws-sdk/client-bedrock": "npm:^3.840.0"
