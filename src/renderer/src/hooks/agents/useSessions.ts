@@ -27,10 +27,19 @@ export const useSessions = (agent: AgentEntity) => {
     [agent.id, client, mutate, t]
   )
 
+  // TODO: including messages field
+  const getSession = useCallback(
+    async (id: string) => {
+      return data?.find((session) => session.id === id)
+    },
+    [data]
+  )
+
   return {
     sessions: data ?? [],
     error,
     isLoading,
-    createSession
+    createSession,
+    getSession
   }
 }

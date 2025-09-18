@@ -12,6 +12,8 @@ import {
   CreateSessionResponseSchema,
   GetAgentResponse,
   GetAgentResponseSchema,
+  GetAgentSessionResponse,
+  GetAgentSessionResponseSchema,
   ListAgentSessionsResponse,
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
@@ -152,6 +154,17 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to add session.')
+    }
+  }
+
+  public async getSession(agentId: string, sessionId: string): Promise<GetAgentSessionResponse> {
+    const url = this.getSessionPaths(agentId).withId(sessionId)
+    try {
+      const response = await this.axios.get(url)
+      const data = GetAgentSessionResponseSchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to get session.')
     }
   }
 }
