@@ -10,13 +10,17 @@ export const useAgents = () => {
   const { t } = useTranslation()
   const client = useAgentClient()
   const key = client.agentPaths.base
-  const { data, error, isLoading, mutate } = useSWR(key, () => client.listAgents())
+  const fetcher = useCallback(async () => {
+    const result = await client.listAgents()
+    return result.agents
+  }, [client])
+  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
 
   const addAgent = useCallback(
     async (form: AddAgentForm) => {
       try {
         const result = await client.createAgent(form)
-        mutate((prev) => ({ agents: [...(prev?.agents ?? []), result], total: prev ? prev.total + 1 : 1 }))
+        mutate((prev) => [...(prev ?? []), result])
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed')))
       }
@@ -29,10 +33,7 @@ export const useAgents = () => {
       try {
         // may change to optimistic update
         const result = await client.updateAgent(form)
-        mutate((prev) => ({
-          agents: prev?.agents.map((a) => (a.id === form.id ? result : a)) ?? [],
-          total: prev?.total ?? 0
-        }))
+        mutate((prev) => prev?.map((a) => (a.id === form.id ? result : a)) ?? [])
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
@@ -44,10 +45,7 @@ export const useAgents = () => {
     async (id: string) => {
       try {
         await client.deleteAgent(id)
-        mutate((prev) => ({
-          agents: prev?.agents.filter((a) => a.id !== id) ?? [],
-          total: prev ? prev.total - 1 : 0
-        }))
+        mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
@@ -57,13 +55,13 @@ export const useAgents = () => {
 
   const getAgent = useCallback(
     (id: string) => {
-      return data?.agents.find((agent) => agent.id === id)
+      return data?.find((agent) => agent.id === id)
     },
-    [data?.agents]
+    [data]
   )
 
   return {
-    agents: data?.agents ?? [],
+    agents: data ?? [],
     error,
     isLoading,
     addAgent,
