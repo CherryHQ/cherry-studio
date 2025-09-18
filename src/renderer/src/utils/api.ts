@@ -75,7 +75,7 @@ export function splitApiKeyString(keyStr: string): string[] {
 }
 
 export const formatAgentServerError = (error: AgentServerError) =>
-  `${t('common.error')}: ${error.code} ${error.message}`
+  `${t('common.error')}: ${error.error.code} ${error.error.message}`
 
 export const formatAxiosError = (error: AxiosError) => {
   if (!error.response) {

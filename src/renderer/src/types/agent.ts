@@ -200,9 +200,11 @@ export const CreateSessionResponseSchema = AgentSessionEntitySchema
 export type CreateSessionResponse = AgentSessionEntity
 
 export const AgentServerErrorSchema = z.object({
-  message: z.string(),
-  type: z.string(),
-  code: z.string()
+  error: z.object({
+    message: z.string(),
+    type: z.string(),
+    code: z.string()
+  })
 })
 
 export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
