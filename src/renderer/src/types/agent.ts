@@ -19,12 +19,14 @@ export const isAgentType = (type: unknown): type is AgentType => {
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
-export interface Tool {
-  id: string
-  name: string
-  description?: string
-  requirePermissions?: boolean
-}
+export const ToolSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  requirePermissions: z.boolean().optional()
+})
+
+export type Tool = z.infer<typeof ToolSchema>
 
 export const AgentConfigurationSchema = z
   .object({
