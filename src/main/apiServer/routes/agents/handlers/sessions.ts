@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { sessionMessageService, sessionService } from '@main/services/agents'
-import { CreateSessionResponse, ListAgentSessionsResponse } from '@types'
+import { CreateSessionResponse, ListAgentSessionsResponse, UpdateSessionResponse } from '@types'
 import { Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
@@ -147,7 +147,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
     }
 
     logger.info(`Session updated successfully: ${sessionId}`)
-    return res.json(session)
+    return res.json(session satisfies UpdateSessionResponse)
   } catch (error: any) {
     logger.error('Error updating session:', error)
     return res.status(500).json({

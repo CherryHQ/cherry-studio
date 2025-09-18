@@ -21,7 +21,11 @@ import {
   UpdateAgentForm,
   UpdateAgentRequest,
   UpdateAgentResponse,
-  UpdateAgentResponseSchema
+  UpdateAgentResponseSchema,
+  UpdateSessionForm,
+  UpdateSessionRequest,
+  UpdateSessionResponse,
+  UpdateSessionResponseSchema
 } from '@types'
 import axios, { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
 import { ZodError } from 'zod'
@@ -183,6 +187,25 @@ export class AgentApiClient {
       await this.axios.delete(url)
     } catch (error) {
       throw processError(error, 'Failed to delete session.')
+    }
+  }
+
+  public async updateSession(
+    agentId: string,
+    sessionId: string,
+    session: UpdateSessionForm
+  ): Promise<UpdateSessionResponse> {
+    const url = this.getSessionPaths(agentId).withId(sessionId)
+    try {
+      const payload = session satisfies UpdateSessionRequest
+      const response = await this.axios.patch(url, payload)
+      const data = UpdateSessionResponseSchema.parse(response.data)
+      if (sessionId !== data.id) {
+        throw new Error('Session ID mismatch in response')
+      }
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to update session.')
     }
   }
 }

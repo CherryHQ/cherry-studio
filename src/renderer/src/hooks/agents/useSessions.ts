@@ -1,4 +1,4 @@
-import { AgentEntity, CreateSessionForm } from '@renderer/types'
+import { AgentEntity, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
@@ -49,12 +49,25 @@ export const useSessions = (agent: AgentEntity) => {
     [agent.id, client, mutate, t]
   )
 
+  const updateSession = useCallback(
+    async (id: string, form: UpdateSessionForm) => {
+      try {
+        const result = await client.updateSession(agent.id, id, form)
+        mutate((prev) => prev?.map((session) => (session.id === id ? result : session)))
+      } catch (error) {
+        window.toast.error(t('agent.session.update.error.failed'))
+      }
+    },
+    [agent.id, client, mutate, t]
+  )
+
   return {
     sessions: data ?? [],
     error,
     isLoading,
     createSession,
     getSession,
-    deleteSession
+    deleteSession,
+    updateSession
   }
 }

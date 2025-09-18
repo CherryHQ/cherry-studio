@@ -5,7 +5,8 @@ import type {
   CreateSessionResponse,
   GetAgentSessionResponse,
   ListOptions,
-  UpdateSessionRequest
+  UpdateSessionRequest,
+  UpdateSessionResponse
 } from '@types'
 import { and, count, eq, type SQL } from 'drizzle-orm'
 
@@ -139,7 +140,7 @@ export class SessionService extends BaseService {
     return { sessions, total }
   }
 
-  async updateSession(id: string, updates: UpdateSessionRequest): Promise<GetAgentSessionResponse | null> {
+  async updateSession(id: string, updates: UpdateSessionRequest): Promise<UpdateSessionResponse | null> {
     this.ensureInitialized()
 
     // Check if session exists

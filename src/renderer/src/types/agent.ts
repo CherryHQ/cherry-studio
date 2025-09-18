@@ -211,6 +211,10 @@ export const CreateSessionResponseSchema = AgentSessionEntitySchema
 
 export type CreateSessionResponse = AgentSessionEntity
 
+export const UpdateSessionResponseSchema = GetAgentSessionResponseSchema
+
+export type UpdateSessionResponse = GetAgentSessionResponse
+
 export const AgentServerErrorSchema = z.object({
   error: z.object({
     message: z.string(),
