@@ -16,6 +16,14 @@
     },
     "edit": {
       "title": "Edit Agent"
+    },
+    "session": {
+      "delete": {
+        "content": "Are you sure to delete this session?",
+        "title": "Delete session"
+      },
+      "label_one": "Session",
+      "label_other": "Sessions"
     }
   },
   "agents": {
