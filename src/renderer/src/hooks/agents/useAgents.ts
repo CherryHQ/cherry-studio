@@ -1,4 +1,4 @@
-import { AddAgentForm } from '@renderer/types'
+import { AddAgentForm, UpdateAgentForm } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,12 +13,28 @@ export const useAgents = () => {
   const { data, error, isLoading, mutate } = useSWR(key, () => client.listAgents())
 
   const addAgent = useCallback(
-    async (agent: AddAgentForm) => {
+    async (form: AddAgentForm) => {
       try {
-        const result = await client.createAgent(agent)
-        mutate((prev) => ({ agents: [...(prev?.agents ?? []), result], total: 0 }))
+        const result = await client.createAgent(form)
+        mutate((prev) => ({ agents: [...(prev?.agents ?? []), result], total: prev ? prev.total + 1 : 1 }))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed')))
+      }
+    },
+    [client, mutate, t]
+  )
+
+  const updateAgent = useCallback(
+    async (form: UpdateAgentForm) => {
+      try {
+        // may change to optimistic update
+        const result = await client.updateAgent(form)
+        mutate((prev) => ({
+          agents: prev?.agents.map((a) => (a.id === form.id ? result : a)) ?? [],
+          total: prev?.total ?? 0
+        }))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
     },
     [client, mutate, t]
@@ -28,6 +44,7 @@ export const useAgents = () => {
     agents: data?.agents ?? [],
     error,
     isLoading,
-    addAgent
+    addAgent,
+    updateAgent
   }
 }

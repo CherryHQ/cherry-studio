@@ -79,10 +79,10 @@ export class AgentApiClient {
     }
   }
 
-  public async createAgent(agent: AddAgentForm): Promise<CreateAgentResponse> {
+  public async createAgent(form: AddAgentForm): Promise<CreateAgentResponse> {
     const url = this.agentPaths.base
     try {
-      const payload = agent satisfies CreateAgentRequest
+      const payload = form satisfies CreateAgentRequest
       const response = await this.axios.post(url, payload)
       const data = CreateAgentResponseSchema.parse(response.data)
       return data
@@ -111,10 +111,10 @@ export class AgentApiClient {
     }
   }
 
-  public async updateAgent(id: string, agent: UpdateAgentForm): Promise<UpdateAgentResponse> {
-    const url = this.agentPaths.withId(id)
+  public async updateAgent(form: UpdateAgentForm): Promise<UpdateAgentResponse> {
+    const url = this.agentPaths.withId(form.id)
     try {
-      const payload = agent satisfies UpdateAgentRequest
+      const payload = form satisfies UpdateAgentRequest
       const response = await this.axios.patch(url, payload)
       const data = UpdateAgentResponseSchema.parse(response.data)
       return data
