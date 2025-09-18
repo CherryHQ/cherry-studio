@@ -55,12 +55,20 @@ export const useAgents = () => {
     [client, mutate, t]
   )
 
+  const getAgent = useCallback(
+    (id: string) => {
+      return data?.agents.find((agent) => agent.id === id)
+    },
+    [data?.agents]
+  )
+
   return {
     agents: data?.agents ?? [],
     error,
     isLoading,
     addAgent,
     updateAgent,
-    deleteAgent
+    deleteAgent,
+    getAgent
   }
 }
