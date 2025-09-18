@@ -112,6 +112,15 @@ export interface SessionMessageContent {
   agentType: string // The type of agent that generated this message (e.g., 'claude-code', 'openai', etc.)
 }
 
+export type AgentForm = {
+  type: AgentType
+  name: string
+  description?: string
+  instructions?: string
+  model: string
+  accessible_paths: string[]
+}
+
 // ------------------------
 // API Data Transfer Object
 // ------------------------

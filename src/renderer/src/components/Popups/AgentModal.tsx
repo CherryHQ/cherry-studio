@@ -21,7 +21,7 @@ import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { AgentEntity, AgentType, isAgentType } from '@renderer/types'
+import { AgentEntity, AgentForm, isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,15 +43,6 @@ interface AgentTypeOption extends Option {
 }
 
 type ModelOption = Option
-
-type AgentForm = {
-  type: AgentType
-  name: string
-  description?: string
-  instructions?: string
-  model: string
-  accessible_paths: string[]
-}
 
 const buildAgentForm = (existing?: AgentEntity): AgentForm => ({
   type: existing?.type ?? 'claude-code',
@@ -359,11 +350,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
-                  <Textarea
-                    label={t('common.prompt')}
-                    value={form.instructions ?? ''}
-                    onValueChange={onInstChange}
-                  />
+                  <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>
                 <ModalFooter className="w-full">
                   <Button onPress={onClose}>{t('common.close')}</Button>
