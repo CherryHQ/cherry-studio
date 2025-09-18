@@ -135,10 +135,12 @@ export type CreateSessionRequest = AgentBase
 
 export interface UpdateSessionRequest extends Partial<AgentBase> {}
 
-export interface GetAgentSessionResponse extends AgentSessionEntity {
-  built_in_tools?: Tool[] // Built-in tools available to the agent
-  messages: AgentSessionMessageEntity[] // Messages in the session
-}
+export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
+  built_in_tools: z.array(ToolSchema).optional(), // Built-in tools available to the agent
+  messages: z.array(AgentSessionMessageEntitySchema) // Messages in the session
+})
+
+export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
 
 export interface CreateSessionMessageRequest {
   content: string
