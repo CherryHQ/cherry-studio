@@ -1,16 +1,12 @@
-import { AgentEntity } from '@renderer/types'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+// import { useSWRConfig } from 'swr'
 
 export const useRemoveAgent = () => {
-  const qc = useQueryClient()
-
-  // TODO: use api
-  return useMutation({
-    mutationFn: async (id: string) => {
-      return id
+  // const { mutate } = useSWRConfig()
+  return {
+    removeAgent: () => {
+      // not implemented
+      window.toast.info('Not implemented')
     },
-    onSuccess: (deletedId: string) => {
-      qc.setQueryData<AgentEntity[]>(['agents'], (old) => old?.filter((t) => t.id !== deletedId))
-    }
-  })
+    status: {}
+  }
 }
