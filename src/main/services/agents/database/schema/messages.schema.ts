@@ -8,6 +8,7 @@ export const sessionMessagesTable = sqliteTable('session_messages', {
   session_id: text('session_id').notNull(),
   role: text('role').notNull(), // 'user', 'agent', 'system', 'tool'
   content: text('content').notNull(), // JSON structured data
+  agent_session_id: text('agent_session_id').default(''),
   metadata: text('metadata'), // JSON metadata (optional)
   created_at: text('created_at').notNull(),
   updated_at: text('updated_at').notNull()
