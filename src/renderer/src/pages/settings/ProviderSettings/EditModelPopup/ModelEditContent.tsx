@@ -1,4 +1,5 @@
 import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -22,7 +23,7 @@ import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
 import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
 import type { ModalProps } from 'antd'
-import { Button, Divider, Form, Input, InputNumber, Modal, Select, Switch, Tooltip } from 'antd'
+import { Button, Divider, Form, Input, InputNumber, Modal, Select, Tooltip } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -342,10 +343,10 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               label={t('settings.models.add.supported_text_delta.label')}
               tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
               <Switch
-                checked={supportedTextDelta}
-                style={{ marginLeft: 'auto' }}
-                size="small"
-                onChange={(checked) => {
+                isSelected={supportedTextDelta}
+                className="ml-auto"
+                size="sm"
+                onValueChange={(checked) => {
                   setSupportedTextDelta(checked)
                   // 直接传递新值给autoSave
                   autoSave({ supported_text_delta: checked })

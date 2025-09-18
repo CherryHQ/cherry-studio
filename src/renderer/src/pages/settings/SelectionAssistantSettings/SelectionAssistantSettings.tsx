@@ -1,10 +1,11 @@
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Radio, Row, Slider, Switch, Tooltip } from 'antd'
+import { Button, Radio, Row, Slider, Tooltip } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -99,9 +100,9 @@ const SelectionAssistantSettings: FC = () => {
             {!isSupportedOS && <SettingDescription>{t('selection.settings.enable.description')}</SettingDescription>}
           </SettingLabel>
           <Switch
-            checked={isSupportedOS && selectionEnabled}
-            onChange={(checked) => handleEnableCheckboxChange(checked)}
-            disabled={!isSupportedOS}
+            isSelected={isSupportedOS && selectionEnabled}
+            onValueChange={handleEnableCheckboxChange}
+            isDisabled={!isSupportedOS}
           />
         </SettingRow>
 
@@ -160,7 +161,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.toolbar.compact_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.compact_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isCompact} onChange={(checked) => setIsCompact(checked)} />
+              <Switch isSelected={isCompact} onValueChange={setIsCompact} />
             </SettingRow>
           </SettingGroup>
 
@@ -172,7 +173,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.follow_toolbar.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.follow_toolbar.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isFollowToolbar} onChange={(checked) => setIsFollowToolbar(checked)} />
+              <Switch isSelected={isFollowToolbar} onValueChange={setIsFollowToolbar} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -180,7 +181,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.remember_size.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.remember_size.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isRemeberWinSize} onChange={(checked) => setIsRemeberWinSize(checked)} />
+              <Switch isSelected={isRemeberWinSize} onValueChange={setIsRemeberWinSize} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -188,7 +189,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_close.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_close.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isAutoClose} onChange={(checked) => setIsAutoClose(checked)} />
+              <Switch isSelected={isAutoClose} onValueChange={setIsAutoClose} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -196,7 +197,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.window.auto_pin.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.window.auto_pin.description')}</SettingDescription>
               </SettingLabel>
-              <Switch checked={isAutoPin} onChange={(checked) => setIsAutoPin(checked)} />
+              <Switch isSelected={isAutoPin} onValueChange={setIsAutoPin} />
             </SettingRow>
             <SettingDivider />
             <SettingRow>

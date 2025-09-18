@@ -30,9 +30,8 @@ export async function buildPlugins(
   }
 
   // 1. 模型内置搜索
-  if (middlewareConfig.enableWebSearch) {
-    // 内置了默认搜索参数，如果改的话可以传config进去
-    plugins.push(webSearchPlugin())
+  if (middlewareConfig.enableWebSearch && middlewareConfig.webSearchPluginConfig) {
+    plugins.push(webSearchPlugin(middlewareConfig.webSearchPluginConfig))
   }
   // 2. 支持工具调用时添加搜索插件
   if (middlewareConfig.isSupportedToolUse || middlewareConfig.isPromptToolUse) {

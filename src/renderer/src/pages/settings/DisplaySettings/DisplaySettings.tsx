@@ -1,5 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { CodeEditor } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
@@ -11,7 +12,7 @@ import useUserTheme from '@renderer/hooks/useUserTheme'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, ColorPicker, Segmented, Select, Switch } from 'antd'
+import { Button, ColorPicker, Segmented, Select } from 'antd'
 import { Minus, Monitor, Moon, Plus, Sun } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -229,7 +230,7 @@ const DisplaySettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.theme.window.style.transparent')}</SettingRowTitle>
-              <Switch checked={windowStyle === 'transparent'} onChange={handleWindowStyleChange} />
+              <Switch isSelected={windowStyle === 'transparent'} onValueChange={handleWindowStyleChange} />
             </SettingRow>
           </>
         )}
@@ -361,8 +362,8 @@ const DisplaySettings: FC = () => {
             <SettingRow>
               <SettingRowTitle>{t('settings.advanced.auto_switch_to_topics')}</SettingRowTitle>
               <Switch
-                checked={clickAssistantToShowTopic}
-                onChange={(checked) => setClickAssistantToShowTopic(checked)}
+                isSelected={clickAssistantToShowTopic}
+                onValueChange={(checked) => setClickAssistantToShowTopic(checked)}
               />
             </SettingRow>
             <SettingDivider />
@@ -370,12 +371,12 @@ const DisplaySettings: FC = () => {
         )}
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.show.time')}</SettingRowTitle>
-          <Switch checked={showTopicTime} onChange={(checked) => setShowTopicTime(checked)} />
+          <Switch isSelected={showTopicTime} onValueChange={(checked) => setShowTopicTime(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.pin_to_top')}</SettingRowTitle>
-          <Switch checked={pinTopicsToTop} onChange={(checked) => setPinTopicsToTop(checked)} />
+          <Switch isSelected={pinTopicsToTop} onValueChange={(checked) => setPinTopicsToTop(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>

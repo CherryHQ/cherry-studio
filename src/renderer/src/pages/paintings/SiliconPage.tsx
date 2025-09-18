@@ -1,5 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -24,7 +25,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Button, Input, InputNumber, Radio, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Input, InputNumber, Radio, Select, Slider, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -485,8 +486,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </SettingTitle>
           <RowFlex>
             <Switch
-              checked={painting.promptEnhancement}
-              onChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
+              isSelected={painting.promptEnhancement}
+              onValueChange={(checked) => updatePaintingState({ promptEnhancement: checked })}
             />
           </RowFlex>
         </LeftContainer>

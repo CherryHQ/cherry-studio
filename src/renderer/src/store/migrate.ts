@@ -2480,6 +2480,21 @@ const migrateConfig = {
       logger.error('migrate 155 error', error as Error)
       return state
     }
+  },
+  '156': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.anthropic) {
+          if (provider.apiHost.endsWith('/')) {
+            provider.apiHost = provider.apiHost.slice(0, -1)
+          }
+        }
+      })
+      return state
+    } catch (error) {
+      logger.error('migrate 156 error', error as Error)
+      return state
+    }
   }
 }
 

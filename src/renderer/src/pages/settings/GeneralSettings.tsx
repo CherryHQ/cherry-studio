@@ -1,6 +1,7 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
@@ -12,7 +13,7 @@ import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { Input, Switch, Tooltip } from 'antd'
+import { Input, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -260,12 +261,12 @@ const GeneralSettings: FC = () => {
               />
             )}
           </RowFlex>
-          <Switch checked={enableSpellCheck} onChange={handleSpellCheckChange} />
+          <Switch isSelected={enableSpellCheck} onValueChange={handleSpellCheckChange} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.hardware_acceleration.title')}</SettingRowTitle>
-          <Switch checked={disableHardwareAcceleration} onChange={handleHardwareAccelerationChange} />
+          <Switch isSelected={disableHardwareAcceleration} onValueChange={handleHardwareAccelerationChange} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -278,17 +279,26 @@ const GeneralSettings: FC = () => {
               <InfoCircleOutlined style={{ cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
-          <Switch checked={notificationSettings.assistant} onChange={(v) => handleNotificationChange('assistant', v)} />
+          <Switch
+            isSelected={notificationSettings.assistant}
+            onValueChange={(v) => handleNotificationChange('assistant', v)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
-          <Switch checked={notificationSettings.backup} onChange={(v) => handleNotificationChange('backup', v)} />
+          <Switch
+            isSelected={notificationSettings.backup}
+            onValueChange={(v) => handleNotificationChange('backup', v)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
-          <Switch checked={notificationSettings.knowledge} onChange={(v) => handleNotificationChange('knowledge', v)} />
+          <Switch
+            isSelected={notificationSettings.knowledge}
+            onValueChange={(v) => handleNotificationChange('knowledge', v)}
+          />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -296,12 +306,12 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.onboot')}</SettingRowTitle>
-          <Switch checked={launchOnBoot} onChange={(checked) => updateLaunchOnBoot(checked)} />
+          <Switch isSelected={launchOnBoot} onValueChange={(checked) => updateLaunchOnBoot(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.launch.totray')}</SettingRowTitle>
-          <Switch checked={launchToTray} onChange={(checked) => updateLaunchToTray(checked)} />
+          <Switch isSelected={launchToTray} onValueChange={(checked) => updateLaunchToTray(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -309,12 +319,12 @@ const GeneralSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.show')}</SettingRowTitle>
-          <Switch checked={tray} onChange={(checked) => updateTray(checked)} />
+          <Switch isSelected={tray} onValueChange={(checked) => updateTray(checked)} />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tray.onclose')}</SettingRowTitle>
-          <Switch checked={trayOnClose} onChange={(checked) => updateTrayOnClose(checked)} />
+          <Switch isSelected={trayOnClose} onValueChange={(checked) => updateTrayOnClose(checked)} />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -323,8 +333,8 @@ const GeneralSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.privacy.enable_privacy_mode')}</SettingRowTitle>
           <Switch
-            value={enableDataCollection}
-            onChange={(v) => {
+            isSelected={enableDataCollection}
+            onValueChange={(v) => {
               setEnableDataCollection(v)
               window.api.config.set('enableDataCollection', v)
             }}
@@ -339,7 +349,7 @@ const GeneralSettings: FC = () => {
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip title={t('settings.developer.help')} />
           </Flex>
-          <Switch checked={enableDeveloperMode} onChange={setEnableDeveloperMode} />
+          <Switch isSelected={enableDeveloperMode} onValueChange={setEnableDeveloperMode} />
         </SettingRow>
       </SettingGroup>
     </SettingContainer>

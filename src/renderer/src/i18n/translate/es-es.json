@@ -362,8 +362,9 @@
       "translate": "Traducir a {{target_language}}",
       "translating": "Traduciendo...",
       "upload": {
+        "attachment": "Subir archivo adjunto",
         "document": "Subir documento (el modelo no admite imágenes)",
-        "label": "Subir imagen o documento",
+        "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
       "url_context": "Contexto de la página web",
@@ -659,7 +660,12 @@
       "title": "Tema",
       "unpin": "Quitar fijación"
     },
-    "translate": "Traducir"
+    "translate": "Traducir",
+    "web_search": {
+      "warning": {
+        "openai": "El modelo GPT5 con intensidad de pensamiento mínima no admite búsqueda en la web."
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",

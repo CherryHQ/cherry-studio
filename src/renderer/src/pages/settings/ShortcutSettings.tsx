@@ -1,5 +1,6 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
@@ -9,7 +10,7 @@ import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
 import type { InputRef } from 'antd'
-import { Button, Input, Switch, Table as AntTable, Tooltip } from 'antd'
+import { Button, Input, Table as AntTable, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { FC } from 'react'
 import React, { useRef, useState } from 'react'
@@ -397,7 +398,7 @@ const ShortcutSettings: FC = () => {
       align: 'right',
       width: '50px',
       render: (record: Shortcut) => (
-        <Switch size="small" checked={record.enabled} onChange={() => dispatch(toggleShortcut(record.key))} />
+        <Switch size="sm" isSelected={record.enabled} onValueChange={() => dispatch(toggleShortcut(record.key))} />
       )
     }
   ]

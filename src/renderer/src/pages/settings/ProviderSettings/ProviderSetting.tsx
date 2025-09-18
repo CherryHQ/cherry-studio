@@ -1,5 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import OpenAIAlert from '@renderer/components/Alert/OpenAIAlert'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
@@ -18,9 +19,15 @@ import { updateWebSearchProvider } from '@renderer/store/websearch'
 import { isSystemProvider } from '@renderer/types'
 import type { ApiKeyConnectivity } from '@renderer/types/healthCheck'
 import { HealthStatus } from '@renderer/types/healthCheck'
-import { formatApiHost, formatApiKeys, getFancyProviderName, isOpenAIProvider } from '@renderer/utils'
+import {
+  formatApiHost,
+  formatApiKeys,
+  getFancyProviderName,
+  isAnthropicProvider,
+  isOpenAIProvider
+} from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Button, Divider, Input, Select, Space, Switch, Tooltip } from 'antd'
+import { Button, Divider, Input, Select, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { debounce, isEmpty } from 'lodash'
 import { Bolt, Check, Settings2, SquareArrowOutUpRight, TriangleAlert } from 'lucide-react'
@@ -215,6 +222,10 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
     if (provider.type === 'azure-openai') {
       return formatApiHost(apiHost) + 'openai/v1'
     }
+
+    if (provider.type === 'anthropic') {
+      return formatApiHost(apiHost) + 'messages'
+    }
     return formatApiHost(apiHost) + 'responses'
   }
 
@@ -262,9 +273,9 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
           )}
         </Flex>
         <Switch
-          value={provider.enabled}
+          isSelected={provider.enabled}
           key={provider.id}
-          onChange={(enabled) => {
+          onValueChange={(enabled) => {
             updateProvider({ apiHost, enabled })
             if (enabled) {
               moveProviderToTop(provider.id)
@@ -364,7 +375,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
                   </Button>
                 )}
               </Space.Compact>
-              {isOpenAIProvider(provider) && (
+              {(isOpenAIProvider(provider) || isAnthropicProvider(provider)) && (
                 <SettingHelpTextRow style={{ justifyContent: 'space-between' }}>
                   <SettingHelpText
                     style={{ marginLeft: 6, marginRight: '1em', whiteSpace: 'break-spaces', wordBreak: 'break-all' }}>

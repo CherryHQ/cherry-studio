@@ -5,6 +5,8 @@
 
 import { vertexAnthropic } from '@ai-sdk/google-vertex/anthropic/edge'
 import { vertex } from '@ai-sdk/google-vertex/edge'
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
+import { isBaseProvider } from '@cherrystudio/ai-core/core/providers/schemas'
 import { loggerService } from '@logger'
 import {
   isGenerateImageModel,
@@ -16,8 +18,11 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { getAssistantSettings, getDefaultModel } from '@renderer/services/AssistantService'
+import store from '@renderer/store'
+import type { CherryWebSearchConfig } from '@renderer/store/websearch'
 import { type Assistant, type MCPTool, type Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
+import { mapRegexToPatterns } from '@renderer/utils/blacklistMatchPattern'
 import type { ModelMessage, Tool } from 'ai'
 import { stepCountIs } from 'ai'
 
@@ -25,6 +30,7 @@ import { getAiSdkProviderId } from '../provider/factory'
 import { setupToolsConfig } from '../utils/mcp'
 import { buildProviderOptions } from '../utils/options'
 import { getAnthropicThinkingBudget } from '../utils/reasoning'
+import { buildProviderBuiltinWebSearchConfig } from '../utils/websearch'
 import { getTemperature, getTopP } from './modelParameters'
 
 const logger = loggerService.withContext('parameterBuilder')
@@ -42,6 +48,7 @@ export async function buildStreamTextParams(
   options: {
     mcpTools?: MCPTool[]
     webSearchProviderId?: string
+    webSearchConfig?: CherryWebSearchConfig
     requestOptions?: {
       signal?: AbortSignal
       timeout?: number
@@ -57,6 +64,7 @@ export async function buildStreamTextParams(
     enableGenerateImage: boolean
     enableUrlContext: boolean
   }
+  webSearchPluginConfig?: WebSearchPluginConfig
 }> {
   const { mcpTools } = options
 
@@ -93,6 +101,12 @@ export async function buildStreamTextParams(
   // }
 
   // 构建真正的 providerOptions
+  const webSearchConfig: CherryWebSearchConfig = {
+    maxResults: store.getState().websearch.maxResults,
+    excludeDomains: store.getState().websearch.excludeDomains,
+    searchWithTime: store.getState().websearch.searchWithTime
+  }
+
   const providerOptions = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
     enableWebSearch,
@@ -109,15 +123,21 @@ export async function buildStreamTextParams(
     maxTokens -= getAnthropicThinkingBudget(assistant, model)
   }
 
-  // google-vertex | google-vertex-anthropic
+  let webSearchPluginConfig: WebSearchPluginConfig | undefined = undefined
   if (enableWebSearch) {
+    if (isBaseProvider(aiSdkProviderId)) {
+      webSearchPluginConfig = buildProviderBuiltinWebSearchConfig(aiSdkProviderId, webSearchConfig)
+    }
     if (!tools) {
       tools = {}
     }
     if (aiSdkProviderId === 'google-vertex') {
       tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
     } else if (aiSdkProviderId === 'google-vertex-anthropic') {
-      tools.web_search = vertexAnthropic.tools.webSearch_20250305({}) as ProviderDefinedTool
+      tools.web_search = vertexAnthropic.tools.webSearch_20250305({
+        maxUses: webSearchConfig.maxResults,
+        blockedDomains: mapRegexToPatterns(webSearchConfig.excludeDomains)
+      }) as ProviderDefinedTool
     }
   }
 
@@ -151,7 +171,8 @@ export async function buildStreamTextParams(
   return {
     params,
     modelId: model.id,
-    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext }
+    capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
+    webSearchPluginConfig
   }
 }
 

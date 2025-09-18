@@ -1,5 +1,6 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EditableNumber from '@renderer/components/EditableNumber'
 import { DeleteIcon, ResetIcon } from '@renderer/components/Icons'
@@ -11,7 +12,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { SettingRow } from '@renderer/pages/settings'
 import type { Assistant, AssistantSettingCustomParameters, AssistantSettings, Model } from '@renderer/types'
 import { modalConfirm } from '@renderer/utils'
-import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Switch, Tooltip } from 'antd'
+import { Button, Col, Divider, Input, InputNumber, Row, Select, Slider, Tooltip } from 'antd'
 import { isNull } from 'lodash'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -250,8 +251,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           </Label>
         </RowFlex>
         <Switch
-          checked={enableTemperature}
-          onChange={(enabled) => {
+          isSelected={enableTemperature}
+          onValueChange={(enabled) => {
             setEnableTemperature(enabled)
             updateAssistantSettings({ enableTemperature: enabled })
           }}
@@ -298,8 +299,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           </Tooltip>
         </RowFlex>
         <Switch
-          checked={enableTopP}
-          onChange={(enabled) => {
+          isSelected={enableTopP}
+          onValueChange={(enabled) => {
             setEnableTopP(enabled)
             updateAssistantSettings({ enableTopP: enabled })
           }}
@@ -387,8 +388,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           </Tooltip>
         </RowFlex>
         <Switch
-          checked={enableMaxTokens}
-          onChange={async (enabled) => {
+          isSelected={enableMaxTokens}
+          onValueChange={async (enabled) => {
             if (enabled) {
               const confirmed = await modalConfirm({
                 title: t('chat.settings.max_tokens.confirm'),
@@ -430,8 +431,8 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
       <SettingRow style={{ minHeight: 30 }}>
         <Label>{t('models.stream_output')}</Label>
         <Switch
-          checked={streamOutput}
-          onChange={(checked) => {
+          isSelected={streamOutput}
+          onValueChange={(checked) => {
             setStreamOutput(checked)
             updateAssistantSettings({ streamOutput: checked })
           }}

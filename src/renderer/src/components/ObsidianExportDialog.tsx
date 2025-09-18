@@ -1,3 +1,4 @@
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
@@ -10,7 +11,7 @@ import {
   messageToMarkdownWithReasoning,
   topicToMarkdown
 } from '@renderer/utils/export'
-import { Alert, Empty, Form, Input, Modal, Select, Spin, Switch, TreeSelect } from 'antd'
+import { Alert, Empty, Form, Input, Modal, Select, Spin, TreeSelect } from 'antd'
 import React, { useEffect, useState } from 'react'
 const logger = loggerService.withContext('ObsidianExportDialog')
 
@@ -410,7 +411,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           </Select>
         </Form.Item>
         <Form.Item label={i18n.t('chat.topics.export.obsidian_reasoning')}>
-          <Switch checked={exportReasoning} onChange={setExportReasoning} />
+          <Switch isSelected={exportReasoning} onValueChange={setExportReasoning} />
         </Form.Item>
       </Form>
     </Modal>

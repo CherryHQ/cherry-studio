@@ -26,7 +26,8 @@ export const baseProviderIds = [
   'xai',
   'azure',
   'azure-responses',
-  'deepseek'
+  'deepseek',
+  'openrouter'
 ] as const
 
 /**
@@ -38,6 +39,10 @@ export const baseProviderIdSchema = z.enum(baseProviderIds)
  * 基础 Provider ID
  */
 export type BaseProviderId = z.infer<typeof baseProviderIdSchema>
+
+export const isBaseProvider = (id: ProviderId): id is BaseProviderId => {
+  return baseProviderIdSchema.safeParse(id).success
+}
 
 type BaseProvider = {
   id: BaseProviderId

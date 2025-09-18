@@ -17,7 +17,14 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
-  "keywords": ["ui", "components", "react", "tailwindcss", "typescript", "cherry-studio"],
+  "keywords": [
+    "ui",
+    "components",
+    "react",
+    "tailwindcss",
+    "typescript",
+    "cherry-studio"
+  ],
   "author": "Cherry Studio",
   "license": "MIT",
   "repository": {
@@ -76,7 +83,10 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

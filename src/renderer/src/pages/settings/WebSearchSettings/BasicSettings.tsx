@@ -1,8 +1,9 @@
+import { Switch } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearchProviders'
 import { useAppDispatch } from '@renderer/store'
 import { setMaxResult, setSearchWithTime } from '@renderer/store/websearch'
-import { Slider, Switch, Tooltip } from 'antd'
+import { Slider, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -22,7 +23,7 @@ const BasicSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.tool.websearch.search_with_time')}</SettingRowTitle>
-          <Switch checked={searchWithTime} onChange={(checked) => dispatch(setSearchWithTime(checked))} />
+          <Switch isSelected={searchWithTime} onValueChange={(checked) => dispatch(setSearchWithTime(checked))} />
         </SettingRow>
         <SettingDivider style={{ marginTop: 15, marginBottom: 10 }} />
         <SettingRow style={{ height: 40 }}>

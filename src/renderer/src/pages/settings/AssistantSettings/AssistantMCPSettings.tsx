@@ -1,8 +1,9 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { Box } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, AssistantSettings } from '@renderer/types'
-import { Empty, Switch, Tooltip } from 'antd'
+import { Empty, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -84,10 +85,10 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                       : undefined
                   }>
                   <Switch
-                    checked={isEnabled}
+                    isSelected={isEnabled}
                     disabled={!server.isActive}
-                    onChange={() => handleServerToggle(server.id)}
-                    size="small"
+                    onValueChange={() => handleServerToggle(server.id)}
+                    size="sm"
                   />
                 </Tooltip>
               </ServerItem>

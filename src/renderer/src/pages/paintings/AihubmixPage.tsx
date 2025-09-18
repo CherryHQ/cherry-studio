@@ -1,5 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -20,7 +21,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -747,8 +748,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         return (
           <RowFlex>
             <Switch
-              checked={(painting[item.key!] || item.initialValue) as boolean}
-              onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
+              isSelected={(painting[item.key!] || item.initialValue) as boolean}
+              onValueChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
           </RowFlex>
         )

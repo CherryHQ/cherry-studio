@@ -1,3 +1,4 @@
+import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import type { MCPTool, Message, Model, Provider } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
@@ -27,6 +28,8 @@ export interface AiSdkMiddlewareConfig {
   enableUrlContext: boolean
   mcpTools?: MCPTool[]
   uiMessages?: Message[]
+  // 内置搜索配置
+  webSearchPluginConfig?: WebSearchPluginConfig
 }
 
 /**

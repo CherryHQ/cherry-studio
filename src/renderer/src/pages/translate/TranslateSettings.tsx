@@ -1,6 +1,5 @@
-import { ColFlex, RowFlex } from '@cherrystudio/ui'
+import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
-import { Switch } from '@heroui/react'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'

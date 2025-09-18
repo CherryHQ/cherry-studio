@@ -145,10 +145,15 @@ export default defineConfig([
           paths: [
             {
               name: 'antd',
-              importNames: ['Flex', 'message'],
+              importNames: ['Flex', 'Switch', 'message',],
               message:
-                '❌ Do not import Flex from antd. Use our custom Layout components instead: import { Flex } from "@cherrystudio/ui"'
-            }
+                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            },
+            // {
+            //   name: '@heroui/react',
+            //   message:
+            //     '❌ Do not import components from heroui directly. Use our wrapped components instead: import { ... } from "@cherrystudio/ui"'
+            // }
           ]
         }
       ]

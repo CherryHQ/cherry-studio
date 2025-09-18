@@ -1,4 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -8,7 +8,7 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import type { TabsProps } from 'antd'
-import { Badge, Button, Form, Input, Radio, Select, Switch, Tabs } from 'antd'
+import { Badge, Button, Form, Input, Radio, Select, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -639,7 +639,7 @@ const McpSettings: React.FC = () => {
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
             valuePropName="checked">
-            <Switch size="small" style={{ marginLeft: 10 }} />
+            <Switch size="sm" className="ml-2.5" />
           </Form.Item>
           <Form.Item
             name="timeout"
@@ -746,10 +746,10 @@ const McpSettings: React.FC = () => {
           </Flex>
           <Flex className="items-center gap-4">
             <Switch
-              value={server.isActive}
+              isSelected={server.isActive}
               key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
+              isLoading={loadingServer === server.id}
+              onValueChange={onToggleActive}
             />
             <Button
               type="primary"

@@ -1,5 +1,6 @@
 import { CheckOutlined, FolderOutlined, LoadingOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NutstorePathPopup from '@renderer/components/Popups/NutsorePathPopup'
 import Selector from '@renderer/components/Selector'
@@ -19,7 +20,7 @@ import {
 import { useAppSelector } from '@renderer/store'
 import { modalConfirm } from '@renderer/utils'
 import { NUTSTORE_HOST } from '@shared/config/nutstore'
-import { Button, Input, Switch, Tooltip, Typography } from 'antd'
+import { Button, Input, Tooltip, Typography } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -319,7 +320,7 @@ const NutstoreSettings: FC = () => {
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={nutstoreSkipBackupFile} onChange={onSkipBackupFilesChange} />
+            <Switch isSelected={nutstoreSkipBackupFile} onValueChange={onSkipBackupFilesChange} />
           </SettingRow>
           <SettingRow>
             <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>

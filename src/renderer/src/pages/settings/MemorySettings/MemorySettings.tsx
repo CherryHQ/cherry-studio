@@ -1,6 +1,7 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
 import TextBadge from '@renderer/components/TextBadge'
@@ -16,7 +17,7 @@ import {
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import { Badge, Button, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
+import { Badge, Button, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
@@ -588,7 +589,7 @@ const MemorySettings = () => {
             <TextBadge text="Beta" />
           </RowFlex>
           <RowFlex className="items-center gap-2.5">
-            <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
+            <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
             <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
           </RowFlex>
         </RowFlex>

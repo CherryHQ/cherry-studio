@@ -6,7 +6,7 @@ import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { openai } from '@ai-sdk/openai'
 
-import { createXaiOptions, mergeProviderOptions } from '../../../options'
+import { createOpenRouterOptions, createXaiOptions, mergeProviderOptions } from '../../../options'
 import { definePlugin } from '../../'
 import type { AiRequestContext } from '../../types'
 import type { WebSearchPluginConfig } from './helper'
@@ -32,6 +32,13 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
           }
           break
         }
+        case 'openai-chat': {
+          if (config['openai-chat']) {
+            if (!params.tools) params.tools = {}
+            params.tools.web_search_preview = openai.tools.webSearchPreview(config['openai-chat'])
+          }
+          break
+        }
 
         case 'anthropic': {
           if (config.anthropic) {
@@ -53,6 +60,14 @@ export const webSearchPlugin = (config: WebSearchPluginConfig = DEFAULT_WEB_SEAR
             const searchOptions = createXaiOptions({
               searchParameters: { ...config.xai, mode: 'on' }
             })
+            params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
+          }
+          break
+        }
+
+        case 'openrouter': {
+          if (config.openrouter) {
+            const searchOptions = createOpenRouterOptions(config.openrouter)
             params.providerOptions = mergeProviderOptions(params.providerOptions, searchOptions)
           }
           break

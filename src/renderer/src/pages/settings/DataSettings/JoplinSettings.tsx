@@ -1,9 +1,10 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Button, Space, Switch, Tooltip } from 'antd'
+import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -118,7 +119,7 @@ const JoplinSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.joplin.export_reasoning.title')}</SettingRowTitle>
-        <Switch checked={joplinExportReasoning} onChange={handleToggleJoplinExportReasoning} />
+        <Switch isSelected={joplinExportReasoning} onValueChange={handleToggleJoplinExportReasoning} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.joplin.export_reasoning.help')}</SettingHelpText>

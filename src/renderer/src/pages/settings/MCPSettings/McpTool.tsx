@@ -1,7 +1,8 @@
 import { ColFlex, Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Switch, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { Hammer, Info, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -145,7 +146,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       width: 150, // Fixed width might be good for alignment
       align: 'center',
       render: (_, tool) => (
-        <Switch checked={isToolEnabled(tool)} onChange={(checked) => handleToggle(tool, checked)} size="small" />
+        <Switch isSelected={isToolEnabled(tool)} onValueChange={(checked) => handleToggle(tool, checked)} size="sm" />
       )
     },
     {
@@ -169,10 +170,10 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
           }
           placement="top">
           <Switch
-            checked={isToolAutoApproved(tool, server)}
-            disabled={!isToolEnabled(tool)}
-            onChange={(checked) => handleAutoApproveToggle(tool, checked)}
-            size="small"
+            isSelected={isToolAutoApproved(tool, server)}
+            isDisabled={!isToolEnabled(tool)}
+            onValueChange={(checked) => handleAutoApproveToggle(tool, checked)}
+            size="sm"
           />
         </Tooltip>
       )

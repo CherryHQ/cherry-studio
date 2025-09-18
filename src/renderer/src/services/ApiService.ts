@@ -118,7 +118,8 @@ export async function fetchChatCompletion({
   const {
     params: aiSdkParams,
     modelId,
-    capabilities
+    capabilities,
+    webSearchPluginConfig
   } = await buildStreamTextParams(messages, assistant, provider, {
     mcpTools: mcpTools,
     webSearchProviderId: assistant.webSearchProviderId,
@@ -133,6 +134,7 @@ export async function fetchChatCompletion({
     isPromptToolUse: isPromptToolUse(assistant),
     isSupportedToolUse: isSupportedToolUse(assistant),
     isImageGenerationEndpoint: isDedicatedImageGenerationModel(assistant.model || getDefaultModel()),
+    webSearchPluginConfig: webSearchPluginConfig,
     enableWebSearch: capabilities.enableWebSearch,
     enableGenerateImage: capabilities.enableGenerateImage,
     enableUrlContext: capabilities.enableUrlContext,
