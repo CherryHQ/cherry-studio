@@ -5,10 +5,10 @@ import { useAgentClient } from './useAgentClient'
 export const useAgents = () => {
   const client = useAgentClient()
   const key = client.agentPaths.base
-  const { data: agents, error, isLoading } = useSWR(key, () => client.listAgents())
+  const { data, error, isLoading } = useSWR(key, () => client.listAgents())
 
   return {
-    agents,
+    agents: data?.agents ?? [],
     error,
     isLoading
   }
