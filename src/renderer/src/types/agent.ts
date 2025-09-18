@@ -78,15 +78,17 @@ export interface ListOptions {
 }
 
 // AgentSession entity representing a conversation session with one or more agents
-export interface AgentSessionEntity extends AgentBase {
-  id: string
-  agent_id: string // Primary agent ID for the session
-  agent_type: AgentType
+export const AgentSessionEntitySchema = AgentBaseSchema.extend({
+  id: z.string(),
+  agent_id: z.string(), // Primary agent ID for the session
+  agent_type: AgentTypeSchema,
   // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
 
-  created_at: string
-  updated_at: string
-}
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime()
+})
+
+export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // AgentSessionMessageEntity representing a message within a session
 export interface AgentSessionMessageEntity {
