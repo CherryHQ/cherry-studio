@@ -76,7 +76,7 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     content = text
     prompt = ''
   } else {
-    content = 'follow system instruction'
+    content = 'go'
     prompt = store
       .getState()
       .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
