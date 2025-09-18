@@ -69,6 +69,9 @@ export function getAiSdkProviderId(provider: Provider): ProviderId | 'openai-com
       return resolvedFromType
     }
   }
+  if (provider.apiHost.includes('api.openai.com')) {
+    return 'openai-chat'
+  }
   // 3. 最后的fallback（通常会成为openai-compatible）
   return provider.id as ProviderId
 }

@@ -8,7 +8,13 @@ import {
   MdiLightbulbOn80
 } from '@renderer/components/Icons/SVGIcon'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { getThinkModelType, isDoubaoThinkingAutoModel, MODEL_SUPPORTED_OPTIONS } from '@renderer/config/models'
+import {
+  getThinkModelType,
+  isDoubaoThinkingAutoModel,
+  isGPT5SeriesReasoningModel,
+  isOpenAIWebSearchModel,
+  MODEL_SUPPORTED_OPTIONS
+} from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Model, ThinkingOption } from '@renderer/types'
@@ -61,6 +67,15 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
         })
         return
       }
+      if (
+        isOpenAIWebSearchModel(model) &&
+        isGPT5SeriesReasoningModel(model) &&
+        assistant.enableWebSearch &&
+        option === 'minimal'
+      ) {
+        window.toast.warning(t('chat.web_search.warning.openai'))
+        return
+      }
       updateAssistantSettings({
         reasoning_effort: option,
         reasoning_effort_cache: option,
@@ -68,7 +83,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
       })
       return
     },
-    [updateAssistantSettings]
+    [updateAssistantSettings, assistant.enableWebSearch, model, t]
   )
 
   const panelItems = useMemo(() => {

@@ -229,6 +229,11 @@ export const isGPT5SeriesModel = (model: Model) => {
   return modelId.includes('gpt-5')
 }
 
+export const isGPT5SeriesReasoningModel = (model: Model) => {
+  const modelId = getLowerBaseModelName(model.id)
+  return modelId.includes('gpt-5') && !modelId.includes('chat')
+}
+
 export const isGeminiModel = (model: Model) => {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('gemini')

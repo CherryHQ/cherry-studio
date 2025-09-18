@@ -2,9 +2,8 @@ import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import { type GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import { type OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import { type SharedV2ProviderMetadata } from '@ai-sdk/provider'
-
-import { type OpenRouterProviderOptions } from './openrouter'
-import { type XaiProviderOptions } from './xai'
+import { type XaiProviderOptions } from '@ai-sdk/xai'
+import { type OpenRouterProviderOptions } from '@openrouter/ai-sdk-provider'
 
 export type ProviderOptions<T extends keyof SharedV2ProviderMetadata> = SharedV2ProviderMetadata[T]
 

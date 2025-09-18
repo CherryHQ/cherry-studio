@@ -3,13 +3,16 @@ import { google } from '@ai-sdk/google'
 import { openai } from '@ai-sdk/openai'
 
 import { ProviderOptionsMap } from '../../../options/types'
+import { OpenRouterSearchConfig } from './openrouter'
 
 /**
  * 从 AI SDK 的工具函数中提取参数类型，以确保类型安全。
  */
-type OpenAISearchConfig = Parameters<typeof openai.tools.webSearchPreview>[0]
-type AnthropicSearchConfig = Parameters<typeof anthropic.tools.webSearch_20250305>[0]
-type GoogleSearchConfig = Parameters<typeof google.tools.googleSearch>[0]
+export type OpenAISearchConfig = NonNullable<Parameters<typeof openai.tools.webSearch>[0]>
+export type OpenAISearchPreviewConfig = NonNullable<Parameters<typeof openai.tools.webSearchPreview>[0]>
+export type AnthropicSearchConfig = NonNullable<Parameters<typeof anthropic.tools.webSearch_20250305>[0]>
+export type GoogleSearchConfig = NonNullable<Parameters<typeof google.tools.googleSearch>[0]>
+export type XAISearchConfig = NonNullable<ProviderOptionsMap['xai']['searchParameters']>
 
 /**
  * 插件初始化时接收的完整配置对象
@@ -18,10 +21,12 @@ type GoogleSearchConfig = Parameters<typeof google.tools.googleSearch>[0]
  */
 export interface WebSearchPluginConfig {
   openai?: OpenAISearchConfig
+  'openai-chat'?: OpenAISearchPreviewConfig
   anthropic?: AnthropicSearchConfig
   xai?: ProviderOptionsMap['xai']['searchParameters']
   google?: GoogleSearchConfig
   'google-vertex'?: GoogleSearchConfig
+  openrouter?: OpenRouterSearchConfig
 }
 
 /**
@@ -31,6 +36,7 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   google: {},
   'google-vertex': {},
   openai: {},
+  'openai-chat': {},
   xai: {
     mode: 'on',
     returnCitations: true,
@@ -39,6 +45,14 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
   },
   anthropic: {
     maxUses: 5
+  },
+  openrouter: {
+    plugins: [
+      {
+        id: 'web',
+        max_results: 5
+      }
+    ]
   }
 }
 
