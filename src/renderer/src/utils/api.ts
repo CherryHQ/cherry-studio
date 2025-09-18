@@ -1,4 +1,5 @@
 import { AgentServerError } from '@renderer/types'
+import { AxiosError } from 'axios'
 import { t } from 'i18next'
 
 /**
@@ -75,3 +76,13 @@ export function splitApiKeyString(keyStr: string): string[] {
 
 export const formatAgentServerError = (error: AgentServerError) =>
   `${t('common.error')}: ${error.code} ${error.message}`
+
+export const formatAxiosError = (error: AxiosError) => {
+  if (!error.response) {
+    return `${t('common.error')}: ${t('error.no_response')}`
+  }
+
+  const { status, statusText } = error.response
+
+  return `${t('common.error')}: ${status} ${statusText}`
+}
