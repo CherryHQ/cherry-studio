@@ -118,14 +118,22 @@ export interface SessionMessageContent {
 // - mcps: Optional array of MCP (Model Control Protocol) tool IDs
 // - allowed_tools: Optional array of permitted tool IDs
 // - configuration: Optional agent settings (temperature, top_p, etc.)
-export type AgentForm = {
-  type: AgentType
+export interface BaseAgentForm {
+  // These fileds should be editable by user.
   name: string
   description?: string
   instructions?: string
   model: string
   accessible_paths: string[]
 }
+
+export interface AddAgentForm extends BaseAgentForm {
+  type: AgentType
+}
+
+export type UpdateAgentForm = Partial<BaseAgentForm>
+
+export type AgentForm = AddAgentForm | UpdateAgentForm
 
 // ------------------------
 // API Data Transfer Object

@@ -21,7 +21,7 @@ import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { AgentEntity, AgentForm, isAgentType } from '@renderer/types'
+import { AgentEntity, AgentForm, BaseAgentForm, isAgentType } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -44,7 +44,7 @@ interface AgentTypeOption extends Option {
 
 type ModelOption = Option
 
-const buildAgentForm = (existing?: AgentEntity): AgentForm => ({
+const buildAgentForm = (existing?: AgentEntity): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
   name: existing?.name ?? 'Claude Code',
   description: existing?.description,
@@ -162,7 +162,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       }
       setForm((prev) => ({
         ...prev,
-        type: e.target.value as AgentForm['type'],
+        type: e.target.value as AgentType,
         name: newName
       }))
     },
@@ -229,7 +229,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
         return
       }
 
-      let resultAgent: AgentEntity
+      let resultAgent: BaseAgentForm
       if (isEditing(agent)) {
         if (!agent) {
           throw new Error('Agent is required for editing mode')
