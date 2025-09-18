@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "Failed to add agent",
+        "failed": "Failed to add a agent",
         "invalid_agent": "Invalid Agent"
       },
       "title": "Add Agent",
@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
+      "error": {
+        "failed": "Failed to delete the agent"
+      },
       "title": "Delete Agent"
     },
     "edit": {
       "title": "Edit Agent"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "Failed to add a session"
+        }
+      },
       "delete": {
         "content": "Are you sure to delete this session?",
         "title": "Delete session"
       },
       "label_one": "Session",
       "label_other": "Sessions"
+    },
+    "update": {
+      "error": {
+        "failed": "Failed to update the agent"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "Model Type",
     "name": "Error name",
     "no_api_key": "API key is not configured",
+    "no_response": "No response",
     "originalError": "Original Error",
     "originalMessage": "Original Message",
     "parameter": "Parameter",

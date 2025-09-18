@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
+      "error": {
+        "failed": "[to be translated]:Failed to delete the agent"
+      },
       "title": "Διαγραφή Agent"
     },
     "edit": {
       "title": "Επεξεργαστής Agent"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "[to be translated]:Failed to add a session"
+        }
+      },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
       "label_other": "[to be translated]:Sessions"
+    },
+    "update": {
+      "error": {
+        "failed": "[to be translated]:Failed to update the agent"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "Τύπος μοντέλου",
     "name": "Λάθος όνομα",
     "no_api_key": "Δεν έχετε ρυθμίσει το κλειδί API",
+    "no_response": "[to be translated]:No response",
     "originalError": "Αρχικό σφάλμα",
     "originalMessage": "Αρχικό μήνυμα",
     "parameter": "παράμετροι",

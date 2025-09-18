@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
+      "error": {
+        "failed": "[to be translated]:Failed to delete the agent"
+      },
       "title": "Supprimer l'Agent"
     },
     "edit": {
       "title": "Éditer Agent"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "[to be translated]:Failed to add a session"
+        }
+      },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
       "label_other": "[to be translated]:Sessions"
+    },
+    "update": {
+      "error": {
+        "failed": "[to be translated]:Failed to update the agent"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "Type de modèle",
     "name": "Nom d'erreur",
     "no_api_key": "La clé API n'est pas configurée",
+    "no_response": "[to be translated]:No response",
     "originalError": "Erreur d'origine",
     "originalMessage": "message original",
     "parameter": "paramètre",

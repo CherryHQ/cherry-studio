@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
+      "error": {
+        "failed": "[to be translated]:Failed to delete the agent"
+      },
       "title": "エージェントを削除"
     },
     "edit": {
       "title": "編集エージェント"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "[to be translated]:Failed to add a session"
+        }
+      },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
       "label_other": "[to be translated]:Sessions"
+    },
+    "update": {
+      "error": {
+        "failed": "[to be translated]:Failed to update the agent"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "モデルの種類",
     "name": "エラー名",
     "no_api_key": "APIキーが設定されていません",
+    "no_response": "[to be translated]:No response",
     "originalError": "元のエラー",
     "originalMessage": "元のメッセージ",
     "parameter": "パラメータ",

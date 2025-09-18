@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
+      "error": {
+        "failed": "[to be translated]:Failed to delete the agent"
+      },
       "title": "Удалить агента"
     },
     "edit": {
       "title": "Редактировать агент"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "[to be translated]:Failed to add a session"
+        }
+      },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
       "label_other": "[to be translated]:Sessions"
+    },
+    "update": {
+      "error": {
+        "failed": "[to be translated]:Failed to update the agent"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "Тип модели",
     "name": "Название ошибки",
     "no_api_key": "Ключ API не настроен",
+    "no_response": "[to be translated]:No response",
     "originalError": "Исходная ошибка",
     "originalMessage": "исходное сообщение",
     "parameter": "параметр",

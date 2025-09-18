@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "error": {
+        "failed": "删除 Agent 失败"
+      },
       "title": "删除 Agent"
     },
     "edit": {
       "title": "编辑 Agent"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "添加会话失败"
+        }
+      },
       "delete": {
         "content": "确定要删除此会话吗？",
         "title": "删除会话"
       },
       "label_one": "会话",
       "label_other": "会话"
+    },
+    "update": {
+      "error": {
+        "failed": "更新 Agent 失败"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "模型类型",
     "name": "错误名称",
     "no_api_key": "API 密钥未配置",
+    "no_response": "无响应",
     "originalError": "原错误",
     "originalMessage": "原消息",
     "parameter": "参数",

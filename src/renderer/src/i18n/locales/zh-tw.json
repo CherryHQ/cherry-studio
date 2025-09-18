@@ -13,18 +13,31 @@
     },
     "delete": {
       "content": "刪除該 Agent 將強制終止並刪除該 Agent 下的所有會話。您確定嗎？",
+      "error": {
+        "failed": "[to be translated]:Failed to delete the agent"
+      },
       "title": "刪除 Agent"
     },
     "edit": {
       "title": "編輯 Agent"
     },
     "session": {
+      "create": {
+        "error": {
+          "failed": "[to be translated]:Failed to add a session"
+        }
+      },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
       "label_other": "[to be translated]:Sessions"
+    },
+    "update": {
+      "error": {
+        "failed": "[to be translated]:Failed to update the agent"
+      }
     }
   },
   "agents": {
@@ -928,6 +941,7 @@
     "modelType": "模型類型",
     "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
+    "no_response": "[to be translated]:No response",
     "originalError": "原錯誤",
     "originalMessage": "原消息",
     "parameter": "參數",
