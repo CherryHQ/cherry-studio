@@ -141,6 +141,16 @@ export interface UpdateAgentForm extends Partial<BaseAgentForm> {
 
 export type AgentForm = AddAgentForm | UpdateAgentForm
 
+export interface BaseSessionForm extends AgentBase {}
+
+export interface CreateSessionForm extends BaseSessionForm {
+  id?: never
+}
+
+export interface UpdateSessionForm extends Partial<BaseSessionForm> {
+  id: string
+}
+
 // ------------------------
 // API Data Transfer Object
 // ------------------------
