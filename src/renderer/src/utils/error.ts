@@ -56,6 +56,11 @@ export function formatErrorMessage(error: unknown): string {
   return `Error Details:\n${formattedJson}`
 }
 
+export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
+  const msg = formatErrorMessage(error)
+  return `${prefix}: ${msg}`
+}
+
 export const isAbortError = (error: any): boolean => {
   // Convert message to string for consistent checking
   const errorMessage = String(error?.message || '')
