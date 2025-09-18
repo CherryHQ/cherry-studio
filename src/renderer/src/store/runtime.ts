@@ -7,6 +7,8 @@ export interface ChatState {
   isMultiSelectMode: boolean
   selectedMessageIds: string[]
   activeTopic: Topic | null
+  /** UI state. null represents no active agent, may active assistant  */
+  activeAgentId: string | null
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
@@ -78,6 +80,7 @@ const initialState: RuntimeState = {
     isMultiSelectMode: false,
     selectedMessageIds: [],
     activeTopic: null,
+    activeAgentId: null,
     renamingTopics: [],
     newlyRenamedTopics: []
   },
@@ -142,6 +145,9 @@ const runtimeSlice = createSlice({
     setActiveTopic: (state, action: PayloadAction<Topic>) => {
       state.chat.activeTopic = action.payload
     },
+    setActiveAgentId: (state, action: PayloadAction<string>) => {
+      state.chat.activeAgentId = action.payload
+    },
     setRenamingTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.renamingTopics = action.payload
     },
@@ -180,6 +186,7 @@ export const {
   toggleMultiSelectMode,
   setSelectedMessageIds,
   setActiveTopic,
+  setActiveAgentId,
   setRenamingTopics,
   setNewlyRenamedTopics,
   // WebSearch related actions
