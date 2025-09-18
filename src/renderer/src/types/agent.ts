@@ -142,6 +142,8 @@ export const UpdateAgentResponseSchema = GetAgentResponseSchema
 
 export type UpdateAgentResponse = GetAgentResponse
 
+export type DeleteAgentResponse = boolean
+
 export type CreateSessionRequest = AgentBase
 
 export interface UpdateSessionRequest extends Partial<AgentBase> {}
