@@ -53,13 +53,27 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     logger.info('Starting Claude Code SDK query', {
       prompt,
-      options: { cwd, maxTurns: options.maxTurns, permissionMode: options.permissionMode }
+      options
     })
 
     // Start async processing
     this.processSDKQuery(prompt, options, aiStream)
 
     return aiStream
+  }
+
+  private async *userMessages(prompt: string) {
+    {
+      yield {
+        type: 'user' as const,
+        parent_tool_use_id: null,
+        session_id: '',
+        message: {
+          role: 'user' as const,
+          content: prompt
+        }
+      }
+    }
   }
 
   /**
@@ -73,7 +87,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     try {
       // Process streaming responses using SDK query
       for await (const message of query({
-        prompt,
+        prompt: this.userMessages(prompt),
         options
       })) {
         if (hasCompleted) break

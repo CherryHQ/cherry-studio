@@ -1,6 +1,5 @@
 import { EventEmitter } from 'node:events'
 
-import { PermissionMode } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
 import type {
   AgentSessionMessageEntity,
@@ -33,17 +32,6 @@ export async function chunksToModelMessages(
   return convertToModelMessages(uiMessages) // -> ModelMessage[]
 }
 
-// Utility function to normalize content to ModelMessage
-function normalizeModelMessage(content: string | ModelMessage): ModelMessage {
-  if (typeof content === 'string') {
-    return {
-      role: 'user',
-      content: content
-    }
-  }
-  return content
-}
-
 // Ensure errors emitted through SSE are serializable
 function serializeError(error: unknown): { message: string; name?: string; stack?: string } {
   if (error instanceof Error) {
@@ -63,50 +51,13 @@ function serializeError(error: unknown): { message: string; name?: string; stack
   }
 }
 
-// Interface for persistence context
-interface PersistContext {
-  session: GetAgentSessionResponse
-  accumulator: ChunkAccumulator
-  userMessageId: number
-}
-
 // Chunk accumulator class to collect and reconstruct streaming data
 class ChunkAccumulator {
   private streamedChunks: UIMessageChunk[] = []
-  private rawAgentMessages: any[] = []
-  private agentResult: any = null
   private agentType: string = 'unknown'
-  private uniqueIds: Set<string> = new Set()
 
   addChunk(chunk: UIMessageChunk): void {
     this.streamedChunks.push(chunk)
-  }
-
-  addRawMessage(message: any): void {
-    if (message.uuid && this.uniqueIds.has(message.uuid)) {
-      // Duplicate message based on uuid; skip adding
-      return
-    }
-    if (message.uuid) {
-      this.uniqueIds.add(message.uuid)
-    }
-    this.rawAgentMessages.push(message)
-  }
-
-  setAgentResult(result: any): void {
-    this.agentResult = result
-    if (result?.agentType) {
-      this.agentType = result.agentType
-    }
-  }
-
-  buildStructuredContent() {
-    return {
-      aiSDKChunks: this.streamedChunks,
-      rawAgentMessages: this.rawAgentMessages,
-      agentResult: this.agentResult,
-      agentType: this.agentType
-    }
   }
 
   // Create a ReadableStream from accumulated chunks
@@ -160,14 +111,6 @@ class ChunkAccumulator {
     }
 
     return message as ModelMessage
-  }
-
-  getChunkCount(): number {
-    return this.streamedChunks.length
-  }
-
-  getRawMessageCount(): number {
-    return this.rawAgentMessages.length
   }
 
   getAgentType(): string {
@@ -235,68 +178,65 @@ export class SessionMessageService extends BaseService {
     return { messages, total }
   }
 
-  async saveUserMessage(sessionId: string, content: ModelMessage | string): Promise<AgentSessionMessageEntity> {
+  async saveUserMessage(
+    tx: any,
+    sessionId: string,
+    prompt: string,
+    agentSessionId: string
+  ): Promise<AgentSessionMessageEntity> {
     this.ensureInitialized()
 
     const now = new Date().toISOString()
-    const userContent: ModelMessage = normalizeModelMessage(content)
-
     const insertData: InsertSessionMessageRow = {
       session_id: sessionId,
       role: 'user',
-      content: JSON.stringify(userContent),
-      metadata: JSON.stringify({
-        timestamp: now,
-        source: 'api'
-      }),
+      content: prompt,
+      agent_session_id: agentSessionId,
       created_at: now,
       updated_at: now
     }
 
-    const [saved] = await this.database.insert(sessionMessagesTable).values(insertData).returning()
+    const [saved] = await tx.insert(sessionMessagesTable).values(insertData).returning()
 
     return this.deserializeSessionMessage(saved) as AgentSessionMessageEntity
   }
 
-  createSessionMessage(
-    session: GetAgentSessionResponse,
-    messageData: CreateSessionMessageRequest,
-    userMessageId: number
-  ): EventEmitter {
+  createSessionMessage(session: GetAgentSessionResponse, messageData: CreateSessionMessageRequest): EventEmitter {
     this.ensureInitialized()
 
     // Create a new EventEmitter to manage the session message lifecycle
     const sessionStream = new EventEmitter()
 
     // No parent validation needed, start immediately
-    this.startSessionMessageStream(session, messageData, sessionStream, userMessageId)
+    this.startSessionMessageStream(session, messageData, sessionStream)
 
     return sessionStream
   }
 
-  private startSessionMessageStream(
+  private async startSessionMessageStream(
     session: GetAgentSessionResponse,
     req: CreateSessionMessageRequest,
-    sessionStream: EventEmitter,
-    userMessageId: number
-  ): void {
+    sessionStream: EventEmitter
+  ): Promise<void> {
     const previousMessages = session.messages || []
-    let session_id: string = ''
+    let agentSessionId: string = ''
     if (previousMessages.length > 0) {
-      session_id = previousMessages[0].session_id
+      agentSessionId = previousMessages[previousMessages.length - 1].agent_session_id
     }
 
-    logger.debug('Session Message stream message data:', { message: req, session_id })
+    logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
     if (session.agent_type !== 'claude-code') {
+      // TODO: Implement support for other agent types
       logger.error('Unsupported agent type for streaming:', { agent_type: session.agent_type })
       throw new Error('Unsupported agent type for streaming')
     }
+    let newAgentSessionId = ''
 
     // Create the streaming agent invocation (using invokeStream for streaming)
-    const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], session_id, {
-      permissionMode: (session.configuration?.permissionMode as PermissionMode) || 'default',
-      maxTurns: (session.configuration?.maxTurns as number) || 10
+    const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], agentSessionId, {
+      permissionMode: session.configuration?.permission_mode,
+      maxTurns: session.configuration?.max_turns
     })
 
     // Use chunk accumulator to manage streaming data
@@ -310,12 +250,10 @@ export class SessionMessageService extends BaseService {
             // Forward UIMessageChunk directly and collect raw agent messages
             if (event.chunk) {
               const chunk = event.chunk as UIMessageChunk
-              accumulator.addChunk(chunk)
-
-              // Collect raw agent message if available (agent-agnostic)
-              if (event.rawAgentMessage) {
-                accumulator.addRawMessage(event.rawAgentMessage)
+              if (chunk.type === 'start' && chunk.messageId) {
+                newAgentSessionId = chunk.messageId
               }
+              accumulator.addChunk(chunk)
 
               sessionStream.emit('data', {
                 type: 'chunk',
@@ -328,27 +266,10 @@ export class SessionMessageService extends BaseService {
 
           case 'error': {
             const underlyingError = event.error || (event.data?.stderr ? new Error(event.data.stderr) : undefined)
-            const persistScheduled = accumulator.getChunkCount() > 0
-
-            if (persistScheduled) {
-              // Try to save partial state with error metadata when possible
-              accumulator.setAgentResult({
-                error: serializeError(underlyingError),
-                agentType: 'claude-code',
-                incomplete: true
-              })
-
-              void this.persistSessionMessageAsync({
-                session,
-                accumulator,
-                userMessageId
-              })
-            }
 
             sessionStream.emit('data', {
               type: 'error',
-              error: serializeError(underlyingError),
-              persistScheduled
+              error: serializeError(underlyingError)
             })
             // Always emit a finish chunk at the end
             sessionStream.emit('data', {
@@ -358,19 +279,15 @@ export class SessionMessageService extends BaseService {
           }
 
           case 'complete': {
-            // Extract additional raw agent messages from agentResult if available
-            if (event.agentResult?.rawSDKMessages) {
-              event.agentResult.rawSDKMessages.forEach((msg: any) => accumulator.addRawMessage(msg))
-            }
-
-            // Set the agent result in the accumulator
-            accumulator.setAgentResult(event.agentResult)
-
             // Then handle async persistence
-            void this.persistSessionMessageAsync({
-              session,
-              accumulator,
-              userMessageId
+            this.database.transaction(async (tx) => {
+              await this.saveUserMessage(tx, session.id, req.content, newAgentSessionId)
+              await this.persistSessionMessageAsync({
+                tx,
+                session,
+                accumulator,
+                agentSessionId: newAgentSessionId
+              })
             })
             // Always emit a finish chunk at the end
             sessionStream.emit('data', {
@@ -395,7 +312,17 @@ export class SessionMessageService extends BaseService {
     })
   }
 
-  private async persistSessionMessageAsync({ session, accumulator, userMessageId }: PersistContext) {
+  private async persistSessionMessageAsync({
+    tx,
+    session,
+    accumulator,
+    agentSessionId
+  }: {
+    tx: any
+    session: GetAgentSessionResponse
+    accumulator: ChunkAccumulator
+    agentSessionId: string
+  }) {
     if (!session?.id) {
       const missingSessionError = new Error('Missing session_id for persisted message')
       logger.error('error persisting session message', { error: missingSessionError })
@@ -404,7 +331,6 @@ export class SessionMessageService extends BaseService {
 
     const sessionId = session.id
     const now = new Date().toISOString()
-    const structured = accumulator.buildStructuredContent()
 
     try {
       // Use chunksToModelMessages to convert chunks to ModelMessages
@@ -413,24 +339,16 @@ export class SessionMessageService extends BaseService {
       const modelMessage =
         modelMessages.length > 0 ? modelMessages[modelMessages.length - 1] : accumulator.toModelMessage('assistant')
 
-      const metadata = {
-        userMessageId,
-        chunkCount: accumulator.getChunkCount(),
-        rawMessageCount: accumulator.getRawMessageCount(),
-        agentType: accumulator.getAgentType(),
-        completedAt: now
-      }
-
       const insertData: InsertSessionMessageRow = {
         session_id: sessionId,
         role: 'assistant',
-        content: JSON.stringify({ modelMessage, ...structured }),
-        metadata: JSON.stringify(metadata),
+        content: JSON.stringify(modelMessage),
+        agent_session_id: agentSessionId,
         created_at: now,
         updated_at: now
       }
 
-      await this.database.insert(sessionMessagesTable).values(insertData).returning()
+      await tx.insert(sessionMessagesTable).values(insertData).returning()
       logger.debug('Success Persisted session message')
     } catch (error) {
       logger.error('Failed to persist session message', { error })

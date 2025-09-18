@@ -97,6 +97,7 @@ export const AgentSessionMessageEntitySchema = z.object({
   // manual defined. may not synced with ai sdk definition
   role: z.enum(['assistant', 'user', 'system', 'tool']), // 'assistant' | 'user' | 'system' | 'tool'
   content: modelMessageSchema,
+  agent_session_id: z.string(), // agent session id, use to resume agent session
   metadata: z.record(z.string(), z.any()).optional(), // Additional metadata (optional)
   created_at: z.iso.datetime(), // ISO timestamp
   updated_at: z.iso.datetime() // ISO timestamp
