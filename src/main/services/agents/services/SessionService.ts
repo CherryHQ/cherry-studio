@@ -11,7 +11,6 @@ import { and, count, eq, type SQL } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
 
-
 export class SessionService extends BaseService {
   private static instance: SessionService | null = null
 

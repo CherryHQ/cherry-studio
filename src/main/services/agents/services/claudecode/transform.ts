@@ -327,11 +327,6 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
       }
     }
   })
-
-  // Always emit a finish chunk at the end
-  chunks.push({
-    type: 'finish'
-  })
   return chunks
 }
 
