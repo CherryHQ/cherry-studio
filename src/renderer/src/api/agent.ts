@@ -176,4 +176,13 @@ export class AgentApiClient {
       throw processError(error, 'Failed to get session.')
     }
   }
+
+  public async deleteSession(agentId: string, sessionId: string): Promise<void> {
+    const url = this.getSessionPaths(agentId).withId(sessionId)
+    try {
+      await this.axios.delete(url)
+    } catch (error) {
+      throw processError(error, 'Failed to delete session.')
+    }
+  }
 }

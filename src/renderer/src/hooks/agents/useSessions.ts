@@ -37,11 +37,24 @@ export const useSessions = (agent: AgentEntity) => {
     [agent.id, client, mutate]
   )
 
+  const deleteSession = useCallback(
+    async (id: string) => {
+      try {
+        await client.deleteSession(agent.id, id)
+        mutate((prev) => prev?.filter((session) => session.id !== id))
+      } catch (error) {
+        window.toast.error(t('agent.session.delete.error.failed'))
+      }
+    },
+    [agent.id, client, mutate, t]
+  )
+
   return {
     sessions: data ?? [],
     error,
     isLoading,
     createSession,
-    getSession
+    getSession,
+    deleteSession
   }
 }
