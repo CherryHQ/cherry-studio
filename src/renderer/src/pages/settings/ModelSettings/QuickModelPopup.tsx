@@ -3,7 +3,7 @@ import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { Button, Divider, Input, Modal, Popover} from 'antd'
+import { Button, Divider, Input, Modal, Popover } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

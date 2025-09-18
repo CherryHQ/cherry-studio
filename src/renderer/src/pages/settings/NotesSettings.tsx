@@ -5,7 +5,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { initWorkSpace } from '@renderer/services/NotesService'
 import type { EditorView } from '@renderer/types'
-import { Button, Input, message, Slider} from 'antd'
+import { Button, Input, message, Slider } from 'antd'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -169,7 +169,10 @@ const NotesSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
-          <Switch isSelected={!settings.isFullWidth} onValueChange={(checked) => updateSettings({ isFullWidth: !checked })} />
+          <Switch
+            isSelected={!settings.isFullWidth}
+            onValueChange={(checked) => updateSettings({ isFullWidth: !checked })}
+          />
         </SettingRow>
         <SettingHelpText>{t('notes.settings.display.compress_content_description')}</SettingHelpText>
         <SettingDivider />

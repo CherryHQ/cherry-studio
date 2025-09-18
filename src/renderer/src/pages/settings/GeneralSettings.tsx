@@ -279,17 +279,26 @@ const GeneralSettings: FC = () => {
               <InfoCircleOutlined style={{ cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
-          <Switch isSelected={notificationSettings.assistant} onValueChange={(v) => handleNotificationChange('assistant', v)} />
+          <Switch
+            isSelected={notificationSettings.assistant}
+            onValueChange={(v) => handleNotificationChange('assistant', v)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.backup')}</SettingRowTitle>
-          <Switch isSelected={notificationSettings.backup} onValueChange={(v) => handleNotificationChange('backup', v)} />
+          <Switch
+            isSelected={notificationSettings.backup}
+            onValueChange={(v) => handleNotificationChange('backup', v)}
+          />
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.notification.knowledge_embed')}</SettingRowTitle>
-          <Switch isSelected={notificationSettings.knowledge} onValueChange={(v) => handleNotificationChange('knowledge', v)} />
+          <Switch
+            isSelected={notificationSettings.knowledge}
+            onValueChange={(v) => handleNotificationChange('knowledge', v)}
+          />
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
