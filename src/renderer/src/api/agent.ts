@@ -9,7 +9,9 @@ import {
   GetAgentResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
-  UpdateAgentRequest
+  UpdateAgentRequest,
+  UpdateAgentResponse,
+  UpdateAgentResponseSchema
 } from '@types'
 import { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
 
@@ -87,13 +89,15 @@ export class AgentApiClient {
     }
   }
 
-  public async updateAgent(id: string, agent: Partial<AgentForm>): Promise<void> {
+  public async updateAgent(id: string, agent: Partial<AgentForm>): Promise<UpdateAgentResponse> {
     const url = `/${this.apiVersion}/agents/${id}`
     try {
       const payload = {
         ...agent
       } satisfies UpdateAgentRequest
-      await this.axios.patch(url, payload)
+      const response = await this.axios.patch(url, payload)
+      const data = UpdateAgentResponseSchema.parse(response.data)
+      return data
     } catch (error) {
       throw processError(error, 'Failed to updateAgent.')
     }
