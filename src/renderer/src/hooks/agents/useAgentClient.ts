@@ -6,7 +6,7 @@ export const useAgentClient = () => {
   const { apiServer } = useSettings()
   const { host, port, apiKey } = apiServer
   const client = new AgentApiClient({
-    baseURL: `${host}:${port}`,
+    baseURL: `http://${host}:${port}`,
     headers: {
       Authorization: `Bearer ${apiKey}`
     }
