@@ -70,24 +70,16 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     temperature: 0.7
   }
 
-  let prompt: string
-  let content: string
-  if (isQwenMTModel(model)) {
-    content = text
-    prompt = ''
-  } else {
-    content = 'go'
-    prompt = store
-      .getState()
-      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
-      .replaceAll('{{text}}', text)
-  }
+  const content = store
+    .getState()
+    .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
+    .replaceAll('{{text}}', text)
 
   const translateAssistant = {
     ...assistant,
     model,
     settings,
-    prompt,
+    prompt: '',
     targetLanguage,
     content
   } satisfies TranslateAssistant
