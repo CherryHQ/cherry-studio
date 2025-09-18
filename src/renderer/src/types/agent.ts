@@ -61,12 +61,14 @@ export const AgentBaseSchema = z.object({
 export type AgentBase = z.infer<typeof AgentBaseSchema>
 
 // Agent entity representing an autonomous agent configuration
-export interface AgentEntity extends AgentBase {
-  id: string
-  type: AgentType
-  created_at: string
-  updated_at: string
-}
+export const AgentEntitySchema = AgentBaseSchema.extend({
+  id: z.string(),
+  type: AgentTypeSchema,
+  created_at: z.iso.datetime(),
+  updated_at: z.iso.datetime()
+})
+
+export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
 export interface ListOptions {
   limit?: number
