@@ -3,11 +3,20 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isMac, isWin } from '@main/constant'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryName } from '@main/utils/process'
-import { codeTools } from '@shared/config/constant'
+import {
+  codeTools,
+  MACOS_TERMINALS,
+  MACOS_TERMINALS_WITH_COMMANDS,
+  terminalApps,
+  TerminalConfig,
+  TerminalConfigWithCommand,
+  WINDOWS_TERMINALS,
+  WINDOWS_TERMINALS_WITH_COMMANDS
+} from '@shared/config/constant'
 import { spawn } from 'child_process'
 import { promisify } from 'util'
 
@@ -22,7 +31,10 @@ interface VersionInfo {
 
 class CodeToolsService {
   private versionCache: Map<string, { version: string; timestamp: number }> = new Map()
+  private terminalsCache: { terminals: TerminalConfig[]; timestamp: number } | null = null
+  private customTerminalPaths: Map<string, string> = new Map() // Store user-configured terminal paths
   private readonly CACHE_DURATION = 1000 * 60 * 30 // 30 minutes cache
+  private readonly TERMINALS_CACHE_DURATION = 1000 * 60 * 5 // 5 minutes cache for terminals
 
   constructor() {
     this.getBunPath = this.getBunPath.bind(this)
@@ -32,6 +44,23 @@ class CodeToolsService {
     this.getVersionInfo = this.getVersionInfo.bind(this)
     this.updatePackage = this.updatePackage.bind(this)
     this.run = this.run.bind(this)
+
+    if (isMac || isWin) {
+      this.preloadTerminals()
+    }
+  }
+
+  /**
+   * Preload available terminals in background
+   */
+  private async preloadTerminals(): Promise<void> {
+    try {
+      logger.info('Preloading available terminals...')
+      await this.getAvailableTerminals()
+      logger.info('Terminal preloading completed')
+    } catch (error) {
+      logger.warn('Terminal preloading failed:', error as Error)
+    }
   }
 
   public async getBunPath() {
@@ -75,10 +104,258 @@ class CodeToolsService {
     }
   }
 
+  /**
+   * Check if a single terminal is available
+   */
+  private async checkTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    try {
+      if (isMac && terminal.bundleId) {
+        // macOS: Check if application is installed via bundle ID with timeout
+        const { stdout } = await execAsync(`mdfind "kMDItemCFBundleIdentifier == '${terminal.bundleId}'"`, {
+          timeout: 3000
+        })
+        if (stdout.trim()) {
+          return terminal
+        }
+      } else if (isWin) {
+        // Windows: Check terminal availability
+        return await this.checkWindowsTerminalAvailability(terminal)
+      } else {
+        // TODO: Check if terminal is available in linux
+        await execAsync(`which ${terminal.id}`, { timeout: 2000 })
+        return terminal
+      }
+    } catch (error) {
+      logger.debug(`Terminal ${terminal.id} not available:`, error as Error)
+    }
+    return null
+  }
+
+  /**
+   * Check Windows terminal availability (simplified - user configured paths)
+   */
+  private async checkWindowsTerminalAvailability(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    try {
+      switch (terminal.id) {
+        case terminalApps.cmd:
+          // CMD is always available on Windows
+          return terminal
+
+        case terminalApps.powershell:
+          // Check for PowerShell in PATH
+          try {
+            await execAsync('powershell -Command "Get-Host"', { timeout: 3000 })
+            return terminal
+          } catch {
+            try {
+              await execAsync('pwsh -Command "Get-Host"', { timeout: 3000 })
+              return terminal
+            } catch {
+              return null
+            }
+          }
+
+        case terminalApps.windowsTerminal:
+          // Check for Windows Terminal via where command (doesn't launch the terminal)
+          try {
+            await execAsync('where wt', { timeout: 3000 })
+            return terminal
+          } catch {
+            return null
+          }
+
+        case terminalApps.wsl:
+          // Check for WSL
+          try {
+            await execAsync('wsl --status', { timeout: 3000 })
+            return terminal
+          } catch {
+            return null
+          }
+
+        default:
+          // For other terminals (Alacritty, WezTerm), check if user has configured custom path
+          return await this.checkCustomTerminalPath(terminal)
+      }
+    } catch (error) {
+      logger.debug(`Windows terminal ${terminal.id} not available:`, error as Error)
+      return null
+    }
+  }
+
+  /**
+   * Check if user has configured custom path for terminal
+   */
+  private async checkCustomTerminalPath(terminal: TerminalConfig): Promise<TerminalConfig | null> {
+    // Check if user has configured custom path
+    const customPath = this.customTerminalPaths.get(terminal.id)
+    if (customPath && fs.existsSync(customPath)) {
+      try {
+        await execAsync(`"${customPath}" --version`, { timeout: 3000 })
+        return { ...terminal, customPath }
+      } catch {
+        return null
+      }
+    }
+
+    // Fallback to PATH check
+    try {
+      const command = terminal.id === terminalApps.alacritty ? 'alacritty' : 'wezterm'
+      await execAsync(`${command} --version`, { timeout: 3000 })
+      return terminal
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Set custom path for a terminal (called from settings UI)
+   */
+  public setCustomTerminalPath(terminalId: string, path: string): void {
+    logger.info(`Setting custom path for terminal ${terminalId}: ${path}`)
+    this.customTerminalPaths.set(terminalId, path)
+    // Clear terminals cache to force refresh
+    this.terminalsCache = null
+  }
+
+  /**
+   * Get custom path for a terminal
+   */
+  public getCustomTerminalPath(terminalId: string): string | undefined {
+    return this.customTerminalPaths.get(terminalId)
+  }
+
+  /**
+   * Remove custom path for a terminal
+   */
+  public removeCustomTerminalPath(terminalId: string): void {
+    logger.info(`Removing custom path for terminal ${terminalId}`)
+    this.customTerminalPaths.delete(terminalId)
+    // Clear terminals cache to force refresh
+    this.terminalsCache = null
+  }
+
+  /**
+   * Get available terminals (with caching and parallel checking)
+   */
+  private async getAvailableTerminals(): Promise<TerminalConfig[]> {
+    const now = Date.now()
+
+    // Check cache first
+    if (this.terminalsCache && now - this.terminalsCache.timestamp < this.TERMINALS_CACHE_DURATION) {
+      logger.info(`Using cached terminals list (${this.terminalsCache.terminals.length} terminals)`)
+      return this.terminalsCache.terminals
+    }
+
+    logger.info('Checking available terminals in parallel...')
+    const startTime = Date.now()
+
+    // Get terminal list based on platform
+    const terminalList = isWin ? WINDOWS_TERMINALS : MACOS_TERMINALS
+
+    // Check all terminals in parallel
+    const terminalPromises = terminalList.map((terminal) => this.checkTerminalAvailability(terminal))
+
+    try {
+      // Wait for all checks to complete with a global timeout
+      const results = await Promise.allSettled(
+        terminalPromises.map((p) =>
+          Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))])
+        )
+      )
+
+      const availableTerminals: TerminalConfig[] = []
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          availableTerminals.push(result.value as TerminalConfig)
+        } else if (result.status === 'rejected') {
+          logger.debug(`Terminal check failed for ${MACOS_TERMINALS[index].id}:`, result.reason)
+        }
+      })
+
+      const endTime = Date.now()
+      logger.info(
+        `Terminal availability check completed in ${endTime - startTime}ms, found ${availableTerminals.length} terminals`
+      )
+
+      // Cache the results
+      this.terminalsCache = {
+        terminals: availableTerminals,
+        timestamp: now
+      }
+
+      return availableTerminals
+    } catch (error) {
+      logger.error('Error checking terminal availability:', error as Error)
+      // Return cached result if available, otherwise empty array
+      return this.terminalsCache?.terminals || []
+    }
+  }
+
+  /**
+   * Get terminal config by ID, fallback to system default
+   */
+  private async getTerminalConfig(terminalId?: string): Promise<TerminalConfigWithCommand> {
+    const availableTerminals = await this.getAvailableTerminals()
+    const terminalCommands = isWin ? WINDOWS_TERMINALS_WITH_COMMANDS : MACOS_TERMINALS_WITH_COMMANDS
+    const defaultTerminal = isWin ? terminalApps.cmd : terminalApps.systemDefault
+
+    if (terminalId) {
+      let requestedTerminal = terminalCommands.find(
+        (t) => t.id === terminalId && availableTerminals.some((at) => at.id === t.id)
+      )
+
+      if (requestedTerminal) {
+        // Apply custom path if configured
+        const customPath = this.customTerminalPaths.get(terminalId)
+        if (customPath && isWin) {
+          requestedTerminal = this.applyCustomPath(requestedTerminal, customPath)
+        }
+        return requestedTerminal
+      } else {
+        logger.warn(`Requested terminal ${terminalId} not available, falling back to system default`)
+      }
+    }
+
+    // Fallback to system default Terminal
+    const systemTerminal = terminalCommands.find(
+      (t) => t.id === defaultTerminal && availableTerminals.some((at) => at.id === t.id)
+    )
+    if (systemTerminal) {
+      return systemTerminal
+    }
+
+    // If even system Terminal is not found, return the first available
+    const firstAvailable = terminalCommands.find((t) => availableTerminals.some((at) => at.id === t.id))
+    if (firstAvailable) {
+      return firstAvailable
+    }
+
+    // Last resort fallback
+    return terminalCommands.find((t) => t.id === defaultTerminal)!
+  }
+
+  /**
+   * Apply custom path to terminal configuration
+   */
+  private applyCustomPath(terminal: TerminalConfigWithCommand, customPath: string): TerminalConfigWithCommand {
+    return {
+      ...terminal,
+      customPath,
+      command: (directory: string, fullCommand: string) => {
+        const originalCommand = terminal.command(directory, fullCommand)
+        return {
+          ...originalCommand,
+          command: customPath // Replace command with custom path
+        }
+      }
+    }
+  }
+
   private async isPackageInstalled(cliTool: string): Promise<boolean> {
     const executableName = await this.getCliExecutableName(cliTool)
     const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-    const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
     // Ensure bin directory exists
     if (!fs.existsSync(binDir)) {
@@ -105,7 +382,7 @@ class CodeToolsService {
       try {
         const executableName = await this.getCliExecutableName(cliTool)
         const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-        const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+        const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
         const { stdout } = await execAsync(`"${executablePath}" --version`, { timeout: 10000 })
         // Extract version number from output (format may vary by tool)
@@ -192,6 +469,17 @@ class CodeToolsService {
   }
 
   /**
+   * Get available terminals for the current platform
+   */
+  public async getAvailableTerminalsForPlatform(): Promise<TerminalConfig[]> {
+    if (isMac || isWin) {
+      return this.getAvailableTerminals()
+    }
+    // For other platforms, return empty array for now
+    return []
+  }
+
+  /**
    * Update a CLI tool to the latest version
    */
   public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
@@ -202,10 +490,9 @@ class CodeToolsService {
       const bunInstallPath = path.join(os.homedir(), '.cherrystudio')
       const registryUrl = await this.getNpmRegistryUrl()
 
-      const installEnvPrefix =
-        process.platform === 'win32'
-          ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-          : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
+      const installEnvPrefix = isWin
+        ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
+        : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
 
       const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
       logger.info(`Executing update command: ${updateCommand}`)
@@ -241,7 +528,7 @@ class CodeToolsService {
     _model: string,
     directory: string,
     env: Record<string, string>,
-    options: { autoUpdateToLatest?: boolean } = {}
+    options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
   ) {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
     logger.debug(`Environment variables:`, Object.keys(env))
@@ -251,7 +538,7 @@ class CodeToolsService {
     const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
     const binDir = path.join(os.homedir(), '.cherrystudio', 'bin')
-    const executablePath = path.join(binDir, executableName + (process.platform === 'win32' ? '.exe' : ''))
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
 
     logger.debug(`Package name: ${packageName}`)
     logger.debug(`Bun path: ${bunPath}`)
@@ -295,7 +582,13 @@ class CodeToolsService {
 
     // Build environment variable prefix (based on platform)
     const buildEnvPrefix = (isWindows: boolean) => {
-      if (Object.keys(env).length === 0) return ''
+      if (Object.keys(env).length === 0) {
+        logger.info('No environment variables to set')
+        return ''
+      }
+
+      logger.info('Setting environment variables:', Object.keys(env))
+      logger.info('Environment variable values:', env)
 
       if (isWindows) {
         // Windows uses set command
@@ -304,13 +597,29 @@ class CodeToolsService {
           .join(' && ')
       } else {
         // Unix-like systems use export command
-        return Object.entries(env)
-          .map(([key, value]) => `export ${key}="${value.replace(/"/g, '\\"')}"`)
+        const validEntries = Object.entries(env).filter(([key, value]) => {
+          if (!key || key.trim() === '') {
+            return false
+          }
+          if (value === undefined || value === null) {
+            return false
+          }
+          return true
+        })
+
+        const envCommands = validEntries
+          .map(([key, value]) => {
+            const sanitizedValue = String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+            const exportCmd = `export ${key}="${sanitizedValue}"`
+            logger.info(`Setting env var: ${key}="${sanitizedValue}"`)
+            logger.info(`Export command: ${exportCmd}`)
+            return exportCmd
+          })
           .join(' && ')
+        return envCommands
       }
     }
 
-    // Build command to execute
     let baseCommand = isWin ? `"${executablePath}"` : `"${bunPath}" "${executablePath}"`
 
     // Add configuration parameters for OpenAI Codex
@@ -351,20 +660,20 @@ class CodeToolsService {
 
     switch (platform) {
       case 'darwin': {
-        // macOS - Use osascript to launch terminal and execute command directly, without showing startup command
+        // macOS - Support multiple terminals
         const envPrefix = buildEnvPrefix(false)
+
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
+
         // Combine directory change with the main command to ensure they execute in the same shell session
         const fullCommand = `cd '${directory.replace(/'/g, "\\'")}' && clear && ${command}`
 
-        terminalCommand = 'osascript'
-        terminalArgs = [
-          '-e',
-          `tell application "Terminal"
-  do script "${fullCommand.replace(/"/g, '\\"')}"
-  activate
-end tell`
-        ]
+        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
+
+        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+        terminalCommand = cmd
+        terminalArgs = args
         break
       }
       case 'win32': {
@@ -424,9 +733,23 @@ end tell`
           throw new Error(`Failed to create launch script: ${error}`)
         }
 
-        // Launch bat file - Use safest start syntax, no title parameter
-        terminalCommand = 'cmd'
-        terminalArgs = ['/c', 'start', batFilePath]
+        // Use selected terminal configuration
+        const terminalConfig = await this.getTerminalConfig(options.terminal)
+        logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)
+
+        // Get command and args from terminal configuration
+        // Pass the bat file path as the command to execute
+        const fullCommand = batFilePath
+        const { command: cmd, args } = terminalConfig.command(directory, fullCommand)
+
+        // Override if it's a custom terminal with a custom path
+        if (terminalConfig.customPath) {
+          terminalCommand = terminalConfig.customPath
+          terminalArgs = args
+        } else {
+          terminalCommand = cmd
+          terminalArgs = args
+        }
 
         // Set cleanup task (delete temp file after 5 minutes)
         setTimeout(() => {
