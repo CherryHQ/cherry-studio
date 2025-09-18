@@ -158,3 +158,11 @@ export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSche
 export interface CreateSessionMessageRequest {
   content: string
 }
+
+export const AgentServerErrorSchema = z.object({
+  message: z.string(),
+  type: z.string(),
+  code: z.string()
+})
+
+export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
