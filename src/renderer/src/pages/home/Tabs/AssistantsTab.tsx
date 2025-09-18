@@ -37,7 +37,7 @@ const Assistants: FC<AssistantsTabProps> = ({
   const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const containerRef = useRef<HTMLDivElement>(null)
-  const { agents, setAgents, removeAgent } = useAgents()
+  const { agents } = useAgents()
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
@@ -53,10 +53,10 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   const onDeleteAgent = useCallback(
     (agent: AgentEntity) => {
-      removeAgent(agent.id)
+      // removeAgent(agent.id)
       window.toast.success(t('common.delete_success'))
     },
-    [removeAgent, t]
+    [t]
   )
 
   const handleSortByChange = useCallback(
@@ -149,27 +149,22 @@ const Assistants: FC<AssistantsTabProps> = ({
   return (
     <Container className="assistants-tab" ref={containerRef}>
       <span className="mb-2 text-foreground-400 text-xs">{t('common.agent_other')}</span>
-      <DraggableList
-        list={agents}
-        onUpdate={setAgents}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
-        {(agent) => <AgentItem agent={agent} isActive={false} onDelete={onDeleteAgent} />}
-      </DraggableList>
-      {!dragging && (
-        <AgentModal
-          trigger={{
-            content: (
-              <Button
-                onPress={(e) => e.continuePropagation()}
-                className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
-                <Plus size={16} className="mr-1 shrink-0" />
-                {t('agent.add.title')}
-              </Button>
-            )
-          }}
-        />
-      )}
+      {agents.map((agent) => (
+        <AgentItem key={agent.id} agent={agent} isActive={false} onDelete={onDeleteAgent} />
+      ))}
+      <AgentModal
+        trigger={{
+          content: (
+            <Button
+              onPress={(e) => e.continuePropagation()}
+              className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+              <Plus size={16} className="mr-1 shrink-0" />
+              {t('agent.add.title')}
+            </Button>
+          )
+        }}
+      />
+
       <Divider className="my-2" />
       <span className="mb-2 text-foreground-400 text-xs">{t('common.assistant_other')}</span>
       <DraggableList

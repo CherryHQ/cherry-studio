@@ -85,6 +85,7 @@ const Container: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, 
       'border-[0.5px] border-transparent',
       'w-[calc(var(--assistants-width)_-_20px)]',
       'hover:bg-[var(--color-list-item-hover)]',
+      'cursor-pointer',
       className?.includes('active') && 'bg-[var(--color-list-item)] shadow-sm',
       className
     )}
