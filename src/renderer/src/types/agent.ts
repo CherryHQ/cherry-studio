@@ -56,16 +56,6 @@ export interface AgentEntity extends AgentBase {
   updated_at: string
 }
 
-export interface CreateAgentRequest extends AgentBase {
-  type: AgentType
-}
-
-export interface UpdateAgentRequest extends Partial<AgentBase> {}
-
-export interface GetAgentResponse extends AgentEntity {
-  built_in_tools?: Tool[] // Built-in tools available to the agent
-}
-
 export interface ListOptions {
   limit?: number
   offset?: number
@@ -82,15 +72,6 @@ export interface AgentSessionEntity extends AgentBase {
   updated_at: string
 }
 
-export type CreateSessionRequest = AgentBase
-
-export interface UpdateSessionRequest extends Partial<AgentBase> {}
-
-export interface GetAgentSessionResponse extends AgentSessionEntity {
-  built_in_tools?: Tool[] // Built-in tools available to the agent
-  messages: AgentSessionMessageEntity[] // Messages in the session
-}
-
 // AgentSessionMessageEntity representing a message within a session
 export interface AgentSessionMessageEntity {
   id: number // Auto-increment primary key
@@ -102,14 +83,36 @@ export interface AgentSessionMessageEntity {
   updated_at: string // ISO timestamp
 }
 
-export interface CreateSessionMessageRequest {
-  content: string
-}
-
 // Structured content for session messages that preserves both AI SDK and raw data
 export interface SessionMessageContent {
   chunk: UIMessageChunk[] // UI-friendly AI SDK chunks for rendering
   raw: any[] // Original agent-specific messages for data integrity (agent-agnostic)
   agentResult?: any // Complete result from the underlying agent service
   agentType: string // The type of agent that generated this message (e.g., 'claude-code', 'openai', etc.)
+}
+
+// ------------------------
+// API Data Transfer Object
+// ------------------------
+export interface CreateAgentRequest extends AgentBase {
+  type: AgentType
+}
+
+export interface UpdateAgentRequest extends Partial<AgentBase> {}
+
+export interface GetAgentResponse extends AgentEntity {
+  built_in_tools?: Tool[] // Built-in tools available to the agent
+}
+
+export type CreateSessionRequest = AgentBase
+
+export interface UpdateSessionRequest extends Partial<AgentBase> {}
+
+export interface GetAgentSessionResponse extends AgentSessionEntity {
+  built_in_tools?: Tool[] // Built-in tools available to the agent
+  messages: AgentSessionMessageEntity[] // Messages in the session
+}
+
+export interface CreateSessionMessageRequest {
+  content: string
 }
