@@ -80,6 +80,7 @@ export interface ListOptions {
 // AgentSession entity representing a conversation session with one or more agents
 export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
+  name: z.string(),
   agent_id: z.string(), // Primary agent ID for the session
   agent_type: AgentTypeSchema,
   // sub_agent_ids?: string[] // Array of sub-agent IDs involved in the session
