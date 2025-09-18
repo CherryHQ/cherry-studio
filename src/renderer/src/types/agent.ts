@@ -138,6 +138,10 @@ export const ListAgentsResponseSchema = z.object({
 
 export type ListAgentsResponse = z.infer<typeof ListAgentsResponseSchema>
 
+export const UpdateAgentResponseSchema = GetAgentResponseSchema
+
+export type UpdateAgentResponse = GetAgentResponse
+
 export type CreateSessionRequest = AgentBase
 
 export interface UpdateSessionRequest extends Partial<AgentBase> {}

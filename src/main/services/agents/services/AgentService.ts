@@ -8,7 +8,8 @@ import type {
   GetAgentResponse,
   ListAgentsResponse,
   ListOptions,
-  UpdateAgentRequest
+  UpdateAgentRequest,
+  UpdateAgentResponse
 } from '@types'
 import { count, eq } from 'drizzle-orm'
 
@@ -111,7 +112,7 @@ export class AgentService extends BaseService {
     return { agents, total: totalResult[0].count }
   }
 
-  async updateAgent(id: string, updates: UpdateAgentRequest): Promise<GetAgentResponse | null> {
+  async updateAgent(id: string, updates: UpdateAgentRequest): Promise<UpdateAgentResponse | null> {
     this.ensureInitialized()
 
     // Check if agent exists
