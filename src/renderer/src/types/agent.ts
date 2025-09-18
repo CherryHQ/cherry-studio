@@ -119,6 +119,8 @@ export interface SessionMessageContent {
 // - allowed_tools: Optional array of permitted tool IDs
 // - configuration: Optional agent settings (temperature, top_p, etc.)
 export interface BaseAgentForm {
+  id?: string
+  type: AgentType
   // These fileds should be editable by user.
   name: string
   description?: string
@@ -128,10 +130,13 @@ export interface BaseAgentForm {
 }
 
 export interface AddAgentForm extends BaseAgentForm {
-  type: AgentType
+  id?: never
 }
 
-export type UpdateAgentForm = Partial<BaseAgentForm>
+export interface UpdateAgentForm extends Partial<BaseAgentForm> {
+  id: string
+  type?: never
+}
 
 export type AgentForm = AddAgentForm | UpdateAgentForm
 

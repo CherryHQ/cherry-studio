@@ -18,11 +18,11 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useAddAgent } from '@renderer/hooks/agents/useAddAgent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { AgentEntity, AgentForm, BaseAgentForm, isAgentType } from '@renderer/types'
-import { uuid } from '@renderer/utils'
+import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -86,10 +86,11 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   const { setTimeoutTimer } = useTimer()
-  const { addAgent, updateAgent } = useAgents()
+  const { addAgent } = useAddAgent()
+  const { updateAgent } = useUpdateAgent()
   const isEditing = (agent?: AgentEntity) => agent !== undefined
 
-  const [form, setForm] = useState<AgentForm>(() => buildAgentForm(agent))
+  const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
 
   useEffect(() => {
     if (isOpen) {
@@ -153,7 +154,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const onAgentTypeChange = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => {
       const prevConfig = agentConfig.find((config) => config.key === form.type)
-      let newName: string = form.name
+      let newName: string | undefined = form.name
       if (prevConfig && prevConfig.name === form.name) {
         const newConfig = agentConfig.find((config) => config.key === e.target.value)
         if (newConfig) {
@@ -229,42 +230,36 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
         return
       }
 
-      let resultAgent: BaseAgentForm
       if (isEditing(agent)) {
         if (!agent) {
           throw new Error('Agent is required for editing mode')
         }
 
-        const updatePayload: Partial<AgentEntity> & { id: string } = {
+        const updatePayload = {
           id: agent.id,
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          updated_at: new Date().toISOString(),
           model: form.model
-        }
+        } satisfies UpdateAgentForm
 
         updateAgent(updatePayload)
-        resultAgent = { ...agent, ...updatePayload }
+        logger.debug('Updated agent', updatePayload)
         window.toast.success(t('common.update_success'))
       } else {
-        const now = new Date().toISOString()
-        resultAgent = {
-          id: uuid(),
+        const newAgent = {
           type: form.type,
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          created_at: now,
-          updated_at: now,
           model: form.model,
           accessible_paths: [...form.accessible_paths]
-        }
-        addAgent(resultAgent)
+        } satisfies AddAgentForm
+        addAgent(newAgent)
+        logger.debug('Added agent', newAgent)
         window.toast.success(t('common.add_success'))
       }
 
-      logger.debug('Agent mutation payload', { agent: resultAgent })
       loadingRef.current = false
 
       setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
