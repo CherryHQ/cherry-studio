@@ -104,6 +104,9 @@ export class AgentApiClient {
     try {
       const response = await this.axios.get(url)
       const data = GetAgentResponseSchema.parse(response.data)
+      if (data.id !== id) {
+        throw new Error('Agent ID mismatch in response')
+      }
       return data
     } catch (error) {
       throw processError(error, 'Failed to get agent.')
@@ -125,6 +128,9 @@ export class AgentApiClient {
       const payload = form satisfies UpdateAgentRequest
       const response = await this.axios.patch(url, payload)
       const data = UpdateAgentResponseSchema.parse(response.data)
+      if (data.id !== form.id) {
+        throw new Error('Agent ID mismatch in response')
+      }
       return data
     } catch (error) {
       throw processError(error, 'Failed to updateAgent.')
@@ -162,6 +168,9 @@ export class AgentApiClient {
     try {
       const response = await this.axios.get(url)
       const data = GetAgentSessionResponseSchema.parse(response.data)
+      if (sessionId !== data.id) {
+        throw new Error('Session ID mismatch in response')
+      }
       return data
     } catch (error) {
       throw processError(error, 'Failed to get session.')
