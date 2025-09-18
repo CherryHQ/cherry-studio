@@ -6,6 +6,7 @@ import type {
   CreateAgentRequest,
   CreateAgentResponse,
   GetAgentResponse,
+  ListAgentsResponse,
   ListOptions,
   UpdateAgentRequest
 } from '@types'
@@ -85,7 +86,7 @@ export class AgentService extends BaseService {
     return agent
   }
 
-  async listAgents(options: ListOptions = {}): Promise<{ agents: GetAgentResponse[]; total: number }> {
+  async listAgents(options: ListOptions = {}): Promise<ListAgentsResponse> {
     this.ensureInitialized() // Build query with pagination
 
     const totalResult = await this.database.select({ count: count() }).from(agentsTable)
