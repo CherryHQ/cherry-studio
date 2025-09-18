@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { sessionMessageService, sessionService } from '@main/services/agents'
+import { CreateSessionResponse } from '@types'
 import { Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
@@ -12,7 +13,7 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
     logger.info(`Creating new session for agent: ${agentId}`)
     logger.debug('Session data:', sessionData)
 
-    const session = await sessionService.createSession(agentId, sessionData)
+    const session = (await sessionService.createSession(agentId, sessionData)) satisfies CreateSessionResponse
 
     logger.info(`Session created successfully: ${session.id}`)
     return res.status(201).json(session)

@@ -2,6 +2,7 @@ import type {
   AgentEntity,
   AgentSessionEntity,
   CreateSessionRequest,
+  CreateSessionResponse,
   GetAgentSessionResponse,
   ListOptions,
   UpdateSessionRequest
@@ -25,7 +26,7 @@ export class SessionService extends BaseService {
     await BaseService.initialize()
   }
 
-  async createSession(agentId: string, req: CreateSessionRequest): Promise<AgentSessionEntity> {
+  async createSession(agentId: string, req: CreateSessionRequest): Promise<CreateSessionResponse> {
     this.ensureInitialized()
 
     // Validate agent exists - we'll need to import AgentService for this check

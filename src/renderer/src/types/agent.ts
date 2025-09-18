@@ -186,6 +186,10 @@ export interface CreateSessionMessageRequest {
   content: string
 }
 
+export const CreateSessionResponseSchema = AgentSessionEntitySchema
+
+export type CreateSessionResponse = AgentSessionEntity
+
 export const AgentServerErrorSchema = z.object({
   message: z.string(),
   type: z.string(),
