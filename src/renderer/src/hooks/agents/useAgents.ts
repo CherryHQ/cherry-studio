@@ -40,11 +40,27 @@ export const useAgents = () => {
     [client, mutate, t]
   )
 
+  const deleteAgent = useCallback(
+    async (id: string) => {
+      try {
+        await client.deleteAgent(id)
+        mutate((prev) => ({
+          agents: prev?.agents.filter((a) => a.id !== id) ?? [],
+          total: prev ? prev.total - 1 : 0
+        }))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
+      }
+    },
+    [client, mutate, t]
+  )
+
   return {
     agents: data?.agents ?? [],
     error,
     isLoading,
     addAgent,
-    updateAgent
+    updateAgent,
+    deleteAgent
   }
 }
