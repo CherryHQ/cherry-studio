@@ -140,12 +140,16 @@ export function buildAiSdkMiddlewares(config: AiSdkMiddlewareConfig): LanguageMo
   return builder.build()
 }
 
-const tagNameArray = ['think', 'thought', 'reasoning']
+const tagName = {
+  reasoning: 'reasoning',
+  think: 'think',
+  thought: 'thought'
+}
 
 function getReasoningTagName(modelId: string | undefined): string {
-  if (modelId?.includes('gpt-oss')) return tagNameArray[2]
-  if (modelId?.includes('gemini')) return tagNameArray[1]
-  return tagNameArray[0]
+  if (modelId?.includes('gpt-oss')) return tagName.reasoning
+  if (modelId?.includes('gemini')) return tagName.thought
+  return tagName.think
 }
 
 /**
