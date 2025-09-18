@@ -8,15 +8,25 @@ import {
   GetAgentResponse,
   GetAgentResponseSchema,
   type ListAgentsResponse,
-  ListAgentsResponseSchema
+  ListAgentsResponseSchema,
+  UpdateAgentRequest
 } from '@types'
 import { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
 
 type ApiVersion = 'v1'
 
 // const logger = loggerService.withContext('AgentClient')
+const processError = (error: unknown, fallbackMessage: string) => {
+  if (isAxiosError(error)) {
+    const result = AgentServerErrorSchema.safeParse(error.response)
+    if (result.success) {
+      return new Error(formatAgentServerError(result.data), { cause: error })
+    }
+  }
+  return new Error(fallbackMessage, { cause: error })
+}
 
-export class AgentClient {
+export class AgentApiClient {
   private axios: Axios
   private apiVersion: ApiVersion = 'v1'
   constructor(config: AxiosRequestConfig, apiVersion?: ApiVersion) {
@@ -39,7 +49,7 @@ export class AgentClient {
       }
       return result.data
     } catch (error) {
-      throw new Error('Failed to list agents.', { cause: error })
+      throw processError(error, 'Failed to list agents.')
     }
   }
 
@@ -53,7 +63,7 @@ export class AgentClient {
       const data = CreateAgentResponseSchema.parse(response.data)
       return data
     } catch (error) {
-      throw new Error('Failed to create agent.', { cause: error })
+      throw processError(error, 'Failed to create agent.')
     }
   }
 
@@ -64,7 +74,7 @@ export class AgentClient {
       const data = GetAgentResponseSchema.parse(response.data)
       return data
     } catch (error) {
-      throw new Error('Failed to get agent.', { cause: error })
+      throw processError(error, 'Failed to get agent.')
     }
   }
 
@@ -73,13 +83,19 @@ export class AgentClient {
     try {
       await this.axios.delete(url)
     } catch (error) {
-      if (isAxiosError(error)) {
-        const result = AgentServerErrorSchema.safeParse(error.response)
-        if (result.success) {
-          throw new Error(formatAgentServerError(result.data), { cause: error })
-        }
-      }
-      throw new Error('Failed to delete agent.', { cause: error })
+      throw processError(error, 'Failed to delete agent.')
+    }
+  }
+
+  public async updateAgent(id: string, agent: Partial<AgentForm>): Promise<void> {
+    const url = `/${this.apiVersion}/agents/${id}`
+    try {
+      const payload = {
+        ...agent
+      } satisfies UpdateAgentRequest
+      await this.axios.patch(url, payload)
+    } catch (error) {
+      throw processError(error, 'Failed to updateAgent.')
     }
   }
 }
