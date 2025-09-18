@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "无效的 Agent"
+      },
+      "title": "添加 Agent",
+      "type": {
+        "label": "Agent 类型",
+        "placeholder": "选择 Agent 类型"
+      }
+    },
+    "delete": {
+      "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "title": "删除 Agent"
+    },
+    "edit": {
+      "title": "编辑 Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "添加到助手",
@@ -737,9 +756,14 @@
   },
   "common": {
     "add": "添加",
+    "add_success": "添加成功",
     "advanced_settings": "高级设置",
+    "agent_one": "Agent",
+    "agent_other": "Agents",
     "and": "和",
     "assistant": "智能体",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "头像",
     "back": "返回",
     "browse": "浏览",
@@ -756,6 +780,7 @@
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
+    "delete_success": "删除成功",
     "description": "描述",
     "detail": "详情",
     "disabled": "已禁用",
@@ -765,6 +790,9 @@
     "edit": "编辑",
     "enabled": "已启用",
     "error": "错误",
+    "errors": {
+      "validation": "验证失败"
+    },
     "expand": "展开",
     "file": {
       "not_supported": "不支持的文件类型 {{type}}"
@@ -775,6 +803,7 @@
     "go_to_settings": "前往设置",
     "i_know": "我知道了",
     "inspect": "检查",
+    "invalid_value": "无效值",
     "knowledge_base": "知识库",
     "language": "语言",
     "loading": "加载中...",
@@ -786,6 +815,11 @@
     "none": "无",
     "open": "打开",
     "paste": "粘贴",
+    "placeholders": {
+      "select": {
+        "model": "选择模型"
+      }
+    },
     "preview": "预览",
     "prompt": "提示词",
     "provider": "提供商",
@@ -812,6 +846,7 @@
     "success": "成功",
     "swap": "交换",
     "topics": "话题",
+    "update_success": "更新成功",
     "upload_files": "上传文件",
     "warning": "警告",
     "you": "用户"

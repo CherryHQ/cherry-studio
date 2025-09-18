@@ -5,13 +5,13 @@ import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
 import { AGENT_PROMPT } from '@renderer/config/prompts'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { fetchGenerate } from '@renderer/services/ApiService'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { useAppSelector } from '@renderer/store'
-import { Agent, KnowledgeBase } from '@renderer/types'
+import { AssistantPreset, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { Button, Form, FormInstance, Input, Modal, Popover, Select, SelectProps } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -21,7 +21,7 @@ import stringWidth from 'string-width'
 import styled from 'styled-components'
 
 interface Props {
-  resolve: (data: Agent | null) => void
+  resolve: (data: AssistantPreset | null) => void
 }
 
 type FieldType = {
@@ -31,13 +31,13 @@ type FieldType = {
   knowledge_base_ids: string[]
 }
 
-const logger = loggerService.withContext('AddAgentPopup')
+const logger = loggerService.withContext('AddAssistantPresetPopup')
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const { addAgent } = useAgents()
+  const { addAssistantPreset } = useAssistantPresets()
   const formRef = useRef<FormInstance>(null)
   const [emoji, setEmoji] = useState('')
   const [loading, setLoading] = useState(false)
@@ -77,7 +77,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       return
     }
 
-    const _agent: Agent = {
+    const _agent: AssistantPreset = {
       id: uuid(),
       name: values.name,
       knowledge_bases: values.knowledge_base_ids
@@ -91,7 +91,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       messages: []
     }
 
-    addAgent(_agent)
+    addAssistantPreset(_agent)
     resolve(_agent)
     setOpen(false)
   }
@@ -266,13 +266,13 @@ const TokenCount = styled.div`
   user-select: none;
 `
 
-export default class AddAgentPopup {
+export default class AddAssistantPresetPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('AddAgentPopup')
+    TopView.hide('AddAssistantPresetPopup')
   }
   static show() {
-    return new Promise<Agent | null>((resolve) => {
+    return new Promise<AssistantPreset | null>((resolve) => {
       TopView.show(
         <PopupContainer
           resolve={(v) => {
@@ -280,7 +280,7 @@ export default class AddAgentPopup {
             this.hide()
           }}
         />,
-        'AddAgentPopup'
+        'AddAssistantPresetPopup'
       )
     })
   }

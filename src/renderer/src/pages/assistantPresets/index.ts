@@ -2,28 +2,33 @@ import { loggerService } from '@logger'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import store from '@renderer/store'
-import { Agent } from '@renderer/types'
+import { AssistantPreset } from '@renderer/types'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useSystemAgents')
 
-let _agents: Agent[] = []
+let _agents: AssistantPreset[] = []
 
 export const getAgentsFromSystemAgents = (systemAgents: any) => {
-  const agents: Agent[] = []
+  const agents: AssistantPreset[] = []
   for (let i = 0; i < systemAgents.length; i++) {
     for (let j = 0; j < systemAgents[i].group.length; j++) {
-      const agent = { ...systemAgents[i], group: systemAgents[i].group[j], topics: [], type: 'agent' } as Agent
+      const agent = {
+        ...systemAgents[i],
+        group: systemAgents[i].group[j],
+        topics: [],
+        type: 'agent'
+      } as AssistantPreset
       agents.push(agent)
     }
   }
   return agents
 }
 
-export function useSystemAgents() {
-  const { defaultAgent } = useSettings()
-  const [agents, setAgents] = useState<Agent[]>([])
+export function useSystemAssistantPresets() {
+  const { defaultAgent: defaultPreset } = useSettings()
+  const [presets, setPresets] = useState<AssistantPreset[]>([])
   const { resourcesPath } = useRuntime()
   const { agentssubscribeUrl } = store.getState().settings
   const { i18n } = useTranslation()
@@ -40,8 +45,8 @@ export function useSystemAgents() {
             if (!response.ok) {
               throw new Error(`HTTP error! Status: ${response.status}`)
             }
-            const agentsData = (await response.json()) as Agent[]
-            setAgents(agentsData)
+            const agentsData = (await response.json()) as AssistantPreset[]
+            setPresets(agentsData)
             return
           } catch (error) {
             logger.error('Failed to load remote agents:', error as Error)
@@ -54,28 +59,28 @@ export function useSystemAgents() {
           try {
             const fileName = currentLanguage === 'zh-CN' ? 'agents-zh.json' : 'agents-en.json'
             const localAgentsData = await window.api.fs.read(`${resourcesPath}/data/${fileName}`, 'utf-8')
-            _agents = JSON.parse(localAgentsData) as Agent[]
+            _agents = JSON.parse(localAgentsData) as AssistantPreset[]
           } catch (error) {
             logger.error('Failed to load local agents:', error as Error)
           }
         }
 
-        setAgents(_agents)
+        setPresets(_agents)
       } catch (error) {
         logger.error('Failed to load agents:', error as Error)
         // 发生错误时使用已加载的本地 agents
-        setAgents(_agents)
+        setPresets(_agents)
       }
     }
 
     loadAgents()
-  }, [defaultAgent, resourcesPath, agentssubscribeUrl, currentLanguage])
+  }, [defaultPreset, resourcesPath, agentssubscribeUrl, currentLanguage])
 
-  return agents
+  return presets
 }
 
-export function groupByCategories(data: Agent[]) {
-  const groupedMap = new Map<string, Agent[]>()
+export function groupByCategories(data: AssistantPreset[]) {
+  const groupedMap = new Map<string, AssistantPreset[]>()
   data.forEach((item) => {
     item.group?.forEach((category) => {
       if (!groupedMap.has(category)) {
@@ -84,7 +89,7 @@ export function groupByCategories(data: Agent[]) {
       groupedMap.get(category)?.push(item)
     })
   })
-  const result: Record<string, Agent[]> = {}
+  const result: Record<string, AssistantPreset[]> = {}
   Array.from(groupedMap.entries()).forEach(([category, items]) => {
     result[category] = items
   })

@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
+import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
 import { modelsRoutes } from './routes/models'
@@ -101,10 +102,7 @@ app.get('/', (_req, res) => {
     name: 'Cherry Studio API',
     version: '1.0.0',
     endpoints: {
-      health: 'GET /health',
-      models: 'GET /v1/models',
-      chat: 'POST /v1/chat/completions',
-      mcp: 'GET /v1/mcps'
+      health: 'GET /health'
     }
   })
 })
@@ -117,6 +115,7 @@ apiRouter.use(express.json())
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
 apiRouter.use('/models', modelsRoutes)
+apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)
 
 // Setup OpenAPI documentation

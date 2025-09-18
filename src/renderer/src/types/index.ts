@@ -15,6 +15,7 @@ import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
+export * from './agent'
 export * from './knowledge'
 export * from './mcp'
 export * from './notification'
@@ -131,7 +132,7 @@ export type AssistantSettings = {
   toolUseMode: 'function' | 'prompt'
 }
 
-export type Agent = Omit<Assistant, 'model'> & {
+export type AssistantPreset = Omit<Assistant, 'model'> & {
   group?: string[]
 }
 

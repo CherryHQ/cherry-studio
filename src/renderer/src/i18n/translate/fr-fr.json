@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "Agent invalide"
+      },
+      "title": "Ajouter un agent",
+      "type": {
+        "label": "Type d'agent",
+        "placeholder": "Sélectionner le type d'Agent"
+      }
+    },
+    "delete": {
+      "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
+      "title": "Supprimer l'Agent"
+    },
+    "edit": {
+      "title": "Éditer Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "Ajouter à l'assistant",
@@ -737,9 +756,14 @@
   },
   "common": {
     "add": "Ajouter",
+    "add_success": "Ajout réussi",
     "advanced_settings": "Paramètres avancés",
+    "agent_one": "Agent",
+    "agent_other": "Agents",
     "and": "et",
     "assistant": "Intelligence artificielle",
+    "assistant_one": "assistant",
+    "assistant_other": "assistant",
     "avatar": "Avatar",
     "back": "Retour",
     "browse": "Parcourir",
@@ -756,6 +780,7 @@
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
+    "delete_success": "Suppression réussie",
     "description": "Description",
     "detail": "détails",
     "disabled": "Désactivé",
@@ -765,6 +790,9 @@
     "edit": "Éditer",
     "enabled": "Activé",
     "error": "erreur",
+    "errors": {
+      "validation": "Échec de la vérification"
+    },
     "expand": "Développer",
     "file": {
       "not_supported": "Type de fichier non pris en charge {{type}}"
@@ -775,6 +803,7 @@
     "go_to_settings": "Aller aux paramètres",
     "i_know": "J'ai compris",
     "inspect": "Vérifier",
+    "invalid_value": "valeur invalide",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
     "loading": "Chargement...",
@@ -786,6 +815,11 @@
     "none": "Aucun",
     "open": "Ouvrir",
     "paste": "Coller",
+    "placeholders": {
+      "select": {
+        "model": "Choisir le modèle"
+      }
+    },
     "preview": "Aperçu",
     "prompt": "Prompt",
     "provider": "Fournisseur",
@@ -812,6 +846,7 @@
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
+    "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
     "you": "Vous"

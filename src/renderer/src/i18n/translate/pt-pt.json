@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "Agent inválido"
+      },
+      "title": "Adicionar Agente",
+      "type": {
+        "label": "Tipo de Agente",
+        "placeholder": "Selecionar tipo de Agente"
+      }
+    },
+    "delete": {
+      "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
+      "title": "删除代理"
+    },
+    "edit": {
+      "title": "Agent Editor"
+    }
+  },
   "agents": {
     "add": {
       "button": "Adicionar ao Assistente",
@@ -737,9 +756,14 @@
   },
   "common": {
     "add": "Adicionar",
+    "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
+    "agent_one": "Agente",
+    "agent_other": "Agentes",
     "and": "e",
     "assistant": "Agente Inteligente",
+    "assistant_one": "assistente",
+    "assistant_other": "assistente",
     "avatar": "Avatar",
     "back": "Voltar",
     "browse": "Navegar",
@@ -756,6 +780,7 @@
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
+    "delete_success": "Excluído com sucesso",
     "description": "Descrição",
     "detail": "detalhes",
     "disabled": "Desativado",
@@ -765,6 +790,9 @@
     "edit": "Editar",
     "enabled": "Ativado",
     "error": "错误",
+    "errors": {
+      "validation": "Falha na verificação"
+    },
     "expand": "Expandir",
     "file": {
       "not_supported": "Tipo de arquivo não suportado {{type}}"
@@ -775,6 +803,7 @@
     "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
     "inspect": "Verificar",
+    "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
     "loading": "Carregando...",
@@ -786,6 +815,11 @@
     "none": "Nenhum",
     "open": "Abrir",
     "paste": "Colar",
+    "placeholders": {
+      "select": {
+        "model": "Selecionar modelo"
+      }
+    },
     "preview": "Pré-visualização",
     "prompt": "Prompt",
     "provider": "Fornecedor",
@@ -812,6 +846,7 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
+    "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",
     "you": "Você"

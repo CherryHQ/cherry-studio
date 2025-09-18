@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "Invalid Agent"
+      },
+      "title": "Add Agent",
+      "type": {
+        "label": "Agent Type",
+        "placeholder": "Select an agent type"
+      }
+    },
+    "delete": {
+      "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
+      "title": "Delete Agent"
+    },
+    "edit": {
+      "title": "Edit Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "Add to Assistant",
@@ -737,9 +756,14 @@
   },
   "common": {
     "add": "Add",
+    "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
+    "agent_one": "Agent",
+    "agent_other": "Agents",
     "and": "and",
-    "assistant": "Assistant",
+    "assistant": "Agent",
+    "assistant_one": "Assistant",
+    "assistant_other": "Assistants",
     "avatar": "Avatar",
     "back": "Back",
     "browse": "Browse",
@@ -756,6 +780,7 @@
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
+    "delete_success": "Deleted successfully",
     "description": "Description",
     "detail": "Detail",
     "disabled": "Disabled",
@@ -765,6 +790,9 @@
     "edit": "Edit",
     "enabled": "Enabled",
     "error": "error",
+    "errors": {
+      "validation": "Verification failed"
+    },
     "expand": "Expand",
     "file": {
       "not_supported": "Unsupported file type {{type}}"
@@ -775,6 +803,7 @@
     "go_to_settings": "Go to settings",
     "i_know": "I know",
     "inspect": "Inspect",
+    "invalid_value": "Invalid Value",
     "knowledge_base": "Knowledge Base",
     "language": "Language",
     "loading": "Loading...",
@@ -786,6 +815,11 @@
     "none": "None",
     "open": "Open",
     "paste": "Paste",
+    "placeholders": {
+      "select": {
+        "model": "Select a model"
+      }
+    },
     "preview": "Preview",
     "prompt": "Prompt",
     "provider": "Provider",
@@ -812,6 +846,7 @@
     "success": "Success",
     "swap": "Swap",
     "topics": "Topics",
+    "update_success": "Update successfully",
     "upload_files": "Upload file",
     "warning": "Warning",
     "you": "You"

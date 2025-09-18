@@ -1,17 +1,21 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { Button, Divider } from '@heroui/react'
 import { DraggableList } from '@renderer/components/DraggableList'
+import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useAgents } from '@renderer/hooks/useAgents'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
-import { Assistant, AssistantsSortType } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
+import { AgentEntity, Assistant, AssistantsSortType } from '@renderer/types'
+import { Tooltip } from 'antd'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AgentItem from './components/AgentItem'
 import AssistantItem from './components/AssistantItem'
 
 interface AssistantsTabProps {
@@ -28,11 +32,12 @@ const Assistants: FC<AssistantsTabProps> = ({
 }) => {
   const { assistants, removeAssistant, copyAssistant, updateAssistants } = useAssistants()
   const [dragging, setDragging] = useState(false)
-  const { addAgent } = useAgents()
+  const { addAssistantPreset } = useAssistantPresets()
   const { t } = useTranslation()
   const { getGroupedAssistants, collapsedTags, toggleTagCollapse } = useTags()
   const { assistantsTabSortType = 'list', setAssistantsTabSortType } = useAssistantsTabSortType()
   const containerRef = useRef<HTMLDivElement>(null)
+  const { agents } = useAgents()
 
   const onDelete = useCallback(
     (assistant: Assistant) => {
@@ -44,6 +49,14 @@ const Assistants: FC<AssistantsTabProps> = ({
       removeAssistant(assistant.id)
     },
     [activeAssistant, assistants, removeAssistant, setActiveAssistant, onCreateDefaultAssistant]
+  )
+
+  const onDeleteAgent = useCallback(
+    (agent: AgentEntity) => {
+      // removeAgent(agent.id)
+      window.toast.success(t('common.delete_success'))
+    },
+    [t]
   )
 
   const handleSortByChange = useCallback(
@@ -72,14 +85,10 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   const renderAddAssistantButton = useMemo(() => {
     return (
-      <AssistantAddItem onClick={onCreateAssistant}>
-        <AddItemWrapper>
-          <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
-          <Typography.Text style={{ color: 'inherit' }} ellipsis={{ tooltip: t('chat.add.assistant.title') }}>
-            {t('chat.add.assistant.title')}
-          </Typography.Text>
-        </AddItemWrapper>
-      </AssistantAddItem>
+      <Button onPress={onCreateAssistant} className="justify-start bg-transparent text-foreground-500 hover:bg-accent">
+        <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
+        {t('chat.add.assistant.title')}
+      </Button>
     )
   }, [onCreateAssistant, t])
 
@@ -119,7 +128,7 @@ const Assistants: FC<AssistantsTabProps> = ({
                         sortBy={assistantsTabSortType}
                         onSwitch={setActiveAssistant}
                         onDelete={onDelete}
-                        addAgent={addAgent}
+                        addPreset={addAssistantPreset}
                         copyAssistant={copyAssistant}
                         onCreateDefaultAssistant={onCreateDefaultAssistant}
                         handleSortByChange={handleSortByChange}
@@ -132,12 +141,32 @@ const Assistants: FC<AssistantsTabProps> = ({
           ))}
         </div>
         {renderAddAssistantButton}
+        {/* <AddAgentButton /> */}
       </Container>
     )
   }
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
+      <span className="mb-2 text-foreground-400 text-xs">{t('common.agent_other')}</span>
+      {agents.map((agent) => (
+        <AgentItem key={agent.id} agent={agent} isActive={false} onDelete={onDeleteAgent} />
+      ))}
+      <AgentModal
+        trigger={{
+          content: (
+            <Button
+              onPress={(e) => e.continuePropagation()}
+              className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+              <Plus size={16} className="mr-1 shrink-0" />
+              {t('agent.add.title')}
+            </Button>
+          )
+        }}
+      />
+
+      <Divider className="my-2" />
+      <span className="mb-2 text-foreground-400 text-xs">{t('common.assistant_other')}</span>
       <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
@@ -151,7 +180,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             sortBy={assistantsTabSortType}
             onSwitch={setActiveAssistant}
             onDelete={onDelete}
-            addAgent={addAgent}
+            addPreset={addAssistantPreset}
             copyAssistant={copyAssistant}
             onCreateDefaultAssistant={onCreateDefaultAssistant}
             handleSortByChange={handleSortByChange}
@@ -176,22 +205,6 @@ const TagsContainer = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-`
-
-const AssistantAddItem = styled.div`
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  padding: 7px 12px;
-  position: relative;
-  padding-right: 35px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid transparent;
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-list-item-hover);
-  }
 `
 
 const GroupTitle = styled.div`
@@ -224,15 +237,6 @@ const GroupTitleName = styled.div`
 const GroupTitleDivider = styled.div`
   flex: 1;
   border-top: 1px solid var(--color-border);
-`
-
-const AddItemWrapper = styled.div`
-  color: var(--color-text-2);
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  overflow: hidden;
 `
 
 export default Assistants

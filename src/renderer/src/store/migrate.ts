@@ -2466,6 +2466,15 @@ const migrateConfig = {
   },
   '155': (state: RootState) => {
     try {
+      state.agents.agentsNew = []
+      return state
+    } catch (error) {
+      logger.error('migrate 155 error', error as Error)
+      return state
+    }
+  },
+  '156': (state: RootState) => {
+    try {
       state.knowledge.bases.forEach((base) => {
         if ((base as any).framework) {
           delete (base as any).framework
@@ -2477,7 +2486,7 @@ const migrateConfig = {
       return state
     }
   },
-  '156': (state: RootState) => {
+  '157': (state: RootState) => {
     try {
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.anthropic) {
@@ -2488,7 +2497,7 @@ const migrateConfig = {
       })
       return state
     } catch (error) {
-      logger.error('migrate 156 error', error as Error)
+      logger.error('migrate 157 error', error as Error)
       return state
     }
   }

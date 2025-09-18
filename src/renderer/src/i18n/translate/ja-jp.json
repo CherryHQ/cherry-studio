@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "無効なエージェント"
+      },
+      "title": "エージェントを追加",
+      "type": {
+        "label": "エージェントタイプ",
+        "placeholder": "エージェントタイプを選択"
+      }
+    },
+    "delete": {
+      "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
+      "title": "エージェントを削除"
+    },
+    "edit": {
+      "title": "編集エージェント"
+    }
+  },
   "agents": {
     "add": {
       "button": "アシスタントに追加",
@@ -737,9 +756,14 @@
   },
   "common": {
     "add": "追加",
+    "add_success": "追加成功",
     "advanced_settings": "詳細設定",
+    "agent_one": "エージェント",
+    "agent_other": "エージェント",
     "and": "と",
     "assistant": "アシスタント",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "アバター",
     "back": "戻る",
     "browse": "参照",
@@ -756,6 +780,7 @@
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
+    "delete_success": "削除に成功しました",
     "description": "説明",
     "detail": "詳細",
     "disabled": "無効",
@@ -765,6 +790,9 @@
     "edit": "編集",
     "enabled": "有効",
     "error": "エラー",
+    "errors": {
+      "validation": "検証に失敗しました"
+    },
     "expand": "展開",
     "file": {
       "not_supported": "サポートされていないファイルタイプ {{type}}"
@@ -775,6 +803,7 @@
     "go_to_settings": "設定に移動",
     "i_know": "わかりました",
     "inspect": "検査",
+    "invalid_value": "無効な値",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
@@ -786,6 +815,11 @@
     "none": "無",
     "open": "開く",
     "paste": "貼り付け",
+    "placeholders": {
+      "select": {
+        "model": "モデルを選択"
+      }
+    },
     "preview": "プレビュー",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
@@ -812,6 +846,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
     "you": "あなた"

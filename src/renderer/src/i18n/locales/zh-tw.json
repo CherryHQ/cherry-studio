@@ -1,4 +1,23 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "invalid_agent": "無效的 Agent"
+      },
+      "title": "新增代理",
+      "type": {
+        "label": "代理類型",
+        "placeholder": "選擇 Agent 類型"
+      }
+    },
+    "delete": {
+      "content": "刪除該 Agent 將強制終止並刪除該 Agent 下的所有會話。您確定嗎？",
+      "title": "刪除 Agent"
+    },
+    "edit": {
+      "title": "編輯 Agent"
+    }
+  },
   "agents": {
     "add": {
       "button": "新增到助手",
@@ -737,9 +756,14 @@
   },
   "common": {
     "add": "新增",
+    "add_success": "新增成功",
     "advanced_settings": "進階設定",
+    "agent_one": "代理人",
+    "agent_other": "代理人",
     "and": "與",
     "assistant": "智慧代理人",
+    "assistant_one": "助手",
+    "assistant_other": "助手",
     "avatar": "頭像",
     "back": "返回",
     "browse": "瀏覽",
@@ -756,6 +780,7 @@
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
+    "delete_success": "刪除成功",
     "description": "描述",
     "detail": "詳情",
     "disabled": "已停用",
@@ -765,6 +790,9 @@
     "edit": "編輯",
     "enabled": "已啟用",
     "error": "錯誤",
+    "errors": {
+      "validation": "驗證失敗"
+    },
     "expand": "展開",
     "file": {
       "not_supported": "不支持的文件類型 {{type}}"
@@ -775,6 +803,7 @@
     "go_to_settings": "前往設定",
     "i_know": "我知道了",
     "inspect": "檢查",
+    "invalid_value": "無效值",
     "knowledge_base": "知識庫",
     "language": "語言",
     "loading": "加載中...",
@@ -786,6 +815,11 @@
     "none": "無",
     "open": "開啟",
     "paste": "貼上",
+    "placeholders": {
+      "select": {
+        "model": "選擇模型"
+      }
+    },
     "preview": "預覽",
     "prompt": "提示詞",
     "provider": "供應商",
@@ -812,6 +846,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",
     "you": "您"
