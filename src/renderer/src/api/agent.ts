@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { formatAgentServerError } from '@renderer/utils'
 import {
   AddAgentForm,
@@ -18,8 +19,11 @@ import { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
 
 type ApiVersion = 'v1'
 
+const logger = loggerService.withContext('AgentApiClient')
+
 // const logger = loggerService.withContext('AgentClient')
 const processError = (error: unknown, fallbackMessage: string) => {
+  logger.error(fallbackMessage, error as Error)
   if (isAxiosError(error)) {
     const result = AgentServerErrorSchema.safeParse(error.response)
     if (result.success) {
