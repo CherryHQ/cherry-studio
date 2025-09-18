@@ -51,9 +51,7 @@ export class MigrationService {
       }
 
       // Get applied migrations
-      const appliedMigrations = hasMigrationsTable
-        ? await this.getAppliedMigrations()
-        : []
+      const appliedMigrations = hasMigrationsTable ? await this.getAppliedMigrations() : []
       const appliedVersions = new Set(appliedMigrations.map((m) => Number(m.version)))
 
       const latestAppliedVersion = appliedMigrations.reduce(
@@ -90,9 +88,7 @@ export class MigrationService {
 
   private async migrationsTableExists(): Promise<boolean> {
     try {
-      const table = await this.client.execute(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`
-      )
+      const table = await this.client.execute(`SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'`)
       return table.rows.length > 0
     } catch (error) {
       logger.error('Failed to check migrations table status:', { error })
@@ -162,5 +158,4 @@ export class MigrationService {
       throw error
     }
   }
-
 }

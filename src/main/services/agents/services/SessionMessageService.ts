@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 
+import { PermissionMode } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
 import type {
   AgentSessionMessageEntity,
@@ -294,8 +295,8 @@ export class SessionMessageService extends BaseService {
 
     // Create the streaming agent invocation (using invokeStream for streaming)
     const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], session_id, {
-      permissionMode: session.configuration?.permission_mode,
-      maxTurns: session.configuration?.max_turns
+      permissionMode: (session.configuration?.permissionMode as PermissionMode) || 'default',
+      maxTurns: (session.configuration?.maxTurns as number) || 10
     })
 
     // Use chunk accumulator to manage streaming data

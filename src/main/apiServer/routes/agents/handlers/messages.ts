@@ -36,10 +36,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     logger.debug('Streaming message data:', messageData)
 
     // Step 1: Save user message first
-    const userMessage = await sessionMessageService.saveUserMessage(
-      sessionId,
-      messageData.content
-    )
+    const userMessage = await sessionMessageService.saveUserMessage(sessionId, messageData.content)
 
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream')
@@ -47,7 +44,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
-
 
     const messageStream = sessionMessageService.createSessionMessage(session, messageData, userMessage.id)
 
