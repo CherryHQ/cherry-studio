@@ -34,27 +34,29 @@ export const AgentConfigurationSchema = z
 export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 // Shared configuration interface for both agents and sessions
-export interface AgentBase {
+export const AgentBaseSchema = z.object({
   // Basic info
-  name?: string
-  description?: string
-  accessible_paths: string[] // Array of directory paths the agent can access
+  name: z.string().optional(),
+  description: z.string().optional(),
+  accessible_paths: z.array(z.string()), // Array of directory paths the agent can access
 
   // Instructions for the agent
-  instructions?: string // System prompt
+  instructions: z.string().optional(), // System prompt
 
   // Models
-  model: string // Main Model ID (required)
-  plan_model?: string // Optional plan/thinking model ID
-  small_model?: string // Optional small/fast model ID
+  model: z.string(), // Main Model ID (required)
+  plan_model: z.string().optional(), // Optional plan/thinking model ID
+  small_model: z.string().optional(), // Optional small/fast model ID
 
   // Tools
-  mcps?: string[] // Array of MCP tool IDs
-  allowed_tools?: string[] // Array of allowed tool IDs (whitelist)
+  mcps: z.array(z.string()).optional(), // Array of MCP tool IDs
+  allowed_tools: z.array(z.string()).optional(), // Array of allowed tool IDs (whitelist)
 
   // Configuration
-  configuration?: AgentConfiguration // Extensible settings like temperature, top_p, etc.
-}
+  configuration: AgentConfigurationSchema.optional() // Extensible settings like temperature, top_p, etc.
+})
+
+export type AgentBase = z.infer<typeof AgentBaseSchema>
 
 // Agent entity representing an autonomous agent configuration
 export interface AgentEntity extends AgentBase {
