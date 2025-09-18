@@ -58,7 +58,7 @@ const getTabIcon = (tabId: string, minapps: any[]): React.ReactNode | undefined 
   switch (tabId) {
     case 'home':
       return <Home size={14} />
-    case 'agents':
+    case 'assistantPresets':
       return <Sparkle size={14} />
     case 'translate':
       return <Languages size={14} />

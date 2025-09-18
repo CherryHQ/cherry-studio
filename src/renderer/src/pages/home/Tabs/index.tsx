@@ -9,6 +9,7 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import { AgentsTab as Agents } from './AgentsTab'
 import Assistants from './AssistantsTab'
 import Settings from './SettingsTab'
 import Topics from './TopicsTab'
@@ -23,7 +24,7 @@ interface Props {
   style?: React.CSSProperties
 }
 
-type Tab = 'assistants' | 'topic' | 'settings'
+type Tab = 'assistants' | 'topic' | 'settings' | 'agents' | 'sessions'
 
 let _tab: any = ''
 
@@ -107,6 +108,9 @@ const HomeTabs: FC<Props> = ({
           <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
             {t('assistants.abbr')}
           </TabItem>
+          <TabItem active={tab === 'agents'} onClick={() => setTab('agents')}>
+            {t('agents.title')}
+          </TabItem>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
           </TabItem>
@@ -136,6 +140,7 @@ const HomeTabs: FC<Props> = ({
             onCreateDefaultAssistant={onCreateDefaultAssistant}
           />
         )}
+        {tab === 'agents' && <Agents />}
         {tab === 'topic' && (
           <Topics
             assistant={activeAssistant}
