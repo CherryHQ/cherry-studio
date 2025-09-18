@@ -2,8 +2,11 @@ import { Button } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useRemoveAgent } from '@renderer/hooks/agents/useRemoveAgent'
+import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
 import { Plus } from 'lucide-react'
-import { FC } from 'react'
+import { FC, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentItem from './components/AgentItem'
@@ -14,12 +17,28 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
   const { agents } = useAgents()
   const { removeAgent } = useRemoveAgent()
   const { t } = useTranslation()
+  const { chat } = useRuntime()
+  const { activeAgentId } = chat
+  const dispatch = useAppDispatch()
+
+  const setActiveAgentId = useCallback(
+    (id: string) => {
+      dispatch(setActiveAgentIdAction(id))
+    },
+    [dispatch]
+  )
 
   return (
     <div className="agents-tab h-full w-full">
       <span className="mb-2 text-foreground-400 text-xs">{t('common.agent_other')}</span>
       {agents.map((agent) => (
-        <AgentItem key={agent.id} agent={agent} isActive={false} onDelete={removeAgent} />
+        <AgentItem
+          key={agent.id}
+          agent={agent}
+          isActive={agent.id === activeAgentId}
+          onDelete={removeAgent}
+          onPress={() => setActiveAgentId(agent.id)}
+        />
       ))}
       <AgentModal
         trigger={{

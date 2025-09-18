@@ -1,4 +1,4 @@
-import { Avatar, cn, useDisclosure } from '@heroui/react'
+import { Avatar, Button, cn, useDisclosure } from '@heroui/react'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { AgentModal } from '@renderer/components/Popups/AgentModal'
@@ -14,10 +14,10 @@ interface AgentItemProps {
   agent: AgentEntity
   isActive: boolean
   onDelete: (agent: AgentEntity) => void
-  onTagClick?: (tag: string) => void
+  onPress: () => void
 }
 
-const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
+const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
   const { isOpen, onOpen, onClose } = useDisclosure()
   // const { agents } = useAgents()
@@ -26,10 +26,10 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
     const displayName = agent.name ?? agent.id
     const avatar = getAgentAvatar(agent.type)
     return (
-      <>
+      <Button onPress={onPress}>
         <Avatar className="h-6 w-6" src={avatar} name={displayName} />
         <span className="text-sm">{displayName}</span>
-      </>
+      </Button>
     )
   }, [agent.id, agent.name, agent.type])
 
