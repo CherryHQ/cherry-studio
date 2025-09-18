@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { ListAgentsResponse } from '@types'
 import { Request, Response } from 'express'
 
 import { agentService } from '../../../../services/agents'
@@ -131,7 +132,7 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
       total: result.total,
       limit,
       offset
-    })
+    } satisfies ListAgentsResponse)
   } catch (error: any) {
     logger.error('Error listing agents:', error)
     return res.status(500).json({

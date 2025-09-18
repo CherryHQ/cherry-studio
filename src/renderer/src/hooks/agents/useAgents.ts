@@ -12,7 +12,7 @@ export const useAgents = () => {
   const key = client.agentPaths.base
   const fetcher = useCallback(async () => {
     const result = await client.listAgents()
-    return result.agents
+    return result.data
   }, [client])
   const { data, error, isLoading, mutate } = useSWR(key, fetcher)
 

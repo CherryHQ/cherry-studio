@@ -171,8 +171,10 @@ export const GetAgentResponseSchema = AgentEntitySchema.extend({
 export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
 
 export const ListAgentsResponseSchema = z.object({
-  agents: z.array(GetAgentResponseSchema),
-  total: z.number()
+  data: z.array(GetAgentResponseSchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
 })
 
 export type ListAgentsResponse = z.infer<typeof ListAgentsResponseSchema>
