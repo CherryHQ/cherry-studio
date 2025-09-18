@@ -29,8 +29,7 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
   )
 
   return (
-    <div className="agents-tab h-full w-full">
-      <span className="mb-2 text-foreground-400 text-xs">{t('common.agent_other')}</span>
+    <div className="agents-tab h-full w-full p-2">
       {agents.map((agent) => (
         <AgentItem
           key={agent.id}

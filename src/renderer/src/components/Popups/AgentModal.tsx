@@ -20,8 +20,6 @@ import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { useAddAgent } from '@renderer/hooks/agents/useAddAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -85,7 +83,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
-  const { setTimeoutTimer } = useTimer()
+  // const { setTimeoutTimer } = useTimer()
   const { addAgent } = useAddAgent()
   const { updateAgent } = useUpdateAgent()
   const isEditing = (agent?: AgentEntity) => agent !== undefined
@@ -245,7 +243,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
 
         updateAgent(updatePayload)
         logger.debug('Updated agent', updatePayload)
-        window.toast.success(t('common.update_success'))
       } else {
         const newAgent = {
           type: form.type,
@@ -257,12 +254,11 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
         } satisfies AddAgentForm
         addAgent(newAgent)
         logger.debug('Added agent', newAgent)
-        window.toast.success(t('common.add_success'))
       }
 
       loadingRef.current = false
 
-      setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+      // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
       onClose()
     },
     [
@@ -273,7 +269,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       form.instructions,
       form.accessible_paths,
       agent,
-      setTimeoutTimer,
       onClose,
       t,
       updateAgent,

@@ -135,7 +135,6 @@ const Assistants: FC<AssistantsTabProps> = ({
 
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <span className="mb-2 text-foreground-400 text-xs">{t('common.assistant_other')}</span>
       <DraggableList
         list={assistants}
         onUpdate={updateAssistants}
