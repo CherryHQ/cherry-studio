@@ -223,7 +223,6 @@ export enum codeTools {
 export enum terminalApps {
   systemDefault = 'Terminal',
   iterm2 = 'iTerm2',
-  warp = 'Warp',
   kitty = 'kitty',
   alacritty = 'Alacritty',
   wezterm = 'WezTerm',
@@ -257,11 +256,6 @@ export const MACOS_TERMINALS: TerminalConfig[] = [
     id: terminalApps.iterm2,
     name: 'iTerm2',
     bundleId: 'com.googlecode.iterm2'
-  },
-  {
-    id: terminalApps.warp,
-    name: 'Warp',
-    bundleId: 'dev.warp.Warp-Stable'
   },
   {
     id: terminalApps.kitty,
@@ -396,33 +390,6 @@ export const MACOS_TERMINALS_WITH_COMMANDS: TerminalConfigWithCommand[] = [
       args: [
         '-c',
         `open -na iTerm && sleep 0.8 && osascript -e 'on waitUntilRunning()\n  repeat 50 times\n    tell application "System Events"\n      if (exists process "iTerm2") then exit repeat\n    end tell\n    delay 0.1\n  end repeat\nend waitUntilRunning\n\nwaitUntilRunning()\n\ntell application "iTerm2"\n  if (count of windows) = 0 then\n    create window with default profile\n    delay 0.3\n  else\n    tell current window\n      create tab with default profile\n    end tell\n    delay 0.3\n  end if\n  tell current session of current window to write text "cd '${directory.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"\n  activate\nend tell'`
-      ]
-    })
-  },
-  {
-    id: terminalApps.warp,
-    name: 'Warp',
-    bundleId: 'dev.warp.Warp-Stable',
-    command: (directory: string, fullCommand: string) => ({
-      command: 'osascript',
-      args: [
-        '-e',
-        `set the clipboard to "cd \\"${directory.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}\\" && clear && ${fullCommand.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"
-tell application "Warp"
-  activate
-  delay 0.8
-end tell
-tell application "System Events"
-  tell process "Warp"
-    keystroke "t" using {command down}
-    delay 0.4
-    -- Switch to English input method before pasting
-    key code 49 using {control down}
-    delay 0.2
-    keystroke "v" using {command down}
-    key code 36
-  end tell
-end tell`
       ]
     })
   },
