@@ -24,10 +24,14 @@ export interface Tool {
   requirePermissions?: boolean
 }
 
-export interface AgentConfiguration extends Record<string, any> {
-  permission_mode: PermissionMode // Permission mode, default to 'default'
-  max_turns: number // Maximum number of interaction turns, default to 10
-}
+export const AgentConfigurationSchema = z
+  .object({
+    permission_mode: PermissionModeSchema.default('default'), // Permission mode, default to 'default'
+    max_turns: z.number().default(10) // Maximum number of interaction turns, default to 10
+  })
+  .loose()
+
+export type AgentConfiguration = z.infer<typeof AgentConfigurationSchema>
 
 // Shared configuration interface for both agents and sessions
 export interface AgentBase {
