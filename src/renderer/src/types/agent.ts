@@ -9,10 +9,12 @@ export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPer
 export type PermissionMode = z.infer<typeof PermissionModeSchema>
 
 export type SessionMessageRole = ModelMessage['role']
-export type AgentType = 'claude-code'
 
-export const isAgentType = (type: string): type is AgentType => {
-  return ['claude-code'].includes(type)
+export const AgentTypeSchema = z.enum(['claude-code'])
+export type AgentType = z.infer<typeof AgentTypeSchema>
+
+export const isAgentType = (type: unknown): type is AgentType => {
+  return AgentTypeSchema.safeParse(type).success
 }
 
 export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
