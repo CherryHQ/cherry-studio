@@ -1,6 +1,5 @@
 import { EventEmitter } from 'node:events'
 
-import { PermissionMode } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
 import type {
   AgentSessionMessageEntity,
