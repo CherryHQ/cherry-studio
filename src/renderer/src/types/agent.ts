@@ -3,7 +3,11 @@
  * Shared between main and renderer processes
  */
 import { ModelMessage, TextStreamPart, UIMessageChunk } from 'ai'
-export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+import { z } from 'zod'
+
+export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export type PermissionMode = z.infer<typeof PermissionModeSchema>
+
 export type SessionMessageRole = ModelMessage['role']
 export type AgentType = 'claude-code'
 
