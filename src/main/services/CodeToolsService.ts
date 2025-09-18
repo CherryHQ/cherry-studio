@@ -51,6 +51,8 @@ class CodeToolsService {
         return '@openai/codex'
       case codeTools.qwenCode:
         return '@qwen-code/qwen-code'
+      case codeTools.iFlowCli:
+        return '@iflow-ai/iflow-cli'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -66,6 +68,8 @@ class CodeToolsService {
         return 'codex'
       case codeTools.qwenCode:
         return 'qwen'
+      case codeTools.iFlowCli:
+        return 'iflow'
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }

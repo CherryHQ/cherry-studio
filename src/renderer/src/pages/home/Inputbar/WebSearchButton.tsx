@@ -3,7 +3,12 @@ import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { isGeminiModel, isWebSearchModel } from '@renderer/config/models'
+import {
+  isGeminiModel,
+  isGPT5SeriesReasoningModel,
+  isOpenAIWebSearchModel,
+  isWebSearchModel
+} from '@renderer/config/models'
 import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -114,6 +119,15 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
     ) {
       update.enableWebSearch = false
       window.toast.warning(t('chat.mcp.warning.gemini_web_search'))
+    }
+    if (
+      isOpenAIWebSearchModel(model) &&
+      isGPT5SeriesReasoningModel(model) &&
+      update.enableWebSearch &&
+      assistant.settings?.reasoning_effort === 'minimal'
+    ) {
+      update.enableWebSearch = false
+      window.toast.warning(t('chat.web_search.warning.openai'))
     }
     setTimeoutTimer('updateSelectedWebSearchBuiltin', () => updateAssistant(update), 200)
   }, [assistant, setTimeoutTimer, t, updateAssistant])

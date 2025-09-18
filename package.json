@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.6.0-beta.7",
+  "version": "1.6.0-rc.2",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "main": "./out/main/index.js",
@@ -108,7 +108,7 @@
     "@aws-sdk/client-bedrock-runtime": "^3.840.0",
     "@aws-sdk/client-s3": "^3.840.0",
     "@biomejs/biome": "2.2.4",
-    "@cherrystudio/ai-core": "workspace:^1.0.0-alpha.16",
+    "@cherrystudio/ai-core": "workspace:^1.0.0-alpha.18",
     "@cherrystudio/embedjs": "^0.1.31",
     "@cherrystudio/embedjs-libsql": "^0.1.31",
     "@cherrystudio/embedjs-loader-csv": "^0.1.31",
@@ -237,7 +237,6 @@
     "diff": "^8.0.2",
     "docx": "^9.0.2",
     "dompurify": "^3.2.6",
-    "dotenv": "^17.2.2",
     "dotenv-cli": "^7.4.2",
     "electron": "37.4.0",
     "electron-builder": "26.0.15",
@@ -333,7 +332,7 @@
     "tsx": "^4.20.3",
     "turndown-plugin-gfm": "^1.0.2",
     "tw-animate-css": "^1.3.8",
-    "typescript": "^5.6.2",
+    "typescript": "~5.8.2",
     "undici": "6.21.2",
     "unified": "^11.0.5",
     "uuid": "^10.0.0",
@@ -374,11 +373,11 @@
   "packageManager": "yarn@4.9.1",
   "lint-staged": {
     "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
-      "biome format --write",
+      "biome format --write --no-errors-on-unmatched",
       "eslint --fix"
     ],
     "*.{json,yml,yaml,css,html}": [
-      "biome format --write"
+      "biome format --write --no-errors-on-unmatched"
     ]
   }
 }

@@ -2309,7 +2309,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cherrystudio/ai-core@workspace:^1.0.0-alpha.16, @cherrystudio/ai-core@workspace:packages/aiCore":
+"@cherrystudio/ai-core@workspace:^1.0.0-alpha.18, @cherrystudio/ai-core@workspace:packages/aiCore":
   version: 0.0.0-use.local
   resolution: "@cherrystudio/ai-core@workspace:packages/aiCore"
   dependencies:
@@ -13195,7 +13195,7 @@ __metadata:
     "@aws-sdk/client-bedrock-runtime": "npm:^3.840.0"
     "@aws-sdk/client-s3": "npm:^3.840.0"
     "@biomejs/biome": "npm:2.2.4"
-    "@cherrystudio/ai-core": "workspace:^1.0.0-alpha.16"
+    "@cherrystudio/ai-core": "workspace:^1.0.0-alpha.18"
     "@cherrystudio/embedjs": "npm:^0.1.31"
     "@cherrystudio/embedjs-libsql": "npm:^0.1.31"
     "@cherrystudio/embedjs-loader-csv": "npm:^0.1.31"
@@ -13328,7 +13328,6 @@ __metadata:
     diff: "npm:^8.0.2"
     docx: "npm:^9.0.2"
     dompurify: "npm:^3.2.6"
-    dotenv: "npm:^17.2.2"
     dotenv-cli: "npm:^7.4.2"
     electron: "npm:37.4.0"
     electron-builder: "npm:26.0.15"
@@ -13437,7 +13436,7 @@ __metadata:
     turndown: "npm:7.2.0"
     turndown-plugin-gfm: "npm:^1.0.2"
     tw-animate-css: "npm:^1.3.8"
-    typescript: "npm:^5.6.2"
+    typescript: "npm:~5.8.2"
     undici: "npm:6.21.2"
     unified: "npm:^11.0.5"
     uuid: "npm:^10.0.0"
@@ -16628,13 +16627,6 @@ __metadata:
   version: 16.6.1
   resolution: "dotenv@npm:16.6.1"
   checksum: 10c0/15ce56608326ea0d1d9414a5c8ee6dcf0fffc79d2c16422b4ac2268e7e2d76ff5a572d37ffe747c377de12005f14b3cc22361e79fc7f1061cce81f77d2c973dc
-  languageName: node
-  linkType: hard
-
-"dotenv@npm:^17.2.2":
-  version: 17.2.2
-  resolution: "dotenv@npm:17.2.2"
-  checksum: 10c0/be66513504590aff6eccb14167625aed9bd42ce80547f4fe5d195860211971a7060949b57108dfaeaf90658f79e40edccd3f233f0a978bff507b5b1565ae162b
   languageName: node
   linkType: hard
 
@@ -27785,7 +27777,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^5.4.3, typescript@npm:^5.6.2":
+"typescript@npm:^5.4.3, typescript@npm:~5.8.2":
   version: 5.8.3
   resolution: "typescript@npm:5.8.3"
   bin:
@@ -27805,7 +27797,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@npm%3A^5.4.3#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A^5.6.2#optional!builtin<compat/typescript>":
+"typescript@patch:typescript@npm%3A^5.4.3#optional!builtin<compat/typescript>, typescript@patch:typescript@npm%3A~5.8.2#optional!builtin<compat/typescript>":
   version: 5.8.3
   resolution: "typescript@patch:typescript@npm%3A5.8.3#optional!builtin<compat/typescript>::version=5.8.3&hash=5786d5"
   bin:

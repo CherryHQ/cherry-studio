@@ -132,7 +132,6 @@
     },
     "title": "API 服务器"
   },
-
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -661,7 +660,12 @@
       "title": "话题",
       "unpin": "取消固定"
     },
-    "translate": "翻译"
+    "translate": "翻译",
+    "web_search": {
+      "warning": {
+        "openai": "GPT5 模型 minimal 思考强度不支持网络搜索"
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "检查更新并安装最新版本",
