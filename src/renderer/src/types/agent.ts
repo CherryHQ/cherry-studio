@@ -120,9 +120,11 @@ export const CreateAgentResponseSchema = AgentEntitySchema
 
 export interface UpdateAgentRequest extends Partial<AgentBase> {}
 
-export interface GetAgentResponse extends AgentEntity {
-  built_in_tools?: Tool[] // Built-in tools available to the agent
-}
+export const GetAgentResponseSchema = AgentEntitySchema.extend({
+  built_in_tools: z.array(ToolSchema).optional() // Built-in tools available to the agent
+})
+
+export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
 
 export type CreateSessionRequest = AgentBase
 
