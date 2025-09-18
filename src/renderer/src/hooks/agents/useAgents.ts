@@ -33,7 +33,7 @@ export const useAgents = () => {
       try {
         // may change to optimistic update
         const result = await client.updateAgent(form)
-        mutate((prev) => prev?.map((a) => (a.id === form.id ? result : a)) ?? [])
+        mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
@@ -54,10 +54,11 @@ export const useAgents = () => {
   )
 
   const getAgent = useCallback(
-    (id: string) => {
-      return data?.find((agent) => agent.id === id)
+    async (id: string) => {
+      const result = await client.getAgent(id)
+      mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
     },
-    [data]
+    [client, mutate]
   )
 
   return {
