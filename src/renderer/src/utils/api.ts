@@ -1,3 +1,6 @@
+import { AgentServerError } from '@renderer/types'
+import { t } from 'i18next'
+
 /**
  * 格式化 API key 字符串。
  *
@@ -69,3 +72,6 @@ export function splitApiKeyString(keyStr: string): string[] {
     .map((k) => k.replace(/\\,/g, ','))
     .filter((k) => k)
 }
+
+export const formatAgentServerError = (error: AgentServerError) =>
+  `${t('common.error')}: ${error.code} ${error.message}`
