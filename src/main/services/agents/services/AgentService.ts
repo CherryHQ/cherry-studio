@@ -5,7 +5,6 @@ import type {
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
-  DeleteAgentResponse,
   GetAgentResponse,
   ListAgentsResponse,
   ListOptions,
@@ -144,7 +143,7 @@ export class AgentService extends BaseService {
     return await this.getAgent(id)
   }
 
-  async deleteAgent(id: string): Promise<DeleteAgentResponse> {
+  async deleteAgent(id: string): Promise<boolean> {
     this.ensureInitialized()
 
     const result = await this.database.delete(agentsTable).where(eq(agentsTable.id, id))
