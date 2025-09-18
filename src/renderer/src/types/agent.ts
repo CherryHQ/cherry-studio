@@ -2,7 +2,7 @@
  * Database entity types for Agent, Session, and SessionMessage
  * Shared between main and renderer processes
  */
-import { ModelMessage, TextStreamPart, UIMessageChunk } from 'ai'
+import { ModelMessage, modelMessageSchema, TextStreamPart, UIMessageChunk } from 'ai'
 import { z } from 'zod'
 
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
@@ -91,15 +91,18 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // AgentSessionMessageEntity representing a message within a session
-export interface AgentSessionMessageEntity {
-  id: number // Auto-increment primary key
-  session_id: string // Reference to session
-  role: ModelMessage['role'] // 'assistant' | 'user' | 'system' | 'tool'
-  content: ModelMessage
-  metadata?: Record<string, any> // Additional metadata (optional)
-  created_at: string // ISO timestamp
-  updated_at: string // ISO timestamp
-}
+export const AgentSessionMessageEntitySchema = z.object({
+  id: z.number(), // Auto-increment primary key
+  session_id: z.string(), // Reference to session
+  // manual defined. may not synced with ai sdk definition
+  role: z.enum(['assistant', 'user', 'system', 'tool']), // 'assistant' | 'user' | 'system' | 'tool'
+  content: modelMessageSchema,
+  metadata: z.record(z.string(), z.any()).optional(), // Additional metadata (optional)
+  created_at: z.iso.datetime(), // ISO timestamp
+  updated_at: z.iso.datetime() // ISO timestamp
+})
+
+export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
 
 // Structured content for session messages that preserves both AI SDK and raw data
 export interface SessionMessageContent {
