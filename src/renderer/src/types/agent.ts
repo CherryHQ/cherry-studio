@@ -182,6 +182,15 @@ export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
 
 export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
 
+export const ListAgentSessionsResponseSchema = z.object({
+  data: z.array(AgentSessionEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListAgentSessionsResponse = z.infer<typeof ListAgentSessionsResponseSchema>
+
 export interface CreateSessionMessageRequest {
   content: string
 }

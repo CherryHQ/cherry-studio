@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { sessionMessageService, sessionService } from '@main/services/agents'
-import { CreateSessionResponse } from '@types'
+import { CreateSessionResponse, ListAgentSessionsResponse } from '@types'
 import { Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
@@ -269,7 +269,7 @@ export const listAllSessions = async (req: Request, res: Response): Promise<Resp
       total: result.total,
       limit,
       offset
-    })
+    } satisfies ListAgentSessionsResponse)
   } catch (error: any) {
     logger.error('Error listing all sessions:', error)
     return res.status(500).json({
