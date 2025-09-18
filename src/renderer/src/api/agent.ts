@@ -16,6 +16,7 @@ import {
   UpdateAgentResponseSchema
 } from '@types'
 import { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
+import { ZodError } from 'zod'
 
 type ApiVersion = 'v1'
 
@@ -29,6 +30,8 @@ const processError = (error: unknown, fallbackMessage: string) => {
     if (result.success) {
       return new Error(formatAgentServerError(result.data), { cause: error })
     }
+  } else if (error instanceof ZodError) {
+    return error
   }
   return new Error(fallbackMessage, { cause: error })
 }

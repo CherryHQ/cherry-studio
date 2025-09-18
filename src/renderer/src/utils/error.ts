@@ -9,7 +9,7 @@ import {
 } from '@renderer/types/error'
 import { InvalidToolInputError, NoSuchToolError } from 'ai'
 import { t } from 'i18next'
-import { z } from 'zod'
+import { z, ZodError } from 'zod'
 
 import { parseJSON } from './json'
 import { safeSerialize } from './serialize'
@@ -44,6 +44,9 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 }
 
 export function formatErrorMessage(error: unknown): string {
+  if (error instanceof ZodError) {
+    return formatZodError(error)
+  }
   const detailedError = getErrorDetails(error)
   delete detailedError?.headers
   delete detailedError?.stack
