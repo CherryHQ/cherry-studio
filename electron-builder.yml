@@ -125,25 +125,16 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ✨ 新功能：
-    - 重构知识库模块，提升文档处理能力和搜索性能
-    - 新增 PaddleOCR 支持，增强文档识别能力
-    - 支持自定义窗口控制按钮样式
-    - 新增 AI SDK 包，扩展 AI 能力集成
-    - 支持标签页拖拽重排序功能
-    - 增强笔记编辑器的同步和日志功能
-
-    🔧 性能优化：
-    - 优化 MCP 服务的日志记录和错误处理
-    - 改进 WebView 服务的 User-Agent 处理
-    - 优化迷你应用的标题栏样式和状态栏适配
-    - 重构依赖管理，清理和优化 package.json
-
     🐛 问题修复：
-    - 修复输入栏无限状态更新循环问题
-    - 修复窗口控制提示框的鼠标悬停延迟
-    - 修复翻译输入框粘贴多内容源的处理
-    - 修复导航服务初始化时序问题
-    - 修复 MCP 通过 JSON 添加时的参数转换
-    - 修复模型作用域服务器同步时的 URL 格式
-    - 标准化工具提示图标样式
+    - 修复 Anthropic API URL 处理，移除尾部斜杠并添加端点路径处理
+    - 修复 MessageEditor 缺少 QuickPanelProvider 包装的问题
+    - 修复 MiniWindow 高度问题
+
+    🚀 性能优化：
+    - 优化输入栏提及模型状态缓存，在渲染间保持状态
+    - 重构网络搜索参数支持模型内置搜索，新增 OpenAI Chat 和 OpenRouter 支持
+
+    🔧 重构改进：
+    - 更新 HeroUIProvider 导入路径，改善上下文管理
+    - 更新依赖项和 VSCode 开发环境配置
+    - 升级 @cherrystudio/ai-core 到 v1.0.0-alpha.17
