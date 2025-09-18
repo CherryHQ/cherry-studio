@@ -8,6 +8,8 @@ import {
   CreateAgentResponseSchema,
   GetAgentResponse,
   GetAgentResponseSchema,
+  ListAgentSessionsResponse,
+  ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
   UpdateAgentForm,
@@ -120,6 +122,20 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to updateAgent.')
+    }
+  }
+
+  public async listSessions(agentId: string): Promise<ListAgentSessionsResponse> {
+    const url = this.getSessionPaths(agentId).base
+    try {
+      const response = await this.axios.get(url)
+      const result = ListAgentSessionsResponseSchema.safeParse(response.data)
+      if (!result.success) {
+        throw new Error('Not a valid Sessions array.')
+      }
+      return result.data
+    } catch (error) {
+      throw processError(error, 'Failed to list sessions.')
     }
   }
 }
