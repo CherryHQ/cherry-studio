@@ -2,6 +2,7 @@ import { Avatar, cn, useDisclosure } from '@heroui/react'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { AgentModal } from '@renderer/components/Popups/AgentModal'
+import { getAgentAvatar } from '@renderer/config/agent'
 import { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { FC, memo, useCallback } from 'react'
@@ -23,13 +24,14 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete }) => {
 
   const AgentLabel = useCallback(() => {
     const displayName = agent.name ?? agent.id
+    const avatar = getAgentAvatar(agent.type)
     return (
       <>
-        <Avatar className="h-6 w-6" name={displayName} />
+        <Avatar className="h-6 w-6" src={avatar} name={displayName} />
         <span className="text-sm">{displayName}</span>
       </>
     )
-  }, [agent.id, agent.name])
+  }, [agent.id, agent.name, agent.type])
 
   const handleClick = () => logger.debug('not implemented')
 
