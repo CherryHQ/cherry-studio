@@ -6,7 +6,6 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
-import { isQwenMTModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
