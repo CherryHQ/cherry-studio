@@ -5,7 +5,7 @@ import type {
   AgentSessionMessageEntity,
   CreateSessionMessageRequest,
   GetAgentSessionResponse,
-  ListOptions,
+  ListOptions
 } from '@types'
 import { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages, readUIMessageStream } from 'ai'
@@ -16,7 +16,6 @@ import { InsertSessionMessageRow, sessionMessagesTable } from '../database/schem
 import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')
-
 
 // Collapse a UIMessageChunk stream into a final UIMessage, then convert to ModelMessage[]
 export async function chunksToModelMessages(
@@ -68,7 +67,6 @@ interface PersistContext {
   session: GetAgentSessionResponse
   accumulator: ChunkAccumulator
   userMessageId: number
-  sessionStream: EventEmitter
 }
 
 // Chunk accumulator class to collect and reconstruct streaming data
@@ -254,10 +252,7 @@ export class SessionMessageService extends BaseService {
       updated_at: now
     }
 
-    const [saved] = await this.database
-      .insert(sessionMessagesTable)
-      .values(insertData)
-      .returning()
+    const [saved] = await this.database.insert(sessionMessagesTable).values(insertData).returning()
 
     return this.deserializeSessionMessage(saved) as AgentSessionMessageEntity
   }
@@ -299,8 +294,8 @@ export class SessionMessageService extends BaseService {
 
     // Create the streaming agent invocation (using invokeStream for streaming)
     const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], session_id, {
-      permissionMode: session.configuration?.permissionMode || 'default',
-      maxTurns: session.configuration?.maxTurns || 10
+      permissionMode: session.configuration?.permission_mode,
+      maxTurns: session.configuration?.max_turns
     })
 
     // Use chunk accumulator to manage streaming data
@@ -345,8 +340,7 @@ export class SessionMessageService extends BaseService {
               void this.persistSessionMessageAsync({
                 session,
                 accumulator,
-                userMessageId,
-                sessionStream
+                userMessageId
               })
             }
 
@@ -354,6 +348,10 @@ export class SessionMessageService extends BaseService {
               type: 'error',
               error: serializeError(underlyingError),
               persistScheduled
+            })
+            // Always emit a finish chunk at the end
+            sessionStream.emit('data', {
+              type: 'finish'
             })
             break
           }
@@ -367,18 +365,15 @@ export class SessionMessageService extends BaseService {
             // Set the agent result in the accumulator
             accumulator.setAgentResult(event.agentResult)
 
-            // // Emit SSE completion FIRST before persistence
-            // sessionStream.emit('data', {
-            //   type: 'complete',
-            //   result: accumulator.buildStructuredContent()
-            // })
-
             // Then handle async persistence
             void this.persistSessionMessageAsync({
               session,
               accumulator,
-              userMessageId,
-              sessionStream
+              userMessageId
+            })
+            // Always emit a finish chunk at the end
+            sessionStream.emit('data', {
+              type: 'finish'
             })
             break
           }
@@ -399,11 +394,10 @@ export class SessionMessageService extends BaseService {
     })
   }
 
-  private async persistSessionMessageAsync({ session, accumulator, userMessageId, sessionStream }: PersistContext) {
+  private async persistSessionMessageAsync({ session, accumulator, userMessageId }: PersistContext) {
     if (!session?.id) {
       const missingSessionError = new Error('Missing session_id for persisted message')
-      logger.error(missingSessionError.message, { error: missingSessionError })
-      sessionStream.emit('data', { type: 'persist-error', error: serializeError(missingSessionError) })
+      logger.error('error persisting session message', { error: missingSessionError })
       return
     }
 
@@ -435,13 +429,10 @@ export class SessionMessageService extends BaseService {
         updated_at: now
       }
 
-      const [row] = await this.database.insert(sessionMessagesTable).values(insertData).returning()
-
-      const entity = this.deserializeSessionMessage(row) as AgentSessionMessageEntity
-      sessionStream.emit('data', { type: 'persisted', message: entity })
+      await this.database.insert(sessionMessagesTable).values(insertData).returning()
+      logger.debug('Success Persisted session message')
     } catch (error) {
       logger.error('Failed to persist session message', { error })
-      sessionStream.emit('data', { type: 'persist-error', error: serializeError(error) })
     }
   }
 
