@@ -18,7 +18,7 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
-import { useAddAgent } from '@renderer/hooks/agents/useAddAgent'
+import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -84,7 +84,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
-  const { addAgent } = useAddAgent()
+  const { addAgent } = useAgents()
   const { updateAgent } = useUpdateAgent()
   const isEditing = (agent?: AgentEntity) => agent !== undefined
 
