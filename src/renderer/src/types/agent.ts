@@ -186,7 +186,7 @@ export const UpdateAgentResponseSchema = GetAgentResponseSchema
 
 export type UpdateAgentResponse = GetAgentResponse
 
-export type CreateSessionRequest = AgentBase
+export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
 
 export interface UpdateSessionRequest extends Partial<AgentBase> {}
 
