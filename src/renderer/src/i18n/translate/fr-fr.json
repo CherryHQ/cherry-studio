@@ -828,6 +828,7 @@
     "enabled": "Activé",
     "error": "erreur",
     "errors": {
+      "create_message": "[to be translated]:Failed to create message",
       "validation": "Échec de la vérification"
     },
     "expand": "Développer",

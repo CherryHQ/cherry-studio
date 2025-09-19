@@ -828,6 +828,7 @@
     "enabled": "Включено",
     "error": "ошибка",
     "errors": {
+      "create_message": "[to be translated]:Failed to create message",
       "validation": "Ошибка проверки"
     },
     "expand": "Развернуть",

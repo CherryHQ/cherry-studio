@@ -828,6 +828,7 @@
     "enabled": "有効",
     "error": "エラー",
     "errors": {
+      "create_message": "[to be translated]:Failed to create message",
       "validation": "検証に失敗しました"
     },
     "expand": "展開",

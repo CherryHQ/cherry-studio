@@ -828,6 +828,7 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "errors": {
+      "create_message": "[to be translated]:Failed to create message",
       "validation": "驗證失敗"
     },
     "expand": "展開",

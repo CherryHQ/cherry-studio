@@ -828,6 +828,7 @@
     "enabled": "Ενεργοποιημένο",
     "error": "σφάλμα",
     "errors": {
+      "create_message": "[to be translated]:Failed to create message",
       "validation": "Η επαλήθευση απέτυχε"
     },
     "expand": "Επεκτάση",

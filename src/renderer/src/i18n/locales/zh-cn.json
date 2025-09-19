@@ -828,6 +828,7 @@
     "enabled": "已启用",
     "error": "错误",
     "errors": {
+      "create_message": "创建消息失败",
       "validation": "验证失败"
     },
     "expand": "展开",

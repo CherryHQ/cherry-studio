@@ -828,6 +828,7 @@
     "enabled": "Enabled",
     "error": "error",
     "errors": {
+      "create_message": "Failed to create message",
       "validation": "Verification failed"
     },
     "expand": "Expand",
