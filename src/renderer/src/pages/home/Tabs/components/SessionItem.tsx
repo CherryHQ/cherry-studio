@@ -1,5 +1,6 @@
 import { Button, cn, useDisclosure } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { AgentSessionEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
@@ -18,8 +19,7 @@ interface SessionItemProps {
 
 const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress }) => {
   const { t } = useTranslation()
-  // const { isOpen, onOpen, onClose } = useDisclosure()
-  const { onOpen } = useDisclosure()
+  const { isOpen, onOpen, onClose } = useDisclosure()
   const { chat } = useRuntime()
   const activeSessionId = chat.activeSessionId[agentId]
 
@@ -70,7 +70,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      {/* TODO: Add a session modal here */}
+      <SessionModal agentId={agentId} isOpen={isOpen} onClose={onClose} session={session} />
     </>
   )
 }
