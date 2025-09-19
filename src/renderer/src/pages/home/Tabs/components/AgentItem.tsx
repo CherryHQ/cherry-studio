@@ -1,5 +1,4 @@
 import { Avatar, Button, cn, useDisclosure } from '@heroui/react'
-import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import { getAgentAvatar } from '@renderer/config/agent'
@@ -8,7 +7,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } 
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('AgentItem')
+// const logger = loggerService.withContext('AgentItem')
 
 interface AgentItemProps {
   agent: AgentEntity
@@ -26,20 +25,18 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
     const displayName = agent.name ?? agent.id
     const avatar = getAgentAvatar(agent.type)
     return (
-      <Button onPress={onPress}>
+      <>
         <Avatar className="h-6 w-6" src={avatar} name={displayName} />
         <span className="text-sm">{displayName}</span>
-      </Button>
+      </>
     )
-  }, [agent.id, agent.name, agent.type, onPress])
-
-  const handleClick = () => logger.debug('not implemented')
+  }, [agent.id, agent.name, agent.type])
 
   return (
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
-          <Container onClick={handleClick} className={isActive ? 'active' : ''}>
+          <Container onPress={onPress} className={isActive ? 'active' : ''}>
             <AssistantNameRow className="name" title={agent.name ?? agent.id}>
               <AgentLabel />
             </AssistantNameRow>
@@ -76,20 +73,21 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
   )
 }
 
-const Container: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div
+const Container: React.FC<React.ComponentProps<typeof Button>> = ({ className, children, ...props }) => (
+  <Button
     {...props}
     className={cn(
-      'relative flex h-[37px] flex-row justify-between p-2',
+      'relative mb-2 flex h-[37px] flex-row justify-between p-2.5',
       'rounded-[var(--list-item-border-radius)]',
       'border-[0.5px] border-transparent',
       'w-[calc(var(--assistants-width)_-_20px)]',
-      'hover:bg-[var(--color-list-item-hover)]',
+      'bg-transparent hover:bg-[var(--color-list-item-hover)]',
       'cursor-pointer',
       className?.includes('active') && 'bg-[var(--color-list-item)] shadow-sm',
       className
-    )}
-  />
+    )}>
+    {children}
+  </Button>
 )
 
 const AssistantNameRow: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
