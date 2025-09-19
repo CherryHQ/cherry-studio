@@ -57,13 +57,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
             key="delete"
             className="text-danger"
             onClick={() => {
-              window.modal.confirm({
-                title: t('agent.session.delete.title'),
-                content: t('agent.session.delete.content'),
-                centered: true,
-                okButtonProps: { danger: true },
-                onOk: () => onDelete()
-              })
+              onDelete()
             }}>
             <DeleteIcon size={14} className="lucide-custom text-danger" />
             <span className="text-danger">{t('common.delete')}</span>
