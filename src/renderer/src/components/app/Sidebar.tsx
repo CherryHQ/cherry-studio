@@ -1,3 +1,4 @@
+import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
@@ -6,12 +7,12 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
+import { modelGenerating } from '@renderer/hooks/useModel'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
-import { ThemeMode } from '@renderer/types'
 import { isEmoji } from '@renderer/utils'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Avatar, Tooltip } from 'antd'
 import {
   Code,
@@ -28,7 +29,7 @@ import {
   Sparkle,
   Sun
 } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -38,9 +39,8 @@ import { SidebarOpenedMinappTabs, SidebarPinnedApps } from './PinnedMinapps'
 
 const Sidebar: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
-  const { minappShow } = useRuntime()
-  const { sidebarIcons } = useSettings()
-  const { pinned } = useMinapps()
+  const { pinned, minappShow } = useMinapps()
+  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
 
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -53,7 +53,7 @@ const Sidebar: FC = () => {
 
   const backgroundColor = useNavBackgroundColor()
 
-  const showPinnedApps = pinned.length > 0 && sidebarIcons.visible.includes('minapp')
+  const showPinnedApps = pinned.length > 0 && visibleSidebarIcons.includes('minapp')
 
   const to = async (path: string) => {
     await modelGenerating()
@@ -121,9 +121,11 @@ const Sidebar: FC = () => {
 
 const MainMenus: FC = () => {
   const { hideMinappPopup } = useMinappPopup()
+  const { minappShow } = useMinapps()
+
   const { pathname } = useLocation()
-  const { sidebarIcons, defaultPaintingProvider } = useSettings()
-  const { minappShow } = useRuntime()
+  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const { defaultPaintingProvider } = useSettings()
   const navigate = useNavigate()
   const { theme } = useTheme()
 
@@ -154,7 +156,7 @@ const MainMenus: FC = () => {
     notes: '/notes'
   }
 
-  return sidebarIcons.visible.map((icon) => {
+  return visibleSidebarIcons.map((icon) => {
     const path = pathMap[icon]
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 

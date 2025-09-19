@@ -1,3 +1,4 @@
+import { Flex } from '@cherrystudio/ui'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,17 +7,19 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import { SettingHelpText } from '@renderer/pages/settings'
 import { isProviderSupportAuth } from '@renderer/services/ProviderService'
-import { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
-import { ApiKeyWithStatus, HealthStatus } from '@renderer/types/healthCheck'
-import { Button, Card, Flex, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
+import type { PreprocessProviderId, WebSearchProviderId } from '@renderer/types'
+import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
+import { HealthStatus } from '@renderer/types/healthCheck'
+import { Button, Card, List, Popconfirm, Space, Tooltip, Typography } from 'antd'
 import { Plus } from 'lucide-react'
-import { FC, useState } from 'react'
+import type { FC } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { isLlmProvider, useApiKeys } from './hook'
 import ApiKeyItem from './item'
-import { ApiProvider, UpdateApiProviderFunc } from './types'
+import type { ApiProvider, UpdateApiProviderFunc } from './types'
 
 interface ApiKeyListProps {
   provider: ApiProvider
@@ -124,7 +127,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
         )}
       </Card>
 
-      <Flex dir="row" align="center" justify="space-between" style={{ marginTop: 15 }}>
+      <Flex className="mt-[15px] flex-row items-center justify-between">
         {/* 帮助文本 */}
         <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
 

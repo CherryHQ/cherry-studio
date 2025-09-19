@@ -2,7 +2,7 @@ import type { BaseEmbeddings } from '@cherrystudio/embedjs-interfaces'
 import { OllamaEmbeddings } from '@cherrystudio/embedjs-ollama'
 import { OpenAiEmbeddings } from '@cherrystudio/embedjs-openai'
 import { AzureOpenAiEmbeddings } from '@cherrystudio/embedjs-openai/src/azure-openai-embeddings'
-import { ApiClient } from '@types'
+import type { ApiClient } from '@types'
 
 import { VoyageEmbeddings } from './VoyageEmbeddings'
 

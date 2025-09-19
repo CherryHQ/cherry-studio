@@ -1,6 +1,7 @@
 import { HeroUIProvider } from '@heroui/react'
 import { useSettings } from '@renderer/hooks/useSettings'
 
+// TODO: migrate to ui package
 const AppHeroUIProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { language } = useSettings()
   return (

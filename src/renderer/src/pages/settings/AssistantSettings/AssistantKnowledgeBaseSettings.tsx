@@ -1,8 +1,9 @@
 import { CheckOutlined } from '@ant-design/icons'
-import { Box } from '@renderer/components/Layout'
+import { Box } from '@cherrystudio/ui'
 import { useAppSelector } from '@renderer/store'
-import { Assistant, AssistantSettings } from '@renderer/types'
-import { Row, Segmented, Select, SelectProps, Tooltip } from 'antd'
+import type { Assistant, AssistantSettings } from '@renderer/types'
+import type { SelectProps } from 'antd'
+import { Row, Segmented, Select, Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -30,9 +31,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
 
   return (
     <Container>
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.knowledge_base')}
-      </Box>
+      <Box className="mb-2 font-bold">{t('common.knowledge_base')}</Box>
       <Select
         mode="multiple"
         allowClear

@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 
-import { ActionTool, ToolRegisterProps } from '../types'
+import type { ActionTool, ToolRegisterProps } from '../types'
 
 export const useToolManager = (setTools?: ToolRegisterProps['setTools']) => {
   // 注册工具，如果已存在同ID工具则替换

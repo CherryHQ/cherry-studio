@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import db from '@renderer/databases'
-import { NotesTreeNode } from '@renderer/types/note'
+import type { NotesTreeNode } from '@renderer/types/note'
 
 const MARKDOWN_EXT = '.md'
 const NOTES_TREE_ID = 'notes-tree-structure'

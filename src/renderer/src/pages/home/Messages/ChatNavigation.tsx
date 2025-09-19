@@ -6,11 +6,12 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { RootState } from '@renderer/store'
+import { usePreference } from '@data/hooks/usePreference'
+import type { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { Button, Drawer, Tooltip } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -44,7 +45,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
   const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
   const lastMoveTime = useRef(0)
-  const { topicPosition, showTopics } = useSettings()
+  const [topicPosition] = usePreference('topic.position')
+  const [showTopics] = usePreference('topic.tab.show')
   const showRightTopics = topicPosition === 'right' && showTopics
 
   // Reset hide timer and make buttons visible

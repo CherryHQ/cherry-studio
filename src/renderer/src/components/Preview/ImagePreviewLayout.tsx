@@ -5,7 +5,7 @@ import { memo, useImperativeHandle } from 'react'
 
 import ImageToolbar from './ImageToolbar'
 import { PreviewContainer, PreviewError } from './styles'
-import { BasicPreviewHandles } from './types'
+import type { BasicPreviewHandles } from './types'
 
 interface ImagePreviewLayoutProps {
   children: React.ReactNode
@@ -48,7 +48,7 @@ const ImagePreviewLayout = ({
 
   return (
     <Spin spinning={loading} indicator={<LoadingIcon color="var(--color-text-2)" />}>
-      <PreviewContainer vertical className={`image-preview-layout ${className ?? ''}`}>
+      <PreviewContainer className={`image-preview-layout flex-col ${className ?? ''}`}>
         {error && <PreviewError>{error}</PreviewError>}
         {children}
         {!error && enableToolbar && <ImageToolbar pan={pan} zoom={zoom} dialog={dialog} />}

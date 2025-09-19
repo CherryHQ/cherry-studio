@@ -1,6 +1,6 @@
-import { ToolSet } from 'ai'
+import type { ToolSet } from 'ai'
 
-import { AiRequestContext } from '../..'
+import type { AiRequestContext } from '../..'
 
 /**
  * 解析结果类型

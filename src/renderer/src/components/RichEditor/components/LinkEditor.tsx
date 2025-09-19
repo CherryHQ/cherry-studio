@@ -1,5 +1,6 @@
+import { Flex } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Flex, Input } from 'antd'
+import { Button, Input } from 'antd'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -142,7 +143,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
         <Input value={href} placeholder="https://example.com" onChange={(e) => setHref(e.target.value)} size="small" />
       </div>
 
-      <Flex justify="space-between" align="center">
+      <Flex className="items-center justify-between">
         <div>
           {showRemove && (
             <Button size="small" danger type="text" onClick={onRemove} style={{ padding: '0 8px' }}>
@@ -150,7 +151,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
             </Button>
           )}
         </div>
-        <Flex gap={6}>
+        <Flex className="gap-1.5">
           <Button size="small" onClick={onCancel}>
             {t('common.cancel')}
           </Button>

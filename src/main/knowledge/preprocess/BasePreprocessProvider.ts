@@ -4,7 +4,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import { windowService } from '@main/services/WindowService'
 import { getFileExt, getTempDir } from '@main/utils/file'
-import { FileMetadata, PreprocessProvider } from '@types'
+import type { FileMetadata, PreprocessProvider } from '@types'
 import { PDFDocument } from 'pdf-lib'
 
 const logger = loggerService.withContext('BasePreprocessProvider')

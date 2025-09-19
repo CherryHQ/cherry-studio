@@ -1,5 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
-import { Sortable, useDndReorder } from '@renderer/components/dnd'
+import { Sortable, useDndReorder } from '@cherrystudio/ui'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isMac } from '@renderer/config/constant'
 import { DEFAULT_MIN_APPS } from '@renderer/config/minapps'
@@ -12,8 +12,8 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import { ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Tooltip } from 'antd'
 import {
   FileSearch,

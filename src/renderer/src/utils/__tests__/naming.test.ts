@@ -1,5 +1,17 @@
-import { Provider, SystemProvider } from '@renderer/types'
-import { describe, expect, it } from 'vitest'
+import type { Provider, SystemProvider } from '@renderer/types'
+import { describe, expect, it, vi } from 'vitest'
+
+// Mock i18n to return English provider labels
+vi.mock('@renderer/i18n/label', () => ({
+  getProviderLabel: vi.fn((id: string) => {
+    const labelMap: Record<string, string> = {
+      dashscope: 'Alibaba Cloud',
+      openai: 'OpenAI',
+      anthropic: 'Anthropic'
+    }
+    return labelMap[id] || id
+  })
+}))
 
 import {
   firstLetter,

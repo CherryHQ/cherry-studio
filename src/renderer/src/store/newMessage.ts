@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { createEntityAdapter, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit'
+import type { EntityState, PayloadAction } from '@reduxjs/toolkit'
+import { createEntityAdapter, createSlice } from '@reduxjs/toolkit'
 // Separate type-only imports from value imports
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus } from '@renderer/types/newMessage'

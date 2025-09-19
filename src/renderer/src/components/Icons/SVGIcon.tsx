@@ -1,6 +1,6 @@
 import { lightbulbVariants } from '@renderer/utils/motionVariants'
 import { motion } from 'motion/react'
-import { SVGProps } from 'react'
+import type { SVGProps } from 'react'
 
 export const StreamlineGoodHealthAndWellBeing = (
   props: SVGProps<SVGSVGElement> & {

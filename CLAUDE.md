@@ -57,11 +57,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Client Factory**: Supports multiple AI providers (OpenAI, Anthropic, Gemini, etc.)
 - **Stream Processing**: Real-time response handling
 
-#### State Management (`src/renderer/src/store/`)
+#### Data Management
 
-- **Redux Toolkit**: Centralized state management
-- **Persistent Storage**: Redux-persist for data persistence
-- **Thunks**: Async actions for complex operations
+- **Cache System**: Three-layer caching (memory/shared/persist) with React hooks integration
+- **Preferences**: Type-safe configuration management with multi-window synchronization
+- **User Data**: SQLite-based storage with Drizzle ORM for business data
 
 #### Knowledge Management
 
@@ -98,6 +98,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The project is in the process of migrating from antd & styled-components to HeroUI. Please use HeroUI to build UI components. The use of antd and styled-components is prohibited.
 
 HeroUI Docs: https://www.heroui.com/docs/guide/introduction
+
+### Database Architecture
+
+- **Database**: SQLite (`cherrystudio.sqlite`) + libsql driver
+- **ORM**: Drizzle ORM with comprehensive migration system
+- **Schemas**: Located in `src/main/data/db/schemas/` directory
+
+#### Database Standards
+
+- **Table Naming**: Use singular form with snake_case (e.g., `topic`, `message`, `app_state`)
+- **Schema Exports**: Export using `xxxTable` pattern (e.g., `topicTable`, `appStateTable`)
+- **Field Definition**: Drizzle auto-infers field names, no need to add default field names
+- **JSON Fields**: For JSON support, add `{ mode: 'json' }`, refer to `preference.ts` table definition
+- **JSON Serialization**: For JSON fields, no need to manually serialize/deserialize when reading/writing to database, Drizzle handles this automatically
+- **Timestamps**: Use existing `crudTimestamps` utility
+- **Migrations**: Generate via `yarn run migrations:generate`
+
+## Data Access Patterns
+
+The application uses three distinct data management systems. Choose the appropriate system based on data characteristics:
+
+### Cache System
+- **Purpose**: Temporary data that can be regenerated
+- **Lifecycle**: Component-level (memory), window-level (shared), or persistent (survives restart)
+- **Use Cases**: API response caching, computed results, temporary UI state
+- **APIs**: `useCache`, `useSharedCache`, `usePersistCache` hooks, or `cacheService`
+
+### Preference System
+- **Purpose**: User configuration and application settings
+- **Lifecycle**: Permanent until user changes
+- **Use Cases**: Theme, language, editor settings, user preferences
+- **APIs**: `usePreference`, `usePreferences` hooks, or `preferenceService`
+
+### User Data API
+- **Purpose**: Core business data (conversations, files, notes, etc.)
+- **Lifecycle**: Permanent business records
+- **Use Cases**: Topics, messages, files, knowledge base, user-generated content
+- **APIs**: `useDataApi` hook or `dataApiService` for direct calls
+
+### Selection Guidelines
+
+- **Use Cache** for data that can be lost without impact (computed values, API responses)
+- **Use Preferences** for user settings that affect app behavior (UI configuration, feature flags)
+- **Use User Data API** for irreplaceable business data (conversations, documents, user content)
 
 ## Logging Standards
 

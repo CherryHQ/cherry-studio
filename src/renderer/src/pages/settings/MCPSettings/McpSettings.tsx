@@ -1,12 +1,14 @@
+import { Flex, Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMCPServer, useMCPServers } from '@renderer/hooks/useMCPServers'
 import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
-import { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
+import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
-import { Badge, Button, Flex, Form, Input, Radio, Select, Switch, Tabs, TabsProps } from 'antd'
+import type { TabsProps } from 'antd'
+import { Badge, Button, Form, Input, Radio, Select, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -637,7 +639,7 @@ const McpSettings: React.FC = () => {
             tooltip={t('settings.mcp.longRunningTooltip')}
             layout="horizontal"
             valuePropName="checked">
-            <Switch size="small" style={{ marginLeft: 10 }} />
+            <Switch size="sm" className="ml-2.5" />
           </Form.Item>
           <Form.Item
             name="timeout"
@@ -730,8 +732,8 @@ const McpSettings: React.FC = () => {
     <SettingContainer theme={theme} style={{ width: '100%', paddingTop: 55, backgroundColor: 'transparent' }}>
       <SettingGroup style={{ marginBottom: 0, borderRadius: 'var(--list-item-border-radius)' }}>
         <SettingTitle>
-          <Flex justify="space-between" align="center" gap={5} style={{ marginRight: 10 }}>
-            <Flex align="center" gap={8}>
+          <Flex className="mr-2.5 items-center justify-between gap-[5px]">
+            <Flex className="items-center gap-2">
               <ServerName className="text-nowrap">{server?.name}</ServerName>
               {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
             </Flex>
@@ -742,12 +744,12 @@ const McpSettings: React.FC = () => {
               onClick={() => onDeleteMcpServer(server)}
             />
           </Flex>
-          <Flex align="center" gap={16}>
+          <Flex className="items-center gap-4">
             <Switch
-              value={server.isActive}
+              isSelected={server.isActive}
               key={server.id}
-              loading={loadingServer === server.id}
-              onChange={onToggleActive}
+              isLoading={loadingServer === server.id}
+              onValueChange={onToggleActive}
             />
             <Button
               type="primary"

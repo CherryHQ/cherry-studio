@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
-import { MCPTool, MCPToolResponse } from '@renderer/types'
+import type { MCPTool, MCPToolResponse } from '@renderer/types'
 import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { requestToolConfirmation } from '@renderer/utils/userConfirmation'
 import { type Tool, type ToolSet } from 'ai'
 import { jsonSchema, tool } from 'ai'
-import { JSONSchema7 } from 'json-schema'
+import type { JSONSchema7 } from 'json-schema'
 
 const logger = loggerService.withContext('MCP-utils')
 

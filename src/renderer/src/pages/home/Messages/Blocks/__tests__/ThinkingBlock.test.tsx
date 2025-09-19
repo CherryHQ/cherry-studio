@@ -8,10 +8,15 @@ import ThinkingBlock from '../ThinkingBlock'
 // Mock dependencies
 const mockUseSettings = vi.fn()
 const mockUseTranslation = vi.fn()
+let mockUsePreference: any
 
 // Mock hooks
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => mockUseSettings()
+}))
+
+vi.mock('@data/hooks/usePreference', () => ({
+  usePreference: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -120,11 +125,32 @@ describe('ThinkingBlock', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
 
+    // Get the mocked functions
+    const { usePreference } = await import('@data/hooks/usePreference')
+    mockUsePreference = usePreference as any
+
     // Default mock implementations
     mockUseSettings.mockReturnValue({
       messageFont: 'sans-serif',
       fontSize: 14,
       thoughtAutoCollapse: false
+    })
+
+    // Mock usePreference calls - component uses these hooks:
+    // - usePreference('chat.message.font')
+    // - usePreference('chat.message.font_size')
+    // - usePreference('chat.message.thought.auto_collapse')
+    mockUsePreference.mockImplementation((key: string) => {
+      switch (key) {
+        case 'chat.message.font':
+          return ['sans-serif', vi.fn()]
+        case 'chat.message.font_size':
+          return [14, vi.fn()]
+        case 'chat.message.thought.auto_collapse':
+          return [false, vi.fn()]
+        default:
+          return [undefined, vi.fn()]
+      }
     })
 
     mockUseTranslation.mockReturnValue({
@@ -275,10 +301,17 @@ describe('ThinkingBlock', () => {
       unmount()
 
       // Test collapsed by default (auto-collapse enabled)
-      mockUseSettings.mockReturnValue({
-        messageFont: 'sans-serif',
-        fontSize: 14,
-        thoughtAutoCollapse: true
+      mockUsePreference.mockImplementation((key: string) => {
+        switch (key) {
+          case 'chat.message.font':
+            return ['sans-serif', vi.fn()]
+          case 'chat.message.font_size':
+            return [14, vi.fn()]
+          case 'chat.message.thought.auto_collapse':
+            return [true, vi.fn()] // Enable auto-collapse
+          default:
+            return [undefined, vi.fn()]
+        }
       })
 
       renderThinkingBlock(block)
@@ -288,10 +321,17 @@ describe('ThinkingBlock', () => {
     })
 
     it('should auto-collapse when thinking completes if setting enabled', () => {
-      mockUseSettings.mockReturnValue({
-        messageFont: 'sans-serif',
-        fontSize: 14,
-        thoughtAutoCollapse: true
+      mockUsePreference.mockImplementation((key: string) => {
+        switch (key) {
+          case 'chat.message.font':
+            return ['sans-serif', vi.fn()]
+          case 'chat.message.font_size':
+            return [14, vi.fn()]
+          case 'chat.message.thought.auto_collapse':
+            return [true, vi.fn()] // Enable auto-collapse
+          default:
+            return [undefined, vi.fn()]
+        }
       })
 
       const streamingBlock = createThinkingBlock({ status: MessageBlockStatus.STREAMING })
@@ -325,9 +365,17 @@ describe('ThinkingBlock', () => {
       ]
 
       testCases.forEach(({ settings, expectedFont, expectedSize }) => {
-        mockUseSettings.mockReturnValue({
-          ...settings,
-          thoughtAutoCollapse: false
+        mockUsePreference.mockImplementation((key: string) => {
+          switch (key) {
+            case 'chat.message.font':
+              return [settings.messageFont, vi.fn()]
+            case 'chat.message.font_size':
+              return [settings.fontSize, vi.fn()]
+            case 'chat.message.thought.auto_collapse':
+              return [false, vi.fn()] // Keep expanded to test styling
+            default:
+              return [undefined, vi.fn()]
+          }
         })
 
         const block = createThinkingBlock()

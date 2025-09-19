@@ -1,12 +1,13 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
-import { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
+import type { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
-import { Dispatch, FC, SetStateAction, useCallback, useImperativeHandle, useMemo, useState } from 'react'
+import type { Dispatch, FC, SetStateAction } from 'react'
+import { useCallback, useImperativeHandle, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface AttachmentButtonRef {

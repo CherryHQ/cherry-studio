@@ -1,4 +1,5 @@
-import { HexColor, isHexColor } from '@renderer/types'
+import type { HexColor } from '@renderer/types'
+import { isHexColor } from '@renderer/types'
 
 type ClassValue = string | number | boolean | undefined | null | ClassDictionary | ClassArray
 
@@ -144,7 +145,7 @@ export function getForegroundColor(backgroundColor: HexColor): HexColor {
 
 // 用于ts方式控制响应式样式，暂时没用上
 // 目前应该设计到lg就足够
-// 应该和 file://./../assets/styles/responsive.scss 保持一致
+// 应该和 file://./../assets/styles/responsive.css 保持一致
 /**
  * 断点配置对象，定义了不同屏幕尺寸的最小宽度（单位：像素）
  *

@@ -1,20 +1,20 @@
+import { Flex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
-import { MCPProgressEvent } from '@shared/config/types'
+import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import {
   Button,
   Collapse,
   ConfigProvider,
   Dropdown,
-  Flex,
   message as antdMessage,
   Modal,
   Progress,
@@ -34,7 +34,8 @@ import {
   TriangleAlert,
   X
 } from 'lucide-react'
-import { FC, memo, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -51,7 +52,8 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({})
   const [countdown, setCountdown] = useState<number>(COUNTDOWN_TIME)
   const { t } = useTranslation()
-  const { messageFont, fontSize } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
   const { mcpServers, updateMCPServer } = useMCPServers()
   const [expandedResponse, setExpandedResponse] = useState<{ content: string; title: string } | null>(null)
   const [progress, setProgress] = useState<number>(0)
@@ -267,7 +269,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
-            <ToolName align="center" gap={4}>
+            <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
                 <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>

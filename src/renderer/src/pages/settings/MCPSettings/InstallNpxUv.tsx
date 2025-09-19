@@ -1,9 +1,10 @@
 import { CheckCircleOutlined, QuestionCircleOutlined, WarningOutlined } from '@ant-design/icons'
-import { Center, VStack } from '@renderer/components/Layout'
+import { Center, ColFlex } from '@cherrystudio/ui'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled, setIsUvInstalled } from '@renderer/store/mcp'
 import { Alert, Button } from 'antd'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import styled from 'styled-components'
@@ -111,7 +112,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isUvInstalled ? 'UV Installed' : `UV ${t('settings.mcp.missingDependencies')}`}
@@ -134,7 +135,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {uvPath}
               </SettingDescription>
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Alert
@@ -142,7 +143,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
         banner
         style={{ borderRadius: 'var(--list-item-border-radius)' }}
         description={
-          <VStack>
+          <ColFlex>
             <SettingRow style={{ width: '100%' }}>
               <SettingSubtitle style={{ margin: 0, fontWeight: 'normal' }}>
                 {isBunInstalled ? 'Bun Installed' : `Bun ${t('settings.mcp.missingDependencies')}`}
@@ -165,7 +166,7 @@ const InstallNpxUv: FC<Props> = ({ mini = false }) => {
                 {bunPath}
               </SettingDescription>
             </SettingRow>
-          </VStack>
+          </ColFlex>
         }
       />
       <Center>

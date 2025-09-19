@@ -1,21 +1,20 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
 import { getProviderLogo } from '@renderer/config/providers'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { Avatar, Button, InputNumber, Radio, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -70,8 +69,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -118,7 +116,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
     const controller = new AbortController()
     setAbortController(controller)
 
@@ -225,7 +223,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -423,7 +421,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 自定义尺寸输入框 */}
           {isCustomSize && (
             <div style={{ marginTop: 10 }}>
-              <HStack style={{ gap: 8, alignItems: 'center' }}>
+              <RowFlex className="items-center gap-2">
                 <InputNumber
                   placeholder="W"
                   value={customWidth}
@@ -444,7 +442,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                   style={{ width: 80, flex: 1 }}
                 />
                 <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>px</span>
-              </HStack>
+              </RowFlex>
               <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-text-3)' }}>
                 长宽均需满足512px-2048px之间, 需被16整除, 并保证最大像素数不超过2^21px
               </div>

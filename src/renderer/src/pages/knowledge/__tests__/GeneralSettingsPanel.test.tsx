@@ -1,4 +1,4 @@
-import { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
+import type { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

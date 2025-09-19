@@ -1,7 +1,8 @@
 import { Tooltip } from 'antd'
 import type { TFunction } from 'i18next'
-import { LucideProps } from 'lucide-react'
-import React, { ForwardRefExoticComponent, RefAttributes, useEffect, useState } from 'react'
+import type { LucideProps } from 'lucide-react'
+import type { ForwardRefExoticComponent, RefAttributes } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getCommandsByGroup } from './command'

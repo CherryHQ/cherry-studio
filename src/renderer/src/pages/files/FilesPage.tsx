@@ -1,4 +1,5 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -8,9 +9,10 @@ import { getFileFieldLabel } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
-import { FileMetadata, FileTypes } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Checkbox, Dropdown, Empty, Flex, Popconfirm } from 'antd'
+import { Button, Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -21,7 +23,8 @@ import {
   FileText,
   FileType as FileTypeIcon
 } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -110,7 +113,7 @@ const FilesPage: FC = () => {
       created_at: dayjs(file.created_at).format('MM-DD HH:mm'),
       created_at_unix: dayjs(file.created_at).unix(),
       actions: (
-        <Flex align="center" gap={0} style={{ opacity: 0.7 }}>
+        <Flex className="items-center gap-0 opacity-70">
           <Button type="text" icon={<EditIcon size={14} />} onClick={() => handleRename(file.id)} />
           <Popconfirm
             title={t('files.delete.title')}
@@ -160,7 +163,7 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            <Flex gap={8} align="center">
+            <Flex className="items-center gap-2">
               {(['created_at', 'size', 'name'] as const).map((field) => (
                 <SortButton
                   key={field}

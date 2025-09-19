@@ -70,6 +70,27 @@ export default defineConfig([
   ...oxlint.configs['flat/typescript'],
   ...oxlint.configs['flat/unicorn'],
   {
+    ignores: [
+      'node_modules/**',
+      'build/**',
+      'dist/**',
+      'out/**',
+      'local/**',
+      '.yarn/**',
+      '.gitignore',
+      'scripts/cloudflare-worker.js',
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/main/integration/cherryin/index.js',
+      'src/main/integration/nutstore/sso/lib/**',
+      'src/renderer/src/ui/**',
+      'packages/**/dist'
+    ]
+  },
+  // turn off oxlint supported rules.
+  ...oxlint.configs['flat/eslint'],
+  ...oxlint.configs['flat/typescript'],
+  ...oxlint.configs['flat/unicorn'],
+  {
     // LoggerService Custom Rules - only apply to src directory
     files: ['src/**/*.{ts,tsx,js,jsx}'],
     ignores: ['src/**/__tests__/**', 'src/**/__mocks__/**', 'src/**/*.test.*', 'src/preload/**'],
@@ -131,4 +152,29 @@ export default defineConfig([
       'i18n/no-template-in-t': 'warn'
     }
   },
+  {
+    // Component Rules - prevent importing antd components when migration completed
+    files: ['src/**/*.{ts,tsx,js,jsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'antd',
+              // TODO: migrate message again
+              importNames: ['Flex', 'Switch'],
+              message:
+                '❌ Do not import this component from antd. Use our custom components instead: import { ... } from "@cherrystudio/ui"'
+            },
+            // {
+            //   name: '@heroui/react',
+            //   message:
+            //     '❌ Do not import components from heroui directly. Use our wrapped components instead: import { ... } from "@cherrystudio/ui"'
+            // }
+          ]
+        }
+      ]
+    }
+  }
 ])

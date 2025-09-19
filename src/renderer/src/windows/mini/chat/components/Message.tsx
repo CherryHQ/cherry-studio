@@ -1,11 +1,12 @@
-import { useSettings } from '@renderer/hooks/useSettings'
+import { usePreference } from '@data/hooks/usePreference'
 // import MessageContent from './MessageContent'
 import MessageContent from '@renderer/pages/home/Messages/MessageContent'
 import MessageErrorBoundary from '@renderer/pages/home/Messages/MessageErrorBoundary'
 // import { LegacyMessage } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
-import { FC, memo, useRef } from 'react'
+import type { FC } from 'react'
+import { memo, useRef } from 'react'
 import styled from 'styled-components'
 
 interface Props {
@@ -22,7 +23,8 @@ const MessageItem: FC<Props> = ({ message, index, total, route }) => {
   // const [message, setMessage] = useState(_message)
   // const [bl, setTextBlock] = useState<MainTextMessageBlock | null>(null)
   // const model = useModel(getMessageModelId(message))
-  const { messageFont, fontSize } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
   const messageContainerRef = useRef<HTMLDivElement>(null)
 
   const isAssistantMessage = message.role === 'assistant'

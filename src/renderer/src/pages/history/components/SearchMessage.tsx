@@ -1,15 +1,16 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
 import { locateToMessage } from '@renderer/services/MessagesService'
 import NavigationService from '@renderer/services/NavigationService'
-import { Topic } from '@renderer/types'
+import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { runAsyncFunction } from '@renderer/utils'
 import { Button } from 'antd'
 import { Forward } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -51,11 +52,11 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
             onClick={() => locateToMessage(navigate, message)}
             icon={<Forward size={16} />}
           />
-          <HStack mt="10px" justifyContent="center">
+          <RowFlex className="mt-[10px] justify-center">
             <Button onClick={() => locateToMessage(navigate, message)} icon={<Forward size={16} />}>
               {t('history.locate.message')}
             </Button>
-          </HStack>
+          </RowFlex>
         </ContainerWrapper>
       </MessagesContainer>
     </MessageEditingProvider>

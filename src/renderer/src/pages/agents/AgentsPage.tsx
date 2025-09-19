@@ -1,18 +1,19 @@
 import { ImportOutlined, PlusOutlined } from '@ant-design/icons'
+import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
-import { useNavbarPosition } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
-import { Agent } from '@renderer/types'
+import type { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Empty, Flex, Input } from 'antd'
+import { Button, Empty, Input } from 'antd'
 import { omit } from 'lodash'
 import { Search } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
@@ -70,7 +71,7 @@ const AgentsPage: FC = () => {
       window.modal.confirm({
         title: agent.name,
         content: (
-          <Flex gap={16} vertical style={{ width: 'calc(100% + 12px)' }}>
+          <ColFlex className="gap-4" style={{ width: 'calc(100% + 12px)' }}>
             {agent.description && <AgentDescription>{agent.description}</AgentDescription>}
 
             {agent.prompt && (
@@ -78,7 +79,7 @@ const AgentsPage: FC = () => {
                 <ReactMarkdown>{agent.prompt}</ReactMarkdown>
               </AgentPrompt>
             )}
-          </Flex>
+          </ColFlex>
         ),
         width: 600,
         icon: null,
@@ -205,17 +206,17 @@ const AgentsPage: FC = () => {
               active={activeGroup === group && !search.trim()}
               key={group}
               title={
-                <Flex gap={16} align="center" justify="space-between">
-                  <Flex gap={10} align="center">
+                <Flex className="items-center justify-between gap-4">
+                  <Flex className="items-center gap-2.5">
                     <AgentGroupIcon groupName={group} />
                     {getLocalizedGroupName(group)}
                   </Flex>
                   {
-                    <HStack alignItems="center" justifyContent="center" style={{ minWidth: 40 }}>
+                    <RowFlex className="min-w-10 items-center justify-center">
                       <CustomTag color="#A0A0A0" size={8}>
                         {agentGroups[group].length}
                       </CustomTag>
-                    </HStack>
+                    </RowFlex>
                   }
                 </Flex>
               }
@@ -245,7 +246,7 @@ const AgentsPage: FC = () => {
                 </CustomTag>
               }
             </AgentsListTitle>
-            <Flex gap={8}>
+            <Flex className="gap-2">
               {isSearchExpanded ? (
                 <Input
                   placeholder={t('common.search')}

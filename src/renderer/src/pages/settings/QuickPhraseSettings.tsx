@@ -1,13 +1,15 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import FileItem from '@renderer/pages/files/FileItem'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
-import { QuickPhrase } from '@renderer/types'
-import { Button, Flex, Input, Modal, Popconfirm, Space } from 'antd'
+import type { QuickPhrase } from '@renderer/types'
+import { Button, Input, Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -95,7 +97,7 @@ const QuickPhraseSettings: FC = () => {
                     ext: '.txt',
                     extra: phrase.content,
                     actions: (
-                      <Flex gap={4} style={{ opacity: 0.6 }}>
+                      <Flex className="gap-1 opacity-60">
                         <Button
                           key="edit"
                           type="text"

@@ -1,15 +1,19 @@
 import { UploadOutlined } from '@ant-design/icons'
+import { CodeEditor } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import CodeEditor from '@renderer/components/CodeEditor'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useAppDispatch } from '@renderer/store'
 import { setMCPServerActive } from '@renderer/store/mcp'
-import { MCPServer, objectKeys, safeValidateMcpConfig } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
+import { objectKeys, safeValidateMcpConfig } from '@renderer/types'
 import { parseJSON } from '@renderer/utils'
 import { formatZodError } from '@renderer/utils/error'
 import { Button, Form, Modal, Upload } from 'antd'
-import { FC, useCallback, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('AddMcpServerModal')
@@ -70,6 +74,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   initialImportMethod = 'json'
 }) => {
   const { t } = useTranslation()
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [importMethod, setImportMethod] = useState<'json' | 'dxt'>(initialImportMethod)
@@ -321,7 +327,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             label={t('settings.mcp.addServer.importFrom.tooltip')}
             rules={[{ required: true, message: t('settings.mcp.addServer.importFrom.placeholder') }]}>
             <CodeEditor
-              // 如果表單值為空，顯示範例 JSON；否則顯示表單值
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
               value={serverConfigValue}
               placeholder={initialJsonExample}
               language="json"

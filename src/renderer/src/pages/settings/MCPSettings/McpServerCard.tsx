@@ -1,14 +1,16 @@
+import { Switch } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
 import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getMcpTypeLabel } from '@renderer/i18n/label'
-import { MCPServer } from '@renderer/types'
+import type { MCPServer } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
-import { Alert, Button, Space, Switch, Tag, Tooltip, Typography } from 'antd'
+import { Alert, Button, Space, Tag, Tooltip, Typography } from 'antd'
 import { CircleXIcon, Settings2, SquareArrowOutUpRight } from 'lucide-react'
-import { FC, useCallback } from 'react'
-import { FallbackProps } from 'react-error-boundary'
+import type { FC } from 'react'
+import { useCallback } from 'react'
+import type { FallbackProps } from 'react-error-boundary'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -131,11 +133,11 @@ const McpServerCard: FC<McpServerCardProps> = ({
           </ServerNameWrapper>
           <ToolbarWrapper onClick={(e) => e.stopPropagation()}>
             <Switch
-              value={server.isActive}
+              isSelected={server.isActive}
               key={server.id}
-              loading={isLoading}
-              onChange={onToggle}
-              size="small"
+              isLoading={isLoading}
+              onValueChange={onToggle}
+              size="sm"
               data-no-dnd
             />
             <Button

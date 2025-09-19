@@ -8,8 +8,9 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
-import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { Dropdown, Input, InputRef, MenuProps } from 'antd'
+import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import type { InputRef, MenuProps } from 'antd'
+import { Dropdown, Input } from 'antd'
 import {
   ChevronDown,
   ChevronRight,
@@ -22,7 +23,8 @@ import {
   Star,
   StarOff
 } from 'lucide-react'
-import { FC, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC, Ref } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 

@@ -1,32 +1,30 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { RootState, useAppDispatch } from '@renderer/store'
-import { setYuqueRepoId, setYuqueToken, setYuqueUrl } from '@renderer/store/settings'
 import { Button, Space, Tooltip } from 'antd'
 import { Input } from 'antd'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const YuqueSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const dispatch = useAppDispatch()
   const { openMinapp } = useMinappPopup()
 
-  const yuqueToken = useSelector((state: RootState) => state.settings.yuqueToken)
-  const yuqueUrl = useSelector((state: RootState) => state.settings.yuqueUrl)
+  const [yuqueToken, setYuqueToken] = usePreference('data.integration.yuque.token')
+  const [yuqueUrl, setYuqueUrl] = usePreference('data.integration.yuque.url')
+  const [, setYuqueRepoId] = usePreference('data.integration.yuque.repo_id')
 
   const handleYuqueTokenChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setYuqueToken(e.target.value))
+    setYuqueToken(e.target.value)
   }
 
   const handleYuqueRepoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    dispatch(setYuqueUrl(e.target.value))
+    setYuqueUrl(e.target.value)
   }
 
   const handleYuqueConnectionCheck = async () => {
@@ -60,7 +58,7 @@ const YuqueSettings: FC = () => {
       return
     }
     const data = await repoIDResponse.json()
-    dispatch(setYuqueRepoId(data.data.id))
+    setYuqueRepoId(data.data.id)
     window.toast.success(t('settings.data.yuque.check.success'))
   }
 
@@ -78,15 +76,14 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Input
             type="text"
             value={yuqueUrl || ''}
             onChange={handleYuqueRepoUrlChange}
-            style={{ width: 315 }}
             placeholder={t('settings.data.yuque.repo_url_placeholder')}
           />
-        </HStack>
+        </RowFlex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
@@ -99,7 +96,7 @@ const YuqueSettings: FC = () => {
             />
           </Tooltip>
         </SettingRowTitle>
-        <HStack alignItems="center" gap="5px" style={{ width: 315 }}>
+        <RowFlex className="w-[315px] items-center gap-[5px]">
           <Space.Compact style={{ width: '100%' }}>
             <Input.Password
               value={yuqueToken || ''}
@@ -110,7 +107,7 @@ const YuqueSettings: FC = () => {
             />
             <Button onClick={handleYuqueConnectionCheck}>{t('settings.data.yuque.check.button')}</Button>
           </Space.Compact>
-        </HStack>
+        </RowFlex>
       </SettingRow>
     </SettingGroup>
   )

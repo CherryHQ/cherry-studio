@@ -5,33 +5,34 @@ import {
   isOpenAIModel,
   isSupportFlexServiceTierModel
 } from '@renderer/config/models'
-import { REFERENCE_PROMPT } from '@renderer/config/prompts'
 import { isSupportServiceTierProvider } from '@renderer/config/providers'
 import { getLMStudioKeepAliveTime } from '@renderer/hooks/useLMStudio'
 import { getAssistantSettings } from '@renderer/services/AssistantService'
-import {
+import type {
   Assistant,
-  FileTypes,
   GenerateImageParams,
-  GroqServiceTiers,
-  isGroqServiceTier,
-  isOpenAIServiceTier,
   KnowledgeReference,
   MCPCallToolResponse,
   MCPTool,
   MCPToolResponse,
   MemoryItem,
   Model,
-  OpenAIServiceTiers,
   OpenAIVerbosity,
   Provider,
-  SystemProviderIds,
   ToolCallResponse,
   WebSearchProviderResponse,
   WebSearchResponse
 } from '@renderer/types'
-import { Message } from '@renderer/types/newMessage'
 import {
+  FileTypes,
+  GroqServiceTiers,
+  isGroqServiceTier,
+  isOpenAIServiceTier,
+  OpenAIServiceTiers,
+  SystemProviderIds
+} from '@renderer/types'
+import type { Message } from '@renderer/types/newMessage'
+import type {
   RequestOptions,
   SdkInstance,
   SdkMessageParam,
@@ -46,11 +47,12 @@ import { isJSON, parseJSON } from '@renderer/utils'
 import { addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { findFileBlocks, getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { defaultTimeout } from '@shared/config/constant'
+import { REFERENCE_PROMPT } from '@shared/config/prompts'
 import { defaultAppHeaders } from '@shared/utils'
 import { isEmpty } from 'lodash'
 
-import { CompletionsContext } from '../middleware/types'
-import { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
+import type { CompletionsContext } from '../middleware/types'
+import type { ApiClient, RequestTransformer, ResponseChunkTransformer } from './types'
 
 const logger = loggerService.withContext('BaseApiClient')
 

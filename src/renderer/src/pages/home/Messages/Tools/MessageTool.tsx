@@ -1,4 +1,4 @@
-import { MCPToolResponse } from '@renderer/types'
+import type { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse } from 'antd'
 

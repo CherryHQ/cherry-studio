@@ -1,4 +1,4 @@
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { Avatar, Button, Select, Space, Tooltip } from 'antd'
 import { UserRoundPlus } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
@@ -23,12 +23,12 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   const renderLabel = useCallback(
     (userId: string, userName: string) => {
       return (
-        <HStack alignItems="center" gap={10}>
+        <RowFlex className="items-center gap-2.5">
           <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
             {getUserAvatar(userId)}
           </Avatar>
           <span>{userName}</span>
-        </HStack>
+        </RowFlex>
       )
     },
     [getUserAvatar]

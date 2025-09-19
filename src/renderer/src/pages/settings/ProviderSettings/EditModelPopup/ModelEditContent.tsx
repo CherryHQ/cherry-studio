@@ -1,3 +1,5 @@
+import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import {
   EmbeddingTag,
@@ -18,25 +20,14 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import { useDynamicLabelWidth } from '@renderer/hooks/useDynamicLabelWidth'
-import { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
+import type { Model, ModelCapability, ModelType, Provider } from '@renderer/types'
 import { getDefaultGroupName, getDifference, getUnion, uniqueObjectArray } from '@renderer/utils'
-import {
-  Button,
-  Divider,
-  Flex,
-  Form,
-  Input,
-  InputNumber,
-  message,
-  Modal,
-  ModalProps,
-  Select,
-  Switch,
-  Tooltip
-} from 'antd'
+import type { ModalProps } from 'antd'
+import { Button, Divider, Form, Input, InputNumber, message, Modal, Select, Tooltip } from 'antd'
 import { cloneDeep } from 'lodash'
 import { ChevronDown, ChevronUp, RotateCcw, SaveIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -192,7 +183,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
     return (
       <>
         <TypeTitle>
-          <Flex align="center" gap={4} style={{ height: 24 }}>
+          <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
             <WarnTooltip title={t('settings.moresetting.check.warn')} />
           </Flex>
@@ -203,7 +194,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
             </Tooltip>
           )}
         </TypeTitle>
-        <Flex justify="flex-start" align="center" gap={4} wrap={'wrap'} style={{ marginBottom: 8 }}>
+        <Flex className="mb-2 flex-wrap items-center justify-start gap-1">
           <VisionTag
             showLabel
             inactive={isOtherDisabled || !selectedTypes.includes('vision')}
@@ -271,7 +262,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           label={t('settings.models.add.model_id.label')}
           tooltip={t('settings.models.add.model_id.tooltip')}
           rules={[{ required: true }]}>
-          <Flex justify="space-between" gap={5}>
+          <Flex className="justify-between gap-[5px]">
             <Input
               placeholder={t('settings.models.add.model_id.placeholder')}
               spellCheck={false}
@@ -325,7 +316,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           </Form.Item>
         )}
         <Form.Item style={{ marginBottom: 8, textAlign: 'center' }}>
-          <Flex justify="space-between" align="center" style={{ position: 'relative' }}>
+          <Flex className="relative items-center justify-between">
             <Button
               color="default"
               variant="filled"
@@ -352,10 +343,10 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
               label={t('settings.models.add.supported_text_delta.label')}
               tooltip={t('settings.models.add.supported_text_delta.tooltip')}>
               <Switch
-                checked={supportedTextDelta}
-                style={{ marginLeft: 'auto' }}
-                size="small"
-                onChange={(checked) => {
+                isSelected={supportedTextDelta}
+                className="ml-auto"
+                size="sm"
+                onValueChange={(checked) => {
                   setSupportedTextDelta(checked)
                   // 直接传递新值给autoSave
                   autoSave({ supported_text_delta: checked })

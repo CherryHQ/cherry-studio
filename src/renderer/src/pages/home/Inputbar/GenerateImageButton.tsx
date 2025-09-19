@@ -1,9 +1,9 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { isGenerateImageModel } from '@renderer/config/models'
-import { Assistant, Model } from '@renderer/types'
+import type { Assistant, Model } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { Image } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {

@@ -1,4 +1,4 @@
-import { ActionTool } from '@renderer/components/ActionTools'
+import type { ActionTool } from '@renderer/components/ActionTools'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
       {children}
     </div>
   )),
-  HStack: vi.fn(({ children, className }) => (
+  RowFlex: vi.fn(({ children, className }) => (
     <div data-testid="hstack" className={className}>
       {children}
     </div>
@@ -43,8 +43,8 @@ vi.mock('antd', () => ({
   Tooltip: mocks.Tooltip
 }))
 
-vi.mock('@renderer/components/Layout', () => ({
-  HStack: mocks.HStack
+vi.mock('@cherrystudio/ui', () => ({
+  RowFlex: mocks.RowFlex
 }))
 
 vi.mock('./styles', () => ({
