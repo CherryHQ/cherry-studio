@@ -2,7 +2,7 @@ import { Button, Spinner } from '@heroui/react'
 import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction } from '@renderer/store/runtime'
+import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { Plus } from 'lucide-react'
 import { memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,6 +23,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const setActiveSessionId = useCallback(
     (agentId: string, sessionId: string | null) => {
       dispatch(setActiveSessionIdAction({ agentId, sessionId }))
+      dispatch(setActiveTopicOrSessionAction('session'))
     },
     [dispatch]
   )

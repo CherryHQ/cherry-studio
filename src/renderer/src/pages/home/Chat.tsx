@@ -6,6 +6,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -23,6 +24,7 @@ import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
 import Inputbar from './Inputbar/Inputbar'
+import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -44,6 +46,8 @@ const Chat: FC<Props> = (props) => {
   const { isMultiSelectMode } = useChatContext(props.activeTopic)
   const { isTopNavbar } = useNavbarPosition()
   const chatMaxWidth = useChatMaxWidth()
+  const { chat } = useRuntime()
+  const { activeTopicOrSession, activeAgentId, activeSessionId } = chat
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -136,6 +140,17 @@ const Chat: FC<Props> = (props) => {
     ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
     : 'calc(100vh - var(--navbar-height))'
 
+  const SessionMessages = () => {
+    if (activeAgentId === null) {
+      return <div> Active Agent ID is invalid.</div>
+    }
+    const sessionId = activeSessionId[activeAgentId]
+    if (!sessionId) {
+      return <div> Active Session ID is invalid.</div>
+    }
+    return <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
+  }
+
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       {isTopNavbar && (
@@ -156,23 +171,28 @@ const Chat: FC<Props> = (props) => {
           justify="space-between"
           style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
           <QuickPanelProvider>
-            <Messages
-              key={props.activeTopic.id}
-              assistant={assistant}
-              topic={props.activeTopic}
-              setActiveTopic={props.setActiveTopic}
-              onComponentUpdate={messagesComponentUpdateHandler}
-              onFirstUpdate={messagesComponentFirstUpdateHandler}
-            />
-            <ContentSearch
-              ref={contentSearchRef}
-              searchTarget={mainRef as React.RefObject<HTMLElement>}
-              filter={contentSearchFilter}
-              includeUser={filterIncludeUser}
-              onIncludeUserChange={userOutlinedItemClickHandler}
-            />
-            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-            <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+            {activeTopicOrSession === 'topic' && (
+              <>
+                <Messages
+                  key={props.activeTopic.id}
+                  assistant={assistant}
+                  topic={props.activeTopic}
+                  setActiveTopic={props.setActiveTopic}
+                  onComponentUpdate={messagesComponentUpdateHandler}
+                  onFirstUpdate={messagesComponentFirstUpdateHandler}
+                />
+                <ContentSearch
+                  ref={contentSearchRef}
+                  searchTarget={mainRef as React.RefObject<HTMLElement>}
+                  filter={contentSearchFilter}
+                  includeUser={filterIncludeUser}
+                  onIncludeUserChange={userOutlinedItemClickHandler}
+                />
+                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
+                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
+              </>
+            )}
+            {activeTopicOrSession === 'session' && <SessionMessages />}
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
         </Main>
