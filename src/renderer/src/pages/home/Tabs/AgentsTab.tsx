@@ -1,7 +1,6 @@
 import { Button } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useRemoveAgent } from '@renderer/hooks/agents/useRemoveAgent'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
@@ -14,8 +13,7 @@ import AgentItem from './components/AgentItem'
 interface AssistantsTabProps {}
 
 export const AgentsTab: FC<AssistantsTabProps> = () => {
-  const { agents } = useAgents()
-  const { removeAgent } = useRemoveAgent()
+  const { agents, deleteAgent } = useAgents()
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
@@ -35,7 +33,7 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
           key={agent.id}
           agent={agent}
           isActive={agent.id === activeAgentId}
-          onDelete={removeAgent}
+          onDelete={() => deleteAgent(agent.id)}
           onPress={() => setActiveAgentId(agent.id)}
         />
       ))}
