@@ -191,17 +191,13 @@ export class AgentApiClient {
     }
   }
 
-  public async updateSession(
-    agentId: string,
-    sessionId: string,
-    session: UpdateSessionForm
-  ): Promise<UpdateSessionResponse> {
-    const url = this.getSessionPaths(agentId).withId(sessionId)
+  public async updateSession(agentId: string, session: UpdateSessionForm): Promise<UpdateSessionResponse> {
+    const url = this.getSessionPaths(agentId).withId(session.id)
     try {
       const payload = session satisfies UpdateSessionRequest
       const response = await this.axios.patch(url, payload)
       const data = UpdateSessionResponseSchema.parse(response.data)
-      if (sessionId !== data.id) {
+      if (session.id !== data.id) {
         throw new Error('Session ID mismatch in response')
       }
       return data

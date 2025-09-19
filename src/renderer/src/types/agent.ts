@@ -154,6 +154,8 @@ export type CreateSessionForm = BaseSessionForm & { id?: never }
 
 export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
 
+export type SessionForm = CreateSessionForm | UpdateSessionForm
+
 // ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {
   type: AgentType

@@ -57,11 +57,11 @@ export const useSessions = (agentId: string) => {
   )
 
   const updateSession = useCallback(
-    async (id: string, form: UpdateSessionForm) => {
+    async (form: UpdateSessionForm) => {
       if (!agentId) return
       try {
-        const result = await client.updateSession(agentId, id, form)
-        mutate((prev) => prev?.map((session) => (session.id === id ? result : session)))
+        const result = await client.updateSession(agentId, form)
+        mutate((prev) => prev?.map((session) => (session.id === form.id ? result : session)))
       } catch (error) {
         window.toast.error(t('agent.session.update.error.failed'))
       }
