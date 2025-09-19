@@ -238,22 +238,15 @@ export class SessionMessageService extends BaseService {
               error: serializeError(underlyingError),
               persistScheduled: false
             })
-            // Always emit a finish chunk at the end
+            // Always emit a complete chunk at the end
             sessionStream.emit('data', {
-              type: 'finish',
+              type: 'complete',
               persistScheduled: false
             })
             break
           }
 
           case 'complete': {
-            const completionPayload = event.result ?? accumulator.toModelMessage('assistant')
-
-            sessionStream.emit('data', {
-              type: 'complete',
-              result: completionPayload
-            })
-
             try {
               const persisted = await this.database.transaction(async (tx) => {
                 const userMessage = await this.persistUserMessage(tx, session.id, req.content, newAgentSessionId)
@@ -278,9 +271,9 @@ export class SessionMessageService extends BaseService {
                 error: serializeError(persistError)
               })
             } finally {
-              // Always emit a finish chunk at the end
+              // Always emit a complete chunk at the end
               sessionStream.emit('data', {
-                type: 'finish',
+                type: 'complete',
                 persistScheduled: true
               })
             }

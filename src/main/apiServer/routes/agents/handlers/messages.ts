@@ -49,8 +49,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     // Track stream lifecycle so we keep the SSE connection open until persistence finishes
     let responseEnded = false
     let streamFinished = false
-    let awaitingPersistence = false
-    const persistenceResolved = false
 
     const finalizeResponse = () => {
       if (responseEnded) {
@@ -58,10 +56,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       }
 
       if (!streamFinished) {
-        return
-      }
-
-      if (awaitingPersistence && !persistenceResolved) {
         return
       }
 
@@ -136,7 +130,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             // res.write(`data: ${JSON.stringify({ type: 'complete', result: event.result })}\n\n`)
 
             streamFinished = true
-            awaitingPersistence = true
             finalizeResponse()
             break
           }
@@ -151,7 +144,8 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
           default:
             // Handle other event types as generic data
-            res.write(`data: ${JSON.stringify(event)}\n\n`)
+            logger.info(`Streaming message event for session: ${sessionId}:`, { event })
+            // res.write(`data: ${JSON.stringify(event)}\n\n`)
             break
         }
       } catch (writeError) {
