@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { formatAgentServerError } from '@renderer/utils'
+import { formatAgentServerError } from '@renderer/utils/error'
 import {
   AddAgentForm,
   AgentServerErrorSchema,
@@ -43,9 +43,9 @@ const logger = loggerService.withContext('AgentApiClient')
 const processError = (error: unknown, fallbackMessage: string) => {
   logger.error(fallbackMessage, error as Error)
   if (isAxiosError(error)) {
-    const result = AgentServerErrorSchema.safeParse(error.response)
+    const result = AgentServerErrorSchema.safeParse(error.response?.data)
     if (result.success) {
-      return new Error(formatAgentServerError(result.data), { cause: error })
+      return new Error(formatAgentServerError(result.data))
     }
   } else if (error instanceof ZodError) {
     return error

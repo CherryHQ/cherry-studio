@@ -1,4 +1,5 @@
 import { McpError } from '@modelcontextprotocol/sdk/types.js'
+import { AgentServerError, AgentServerErrorSchema } from '@renderer/types'
 import {
   AiSdkErrorUnion,
   isSerializedAiSdkAPICallError,
@@ -8,6 +9,7 @@ import {
   SerializedError
 } from '@renderer/types/error'
 import { InvalidToolInputError, NoSuchToolError } from 'ai'
+import { AxiosError, isAxiosError } from 'axios'
 import { t } from 'i18next'
 import { z, ZodError } from 'zod'
 
@@ -46,6 +48,13 @@ export function getErrorDetails(err: any, seen = new WeakSet()): any {
 export function formatErrorMessage(error: unknown): string {
   if (error instanceof ZodError) {
     return formatZodError(error)
+  }
+  if (isAxiosError(error)) {
+    return formatAxiosError(error)
+  }
+  const parseResult = AgentServerErrorSchema.safeParse(error)
+  if (parseResult.success) {
+    return formatAgentServerError(parseResult.data)
   }
   const detailedError = getErrorDetails(error)
   delete detailedError?.headers
@@ -293,4 +302,15 @@ export function formatAiSdkError(error: SerializedAiSdkError): string {
   }
 
   return text.trim()
+}
+export const formatAgentServerError = (error: AgentServerError) =>
+  `${t('common.error')}: ${error.error.code} ${error.error.message}`
+export const formatAxiosError = (error: AxiosError) => {
+  if (!error.response) {
+    return `${t('common.error')}: ${t('error.no_response')}`
+  }
+
+  const { status, statusText } = error.response
+
+  return `${t('common.error')}: ${status} ${statusText}`
 }
