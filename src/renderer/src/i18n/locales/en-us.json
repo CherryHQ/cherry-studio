@@ -40,6 +40,11 @@
       "edit": {
         "title": "Edit session"
       },
+      "get": {
+        "error": {
+          "failed": "Failed to get the session"
+        }
+      },
       "label_one": "Session",
       "label_other": "Sessions",
       "update": {
