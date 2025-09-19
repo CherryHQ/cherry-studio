@@ -198,10 +198,7 @@ export class SessionMessageService extends BaseService {
     }
 
     // Create the streaming agent invocation (using invokeStream for streaming)
-    const claudeStream = this.cc.invoke(req.content, session.accessible_paths[0], agentSessionId, {
-      permissionMode: session.configuration?.permission_mode,
-      maxTurns: session.configuration?.max_turns
-    })
+    const claudeStream = await this.cc.invoke(req.content, session, agentSessionId)
 
     // Use chunk accumulator to manage streaming data
     const accumulator = new ChunkAccumulator()

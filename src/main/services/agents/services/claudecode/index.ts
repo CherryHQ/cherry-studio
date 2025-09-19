@@ -4,7 +4,10 @@ import { createRequire } from 'node:module'
 
 import { Options, query, SDKMessage } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
+// import { config as apiConfig } from '@main/apiServer/config'
+import { validateModelId } from '@main/apiServer/utils'
 
+import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
 import { transformSDKMessageToUIChunk } from './transform'
 
@@ -34,8 +37,44 @@ class ClaudeCodeService implements AgentServiceInterface {
     this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-code/cli.js')
   }
 
-  invoke(prompt: string, cwd: string, session_id?: string, base?: Options): AgentStream {
+  async invoke(prompt: string, session: GetAgentSessionResponse, lastAgentSessionId?: string): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
+
+    // Validate session accessible paths and make sure it exists as a directory
+    const cwd = session.accessible_paths[0]
+    if (!cwd) {
+      aiStream.emit('data', {
+        type: 'error',
+        error: new Error('No accessible paths defined for the agent session')
+      })
+      return aiStream
+    }
+
+    // Validate model
+    const modelId = session.model
+    logger.info('Invoking Claude Code with model', { modelId, cwd })
+    const modelInfo = await validateModelId(modelId)
+    if (!modelInfo.valid) {
+      aiStream.emit('data', {
+        type: 'error',
+        error: new Error(`Invalid model ID '${modelId}': ${JSON.stringify(modelInfo.error)}`)
+      })
+      return aiStream
+    }
+    if (modelInfo.provider?.type !== 'anthropic' || modelInfo.provider.apiKey === '') {
+      aiStream.emit('data', {
+        type: 'error',
+        error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)
+      })
+      return aiStream
+    }
+
+    // TODO: use cherry studio api server config instead of direct provider config to provide more flexibility (e.g. custom headers, proxy, statistics, etc).
+    // const cfg = await apiConfig.get()
+    // process.env.ANTHROPIC_AUTH_TOKEN = cfg.apiKey
+    // process.env.ANTHROPIC_BASE_URL = `http://${cfg.host}:${cfg.port}`
+    process.env.ANTHROPIC_AUTH_TOKEN = modelInfo.provider.apiKey
+    process.env.ANTHROPIC_BASE_URL = modelInfo.provider.apiHost
 
     // Build SDK options from parameters
     const options: Options = {
@@ -44,11 +83,12 @@ class ClaudeCodeService implements AgentServiceInterface {
       stderr: (chunk: string) => {
         logger.info('claude stderr', { chunk })
       },
-      ...base
+      permissionMode: session.configuration?.permission_mode,
+      maxTurns: session.configuration?.max_turns
     }
 
-    if (session_id) {
-      options.resume = session_id
+    if (lastAgentSessionId) {
+      options.resume = lastAgentSessionId
     }
 
     logger.info('Starting Claude Code SDK query', {

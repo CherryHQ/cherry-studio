@@ -3,6 +3,7 @@
 
 import { EventEmitter } from 'node:events'
 
+import { GetAgentSessionResponse } from '@types'
 import { UIMessageChunk } from 'ai'
 
 // Generic agent stream event that works with any agent type
@@ -23,5 +24,5 @@ export interface AgentStream extends EventEmitter {
 
 // Base agent service interface
 export interface AgentServiceInterface {
-  invoke(prompt: string, cwd: string, sessionId?: string, options?: any): AgentStream
+  invoke(prompt: string, session: GetAgentSessionResponse, lastAgentSessionId?: string): Promise<AgentStream>
 }
