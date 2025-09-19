@@ -18,7 +18,10 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
+import { getModelLogo } from '@renderer/config/models'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useModels } from '@renderer/hooks/agents/useModels'
+import { getProviderLabel } from '@renderer/i18n/label'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,19 +30,33 @@ import { ErrorBoundary } from '../../ErrorBoundary'
 
 const logger = loggerService.withContext('AddAgentPopup')
 
-interface Option {
+interface BaseOption {
+  type: 'type' | 'model'
   key: string
   label: string
   // img src
   avatar: string
 }
 
-interface AgentTypeOption extends Option {
+interface AgentTypeOption extends BaseOption {
+  type: 'type'
   key: AgentEntity['type']
   name: AgentEntity['name']
 }
 
-type ModelOption = Option
+// function isAgentTypeOption(option: BaseOption): option is AgentTypeOption {
+//   return option.type === 'type'
+// }
+
+interface ModelOption extends BaseOption {
+  providerId?: string
+}
+
+function isModelOption(option: BaseOption): option is ModelOption {
+  return option.type === 'model'
+}
+
+type Option = AgentTypeOption | ModelOption
 
 const buildAgentForm = (existing?: AgentEntity): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
@@ -84,6 +101,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
   const { addAgent, updateAgent } = useAgents()
+  // hard-coded. We only support anthropic for now.
+  const { models } = useModels({ providerType: 'anthropic' })
   const isEditing = (agent?: AgentEntity) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
@@ -107,7 +126,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       return (
         <div className="flex gap-2">
           <Avatar src={option.avatar} className="h-5 w-5" />
-          {option.label}
+          {option.label} {isModelOption(option) && option.providerId && `| ${getProviderLabel(option.providerId)}`}
         </div>
       )
     },
@@ -126,6 +145,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
     () =>
       [
         {
+          type: 'type',
           key: 'claude-code',
           label: 'Claude Code',
           name: 'Claude Code',
@@ -189,14 +209,14 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
 
   const modelOptions = useMemo(() => {
     // mocked data. not final version
-    return [
-      {
-        key: 'claude-4-sonnet',
-        label: 'Claude 4 Sonnet',
-        avatar: ClaudeIcon
-      }
-    ] satisfies ModelOption[]
-  }, [])
+    return (models ?? []).map((model) => ({
+      type: 'model',
+      key: model.id,
+      label: model.name,
+      avatar: getModelLogo(model.id),
+      providerId: model.provider
+    })) satisfies ModelOption[]
+  }, [models])
 
   const onModelChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
     setForm((prev) => ({
