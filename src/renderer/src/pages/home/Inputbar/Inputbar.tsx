@@ -442,11 +442,41 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       setText(newText)
 
       const textArea = textareaRef.current?.resizableTextArea?.textArea
-      const cursorPosition = textArea?.selectionStart ?? 0
+      const cursorPosition = textArea?.selectionStart ?? newText.length
       const lastSymbol = newText[cursorPosition - 1]
+      const previousChar = newText[cursorPosition - 2]
+      const isCursorAtTextStart = cursorPosition <= 1
+      const hasValidTriggerBoundary = previousChar === ' ' || isCursorAtTextStart
+
+      const isMentionOrRootPanel =
+        quickPanel.symbol === QuickPanelReservedSymbol.Root ||
+        quickPanel.symbol === QuickPanelReservedSymbol.MentionModels
+
+      // 当搜索内容后紧跟空格时，退出当前 QuickPanel 逻辑
+      if (
+        quickPanel.isVisible &&
+        lastSymbol === ' ' &&
+        quickPanel.triggerInfo?.type === 'input' &&
+        typeof quickPanel.triggerInfo?.position === 'number' &&
+        isMentionOrRootPanel
+      ) {
+        const triggerPosition = quickPanel.triggerInfo.position
+        if (triggerPosition >= 0 && triggerPosition < newText.length) {
+          const segment = newText.slice(triggerPosition, cursorPosition)
+          const triggerChar = newText[triggerPosition]
+          const hasTrailingSpace = segment.endsWith(' ')
+          const searchText = segment.slice(1, segment.length - 1)
+          const hasSearchContent = searchText.trim().length > 0
+          const hasValidLeadingSpace = triggerPosition === 0 || (newText[triggerPosition - 1] || '') === ' '
+
+          if (hasTrailingSpace && hasSearchContent && hasValidLeadingSpace && triggerChar === quickPanel.symbol) {
+            quickPanel.close('space-exit', searchText.trim())
+          }
+        }
+      }
 
       // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root) {
+      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root && hasValidTriggerBoundary) {
         if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           quickPanel.close('switch-symbol')
         }
@@ -460,13 +490,22 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           quickPanel.open({
             title: t('settings.quickPanel.title'),
             list: quickPanelMenu,
-            symbol: QuickPanelReservedSymbol.Root
+            symbol: QuickPanelReservedSymbol.Root,
+            triggerInfo: {
+              type: 'input',
+              position: cursorPosition - 1,
+              originalText: newText
+            }
           })
         }
       }
 
       // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.MentionModels) {
+      if (
+        enableQuickPanelTriggers &&
+        lastSymbol === QuickPanelReservedSymbol.MentionModels &&
+        hasValidTriggerBoundary
+      ) {
         if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
           quickPanel.close('switch-symbol')
         }

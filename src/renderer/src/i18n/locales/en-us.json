@@ -332,7 +332,7 @@
       },
       "new_topic": "New Topic {{Command}}",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send...",
+      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
       "send": "Send",
       "settings": "Settings",
       "thinking": {

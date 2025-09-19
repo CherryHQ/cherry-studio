@@ -158,15 +158,22 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       const cursorPosition = textArea.selectionStart ?? 0
       const textBeforeCursor = textArea.value.slice(0, cursorPosition)
 
-      // 查找最后一个 @ 或 / 符号的位置
-      const lastAtIndex = textBeforeCursor.lastIndexOf('@')
-      const lastSlashIndex = textBeforeCursor.lastIndexOf('/')
-      const lastSymbolIndex = Math.max(lastAtIndex, lastSlashIndex)
+      // 查找末尾最近的触发符号（@ 或 /），允许位于文本起始或空格后
+      const match = textBeforeCursor.match(/(^| )([@/][^\s]*)$/)
+      if (!match) return
 
-      if (lastSymbolIndex === -1) return
+      const matchIndex = match.index ?? -1
+      if (matchIndex === -1) return
+
+      const boundarySegment = match[1] ?? ''
+      const symbolSegment = match[2] ?? ''
+      if (!symbolSegment) return
+
+      const boundaryStart = matchIndex
+      const symbolStart = boundaryStart + boundarySegment.length
 
       // 根据 includeSymbol 决定是否删除符号
-      const deleteStart = includeSymbol ? lastSymbolIndex : lastSymbolIndex + 1
+      const deleteStart = includeSymbol ? boundaryStart : symbolStart + 1
       const deleteEnd = cursorPosition
 
       if (deleteStart >= deleteEnd) return

@@ -332,7 +332,7 @@
       },
       "new_topic": "新话题 {{Command}}",
       "pause": "暂停",
-      "placeholder": "在这里输入消息，按 {{key}} 发送...",
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
       "send": "发送",
       "settings": "设置",
       "thinking": {

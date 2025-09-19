@@ -332,7 +332,7 @@
       },
       "new_topic": "新話題 {{Command}}",
       "pause": "暫停",
-      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送...",
+      "placeholder": "在此輸入您的訊息，按 {{key}} 傳送 - @ 選擇模型，/ 包含工具",
       "send": "傳送",
       "settings": "設定",
       "thinking": {
