@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Button,
   cn,
   Form,
@@ -11,7 +10,6 @@ import {
   ModalHeader,
   Select,
   SelectedItemProps,
-  SelectedItems,
   SelectItem,
   Textarea,
   useDisclosure
@@ -21,39 +19,19 @@ import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useModels } from '@renderer/hooks/agents/useModels'
-import { getProviderLabel } from '@renderer/i18n/label'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
+import { BaseOption, ModelOption, Option, renderOption } from './shared'
 
 const logger = loggerService.withContext('AddAgentPopup')
-
-interface BaseOption {
-  type: 'type' | 'model'
-  key: string
-  label: string
-  // img src
-  avatar: string
-}
 
 interface AgentTypeOption extends BaseOption {
   type: 'type'
   key: AgentEntity['type']
   name: AgentEntity['name']
-}
-
-// function isAgentTypeOption(option: BaseOption): option is AgentTypeOption {
-//   return option.type === 'type'
-// }
-
-interface ModelOption extends BaseOption {
-  providerId?: string
-}
-
-function isModelOption(option: BaseOption): option is ModelOption {
-  return option.type === 'model'
 }
 
 type Option = AgentTypeOption | ModelOption
@@ -113,33 +91,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
     }
   }, [agent, isOpen])
 
-  const Option = useCallback(
-    ({ option }: { option?: Option | null }) => {
-      if (!option) {
-        return (
-          <div className="flex gap-2">
-            <Avatar name="?" className="h-5 w-5" />
-            {t('common.invalid_value')}
-          </div>
-        )
-      }
-      return (
-        <div className="flex gap-2">
-          <Avatar src={option.avatar} className="h-5 w-5" />
-          {option.label} {isModelOption(option) && option.providerId && `| ${getProviderLabel(option.providerId)}`}
-        </div>
-      )
-    },
-    [t]
-  )
-
-  const Item = useCallback(({ item }: { item: SelectedItemProps<Option> }) => <Option option={item.data} />, [Option])
-
-  const renderOption = useCallback(
-    (items: SelectedItems<Option>) => items.map((item) => <Item key={item.key} item={item} />),
-    [Item]
-  )
-
   // add supported agents type here.
   const agentConfig = useMemo(
     () =>
@@ -164,7 +115,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
             rendered: <Option option={option} />
           }) as const satisfies SelectedItemProps
       ),
-    [Option, agentConfig]
+    [agentConfig]
   )
 
   const onAgentTypeChange = useCallback(

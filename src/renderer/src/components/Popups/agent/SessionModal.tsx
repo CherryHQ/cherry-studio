@@ -1,5 +1,4 @@
 import {
-  Avatar,
   Button,
   cn,
   Form,
@@ -17,30 +16,25 @@ import {
   useDisclosure
 } from '@heroui/react'
 import { loggerService } from '@logger'
-import ClaudeIcon from '@renderer/assets/images/models/claude.png'
+import { getModelLogo } from '@renderer/config/models'
+import { useModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { AgentEntity, AgentSessionEntity, BaseSessionForm, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
+import { BaseOption, ModelOption, Option } from './shared'
 
 const logger = loggerService.withContext('SessionAgentPopup')
 
-interface Option {
-  key: string
-  label: string
-  // img src
-  avatar: string
-}
-
-type ModelOption = Option
+type Option = ModelOption
 
 const buildSessionForm = (existing?: AgentSessionEntity, agent?: AgentEntity): BaseSessionForm => ({
   name: existing?.name ?? agent?.name ?? 'Claude Code',
   description: existing?.description ?? agent?.description,
   instructions: existing?.instructions ?? agent?.instructions,
-  model: existing?.model ?? agent?.model ?? 'claude-4-sonnet',
+  model: existing?.model ?? agent?.model ?? '',
   accessible_paths: existing?.accessible_paths
     ? [...existing.accessible_paths]
     : agent?.accessible_paths
@@ -84,6 +78,8 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
   const { createSession, updateSession } = useSessions(agentId)
+  // Only support claude code for now
+  const { models } = useModels({ providerType: 'anthropic' })
   const isEditing = (session?: AgentSessionEntity) => session !== undefined
 
   const [form, setForm] = useState<BaseSessionForm>(() => buildSessionForm(session))
@@ -94,30 +90,10 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
     }
   }, [session, isOpen])
 
-  const Option = useCallback(
-    ({ option }: { option?: Option | null }) => {
-      if (!option) {
-        return (
-          <div className="flex gap-2">
-            <Avatar name="?" className="h-5 w-5" />
-            {t('common.invalid_value')}
-          </div>
-        )
-      }
-      return (
-        <div className="flex gap-2">
-          <Avatar src={option.avatar} className="h-5 w-5" />
-          {option.label}
-        </div>
-      )
-    },
-    [t]
-  )
-
-  const Item = useCallback(({ item }: { item: SelectedItemProps<Option> }) => <Option option={item.data} />, [Option])
+  const Item = useCallback(({ item }: { item: SelectedItemProps<BaseOption> }) => <Option option={item.data} />, [])
 
   const renderOption = useCallback(
-    (items: SelectedItems<Option>) => items.map((item) => <Item key={item.key} item={item} />),
+    (items: SelectedItems<BaseOption>) => items.map((item) => <Item key={item.key} item={item} />),
     [Item]
   )
 
@@ -144,14 +120,14 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
 
   const modelOptions = useMemo(() => {
     // mocked data. not final version
-    return [
-      {
-        key: 'claude-4-sonnet',
-        label: 'Claude 4 Sonnet',
-        avatar: ClaudeIcon
-      }
-    ] satisfies ModelOption[]
-  }, [])
+    return (models ?? []).map((model) => ({
+      type: 'model',
+      key: model.id,
+      label: model.name,
+      avatar: getModelLogo(model.id),
+      providerId: model.provider
+    })) satisfies ModelOption[]
+  }, [models])
 
   const onModelChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
     setForm((prev) => ({
