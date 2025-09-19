@@ -210,7 +210,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
         if (textArea) {
           setInputText(textArea.value)
         }
-      } else if (action && !['outsideclick', 'esc', 'enter_empty'].includes(action)) {
+      } else if (action && !['outsideclick', 'esc', 'enter_empty', 'no_result'].includes(action)) {
         clearSearchText(true)
       }
     },
@@ -539,6 +539,18 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
   // 折叠仅依据“非固定项”的匹配数；仅剩固定项（如“清除”）时仍视为无匹配，保持折叠
   const visibleNonPinnedCount = useMemo(() => list.filter((i) => !i.alwaysVisible).length, [list])
   const collapsed = hasSearchText && visibleNonPinnedCount === 0
+
+  useEffect(() => {
+    if (!ctx.isVisible) return
+    if (!collapsed) return
+    if (ctx.triggerInfo?.type !== 'input') return
+    if (ctx.multiple) return
+
+    const trimmedSearch = searchText.replace(/^[/@]/, '').trim()
+    if (!trimmedSearch) return
+
+    handleClose('no_result')
+  }, [collapsed, ctx.isVisible, ctx.triggerInfo, ctx.multiple, handleClose, searchText])
 
   const estimateSize = useCallback(() => ITEM_HEIGHT, [])
 
