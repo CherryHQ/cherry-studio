@@ -1,6 +1,6 @@
 import { Avatar, Button, cn, useDisclosure } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { AgentModal } from '@renderer/components/Popups/AgentModal'
+import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { getAgentAvatar } from '@renderer/config/agent'
 import { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'

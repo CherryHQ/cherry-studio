@@ -1,5 +1,5 @@
 import { Button, Spinner } from '@heroui/react'
-import { AgentModal } from '@renderer/components/Popups/AgentModal'
+import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'

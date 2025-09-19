@@ -24,7 +24,7 @@ import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, Updat
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ErrorBoundary } from '../ErrorBoundary'
+import { ErrorBoundary } from '../../ErrorBoundary'
 
 const logger = loggerService.withContext('AddAgentPopup')
 
