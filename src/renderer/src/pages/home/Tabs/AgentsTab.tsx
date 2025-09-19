@@ -1,4 +1,4 @@
-import { Button } from '@heroui/react'
+import { Button, Spinner } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -13,10 +13,11 @@ import AgentItem from './components/AgentItem'
 interface AssistantsTabProps {}
 
 export const AgentsTab: FC<AssistantsTabProps> = () => {
-  const { agents, deleteAgent } = useAgents()
+  const { agents, deleteAgent, isLoading } = useAgents()
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
+
   const dispatch = useAppDispatch()
 
   const setActiveAgentId = useCallback(
@@ -28,15 +29,17 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
 
   return (
     <div className="agents-tab h-full w-full p-2">
-      {agents.map((agent) => (
-        <AgentItem
-          key={agent.id}
-          agent={agent}
-          isActive={agent.id === activeAgentId}
-          onDelete={() => deleteAgent(agent.id)}
-          onPress={() => setActiveAgentId(agent.id)}
-        />
-      ))}
+      {isLoading && <Spinner />}
+      {!isLoading &&
+        agents.map((agent) => (
+          <AgentItem
+            key={agent.id}
+            agent={agent}
+            isActive={agent.id === activeAgentId}
+            onDelete={() => deleteAgent(agent.id)}
+            onPress={() => setActiveAgentId(agent.id)}
+          />
+        ))}
       <AgentModal
         trigger={{
           content: (
