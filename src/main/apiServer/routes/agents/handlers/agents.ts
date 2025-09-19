@@ -71,7 +71,7 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
     logger.error('Error creating agent:', error)
     return res.status(500).json({
       error: {
-        message: 'Failed to create agent',
+        message: `Failed to create agent: ${error.message}`,
         type: 'internal_error',
         code: 'agent_creation_failed'
       }
@@ -315,7 +315,7 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
     logger.error('Error updating agent:', error)
     return res.status(500).json({
       error: {
-        message: 'Failed to update agent',
+        message: 'Failed to update agent: ' + error.message,
         type: 'internal_error',
         code: 'agent_update_failed'
       }
@@ -461,7 +461,7 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
     logger.error('Error partially updating agent:', error)
     return res.status(500).json({
       error: {
-        message: 'Failed to partially update agent',
+        message: `Failed to partially update agent: ${error.message}`,
         type: 'internal_error',
         code: 'agent_patch_failed'
       }

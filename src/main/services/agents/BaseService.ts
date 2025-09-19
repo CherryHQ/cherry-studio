@@ -163,20 +163,36 @@ export abstract class BaseService {
     return deserialized
   }
 
-  protected ensurePathsExist(paths?: string[]): void {
+  /**
+   * Validate, normalize, and ensure filesystem access for a set of absolute paths.
+   *
+   * - Requires every entry to be an absolute path and throws if not.
+   * - Normalizes each path and deduplicates while preserving order.
+   * - Creates missing directories (or parent directories for file-like paths).
+   */
+  protected ensurePathsExist(paths?: string[]): string[] {
     if (!paths?.length) {
-      return
+      return []
     }
+
+    const sanitizedPaths: string[] = []
+    const seenPaths = new Set<string>()
 
     for (const rawPath of paths) {
       if (!rawPath) {
         continue
       }
 
-      const resolvedPath = path.resolve(rawPath)
+      if (!path.isAbsolute(rawPath)) {
+        throw new Error(`Accessible path must be absolute: ${rawPath}`)
+      }
+
+      // Normalize to provide consistent values to downstream consumers.
+      const resolvedPath = path.normalize(rawPath)
 
       let stats: fs.Stats | null = null
       try {
+        // Attempt to stat the path to understand whether it already exists and if it is a file.
         if (fs.existsSync(resolvedPath)) {
           stats = fs.statSync(resolvedPath)
         }
@@ -190,6 +206,7 @@ export abstract class BaseService {
       const looksLikeFile =
         (stats && stats.isFile()) || (!stats && path.extname(resolvedPath) !== '' && !resolvedPath.endsWith(path.sep))
 
+      // For file-like targets create the parent directory; otherwise ensure the directory itself.
       const directoryToEnsure = looksLikeFile ? path.dirname(resolvedPath) : resolvedPath
 
       if (!fs.existsSync(directoryToEnsure)) {
@@ -203,7 +220,15 @@ export abstract class BaseService {
           throw error
         }
       }
+
+      // Preserve the first occurrence only to avoid duplicates while keeping caller order stable.
+      if (!seenPaths.has(resolvedPath)) {
+        seenPaths.add(resolvedPath)
+        sanitizedPaths.push(resolvedPath)
+      }
     }
+
+    return sanitizedPaths
   }
 
   /**

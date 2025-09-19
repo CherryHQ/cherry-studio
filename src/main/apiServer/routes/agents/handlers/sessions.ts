@@ -51,7 +51,7 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
     logger.error('Error creating session:', error)
     return res.status(500).json({
       error: {
-        message: 'Failed to create session',
+        message: `Failed to create session: ${error.message}`,
         type: 'internal_error',
         code: 'session_creation_failed'
       }
@@ -195,7 +195,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
     logger.error('Error updating session:', error)
     return res.status(500).json({
       error: {
-        message: 'Failed to update session',
+        message: `Failed to update session: ${error.message}`,
         type: 'internal_error',
         code: 'session_update_failed'
       }
@@ -254,7 +254,7 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
     logger.error('Error patching session:', error)
     return res.status(500).json({
       error: {
-        message: 'Failed to patch session',
+        message: `Failed to patch session, ${error.message}`,
         type: 'internal_error',
         code: 'session_patch_failed'
       }

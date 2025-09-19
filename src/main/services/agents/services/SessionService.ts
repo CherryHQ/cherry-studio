@@ -58,7 +58,9 @@ export class SessionService extends BaseService {
       small_model: sessionData.small_model
     })
 
-    this.ensurePathsExist(sessionData.accessible_paths)
+    if (sessionData.accessible_paths !== undefined) {
+      sessionData.accessible_paths = this.ensurePathsExist(sessionData.accessible_paths)
+    }
 
     const serializedData = this.serializeJsonFields(sessionData)
 
@@ -179,8 +181,8 @@ export class SessionService extends BaseService {
 
     const now = new Date().toISOString()
 
-    if (updates.accessible_paths) {
-      this.ensurePathsExist(updates.accessible_paths)
+    if (updates.accessible_paths !== undefined) {
+      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}

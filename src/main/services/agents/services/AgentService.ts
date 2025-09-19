@@ -45,13 +45,15 @@ export class AgentService extends BaseService {
       req.accessible_paths = [defaultPath]
     }
 
+    if (req.accessible_paths !== undefined) {
+      req.accessible_paths = this.ensurePathsExist(req.accessible_paths)
+    }
+
     await this.validateAgentModels(req.type, {
       model: req.model,
       plan_model: req.plan_model,
       small_model: req.small_model
     })
-
-    this.ensurePathsExist(req.accessible_paths)
 
     const serializedReq = this.serializeJsonFields(req)
 
@@ -137,8 +139,8 @@ export class AgentService extends BaseService {
 
     const now = new Date().toISOString()
 
-    if (updates.accessible_paths) {
-      this.ensurePathsExist(updates.accessible_paths)
+    if (updates.accessible_paths !== undefined) {
+      updates.accessible_paths = this.ensurePathsExist(updates.accessible_paths)
     }
 
     const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
