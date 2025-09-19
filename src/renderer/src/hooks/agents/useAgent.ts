@@ -24,10 +24,7 @@ export const useAgent = (id: string | null) => {
       try {
         // may change to optimistic update
         const result = await client.updateAgent(form)
-        mutate((prev) => ({
-          ...prev,
-          ...result
-        }))
+        mutate(result)
         window.toast.success(t('common.update_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
