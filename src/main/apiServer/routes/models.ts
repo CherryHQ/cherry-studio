@@ -1,4 +1,4 @@
-import { ApiModelsFilterSchema } from '@types'
+import { ApiModelsFilterSchema, ApiModelsResponse } from '@types'
 import express, { Request, Response } from 'express'
 
 import { loggerService } from '../../services/LoggerService'
@@ -114,7 +114,7 @@ const router = express
         response.data.map((m) => m.id)
       )
 
-      return res.json(response)
+      return res.json(response satisfies ApiModelsResponse)
     } catch (error: any) {
       logger.error('Error fetching models:', error)
       return res.status(503).json({

@@ -3,6 +3,8 @@ import { formatAgentServerError } from '@renderer/utils'
 import {
   AddAgentForm,
   AgentServerErrorSchema,
+  ApiModelsResponse,
+  ApiModelsResponseSchema,
   CreateAgentRequest,
   CreateAgentResponse,
   CreateAgentResponseSchema,
@@ -18,6 +20,8 @@ import {
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
   ListAgentsResponseSchema,
+  objectEntries,
+  objectKeys,
   UpdateAgentForm,
   UpdateAgentRequest,
   UpdateAgentResponse,
@@ -76,6 +80,19 @@ export class AgentApiClient {
 
   public getSessionMessagesPath = (agentId: string, sessionId: string) =>
     `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`
+
+  public modelsPath = (props?: { providerType?: 'anthropic'; limit?: number }) => {
+    const base = `/${this.apiVersion}/models`
+    if (!props) return base
+    if (objectKeys(props).length > 0) {
+      const params = objectEntries(props)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('&')
+      return `${base}?${params}`
+    } else {
+      return base
+    }
+  }
 
   public async listAgents(): Promise<ListAgentsResponse> {
     const url = this.agentPaths.base
@@ -214,6 +231,17 @@ export class AgentApiClient {
       await this.axios.post(url, payload)
     } catch (error) {
       throw processError(error, 'Failed to post message.')
+    }
+  }
+
+  public async getModels(props?: { providerType?: 'anthropic'; limit?: number }): Promise<ApiModelsResponse> {
+    const url = this.modelsPath(props)
+    try {
+      const response = await this.axios.get(url)
+      const data = ApiModelsResponseSchema.parse(response.data)
+      return data
+    } catch (error) {
+      throw processError(error, 'Failed to get models.')
     }
   }
 }
