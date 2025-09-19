@@ -9,6 +9,7 @@ export interface OpenAICompatibleModel {
   id: string
   object: 'model'
   created: number
+  name: string
   owned_by: string
   provider?: string
   provider_model_id?: string
@@ -185,6 +186,7 @@ export function transformModelToOpenAI(model: Model): OpenAICompatibleModel {
   return {
     id: `${model.provider}:${model.id}`,
     object: 'model',
+    name: model.name,
     created: Math.floor(Date.now() / 1000),
     owned_by: model.owned_by || model.provider,
     provider: model.provider,

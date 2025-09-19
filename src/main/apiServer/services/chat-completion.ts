@@ -2,22 +2,9 @@ import OpenAI from 'openai'
 import { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
-import {
-  getProviderByModel,
-  getRealProviderModel,
-  listAllAvailableModels,
-  OpenAICompatibleModel,
-  transformModelToOpenAI,
-  validateProvider
-} from '../utils'
+import { getProviderByModel, getRealProviderModel, validateProvider } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
-
-export interface ModelData extends OpenAICompatibleModel {
-  provider_id: string
-  model_id: string
-  name: string
-}
 
 export interface ValidationResult {
   isValid: boolean
@@ -25,47 +12,6 @@ export interface ValidationResult {
 }
 
 export class ChatCompletionService {
-  async getModels(): Promise<ModelData[]> {
-    try {
-      logger.info('Getting available models from providers')
-
-      const models = await listAllAvailableModels()
-
-      // Use Map to deduplicate models by their full ID (provider:model_id)
-      const uniqueModels = new Map<string, ModelData>()
-
-      for (const model of models) {
-        const openAIModel = transformModelToOpenAI(model)
-        const fullModelId = openAIModel.id // This is already in format "provider:model_id"
-
-        // Only add if not already present (first occurrence wins)
-        if (!uniqueModels.has(fullModelId)) {
-          uniqueModels.set(fullModelId, {
-            ...openAIModel,
-            provider_id: model.provider,
-            model_id: model.id,
-            name: model.name
-          })
-        } else {
-          logger.debug(`Skipping duplicate model: ${fullModelId}`)
-        }
-      }
-
-      const modelData = Array.from(uniqueModels.values())
-
-      logger.info(`Successfully retrieved ${modelData.length} unique models from ${models.length} total models`)
-
-      if (models.length > modelData.length) {
-        logger.debug(`Filtered out ${models.length - modelData.length} duplicate models`)
-      }
-
-      return modelData
-    } catch (error: any) {
-      logger.error('Error getting models:', error)
-      return []
-    }
-  }
-
   validateRequest(request: ChatCompletionCreateParams): ValidationResult {
     const errors: string[] = []
 
@@ -98,17 +44,6 @@ export class ChatCompletionService {
     }
 
     // Validate optional parameters
-    if (request.temperature !== undefined) {
-      if (typeof request.temperature !== 'number' || request.temperature < 0 || request.temperature > 2) {
-        errors.push('Temperature must be a number between 0 and 2')
-      }
-    }
-
-    if (request.max_tokens !== undefined) {
-      if (typeof request.max_tokens !== 'number' || request.max_tokens < 1) {
-        errors.push('max_tokens must be a positive number')
-      }
-    }
 
     return {
       isValid: errors.length === 0,
