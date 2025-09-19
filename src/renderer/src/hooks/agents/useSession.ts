@@ -29,11 +29,27 @@ export const useSession = (agentId: string, sessionId: string) => {
     [agentId, client, mutate, t]
   )
 
+  const createSessionMessage = useCallback(
+    async (content: string) => {
+      if (!agentId || !sessionId) return
+      try {
+        await client.createMessage(agentId, sessionId, content)
+        // TODO: Can you return a created message value?
+        const result = await client.getSession(agentId, sessionId)
+        mutate(result)
+      } catch (error) {
+        window.toast.error(t('common.errors.create_message'))
+      }
+    },
+    [agentId, sessionId, client, mutate, t]
+  )
+
   return {
     session: data,
     messages: data?.messages ?? [],
     error,
     isLoading,
-    updateSession
+    updateSession,
+    createSessionMessage
   }
 }
