@@ -2,9 +2,9 @@
 import { EventEmitter } from 'node:events'
 import { createRequire } from 'node:module'
 
-import { Options, query, SDKMessage } from '@anthropic-ai/claude-code'
+import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
-// import { config as apiConfig } from '@main/apiServer/config'
+import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
 
 import { GetAgentSessionResponse } from '../..'
@@ -68,9 +68,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     // TODO: use cherry studio api server config instead of direct provider config to provide more flexibility (e.g. custom headers, proxy, statistics, etc).
-    // const cfg = await apiConfig.get()
-    // process.env.ANTHROPIC_AUTH_TOKEN = cfg.apiKey
-    // process.env.ANTHROPIC_BASE_URL = `http://${cfg.host}:${cfg.port}`
+    const apiConfig = await apiConfigService.get()
+    // process.env.ANTHROPIC_AUTH_TOKEN = apiConfig.apiKey
+    // process.env.ANTHROPIC_BASE_URL = `http://${apiConfig.host}:${apiConfig.port}`
     process.env.ANTHROPIC_AUTH_TOKEN = modelInfo.provider.apiKey
     process.env.ANTHROPIC_BASE_URL = modelInfo.provider.apiHost
 
@@ -81,8 +81,29 @@ class ClaudeCodeService implements AgentServiceInterface {
       stderr: (chunk: string) => {
         logger.info('claude stderr', { chunk })
       },
+      appendSystemPrompt: session.instructions,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns
+    }
+
+    if (session.accessible_paths.length > 1) {
+      options.additionalDirectories = session.accessible_paths.slice(1)
+    }
+
+    if (session.mcps && session.mcps.length > 0) {
+      // mcp configs
+      const mcpList: Record<string, McpHttpServerConfig> = {}
+      for (const mcpId of session.mcps) {
+        mcpList[mcpId] = {
+          type: 'http',
+          url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
+          headers: {
+            Authorization: `Bearer ${apiConfig.apiKey}`
+          }
+        }
+      }
+      options.mcpServers = mcpList
+      options.strictMcpConfig = true
     }
 
     if (lastAgentSessionId) {
