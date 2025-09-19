@@ -9,7 +9,7 @@ Authorization: Bearer {{token}}
 
 
 ### List Models With Filters
-GET {{host}}/v1/models?provider=anthropic&limit=5
+GET {{host}}/v1/models?providerType=anthropic&limit=5
 Authorization: Bearer {{token}}
 
 

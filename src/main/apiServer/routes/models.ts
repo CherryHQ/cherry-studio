@@ -1,7 +1,8 @@
+import { ApiModelsFilterSchema } from '@types'
 import express, { Request, Response } from 'express'
 
 import { loggerService } from '../../services/LoggerService'
-import { ModelsFilterSchema, modelsService } from '../services/models'
+import { modelsService } from '../services/models'
 
 const logger = loggerService.withContext('ApiServerModelsRoutes')
 
@@ -17,10 +18,10 @@ const router = express
    *     tags: [Models]
    *     parameters:
    *       - in: query
-   *         name: provider
+   *         name: providerType
    *         schema:
    *           type: string
-   *           enum: [openai, anthropic]
+   *           enum: [openai, openai-response, anthropic, gemini]
    *         description: Filter models by provider type
    *       - in: query
    *         name: offset
@@ -77,7 +78,7 @@ const router = express
       logger.info('Models list request received', { query: req.query })
 
       // Validate query parameters using Zod schema
-      const filterResult = ModelsFilterSchema.safeParse(req.query)
+      const filterResult = ApiModelsFilterSchema.safeParse(req.query)
 
       if (!filterResult.success) {
         logger.warn('Invalid query parameters:', filterResult.error.issues)

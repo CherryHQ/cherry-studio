@@ -1,53 +1,43 @@
-import {
-  ApiModelsRequest,
-  ApiModelsRequestSchema,
-  ApiModelsResponse,
-  OpenAICompatibleModel
-} from '../../../renderer/src/types/apiModels'
+import { ApiModel, ApiModelsRequest, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
 import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
 
 const logger = loggerService.withContext('ModelsService')
 
 // Re-export for backward compatibility
-export const ModelsFilterSchema = ApiModelsRequestSchema
+
 export type ModelsFilter = ApiModelsRequest
 
 export class ModelsService {
-  async getModels(filter?: ModelsFilter): Promise<ApiModelsResponse> {
+  async getModels(filter: ModelsFilter): Promise<ApiModelsResponse> {
     try {
-      logger.info('Getting available models from providers', { filter })
+      logger.debug('Getting available models from providers', { filter })
 
       const models = await listAllAvailableModels()
       const providers = await getAvailableProviders()
 
       // Use Map to deduplicate models by their full ID (provider:model_id)
-      const uniqueModels = new Map<string, OpenAICompatibleModel>()
+      const uniqueModels = new Map<string, ApiModel>()
 
       for (const model of models) {
-        const openAIModel = transformModelToOpenAI(model)
+        const openAIModel = transformModelToOpenAI(model, providers)
         const fullModelId = openAIModel.id // This is already in format "provider:model_id"
 
         // Only add if not already present (first occurrence wins)
         if (!uniqueModels.has(fullModelId)) {
-          uniqueModels.set(fullModelId, {
-            ...openAIModel,
-            name: model.name
-          })
+          uniqueModels.set(fullModelId, openAIModel)
         } else {
           logger.debug(`Skipping duplicate model: ${fullModelId}`)
         }
       }
 
       let modelData = Array.from(uniqueModels.values())
-
-      // Apply filters
-      if (filter?.provider) {
-        const providerType = filter.provider
+      if (filter.providerType) {
+        // Apply filters
+        const providerType = filter.providerType
         modelData = modelData.filter((model) => {
           // Find the provider for this model and check its type
-          const provider = providers.find((p) => p.id === model.provider)
-          return provider && provider.type === providerType
+          return model.provider_type === providerType
         })
         logger.debug(`Filtered by provider type '${providerType}': ${modelData.length} models`)
       }

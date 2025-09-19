@@ -1,6 +1,6 @@
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { Model, OpenAICompatibleModel, Provider } from '@types'
+import { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
@@ -173,7 +173,8 @@ export async function validateModelId(
   }
 }
 
-export function transformModelToOpenAI(model: Model): OpenAICompatibleModel {
+export function transformModelToOpenAI(model: Model, providers: Provider[]): ApiModel {
+  const provider = providers.find((p) => p.id === model.provider)
   return {
     id: `${model.provider}:${model.id}`,
     object: 'model',
@@ -181,6 +182,7 @@ export function transformModelToOpenAI(model: Model): OpenAICompatibleModel {
     created: Math.floor(Date.now() / 1000),
     owned_by: model.owned_by || model.provider,
     provider: model.provider,
+    provider_type: provider?.type,
     provider_model_id: model.id
   }
 }
