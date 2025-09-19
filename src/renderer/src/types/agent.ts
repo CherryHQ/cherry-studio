@@ -1,6 +1,8 @@
 /**
  * Database entity types for Agent, Session, and SessionMessage
  * Shared between main and renderer processes
+ *
+ * WARNING: Any null value will be converted to undefined from api.
  */
 import { ModelMessage, modelMessageSchema, TextStreamPart } from 'ai'
 import { z } from 'zod'

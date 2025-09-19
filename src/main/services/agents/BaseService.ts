@@ -1,5 +1,6 @@
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import { objectKeys } from '@types'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -147,6 +148,13 @@ export abstract class BaseService {
         } catch (error) {
           logger.warn(`Failed to parse JSON field ${field}:`, error as Error)
         }
+      }
+    }
+
+    // convert null from db to undefined to satisfy type definition
+    for (const key of objectKeys(data)) {
+      if (deserialized[key] === null) {
+        deserialized[key] = undefined
       }
     }
 
