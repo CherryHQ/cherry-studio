@@ -1,8 +1,9 @@
+import { Provider } from '@types'
 import OpenAI from 'openai'
-import { ChatCompletionCreateParams } from 'openai/resources'
+import { ChatCompletionCreateParams, ChatCompletionCreateParamsStreaming } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
-import { getProviderByModel, getRealProviderModel, validateProvider } from '../utils'
+import { ModelValidationError, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ChatCompletionService')
 
@@ -11,18 +12,119 @@ export interface ValidationResult {
   errors: string[]
 }
 
+export class ChatCompletionValidationError extends Error {
+  constructor(public readonly errors: string[]) {
+    super(`Request validation failed: ${errors.join('; ')}`)
+    this.name = 'ChatCompletionValidationError'
+  }
+}
+
+export class ChatCompletionModelError extends Error {
+  constructor(public readonly error: ModelValidationError) {
+    super(`Model validation failed: ${error.message}`)
+    this.name = 'ChatCompletionModelError'
+  }
+}
+
+export type PrepareRequestResult =
+  | { status: 'validation_error'; errors: string[] }
+  | { status: 'model_error'; error: ModelValidationError }
+  | {
+      status: 'ok'
+      provider: Provider
+      modelId: string
+      client: OpenAI
+      providerRequest: ChatCompletionCreateParams
+    }
+
 export class ChatCompletionService {
+  async resolveProviderContext(model: string): Promise<
+    | { ok: false; error: ModelValidationError }
+    | { ok: true; provider: Provider; modelId: string; client: OpenAI }
+  > {
+    const modelValidation = await validateModelId(model)
+    if (!modelValidation.valid) {
+      return {
+        ok: false,
+        error: modelValidation.error!
+      }
+    }
+
+    const provider = modelValidation.provider!
+
+    if (provider.type !== 'openai') {
+      return {
+        ok: false,
+        error: {
+          type: 'unsupported_provider_type',
+          message: `Provider '${provider.id}' of type '${provider.type}' is not supported for OpenAI chat completions`,
+          code: 'unsupported_provider_type'
+        }
+      }
+    }
+
+    const modelId = modelValidation.modelId!
+
+    const client = new OpenAI({
+      baseURL: provider.apiHost,
+      apiKey: provider.apiKey
+    })
+
+    return {
+      ok: true,
+      provider,
+      modelId,
+      client
+    }
+  }
+
+  async prepareRequest(request: ChatCompletionCreateParams, stream: boolean): Promise<PrepareRequestResult> {
+    const requestValidation = this.validateRequest(request)
+    if (!requestValidation.isValid) {
+      return {
+        status: 'validation_error',
+        errors: requestValidation.errors
+      }
+    }
+
+    const providerContext = await this.resolveProviderContext(request.model!)
+    if (!providerContext.ok) {
+      return {
+        status: 'model_error',
+        error: providerContext.error
+      }
+    }
+
+    const { provider, modelId, client } = providerContext
+
+    logger.info('Model validation successful:', {
+      provider: provider.id,
+      providerType: provider.type,
+      modelId,
+      fullModelId: request.model
+    })
+
+    return {
+      status: 'ok',
+      provider,
+      modelId,
+      client,
+      providerRequest: stream
+        ? {
+            ...request,
+            model: modelId,
+            stream: true as const
+          }
+        : {
+            ...request,
+            model: modelId,
+            stream: false as const
+          }
+    }
+  }
+
   validateRequest(request: ChatCompletionCreateParams): ValidationResult {
     const errors: string[] = []
-
-    // Validate model
-    if (!request.model) {
-      errors.push('Model is required')
-    } else if (typeof request.model !== 'string') {
-      errors.push('Model must be a string')
-    } else if (!request.model.includes(':')) {
-      errors.push('Model must be in format "provider:model_id"')
-    }
 
     // Validate messages
     if (!request.messages) {
@@ -51,7 +153,11 @@ export class ChatCompletionService {
     }
   }
 
-  async processCompletion(request: ChatCompletionCreateParams): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  async processCompletion(request: ChatCompletionCreateParams): Promise<{
+    provider: Provider
+    modelId: string
+    response: OpenAI.Chat.Completions.ChatCompletion
+  }> {
     try {
       logger.info('Processing chat completion request:', {
         model: request.model,
@@ -59,38 +165,16 @@ export class ChatCompletionService {
         stream: request.stream
       })
 
-      // Validate request
-      const validation = this.validateRequest(request)
-      if (!validation.isValid) {
-        throw new Error(`Request validation failed: ${validation.errors.join(', ')}`)
+      const preparation = await this.prepareRequest(request, false)
+      if (preparation.status === 'validation_error') {
+        throw new ChatCompletionValidationError(preparation.errors)
       }
 
-      // Get provider for the model
-      const provider = await getProviderByModel(request.model!)
-      if (!provider) {
-        throw new Error(`Provider not found for model: ${request.model}`)
+      if (preparation.status === 'model_error') {
+        throw new ChatCompletionModelError(preparation.error)
       }
 
-      // Validate provider
-      if (!validateProvider(provider)) {
-        throw new Error(`Provider validation failed for: ${provider.id}`)
-      }
-
-      // Extract model ID from the full model string
-      const modelId = getRealProviderModel(request.model)
-
-      // Create OpenAI client for the provider
-      const client = new OpenAI({
-        baseURL: provider.apiHost,
-        apiKey: provider.apiKey
-      })
-
-      // Prepare request with the actual model ID
-      const providerRequest = {
-        ...request,
-        model: modelId,
-        stream: false
-      }
+      const { provider, modelId, client, providerRequest } = preparation
 
       logger.debug('Sending request to provider:', {
         provider: provider.id,
@@ -101,54 +185,40 @@ export class ChatCompletionService {
       const response = (await client.chat.completions.create(providerRequest)) as OpenAI.Chat.Completions.ChatCompletion
 
       logger.info('Successfully processed chat completion')
-      return response
+      return {
+        provider,
+        modelId,
+        response
+      }
     } catch (error: any) {
       logger.error('Error processing chat completion:', error)
       throw error
     }
   }
 
-  async *processStreamingCompletion(
+  async processStreamingCompletion(
     request: ChatCompletionCreateParams
-  ): AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk> {
+  ): Promise<{
+    provider: Provider
+    modelId: string
+    stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+  }> {
     try {
       logger.info('Processing streaming chat completion request:', {
         model: request.model,
         messageCount: request.messages.length
       })
 
-      // Validate request
-      const validation = this.validateRequest(request)
-      if (!validation.isValid) {
-        throw new Error(`Request validation failed: ${validation.errors.join(', ')}`)
+      const preparation = await this.prepareRequest(request, true)
+      if (preparation.status === 'validation_error') {
+        throw new ChatCompletionValidationError(preparation.errors)
       }
 
-      // Get provider for the model
-      const provider = await getProviderByModel(request.model!)
-      if (!provider) {
-        throw new Error(`Provider not found for model: ${request.model}`)
+      if (preparation.status === 'model_error') {
+        throw new ChatCompletionModelError(preparation.error)
       }
 
-      // Validate provider
-      if (!validateProvider(provider)) {
-        throw new Error(`Provider validation failed for: ${provider.id}`)
-      }
-
-      // Extract model ID from the full model string
-      const modelId = getRealProviderModel(request.model)
-
-      // Create OpenAI client for the provider
-      const client = new OpenAI({
-        baseURL: provider.apiHost,
-        apiKey: provider.apiKey
-      })
-
-      // Prepare streaming request
-      const streamingRequest = {
-        ...request,
-        model: modelId,
-        stream: true as const
-      }
+      const { provider, modelId, client, providerRequest } = preparation
 
       logger.debug('Sending streaming request to provider:', {
         provider: provider.id,
@@ -156,13 +226,17 @@ export class ChatCompletionService {
         apiHost: provider.apiHost
       })
 
-      const stream = await client.chat.completions.create(streamingRequest)
+      const streamRequest = providerRequest as ChatCompletionCreateParamsStreaming
+      const stream = (await client.chat.completions.create(streamRequest)) as AsyncIterable<
+        OpenAI.Chat.Completions.ChatCompletionChunk
+      >
 
-      for await (const chunk of stream) {
-        yield chunk
+      logger.info('Successfully started streaming chat completion')
+      return {
+        provider,
+        modelId,
+        stream
       }
-
-      logger.info('Successfully completed streaming chat completion')
     } catch (error: any) {
       logger.error('Error processing streaming chat completion:', error)
       throw error

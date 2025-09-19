@@ -104,7 +104,7 @@ const router = express.Router()
  *                       type: integer
  *                     output_tokens:
  *                       type: integer
- *           text/plain:
+ *           text/event-stream:
  *             schema:
  *               type: string
  *               description: Server-sent events stream (when stream=true)
@@ -154,18 +154,6 @@ router.post('/', async (req: Request, res: Response) => {
       temperature: request.temperature
     })
 
-    // Validate request
-    const validation = messagesService.validateRequest(request)
-    if (!validation.isValid) {
-      return res.status(400).json({
-        type: 'error',
-        error: {
-          type: 'invalid_request_error',
-          message: validation.errors.join('; ')
-        }
-      })
-    }
-
     // Validate model ID and get provider
     const modelValidation = await validateModelId(request.model)
     if (!modelValidation.valid) {
@@ -203,18 +191,31 @@ router.post('/', async (req: Request, res: Response) => {
       fullModelId: request.model
     })
 
+    // Validate request
+    const validation = messagesService.validateRequest(request)
+    if (!validation.isValid) {
+      return res.status(400).json({
+        type: 'error',
+        error: {
+          type: 'invalid_request_error',
+          message: validation.errors.join('; ')
+        }
+      })
+    }
+
     // Handle streaming
     if (request.stream) {
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-      res.setHeader('Cache-Control', 'no-cache')
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-cache, no-transform')
       res.setHeader('Connection', 'keep-alive')
+      res.setHeader('X-Accel-Buffering', 'no')
+      res.flushHeaders()
 
       try {
         for await (const chunk of messagesService.processStreamingMessage(request, provider)) {
           res.write(`data: ${JSON.stringify(chunk)}\n\n`)
         }
         res.write('data: [DONE]\n\n')
-        res.end()
       } catch (streamError: any) {
         logger.error('Stream error:', streamError)
         res.write(
@@ -226,6 +227,7 @@ router.post('/', async (req: Request, res: Response) => {
             }
           })}\n\n`
         )
+      } finally {
         res.end()
       }
       return
@@ -241,9 +243,24 @@ router.post('/', async (req: Request, res: Response) => {
     let errorType = 'api_error'
     let errorMessage = 'Internal server error'
 
-    if (error instanceof Error) {
-      errorMessage = error.message
+    const anthropicStatus = typeof error?.status === 'number' ? error.status : undefined
+    const anthropicError = error?.error
 
+    if (anthropicStatus) {
+      statusCode = anthropicStatus
+    }
+
+    if (anthropicError?.type) {
+      errorType = anthropicError.type
+    }
+
+    if (anthropicError?.message) {
+      errorMessage = anthropicError.message
+    } else if (error instanceof Error && error.message) {
+      errorMessage = error.message
+    }
+
+    if (!anthropicStatus && error instanceof Error) {
       if (error.message.includes('API key') || error.message.includes('authentication')) {
         statusCode = 401
         errorType = 'authentication_error'
@@ -263,7 +280,8 @@ router.post('/', async (req: Request, res: Response) => {
       type: 'error',
       error: {
         type: errorType,
-        message: errorMessage
+        message: errorMessage,
+        requestId: error?.request_id
       }
     })
   }
