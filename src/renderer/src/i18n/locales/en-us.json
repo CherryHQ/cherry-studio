@@ -22,6 +22,9 @@
       "title": "Edit Agent"
     },
     "session": {
+      "add": {
+        "title": "Add a session"
+      },
       "create": {
         "error": {
           "failed": "Failed to add a session"
@@ -33,6 +36,9 @@
           "failed": "Failed to delete the session"
         },
         "title": "Delete session"
+      },
+      "edit": {
+        "title": "Edit session"
       },
       "label_one": "Session",
       "label_other": "Sessions",

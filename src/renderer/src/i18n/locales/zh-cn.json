@@ -22,6 +22,9 @@
       "title": "编辑 Agent"
     },
     "session": {
+      "add": {
+        "title": "添加会话"
+      },
       "create": {
         "error": {
           "failed": "添加会话失败"
@@ -33,6 +36,9 @@
           "failed": "删除会话失败"
         },
         "title": "删除会话"
+      },
+      "edit": {
+        "title": "编辑会话"
       },
       "label_one": "会话",
       "label_other": "会话",

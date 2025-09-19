@@ -22,6 +22,9 @@
       "title": "編輯 Agent"
     },
     "session": {
+      "add": {
+        "title": "[to be translated]:Add a session"
+      },
       "create": {
         "error": {
           "failed": "[to be translated]:Failed to add a session"
@@ -33,6 +36,9 @@
           "failed": "[to be translated]:Failed to delete the session"
         },
         "title": "[to be translated]:Delete session"
+      },
+      "edit": {
+        "title": "[to be translated]:Edit session"
       },
       "label_one": "[to be translated]:Session",
       "label_other": "[to be translated]:Sessions",
