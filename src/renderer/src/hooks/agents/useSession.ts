@@ -31,7 +31,7 @@ export const useSession = (agentId: string, sessionId: string) => {
 
   return {
     session: data,
-    messages: data?.messages,
+    messages: data?.messages ?? [],
     error,
     isLoading,
     updateSession
