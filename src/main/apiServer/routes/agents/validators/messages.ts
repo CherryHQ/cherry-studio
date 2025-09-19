@@ -1,5 +1,7 @@
-import { body } from 'express-validator'
+import { CreateSessionMessageRequestSchema } from '@types'
 
-export const validateSessionMessage = [
-  body('content').notEmpty().isString().withMessage('Content must be a valid string')
-]
+import { createZodValidator } from './zodValidator'
+
+export const validateSessionMessage = createZodValidator({
+  body: CreateSessionMessageRequestSchema
+})

@@ -5,10 +5,20 @@
 import { ModelMessage, modelMessageSchema, TextStreamPart, UIMessageChunk } from 'ai'
 import { z } from 'zod'
 
+// ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type PermissionMode = z.infer<typeof PermissionModeSchema>
 
 export type SessionMessageRole = ModelMessage['role']
+
+const sessionMessageRoles = ['assistant', 'user', 'system', 'tool'] as const satisfies readonly [
+  SessionMessageRole,
+  ...SessionMessageRole[]
+]
+
+export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
+
+export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
 
 export const AgentTypeSchema = z.enum(['claude-code'])
 export type AgentType = z.infer<typeof AgentTypeSchema>
@@ -17,8 +27,7 @@ export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
 }
 
-export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
-
+// ------------------ Tool metadata ------------------
 export const ToolSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -28,6 +37,7 @@ export const ToolSchema = z.object({
 
 export type Tool = z.infer<typeof ToolSchema>
 
+// ------------------ Agent configuration & base schema ------------------
 export const AgentConfigurationSchema = z
   .object({
     permission_mode: PermissionModeSchema.default('default'), // Permission mode, default to 'default'
@@ -62,6 +72,8 @@ export const AgentBaseSchema = z.object({
 
 export type AgentBase = z.infer<typeof AgentBaseSchema>
 
+// ------------------ Persistence entities ------------------
+
 // Agent entity representing an autonomous agent configuration
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
@@ -95,7 +107,7 @@ export const AgentSessionMessageEntitySchema = z.object({
   id: z.number(), // Auto-increment primary key
   session_id: z.string(), // Reference to session
   // manual defined. may not synced with ai sdk definition
-  role: z.enum(['assistant', 'user', 'system', 'tool']), // 'assistant' | 'user' | 'system' | 'tool'
+  role: SessionMessageRoleSchema, // Enforce roles supported by modelMessageSchema
   content: modelMessageSchema,
   agent_session_id: z.string(), // agent session id, use to resume agent session
   metadata: z.record(z.string(), z.any()).optional(), // Additional metadata (optional)
@@ -104,6 +116,8 @@ export const AgentSessionMessageEntitySchema = z.object({
 })
 
 export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
+
+// ------------------ Session message payload ------------------
 
 // Structured content for session messages that preserves both AI SDK and raw data
 export interface SessionMessageContent {
@@ -119,10 +133,11 @@ export interface SessionMessageContent {
 // - mcps: Optional array of MCP (Model Control Protocol) tool IDs
 // - allowed_tools: Optional array of permitted tool IDs
 // - configuration: Optional agent settings (temperature, top_p, etc.)
-export interface BaseAgentForm {
+// ------------------ Form models ------------------
+export type BaseAgentForm = {
   id?: string
   type: AgentType
-  // These fileds should be editable by user.
+  // These fields should be editable by user.
   name: string
   description?: string
   instructions?: string
@@ -130,30 +145,22 @@ export interface BaseAgentForm {
   accessible_paths: string[]
 }
 
-export interface AddAgentForm extends BaseAgentForm {
-  id?: never
-}
+export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }
 
-export interface UpdateAgentForm extends Partial<BaseAgentForm> {
+export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
   id: string
   type?: never
 }
 
 export type AgentForm = AddAgentForm | UpdateAgentForm
 
-export interface BaseSessionForm extends AgentBase {}
+export type BaseSessionForm = AgentBase
 
-export interface CreateSessionForm extends BaseSessionForm {
-  id?: never
-}
+export type CreateSessionForm = BaseSessionForm & { id?: never }
 
-export interface UpdateSessionForm extends Partial<BaseSessionForm> {
-  id: string
-}
+export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
 
-// ------------------------
-// API Data Transfer Object
-// ------------------------
+// ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {
   type: AgentType
 }
@@ -220,3 +227,45 @@ export const AgentServerErrorSchema = z.object({
 })
 
 export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
+
+// ------------------ API validation schemas ------------------
+
+// Parameter validation schemas
+export const AgentIdParamSchema = z.object({
+  agentId: z.string().min(1, 'Agent ID is required')
+})
+
+export const SessionIdParamSchema = z.object({
+  sessionId: z.string().min(1, 'Session ID is required')
+})
+
+// Query validation schemas
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional()
+})
+
+// Request body validation schemas derived from shared bases
+const agentCreatableSchema = AgentBaseSchema.extend({
+  name: z.string().min(1, 'Name is required'),
+  model: z.string().min(1, 'Model is required')
+})
+
+export const CreateAgentRequestSchema = agentCreatableSchema.extend({
+  type: AgentTypeSchema
+})
+
+export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
+
+const sessionCreatableSchema = AgentBaseSchema.extend({
+  model: z.string().min(1, 'Model is required')
+})
+
+export const CreateSessionRequestSchema = sessionCreatableSchema
+
+export const UpdateSessionRequestSchema = sessionCreatableSchema.partial()
+
+export const CreateSessionMessageRequestSchema = z.object({
+  content: z.string().min(1, 'Content must be a valid string')
+})
