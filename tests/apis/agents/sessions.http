@@ -2,7 +2,7 @@
 @host=http://localhost:23333
 @token=cs-sk-af798ed4-7cf5-4fd7-ae4b-df203b164194
 @agent_id=agent_1758092281575_tn9dxio9k
-@session_id=session_1758092305477_b0g0cmnkp
+@session_id=session_1758252305914_9kef8yven
 
 ### List Sessions
 GET {{host}}/v1/agents/{{agent_id}}/sessions
@@ -15,7 +15,14 @@ POST {{host}}/v1/agents/{{agent_id}}/sessions
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-{}
+{
+  "name": "Story Writing Session 1",
+  "instructions": "You are a creative writing assistant. Help me brainstorm and write engaging stories.",
+  "model": "anthropic:claude-sonnet-4",
+  "accessible_paths": [
+    "~/Documents/stories"
+  ]
+}
 
 ### Get Session Details
 GET {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
@@ -27,14 +34,28 @@ DELETE {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
-### Update Session
+### Full Update Session
 PUT {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "name": "Code Review Session 1",
-  "instructions": "Review the newly implemented feature for bugs and improvements"
+  "name": "Story Writing Session 2",
+  "instructions": "You are a creative writing assistant. Help me brainstorm and write engaging stories.",
+  "model": "anthropic:claude-sonnet-4",
+  "accessible_paths": [
+    "~/Documents/stories"
+  ]
+}
+
+
+### Partial Update Session
+PATCH {{host}}/v1/agents/{{agent_id}}/sessions/{{session_id}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "instructions": "You are a creative writing assistant. Help me brainstorm and write engaging stories. Focus on character development and plot structure.",
 }
 
 
@@ -44,5 +65,5 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "content": "a joke about programmers"
+  "content": "Write a short story about a robot learning to love."
 }
