@@ -1,4 +1,5 @@
-import { UpdateSessionForm } from '@renderer/types'
+import { AgentSessionMessageEntity, UpdateSessionForm } from '@renderer/types'
+import { cloneDeep } from 'lodash'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
@@ -31,17 +32,40 @@ export const useSession = (agentId: string, sessionId: string) => {
 
   const createSessionMessage = useCallback(
     async (content: string) => {
-      if (!agentId || !sessionId) return
+      if (!agentId || !sessionId || !data) return
+      const origin = cloneDeep(data)
+      const newMessageDraft = {
+        id: -1,
+        session_id: '',
+        role: 'user',
+        content: {
+          role: 'user',
+          content: content,
+          providerOptions: undefined
+        },
+        agent_session_id: '',
+        created_at: '',
+        updated_at: ''
+      } satisfies AgentSessionMessageEntity
       try {
+        mutate((prev) => ({
+          ...prev,
+          accessible_paths: prev?.accessible_paths ?? [],
+          model: prev?.model ?? '',
+          id: prev?.id ?? '',
+          agent_id: prev?.id ?? '',
+          agent_type: prev?.agent_type ?? 'claude-code',
+          created_at: prev?.created_at ?? '',
+          updated_at: prev?.updated_at ?? '',
+          messages: [...(prev?.messages ?? []), newMessageDraft]
+        }))
         await client.createMessage(agentId, sessionId, content)
-        // TODO: Can you return a created message value?
-        const result = await client.getSession(agentId, sessionId)
-        mutate(result)
       } catch (error) {
+        mutate(origin)
         window.toast.error(t('common.errors.create_message'))
       }
     },
-    [agentId, sessionId, client, mutate, t]
+    [agentId, sessionId, data, mutate, client, t]
   )
 
   return {
