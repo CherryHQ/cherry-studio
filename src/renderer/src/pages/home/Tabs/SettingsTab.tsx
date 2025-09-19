@@ -1,9 +1,7 @@
-import { RowFlex } from '@cherrystudio/ui'
-import { Switch } from '@cherrystudio/ui'
+import { RowFlex, Selector, Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
-import Selector from '@renderer/components/Selector'
 import { HelpTooltip } from '@renderer/components/TooltipIcons'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE } from '@renderer/config/constant'
 import { isOpenAIModel } from '@renderer/config/models'
@@ -329,11 +327,13 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{t('message.message.style.label')}</SettingRowTitleSmall> */}
             <Selector
-              value={messageStyle}
-              onChange={(value) => setMessageStyle(value as 'plain' | 'bubble')}
-              options={[
+              size="sm"
+              label={t('message.message.style.label')}
+              selectedKeys={[messageStyle]}
+              onSelectionChange={(value) => setMessageStyle(value[0] as 'plain' | 'bubble')}
+              items={[
                 { value: 'plain', label: t('message.message.style.plain') },
                 { value: 'bubble', label: t('message.message.style.bubble') }
               ]}
@@ -341,11 +341,13 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{t('message.message.multi_model_style.label')}</SettingRowTitleSmall> */}
             <Selector
-              value={multiModelMessageStyle}
-              onChange={(value) => setMultiModelMessageStyle(value)}
-              options={[
+              size="sm"
+              label={t('message.message.multi_model_style.label')}
+              selectedKeys={[multiModelMessageStyle]}
+              onSelectionChange={(value) => setMultiModelMessageStyle(value[0])}
+              items={[
                 { value: 'fold', label: t('message.message.multi_model_style.fold.label') },
                 { value: 'vertical', label: t('message.message.multi_model_style.vertical') },
                 { value: 'horizontal', label: t('message.message.multi_model_style.horizontal') },
@@ -355,11 +357,13 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{t('settings.messages.navigation.label')}</SettingRowTitleSmall> */}
             <Selector
-              value={messageNavigation}
-              onChange={(value) => setMessageNavigation(value as 'none' | 'buttons' | 'anchor')}
-              options={[
+              size="sm"
+              label={t('settings.messages.navigation.label')}
+              selectedKeys={[messageNavigation]}
+              onSelectionChange={(value) => setMessageNavigation(value[0] as 'none' | 'buttons' | 'anchor')}
+              items={[
                 { value: 'none', label: t('settings.messages.navigation.none') },
                 { value: 'buttons', label: t('settings.messages.navigation.buttons') },
                 { value: 'anchor', label: t('settings.messages.navigation.anchor') }
@@ -393,11 +397,13 @@ const SettingsTab: FC<Props> = (props) => {
       <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={true}>
         <SettingGroup>
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall> */}
             <Selector
-              value={mathEngine}
-              onChange={(value) => setMathEngine(value as MathEngine)}
-              options={[
+              size="sm"
+              label={t('settings.math.engine.label')}
+              selectedKeys={[mathEngine]}
+              onSelectionChange={(value) => setMathEngine(value[0] as MathEngine)}
+              items={[
                 { value: 'KaTeX', label: 'KaTeX' },
                 { value: 'MathJax', label: 'MathJax' },
                 { value: 'none', label: t('settings.math.engine.none') }
@@ -418,11 +424,13 @@ const SettingsTab: FC<Props> = (props) => {
       <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={true}>
         <SettingGroup>
           <SettingRow>
-            <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall> */}
             <Selector
-              value={codeStyle}
-              onChange={(value) => onCodeStyleChange(value as CodeStyleVarious)}
-              options={themeNames.map((theme) => ({
+              size="sm"
+              label={t('message.message.code_style')}
+              selectedKeys={[codeStyle]}
+              onSelectionChange={(value) => onCodeStyleChange(value[0] as CodeStyleVarious)}
+              items={themeNames.map((theme) => ({
                 value: theme,
                 label: theme
               }))}
@@ -611,23 +619,27 @@ const SettingsTab: FC<Props> = (props) => {
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{t('settings.input.target_language.label')}</SettingRowTitleSmall> */}
             <Selector
-              value={targetLanguage}
-              onChange={(value) => setTargetLanguage(value)}
+              size="sm"
+              label={t('settings.input.target_language.label')}
+              selectedKeys={[targetLanguage]}
+              onSelectionChange={(value) => setTargetLanguage(value[0])}
               placeholder={UNKNOWN.emoji + ' ' + UNKNOWN.label()}
-              options={translateLanguages.map((item) => {
+              items={translateLanguages.map((item) => {
                 return { value: item.langCode, label: item.emoji + ' ' + item.label() }
               })}
             />
           </SettingRow>
           <SettingDivider />
           <SettingRow>
-            <SettingRowTitleSmall>{t('settings.messages.input.send_shortcuts')}</SettingRowTitleSmall>
+            {/* <SettingRowTitleSmall>{}</SettingRowTitleSmall> */}
             <Selector
-              value={sendMessageShortcut}
-              onChange={(value) => setSendMessageShortcut(value as SendMessageShortcut)}
-              options={[
+              size="sm"
+              label={t('settings.messages.input.send_shortcuts')}
+              selectedKeys={[sendMessageShortcut]}
+              onSelectionChange={(value) => setSendMessageShortcut(value[0] as SendMessageShortcut)}
+              items={[
                 { value: 'Enter', label: getSendMessageShortcutLabel('Enter') },
                 { value: 'Ctrl+Enter', label: getSendMessageShortcutLabel('Ctrl+Enter') },
                 { value: 'Alt+Enter', label: getSendMessageShortcutLabel('Alt+Enter') },

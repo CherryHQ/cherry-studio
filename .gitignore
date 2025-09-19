@@ -54,6 +54,8 @@ local
 .qwen/*
 .trae/*
 .claude-code-router/*
+.codebuddy/*
+.zed/*
 CLAUDE.local.md
 
 # vitest

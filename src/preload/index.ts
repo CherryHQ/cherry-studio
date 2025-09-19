@@ -1,6 +1,7 @@
 import { electronAPI } from '@electron-toolkit/preload'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
+import type { TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type { FileChangeEvent } from '@shared/config/types'
 import type { CacheSyncMessage } from '@shared/data/cache/cacheTypes'
@@ -435,8 +436,16 @@ const api = {
       model: string,
       directory: string,
       env: Record<string, string>,
-      options?: { autoUpdateToLatest?: boolean }
-    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options)
+      options?: { autoUpdateToLatest?: boolean; terminal?: string }
+    ) => ipcRenderer.invoke(IpcChannel.CodeTools_Run, cliTool, model, directory, env, options),
+    getAvailableTerminals: (): Promise<TerminalConfig[]> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_GetAvailableTerminals),
+    setCustomTerminalPath: (terminalId: string, path: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_SetCustomTerminalPath, terminalId, path),
+    getCustomTerminalPath: (terminalId: string): Promise<string | undefined> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_GetCustomTerminalPath, terminalId),
+    removeCustomTerminalPath: (terminalId: string): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.CodeTools_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>

@@ -37,11 +37,7 @@ const Selector = <V extends string | number>({ items, onSelectionChange, ...rest
   }
 
   return (
-    <Select
-      {...rest}
-      label={<label className="hidden">Select</label>}
-      items={items}
-      onSelectionChange={handleSelectionChange}>
+    <Select {...rest} items={items} onSelectionChange={handleSelectionChange}>
       {({ value, label, ...restItem }: SelectorItem<V>) => (
         <SelectItem {...restItem} key={value} title={String(label)}>
           {label}

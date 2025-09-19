@@ -25,7 +25,7 @@ describe('api', () => {
     })
 
     it('should handle empty string gracefully', () => {
-      expect(formatApiHost('')).toBe('/v1/')
+      expect(formatApiHost('')).toBe('')
     })
   })
 

@@ -313,7 +313,7 @@ export function getOpenAIReasoningParams(assistant: Assistant, model: Model): Re
 
 export function getAnthropicThinkingBudget(assistant: Assistant, model: Model): number {
   const { maxTokens, reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
-  if (maxTokens === undefined || reasoningEffort === undefined) {
+  if (reasoningEffort === undefined) {
     return 0
   }
   const effortRatio = EFFORT_RATIO[reasoningEffort]
