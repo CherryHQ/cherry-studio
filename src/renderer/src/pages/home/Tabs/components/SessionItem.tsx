@@ -28,9 +28,9 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
   const SessionLabel = useCallback(() => {
     const displayName = session.name ?? session.id
     return (
-      <Button>
+      <>
         <span className="text-sm">{displayName}</span>
-      </Button>
+      </>
     )
   }, [session.id, session.name])
 

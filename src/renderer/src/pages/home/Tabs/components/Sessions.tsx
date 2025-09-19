@@ -1,8 +1,11 @@
-import { Spinner } from '@heroui/react'
+import { Button, Spinner } from '@heroui/react'
+import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveSessionIdAction } from '@renderer/store/runtime'
+import { Plus } from 'lucide-react'
 import { memo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import SessionItem from './SessionItem'
 
@@ -13,6 +16,7 @@ interface SessionsProps {
 }
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
+  const { t } = useTranslation()
   const { sessions, isLoading, deleteSession } = useSessions(agentId)
   const dispatch = useAppDispatch()
 
@@ -30,6 +34,19 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   return (
     <div className="agents-tab h-full w-full p-2">
       {/* TODO: Add session button */}
+      <SessionModal
+        agentId={agentId}
+        trigger={{
+          content: (
+            <Button
+              onPress={(e) => e.continuePropagation()}
+              className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+              <Plus size={16} className="mr-1 shrink-0" />
+              {t('agent.session.add.title')}
+            </Button>
+          )
+        }}
+      />
       {sessions.map((session) => (
         <SessionItem
           key={session.id}
