@@ -334,7 +334,7 @@ export class SessionMessageService extends BaseService {
     const insertData: InsertSessionMessageRow = {
       session_id: sessionId,
       role: 'user',
-      content: prompt,
+      content: JSON.stringify({ role: 'user', content: prompt }),
       agent_session_id: agentSessionId,
       created_at: now,
       updated_at: now
