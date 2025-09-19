@@ -185,6 +185,15 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
+  const placeholderText = enableQuickPanelTriggers
+    ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
+    : t('chat.input.placeholder_without_triggers', {
+        key: getSendMessageShortcutLabel(sendMessageShortcut),
+        defaultValue: t('chat.input.placeholder', {
+          key: getSendMessageShortcutLabel(sendMessageShortcut)
+        })
+      })
+
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
@@ -836,11 +845,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={
-              isTranslating
-                ? t('chat.input.translating')
-                : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
-            }
+            placeholder={isTranslating ? t('chat.input.translating') : placeholderText}
             autoFocus
             variant="borderless"
             spellCheck={enableSpellCheck}
