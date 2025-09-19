@@ -1,24 +1,12 @@
 import { Request, Response } from 'express'
-import { validationResult } from 'express-validator'
 
 import { agentService } from '../../../../services/agents'
 import { loggerService } from '../../../../services/LoggerService'
 
 const logger = loggerService.withContext('ApiServerMiddleware')
 
-// Error handler for validation
-export const handleValidationErrors = (req: Request, res: Response, next: any): void => {
-  const errors = validationResult(req)
-  if (!errors.isEmpty()) {
-    res.status(400).json({
-      error: {
-        message: 'Validation failed',
-        type: 'validation_error',
-        details: errors.array()
-      }
-    })
-    return
-  }
+// Since Zod validators handle their own errors, this is now a pass-through
+export const handleValidationErrors = (_req: Request, _res: Response, next: any): void => {
   next()
 }
 

@@ -1,7 +1,8 @@
 import path from 'node:path'
 
 import { getDataPath } from '@main/utils'
-import type {
+import {
+  AgentBaseSchema,
   AgentEntity,
   CreateAgentRequest,
   CreateAgentResponse,
@@ -111,7 +112,11 @@ export class AgentService extends BaseService {
     return { agents, total: totalResult[0].count }
   }
 
-  async updateAgent(id: string, updates: UpdateAgentRequest): Promise<UpdateAgentResponse | null> {
+  async updateAgent(
+    id: string,
+    updates: UpdateAgentRequest,
+    options: { replace?: boolean } = {}
+  ): Promise<UpdateAgentResponse | null> {
     this.ensureInitialized()
 
     // Check if agent exists
@@ -126,18 +131,20 @@ export class AgentService extends BaseService {
     const updateData: Partial<AgentRow> = {
       updated_at: now
     }
+    const replaceableFields = Object.keys(AgentBaseSchema.shape) as (keyof AgentRow)[]
+    const shouldReplace = options.replace ?? false
 
-    // Only update fields that are provided
-    if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
-    if (serializedUpdates.description !== undefined) updateData.description = serializedUpdates.description
-    if (serializedUpdates.instructions !== undefined) updateData.instructions = serializedUpdates.instructions
-    if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
-    if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
-    if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
-    if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
-    if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
-    if (serializedUpdates.accessible_paths !== undefined)
-      updateData.accessible_paths = serializedUpdates.accessible_paths
+    for (const field of replaceableFields) {
+      if (shouldReplace || Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
+        if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
+          const value = serializedUpdates[field as keyof typeof serializedUpdates]
+          ;(updateData as Record<string, unknown>)[field] = value ?? null
+        } else if (shouldReplace) {
+          ;(updateData as Record<string, unknown>)[field] = null
+        }
+      }
+    }
+
     await this.database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
     return await this.getAgent(id)
   }

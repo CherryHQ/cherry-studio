@@ -1,11 +1,12 @@
-import type {
-  AgentEntity,
-  AgentSessionEntity,
-  CreateSessionRequest,
-  CreateSessionResponse,
-  GetAgentSessionResponse,
-  ListOptions,
-  UpdateSessionRequest,
+import {
+  AgentBaseSchema,
+  type AgentEntity,
+  type AgentSessionEntity,
+  type CreateSessionRequest,
+  type CreateSessionResponse,
+  type GetAgentSessionResponse,
+  type ListOptions,
+  type UpdateSessionRequest,
   UpdateSessionResponse
 } from '@types'
 import { and, count, eq, type SQL } from 'drizzle-orm'
@@ -79,7 +80,25 @@ export class SessionService extends BaseService {
     return this.deserializeJsonFields(result[0]) as AgentSessionEntity
   }
 
-  async getSession(id: string): Promise<GetAgentSessionResponse | null> {
+  async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
+    this.ensureInitialized()
+
+    const result = await this.database
+      .select()
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .limit(1)
+
+    if (!result[0]) {
+      return null
+    }
+
+    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+
+    return session
+  }
+
+  async getSessionById(id: string): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
@@ -91,14 +110,6 @@ export class SessionService extends BaseService {
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
 
     return session
-  }
-
-  async getSessionWithAgent(id: string): Promise<any | null> {
-    this.ensureInitialized()
-
-    // TODO: Implement join query with agents table when needed
-    // For now, just return the session
-    return await this.getSession(id)
   }
 
   async listSessions(
@@ -140,11 +151,15 @@ export class SessionService extends BaseService {
     return { sessions, total }
   }
 
-  async updateSession(id: string, updates: UpdateSessionRequest): Promise<UpdateSessionResponse | null> {
+  async updateSession(
+    agentId: string,
+    id: string,
+    updates: UpdateSessionRequest
+  ): Promise<UpdateSessionResponse | null> {
     this.ensureInitialized()
 
     // Check if session exists
-    const existing = await this.getSession(id)
+    const existing = await this.getSession(agentId, id)
     if (!existing) {
       return null
     }
@@ -158,40 +173,37 @@ export class SessionService extends BaseService {
     const updateData: Partial<SessionRow> = {
       updated_at: now
     }
+    const replaceableFields = Object.keys(AgentBaseSchema.shape) as (keyof SessionRow)[]
 
-    // Only update fields that are provided
-    if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
-
-    if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
-    if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
-    if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
-
-    if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
-
-    if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
-    if (serializedUpdates.accessible_paths !== undefined)
-      updateData.accessible_paths = serializedUpdates.accessible_paths
+    for (const field of replaceableFields) {
+      if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
+        const value = serializedUpdates[field as keyof typeof serializedUpdates]
+        ;(updateData as Record<string, unknown>)[field] = value ?? null
+      }
+    }
 
     await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
-    return await this.getSession(id)
+    return await this.getSession(agentId, id)
   }
 
-  async deleteSession(id: string): Promise<boolean> {
+  async deleteSession(agentId: string, id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.delete(sessionsTable).where(eq(sessionsTable.id, id))
+    const result = await this.database
+      .delete(sessionsTable)
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
     return result.rowsAffected > 0
   }
 
-  async sessionExists(id: string): Promise<boolean> {
+  async sessionExists(agentId: string, id: string): Promise<boolean> {
     this.ensureInitialized()
 
     const result = await this.database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
       .limit(1)
 
     return result.length > 0

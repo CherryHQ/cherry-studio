@@ -1,7 +1,14 @@
 import { loggerService } from '@logger'
 import { sessionMessageService, sessionService } from '@main/services/agents'
-import { CreateSessionResponse, ListAgentSessionsResponse, UpdateSessionResponse } from '@types'
+import {
+  CreateSessionResponse,
+  ListAgentSessionsResponse,
+  type ReplaceSessionRequest,
+  UpdateSessionResponse
+} from '@types'
 import { Request, Response } from 'express'
+
+import type { ValidationRequest } from '../validators/zodValidator'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
 
@@ -64,7 +71,7 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
     const { agentId, sessionId } = req.params
     logger.info(`Getting session: ${sessionId} for agent: ${agentId}`)
 
-    const session = await sessionService.getSession(sessionId)
+    const session = await sessionService.getSession(agentId, sessionId)
 
     if (!session) {
       logger.warn(`Session not found: ${sessionId}`)
@@ -119,7 +126,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
     logger.debug('Update data:', req.body)
 
     // First check if session exists and belongs to agent
-    const existingSession = await sessionService.getSession(sessionId)
+    const existingSession = await sessionService.getSession(agentId, sessionId)
     if (!existingSession || existingSession.agent_id !== agentId) {
       logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
       return res.status(404).json({
@@ -131,9 +138,10 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    // For PUT, we replace the entire resource
-    const sessionData = { ...req.body, main_agent_id: agentId }
-    const session = await sessionService.updateSession(sessionId, sessionData)
+    const { validatedBody } = req as ValidationRequest
+    const replacePayload = (validatedBody ?? {}) as ReplaceSessionRequest
+
+    const session = await sessionService.updateSession(agentId, sessionId, replacePayload)
 
     if (!session) {
       logger.warn(`Session not found for update: ${sessionId}`)
@@ -167,7 +175,7 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
     logger.debug('Patch data:', req.body)
 
     // First check if session exists and belongs to agent
-    const existingSession = await sessionService.getSession(sessionId)
+    const existingSession = await sessionService.getSession(agentId, sessionId)
     if (!existingSession || existingSession.agent_id !== agentId) {
       logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
       return res.status(404).json({
@@ -180,7 +188,7 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
     }
 
     const updateSession = { ...existingSession, ...req.body }
-    const session = await sessionService.updateSession(sessionId, updateSession)
+    const session = await sessionService.updateSession(agentId, sessionId, updateSession)
 
     if (!session) {
       logger.warn(`Session not found for patch: ${sessionId}`)
@@ -213,7 +221,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
     logger.info(`Deleting session: ${sessionId} for agent: ${agentId}`)
 
     // First check if session exists and belongs to agent
-    const existingSession = await sessionService.getSession(sessionId)
+    const existingSession = await sessionService.getSession(agentId, sessionId)
     if (!existingSession || existingSession.agent_id !== agentId) {
       logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
       return res.status(404).json({
@@ -225,7 +233,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    const deleted = await sessionService.deleteSession(sessionId)
+    const deleted = await sessionService.deleteSession(agentId, sessionId)
 
     if (!deleted) {
       logger.warn(`Session not found for deletion: ${sessionId}`)
@@ -287,7 +295,7 @@ export const getSessionById = async (req: Request, res: Response): Promise<Respo
     const { sessionId } = req.params
     logger.info(`Getting session: ${sessionId}`)
 
-    const session = await sessionService.getSession(sessionId)
+    const session = await sessionService.getSessionById(sessionId)
 
     if (!session) {
       logger.warn(`Session not found: ${sessionId}`)

@@ -5,11 +5,13 @@ import { checkAgentExists, handleValidationErrors } from './middleware'
 import {
   validateAgent,
   validateAgentId,
+  validateAgentReplace,
   validateAgentUpdate,
   validatePagination,
   validateSession,
   validateSessionId,
   validateSessionMessage,
+  validateSessionReplace,
   validateSessionUpdate
 } from './validators'
 
@@ -152,7 +154,13 @@ const agentsRouter = express.Router()
 agentsRouter.post('/', validateAgent, handleValidationErrors, agentHandlers.createAgent)
 agentsRouter.get('/', validatePagination, handleValidationErrors, agentHandlers.listAgents)
 agentsRouter.get('/:agentId', validateAgentId, handleValidationErrors, agentHandlers.getAgent)
-agentsRouter.put('/:agentId', validateAgentId, validateAgentUpdate, handleValidationErrors, agentHandlers.updateAgent)
+agentsRouter.put(
+  '/:agentId',
+  validateAgentId,
+  validateAgentReplace,
+  handleValidationErrors,
+  agentHandlers.updateAgent
+)
 agentsRouter.patch('/:agentId', validateAgentId, validateAgentUpdate, handleValidationErrors, agentHandlers.patchAgent)
 agentsRouter.delete('/:agentId', validateAgentId, handleValidationErrors, agentHandlers.deleteAgent)
 
@@ -167,7 +175,7 @@ const createSessionsRouter = (): express.Router => {
   sessionsRouter.put(
     '/:sessionId',
     validateSessionId,
-    validateSessionUpdate,
+    validateSessionReplace,
     handleValidationErrors,
     sessionHandlers.updateSession
   )

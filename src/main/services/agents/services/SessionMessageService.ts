@@ -9,7 +9,7 @@ import type {
 } from '@types'
 import { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 import { convertToModelMessages, readUIMessageStream } from 'ai'
-import { count, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { InsertSessionMessageRow, sessionMessagesTable } from '../database/schema'
@@ -148,16 +148,8 @@ export class SessionMessageService extends BaseService {
   async listSessionMessages(
     sessionId: string,
     options: ListOptions = {}
-  ): Promise<{ messages: AgentSessionMessageEntity[]; total: number }> {
+  ): Promise<{ messages: AgentSessionMessageEntity[] }> {
     this.ensureInitialized()
-
-    // Get total count
-    const totalResult = await this.database
-      .select({ count: count() })
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.session_id, sessionId))
-
-    const total = totalResult[0].count
 
     // Get messages with pagination
     const baseQuery = this.database
@@ -175,7 +167,7 @@ export class SessionMessageService extends BaseService {
 
     const messages = result.map((row) => this.deserializeSessionMessage(row)) as AgentSessionMessageEntity[]
 
-    return { messages, total }
+    return { messages }
   }
 
   async saveUserMessage(
