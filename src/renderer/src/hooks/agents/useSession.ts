@@ -35,7 +35,7 @@ export const useSession = (agentId: string, sessionId: string) => {
       if (!agentId || !sessionId || !data) return
       const origin = cloneDeep(data)
       const newMessageDraft = {
-        id: -1,
+        id: 77777,
         session_id: '',
         role: 'user',
         content: {

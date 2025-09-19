@@ -14,7 +14,6 @@ import {
   GetAgentResponse,
   GetAgentResponseSchema,
   GetAgentSessionResponse,
-  GetAgentSessionResponseSchema,
   ListAgentSessionsResponse,
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
@@ -172,7 +171,9 @@ export class AgentApiClient {
     const url = this.getSessionPaths(agentId).withId(sessionId)
     try {
       const response = await this.axios.get(url)
-      const data = GetAgentSessionResponseSchema.parse(response.data)
+      // const data = GetAgentSessionResponseSchema.parse(response.data)
+      // TODO: enable validation
+      const data = response.data
       if (sessionId !== data.id) {
         throw new Error('Session ID mismatch in response')
       }

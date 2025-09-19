@@ -1,10 +1,14 @@
+import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { ModelMessage } from 'ai'
 import { memo } from 'react'
 import styled from 'styled-components'
 
 import NarrowLayout from './NarrowLayout'
+
+const logger = loggerService.withContext('AgentSessionMessages')
 
 type Props = {
   agentId: string
@@ -14,18 +18,28 @@ type Props = {
 const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   const { messages } = useSession(agentId, sessionId)
 
+  const getTextFromContent = (content: string | ModelMessage): string => {
+    logger.debug('content', { content })
+    if (typeof content === 'string') {
+      return content
+    } else if (typeof content.content === 'string') {
+      return content.content
+    } else {
+      return content.content
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n')
+    }
+  }
+
   return (
     <MessagesContainer id="messages" className="messages-container">
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <ContextMenu>
           <ScrollContainer>
             {messages.map((message) => {
-              const content = message.content.content
-              if (typeof content === 'string') {
-                return <div key={message.id}>{content}</div>
-              } else {
-                return 'Not string content'
-              }
+              const content = getTextFromContent(message.content)
+              return <div key={message.id}>{content}</div>
             })}
           </ScrollContainer>
         </ContextMenu>
