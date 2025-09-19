@@ -15,10 +15,12 @@ import { count, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
+import { AgentModelField } from '../errors'
 import { builtinTools } from './claudecode/tools'
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null
+  private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
 
   static getInstance(): AgentService {
     if (!AgentService.instance) {
@@ -42,6 +44,12 @@ export class AgentService extends BaseService {
       const defaultPath = path.join(getDataPath(), 'agents', id)
       req.accessible_paths = [defaultPath]
     }
+
+    await this.validateAgentModels(req.type, {
+      model: req.model,
+      plan_model: req.plan_model,
+      small_model: req.small_model
+    })
 
     this.ensurePathsExist(req.accessible_paths)
 
@@ -132,6 +140,18 @@ export class AgentService extends BaseService {
     if (updates.accessible_paths) {
       this.ensurePathsExist(updates.accessible_paths)
     }
+
+    const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
+    for (const field of this.modelFields) {
+      if (Object.prototype.hasOwnProperty.call(updates, field)) {
+        modelUpdates[field] = updates[field as keyof UpdateAgentRequest] as string | undefined
+      }
+    }
+
+    if (Object.keys(modelUpdates).length > 0) {
+      await this.validateAgentModels(existing.type, modelUpdates)
+    }
+
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<AgentRow> = {

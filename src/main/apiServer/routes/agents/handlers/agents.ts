@@ -1,11 +1,19 @@
 import { loggerService } from '@logger'
+import { AgentModelValidationError, agentService } from '@main/services/agents'
 import { ListAgentsResponse,type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import { Request, Response } from 'express'
 
-import { agentService } from '../../../../services/agents'
 import type { ValidationRequest } from '../validators/zodValidator'
 
 const logger = loggerService.withContext('ApiServerAgentsHandlers')
+
+const modelValidationErrorBody = (error: AgentModelValidationError) => ({
+  error: {
+    message: `Invalid ${error.context.field}: ${error.detail.message}`,
+    type: 'invalid_request_error',
+    code: error.detail.code
+  }
+})
 
 /**
  * @swagger
@@ -50,6 +58,16 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
     logger.info(`Agent created successfully: ${agent.id}`)
     return res.status(201).json(agent)
   } catch (error: any) {
+    if (error instanceof AgentModelValidationError) {
+      logger.warn('Agent model validation error during create:', {
+        agentType: error.context.agentType,
+        field: error.context.field,
+        model: error.context.model,
+        detail: error.detail
+      })
+      return res.status(400).json(modelValidationErrorBody(error))
+    }
+
     logger.error('Error creating agent:', error)
     return res.status(500).json({
       error: {
@@ -259,8 +277,8 @@ export const getAgent = async (req: Request, res: Response): Promise<Response> =
  *               $ref: '#/components/schemas/Error'
  */
 export const updateAgent = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
   try {
-    const { agentId } = req.params
     logger.info(`Updating agent: ${agentId}`)
     logger.debug('Update data:', req.body)
 
@@ -283,6 +301,17 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
     logger.info(`Agent updated successfully: ${agentId}`)
     return res.json(agent)
   } catch (error: any) {
+    if (error instanceof AgentModelValidationError) {
+      logger.warn('Agent model validation error during update:', {
+        agentId,
+        agentType: error.context.agentType,
+        field: error.context.field,
+        model: error.context.model,
+        detail: error.detail
+      })
+      return res.status(400).json(modelValidationErrorBody(error))
+    }
+
     logger.error('Error updating agent:', error)
     return res.status(500).json({
       error: {
@@ -394,8 +423,8 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
  *               $ref: '#/components/schemas/Error'
  */
 export const patchAgent = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
   try {
-    const { agentId } = req.params
     logger.info(`Partially updating agent: ${agentId}`)
     logger.debug('Partial update data:', req.body)
 
@@ -418,6 +447,17 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
     logger.info(`Agent partially updated successfully: ${agentId}`)
     return res.json(agent)
   } catch (error: any) {
+    if (error instanceof AgentModelValidationError) {
+      logger.warn('Agent model validation error during partial update:', {
+        agentId,
+        agentType: error.context.agentType,
+        field: error.context.field,
+        model: error.context.model,
+        detail: error.detail
+      })
+      return res.status(400).json(modelValidationErrorBody(error))
+    }
+
     logger.error('Error partially updating agent:', error)
     return res.status(500).json({
       error: {

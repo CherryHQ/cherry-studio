@@ -13,9 +13,11 @@ import { and, count, eq, type SQL } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
+import { AgentModelField } from '../errors'
 
 export class SessionService extends BaseService {
   private static instance: SessionService | null = null
+  private readonly modelFields: AgentModelField[] = ['model', 'plan_model', 'small_model']
 
   static getInstance(): SessionService {
     if (!SessionService.instance) {
@@ -49,6 +51,12 @@ export class SessionService extends BaseService {
       ...agent,
       ...req
     }
+
+    await this.validateAgentModels(agent.type, {
+      model: sessionData.model,
+      plan_model: sessionData.plan_model,
+      small_model: sessionData.small_model
+    })
 
     this.ensurePathsExist(sessionData.accessible_paths)
 
@@ -174,6 +182,18 @@ export class SessionService extends BaseService {
     if (updates.accessible_paths) {
       this.ensurePathsExist(updates.accessible_paths)
     }
+
+    const modelUpdates: Partial<Record<AgentModelField, string | undefined>> = {}
+    for (const field of this.modelFields) {
+      if (Object.prototype.hasOwnProperty.call(updates, field)) {
+        modelUpdates[field] = updates[field as keyof UpdateSessionRequest] as string | undefined
+      }
+    }
+
+    if (Object.keys(modelUpdates).length > 0) {
+      await this.validateAgentModels(existing.agent_type, modelUpdates)
+    }
+
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<SessionRow> = {

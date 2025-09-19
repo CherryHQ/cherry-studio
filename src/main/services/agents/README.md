@@ -8,6 +8,7 @@ Simplified Drizzle ORM implementation for agent and session management in Cherry
 - **Zero CLI dependencies** in production
 - **Auto-initialization** with retry logic
 - **Full TypeScript** type safety
+- **Model validation** to ensure models exist and provider configuration matches the agent type
 
 ## Schema
 
@@ -24,9 +25,15 @@ import { agentService } from './services'
 const agent = await agentService.createAgent({
   type: 'custom',
   name: 'My Agent',
-  model: 'claude-3-5-sonnet-20241022'
+  model: 'anthropic:claude-3-5-sonnet-20241022'
 })
 ```
+
+## Model Validation
+
+- Model identifiers must use the `provider:model_id` format (for example `anthropic:claude-3-5-sonnet-20241022`).
+- `model`, `plan_model`, and `small_model` are validated against the configured providers before the database is touched.
+- Invalid configurations return a `400 invalid_request_error` response and the create/update operation is aborted.
 
 ## Development Commands
 

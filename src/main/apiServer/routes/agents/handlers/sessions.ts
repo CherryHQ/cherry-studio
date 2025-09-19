@@ -1,5 +1,9 @@
 import { loggerService } from '@logger'
-import { sessionMessageService, sessionService } from '@main/services/agents'
+import {
+  AgentModelValidationError,
+  sessionMessageService,
+  sessionService
+} from '@main/services/agents'
 import {
   CreateSessionResponse,
   ListAgentSessionsResponse,
@@ -12,9 +16,17 @@ import type { ValidationRequest } from '../validators/zodValidator'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
 
+const modelValidationErrorBody = (error: AgentModelValidationError) => ({
+  error: {
+    message: `Invalid ${error.context.field}: ${error.detail.message}`,
+    type: 'invalid_request_error',
+    code: error.detail.code
+  }
+})
+
 export const createSession = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
   try {
-    const { agentId } = req.params
     const sessionData = req.body
 
     logger.info(`Creating new session for agent: ${agentId}`)
@@ -25,6 +37,17 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
     logger.info(`Session created successfully: ${session.id}`)
     return res.status(201).json(session)
   } catch (error: any) {
+    if (error instanceof AgentModelValidationError) {
+      logger.warn('Session model validation error during create:', {
+        agentId,
+        agentType: error.context.agentType,
+        field: error.context.field,
+        model: error.context.model,
+        detail: error.detail
+      })
+      return res.status(400).json(modelValidationErrorBody(error))
+    }
+
     logger.error('Error creating session:', error)
     return res.status(500).json({
       error: {
@@ -120,8 +143,8 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
 }
 
 export const updateSession = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId, sessionId } = req.params
   try {
-    const { agentId, sessionId } = req.params
     logger.info(`Updating session: ${sessionId} for agent: ${agentId}`)
     logger.debug('Update data:', req.body)
 
@@ -157,6 +180,18 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
     logger.info(`Session updated successfully: ${sessionId}`)
     return res.json(session satisfies UpdateSessionResponse)
   } catch (error: any) {
+    if (error instanceof AgentModelValidationError) {
+      logger.warn('Session model validation error during update:', {
+        agentId,
+        sessionId,
+        agentType: error.context.agentType,
+        field: error.context.field,
+        model: error.context.model,
+        detail: error.detail
+      })
+      return res.status(400).json(modelValidationErrorBody(error))
+    }
+
     logger.error('Error updating session:', error)
     return res.status(500).json({
       error: {
@@ -169,8 +204,8 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
 }
 
 export const patchSession = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId, sessionId } = req.params
   try {
-    const { agentId, sessionId } = req.params
     logger.info(`Patching session: ${sessionId} for agent: ${agentId}`)
     logger.debug('Patch data:', req.body)
 
@@ -204,6 +239,18 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
     logger.info(`Session patched successfully: ${sessionId}`)
     return res.json(session)
   } catch (error: any) {
+    if (error instanceof AgentModelValidationError) {
+      logger.warn('Session model validation error during patch:', {
+        agentId,
+        sessionId,
+        agentType: error.context.agentType,
+        field: error.context.field,
+        model: error.context.model,
+        detail: error.detail
+      })
+      return res.status(400).json(modelValidationErrorBody(error))
+    }
+
     logger.error('Error patching session:', error)
     return res.status(500).json({
       error: {

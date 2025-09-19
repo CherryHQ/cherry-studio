@@ -13,6 +13,9 @@
 // Main service classes and singleton instances
 export * from './services'
 
+// === Error Types ===
+export { type AgentModelField, AgentModelValidationError } from './errors'
+
 // === Base Infrastructure ===
 // Shared database utilities and base service class
 export { BaseService } from './BaseService'

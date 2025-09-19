@@ -50,14 +50,12 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    // Validate model
-    const modelId = session.model
-    logger.info('Invoking Claude Code with model', { modelId, cwd })
-    const modelInfo = await validateModelId(modelId)
+    // Validate model info
+    const modelInfo = await validateModelId(session.model)
     if (!modelInfo.valid) {
       aiStream.emit('data', {
         type: 'error',
-        error: new Error(`Invalid model ID '${modelId}': ${JSON.stringify(modelInfo.error)}`)
+        error: new Error(`Invalid model ID '${session.model}': ${JSON.stringify(modelInfo.error)}`)
       })
       return aiStream
     }

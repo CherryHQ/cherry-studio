@@ -1,6 +1,7 @@
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import { objectKeys } from '@types'
+import { ModelValidationError, validateModelId } from '@main/apiServer/utils'
+import { AgentType, objectKeys, Provider } from '@types'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -8,6 +9,7 @@ import path from 'path'
 import { MigrationService } from './database/MigrationService'
 import * as schema from './database/schema'
 import { dbPath } from './drizzle.config'
+import { AgentModelField, AgentModelValidationError } from './errors'
 
 const logger = loggerService.withContext('BaseService')
 
@@ -186,8 +188,7 @@ export abstract class BaseService {
       }
 
       const looksLikeFile =
-        (stats && stats.isFile()) ||
-        (!stats && path.extname(resolvedPath) !== '' && !resolvedPath.endsWith(path.sep))
+        (stats && stats.isFile()) || (!stats && path.extname(resolvedPath) !== '' && !resolvedPath.endsWith(path.sep))
 
       const directoryToEnsure = looksLikeFile ? path.dirname(resolvedPath) : resolvedPath
 
@@ -208,6 +209,63 @@ export abstract class BaseService {
   /**
    * Force re-initialization (for development/testing)
    */
+  protected async validateAgentModels(
+    agentType: AgentType,
+    models: Partial<Record<AgentModelField, string | undefined>>
+  ): Promise<void> {
+    const entries = Object.entries(models) as [AgentModelField, string | undefined][]
+    if (entries.length === 0) {
+      return
+    }
+
+    for (const [field, rawValue] of entries) {
+      if (rawValue === undefined || rawValue === null) {
+        continue
+      }
+
+      const modelValue = rawValue
+      const validation = await validateModelId(modelValue)
+
+      if (!validation.valid || !validation.provider) {
+        const detail: ModelValidationError = validation.error ?? {
+          type: 'invalid_format',
+          message: 'Unknown model validation error',
+          code: 'validation_error'
+        }
+
+        throw new AgentModelValidationError({ agentType, field, model: modelValue }, detail)
+      }
+
+      if (!validation.provider.apiKey) {
+        throw new AgentModelValidationError(
+          { agentType, field, model: modelValue },
+          {
+            type: 'invalid_format',
+            message: `Provider '${validation.provider.id}' is missing an API key`,
+            code: 'provider_api_key_missing'
+          }
+        )
+      }
+
+      // different agent types may have different provider requirements
+      const agentTypeProviderRequirements: Record<AgentType, Provider['type']> = {
+        'claude-code': 'anthropic'
+      }
+      for (const [ak, pk] of Object.entries(agentTypeProviderRequirements)) {
+        if (agentType === ak && validation.provider.type !== pk) {
+          throw new AgentModelValidationError(
+            { agentType, field, model: modelValue },
+            {
+              type: 'unsupported_provider_type',
+              message: `Provider type '${validation.provider.type}' is not supported for agent type '${agentType}'. Expected '${pk}'`,
+              code: 'unsupported_provider_type'
+            }
+          )
+        }
+      }
+    }
+  }
+
   static async reinitialize(): Promise<void> {
     BaseService.isInitialized = false
     BaseService.initializationPromise = null
