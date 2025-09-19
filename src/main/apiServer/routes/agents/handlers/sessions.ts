@@ -1,7 +1,9 @@
 import { loggerService } from '@logger'
 import { sessionMessageService, sessionService } from '@main/services/agents'
-import { CreateSessionResponse, ListAgentSessionsResponse } from '@types'
+import { CreateSessionResponse, ListAgentSessionsResponse,type ReplaceSessionRequest } from '@types'
 import { Request, Response } from 'express'
+
+import type { ValidationRequest } from '../validators/zodValidator'
 
 const logger = loggerService.withContext('ApiServerSessionsHandlers')
 
@@ -131,9 +133,10 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    // For PUT, we replace the entire resource
-    const sessionData = { ...req.body, main_agent_id: agentId }
-    const session = await sessionService.updateSession(agentId, sessionId, sessionData)
+    const { validatedBody } = req as ValidationRequest
+    const replacePayload = (validatedBody ?? {}) as ReplaceSessionRequest
+
+    const session = await sessionService.updateSession(agentId, sessionId, replacePayload)
 
     if (!session) {
       logger.warn(`Session not found for update: ${sessionId}`)

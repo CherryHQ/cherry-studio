@@ -163,6 +163,8 @@ export type CreateAgentResponse = AgentEntity
 
 export interface UpdateAgentRequest extends Partial<AgentBase> {}
 
+export type ReplaceAgentRequest = AgentBase
+
 export const GetAgentResponseSchema = AgentEntitySchema.extend({
   built_in_tools: z.array(ToolSchema).optional() // Built-in tools available to the agent
 })
@@ -250,6 +252,8 @@ export const CreateAgentRequestSchema = agentCreatableSchema.extend({
 
 export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
 
+export const ReplaceAgentRequestSchema = AgentBaseSchema
+
 const sessionCreatableSchema = AgentBaseSchema.extend({
   model: z.string().min(1, 'Model is required')
 })
@@ -257,6 +261,10 @@ const sessionCreatableSchema = AgentBaseSchema.extend({
 export const CreateSessionRequestSchema = sessionCreatableSchema
 
 export const UpdateSessionRequestSchema = sessionCreatableSchema.partial()
+
+export const ReplaceSessionRequestSchema = sessionCreatableSchema
+
+export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
 
 export const CreateSessionMessageRequestSchema = z.object({
   content: z.string().min(1, 'Content must be a valid string')

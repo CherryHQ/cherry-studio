@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
-import { ListAgentsResponse } from '@types'
+import { ListAgentsResponse,type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import { Request, Response } from 'express'
 
 import { agentService } from '../../../../services/agents'
+import type { ValidationRequest } from '../validators/zodValidator'
 
 const logger = loggerService.withContext('ApiServerAgentsHandlers')
 
@@ -263,7 +264,10 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
     logger.info(`Updating agent: ${agentId}`)
     logger.debug('Update data:', req.body)
 
-    const agent = await agentService.updateAgent(agentId, req.body)
+    const { validatedBody } = req as ValidationRequest
+    const replacePayload = (validatedBody ?? {}) as ReplaceAgentRequest
+
+    const agent = await agentService.updateAgent(agentId, replacePayload, { replace: true })
 
     if (!agent) {
       logger.warn(`Agent not found for update: ${agentId}`)
@@ -395,7 +399,10 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
     logger.info(`Partially updating agent: ${agentId}`)
     logger.debug('Partial update data:', req.body)
 
-    const agent = await agentService.updateAgent(agentId, req.body)
+    const { validatedBody } = req as ValidationRequest
+    const updatePayload = (validatedBody ?? {}) as UpdateAgentRequest
+
+    const agent = await agentService.updateAgent(agentId, updatePayload)
 
     if (!agent) {
       logger.warn(`Agent not found for partial update: ${agentId}`)

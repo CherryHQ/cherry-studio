@@ -1,11 +1,12 @@
-import type {
-  AgentEntity,
-  AgentSessionEntity,
-  CreateSessionRequest,
-  CreateSessionResponse,
-  GetAgentSessionResponse,
-  ListOptions,
-  UpdateSessionRequest
+import {
+  AgentBaseSchema,
+  type AgentEntity,
+  type AgentSessionEntity,
+  type CreateSessionRequest,
+  type CreateSessionResponse,
+  type GetAgentSessionResponse,
+  type ListOptions,
+  type UpdateSessionRequest
 } from '@types'
 import { and, count, eq, type SQL } from 'drizzle-orm'
 
@@ -149,7 +150,11 @@ export class SessionService extends BaseService {
     return { sessions, total }
   }
 
-  async updateSession(agentId: string, id: string, updates: UpdateSessionRequest): Promise<GetAgentSessionResponse | null> {
+  async updateSession(
+    agentId: string,
+    id: string,
+    updates: UpdateSessionRequest
+  ): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     // Check if session exists
@@ -167,19 +172,14 @@ export class SessionService extends BaseService {
     const updateData: Partial<SessionRow> = {
       updated_at: now
     }
+    const replaceableFields = Object.keys(AgentBaseSchema.shape) as (keyof SessionRow)[]
 
-    // Only update fields that are provided
-    if (serializedUpdates.name !== undefined) updateData.name = serializedUpdates.name
-
-    if (serializedUpdates.model !== undefined) updateData.model = serializedUpdates.model
-    if (serializedUpdates.plan_model !== undefined) updateData.plan_model = serializedUpdates.plan_model
-    if (serializedUpdates.small_model !== undefined) updateData.small_model = serializedUpdates.small_model
-
-    if (serializedUpdates.mcps !== undefined) updateData.mcps = serializedUpdates.mcps
-
-    if (serializedUpdates.configuration !== undefined) updateData.configuration = serializedUpdates.configuration
-    if (serializedUpdates.accessible_paths !== undefined)
-      updateData.accessible_paths = serializedUpdates.accessible_paths
+    for (const field of replaceableFields) {
+      if (Object.prototype.hasOwnProperty.call(serializedUpdates, field)) {
+        const value = serializedUpdates[field as keyof typeof serializedUpdates]
+        ;(updateData as Record<string, unknown>)[field] = value ?? null
+      }
+    }
 
     await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
