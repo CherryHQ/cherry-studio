@@ -2,7 +2,7 @@
  * Database entity types for Agent, Session, and SessionMessage
  * Shared between main and renderer processes
  */
-import { ModelMessage, modelMessageSchema, TextStreamPart, UIMessageChunk } from 'ai'
+import { ModelMessage, modelMessageSchema, TextStreamPart } from 'ai'
 import { z } from 'zod'
 
 // ------------------ Core enums and helper types ------------------
@@ -118,14 +118,6 @@ export const AgentSessionMessageEntitySchema = z.object({
 export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
 
 // ------------------ Session message payload ------------------
-
-// Structured content for session messages that preserves both AI SDK and raw data
-export interface SessionMessageContent {
-  chunk: UIMessageChunk[] // UI-friendly AI SDK chunks for rendering
-  raw: any[] // Original agent-specific messages for data integrity (agent-agnostic)
-  agentResult?: any // Complete result from the underlying agent service
-  agentType: string // The type of agent that generated this message (e.g., 'claude-code', 'openai', etc.)
-}
 
 // Not implemented fields:
 // - plan_model: Optional model for planning/thinking tasks

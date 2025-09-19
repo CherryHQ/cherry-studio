@@ -78,7 +78,25 @@ export class SessionService extends BaseService {
     return this.deserializeJsonFields(result[0]) as AgentSessionEntity
   }
 
-  async getSession(id: string): Promise<GetAgentSessionResponse | null> {
+  async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
+    this.ensureInitialized()
+
+    const result = await this.database
+      .select()
+      .from(sessionsTable)
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+      .limit(1)
+
+    if (!result[0]) {
+      return null
+    }
+
+    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
+
+    return session
+  }
+
+  async getSessionById(id: string): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
@@ -90,14 +108,6 @@ export class SessionService extends BaseService {
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
 
     return session
-  }
-
-  async getSessionWithAgent(id: string): Promise<any | null> {
-    this.ensureInitialized()
-
-    // TODO: Implement join query with agents table when needed
-    // For now, just return the session
-    return await this.getSession(id)
   }
 
   async listSessions(
@@ -139,11 +149,11 @@ export class SessionService extends BaseService {
     return { sessions, total }
   }
 
-  async updateSession(id: string, updates: UpdateSessionRequest): Promise<GetAgentSessionResponse | null> {
+  async updateSession(agentId: string, id: string, updates: UpdateSessionRequest): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     // Check if session exists
-    const existing = await this.getSession(id)
+    const existing = await this.getSession(agentId, id)
     if (!existing) {
       return null
     }
@@ -173,24 +183,26 @@ export class SessionService extends BaseService {
 
     await this.database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id))
 
-    return await this.getSession(id)
+    return await this.getSession(agentId, id)
   }
 
-  async deleteSession(id: string): Promise<boolean> {
+  async deleteSession(agentId: string, id: string): Promise<boolean> {
     this.ensureInitialized()
 
-    const result = await this.database.delete(sessionsTable).where(eq(sessionsTable.id, id))
+    const result = await this.database
+      .delete(sessionsTable)
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
     return result.rowsAffected > 0
   }
 
-  async sessionExists(id: string): Promise<boolean> {
+  async sessionExists(agentId: string, id: string): Promise<boolean> {
     this.ensureInitialized()
 
     const result = await this.database
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(eq(sessionsTable.id, id))
+      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
       .limit(1)
 
     return result.length > 0
