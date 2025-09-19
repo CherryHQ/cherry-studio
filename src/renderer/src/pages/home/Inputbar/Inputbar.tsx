@@ -443,7 +443,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
