@@ -13,6 +13,7 @@ export interface ChatState {
   /** UI state. Map agent id to active session id.
    *  null represents no active session  */
   activeSessionId: Record<string, string | null>
+  activeTopicOrSession: 'topic' | 'session'
   activeTabId: Tab
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
@@ -87,6 +88,7 @@ const initialState: RuntimeState = {
     activeTabId: 'assistants',
     activeTopic: null,
     activeAgentId: null,
+    activeTopicOrSession: 'topic',
     activeSessionId: {},
     renamingTopics: [],
     newlyRenamedTopics: []
@@ -162,6 +164,9 @@ const runtimeSlice = createSlice({
     setActiveTabIdAction: (state, action: PayloadAction<Tab>) => {
       state.chat.activeTabId = action.payload
     },
+    setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
+      state.chat.activeTopicOrSession = action.payload
+    },
     setRenamingTopics: (state, action: PayloadAction<string[]>) => {
       state.chat.renamingTopics = action.payload
     },
@@ -203,6 +208,7 @@ export const {
   setActiveAgentId,
   setActiveSessionIdAction,
   setActiveTabIdAction,
+  setActiveTopicOrSessionAction,
   setRenamingTopics,
   setNewlyRenamedTopics,
   // WebSearch related actions
