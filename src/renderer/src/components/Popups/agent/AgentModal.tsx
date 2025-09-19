@@ -19,7 +19,6 @@ import {
 import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -84,8 +83,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
-  const { addAgent } = useAgents()
-  const { updateAgent } = useUpdateAgent()
+  const { addAgent, updateAgent } = useAgents()
   const isEditing = (agent?: AgentEntity) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
