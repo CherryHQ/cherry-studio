@@ -42,7 +42,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
 
-
     const messageStream = sessionMessageService.createSessionMessage(session, messageData)
 
     // Track stream lifecycle so we keep the SSE connection open until persistence finishes
@@ -66,6 +65,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
       responseEnded = true
       try {
+        res.write('data: {"type":"finish"}\n\n')
         res.write('data: [DONE]\n\n')
       } catch (writeError) {
         logger.error('Error writing final sentinel to SSE stream:', { error: writeError as Error })
@@ -113,7 +113,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
           case 'complete': {
             logger.info(`Streaming message completed for session: ${sessionId}`)
-            res.write(`data: ${JSON.stringify({ type: 'complete', result: event.result })}\n\n`)
+            // res.write(`data: ${JSON.stringify({ type: 'complete', result: event.result })}\n\n`)
 
             streamFinished = true
             awaitingPersistence = true
@@ -123,7 +123,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
           case 'persisted':
             // Send persistence success event
-            res.write(`data: ${JSON.stringify(event)}\n\n`)
+            // res.write(`data: ${JSON.stringify(event)}\n\n`)
             logger.debug(`Session message persisted for session: ${sessionId}`, { messageId: event.message?.id })
 
             persistenceResolved = true
@@ -132,7 +132,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
           case 'persist-error':
             // Send persistence error event
-            res.write(`data: ${JSON.stringify(event)}\n\n`)
+            // res.write(`data: ${JSON.stringify(event)}\n\n`)
             logger.error(`Failed to persist session message for session: ${sessionId}:`, event.error)
 
             persistenceResolved = true

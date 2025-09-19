@@ -1,7 +1,6 @@
 // This file is used to transform claude code json response to aisdk streaming format
 
 import { SDKMessage } from '@anthropic-ai/claude-code'
-import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import { ProviderMetadata, UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -13,42 +12,14 @@ const generateMessageId = (): string => {
   return `msg_${uuidv4().replace(/-/g, '')}`
 }
 
-// Helper function to extract text content from Anthropic messages
-const extractTextContent = (message: MessageParam): string => {
-  if (typeof message.content === 'string') {
-    return message.content
-  }
-
-  if (Array.isArray(message.content)) {
-    return message.content
-      .filter((block) => block.type === 'text')
-      .map((block) => ('text' in block ? block.text : ''))
-      .join('')
-  }
-
-  return ''
-}
-
-// Helper function to extract tool calls from assistant messages
-const extractToolCalls = (message: any): any[] => {
-  if (!message.content || !Array.isArray(message.content)) {
-    return []
-  }
-
-  return message.content.filter((block: any) => block.type === 'tool_use')
-}
-
 // Main transform function
 export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageChunk[] {
   const chunks: UIMessageChunk[] = []
 
   switch (sdkMessage.type) {
     case 'assistant':
-      chunks.push(...handleAssistantMessage(sdkMessage))
-      break
-
     case 'user':
-      chunks.push(...handleUserMessage(sdkMessage))
+      chunks.push(...handleUserOrAssistantMessage(sdkMessage))
       break
 
     case 'stream_event':
@@ -79,89 +50,72 @@ function sdkMessageToProviderMetadata(message: SDKMessage): ProviderMetadata {
   return meta
 }
 
-// Handle assistant messages
-function handleAssistantMessage(message: Extract<SDKMessage, { type: 'assistant' }>): UIMessageChunk[] {
-  const chunks: UIMessageChunk[] = []
-  const messageId = message.uuid
-
-  // Extract text content
-  const textContent = extractTextContent(message.message as MessageParam)
-  if (textContent) {
-    chunks.push(
-      {
-        type: 'text-start',
-        id: messageId
-      },
-      {
-        type: 'text-delta',
-        id: messageId,
-        delta: textContent
-      },
-      {
-        type: 'text-end',
-        id: messageId,
-        providerMetadata: {
-          rawMessage: sdkMessageToProviderMetadata(message)
-        }
+function generateTextChunks(id: string, text: string, message: SDKMessage): UIMessageChunk[] {
+  return [
+    {
+      type: 'text-start',
+      id
+    },
+    {
+      type: 'text-delta',
+      id,
+      delta: text
+    },
+    {
+      type: 'text-end',
+      id,
+      providerMetadata: {
+        rawMessage: sdkMessageToProviderMetadata(message)
       }
-    )
-  }
-
-  // Handle tool calls
-  const toolCalls = extractToolCalls(message.message)
-  for (const toolCall of toolCalls) {
-    chunks.push({
-      type: 'tool-input-available',
-      toolCallId: toolCall.id,
-      toolName: toolCall.name,
-      input: toolCall.input,
-      providerExecuted: true
-    })
-  }
-
-  return chunks
+    }
+  ]
 }
 
-// Handle user messages
-function handleUserMessage(message: Extract<SDKMessage, { type: 'user' }>): UIMessageChunk[] {
+function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assistant' | 'user' }>): UIMessageChunk[] {
   const chunks: UIMessageChunk[] = []
-  const messageId = generateMessageId()
+  const messageId = message.uuid?.toString() || generateMessageId()
 
-  const textContent = extractTextContent(message.message)
-  if (textContent) {
-    chunks.push(
-      {
-        type: 'text-start',
-        id: messageId,
-        providerMetadata: {
-          anthropic: {
-            session_id: message.session_id,
-            role: 'user'
-          }
-        }
-      },
-      {
-        type: 'text-delta',
-        id: messageId,
-        delta: textContent,
-        providerMetadata: {
-          anthropic: {
-            session_id: message.session_id,
-            role: 'user'
-          }
-        }
-      },
-      {
-        type: 'text-end',
-        id: messageId,
-        providerMetadata: {
-          anthropic: {
-            session_id: message.session_id,
-            role: 'user'
-          }
-        }
+  // handle normal text content
+  if (typeof message.message.content === 'string') {
+    const textContent = message.message.content
+    if (textContent) {
+      chunks.push(...generateTextChunks(messageId, textContent, message))
+    }
+  } else if (Array.isArray(message.message.content)) {
+    for (const block of message.message.content) {
+      switch (block.type) {
+        case 'text':
+          chunks.push(...generateTextChunks(messageId, block.text, message))
+          break
+        case 'tool_use':
+          chunks.push({
+            type: 'tool-input-available',
+            toolCallId: block.id,
+            toolName: block.name,
+            input: block.input,
+            providerExecuted: true,
+            providerMetadata: {
+              rawMessage: sdkMessageToProviderMetadata(message)
+            }
+          })
+          break
+        case 'tool_result':
+          chunks.push({
+            type: 'tool-output-available',
+            toolCallId: block.tool_use_id,
+            output: block.content,
+            providerExecuted: true,
+            dynamic: false,
+            preliminary: false
+          })
+          break
+        default:
+          logger.warn('Unknown content block type in user/assistant message:', {
+            type: (block as any).type
+          })
+          break
       }
-    )
+    }
   }
 
   return chunks
