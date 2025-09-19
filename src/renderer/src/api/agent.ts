@@ -82,7 +82,7 @@ export class AgentApiClient {
   public getSessionMessagesPath = (agentId: string, sessionId: string) =>
     `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`
 
-  public modelsPath = (props?: ApiModelsFilter) => {
+  public getModelsPath = (props?: ApiModelsFilter) => {
     const base = `/${this.apiVersion}/models`
     if (!props) return base
     if (objectKeys(props).length > 0) {
@@ -236,7 +236,7 @@ export class AgentApiClient {
   }
 
   public async getModels(props?: ApiModelsFilter): Promise<ApiModelsResponse> {
-    const url = this.modelsPath(props)
+    const url = this.getModelsPath(props)
     try {
       const response = await this.axios.get(url)
       const data = ApiModelsResponseSchema.parse(response.data)
