@@ -138,8 +138,9 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
       }
     }
 
-    assistantRef.current = getDefaultTranslateAssistant(translateLang, action.selectedText)
-    processMessages(assistantRef.current, topicRef.current, action.selectedText, setAskId, onStream, onFinish, onError)
+    const assistant = getDefaultTranslateAssistant(translateLang, action.selectedText)
+    assistantRef.current = assistant
+    processMessages(assistant, topicRef.current, assistant.content, setAskId, onStream, onFinish, onError)
   }, [action, targetLanguage, alterLanguage, scrollToBottom])
 
   useEffect(() => {
