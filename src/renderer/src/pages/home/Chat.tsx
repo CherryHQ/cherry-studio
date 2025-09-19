@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import ChatNavbar from './ChatNavbar'
+import AgentSessionInputbar from './Inputbar/AgentSessionInputbar'
 import Inputbar from './Inputbar/Inputbar'
 import AgentSessionMessages from './Messages/AgentSessionMessages'
 import ChatNavigation from './Messages/ChatNavigation'
@@ -151,6 +152,17 @@ const Chat: FC<Props> = (props) => {
     return <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
   }
 
+  const SessionInputBar = () => {
+    if (activeAgentId === null) {
+      return <div> Active Agent ID is invalid.</div>
+    }
+    const sessionId = activeSessionId[activeAgentId]
+    if (!sessionId) {
+      return <div> Active Session ID is invalid.</div>
+    }
+    return <AgentSessionInputbar agentId={activeAgentId} sessionId={sessionId} />
+  }
+
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       {isTopNavbar && (
@@ -192,7 +204,12 @@ const Chat: FC<Props> = (props) => {
                 <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
               </>
             )}
-            {activeTopicOrSession === 'session' && <SessionMessages />}
+            {activeTopicOrSession === 'session' && (
+              <>
+                <SessionMessages />
+                <SessionInputBar />
+              </>
+            )}
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>
         </Main>
