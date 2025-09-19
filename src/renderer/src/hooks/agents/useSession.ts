@@ -48,17 +48,20 @@ export const useSession = (agentId: string, sessionId: string) => {
         updated_at: ''
       } satisfies AgentSessionMessageEntity
       try {
-        mutate((prev) => ({
-          ...prev,
-          accessible_paths: prev?.accessible_paths ?? [],
-          model: prev?.model ?? '',
-          id: prev?.id ?? '',
-          agent_id: prev?.id ?? '',
-          agent_type: prev?.agent_type ?? 'claude-code',
-          created_at: prev?.created_at ?? '',
-          updated_at: prev?.updated_at ?? '',
-          messages: [...(prev?.messages ?? []), newMessageDraft]
-        }))
+        mutate(
+          (prev) => ({
+            ...prev,
+            accessible_paths: prev?.accessible_paths ?? [],
+            model: prev?.model ?? '',
+            id: prev?.id ?? '',
+            agent_id: prev?.id ?? '',
+            agent_type: prev?.agent_type ?? 'claude-code',
+            created_at: prev?.created_at ?? '',
+            updated_at: prev?.updated_at ?? '',
+            messages: [...(prev?.messages ?? []), newMessageDraft]
+          }),
+          false
+        )
         await client.createMessage(agentId, sessionId, content)
       } catch (error) {
         mutate(origin)

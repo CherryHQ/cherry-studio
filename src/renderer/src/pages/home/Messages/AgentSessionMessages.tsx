@@ -37,7 +37,7 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <ContextMenu>
           <ScrollContainer>
-            {messages.map((message) => {
+            {messages.toReversed().map((message) => {
               const content = getTextFromContent(message.content)
               return <div key={message.id}>{content}</div>
             })}
