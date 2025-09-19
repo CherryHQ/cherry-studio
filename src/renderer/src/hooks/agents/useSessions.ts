@@ -1,4 +1,5 @@
 import { CreateSessionForm, UpdateSessionForm } from '@renderer/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
@@ -11,9 +12,6 @@ export const useSessions = (agentId: string) => {
   const key = client.getSessionPaths(agentId).base
 
   const fetcher = async () => {
-    if (!agentId) {
-      return []
-    }
     const data = await client.listSessions(agentId)
     return data.data
   }
@@ -21,12 +19,11 @@ export const useSessions = (agentId: string) => {
 
   const createSession = useCallback(
     async (form: CreateSessionForm) => {
-      if (!agentId) return
       try {
         const result = await client.createSession(agentId, form)
         mutate((prev) => [...(prev ?? []), result])
       } catch (error) {
-        window.toast.error(t('agent.session.create.error.failed'))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
       }
     },
     [agentId, client, mutate, t]
@@ -35,12 +32,14 @@ export const useSessions = (agentId: string) => {
   // TODO: including messages field
   const getSession = useCallback(
     async (id: string) => {
-      if (!agentId) return
-      const result = await client.getSession(agentId, id)
-      mutate((prev) => prev?.map((session) => (session.id === result.id ? result : session)))
-      return result
+      try {
+        const result = await client.getSession(agentId, id)
+        mutate((prev) => prev?.map((session) => (session.id === result.id ? result : session)))
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
+      }
     },
-    [agentId, client, mutate]
+    [agentId, client, mutate, t]
   )
 
   const deleteSession = useCallback(
@@ -50,7 +49,7 @@ export const useSessions = (agentId: string) => {
         await client.deleteSession(agentId, id)
         mutate((prev) => prev?.filter((session) => session.id !== id))
       } catch (error) {
-        window.toast.error(t('agent.session.delete.error.failed'))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
       }
     },
     [agentId, client, mutate, t]
@@ -63,7 +62,7 @@ export const useSessions = (agentId: string) => {
         const result = await client.updateSession(agentId, form)
         mutate((prev) => prev?.map((session) => (session.id === form.id ? result : session)))
       } catch (error) {
-        window.toast.error(t('agent.session.update.error.failed'))
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.update.error.failed')))
       }
     },
     [agentId, client, mutate, t]
