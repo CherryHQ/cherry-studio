@@ -14,15 +14,6 @@ import { transformSDKMessageToUIChunk } from './transform'
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
 
-interface ClaudeCodeResult {
-  success: boolean
-  stdout: string
-  stderr: string
-  jsonOutput: any[]
-  error?: Error
-  exitCode?: number
-}
-
 class ClaudeCodeStream extends EventEmitter implements AgentStream {
   declare emit: (event: 'data', data: AgentStreamEvent) => boolean
   declare on: (event: 'data', listener: (data: AgentStreamEvent) => void) => this
@@ -37,7 +28,12 @@ class ClaudeCodeService implements AgentServiceInterface {
     this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-code/cli.js')
   }
 
-  async invoke(prompt: string, session: GetAgentSessionResponse, lastAgentSessionId?: string): Promise<AgentStream> {
+  async invoke(
+    prompt: string,
+    session: GetAgentSessionResponse,
+    abortController: AbortController,
+    lastAgentSessionId?: string
+  ): Promise<AgentStream> {
     const aiStream = new ClaudeCodeStream()
 
     // Validate session accessible paths and make sure it exists as a directory
@@ -76,6 +72,7 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     // Build SDK options from parameters
     const options: Options = {
+      abortController,
       cwd,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
@@ -164,8 +161,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         for (const chunk of chunks) {
           stream.emit('data', {
             type: 'chunk',
-            chunk,
-            rawAgentMessage: message
+            chunk
           })
         }
       }
@@ -179,57 +175,44 @@ class ClaudeCodeService implements AgentServiceInterface {
         messageCount: jsonOutput.length
       })
 
-      const result: ClaudeCodeResult = {
-        success: true,
-        stdout: '',
-        stderr: '',
-        jsonOutput,
-        exitCode: 0
-      }
-
       // Emit completion event
       stream.emit('data', {
-        type: 'complete',
-        agentResult: {
-          ...result,
-          rawSDKMessages: jsonOutput,
-          agentType: 'claude-code'
-        }
+        type: 'complete'
       })
     } catch (error) {
       if (hasCompleted) return
       hasCompleted = true
 
       const duration = Date.now() - startTime
+
+      // Check if this is an abort error
+      const errorObj = error as any
+      const isAborted =
+        errorObj?.name === 'AbortError' ||
+        errorObj?.message?.includes('aborted') ||
+        options.abortController?.signal.aborted
+
+      if (isAborted) {
+        logger.info('SDK query aborted by client disconnect', { duration })
+        // Simply cleanup and return - don't emit error events
+        stream.emit('data', {
+          type: 'cancelled',
+          error: new Error('Request aborted by client')
+        })
+        return
+      }
+
+      // Original error handling for non-abort errors
       logger.error('SDK query error:', {
-        error: error instanceof Error ? error.message : String(error),
+        error: errorObj instanceof Error ? errorObj.message : String(errorObj),
         duration,
         messageCount: jsonOutput.length
       })
 
-      const result: ClaudeCodeResult = {
-        success: false,
-        stdout: '',
-        stderr: error instanceof Error ? error.message : String(error),
-        jsonOutput,
-        error: error instanceof Error ? error : new Error(String(error)),
-        exitCode: 1
-      }
-
       // Emit error event
       stream.emit('data', {
         type: 'error',
-        error: error instanceof Error ? error : new Error(String(error))
-      })
-
-      // Emit completion with error result
-      stream.emit('data', {
-        type: 'complete',
-        agentResult: {
-          ...result,
-          rawSDKMessages: jsonOutput,
-          agentType: 'claude-code'
-        }
+        error: errorObj instanceof Error ? errorObj : new Error(String(errorObj))
       })
     }
   }

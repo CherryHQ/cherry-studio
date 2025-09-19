@@ -1,12 +1,24 @@
+import { CacheService } from '@main/services/CacheService'
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
 import { ApiModel, Model, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
 
+// Cache configuration
+const PROVIDERS_CACHE_KEY = 'api-server:providers'
+const PROVIDERS_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
-    // Wait for store to be ready before accessing providers
+    // Try to get from cache first (faster)
+    const cachedSupportedProviders = CacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
+    if (cachedSupportedProviders) {
+      logger.debug(`Found ${cachedSupportedProviders.length} supported providers (from cache)`)
+      return cachedSupportedProviders
+    }
+
+    // If cache is not available, get fresh data from Redux
     const providers = await reduxService.select('state.llm.providers')
     if (!providers || !Array.isArray(providers)) {
       logger.warn('No providers found in Redux store, returning empty array')
@@ -17,6 +29,9 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     const supportedProviders = providers.filter(
       (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
     )
+
+    // Cache the filtered results
+    CacheService.set(PROVIDERS_CACHE_KEY, supportedProviders, PROVIDERS_CACHE_TTL)
 
     logger.info(`Filtered to ${supportedProviders.length} supported providers from ${providers.length} total providers`)
 

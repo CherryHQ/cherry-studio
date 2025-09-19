@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { AgentStreamEvent } from '@main/services/agents/interfaces/AgentStreamInterface'
 import { Request, Response } from 'express'
 
 import { agentService, sessionMessageService, sessionService } from '../../../../services/agents'
@@ -42,13 +43,12 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
 
-    const messageStream = sessionMessageService.createSessionMessage(session, messageData)
+    const abortController = new AbortController()
+    const messageStream = sessionMessageService.createSessionMessage(session, messageData, abortController)
 
     // Track stream lifecycle so we keep the SSE connection open until persistence finishes
     let responseEnded = false
     let streamFinished = false
-    let awaitingPersistence = false
-    let persistenceResolved = false
 
     const finalizeResponse = () => {
       if (responseEnded) {
@@ -56,10 +56,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       }
 
       if (!streamFinished) {
-        return
-      }
-
-      if (awaitingPersistence && !persistenceResolved) {
         return
       }
 
@@ -73,15 +69,39 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       res.end()
     }
 
-    // Handle client disconnect
-    req.on('close', () => {
+    /**
+     * Client Disconnect Detection for Server-Sent Events (SSE)
+     *
+     * We monitor multiple HTTP events to reliably detect when a client disconnects
+     * from the streaming response. This is crucial for:
+     * - Aborting long-running Claude Code processes
+     * - Cleaning up resources and preventing memory leaks
+     * - Avoiding orphaned processes
+     *
+     * Event Priority & Behavior:
+     * 1. res.on('close') - Most common for SSE client disconnects (browser tab close, curl Ctrl+C)
+     * 2. req.on('aborted') - Explicit request abortion
+     * 3. req.on('close') - Request object closure (less common with SSE)
+     *
+     * When any disconnect event fires, we:
+     * - Abort the Claude Code SDK process via abortController
+     * - Clean up event listeners to prevent memory leaks
+     * - Mark the response as ended to prevent further writes
+     */
+    const handleDisconnect = () => {
+      if (responseEnded) return
       logger.info(`Client disconnected from streaming message for session: ${sessionId}`)
       responseEnded = true
       messageStream.removeAllListeners()
-    })
+      abortController.abort('Client disconnected')
+    }
+
+    req.on('close', handleDisconnect)
+    req.on('aborted', handleDisconnect)
+    res.on('close', handleDisconnect)
 
     // Handle stream events
-    messageStream.on('data', (event: any) => {
+    messageStream.on('data', (event: AgentStreamEvent) => {
       if (responseEnded) return
 
       try {
@@ -101,12 +121,6 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             logger.error(`Streaming message error for session: ${sessionId}:`, event.error)
 
             streamFinished = true
-            awaitingPersistence = Boolean(event.persistScheduled)
-
-            if (!awaitingPersistence) {
-              persistenceResolved = true
-            }
-
             finalizeResponse()
             break
           }
@@ -116,32 +130,22 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             // res.write(`data: ${JSON.stringify({ type: 'complete', result: event.result })}\n\n`)
 
             streamFinished = true
-            awaitingPersistence = true
             finalizeResponse()
             break
           }
 
-          case 'persisted':
-            // Send persistence success event
-            // res.write(`data: ${JSON.stringify(event)}\n\n`)
-            logger.debug(`Session message persisted for session: ${sessionId}`, { messageId: event.message?.id })
-
-            persistenceResolved = true
+          case 'cancelled': {
+            logger.info(`Streaming message cancelled for session: ${sessionId}`)
+            // res.write(`data: ${JSON.stringify({ type: 'cancelled' })}\n\n`)
+            streamFinished = true
             finalizeResponse()
             break
-
-          case 'persist-error':
-            // Send persistence error event
-            // res.write(`data: ${JSON.stringify(event)}\n\n`)
-            logger.error(`Failed to persist session message for session: ${sessionId}:`, event.error)
-
-            persistenceResolved = true
-            finalizeResponse()
-            break
+          }
 
           default:
             // Handle other event types as generic data
-            res.write(`data: ${JSON.stringify(event)}\n\n`)
+            logger.info(`Streaming message event for session: ${sessionId}:`, { event })
+            // res.write(`data: ${JSON.stringify(event)}\n\n`)
             break
         }
       } catch (writeError) {
@@ -199,8 +203,8 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
           res.end()
         }
       },
-      5 * 60 * 1000
-    ) // 5 minutes timeout
+      10 * 60 * 1000
+    ) // 10 minutes timeout
 
     // Clear timeout when response ends
     res.on('close', () => clearTimeout(timeout))

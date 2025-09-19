@@ -170,14 +170,18 @@ export class SessionMessageService extends BaseService {
     return { messages }
   }
 
-  createSessionMessage(session: GetAgentSessionResponse, messageData: CreateSessionMessageRequest): EventEmitter {
+  createSessionMessage(
+    session: GetAgentSessionResponse,
+    messageData: CreateSessionMessageRequest,
+    abortController: AbortController
+  ): EventEmitter {
     this.ensureInitialized()
 
     // Create a new EventEmitter to manage the session message lifecycle
     const sessionStream = new EventEmitter()
 
     // No parent validation needed, start immediately
-    this.startSessionMessageStream(session, messageData, sessionStream)
+    this.startSessionMessageStream(session, messageData, sessionStream, abortController)
 
     return sessionStream
   }
@@ -185,7 +189,8 @@ export class SessionMessageService extends BaseService {
   private async startSessionMessageStream(
     session: GetAgentSessionResponse,
     req: CreateSessionMessageRequest,
-    sessionStream: EventEmitter
+    sessionStream: EventEmitter,
+    abortController: AbortController
   ): Promise<void> {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     let newAgentSessionId = ''
@@ -198,7 +203,7 @@ export class SessionMessageService extends BaseService {
     }
 
     // Create the streaming agent invocation (using invokeStream for streaming)
-    const claudeStream = await this.cc.invoke(req.content, session, agentSessionId)
+    const claudeStream = await this.cc.invoke(req.content, session, abortController, agentSessionId)
 
     // Use chunk accumulator to manage streaming data
     const accumulator = new ChunkAccumulator()
@@ -233,22 +238,15 @@ export class SessionMessageService extends BaseService {
               error: serializeError(underlyingError),
               persistScheduled: false
             })
-            // Always emit a finish chunk at the end
+            // Always emit a complete chunk at the end
             sessionStream.emit('data', {
-              type: 'finish',
+              type: 'complete',
               persistScheduled: false
             })
             break
           }
 
           case 'complete': {
-            const completionPayload = event.result ?? accumulator.toModelMessage('assistant')
-
-            sessionStream.emit('data', {
-              type: 'complete',
-              result: completionPayload
-            })
-
             try {
               const persisted = await this.database.transaction(async (tx) => {
                 const userMessage = await this.persistUserMessage(tx, session.id, req.content, newAgentSessionId)
@@ -273,9 +271,9 @@ export class SessionMessageService extends BaseService {
                 error: serializeError(persistError)
               })
             } finally {
-              // Always emit a finish chunk at the end
+              // Always emit a complete chunk at the end
               sessionStream.emit('data', {
-                type: 'finish',
+                type: 'complete',
                 persistScheduled: true
               })
             }

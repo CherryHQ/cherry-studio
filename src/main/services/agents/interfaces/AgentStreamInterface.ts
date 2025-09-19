@@ -8,11 +8,9 @@ import { UIMessageChunk } from 'ai'
 
 // Generic agent stream event that works with any agent type
 export interface AgentStreamEvent {
-  type: 'chunk' | 'error' | 'complete'
+  type: 'chunk' | 'error' | 'complete' | 'cancelled'
   chunk?: UIMessageChunk // Standard AI SDK chunk for UI consumption
-  rawAgentMessage?: any // Agent-specific raw message (SDKMessage for Claude Code, different for other agents)
   error?: Error
-  agentResult?: any // Agent-specific result data
 }
 
 // Agent stream interface that all agents should implement
@@ -24,5 +22,10 @@ export interface AgentStream extends EventEmitter {
 
 // Base agent service interface
 export interface AgentServiceInterface {
-  invoke(prompt: string, session: GetAgentSessionResponse, lastAgentSessionId?: string): Promise<AgentStream>
+  invoke(
+    prompt: string,
+    session: GetAgentSessionResponse,
+    abortController: AbortController,
+    lastAgentSessionId?: string
+  ): Promise<AgentStream>
 }

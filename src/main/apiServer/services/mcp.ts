@@ -13,8 +13,7 @@ import { Request, Response } from 'express'
 import { IncomingMessage, ServerResponse } from 'http'
 
 import { loggerService } from '../../services/LoggerService'
-import { reduxService } from '../../services/ReduxService'
-import { getMcpServerById } from '../utils/mcp'
+import { getMcpServerById, getMCPServersFromRedux } from '../utils/mcp'
 
 const logger = loggerService.withContext('MCPApiService')
 const transports: Record<string, StreamableHTTPServerTransport> = {}
@@ -57,34 +56,10 @@ class MCPApiService extends EventEmitter {
     this.transport.onmessage = this.onMessage
   }
 
-  /**
-   * Get servers directly from Redux store
-   */
-  private async getServersFromRedux(): Promise<MCPServer[]> {
-    try {
-      logger.silly('Getting servers from Redux store')
-
-      // Try to get from cache first (faster)
-      const cachedServers = reduxService.selectSync<MCPServer[]>('state.mcp.servers')
-      if (cachedServers && Array.isArray(cachedServers)) {
-        logger.silly(`Found ${cachedServers.length} servers in Redux cache`)
-        return cachedServers
-      }
-
-      // If cache is not available, get fresh data
-      const servers = await reduxService.select<MCPServer[]>('state.mcp.servers')
-      logger.silly(`Fetched ${servers?.length || 0} servers from Redux store`)
-      return servers || []
-    } catch (error: any) {
-      logger.error('Failed to get servers from Redux:', error)
-      return []
-    }
-  }
-
   // get all activated servers
   async getAllServers(req: Request): Promise<McpServersResp> {
     try {
-      const servers = await this.getServersFromRedux()
+      const servers = await getMCPServersFromRedux()
       logger.silly(`Returning ${servers.length} servers`)
       const resp: McpServersResp = {
         servers: {}
@@ -111,7 +86,7 @@ class MCPApiService extends EventEmitter {
   async getServerById(id: string): Promise<MCPServer | null> {
     try {
       logger.silly(`getServerById called with id: ${id}`)
-      const servers = await this.getServersFromRedux()
+      const servers = await getMCPServersFromRedux()
       const server = servers.find((s) => s.id === id)
       if (!server) {
         logger.warn(`Server with id ${id} not found`)
