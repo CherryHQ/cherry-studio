@@ -9,6 +9,7 @@ import { setupOpenAPIDocumentation } from './middleware/openapi'
 import { agentsRoutes } from './routes/agents'
 import { chatRoutes } from './routes/chat'
 import { mcpRoutes } from './routes/mcp'
+import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 
 const logger = loggerService.withContext('ApiServer')
@@ -114,6 +115,7 @@ apiRouter.use(express.json())
 // Mount routes
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
+apiRouter.use('/messages', messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)

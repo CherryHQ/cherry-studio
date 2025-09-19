@@ -1,18 +1,8 @@
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { Model, Provider } from '@types'
+import { Model, OpenAICompatibleModel, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
-
-// OpenAI compatible model format
-export interface OpenAICompatibleModel {
-  id: string
-  object: 'model'
-  created: number
-  owned_by: string
-  provider?: string
-  provider_model_id?: string
-}
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
@@ -23,12 +13,14 @@ export async function getAvailableProviders(): Promise<Provider[]> {
       return []
     }
 
-    // Only support OpenAI type providers for API server
-    const openAIProviders = providers.filter((p: Provider) => p.enabled && p.type === 'openai')
+    // Support OpenAI and Anthropic type providers for API server
+    const supportedProviders = providers.filter(
+      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
+    )
 
-    logger.info(`Filtered to ${openAIProviders.length} OpenAI providers from ${providers.length} total providers`)
+    logger.info(`Filtered to ${supportedProviders.length} supported providers from ${providers.length} total providers`)
 
-    return openAIProviders
+    return supportedProviders
   } catch (error: any) {
     logger.error('Failed to get providers from Redux store:', error)
     return []
@@ -185,6 +177,7 @@ export function transformModelToOpenAI(model: Model): OpenAICompatibleModel {
   return {
     id: `${model.provider}:${model.id}`,
     object: 'model',
+    name: model.name,
     created: Math.floor(Date.now() / 1000),
     owned_by: model.owned_by || model.provider,
     provider: model.provider,
@@ -215,10 +208,10 @@ export function validateProvider(provider: Provider): boolean {
       return false
     }
 
-    // Only support OpenAI type providers
-    if (provider.type !== 'openai') {
+    // Support OpenAI and Anthropic type providers
+    if (provider.type !== 'openai' && provider.type !== 'anthropic') {
       logger.debug(
-        `Provider type '${provider.type}' not supported, only 'openai' type is currently supported: ${provider.id}`
+        `Provider type '${provider.type}' not supported, only 'openai' and 'anthropic' types are currently supported: ${provider.id}`
       )
       return false
     }
