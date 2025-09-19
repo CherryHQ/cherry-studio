@@ -1,11 +1,15 @@
 import AddAssistantPopup from '@renderer/components/Popups/AddAssistantPopup'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveTabIdAction } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
+import { Tab } from '@renderer/types/chat'
 import { classNames, uuid } from '@renderer/utils'
-import { FC, useEffect, useState } from 'react'
+import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -25,8 +29,6 @@ interface Props {
   style?: React.CSSProperties
 }
 
-type Tab = 'assistants' | 'topic' | 'settings' | 'agents' | 'sessions'
-
 let _tab: any = ''
 
 const HomeTabs: FC<Props> = ({
@@ -39,13 +41,28 @@ const HomeTabs: FC<Props> = ({
   style
 }) => {
   const { addAssistant } = useAssistants()
-  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const { topicPosition } = useSettings()
   const { defaultAssistant } = useDefaultAssistant()
   const { toggleShowTopics } = useShowTopics()
   const { isLeftNavbar } = useNavbarPosition()
 
   const { t } = useTranslation()
+
+  const { chat } = useRuntime()
+  const { activeTabId: tab } = chat
+  const dispatch = useAppDispatch()
+
+  const setTab = useCallback(
+    (tab: Tab) => {
+      dispatch(setActiveTabIdAction(tab))
+    },
+    [dispatch]
+  )
+
+  useEffect(() => {
+    setTab(position === 'left' ? _tab || 'assistants' : 'topic')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
@@ -89,7 +106,7 @@ const HomeTabs: FC<Props> = ({
       })
     ]
     return () => unsubscribes.forEach((unsub) => unsub())
-  }, [position, showTab, tab, toggleShowTopics, topicPosition])
+  }, [position, setTab, showTab, tab, toggleShowTopics, topicPosition])
 
   useEffect(() => {
     if (position === 'right' && topicPosition === 'right' && tab === 'assistants') {
@@ -98,6 +115,7 @@ const HomeTabs: FC<Props> = ({
     if (position === 'left' && topicPosition === 'right' && tab === 'topic') {
       setTab('assistants')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
