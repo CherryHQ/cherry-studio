@@ -7,6 +7,7 @@ import {
   CreateAgentResponse,
   CreateAgentResponseSchema,
   CreateSessionForm,
+  CreateSessionMessageRequest,
   CreateSessionRequest,
   CreateSessionResponse,
   CreateSessionResponseSchema,
@@ -206,6 +207,16 @@ export class AgentApiClient {
       return data
     } catch (error) {
       throw processError(error, 'Failed to update session.')
+    }
+  }
+
+  public async createMessage(agentId: string, sessionId: string, content: string): Promise<void> {
+    const url = this.getSessionMessagesPath(agentId, sessionId)
+    try {
+      const payload = { content } satisfies CreateSessionMessageRequest
+      await this.axios.post(url, payload)
+    } catch (error) {
+      throw processError(error, 'Failed to post message.')
     }
   }
 }

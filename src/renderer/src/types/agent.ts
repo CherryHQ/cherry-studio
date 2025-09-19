@@ -204,9 +204,7 @@ export const ListAgentSessionsResponseSchema = z.object({
 
 export type ListAgentSessionsResponse = z.infer<typeof ListAgentSessionsResponseSchema>
 
-export interface CreateSessionMessageRequest {
-  content: string
-}
+export type CreateSessionMessageRequest = z.infer<typeof CreateSessionMessageRequestSchema>
 
 export const CreateSessionResponseSchema = AgentSessionEntitySchema
 
