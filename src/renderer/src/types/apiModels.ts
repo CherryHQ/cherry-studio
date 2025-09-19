@@ -32,5 +32,5 @@ export const ApiModelsResponseSchema = z.object({
 
 // Inferred TypeScript types
 export type ApiModel = z.infer<typeof ApiModelSchema>
-export type ApiModelsRequest = z.infer<typeof ApiModelsFilterSchema>
+export type ApiModelsFilter = z.infer<typeof ApiModelsFilterSchema>
 export type ApiModelsResponse = z.infer<typeof ApiModelsResponseSchema>

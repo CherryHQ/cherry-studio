@@ -1,4 +1,4 @@
-import { ApiModel, ApiModelsRequest, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
+import { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
 import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
 
@@ -6,7 +6,7 @@ const logger = loggerService.withContext('ModelsService')
 
 // Re-export for backward compatibility
 
-export type ModelsFilter = ApiModelsRequest
+export type ModelsFilter = ApiModelsFilter
 
 export class ModelsService {
   async getModels(filter: ModelsFilter): Promise<ApiModelsResponse> {

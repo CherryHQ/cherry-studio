@@ -3,6 +3,7 @@ import { formatAgentServerError } from '@renderer/utils'
 import {
   AddAgentForm,
   AgentServerErrorSchema,
+  ApiModelsFilter,
   ApiModelsResponse,
   ApiModelsResponseSchema,
   CreateAgentRequest,
@@ -81,7 +82,7 @@ export class AgentApiClient {
   public getSessionMessagesPath = (agentId: string, sessionId: string) =>
     `/${this.apiVersion}/agents/${agentId}/sessions/${sessionId}/messages`
 
-  public modelsPath = (props?: { providerType?: 'anthropic'; limit?: number }) => {
+  public modelsPath = (props?: ApiModelsFilter) => {
     const base = `/${this.apiVersion}/models`
     if (!props) return base
     if (objectKeys(props).length > 0) {
@@ -234,7 +235,7 @@ export class AgentApiClient {
     }
   }
 
-  public async getModels(props?: { providerType?: 'anthropic'; limit?: number }): Promise<ApiModelsResponse> {
+  public async getModels(props?: ApiModelsFilter): Promise<ApiModelsResponse> {
     const url = this.modelsPath(props)
     try {
       const response = await this.axios.get(url)
