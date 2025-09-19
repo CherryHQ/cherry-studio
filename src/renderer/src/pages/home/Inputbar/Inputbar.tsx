@@ -162,6 +162,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [tokenCount, setTokenCount] = useState(0)
 
   const inputbarToolsRef = useRef<InputbarToolsRef>(null)
+  const prevTextRef = useRef(text)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -177,6 +178,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     debouncedEstimate(text)
   }, [text, debouncedEstimate])
+
+  useEffect(() => {
+    prevTextRef.current = text
+  }, [text])
 
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
@@ -441,6 +446,9 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const newText = e.target.value
       setText(newText)
 
+      const prevText = prevTextRef.current
+      const isDeletion = newText.length < prevText.length
+
       const textArea = textareaRef.current?.resizableTextArea?.textArea
       const cursorPosition = textArea?.selectionStart ?? newText.length
       const lastSymbol = newText[cursorPosition - 1]
@@ -448,28 +456,63 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const isCursorAtTextStart = cursorPosition <= 1
       const hasValidTriggerBoundary = previousChar === ' ' || isCursorAtTextStart
 
+      const openRootPanelAt = (position: number) => {
+        const quickPanelMenu =
+          inputbarToolsRef.current?.getQuickPanelMenu({
+            text: newText,
+            translate
+          }) || []
+
+        quickPanel.open({
+          title: t('settings.quickPanel.title'),
+          list: quickPanelMenu,
+          symbol: QuickPanelReservedSymbol.Root,
+          triggerInfo: {
+            type: 'input',
+            position,
+            originalText: newText
+          }
+        })
+      }
+
+      const openMentionPanelAt = (position: number) => {
+        inputbarToolsRef.current?.openMentionModelsPanel({
+          type: 'input',
+          position,
+          originalText: newText
+        })
+      }
+
+      if (enableQuickPanelTriggers && !quickPanel.isVisible) {
+        const textBeforeCursor = newText.slice(0, cursorPosition)
+        const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
+        const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
+        const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
+
+        if (lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
+          const triggerChar = newText[lastTriggerIndex]
+          const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
+          const hasBoundary = lastTriggerIndex === 0 || /\s/.test(boundaryChar)
+          const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
+          const hasSearchContent = searchSegment.trim().length > 0
+
+          if (hasBoundary && (!hasSearchContent || isDeletion)) {
+            if (triggerChar === QuickPanelReservedSymbol.Root) {
+              openRootPanelAt(lastTriggerIndex)
+            } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
+              openMentionPanelAt(lastTriggerIndex)
+            }
+          }
+        }
+      }
+
       // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
       if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root && hasValidTriggerBoundary) {
         if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           quickPanel.close('switch-symbol')
         }
         if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
-          const quickPanelMenu =
-            inputbarToolsRef.current?.getQuickPanelMenu({
-              text: newText,
-              translate
-            }) || []
-
-          quickPanel.open({
-            title: t('settings.quickPanel.title'),
-            list: quickPanelMenu,
-            symbol: QuickPanelReservedSymbol.Root,
-            triggerInfo: {
-              type: 'input',
-              position: cursorPosition - 1,
-              originalText: newText
-            }
-          })
+          openRootPanelAt(cursorPosition - 1)
         }
       }
 
@@ -483,13 +526,11 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           quickPanel.close('switch-symbol')
         }
         if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
-          inputbarToolsRef.current?.openMentionModelsPanel({
-            type: 'input',
-            position: cursorPosition - 1,
-            originalText: newText
-          })
+          openMentionPanelAt(cursorPosition - 1)
         }
       }
+
+      prevTextRef.current = newText
     },
     [enableQuickPanelTriggers, quickPanel, t, translate]
   )
