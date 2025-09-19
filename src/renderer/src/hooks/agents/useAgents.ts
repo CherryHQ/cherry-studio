@@ -21,6 +21,7 @@ export const useAgents = () => {
       try {
         const result = await client.createAgent(form)
         mutate((prev) => [...(prev ?? []), result])
+        window.toast.success(t('common.add_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed')))
       }
@@ -34,6 +35,7 @@ export const useAgents = () => {
         // may change to optimistic update
         const result = await client.updateAgent(form)
         mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
+        window.toast.success(t('common.update_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
@@ -46,6 +48,7 @@ export const useAgents = () => {
       try {
         await client.deleteAgent(id)
         mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
+        window.toast.success(t('common.delete_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
