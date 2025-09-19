@@ -1,45 +1,48 @@
 import { Button, cn, useDisclosure } from '@heroui/react'
-import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { AgentSessionEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { FC, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-const logger = loggerService.withContext('AgentItem')
+// const logger = loggerService.withContext('AgentItem')
 
 interface SessionItemProps {
   session: AgentSessionEntity
-  isActive: boolean
-  onDelete: (session: AgentSessionEntity) => void
+  // use external agentId as SSOT, instead of session.agent_id
+  agentId: string
+  onDelete: () => void
   onPress: () => void
 }
 
-const SessionItem: FC<SessionItemProps> = ({ session, isActive, onDelete, onPress }) => {
+const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress }) => {
   const { t } = useTranslation()
   // const { isOpen, onOpen, onClose } = useDisclosure()
   const { onOpen } = useDisclosure()
+  const { chat } = useRuntime()
+  const activeSessionId = chat.activeSessionId[agentId]
+
+  const isActive = activeSessionId === session.id
 
   const SessionLabel = useCallback(() => {
     const displayName = session.name ?? session.id
     return (
-      <Button onPress={onPress}>
+      <Button>
         <span className="text-sm">{displayName}</span>
       </Button>
     )
-  }, [session.id, session.name, onPress])
-
-  const handleClick = () => logger.debug('not implemented')
+  }, [session.id, session.name])
 
   return (
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
-          <Container onClick={handleClick} className={isActive ? 'active' : ''}>
+          <ButtonContainer onPress={onPress} className={isActive ? 'active' : ''}>
             <SessionLabelContainer className="name" title={session.name ?? session.id}>
               <SessionLabel />
             </SessionLabelContainer>
-          </Container>
+          </ButtonContainer>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem
@@ -59,7 +62,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, isActive, onDelete, onPres
                 content: t('agent.session.delete.content'),
                 centered: true,
                 okButtonProps: { danger: true },
-                onOk: () => onDelete(session)
+                onOk: () => onDelete()
               })
             }}>
             <DeleteIcon size={14} className="lucide-custom text-danger" />
@@ -72,20 +75,21 @@ const SessionItem: FC<SessionItemProps> = ({ session, isActive, onDelete, onPres
   )
 }
 
-const Container: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
-  <div
+const ButtonContainer: React.FC<React.ComponentProps<typeof Button>> = ({ className, children, ...props }) => (
+  <Button
     {...props}
     className={cn(
-      'relative flex h-[37px] flex-row justify-between p-2',
+      'relative mb-2 flex h-[37px] flex-row justify-between p-2.5',
       'rounded-[var(--list-item-border-radius)]',
       'border-[0.5px] border-transparent',
       'w-[calc(var(--assistants-width)_-_20px)]',
-      'hover:bg-[var(--color-list-item-hover)]',
+      'bg-transparent hover:bg-[var(--color-list-item-hover)]',
       'cursor-pointer',
       className?.includes('active') && 'bg-[var(--color-list-item)] shadow-sm',
       className
-    )}
-  />
+    )}>
+    {children}
+  </Button>
 )
 
 const SessionLabelContainer: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (

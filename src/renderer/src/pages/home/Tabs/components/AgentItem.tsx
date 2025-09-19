@@ -36,11 +36,11 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
-          <Container onPress={onPress} className={isActive ? 'active' : ''}>
+          <ButtonContainer onPress={onPress} className={isActive ? 'active' : ''}>
             <AssistantNameRow className="name" title={agent.name ?? agent.id}>
               <AgentLabel />
             </AssistantNameRow>
-          </Container>
+          </ButtonContainer>
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem
@@ -73,7 +73,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
   )
 }
 
-const Container: React.FC<React.ComponentProps<typeof Button>> = ({ className, children, ...props }) => (
+const ButtonContainer: React.FC<React.ComponentProps<typeof Button>> = ({ className, children, ...props }) => (
   <Button
     {...props}
     className={cn(
