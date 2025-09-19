@@ -1,32 +1,22 @@
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { AgentSessionEntity } from '@renderer/types'
 import { FC, memo } from 'react'
 
-interface AssistantsTabProps {}
+import Sessions from './components/Sessions'
 
-const SessionsTab: FC<AssistantsTabProps> = () => {
+interface SessionsTabProps {}
+
+const SessionsTab: FC<SessionsTabProps> = () => {
   const { chat } = useRuntime()
   const { activeAgentId } = chat
-  const mockData: AgentSessionEntity[] = [
-    {
-      accessible_paths: [],
-      model: '',
-      id: 'test',
-      agent_id: '',
-      agent_type: 'claude-code',
-      created_at: '',
-      updated_at: ''
-    }
-  ]
+
+  if (!activeAgentId) {
+    return <div> No active agent.</div>
+  }
 
   return (
-    <div className="agents-tab h-full w-full p-2">
-      {/* TODO: Add session button */}
-      Active Agent ID: {activeAgentId}
-      {mockData.map((session) => (
-        <div key={session.id}>Not implemented</div>
-      ))}
-    </div>
+    <>
+      <Sessions agentId={activeAgentId} />
+    </>
   )
 }
 
