@@ -29,10 +29,18 @@
       },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
+        "error": {
+          "failed": "[to be translated]:Failed to delete the session"
+        },
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions"
+      "label_other": "[to be translated]:Sessions",
+      "update": {
+        "error": {
+          "failed": "[to be translated]:Failed to update the session"
+        }
+      }
     },
     "update": {
       "error": {
@@ -802,6 +810,7 @@
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
+    "delete_failed": "[to be translated]:Failed to delete",
     "delete_success": "Excluído com sucesso",
     "description": "Descrição",
     "detail": "detalhes",

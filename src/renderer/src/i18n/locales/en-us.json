@@ -29,10 +29,18 @@
       },
       "delete": {
         "content": "Are you sure to delete this session?",
+        "error": {
+          "failed": "Failed to delete the session"
+        },
         "title": "Delete session"
       },
       "label_one": "Session",
-      "label_other": "Sessions"
+      "label_other": "Sessions",
+      "update": {
+        "error": {
+          "failed": "Failed to update the session"
+        }
+      }
     },
     "update": {
       "error": {
@@ -802,6 +810,7 @@
     "default": "Default",
     "delete": "Delete",
     "delete_confirm": "Are you sure you want to delete?",
+    "delete_failed": "Failed to delete",
     "delete_success": "Deleted successfully",
     "description": "Description",
     "detail": "Detail",

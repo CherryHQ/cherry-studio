@@ -29,10 +29,18 @@
       },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
+        "error": {
+          "failed": "[to be translated]:Failed to delete the session"
+        },
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions"
+      "label_other": "[to be translated]:Sessions",
+      "update": {
+        "error": {
+          "failed": "[to be translated]:Failed to update the session"
+        }
+      }
     },
     "update": {
       "error": {
@@ -802,6 +810,7 @@
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
+    "delete_failed": "[to be translated]:Failed to delete",
     "delete_success": "刪除成功",
     "description": "描述",
     "detail": "詳情",

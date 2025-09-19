@@ -29,10 +29,18 @@
       },
       "delete": {
         "content": "[to be translated]:Are you sure to delete this session?",
+        "error": {
+          "failed": "[to be translated]:Failed to delete the session"
+        },
         "title": "[to be translated]:Delete session"
       },
       "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions"
+      "label_other": "[to be translated]:Sessions",
+      "update": {
+        "error": {
+          "failed": "[to be translated]:Failed to update the session"
+        }
+      }
     },
     "update": {
       "error": {
@@ -802,6 +810,7 @@
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
+    "delete_failed": "[to be translated]:Failed to delete",
     "delete_success": "Η διαγραφή ήταν επιτυχής",
     "description": "Περιγραφή",
     "detail": "Λεπτομέρειες",
