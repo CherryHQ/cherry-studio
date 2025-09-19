@@ -43,6 +43,8 @@ export class AgentService extends BaseService {
       req.accessible_paths = [defaultPath]
     }
 
+    this.ensurePathsExist(req.accessible_paths)
+
     const serializedReq = this.serializeJsonFields(req)
 
     const insertData: InsertAgentRow = {
@@ -126,6 +128,10 @@ export class AgentService extends BaseService {
     }
 
     const now = new Date().toISOString()
+
+    if (updates.accessible_paths) {
+      this.ensurePathsExist(updates.accessible_paths)
+    }
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<AgentRow> = {

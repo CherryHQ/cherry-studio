@@ -161,6 +161,50 @@ export abstract class BaseService {
     return deserialized
   }
 
+  protected ensurePathsExist(paths?: string[]): void {
+    if (!paths?.length) {
+      return
+    }
+
+    for (const rawPath of paths) {
+      if (!rawPath) {
+        continue
+      }
+
+      const resolvedPath = path.resolve(rawPath)
+
+      let stats: fs.Stats | null = null
+      try {
+        if (fs.existsSync(resolvedPath)) {
+          stats = fs.statSync(resolvedPath)
+        }
+      } catch (error) {
+        logger.warn('Failed to inspect accessible path', {
+          path: rawPath,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+
+      const looksLikeFile =
+        (stats && stats.isFile()) ||
+        (!stats && path.extname(resolvedPath) !== '' && !resolvedPath.endsWith(path.sep))
+
+      const directoryToEnsure = looksLikeFile ? path.dirname(resolvedPath) : resolvedPath
+
+      if (!fs.existsSync(directoryToEnsure)) {
+        try {
+          fs.mkdirSync(directoryToEnsure, { recursive: true })
+        } catch (error) {
+          logger.error('Failed to create accessible path directory', {
+            path: directoryToEnsure,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          throw error
+        }
+      }
+    }
+  }
+
   /**
    * Force re-initialization (for development/testing)
    */

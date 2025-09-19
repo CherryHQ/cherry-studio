@@ -50,6 +50,8 @@ export class SessionService extends BaseService {
       ...req
     }
 
+    this.ensurePathsExist(sessionData.accessible_paths)
+
     const serializedData = this.serializeJsonFields(sessionData)
 
     const insertData: InsertSessionRow = {
@@ -168,6 +170,10 @@ export class SessionService extends BaseService {
     // We'll skip this validation for now to avoid circular dependencies
 
     const now = new Date().toISOString()
+
+    if (updates.accessible_paths) {
+      this.ensurePathsExist(updates.accessible_paths)
+    }
     const serializedUpdates = this.serializeJsonFields(updates)
 
     const updateData: Partial<SessionRow> = {
