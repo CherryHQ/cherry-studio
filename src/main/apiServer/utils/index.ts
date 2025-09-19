@@ -1,19 +1,8 @@
 import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
-import { Model, Provider } from '@types'
+import { Model, OpenAICompatibleModel, Provider } from '@types'
 
 const logger = loggerService.withContext('ApiServerUtils')
-
-// OpenAI compatible model format
-export interface OpenAICompatibleModel {
-  id: string
-  object: 'model'
-  created: number
-  name: string
-  owned_by: string
-  provider?: string
-  provider_model_id?: string
-}
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
@@ -25,7 +14,9 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     }
 
     // Support OpenAI and Anthropic type providers for API server
-    const supportedProviders = providers.filter((p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic'))
+    const supportedProviders = providers.filter(
+      (p: Provider) => p.enabled && (p.type === 'openai' || p.type === 'anthropic')
+    )
 
     logger.info(`Filtered to ${supportedProviders.length} supported providers from ${providers.length} total providers`)
 

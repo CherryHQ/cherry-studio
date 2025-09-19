@@ -1,29 +1,20 @@
-import { z } from 'zod'
-
+import {
+  ApiModelsRequest,
+  ApiModelsRequestSchema,
+  ApiModelsResponse,
+  OpenAICompatibleModel
+} from '../../../renderer/src/types/apiModels'
 import { loggerService } from '../../services/LoggerService'
-import { getAvailableProviders, listAllAvailableModels, OpenAICompatibleModel, transformModelToOpenAI } from '../utils'
+import { getAvailableProviders, listAllAvailableModels, transformModelToOpenAI } from '../utils'
 
 const logger = loggerService.withContext('ModelsService')
 
-// Zod schema for models filtering
-export const ModelsFilterSchema = z.object({
-  provider: z.enum(['openai', 'anthropic']).optional(),
-  offset: z.coerce.number().min(0).default(0).optional(),
-  limit: z.coerce.number().min(1).optional()
-})
-
-export type ModelsFilter = z.infer<typeof ModelsFilterSchema>
-
-export interface ModelsResponse {
-  object: 'list'
-  data: OpenAICompatibleModel[]
-  total?: number
-  offset?: number
-  limit?: number
-}
+// Re-export for backward compatibility
+export const ModelsFilterSchema = ApiModelsRequestSchema
+export type ModelsFilter = ApiModelsRequest
 
 export class ModelsService {
-  async getModels(filter?: ModelsFilter): Promise<ModelsResponse> {
+  async getModels(filter?: ModelsFilter): Promise<ApiModelsResponse> {
     try {
       logger.info('Getting available models from providers', { filter })
 
@@ -83,7 +74,7 @@ export class ModelsService {
         logger.debug(`Filtered out ${models.length - total} models after deduplication and filtering`)
       }
 
-      const response: ModelsResponse = {
+      const response: ApiModelsResponse = {
         object: 'list',
         data: modelData
       }
