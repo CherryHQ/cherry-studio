@@ -298,8 +298,29 @@ export class ToolCallChunkHandler {
         type: ChunkType.MCP_TOOL_COMPLETE,
         responses: [toolResponse]
       })
+
+      const images: string[] = []
+      for (const content of toolResponse.response?.content || []) {
+        if (content.type === 'image' && content.data) {
+          images.push(`data:${content.mimeType};base64,${content.data}`)
+        }
+      }
+
+      if (images.length) {
+        this.onChunk({
+          type: ChunkType.IMAGE_CREATED
+        })
+        this.onChunk({
+          type: ChunkType.IMAGE_COMPLETE,
+          image: {
+            type: 'base64',
+            images: images
+          }
+        })
+      }
     }
   }
+
   handleToolError(
     chunk: {
       type: 'tool-error'
