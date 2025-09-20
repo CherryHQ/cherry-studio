@@ -43,6 +43,11 @@ async function downloadWithRedirects(url, destinationPath) {
 async function downloadWithPowerShell(url, destinationPath) {
   return new Promise((resolve, reject) => {
     try {
+      // Only support windows platform for PowerShell download
+      if (process.platform !== 'win32') {
+        return reject(new Error('PowerShell download is only supported on Windows'))
+      }
+
       const outputDir = path.dirname(destinationPath)
       fs.mkdirSync(outputDir, { recursive: true })
 

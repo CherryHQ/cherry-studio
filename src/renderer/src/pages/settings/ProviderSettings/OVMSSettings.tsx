@@ -4,12 +4,12 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingSubtitle } from '..'
+const urlGuide =
+    'https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md'
 
 const OVMSSettings: FC = () => {
   const { t } = useTranslation()
-  const urlGuide =
-    'https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md'
-
+  
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
   const [isInstallingOvms, setIsInstallingOvms] = useState(false)
   const [isRunningOvms, setIsRunningOvms] = useState(false)
@@ -32,7 +32,19 @@ const OVMSSettings: FC = () => {
       setOvmsStatus(status)
       setIsInstallingOvms(false)
     } catch (error: any) {
-      window.message.error({ content: t('ovms.failed.install') + error.message, key: 'ovms-install-error' })
+      const errCodeMsg = {
+        '100': t('ovms.failed.install_code_100'),
+        '101': t('ovms.failed.install_code_101'),
+        '102': t('ovms.failed.install_code_102'),
+        '103': t('ovms.failed.install_code_103'),
+        '104': t('ovms.failed.install_code_104'),
+        '105': t('ovms.failed.install_code_105')
+      }
+      const match = error.message.match(/code (\d+)/)
+      const code = match ? match[1] : 'unknown'
+      const errorMsg = errCodeMsg[code as keyof typeof errCodeMsg] || error.message
+
+      window.message.error({ content: t('ovms.failed.install') + errorMsg , key: 'ovms-install-error' })
       setIsInstallingOvms(false)
     }
   }
@@ -151,15 +163,7 @@ const OVMSSettings: FC = () => {
         style={{ marginTop: 5 }}
         message={'Intel OVMS Guide:'}
         description={
-          <div>
-            <p>1. Download OV Models.</p>
-            <p>2. Add Models in "Manager".</p>
-            <p>Support Windows Only!</p>
-            <p>OVMS Install Path: '%USERPROFILE%\.cherrystudio\ovms' .</p>
-            <p>
-              Please refer to <a href={urlGuide}>Intel OVMS Guide</a>
-            </p>
-          </div>
+            <div dangerouslySetInnerHTML={{ __html: t('ovms.description') }}></div>
         }
         showIcon
       />

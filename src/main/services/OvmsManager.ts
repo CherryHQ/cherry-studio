@@ -25,7 +25,7 @@ interface OvmsConfig {
   mediapipe_config_list: ModelConfig[]
 }
 
-export class OvmsManager {
+class OvmsManager {
   private ovms: OvmsProcess | null = null
 
   /**
@@ -540,3 +540,5 @@ export class OvmsManager {
     }
   }
 }
+
+export default OvmsManager
