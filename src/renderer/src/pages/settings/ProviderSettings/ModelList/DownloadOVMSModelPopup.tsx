@@ -2,7 +2,8 @@ import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { Provider } from '@renderer/types'
 import { AutoComplete, Button, Flex, Form, FormProps, Input, Modal, Progress, Select } from 'antd'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { useTimer } from '../../../../hooks/useTimer'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('OVMSClient')
@@ -13,7 +14,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: (data: any) => unknown
 }
 
 type FieldType = {
@@ -83,23 +84,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [cancelled, setCancelled] = useState(false)
   const [form] = Form.useForm()
   const { t } = useTranslation()
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Cleanup progress interval on unmount
-  useEffect(() => {
-    return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current)
-      }
-    }
-  }, [])
+  const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
 
   const startFakeProgress = () => {
     setProgress(0)
-    progressIntervalRef.current = setInterval(() => {
+    setIntervalTimer('progress', () => {
       setProgress((prev) => {
         if (prev >= 95) {
-          return prev // Stop at 90% until actual completion
+          return prev // Stop at 95% until actual completion
         }
         // Simulate realistic download progress with slowing speed
         const increment =
@@ -115,14 +107,11 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   }
 
   const stopFakeProgress = (complete = false) => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current)
-      progressIntervalRef.current = null
-    }
+    clearIntervalTimer('progress')
     if (complete) {
       setProgress(100)
       // Reset progress after a short delay
-      setTimeout(() => setProgress(0), 1500)
+      setTimeoutTimer('progress-reset', () => setProgress(0), 1500)
     } else {
       setProgress(0)
     }

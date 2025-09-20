@@ -5,7 +5,7 @@ const { execSync } = require('child_process')
 const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
-const OVMS_PKG_NAME = 'ovms250818.zip'
+const OVMS_PKG_NAME = 'ovms250905.zip'
 const OVMS_RELEASE_BASE_URL = [`https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/${OVMS_PKG_NAME}`]
 
 /**
@@ -67,7 +67,8 @@ async function downloadOvmsBinary() {
 
   // Check if any download succeeded
   if (!downloadSuccess) {
-    throw new Error(`All download URLs failed. Last error: ${lastError?.message || 'Unknown error'}`)
+    console.error(`All download URLs failed. Last error: ${lastError?.message || 'Unknown error'}`)
+    return 103
   }
 
   try {
@@ -81,7 +82,7 @@ async function downloadOvmsBinary() {
     // Clean up temporary file
     fs.unlinkSync(tempFilename)
     console.log(`Installation directory: ${csDir}`)
-    return true
+
   } catch (error) {
     console.error(`Error installing OVMS: ${error.message}`)
     if (fs.existsSync(tempFilename)) {
@@ -98,10 +99,13 @@ async function downloadOvmsBinary() {
       }
     } catch (cleanupError) {
       console.warn(`Warning: Failed to clean up directory: ${cleanupError.message}`)
+      return 105
     }
 
-    return false
+    return 104
   }
+
+  return 0
 }
 
 /**
@@ -144,25 +148,31 @@ async function installOvms() {
   console.log(`CPU Name: ${cpuName}`)
 
   // Check if CPU name contains "Ultra"
-  if (!cpuName.toLowerCase().includes('ultra')) {
-    throw new Error('OVMS installation requires an Intel(R) Core(TM) Ultra CPU.')
+  if (!cpuName.toLowerCase().includes('intel') || !cpuName.toLowerCase().includes('ultra')) {
+    console.error('OVMS installation requires an Intel(R) Core(TM) Ultra CPU.')
+    return 101
   }
 
   // only support windows
   if (platform !== 'win32') {
-    throw new Error('OVMS installation is only supported on Windows.')
+    console.error('OVMS installation is only supported on Windows.')
+    return 102
   }
 
-  await downloadOvmsBinary()
+  return await downloadOvmsBinary()
 }
 
 // Run the installation
 installOvms()
-  .then(() => {
-    console.log('OVMS installation successful')
-    process.exit(0)
+  .then((retcode) => {
+    if(retcode===0) {
+      console.log('OVMS installation successful')
+    } else {
+      console.error('OVMS installation failed')
+    }
+    process.exit(retcode)
   })
   .catch((error) => {
     console.error('OVMS installation failed:', error)
-    process.exit(2)
+    process.exit(100)
   })
