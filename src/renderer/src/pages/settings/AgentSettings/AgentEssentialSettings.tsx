@@ -45,7 +45,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     if (!agent) return
     const _agent = { ...agent, type: undefined, name: name.trim(), instructions } satisfies UpdateAgentForm
     update(_agent)
-    window.toast.success(t('common.saved'))
   }
 
   const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
