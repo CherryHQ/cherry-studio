@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "Falha ao adicionar agente",
         "invalid_agent": "Agent inválido"
       },
       "title": "Adicionar Agente",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "Falha ao excluir o agente"
       },
       "title": "删除代理"
     },
@@ -23,39 +23,47 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "Adicionar uma sessão"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "Falha ao adicionar uma sessão"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "Tem certeza de que deseja excluir esta sessão?",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "Falha ao excluir a sessão"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "Excluir sessão"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "Sessão de edição"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "Falha ao obter a sessão"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "Sessão",
+      "label_other": "Sessões",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "Falha ao atualizar a sessão"
         }
+      },
+      "accessible_paths": {
+        "label": "Diretórios acessíveis",
+        "add": "Adicionar diretório",
+        "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
+        "required": "Por favor, selecione pelo menos um diretório acessível.",
+        "duplicate": "Este diretório já está incluído.",
+        "select_failed": "Falha ao selecionar o diretório."
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "Falha ao atualizar o agente"
       }
     }
   },
@@ -821,7 +829,7 @@
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "Falha ao excluir",
     "delete_success": "Excluído com sucesso",
     "description": "Descrição",
     "detail": "detalhes",
@@ -833,7 +841,7 @@
     "enabled": "Ativado",
     "error": "错误",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "Falha ao criar mensagem",
       "validation": "Falha na verificação"
     },
     "expand": "Expandir",
@@ -962,7 +970,7 @@
     "modelType": "Tipo de modelo",
     "name": "Nome do erro",
     "no_api_key": "A chave da API não foi configurada",
-    "no_response": "[to be translated]:No response",
+    "no_response": "Sem resposta",
     "originalError": "Erro original",
     "originalMessage": "Mensagem original",
     "parameter": "parâmetro",

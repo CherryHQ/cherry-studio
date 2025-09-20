@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "Не удалось добавить агента",
         "invalid_agent": "Недействительный агент"
       },
       "title": "Добавить агента",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "Удаление этого агента приведёт к принудительному завершению и удалению всех сессий, связанных с ним. Вы уверены?",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "Не удалось удалить агента"
       },
       "title": "Удалить агента"
     },
@@ -23,39 +23,47 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "Добавить сеанс"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "Не удалось добавить сеанс"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "Вы уверены, что хотите удалить этот сеанс?",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "Не удалось удалить сеанс"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "Удалить сеанс"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "Сессия редактирования"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "Не удалось получить сеанс"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "Сессия",
+      "label_other": "Сессии",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "Не удалось обновить сеанс"
         }
+      },
+      "accessible_paths": {
+        "label": "Доступные директории",
+        "add": "Добавить каталог",
+        "empty": "Выберите хотя бы один каталог, к которому агент имеет доступ.",
+        "required": "Пожалуйста, выберите хотя бы один доступный каталог.",
+        "duplicate": "Этот каталог уже включён.",
+        "select_failed": "Не удалось выбрать каталог."
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "Не удалось обновить агента"
       }
     }
   },
@@ -821,7 +829,7 @@
     "default": "По умолчанию",
     "delete": "Удалить",
     "delete_confirm": "Вы уверены, что хотите удалить?",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "Не удалось удалить",
     "delete_success": "Удаление выполнено успешно",
     "description": "Описание",
     "detail": "Подробности",
@@ -833,7 +841,7 @@
     "enabled": "Включено",
     "error": "ошибка",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "Не удалось создать сообщение",
       "validation": "Ошибка проверки"
     },
     "expand": "Развернуть",
@@ -962,7 +970,7 @@
     "modelType": "Тип модели",
     "name": "Название ошибки",
     "no_api_key": "Ключ API не настроен",
-    "no_response": "[to be translated]:No response",
+    "no_response": "Нет ответа",
     "originalError": "Исходная ошибка",
     "originalMessage": "исходное сообщение",
     "parameter": "параметр",

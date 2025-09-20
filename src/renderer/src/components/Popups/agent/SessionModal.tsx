@@ -17,6 +17,7 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/config/models'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { AgentEntity, AgentSessionEntity, BaseSessionForm, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
@@ -80,15 +81,16 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
   const { createSession, updateSession } = useSessions(agentId)
   // Only support claude code for now
   const { models } = useModels({ providerType: 'anthropic' })
+  const { agent } = useAgent(agentId)
   const isEditing = (session?: AgentSessionEntity) => session !== undefined
 
-  const [form, setForm] = useState<BaseSessionForm>(() => buildSessionForm(session))
+  const [form, setForm] = useState<BaseSessionForm>(() => buildSessionForm(session, agent ?? undefined))
 
   useEffect(() => {
     if (isOpen) {
-      setForm(buildSessionForm(session))
+      setForm(buildSessionForm(session, agent ?? undefined))
     }
-  }, [session, isOpen])
+  }, [session, agent, isOpen])
 
   const Item = useCallback(({ item }: { item: SelectedItemProps<BaseOption> }) => <Option option={item.data} />, [])
 
@@ -125,7 +127,8 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
       key: model.id,
       label: model.name,
       avatar: getModelLogo(model.id),
-      providerId: model.provider
+      providerId: model.provider,
+      providerName: model.provider_name
     })) satisfies ModelOption[]
   }, [models])
 
@@ -152,6 +155,12 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
         return
       }
 
+      if (form.accessible_paths.length === 0) {
+        window.toast.error(t('agent.session.accessible_paths.required'))
+        loadingRef.current = false
+        return
+      }
+
       if (isEditing(session)) {
         if (!session) {
           throw new Error('Agent is required for editing mode')
@@ -162,7 +171,8 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          model: form.model
+          model: form.model,
+          accessible_paths: [...form.accessible_paths]
         } satisfies UpdateSessionForm
 
         updateSession(updatePayload)
@@ -248,7 +258,6 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
-                  {/* TODO: accessible paths */}
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>
                 <ModalFooter className="w-full">

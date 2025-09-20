@@ -1,21 +1,34 @@
 // This file is used to transform claude code json response to aisdk streaming format
 
+import type { LanguageModelV2Usage } from '@ai-sdk/provider'
 import { SDKMessage } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
-import { ProviderMetadata, UIMessageChunk } from 'ai'
+import type { ProviderMetadata, TextStreamPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
+
+import { mapClaudeCodeFinishReason } from './map-claude-code-finish-reason'
 
 const logger = loggerService.withContext('ClaudeCodeTransform')
 
+type AgentStreamPart = TextStreamPart<Record<string, any>>
+
+const contentBlockState = new Map<
+  string,
+  {
+    type: 'text' | 'tool-call'
+    toolCallId?: string
+    toolName?: string
+    input?: string
+  }
+>()
+
 // Helper function to generate unique IDs for text blocks
-const generateMessageId = (): string => {
-  return `msg_${uuidv4().replace(/-/g, '')}`
-}
+const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
 
 // Main transform function
-export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageChunk[] {
-  const chunks: UIMessageChunk[] = []
-
+export function transformSDKMessageToStreamParts(sdkMessage: SDKMessage): AgentStreamPart[] {
+  const chunks: AgentStreamPart[] = []
+  logger.debug('Transforming SDKMessage to stream parts', sdkMessage)
   switch (sdkMessage.type) {
     case 'assistant':
     case 'user':
@@ -35,7 +48,6 @@ export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageC
       break
 
     default:
-      // Handle unknown message types gracefully
       logger.warn('Unknown SDKMessage type:', { type: (sdkMessage as any).type })
       break
   }
@@ -43,36 +55,45 @@ export function transformSDKMessageToUIChunk(sdkMessage: SDKMessage): UIMessageC
   return chunks
 }
 
-function sdkMessageToProviderMetadata(message: SDKMessage): ProviderMetadata {
-  const meta: ProviderMetadata = {
-    message: message as Record<string, any>
+const sdkMessageToProviderMetadata = (message: SDKMessage): ProviderMetadata => {
+  return {
+    anthropic: {
+      uuid: message.uuid || generateMessageId(),
+      session_id: message.session_id
+    },
+    raw: message as Record<string, any>
   }
-  return meta
 }
 
-function generateTextChunks(id: string, text: string, message: SDKMessage): UIMessageChunk[] {
+function generateTextChunks(id: string, text: string, message: SDKMessage): AgentStreamPart[] {
+  const providerMetadata = sdkMessageToProviderMetadata(message)
   return [
     {
       type: 'text-start',
-      id
+      id,
+      providerMetadata
     },
     {
       type: 'text-delta',
       id,
-      delta: text
+      text,
+      providerMetadata
     },
     {
       type: 'text-end',
       id,
       providerMetadata: {
-        rawMessage: sdkMessageToProviderMetadata(message)
+        ...providerMetadata,
+        text: {
+          value: text
+        }
       }
     }
   ]
 }
 
-function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assistant' | 'user' }>): UIMessageChunk[] {
-  const chunks: UIMessageChunk[] = []
+function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assistant' | 'user' }>): AgentStreamPart[] {
+  const chunks: AgentStreamPart[] = []
   const messageId = message.uuid?.toString() || generateMessageId()
 
   // handle normal text content
@@ -89,29 +110,25 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
           break
         case 'tool_use':
           chunks.push({
-            type: 'tool-input-available',
+            type: 'tool-call',
             toolCallId: block.id,
             toolName: block.name,
             input: block.input,
             providerExecuted: true,
-            providerMetadata: {
-              rawMessage: sdkMessageToProviderMetadata(message)
-            }
+            providerMetadata: sdkMessageToProviderMetadata(message)
           })
           break
         case 'tool_result':
-          chunks.push({
-            type: 'tool-output-available',
-            toolCallId: block.tool_use_id,
-            output: block.content,
-            providerExecuted: true,
-            dynamic: false,
-            preliminary: false
-          })
+          // chunks.push({
+          //   type: 'tool-result',
+          //   toolCallId: block.tool_use_id,
+          //   output: block.content,
+          //   providerMetadata: sdkMessageToProviderMetadata(message)
+          // })
           break
         default:
           logger.warn('Unknown content block type in user/assistant message:', {
-            type: (block as any).type
+            type: block.type
           })
           break
       }
@@ -122,9 +139,10 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
 }
 
 // Handle stream events (real-time streaming)
-function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }>): UIMessageChunk[] {
-  const chunks: UIMessageChunk[] = []
+function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }>): AgentStreamPart[] {
+  const chunks: AgentStreamPart[] = []
   const event = message.event
+  const blockKey = `${message.uuid ?? message.session_id ?? 'session'}:${event.index}`
 
   switch (event.type) {
     case 'message_start':
@@ -132,69 +150,110 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
       break
 
     case 'content_block_start':
-      if (event.content_block?.type === 'text') {
-        chunks.push({
-          type: 'text-start',
-          id: event.index?.toString() || generateMessageId(),
-          providerMetadata: {
-            anthropic: {
-              uuid: message.uuid,
-              session_id: message.session_id,
-              content_block_index: event.index
-            },
-            raw: sdkMessageToProviderMetadata(message)
-          }
-        })
-      } else if (event.content_block?.type === 'tool_use') {
-        chunks.push({
-          type: 'tool-input-start',
-          toolCallId: event.content_block.id,
-          toolName: event.content_block.name,
-          providerExecuted: true
-        })
+      const contentBlockType = event.content_block.type
+      switch (contentBlockType) {
+        case 'text': {
+          contentBlockState.set(blockKey, { type: 'text' })
+          chunks.push({
+            type: 'text-start',
+            id: String(event.index),
+            providerMetadata: {
+              ...sdkMessageToProviderMetadata(message),
+              anthropic: {
+                uuid: message.uuid,
+                session_id: message.session_id,
+                content_block_index: event.index
+              }
+            }
+          })
+          break
+        }
+        case 'tool_use': {
+          contentBlockState.set(blockKey, {
+            type: 'tool-call',
+            toolCallId: event.content_block.id,
+            toolName: event.content_block.name,
+            input: ''
+          })
+          chunks.push({
+            type: 'tool-call',
+            toolCallId: event.content_block.id,
+            toolName: event.content_block.name,
+            input: event.content_block.input,
+            providerExecuted: true,
+            providerMetadata: sdkMessageToProviderMetadata(message)
+          })
+          break
+        }
       }
       break
-
     case 'content_block_delta':
-      if (event.delta?.type === 'text_delta') {
-        chunks.push({
-          type: 'text-delta',
-          id: event.index?.toString() || generateMessageId(),
-          delta: event.delta.text,
-          providerMetadata: {
-            anthropic: {
-              uuid: message.uuid,
-              session_id: message.session_id,
-              content_block_index: event.index
-            },
-            raw: sdkMessageToProviderMetadata(message)
+      switch (event.delta.type) {
+        case 'text_delta': {
+          chunks.push({
+            type: 'text-delta',
+            id: String(event.index),
+            text: event.delta.text,
+            providerMetadata: {
+              ...sdkMessageToProviderMetadata(message),
+              anthropic: {
+                uuid: message.uuid,
+                session_id: message.session_id,
+                content_block_index: event.index
+              }
+            }
+          })
+          break
+        }
+        // case 'thinking_delta': {
+        //   chunks.push({
+        //     type: 'reasoning-delta',
+        //     id: String(event.index),
+        //     text: event.delta.thinking,
+        //   });
+        //   break
+        // }
+        // case 'signature_delta': {
+        //   if (blockType === 'thinking') {
+        //     chunks.push({
+        //       type: 'reasoning-delta',
+        //       id: String(event.index),
+        //       text: '',
+        //       providerMetadata: {
+        //         ...sdkMessageToProviderMetadata(message),
+        //         anthropic: {
+        //           uuid: message.uuid,
+        //           session_id: message.session_id,
+        //           content_block_index: event.index,
+        //           signature: event.delta.signature
+        //         }
+        //       }
+        //     })
+        //   }
+        //   break
+        // }
+        case 'input_json_delta': {
+          const contentBlock = contentBlockState.get(blockKey)
+          if (contentBlock && contentBlock.type === 'tool-call') {
+            contentBlockState.set(blockKey, {
+              ...contentBlock,
+              input: `${contentBlock.input ?? ''}${event.delta.partial_json ?? ''}`
+            })
           }
-        })
-      } else if (event.delta?.type === 'input_json_delta') {
-        chunks.push({
-          type: 'tool-input-delta',
-          toolCallId: (event as any).content_block?.id || '',
-          inputTextDelta: event.delta.partial_json
-        })
+          break
+        }
       }
       break
 
     case 'content_block_stop': {
-      // Determine if this was a text block or tool use block
-      const blockId = event.index?.toString() || generateMessageId()
-      chunks.push({
-        type: 'text-end',
-        id: blockId,
-        providerMetadata: {
-          anthropic: {
-            uuid: message.uuid,
-            session_id: message.session_id,
-            content_block_index: event.index
-          },
-          raw: sdkMessageToProviderMetadata(message)
-        }
-      })
-      break
+      const contentBlock = contentBlockState.get(blockKey)
+      if (contentBlock?.type === 'text') {
+        chunks.push({
+          type: 'text-end',
+          id: String(event.index)
+        })
+      }
+      contentBlockState.delete(blockKey)
     }
 
     case 'message_delta':
@@ -214,80 +273,68 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
 }
 
 // Handle system messages
-function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): UIMessageChunk[] {
-  const chunks: UIMessageChunk[] = []
-
-  if (message.subtype === 'init') {
-    chunks.push({
-      type: 'start',
-      messageId: message.session_id
-    })
-
-    // System initialization - could emit as a data chunk or skip
-    chunks.push({
-      type: 'data-system' as any,
-      data: {
-        type: 'init',
-        session_id: message.session_id,
-        raw: message
-      }
-    })
-  } else if (message.subtype === 'compact_boundary') {
-    chunks.push({
-      type: 'data-system' as any,
-      data: {
-        type: 'compact_boundary',
-        metadata: message.compact_metadata,
-        raw: message
-      }
-    })
+function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): AgentStreamPart[] {
+  const chunks: AgentStreamPart[] = []
+  logger.debug('Received system message', {
+    subtype: message.subtype
+  })
+  switch (message.subtype) {
+    case 'init': {
+      chunks.push({
+        type: 'start'
+      })
+    }
   }
-
-  return chunks
+  return []
 }
 
 // Handle result messages (completion with usage stats)
-function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): UIMessageChunk[] {
-  const chunks: UIMessageChunk[] = []
+function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): AgentStreamPart[] {
+  const chunks: AgentStreamPart[] = []
 
-  const messageId = message.uuid
+  let usage: LanguageModelV2Usage | undefined
+  if ('usage' in message) {
+    usage = {
+      inputTokens:
+        (message.usage.cache_creation_input_tokens ?? 0) +
+        (message.usage.cache_read_input_tokens ?? 0) +
+        (message.usage.input_tokens ?? 0),
+      outputTokens: message.usage.output_tokens ?? 0,
+      totalTokens:
+        (message.usage.cache_creation_input_tokens ?? 0) +
+        (message.usage.cache_read_input_tokens ?? 0) +
+        (message.usage.input_tokens ?? 0) +
+        (message.usage.output_tokens ?? 0)
+    }
+  }
   if (message.subtype === 'success') {
-    // Emit final result data
     chunks.push({
-      type: 'data-result' as any,
-      id: messageId,
-      data: message,
-      transient: true
-    })
+      type: 'finish',
+      totalUsage: usage,
+      finishReason: mapClaudeCodeFinishReason(message.subtype),
+      providerMetadata: {
+        ...sdkMessageToProviderMetadata(message),
+        usage: message.usage,
+        durationMs: message.duration_ms,
+        costUsd: message.total_cost_usd,
+        raw: message
+      }
+    } as AgentStreamPart)
   } else {
-    // Handle error cases
     chunks.push({
       type: 'error',
-      errorText: `${message.subtype}: Process failed after ${message.num_turns} turns`
-    })
-  }
-
-  // Emit usage and cost data
-  chunks.push({
-    type: 'data-usage' as any,
-    data: {
-      cost: message.total_cost_usd,
-      usage: {
-        input_tokens: message.usage.input_tokens,
-        cache_creation_input_tokens: message.usage.cache_creation_input_tokens,
-        cache_read_input_tokens: message.usage.cache_read_input_tokens,
-        output_tokens: message.usage.output_tokens,
-        service_tier: 'standard'
+      error: {
+        message: `${message.subtype}: Process failed after ${message.num_turns} turns`
       }
-    }
-  })
+    } as AgentStreamPart)
+  }
   return chunks
 }
 
 // Convenience function to transform a stream of SDKMessages
-export function* transformSDKMessageStream(sdkMessages: SDKMessage[]): Generator<UIMessageChunk> {
+export function* transformSDKMessageStream(sdkMessages: SDKMessage[]): Generator<AgentStreamPart> {
   for (const sdkMessage of sdkMessages) {
-    const chunks = transformSDKMessageToUIChunk(sdkMessage)
+    const chunks = transformSDKMessageToStreamParts(sdkMessage)
     for (const chunk of chunks) {
       yield chunk
     }
@@ -297,9 +344,9 @@ export function* transformSDKMessageStream(sdkMessages: SDKMessage[]): Generator
 // Async version for async iterables
 export async function* transformSDKMessageStreamAsync(
   sdkMessages: AsyncIterable<SDKMessage>
-): AsyncGenerator<UIMessageChunk> {
+): AsyncGenerator<AgentStreamPart> {
   for await (const sdkMessage of sdkMessages) {
-    const chunks = transformSDKMessageToUIChunk(sdkMessage)
+    const chunks = transformSDKMessageToStreamParts(sdkMessage)
     for (const chunk of chunks) {
       yield chunk
     }

@@ -1,5 +1,3 @@
-import { EventEmitter } from 'node:events'
-
 import { loggerService } from '@logger'
 import type {
   AgentSessionMessageEntity,
@@ -7,29 +5,22 @@ import type {
   GetAgentSessionResponse,
   ListOptions
 } from '@types'
-import { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
-import { convertToModelMessages, readUIMessageStream } from 'ai'
+import { ModelMessage, TextStreamPart } from 'ai'
 import { desc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { InsertSessionMessageRow, sessionMessagesTable } from '../database/schema'
+import { sessionMessagesTable } from '../database/schema'
+import { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')
 
-// Collapse a UIMessageChunk stream into a final UIMessage, then convert to ModelMessage[]
-export async function chunksToModelMessages(
-  chunkStream: ReadableStream<UIMessageChunk>,
-  priorUiHistory: UIMessage[] = []
-): Promise<ModelMessage[]> {
-  let latest: UIMessage | undefined
-
-  for await (const uiMsg of readUIMessageStream({ stream: chunkStream })) {
-    latest = uiMsg // each yield is a newer state; keep the last one
-  }
-
-  const uiMessages = latest ? [...priorUiHistory, latest] : priorUiHistory
-  return convertToModelMessages(uiMessages) // -> ModelMessage[]
+type SessionStreamResult = {
+  stream: ReadableStream<TextStreamPart<Record<string, any>>>
+  completion: Promise<{
+    userMessage?: AgentSessionMessageEntity
+    assistantMessage?: AgentSessionMessageEntity
+  }>
 }
 
 // Ensure errors emitted through SSE are serializable
@@ -51,70 +42,68 @@ function serializeError(error: unknown): { message: string; name?: string; stack
   }
 }
 
-// Chunk accumulator class to collect and reconstruct streaming data
-class ChunkAccumulator {
-  private streamedChunks: UIMessageChunk[] = []
-  private agentType: string = 'unknown'
+class TextStreamAccumulator {
+  private textBuffer = ''
+  private totalText = ''
+  private readonly toolCalls = new Map<string, { toolName?: string; input?: unknown }>()
+  private readonly toolResults = new Map<string, unknown>()
 
-  addChunk(chunk: UIMessageChunk): void {
-    this.streamedChunks.push(chunk)
-  }
-
-  // Create a ReadableStream from accumulated chunks
-  createChunkStream(): ReadableStream<UIMessageChunk> {
-    const chunks = [...this.streamedChunks]
-
-    return new ReadableStream<UIMessageChunk>({
-      start(controller) {
-        // Enqueue all chunks
-        for (const chunk of chunks) {
-          controller.enqueue(chunk)
+  add(part: TextStreamPart<Record<string, any>>): void {
+    switch (part.type) {
+      case 'text-start':
+        this.textBuffer = ''
+        break
+      case 'text-delta':
+        if (part.text) {
+          this.textBuffer += part.text
         }
-        controller.close()
+        break
+      case 'text-end': {
+        const blockText = (part.providerMetadata?.text?.value as string | undefined) ?? this.textBuffer
+        if (blockText) {
+          this.totalText += blockText
+        }
+        this.textBuffer = ''
+        break
       }
-    })
-  }
-
-  // Convert accumulated chunks to ModelMessages using chunksToModelMessages
-  async toModelMessages(priorUiHistory: UIMessage[] = []): Promise<ModelMessage[]> {
-    const chunkStream = this.createChunkStream()
-    return await chunksToModelMessages(chunkStream, priorUiHistory)
+      case 'tool-call':
+        if (part.toolCallId) {
+          this.toolCalls.set(part.toolCallId, {
+            toolName: part.toolName,
+            input: part.input ?? part.args ?? part.providerMetadata?.raw?.input
+          })
+        }
+        break
+      case 'tool-result':
+        if (part.toolCallId) {
+          this.toolResults.set(part.toolCallId, part.output ?? part.result ?? part.providerMetadata?.raw)
+        }
+        break
+      default:
+        break
+    }
   }
 
   toModelMessage(role: ModelMessage['role'] = 'assistant'): ModelMessage {
-    // Reconstruct the content from chunks
-    let textContent = ''
-    const toolCalls: any[] = []
+    const content = this.totalText || this.textBuffer || ''
 
-    for (const chunk of this.streamedChunks) {
-      if (chunk.type === 'text-delta' && 'delta' in chunk) {
-        textContent += chunk.delta
-      } else if (chunk.type === 'tool-input-available' && 'toolCallId' in chunk && 'toolName' in chunk) {
-        // Handle tool calls - use tool-input-available chunks
-        const toolCall = {
-          toolCallId: chunk.toolCallId,
-          toolName: chunk.toolName,
-          args: chunk.input || {}
-        }
-        toolCalls.push(toolCall)
-      }
-    }
+    const toolInvocations = Array.from(this.toolCalls.entries()).map(([toolCallId, info]) => ({
+      toolCallId,
+      toolName: info.toolName,
+      args: info.input,
+      result: this.toolResults.get(toolCallId)
+    }))
 
-    const message: any = {
+    const message: Record<string, unknown> = {
       role,
-      content: textContent
+      content
     }
 
-    // Add tool invocations if any
-    if (toolCalls.length > 0) {
-      message.toolInvocations = toolCalls
+    if (toolInvocations.length > 0) {
+      message.toolInvocations = toolInvocations
     }
 
     return message as ModelMessage
-  }
-
-  getAgentType(): string {
-    return this.agentType
   }
 }
 
@@ -170,28 +159,21 @@ export class SessionMessageService extends BaseService {
     return { messages }
   }
 
-  createSessionMessage(
+  async createSessionMessage(
     session: GetAgentSessionResponse,
     messageData: CreateSessionMessageRequest,
     abortController: AbortController
-  ): EventEmitter {
+  ): Promise<SessionStreamResult> {
     this.ensureInitialized()
 
-    // Create a new EventEmitter to manage the session message lifecycle
-    const sessionStream = new EventEmitter()
-
-    // No parent validation needed, start immediately
-    this.startSessionMessageStream(session, messageData, sessionStream, abortController)
-
-    return sessionStream
+    return await this.startSessionMessageStream(session, messageData, abortController)
   }
 
   private async startSessionMessageStream(
     session: GetAgentSessionResponse,
     req: CreateSessionMessageRequest,
-    sessionStream: EventEmitter,
     abortController: AbortController
-  ): Promise<void> {
+  ): Promise<SessionStreamResult> {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
     let newAgentSessionId = ''
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
@@ -202,98 +184,98 @@ export class SessionMessageService extends BaseService {
       throw new Error('Unsupported agent type for streaming')
     }
 
-    // Create the streaming agent invocation (using invokeStream for streaming)
     const claudeStream = await this.cc.invoke(req.content, session, abortController, agentSessionId)
+    const accumulator = new TextStreamAccumulator()
 
-    // Use chunk accumulator to manage streaming data
-    const accumulator = new ChunkAccumulator()
+    let resolveCompletion!: (value: {
+      userMessage?: AgentSessionMessageEntity
+      assistantMessage?: AgentSessionMessageEntity
+    }) => void
+    let rejectCompletion!: (reason?: unknown) => void
 
-    // Handle agent stream events (agent-agnostic)
-    claudeStream.on('data', async (event: any) => {
-      try {
-        switch (event.type) {
-          case 'chunk':
-            // Forward UIMessageChunk directly and collect raw agent messages
-            if (event.chunk) {
-              const chunk = event.chunk as UIMessageChunk
-              if (chunk.type === 'start' && chunk.messageId) {
-                newAgentSessionId = chunk.messageId
+    const completion = new Promise<{
+      userMessage?: AgentSessionMessageEntity
+      assistantMessage?: AgentSessionMessageEntity
+    }>((resolve, reject) => {
+      resolveCompletion = resolve
+      rejectCompletion = reject
+    })
+
+    let finished = false
+
+    const cleanup = () => {
+      if (finished) return
+      finished = true
+      claudeStream.removeAllListeners()
+    }
+
+    const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
+      start: (controller) => {
+        claudeStream.on('data', async (event: AgentStreamEvent) => {
+          if (finished) return
+          try {
+            switch (event.type) {
+              case 'chunk': {
+                const chunk = event.chunk as TextStreamPart<Record<string, any>> | undefined
+                if (!chunk) {
+                  logger.warn('Received agent chunk event without chunk payload')
+                  return
+                }
+
+                if (chunk.type === 'start' && chunk.messageId) {
+                  newAgentSessionId = chunk.messageId
+                }
+
+                accumulator.add(chunk)
+                controller.enqueue(chunk)
+                break
               }
-              accumulator.addChunk(chunk)
 
-              sessionStream.emit('data', {
-                type: 'chunk',
-                chunk
-              })
-            } else {
-              logger.warn('Received agent chunk event without chunk payload')
-            }
-            break
+              case 'error': {
+                const stderrMessage = (event as any)?.data?.stderr as string | undefined
+                const underlyingError = event.error ?? (stderrMessage ? new Error(stderrMessage) : undefined)
+                cleanup()
+                const streamError = underlyingError ?? new Error('Stream error')
+                controller.error(streamError)
+                rejectCompletion(serializeError(streamError))
+                break
+              }
 
-          case 'error': {
-            const underlyingError = event.error || (event.data?.stderr ? new Error(event.data.stderr) : undefined)
+              case 'complete': {
+                cleanup()
+                controller.close()
+                resolveCompletion({})
+                break
+              }
 
-            sessionStream.emit('data', {
-              type: 'error',
-              error: serializeError(underlyingError),
-              persistScheduled: false
-            })
-            // Always emit a complete chunk at the end
-            sessionStream.emit('data', {
-              type: 'complete',
-              persistScheduled: false
-            })
-            break
-          }
+              case 'cancelled': {
+                cleanup()
+                controller.close()
+                resolveCompletion({})
+                break
+              }
 
-          case 'complete': {
-            try {
-              const persisted = await this.database.transaction(async (tx) => {
-                const userMessage = await this.persistUserMessage(tx, session.id, req.content, newAgentSessionId)
-                const assistantMessage = await this.persistAssistantMessage({
-                  tx,
-                  session,
-                  accumulator,
-                  agentSessionId: newAgentSessionId
+              default:
+                logger.warn('Unknown event type from Claude Code service:', {
+                  type: event.type
                 })
-
-                return { userMessage, assistantMessage }
-              })
-
-              sessionStream.emit('data', {
-                type: 'persisted',
-                message: persisted.assistantMessage,
-                userMessage: persisted.userMessage
-              })
-            } catch (persistError) {
-              sessionStream.emit('data', {
-                type: 'persist-error',
-                error: serializeError(persistError)
-              })
-            } finally {
-              // Always emit a complete chunk at the end
-              sessionStream.emit('data', {
-                type: 'complete',
-                persistScheduled: true
-              })
+                break
             }
-            break
+          } catch (error) {
+            cleanup()
+            controller.error(error)
+            rejectCompletion(serializeError(error))
           }
-
-          default:
-            logger.warn('Unknown event type from Claude Code service:', {
-              type: event.type
-            })
-            break
-        }
-      } catch (error) {
-        logger.error('Error handling Claude Code stream event:', { error })
-        sessionStream.emit('data', {
-          type: 'error',
-          error: serializeError(error)
         })
+      },
+      cancel: (reason) => {
+        cleanup()
+        abortController.abort(typeof reason === 'string' ? reason : 'stream cancelled')
+        resolveCompletion({})
       }
     })
+
+    return { stream, completion }
   }
 
   private async getLastAgentSessionId(sessionId: string): Promise<string> {
@@ -314,75 +296,6 @@ export class SessionMessageService extends BaseService {
         error
       })
       return ''
-    }
-  }
-
-  async persistUserMessage(
-    tx: any,
-    sessionId: string,
-    prompt: string,
-    agentSessionId: string
-  ): Promise<AgentSessionMessageEntity> {
-    this.ensureInitialized()
-
-    const now = new Date().toISOString()
-    const insertData: InsertSessionMessageRow = {
-      session_id: sessionId,
-      role: 'user',
-      content: JSON.stringify({ role: 'user', content: prompt }),
-      agent_session_id: agentSessionId,
-      created_at: now,
-      updated_at: now
-    }
-
-    const [saved] = await tx.insert(sessionMessagesTable).values(insertData).returning()
-
-    return this.deserializeSessionMessage(saved) as AgentSessionMessageEntity
-  }
-
-  private async persistAssistantMessage({
-    tx,
-    session,
-    accumulator,
-    agentSessionId
-  }: {
-    tx: any
-    session: GetAgentSessionResponse
-    accumulator: ChunkAccumulator
-    agentSessionId: string
-  }): Promise<AgentSessionMessageEntity> {
-    if (!session?.id) {
-      const missingSessionError = new Error('Missing session_id for persisted message')
-      logger.error('error persisting session message', { error: missingSessionError })
-      throw missingSessionError
-    }
-
-    const sessionId = session.id
-    const now = new Date().toISOString()
-
-    try {
-      // Use chunksToModelMessages to convert chunks to ModelMessages
-      const modelMessages = await accumulator.toModelMessages()
-      // Get the last message (should be the assistant's response)
-      const modelMessage =
-        modelMessages.length > 0 ? modelMessages[modelMessages.length - 1] : accumulator.toModelMessage('assistant')
-
-      const insertData: InsertSessionMessageRow = {
-        session_id: sessionId,
-        role: 'assistant',
-        content: JSON.stringify(modelMessage),
-        agent_session_id: agentSessionId,
-        created_at: now,
-        updated_at: now
-      }
-
-      const [saved] = await tx.insert(sessionMessagesTable).values(insertData).returning()
-      logger.debug('Success Persisted session message')
-
-      return this.deserializeSessionMessage(saved) as AgentSessionMessageEntity
-    } catch (error) {
-      logger.error('Failed to persist session message', { error })
-      throw error
     }
   }
 

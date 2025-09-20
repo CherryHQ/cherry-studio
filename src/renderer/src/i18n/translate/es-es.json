@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "Error al añadir agente",
         "invalid_agent": "Agent inválido"
       },
       "title": "Agregar Agente",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "Eliminar este Agente forzará la terminación y eliminación de todas las sesiones bajo este Agente. ¿Está seguro?",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "Error al eliminar el agente"
       },
       "title": "Eliminar Agent"
     },
@@ -23,39 +23,47 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "Agregar una sesión"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "Error al añadir una sesión"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "¿Estás seguro de eliminar esta sesión?",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "Error al eliminar la sesión"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "Eliminar sesión"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "Sesión de edición"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "Error al obtener la sesión"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "Sesión",
+      "label_other": "Sesiones",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "Error al actualizar la sesión"
         }
+      },
+      "accessible_paths": {
+        "label": "Directorios accesibles",
+        "add": "Agregar directorio",
+        "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
+        "required": "Por favor, seleccione al menos un directorio accesible.",
+        "duplicate": "Este directorio ya está incluido.",
+        "select_failed": "Error al seleccionar el directorio."
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "Error al actualizar el agente"
       }
     }
   },
@@ -821,7 +829,7 @@
     "default": "Predeterminado",
     "delete": "Eliminar",
     "delete_confirm": "¿Está seguro de que desea eliminarlo?",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "Error al eliminar",
     "delete_success": "Eliminación exitosa",
     "description": "Descripción",
     "detail": "Detalles",
@@ -833,7 +841,7 @@
     "enabled": "Activado",
     "error": "error",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "Error al crear el mensaje",
       "validation": "Fallo en la verificación"
     },
     "expand": "Expandir",
@@ -962,7 +970,7 @@
     "modelType": "Tipo de modelo",
     "name": "Nombre de error",
     "no_api_key": "La clave API no está configurada",
-    "no_response": "[to be translated]:No response",
+    "no_response": "Sin respuesta",
     "originalError": "Error original",
     "originalMessage": "mensaje original",
     "parameter": "parámetro",

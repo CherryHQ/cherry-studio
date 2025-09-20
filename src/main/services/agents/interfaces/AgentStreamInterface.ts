@@ -4,12 +4,12 @@
 import { EventEmitter } from 'node:events'
 
 import { GetAgentSessionResponse } from '@types'
-import { UIMessageChunk } from 'ai'
+import type { TextStreamPart } from 'ai'
 
 // Generic agent stream event that works with any agent type
 export interface AgentStreamEvent {
   type: 'chunk' | 'error' | 'complete' | 'cancelled'
-  chunk?: UIMessageChunk // Standard AI SDK chunk for UI consumption
+  chunk?: TextStreamPart<any> // Standard AI SDK chunk for UI consumption
   error?: Error
 }
 

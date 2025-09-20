@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
@@ -8,18 +9,23 @@ import { endSpan } from '@renderer/services/SpanManagerService'
 import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/services/StreamProcessingService'
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
-import { type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
+import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
+import type { AgentPersistedMessage } from '@renderer/types/agent'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   createAssistantMessage,
   createTranslationBlock,
   resetAssistantMessage
 } from '@renderer/utils/messageUtils/create'
+import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { getTopicQueue, waitForTopicQueue } from '@renderer/utils/queue'
+import { IpcChannel } from '@shared/IpcChannel'
 import { defaultAppHeaders } from '@shared/utils'
+import type { TextStreamPart } from 'ai'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
@@ -35,9 +41,158 @@ const finishTopicLoading = async (topicId: string) => {
   store.dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
   store.dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
 }
+
+type AgentSessionContext = {
+  agentId: string
+  sessionId: string
+}
+
+const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
+  const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
+  const baseHost = hasProtocol ? apiServer.host : `http://${apiServer.host}`
+  const portSegment = apiServer.port ? `:${apiServer.port}` : ''
+  return `${baseHost}${portSegment}`
+}
+
+const createSSEReadableStream = (
+  source: ReadableStream<Uint8Array>,
+  signal: AbortSignal
+): ReadableStream<TextStreamPart<Record<string, any>>> => {
+  return new ReadableStream<TextStreamPart<Record<string, any>>>({
+    start(controller) {
+      const reader = source.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      const cancelReader = (reason?: any) => reader.cancel(reason).catch(() => {})
+
+      const abortHandler = () => {
+        cancelReader(signal.reason ?? 'aborted')
+        controller.error(new DOMException('Aborted', 'AbortError'))
+      }
+
+      if (signal.aborted) {
+        abortHandler()
+        return
+      }
+
+      signal.addEventListener('abort', abortHandler, { once: true })
+
+      const emitEvent = (eventString: string): boolean => {
+        const lines = eventString.split(/\r?\n/)
+        let dataPayload = ''
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
+            dataPayload += line.slice(5).trimStart()
+          }
+        }
+
+        if (!dataPayload) {
+          return false
+        }
+
+        if (dataPayload === '[DONE]') {
+          signal.removeEventListener('abort', abortHandler)
+          cancelReader()
+          controller.close()
+          return true
+        }
+
+        try {
+          const parsed = JSON.parse(dataPayload) as TextStreamPart<Record<string, any>>
+          controller.enqueue(parsed)
+        } catch (error) {
+          logger.warn('Failed to parse agent SSE chunk', { dataPayload })
+        }
+        return false
+      }
+
+      const pump = async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+
+            let separatorIndex = buffer.indexOf('\n\n')
+            while (separatorIndex !== -1) {
+              const rawEvent = buffer.slice(0, separatorIndex).trim()
+              buffer = buffer.slice(separatorIndex + 2)
+              if (rawEvent) {
+                const shouldStop = emitEvent(rawEvent)
+                if (shouldStop) {
+                  return
+                }
+              }
+              separatorIndex = buffer.indexOf('\n\n')
+            }
+          }
+
+          buffer += decoder.decode()
+          if (buffer.trim()) {
+            emitEvent(buffer.trim())
+          }
+          signal.removeEventListener('abort', abortHandler)
+          controller.close()
+        } catch (error) {
+          signal.removeEventListener('abort', abortHandler)
+          controller.error(error)
+        }
+      }
+
+      pump().catch((error) => {
+        signal.removeEventListener('abort', abortHandler)
+        controller.error(error)
+      })
+    },
+    cancel(reason) {
+      return source.cancel(reason).catch(() => {})
+    }
+  })
+}
+
+const createAgentMessageStream = async (
+  apiServer: ApiServerConfig,
+  agentSession: AgentSessionContext,
+  content: string,
+  signal: AbortSignal
+): Promise<ReadableStream<TextStreamPart<Record<string, any>>>> => {
+  if (!apiServer.enabled) {
+    throw new Error('Agent API server is disabled')
+  }
+
+  const baseURL = buildAgentBaseURL(apiServer)
+  const url = `${baseURL}/v1/agents/${agentSession.agentId}/sessions/${agentSession.sessionId}/messages`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiServer.apiKey}`,
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      'Cache-Control': 'no-cache'
+    },
+    body: JSON.stringify({ content }),
+    signal
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '')
+    throw new Error(errorText || `Failed to stream agent message: ${response.status}`)
+  }
+
+  if (!response.body) {
+    throw new Error('Agent message stream has no body')
+  }
+
+  return createSSEReadableStream(response.body, signal)
+}
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   try {
+    if (isAgentSessionTopicId(message.topicId)) {
+      return
+    }
     if (blocks.length > 0) {
       await db.message_blocks.bulkPut(blocks)
     }
@@ -70,6 +225,9 @@ const updateExistingMessageAndBlocksInDB = async (
   updatedBlocks: MessageBlock[]
 ) => {
   try {
+    if (isAgentSessionTopicId(updatedMessage.topicId)) {
+      return
+    }
     await db.transaction('rw', db.topics, db.message_blocks, async () => {
       // Always update blocks if provided
       if (updatedBlocks.length > 0) {
@@ -244,6 +402,157 @@ const saveUpdatedBlockToDB = async (
   }
 }
 
+interface AgentStreamParams {
+  topicId: string
+  assistant: Assistant
+  assistantMessage: Message
+  agentSession: AgentSessionContext
+  userMessageId: string
+}
+
+const fetchAndProcessAgentResponseImpl = async (
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  { topicId, assistant, assistantMessage, agentSession, userMessageId }: AgentStreamParams
+) => {
+  let callbacks: StreamProcessorCallbacks = {}
+  try {
+    dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+    const blockManager = new BlockManager({
+      dispatch,
+      getState,
+      saveUpdatedBlockToDB,
+      saveUpdatesToDB,
+      assistantMsgId: assistantMessage.id,
+      topicId,
+      throttledBlockUpdate,
+      cancelThrottledBlockUpdate
+    })
+
+    callbacks = createCallbacks({
+      blockManager,
+      dispatch,
+      getState,
+      topicId,
+      assistantMsgId: assistantMessage.id,
+      saveUpdatesToDB,
+      assistant
+    })
+
+    const streamProcessorCallbacks = createStreamProcessor(callbacks)
+
+    const state = getState()
+    const userMessageEntity = state.messages.entities[userMessageId]
+    const userContent = userMessageEntity ? getMainTextContent(userMessageEntity) : ''
+
+    const abortController = new AbortController()
+    addAbortController(userMessageId, () => abortController.abort())
+
+    const stream = await createAgentMessageStream(
+      state.settings.apiServer,
+      agentSession,
+      userContent,
+      abortController.signal
+    )
+
+    let latestAgentSessionId = ''
+    const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false, (sessionId) => {
+      latestAgentSessionId = sessionId
+    })
+
+    await adapter.processStream({
+      fullStream: stream,
+      text: Promise.resolve('')
+    })
+
+    await persistAgentExchange({
+      getState,
+      agentSession,
+      userMessageId,
+      assistantMessageId: assistantMessage.id,
+      latestAgentSessionId
+    })
+  } catch (error: any) {
+    logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
+    try {
+      callbacks.onError?.(error)
+    } catch (callbackError) {
+      logger.error('Error in agent onError callback:', callbackError as Error)
+    } finally {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    }
+  }
+}
+
+interface PersistAgentExchangeParams {
+  getState: () => RootState
+  agentSession: AgentSessionContext
+  userMessageId: string
+  assistantMessageId: string
+  latestAgentSessionId: string
+}
+
+const persistAgentExchange = async ({
+  getState,
+  agentSession,
+  userMessageId,
+  assistantMessageId,
+  latestAgentSessionId
+}: PersistAgentExchangeParams) => {
+  if (!window.electron?.ipcRenderer) {
+    return
+  }
+
+  try {
+    const state = getState()
+    const userMessage = state.messages.entities[userMessageId]
+    const assistantMessage = state.messages.entities[assistantMessageId]
+
+    if (!userMessage || !assistantMessage) {
+      logger.warn('persistAgentExchange: missing user or assistant message entity')
+      return
+    }
+
+    const userPersistedPayload = createPersistedMessagePayload(userMessage, state)
+    const assistantPersistedPayload = createPersistedMessagePayload(assistantMessage, state)
+
+    await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
+      sessionId: agentSession.sessionId,
+      agentSessionId: latestAgentSessionId || '',
+      user: userPersistedPayload ? { payload: userPersistedPayload } : undefined,
+      assistant: assistantPersistedPayload ? { payload: assistantPersistedPayload } : undefined
+    })
+  } catch (error) {
+    logger.warn('Failed to persist agent exchange', error as Error)
+  }
+}
+
+const createPersistedMessagePayload = (
+  message: Message | undefined,
+  state: RootState
+): AgentPersistedMessage | undefined => {
+  if (!message) {
+    return undefined
+  }
+
+  try {
+    const clonedMessage = JSON.parse(JSON.stringify(message)) as Message
+    const blockEntities = (message.blocks || [])
+      .map((blockId) => state.messageBlocks.entities[blockId])
+      .filter((block): block is MessageBlock => Boolean(block))
+      .map((block) => JSON.parse(JSON.stringify(block)) as MessageBlock)
+
+    return {
+      message: clonedMessage,
+      blocks: blockEntities
+    }
+  } catch (error) {
+    logger.warn('Failed to build persisted payload for message', error as Error)
+    return undefined
+  }
+}
+
 // --- Helper Function for Multi-Model Dispatch ---
 // 多模型创建和发送请求的逻辑，用于用户消息多模型发送和重发
 const dispatchMultiModelResponses = async (
@@ -385,7 +694,7 @@ const fetchAndProcessAssistantResponseImpl = async (
     })
     // 统一错误处理：确保 loading 状态被正确设置，避免队列任务卡住
     try {
-      await callbacks.onError?.(error)
+      callbacks.onError?.(error)
     } catch (callbackError) {
       logger.error('Error in onError callback:', callbackError as Error)
     } finally {
@@ -403,7 +712,13 @@ const fetchAndProcessAssistantResponseImpl = async (
  * @param topicId 主题ID
  */
 export const sendMessage =
-  (userMessage: Message, userMessageBlocks: MessageBlock[], assistant: Assistant, topicId: Topic['id']) =>
+  (
+    userMessage: Message,
+    userMessageBlocks: MessageBlock[],
+    assistant: Assistant,
+    topicId: Topic['id'],
+    agentSession?: AgentSessionContext
+  ) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
     try {
       if (userMessage.blocks.length === 0) {
@@ -417,12 +732,9 @@ export const sendMessage =
       }
       dispatch(updateTopicUpdatedAt({ topicId }))
 
-      const mentionedModels = userMessage.mentions
       const queue = getTopicQueue(topicId)
 
-      if (mentionedModels && mentionedModels.length > 0) {
-        await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
-      } else {
+      if (agentSession) {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
           model: assistant.model,
@@ -432,8 +744,32 @@ export const sendMessage =
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
         queue.add(async () => {
-          await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+          await fetchAndProcessAgentResponseImpl(dispatch, getState, {
+            topicId,
+            assistant,
+            assistantMessage,
+            agentSession,
+            userMessageId: userMessage.id
+          })
         })
+      } else {
+        const mentionedModels = userMessage.mentions
+
+        if (mentionedModels && mentionedModels.length > 0) {
+          await dispatchMultiModelResponses(dispatch, getState, topicId, userMessage, assistant, mentionedModels)
+        } else {
+          const assistantMessage = createAssistantMessage(assistant.id, topicId, {
+            askId: userMessage.id,
+            model: assistant.model,
+            traceId: userMessage.traceId
+          })
+          await saveMessageAndBlocksToDB(assistantMessage, [])
+          dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
+
+          queue.add(async () => {
+            await fetchAndProcessAssistantResponseImpl(dispatch, getState, topicId, assistant, assistantMessage)
+          })
+        }
       }
     } catch (error) {
       logger.error('Error in sendMessage thunk:', error as Error)

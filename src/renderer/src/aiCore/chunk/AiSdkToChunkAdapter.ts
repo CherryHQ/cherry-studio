@@ -32,16 +32,19 @@ export class AiSdkToChunkAdapter {
   private accumulate: boolean | undefined
   private isFirstChunk = true
   private enableWebSearch: boolean = false
+  private onSessionUpdate?: (sessionId: string) => void
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
     mcpTools: MCPTool[] = [],
     accumulate?: boolean,
-    enableWebSearch?: boolean
+    enableWebSearch?: boolean,
+    onSessionUpdate?: (sessionId: string) => void
   ) {
     this.toolCallHandler = new ToolCallChunkHandler(onChunk, mcpTools)
     this.accumulate = accumulate
     this.enableWebSearch = enableWebSearch || false
+    this.onSessionUpdate = onSessionUpdate
   }
 
   /**
@@ -108,6 +111,15 @@ export class AiSdkToChunkAdapter {
     chunk: TextStreamPart<any>,
     final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
   ) {
+    const sessionId =
+      (chunk.providerMetadata as any)?.anthropic?.session_id ??
+      (chunk.providerMetadata as any)?.anthropic?.sessionId ??
+      (chunk.providerMetadata as any)?.raw?.session_id
+
+    if (typeof sessionId === 'string' && sessionId) {
+      this.onSessionUpdate?.(sessionId)
+    }
+
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
       // === 文本相关事件 ===

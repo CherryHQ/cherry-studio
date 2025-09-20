@@ -1,12 +1,17 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useSession } from '@renderer/hooks/agents/useSession'
-import { ModelMessage } from 'ai'
-import { memo } from 'react'
+import { getGroupedMessages } from '@renderer/services/MessagesService'
+import { useAppSelector } from '@renderer/store'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { Topic } from '@renderer/types'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { memo,useMemo } from 'react'
 import styled from 'styled-components'
 
+import MessageGroup from './MessageGroup'
 import NarrowLayout from './NarrowLayout'
+import { MessagesContainer, ScrollContainer } from './shared'
 
 const logger = loggerService.withContext('AgentSessionMessages')
 
@@ -16,31 +21,54 @@ type Props = {
 }
 
 const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
-  const { messages } = useSession(agentId, sessionId)
+  const { session } = useSession(agentId, sessionId)
+  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const messages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
 
-  const getTextFromContent = (content: string | ModelMessage): string => {
-    logger.debug('content', { content })
-    if (typeof content === 'string') {
-      return content
-    } else if (typeof content.content === 'string') {
-      return content.content
-    } else {
-      return content.content
-        .filter((part) => part.type === 'text')
-        .map((part) => part.text)
-        .join('\n')
-    }
-  }
+  const displayMessages = useMemo(() => {
+    if (!messages || messages.length === 0) return []
+    return [...messages].reverse()
+  }, [messages])
+
+  const groupedMessages = useMemo(() => {
+    if (!displayMessages || displayMessages.length === 0) return []
+    return Object.entries(getGroupedMessages(displayMessages))
+  }, [displayMessages])
+
+  const sessionAssistantId = session?.agent_id ?? agentId
+  const sessionName = session?.name ?? sessionId
+  const sessionCreatedAt = session?.created_at ?? session?.updated_at ?? FALLBACK_TIMESTAMP
+  const sessionUpdatedAt = session?.updated_at ?? session?.created_at ?? FALLBACK_TIMESTAMP
+
+  const derivedTopic = useMemo<Topic>(
+    () => ({
+      id: sessionTopicId,
+      assistantId: sessionAssistantId,
+      name: sessionName,
+      createdAt: sessionCreatedAt,
+      updatedAt: sessionUpdatedAt,
+      messages: []
+    }),
+    [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
+  )
+
+  logger.silly('Rendering agent session messages', {
+    sessionId,
+    messageCount: messages.length
+  })
 
   return (
     <MessagesContainer id="messages" className="messages-container">
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <ContextMenu>
           <ScrollContainer>
-            {messages.toReversed().map((message) => {
-              const content = getTextFromContent(message.content)
-              return <div key={message.id}>{content}</div>
-            })}
+            {groupedMessages.length > 0 ? (
+              groupedMessages.map(([key, groupMessages]) => (
+                <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
+              ))
+            ) : (
+              <EmptyState>{session ? 'No messages yet.' : 'Loading session...'}</EmptyState>
+            )}
           </ScrollContainer>
         </ContextMenu>
       </NarrowLayout>
@@ -48,25 +76,13 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   )
 }
 
-const ScrollContainer = styled.div`
-  display: flex;
-  flex-direction: column-reverse;
-  padding: 10px 10px 20px;
-  .multi-select-mode & {
-    padding-bottom: 60px;
-  }
+const EmptyState = styled.div`
+  color: var(--color-text-3);
+  font-size: 12px;
+  text-align: center;
+  padding: 20px 0;
 `
 
-interface ContainerProps {
-  $right?: boolean
-}
-
-const MessagesContainer = styled(Scrollbar)<ContainerProps>`
-  display: flex;
-  flex-direction: column-reverse;
-  overflow-x: hidden;
-  z-index: 1;
-  position: relative;
-`
+const FALLBACK_TIMESTAMP = '1970-01-01T00:00:00.000Z'
 
 export default memo(AgentSessionMessages)

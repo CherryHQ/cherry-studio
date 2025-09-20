@@ -12,6 +12,7 @@ export interface BaseOption {
 
 export interface ModelOption extends BaseOption {
   providerId?: string
+  providerName?: string
 }
 
 export function isModelOption(option: BaseOption): option is ModelOption {
@@ -33,10 +34,18 @@ export const Option = ({ option }: { option?: BaseOption | null }) => {
       </div>
     )
   }
+  const providerLabel = (() => {
+    if (!isModelOption(option)) return null
+    if (option.providerName) return option.providerName
+    if (option.providerId) return getProviderLabel(option.providerId)
+    return null
+  })()
+
   return (
     <div className="flex gap-2">
       <Avatar src={option.avatar} className="h-5 w-5" />
-      {option.label} {isModelOption(option) && option.providerId && `| ${getProviderLabel(option.providerId)}`}
+      <span className="truncate">{option.label}</span>
+      {providerLabel ? <span className="truncate text-foreground-500">| {providerLabel}</span> : null}
     </div>
   )
 }

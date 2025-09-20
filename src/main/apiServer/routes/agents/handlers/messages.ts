@@ -1,5 +1,4 @@
 import { loggerService } from '@logger'
-import { AgentStreamEvent } from '@main/services/agents/interfaces/AgentStreamInterface'
 import { Request, Response } from 'express'
 
 import { agentService, sessionMessageService, sessionService } from '../../../../services/agents'
@@ -44,7 +43,12 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
 
     const abortController = new AbortController()
-    const messageStream = sessionMessageService.createSessionMessage(session, messageData, abortController)
+    const { stream, completion } = await sessionMessageService.createSessionMessage(
+      session,
+      messageData,
+      abortController
+    )
+    const reader = stream.getReader()
 
     // Track stream lifecycle so we keep the SSE connection open until persistence finishes
     let responseEnded = false
@@ -61,7 +65,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
       responseEnded = true
       try {
-        res.write('data: {"type":"finish"}\n\n')
+        // res.write('data: {"type":"finish"}\n\n')
         res.write('data: [DONE]\n\n')
       } catch (writeError) {
         logger.error('Error writing final sentinel to SSE stream:', { error: writeError as Error })
@@ -92,93 +96,78 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       if (responseEnded) return
       logger.info(`Client disconnected from streaming message for session: ${sessionId}`)
       responseEnded = true
-      messageStream.removeAllListeners()
       abortController.abort('Client disconnected')
+      reader.cancel('Client disconnected').catch(() => {})
     }
 
     req.on('close', handleDisconnect)
     req.on('aborted', handleDisconnect)
     res.on('close', handleDisconnect)
 
-    // Handle stream events
-    messageStream.on('data', (event: AgentStreamEvent) => {
-      if (responseEnded) return
-
+    const pumpStream = async () => {
       try {
-        switch (event.type) {
-          case 'chunk':
-            // Format UIMessageChunk as SSE event following AI SDK protocol
-            res.write(`data: ${JSON.stringify(event.chunk)}\n\n`)
+        while (!responseEnded) {
+          const { done, value } = await reader.read()
+          if (done) {
             break
+          }
 
-          case 'error': {
-            // Send error as AI SDK error chunk
-            const errorChunk = {
+          res.write(`data: ${JSON.stringify(value)}\n\n`)
+        }
+
+        streamFinished = true
+        finalizeResponse()
+      } catch (error) {
+        if (responseEnded) return
+        logger.error('Error reading agent stream:', { error })
+        try {
+          res.write(
+            `data: ${JSON.stringify({
               type: 'error',
-              errorText: event.error?.message || 'Stream processing error'
-            }
-            res.write(`data: ${JSON.stringify(errorChunk)}\n\n`)
-            logger.error(`Streaming message error for session: ${sessionId}:`, event.error)
-
-            streamFinished = true
-            finalizeResponse()
-            break
-          }
-
-          case 'complete': {
-            logger.info(`Streaming message completed for session: ${sessionId}`)
-            // res.write(`data: ${JSON.stringify({ type: 'complete', result: event.result })}\n\n`)
-
-            streamFinished = true
-            finalizeResponse()
-            break
-          }
-
-          case 'cancelled': {
-            logger.info(`Streaming message cancelled for session: ${sessionId}`)
-            // res.write(`data: ${JSON.stringify({ type: 'cancelled' })}\n\n`)
-            streamFinished = true
-            finalizeResponse()
-            break
-          }
-
-          default:
-            // Handle other event types as generic data
-            logger.info(`Streaming message event for session: ${sessionId}:`, { event })
-            // res.write(`data: ${JSON.stringify(event)}\n\n`)
-            break
+              error: {
+                message: (error as Error).message || 'Stream processing error',
+                type: 'stream_error',
+                code: 'stream_processing_failed'
+              }
+            })}\n\n`
+          )
+        } catch (writeError) {
+          logger.error('Error writing stream error to SSE:', { error: writeError })
         }
-      } catch (writeError) {
-        logger.error('Error writing to SSE stream:', { error: writeError })
-        if (!responseEnded) {
-          responseEnded = true
-          res.end()
-        }
+        responseEnded = true
+        res.end()
       }
+    }
+
+    pumpStream().catch((error) => {
+      logger.error('Pump stream failure:', { error })
     })
 
-    // Handle stream errors
-    messageStream.on('error', (error: Error) => {
-      if (responseEnded) return
-
-      logger.error(`Stream error for session: ${sessionId}:`, { error })
-      try {
-        res.write(
-          `data: ${JSON.stringify({
-            type: 'error',
-            error: {
-              message: error.message || 'Stream processing error',
-              type: 'stream_error',
-              code: 'stream_processing_failed'
-            }
-          })}\n\n`
-        )
-      } catch (writeError) {
-        logger.error('Error writing error to SSE stream:', { error: writeError })
-      }
-      responseEnded = true
-      res.end()
-    })
+    completion
+      .then(() => {
+        streamFinished = true
+        finalizeResponse()
+      })
+      .catch((error) => {
+        if (responseEnded) return
+        logger.error(`Streaming message error for session: ${sessionId}:`, error)
+        try {
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: {
+                message: (error as { message?: string })?.message || 'Stream processing error',
+                type: 'stream_error',
+                code: 'stream_processing_failed'
+              }
+            })}\n\n`
+          )
+        } catch (writeError) {
+          logger.error('Error writing completion error to SSE stream:', { error: writeError })
+        }
+        responseEnded = true
+        res.end()
+      })
 
     // Set a timeout to prevent hanging indefinitely
     const timeout = setTimeout(
@@ -199,6 +188,8 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
           } catch (writeError) {
             logger.error('Error writing timeout to SSE stream:', { error: writeError })
           }
+          abortController.abort('stream timeout')
+          reader.cancel('stream timeout').catch(() => {})
           responseEnded = true
           res.end()
         }

@@ -9,7 +9,7 @@ import { validateModelId } from '@main/apiServer/utils'
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
-import { transformSDKMessageToUIChunk } from './transform'
+import { transformSDKMessageToStreamParts } from './transform'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -157,7 +157,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
 
         // Transform SDKMessage to UIMessageChunks
-        const chunks = transformSDKMessageToUIChunk(message)
+        const chunks = transformSDKMessageToStreamParts(message)
         for (const chunk of chunks) {
           stream.emit('data', {
             type: 'chunk',
