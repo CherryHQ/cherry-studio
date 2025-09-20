@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isSupportedModel } from '@renderer/config/models'
-import { Provider } from '@renderer/types'
+import { Provider, objectKeys } from '@renderer/types'
 import OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
@@ -16,18 +16,15 @@ export class OVMSClient extends OpenAIAPIClient {
     try {
       const sdk = await this.getSdkInstance()
 
-      const [chatModelsResponse] = await Promise.all([
-        // Chat/completion models
-        sdk.request({
-          method: 'get',
-          path: '../v1/config'
-        })
-      ])
-      logger.debug(`[OVMSClient] Chat models response: ${JSON.stringify(chatModelsResponse)}`)
+      const chatModelsResponse = await sdk.request({
+        method: 'get',
+        path: '../v1/config'
+      })
+      logger.debug(`Chat models response: ${JSON.stringify(chatModelsResponse)}`)
 
       // Parse the config response to extract model information
-      const config = chatModelsResponse as any
-      const models = Object.keys(config)
+      const config = chatModelsResponse as Record<string, any>
+      const models = objectKeys(config)
         .map((modelName) => {
           const modelInfo = config[modelName]
 
@@ -47,7 +44,7 @@ export class OVMSClient extends OpenAIAPIClient {
           return null // Skip models without available versions
         })
         .filter(Boolean) // Remove null entries
-      logger.debug(`[OVMSClient] Processed models: ${JSON.stringify(models)}`)
+      logger.debug(`Processed models: ${JSON.stringify(models)}`)
 
       // Filter out unsupported models
       return models.filter((model): model is OpenAI.Models.Model => model !== null && isSupportedModel(model))
