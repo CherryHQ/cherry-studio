@@ -127,7 +127,8 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
       key: model.id,
       label: model.name,
       avatar: getModelLogo(model.id),
-      providerId: model.provider
+      providerId: model.provider,
+      providerName: model.provider_name
     })) satisfies ModelOption[]
   }, [models])
 

@@ -194,7 +194,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       key: model.id,
       label: model.name,
       avatar: getModelLogo(model.id),
-      providerId: model.provider
+      providerId: model.provider,
+      providerName: model.provider_name
     })) satisfies ModelOption[]
   }, [models])
 

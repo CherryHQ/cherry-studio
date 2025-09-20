@@ -9,15 +9,15 @@ import { useAgentClient } from './useAgentClient'
 export const useAgent = (id: string | null) => {
   const { t } = useTranslation()
   const client = useAgentClient()
-  const key = client.agentPaths.base
+  const key = id ? client.agentPaths.withId(id) : null
   const fetcher = useCallback(async () => {
-    if (id === null) {
+    if (!id) {
       return null
     }
     const result = await client.getAgent(id)
     return result
   }, [client, id])
-  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
+  const { data, error, isLoading, mutate } = useSWR(key, id ? fetcher : null)
 
   const updateAgent = useCallback(
     async (form: UpdateAgentForm) => {
