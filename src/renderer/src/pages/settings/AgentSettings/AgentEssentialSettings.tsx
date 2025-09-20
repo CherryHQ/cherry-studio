@@ -61,7 +61,11 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
           onChange={(e) => setName(e.target.value)}
-          onBlur={onUpdate}
+          onBlur={() => {
+            if (name !== agent.name) {
+              onUpdate()
+            }
+          }}
           style={{ flex: 1 }}
         />
       </HStack>
