@@ -9,6 +9,7 @@ export enum ConfigKeys {
   Language = 'language',
   Theme = 'theme',
   LaunchToTray = 'launchToTray',
+  LaunchOnBoot = 'launchOnBoot',
   Tray = 'tray',
   TrayOnClose = 'trayOnClose',
   ZoomFactor = 'ZoomFactor',
@@ -61,6 +62,14 @@ export class ConfigManager {
 
   setLaunchToTray(value: boolean) {
     this.set(ConfigKeys.LaunchToTray, value)
+  }
+
+  getLaunchOnBoot(): boolean {
+    return !!this.get(ConfigKeys.LaunchOnBoot, false)
+  }
+
+  setLaunchOnBoot(value: boolean) {
+    this.set(ConfigKeys.LaunchOnBoot, value)
   }
 
   getTray(): boolean {
