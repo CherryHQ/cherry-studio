@@ -111,7 +111,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
       const model: Model | undefined = session?.model
         ? {
             id: session.model,
-            name: session.model,
+            name: session.model.split(':').pop() || session.model, // Extract model name after ':'
             provider: 'agent-session',
             group: 'agent-session'
           }
