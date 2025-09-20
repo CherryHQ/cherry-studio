@@ -83,28 +83,6 @@ class TextStreamAccumulator {
         break
     }
   }
-
-  toModelMessage(role: ModelMessage['role'] = 'assistant'): ModelMessage {
-    const content = this.totalText || this.textBuffer || ''
-
-    const toolInvocations = Array.from(this.toolCalls.entries()).map(([toolCallId, info]) => ({
-      toolCallId,
-      toolName: info.toolName,
-      args: info.input,
-      result: this.toolResults.get(toolCallId)
-    }))
-
-    const message: Record<string, unknown> = {
-      role,
-      content
-    }
-
-    if (toolInvocations.length > 0) {
-      message.toolInvocations = toolInvocations
-    }
-
-    return message as ModelMessage
-  }
 }
 
 export class SessionMessageService extends BaseService {
@@ -175,7 +153,6 @@ export class SessionMessageService extends BaseService {
     abortController: AbortController
   ): Promise<SessionStreamResult> {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
-    let newAgentSessionId = ''
     logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
 
     if (session.agent_type !== 'claude-code') {
@@ -220,10 +197,6 @@ export class SessionMessageService extends BaseService {
                 if (!chunk) {
                   logger.warn('Received agent chunk event without chunk payload')
                   return
-                }
-
-                if (chunk.type === 'start' && chunk.messageId) {
-                  newAgentSessionId = chunk.messageId
                 }
 
                 accumulator.add(chunk)

@@ -70,23 +70,18 @@ function generateTextChunks(id: string, text: string, message: SDKMessage): Agen
   return [
     {
       type: 'text-start',
-      id,
-      providerMetadata
+      id
     },
     {
       type: 'text-delta',
       id,
-      text,
-      providerMetadata
+      text
     },
     {
       type: 'text-end',
       id,
       providerMetadata: {
-        ...providerMetadata,
-        text: {
-          value: text
-        }
+        ...providerMetadata
       }
     }
   ]
@@ -119,16 +114,21 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
           })
           break
         case 'tool_result':
-          // chunks.push({
-          //   type: 'tool-result',
-          //   toolCallId: block.tool_use_id,
-          //   output: block.content,
-          //   providerMetadata: sdkMessageToProviderMetadata(message)
-          // })
+          chunks.push({
+            type: 'tool-result',
+            toolCallId: block.tool_use_id,
+            toolName: '',
+            input: '',
+            output: block.content,
+          })
           break
         default:
           logger.warn('Unknown content block type in user/assistant message:', {
             type: block.type
+          })
+          chunks.push({
+            type: 'raw',
+            rawValue: block
           })
           break
       }
@@ -142,7 +142,7 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
 function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }>): AgentStreamPart[] {
   const chunks: AgentStreamPart[] = []
   const event = message.event
-  const blockKey = `${message.uuid ?? message.session_id ?? 'session'}:${event.index}`
+  const blockKey = `${message.uuid ?? message.session_id ?? 'session'}:${event.type}`
 
   switch (event.type) {
     case 'message_start':
@@ -255,15 +255,13 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
       }
       contentBlockState.delete(blockKey)
     }
-
+    break
     case 'message_delta':
       // Handle usage updates or other message-level deltas
       break
-
     case 'message_stop':
       // This could signal the end of the message
       break
-
     default:
       logger.warn('Unknown stream event type:', { type: (event as any).type })
       break
@@ -283,9 +281,19 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
       chunks.push({
         type: 'start'
       })
+      chunks.push({
+        type: 'raw',
+        rawValue: {
+          type: 'init',
+          session_id: message.session_id,
+          slash_commands: message.slash_commands,
+          tools: message.tools,
+          raw: message
+        }
+      })
     }
   }
-  return []
+  return chunks
 }
 
 // Handle result messages (completion with usage stats)
@@ -295,14 +303,9 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
   let usage: LanguageModelV2Usage | undefined
   if ('usage' in message) {
     usage = {
-      inputTokens:
-        (message.usage.cache_creation_input_tokens ?? 0) +
-        (message.usage.cache_read_input_tokens ?? 0) +
-        (message.usage.input_tokens ?? 0),
+      inputTokens: message.usage.input_tokens ?? 0,
       outputTokens: message.usage.output_tokens ?? 0,
       totalTokens:
-        (message.usage.cache_creation_input_tokens ?? 0) +
-        (message.usage.cache_read_input_tokens ?? 0) +
         (message.usage.input_tokens ?? 0) +
         (message.usage.output_tokens ?? 0)
     }
@@ -329,26 +332,4 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
     } as AgentStreamPart)
   }
   return chunks
-}
-
-// Convenience function to transform a stream of SDKMessages
-export function* transformSDKMessageStream(sdkMessages: SDKMessage[]): Generator<AgentStreamPart> {
-  for (const sdkMessage of sdkMessages) {
-    const chunks = transformSDKMessageToStreamParts(sdkMessage)
-    for (const chunk of chunks) {
-      yield chunk
-    }
-  }
-}
-
-// Async version for async iterables
-export async function* transformSDKMessageStreamAsync(
-  sdkMessages: AsyncIterable<SDKMessage>
-): AsyncGenerator<AgentStreamPart> {
-  for await (const sdkMessage of sdkMessages) {
-    const chunks = transformSDKMessageToStreamParts(sdkMessage)
-    for (const chunk of chunks) {
-      yield chunk
-    }
-  }
 }

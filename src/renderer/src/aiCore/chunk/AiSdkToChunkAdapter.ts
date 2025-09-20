@@ -111,13 +111,10 @@ export class AiSdkToChunkAdapter {
     chunk: TextStreamPart<any>,
     final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
   ) {
-    const sessionId =
-      (chunk.providerMetadata as any)?.anthropic?.session_id ??
-      (chunk.providerMetadata as any)?.anthropic?.sessionId ??
-      (chunk.providerMetadata as any)?.raw?.session_id
-
-    if (typeof sessionId === 'string' && sessionId) {
-      this.onSessionUpdate?.(sessionId)
+    // @ts-ignore
+    if (chunk.type === 'raw' && chunk.rawValue.type === 'init' && chunk.rawValue.session_id) {
+      // @ts-ignore
+      this.onSessionUpdate?.(chunk.rawValue.session_id)
     }
 
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
