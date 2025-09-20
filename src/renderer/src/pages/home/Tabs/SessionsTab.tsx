@@ -1,6 +1,8 @@
+import { Spinner } from '@heroui/react'
 import { useRuntime } from '@renderer/hooks/useRuntime'
-import { AnimatePresence,motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { FC, memo } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import Sessions from './components/Sessions'
 
@@ -9,18 +11,26 @@ interface SessionsTabProps {}
 const SessionsTab: FC<SessionsTabProps> = () => {
   const { chat } = useRuntime()
   const { activeAgentId } = chat
+  const { t } = useTranslation()
 
   return (
     <AnimatePresence mode="wait">
       {!activeAgentId ? (
         <motion.div
-          key="no-agent"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          transition={{ duration: 0.2 }}
-          className="flex h-full items-center justify-center text-foreground-500">
-          No active agent.
+          key="loading"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          className="flex h-full flex-col items-center justify-center gap-3">
+          <Spinner size="lg" color="primary" />
+          <motion.p
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.3 }}
+            className="text-sm text-foreground-500">
+            {t('common.loading')}...
+          </motion.p>
         </motion.div>
       ) : (
         <motion.div
