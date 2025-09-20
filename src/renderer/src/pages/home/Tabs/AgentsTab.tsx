@@ -5,7 +5,7 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
 import { Plus } from 'lucide-react'
-import { FC, useCallback } from 'react'
+import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentItem from './components/AgentItem'
@@ -26,6 +26,12 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
     },
     [dispatch]
   )
+
+  useEffect(() => {
+    if (!isLoading && agents.length > 0 && !activeAgentId) {
+      setActiveAgentId(agents[0].id)
+    }
+  }, [isLoading, agents, activeAgentId, setActiveAgentId])
 
   return (
     <div className="agents-tab h-full w-full p-2">

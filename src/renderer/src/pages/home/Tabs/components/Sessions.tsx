@@ -1,11 +1,12 @@
 import { Button, Spinner } from '@heroui/react'
 import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
-import { AnimatePresence,motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SessionItem from './SessionItem'
@@ -19,6 +20,8 @@ interface SessionsProps {
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
   const { sessions, isLoading, deleteSession } = useSessions(agentId)
+  const { chat } = useRuntime()
+  const { activeSessionId } = chat
   const dispatch = useAppDispatch()
 
   const setActiveSessionId = useCallback(
@@ -28,6 +31,14 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     },
     [dispatch]
   )
+
+  const currentActiveSessionId = activeSessionId[agentId]
+
+  useEffect(() => {
+    if (!isLoading && sessions.length > 0 && !currentActiveSessionId) {
+      setActiveSessionId(agentId, sessions[0].id)
+    }
+  }, [isLoading, sessions, currentActiveSessionId, agentId, setActiveSessionId])
 
   if (isLoading) {
     return (
