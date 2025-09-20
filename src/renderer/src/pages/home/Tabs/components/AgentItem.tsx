@@ -1,7 +1,7 @@
-import { Avatar, Button, cn, useDisclosure } from '@heroui/react'
+import { Avatar, Button, cn } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { getAgentAvatar } from '@renderer/config/agent'
+import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings'
 import { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { FC, memo, useCallback } from 'react'
@@ -18,7 +18,7 @@ interface AgentItemProps {
 
 const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) => {
   const { t } = useTranslation()
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  // const { isOpen, onOpen, onClose } = useDisclosure()
   // const { agents } = useAgents()
 
   const AgentLabel = useCallback(() => {
@@ -45,8 +45,11 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
         <ContextMenuContent>
           <ContextMenuItem
             key="edit"
-            onClick={() => {
-              onOpen()
+            onClick={async () => {
+              // onOpen()
+              await AgentSettingsPopup.show({
+                agentId: agent.id
+              })
             }}>
             <EditIcon size={14} />
             {t('common.edit')}
@@ -68,7 +71,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      <AgentModal isOpen={isOpen} onClose={onClose} agent={agent} />
+      {/* <AgentModal isOpen={isOpen} onClose={onClose} agent={agent} /> */}
     </>
   )
 }
