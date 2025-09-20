@@ -22,6 +22,14 @@
       "title": "編集エージェント"
     },
     "session": {
+      "accessible_paths": {
+        "add": "[to be translated]:Add directory",
+        "duplicate": "[to be translated]:This directory is already included.",
+        "empty": "[to be translated]:Select at least one directory that the agent can access.",
+        "label": "[to be translated]:Accessible directories",
+        "required": "[to be translated]:Please select at least one accessible directory.",
+        "select_failed": "[to be translated]:Failed to select directory."
+      },
       "add": {
         "title": "セッションを追加"
       },
@@ -52,6 +60,9 @@
           "failed": "セッションの更新に失敗しました"
         }
       }
+    },
+    "settings": {
+      "essential": "[to be translated]:Essential Settings"
     },
     "update": {
       "error": {

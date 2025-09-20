@@ -22,6 +22,14 @@
       "title": "Éditer Agent"
     },
     "session": {
+      "accessible_paths": {
+        "add": "Ajouter un répertoire",
+        "duplicate": "Ce répertoire est déjà inclus.",
+        "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
+        "label": "Répertoires accessibles",
+        "required": "Veuillez sélectionner au moins un répertoire accessible.",
+        "select_failed": "Échec de la sélection du répertoire."
+      },
       "add": {
         "title": "Ajouter une session"
       },
@@ -51,15 +59,10 @@
         "error": {
           "failed": "Échec de la mise à jour de la session"
         }
-      },
-      "accessible_paths": {
-        "label": "Répertoires accessibles",
-        "add": "Ajouter un répertoire",
-        "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
-        "required": "Veuillez sélectionner au moins un répertoire accessible.",
-        "duplicate": "Ce répertoire est déjà inclus.",
-        "select_failed": "Échec de la sélection du répertoire."
       }
+    },
+    "settings": {
+      "essential": "[to be translated]:Essential Settings"
     },
     "update": {
       "error": {

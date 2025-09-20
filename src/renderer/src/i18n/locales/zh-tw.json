@@ -22,6 +22,14 @@
       "title": "編輯 Agent"
     },
     "session": {
+      "accessible_paths": {
+        "add": "新增目錄",
+        "duplicate": "此目錄已包含在內。",
+        "empty": "選擇至少一個代理可以存取的目錄。",
+        "label": "可存取的目錄",
+        "required": "請至少選擇一個可存取的目錄。",
+        "select_failed": "無法選擇目錄。"
+      },
       "add": {
         "title": "新增會議"
       },
@@ -51,15 +59,10 @@
         "error": {
           "failed": "無法更新工作階段"
         }
-      },
-      "accessible_paths": {
-        "label": "可存取的目錄",
-        "add": "新增目錄",
-        "empty": "選擇至少一個代理可以存取的目錄。",
-        "required": "請至少選擇一個可存取的目錄。",
-        "duplicate": "此目錄已包含在內。",
-        "select_failed": "無法選擇目錄。"
       }
+    },
+    "settings": {
+      "essential": "[to be translated]:Essential Settings"
     },
     "update": {
       "error": {

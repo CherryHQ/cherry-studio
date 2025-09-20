@@ -22,6 +22,14 @@
       "title": "Agent Editor"
     },
     "session": {
+      "accessible_paths": {
+        "add": "Adicionar diretório",
+        "duplicate": "Este diretório já está incluído.",
+        "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
+        "label": "Diretórios acessíveis",
+        "required": "Por favor, selecione pelo menos um diretório acessível.",
+        "select_failed": "Falha ao selecionar o diretório."
+      },
       "add": {
         "title": "Adicionar uma sessão"
       },
@@ -51,15 +59,10 @@
         "error": {
           "failed": "Falha ao atualizar a sessão"
         }
-      },
-      "accessible_paths": {
-        "label": "Diretórios acessíveis",
-        "add": "Adicionar diretório",
-        "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
-        "required": "Por favor, selecione pelo menos um diretório acessível.",
-        "duplicate": "Este diretório já está incluído.",
-        "select_failed": "Falha ao selecionar o diretório."
       }
+    },
+    "settings": {
+      "essential": "[to be translated]:Essential Settings"
     },
     "update": {
       "error": {

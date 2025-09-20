@@ -22,6 +22,14 @@
       "title": "Agent de edición"
     },
     "session": {
+      "accessible_paths": {
+        "add": "Agregar directorio",
+        "duplicate": "Este directorio ya está incluido.",
+        "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
+        "label": "Directorios accesibles",
+        "required": "Por favor, seleccione al menos un directorio accesible.",
+        "select_failed": "Error al seleccionar el directorio."
+      },
       "add": {
         "title": "Agregar una sesión"
       },
@@ -51,15 +59,10 @@
         "error": {
           "failed": "Error al actualizar la sesión"
         }
-      },
-      "accessible_paths": {
-        "label": "Directorios accesibles",
-        "add": "Agregar directorio",
-        "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
-        "required": "Por favor, seleccione al menos un directorio accesible.",
-        "duplicate": "Este directorio ya está incluido.",
-        "select_failed": "Error al seleccionar el directorio."
       }
+    },
+    "settings": {
+      "essential": "[to be translated]:Essential Settings"
     },
     "update": {
       "error": {

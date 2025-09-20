@@ -22,6 +22,14 @@
       "title": "Edit Agent"
     },
     "session": {
+      "accessible_paths": {
+        "add": "Add directory",
+        "duplicate": "This directory is already included.",
+        "empty": "Select at least one directory that the agent can access.",
+        "label": "Accessible directories",
+        "required": "Please select at least one accessible directory.",
+        "select_failed": "Failed to select directory."
+      },
       "add": {
         "title": "Add a session"
       },
@@ -51,15 +59,10 @@
         "error": {
           "failed": "Failed to update the session"
         }
-      },
-      "accessible_paths": {
-        "label": "Accessible directories",
-        "add": "Add directory",
-        "empty": "Select at least one directory that the agent can access.",
-        "required": "Please select at least one accessible directory.",
-        "duplicate": "This directory is already included.",
-        "select_failed": "Failed to select directory."
       }
+    },
+    "settings": {
+      "essential": "Essential Settings"
     },
     "update": {
       "error": {
