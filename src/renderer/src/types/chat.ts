@@ -1,1 +1,1 @@
-export type Tab = 'assistants' | 'topic' | 'settings' | 'agents' | 'sessions'
+export type Tab = 'assistants' | 'topic' | 'settings'

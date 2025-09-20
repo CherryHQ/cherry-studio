@@ -13,9 +13,7 @@ import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { AgentsTab as Agents } from './AgentsTab'
 import Assistants from './AssistantsTab'
-import Sessions from './SessionsTab'
 import Settings from './SettingsTab'
 import Topics from './TopicsTab'
 
@@ -127,14 +125,8 @@ const HomeTabs: FC<Props> = ({
           <TabItem active={tab === 'assistants'} onClick={() => setTab('assistants')}>
             {t('assistants.abbr')}
           </TabItem>
-          <TabItem active={tab === 'agents'} onClick={() => setTab('agents')}>
-            {t('agents.title')}
-          </TabItem>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {t('common.topics')}
-          </TabItem>
-          <TabItem active={tab === 'sessions'} onClick={() => setTab('sessions')}>
-            {t('agent.session.label_other')}
           </TabItem>
           <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
             {t('settings.title')}
@@ -170,8 +162,6 @@ const HomeTabs: FC<Props> = ({
             position={position}
           />
         )}
-        {tab === 'agents' && <Agents />}
-        {tab === 'sessions' && <Sessions />}
         {tab === 'settings' && <Settings assistant={activeAssistant} />}
       </TabContent>
     </Container>

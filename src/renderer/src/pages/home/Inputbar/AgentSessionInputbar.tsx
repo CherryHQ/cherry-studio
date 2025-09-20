@@ -7,8 +7,8 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
 import { useAppDispatch } from '@renderer/store'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
-import type { Assistant, Message, MessageBlock, Model, Topic } from '@renderer/types'
-import { MessageBlockStatus } from '@renderer/types/newMessage'
+import type { Assistant, Message, Model, Topic } from '@renderer/types'
+import { MessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
@@ -126,7 +126,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
 
       const userMessage: Message = createMessage('user', sessionTopicId, agentId, {
         id: userMessageId,
-        blocks: userMessageBlocks.map((block) => block.id),
+        blocks: userMessageBlocks.map((block) => block?.id),
         model,
         modelId: model?.id
       })

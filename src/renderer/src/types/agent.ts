@@ -4,7 +4,7 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
-import { TextStreamPart } from 'ai'
+import { ModelMessage, TextStreamPart } from 'ai'
 import { z } from 'zod'
 
 import type { Message, MessageBlock } from './newMessage'

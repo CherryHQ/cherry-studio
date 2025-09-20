@@ -9,10 +9,11 @@ import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentItem from './components/AgentItem'
+import { SectionName } from './components/SectionName'
 
 interface AssistantsTabProps {}
 
-export const AgentsTab: FC<AssistantsTabProps> = () => {
+export const Agents: FC<AssistantsTabProps> = () => {
   const { agents, deleteAgent, isLoading } = useAgents()
   const { t } = useTranslation()
   const { chat } = useRuntime()
@@ -34,7 +35,8 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
   }, [isLoading, agents, activeAgentId, setActiveAgentId])
 
   return (
-    <div className="agents-tab h-full w-full p-2">
+    <div className="agents-tab h-full w-full">
+      <SectionName name={t('common.agent_other')} />
       {isLoading && <Spinner />}
       {!isLoading &&
         agents.map((agent) => (
@@ -51,8 +53,8 @@ export const AgentsTab: FC<AssistantsTabProps> = () => {
           content: (
             <Button
               onPress={(e) => e.continuePropagation()}
+              startContent={<Plus size={16} className="mr-1 shrink-0 translate-x-[-2px]" />}
               className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
-              <Plus size={16} className="mr-1 shrink-0" />
               {t('agent.add.title')}
             </Button>
           )
