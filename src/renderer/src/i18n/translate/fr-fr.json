@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "Échec de l'ajout de l'agent",
         "invalid_agent": "Agent invalide"
       },
       "title": "Ajouter un agent",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "La suppression de cet Agent entraînera la terminaison forcée et la suppression de toutes les sessions associées. Êtes-vous certain ?",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "Échec de la suppression de l'agent"
       },
       "title": "Supprimer l'Agent"
     },
@@ -23,47 +23,47 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "Ajouter une session"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "Échec de l'ajout d'une session"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "Êtes-vous sûr de vouloir supprimer cette session ?",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "Échec de la suppression de la session"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "Supprimer la session"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "Session d'édition"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "Échec de l'obtention de la session"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "Session",
+      "label_other": "Séances",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "Échec de la mise à jour de la session"
         }
       },
       "accessible_paths": {
-        "label": "[to be translated]:Accessible directories",
-        "add": "[to be translated]:Add directory",
-        "empty": "[to be translated]:Select at least one directory that the agent can access.",
-        "required": "[to be translated]:Please select at least one accessible directory.",
-        "duplicate": "[to be translated]:This directory is already included.",
-        "select_failed": "[to be translated]:Failed to select directory."
+        "label": "Répertoires accessibles",
+        "add": "Ajouter un répertoire",
+        "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
+        "required": "Veuillez sélectionner au moins un répertoire accessible.",
+        "duplicate": "Ce répertoire est déjà inclus.",
+        "select_failed": "Échec de la sélection du répertoire."
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "Échec de la mise à jour de l'agent"
       }
     }
   },
@@ -829,7 +829,7 @@
     "default": "Défaut",
     "delete": "Supprimer",
     "delete_confirm": "Êtes-vous sûr de vouloir supprimer ?",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "Échec de la suppression",
     "delete_success": "Suppression réussie",
     "description": "Description",
     "detail": "détails",
@@ -841,7 +841,7 @@
     "enabled": "Activé",
     "error": "erreur",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "Échec de la création du message",
       "validation": "Échec de la vérification"
     },
     "expand": "Développer",
@@ -970,7 +970,7 @@
     "modelType": "Type de modèle",
     "name": "Nom d'erreur",
     "no_api_key": "La clé API n'est pas configurée",
-    "no_response": "[to be translated]:No response",
+    "no_response": "Pas de réponse",
     "originalError": "Erreur d'origine",
     "originalMessage": "message original",
     "parameter": "paramètre",

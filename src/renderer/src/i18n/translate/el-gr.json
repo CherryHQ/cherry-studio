@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "Αποτυχία προσθήκης πράκτορα",
         "invalid_agent": "Μη έγκυρος Agent"
       },
       "title": "Προσθήκη Agent",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "Η διαγραφή αυτού του Agent θα τερματίσει βίαια και θα διαγράψει όλες τις συνεδρίες υπό αυτόν τον Agent. Είστε σίγουροι;",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "Αποτυχία διαγραφής του πράκτορα"
       },
       "title": "Διαγραφή Agent"
     },
@@ -23,47 +23,47 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "Προσθήκη συνεδρίας"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "Αποτυχία προσθήκης συνεδρίας"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "Είσαι σίγουρος ότι θέλεις να διαγράψεις αυτήν τη συνεδρία;",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "Αποτυχία διαγραφής της συνεδρίας"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "Διαγραφή συνεδρίας"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "Συνεδρία επεξεργασίας"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "Αποτυχία λήψης της συνεδρίας"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "Συνεδρία",
+      "label_other": "Συνεδρίες",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "Αποτυχία ενημέρωσης της συνεδρίας"
         }
       },
       "accessible_paths": {
-        "label": "[to be translated]:Accessible directories",
-        "add": "[to be translated]:Add directory",
-        "empty": "[to be translated]:Select at least one directory that the agent can access.",
-        "required": "[to be translated]:Please select at least one accessible directory.",
-        "duplicate": "[to be translated]:This directory is already included.",
-        "select_failed": "[to be translated]:Failed to select directory."
+        "label": "Προσβάσιμοι κατάλογοι",
+        "add": "Προσθήκη καταλόγου",
+        "empty": "Επιλέξτε τουλάχιστον έναν κατάλογο στον οποίο ο πράκτορας μπορεί να έχει πρόσβαση.",
+        "required": "Παρακαλώ επιλέξτε τουλάχιστον έναν προσβάσιμο κατάλογο.",
+        "duplicate": "Αυτός ο κατάλογος έχει ήδη συμπεριληφθεί.",
+        "select_failed": "Αποτυχία επιλογής καταλόγου."
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "Αποτυχία ενημέρωσης του πράκτορα"
       }
     }
   },
@@ -829,7 +829,7 @@
     "default": "Προεπιλογή",
     "delete": "Διαγραφή",
     "delete_confirm": "Είστε βέβαιοι ότι θέλετε να διαγράψετε;",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "Αποτυχία διαγραφής",
     "delete_success": "Η διαγραφή ήταν επιτυχής",
     "description": "Περιγραφή",
     "detail": "Λεπτομέρειες",
@@ -841,7 +841,7 @@
     "enabled": "Ενεργοποιημένο",
     "error": "σφάλμα",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "Αποτυχία δημιουργίας μηνύματος",
       "validation": "Η επαλήθευση απέτυχε"
     },
     "expand": "Επεκτάση",
@@ -970,7 +970,7 @@
     "modelType": "Τύπος μοντέλου",
     "name": "Λάθος όνομα",
     "no_api_key": "Δεν έχετε ρυθμίσει το κλειδί API",
-    "no_response": "[to be translated]:No response",
+    "no_response": "Καμία απάντηση",
     "originalError": "Αρχικό σφάλμα",
     "originalMessage": "Αρχικό μήνυμα",
     "parameter": "παράμετροι",

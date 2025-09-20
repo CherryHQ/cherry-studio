@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "エージェントの追加に失敗しました",
         "invalid_agent": "無効なエージェント"
       },
       "title": "エージェントを追加",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "このエージェントを削除すると、このエージェントのすべてのセッションが強制的に終了し、削除されます。本当によろしいですか？",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "エージェントの削除に失敗しました"
       },
       "title": "エージェントを削除"
     },
@@ -23,39 +23,39 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "セッションを追加"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "セッションの追加に失敗しました"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "このセッションを削除してもよろしいですか？",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "セッションの削除に失敗しました"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "セッションを削除"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "編集セッション"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "セッションの取得に失敗しました"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "セッション",
+      "label_other": "セッション",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "セッションの更新に失敗しました"
         }
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "エージェントの更新に失敗しました"
       }
     }
   },
@@ -821,7 +821,7 @@
     "default": "デフォルト",
     "delete": "削除",
     "delete_confirm": "削除してもよろしいですか？",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "削除に失敗しました",
     "delete_success": "削除に成功しました",
     "description": "説明",
     "detail": "詳細",
@@ -833,7 +833,7 @@
     "enabled": "有効",
     "error": "エラー",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "メッセージの作成に失敗しました",
       "validation": "検証に失敗しました"
     },
     "expand": "展開",
@@ -962,7 +962,7 @@
     "modelType": "モデルの種類",
     "name": "エラー名",
     "no_api_key": "APIキーが設定されていません",
-    "no_response": "[to be translated]:No response",
+    "no_response": "応答なし",
     "originalError": "元のエラー",
     "originalMessage": "元のメッセージ",
     "parameter": "パラメータ",

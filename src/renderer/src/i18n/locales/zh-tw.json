@@ -2,7 +2,7 @@
   "agent": {
     "add": {
       "error": {
-        "failed": "[to be translated]:Failed to add agent",
+        "failed": "無法新增代理人",
         "invalid_agent": "無效的 Agent"
       },
       "title": "新增代理",
@@ -14,7 +14,7 @@
     "delete": {
       "content": "刪除該 Agent 將強制終止並刪除該 Agent 下的所有會話。您確定嗎？",
       "error": {
-        "failed": "[to be translated]:Failed to delete the agent"
+        "failed": "刪除代理程式失敗"
       },
       "title": "刪除 Agent"
     },
@@ -23,47 +23,47 @@
     },
     "session": {
       "add": {
-        "title": "[to be translated]:Add a session"
+        "title": "新增會議"
       },
       "create": {
         "error": {
-          "failed": "[to be translated]:Failed to add a session"
+          "failed": "無法新增工作階段"
         }
       },
       "delete": {
-        "content": "[to be translated]:Are you sure to delete this session?",
+        "content": "您確定要刪除此工作階段嗎？",
         "error": {
-          "failed": "[to be translated]:Failed to delete the session"
+          "failed": "無法刪除工作階段"
         },
-        "title": "[to be translated]:Delete session"
+        "title": "刪除工作階段"
       },
       "edit": {
-        "title": "[to be translated]:Edit session"
+        "title": "編輯工作階段"
       },
       "get": {
         "error": {
-          "failed": "[to be translated]:Failed to get the session"
+          "failed": "無法取得工作階段"
         }
       },
-      "label_one": "[to be translated]:Session",
-      "label_other": "[to be translated]:Sessions",
+      "label_one": "會議",
+      "label_other": "Sessions",
       "update": {
         "error": {
-          "failed": "[to be translated]:Failed to update the session"
+          "failed": "無法更新工作階段"
         }
       },
       "accessible_paths": {
-        "label": "[to be translated]:Accessible directories",
-        "add": "[to be translated]:Add directory",
-        "empty": "[to be translated]:Select at least one directory that the agent can access.",
-        "required": "[to be translated]:Please select at least one accessible directory.",
-        "duplicate": "[to be translated]:This directory is already included.",
-        "select_failed": "[to be translated]:Failed to select directory."
+        "label": "可存取的目錄",
+        "add": "新增目錄",
+        "empty": "選擇至少一個代理可以存取的目錄。",
+        "required": "請至少選擇一個可存取的目錄。",
+        "duplicate": "此目錄已包含在內。",
+        "select_failed": "無法選擇目錄。"
       }
     },
     "update": {
       "error": {
-        "failed": "[to be translated]:Failed to update the agent"
+        "failed": "無法更新代理程式"
       }
     }
   },
@@ -829,7 +829,7 @@
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
-    "delete_failed": "[to be translated]:Failed to delete",
+    "delete_failed": "刪除失敗",
     "delete_success": "刪除成功",
     "description": "描述",
     "detail": "詳情",
@@ -841,7 +841,7 @@
     "enabled": "已啟用",
     "error": "錯誤",
     "errors": {
-      "create_message": "[to be translated]:Failed to create message",
+      "create_message": "無法建立訊息",
       "validation": "驗證失敗"
     },
     "expand": "展開",
@@ -970,7 +970,7 @@
     "modelType": "模型類型",
     "name": "錯誤名稱",
     "no_api_key": "API 金鑰未設定",
-    "no_response": "[to be translated]:No response",
+    "no_response": "無回應",
     "originalError": "原錯誤",
     "originalMessage": "原消息",
     "parameter": "參數",
