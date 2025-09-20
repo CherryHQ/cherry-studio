@@ -21,7 +21,7 @@ export const hasModel = (m?: Model) => {
 
 export function getModelName(model?: Model | ApiModel) {
   const modelName = model?.name || model?.id || ''
-
+  console.log(model)
   // For API models that have provider_name field, use it directly
   const apiModel = model as ApiModel
   if (apiModel?.provider_name) {

@@ -190,13 +190,7 @@ export async function validateModelId(
 
 export function transformModelToOpenAI(model: Model, providers: Provider[]): ApiModel {
   const provider = providers.find((p) => p.id === model.provider)
-  const providerDisplayName =
-    provider?.name ??
-    (provider as { providerName?: string })?.providerName ??
-    (provider as { displayName?: string })?.displayName ??
-    (model as { providerName?: string; providerDisplayName?: string })?.providerName ??
-    (model as { providerDisplayName?: string })?.providerDisplayName ??
-    provider?.id
+  const providerDisplayName = provider?.name
   return {
     id: `${model.provider}:${model.id}`,
     object: 'model',
