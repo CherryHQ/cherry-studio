@@ -1,7 +1,6 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 import { AppLogo, UserAvatar } from '@renderer/config/env'
 import type { MinAppType, Topic, WebSearchStatus } from '@renderer/types'
-import { Tab } from '@renderer/types/chat'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 export interface ChatState {
@@ -15,7 +14,6 @@ export interface ChatState {
   activeSessionId: Record<string, string | null>
   /** meanwhile active Assistants or Agents */
   activeTopicOrSession: 'topic' | 'session'
-  activeTabId: Tab
   /** topic ids that are currently being renamed */
   renamingTopics: string[]
   /** topic ids that are newly renamed */
@@ -86,7 +84,6 @@ const initialState: RuntimeState = {
   chat: {
     isMultiSelectMode: false,
     selectedMessageIds: [],
-    activeTabId: 'assistants',
     activeTopic: null,
     activeAgentId: null,
     activeTopicOrSession: 'topic',
@@ -162,9 +159,6 @@ const runtimeSlice = createSlice({
       const { agentId, sessionId } = action.payload
       state.chat.activeSessionId[agentId] = sessionId
     },
-    setActiveTabIdAction: (state, action: PayloadAction<Tab>) => {
-      state.chat.activeTabId = action.payload
-    },
     setActiveTopicOrSessionAction: (state, action: PayloadAction<'topic' | 'session'>) => {
       state.chat.activeTopicOrSession = action.payload
     },
@@ -208,7 +202,6 @@ export const {
   setActiveTopic,
   setActiveAgentId,
   setActiveSessionIdAction,
-  setActiveTabIdAction,
   setActiveTopicOrSessionAction,
   setRenamingTopics,
   setNewlyRenamedTopics,

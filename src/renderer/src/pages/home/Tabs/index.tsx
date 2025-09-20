@@ -4,12 +4,10 @@ import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { useAppDispatch } from '@renderer/store'
-import { setActiveTabIdAction } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { Tab } from '@renderer/types/chat'
 import { classNames, uuid } from '@renderer/utils'
-import { FC, useCallback, useEffect } from 'react'
+import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -47,21 +45,9 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
 
   const { chat } = useRuntime()
-  const { activeTabId: tab, activeTopicOrSession } = chat
-  const dispatch = useAppDispatch()
+  const { activeTopicOrSession } = chat
 
-  const setTab = useCallback(
-    (tab: Tab) => {
-      dispatch(setActiveTabIdAction(tab))
-    },
-    [dispatch]
-  )
-
-  useEffect(() => {
-    setTab(position === 'left' ? _tab || 'assistants' : 'topic')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
+  const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const borderStyle = '0.5px solid var(--color-border)'
   const border =
     position === 'left'
@@ -113,7 +99,6 @@ const HomeTabs: FC<Props> = ({
     if (position === 'left' && topicPosition === 'right' && tab === 'topic') {
       setTab('assistants')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
   return (
@@ -137,7 +122,7 @@ const HomeTabs: FC<Props> = ({
       {position === 'right' && topicPosition === 'right' && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
+            {activeTopicOrSession === 'topic' ? t('common.topics') : t('agent.session.label_other')}
           </TabItem>
           <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
             {t('settings.title')}
