@@ -73,7 +73,9 @@ const Assistants: FC<AssistantsProps> = ({
 
   const renderAddAssistantButton = useMemo(() => {
     return (
-      <Button onPress={onCreateAssistant} className="justify-start bg-transparent text-foreground-500 hover:bg-accent">
+      <Button
+        onPress={onCreateAssistant}
+        className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
         <Plus size={16} style={{ marginRight: 4, flexShrink: 0 }} />
         {t('chat.add.assistant.title')}
       </Button>
