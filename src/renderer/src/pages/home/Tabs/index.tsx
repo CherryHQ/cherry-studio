@@ -47,7 +47,7 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
 
   const { chat } = useRuntime()
-  const { activeTabId: tab } = chat
+  const { activeTabId: tab, activeTopicOrSession } = chat
   const dispatch = useAppDispatch()
 
   const setTab = useCallback(
@@ -126,7 +126,7 @@ const HomeTabs: FC<Props> = ({
             {t('assistants.abbr')}
           </TabItem>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {t('common.topics')}
+            {activeTopicOrSession === 'topic' ? t('common.topics') : t('agent.session.label_other')}
           </TabItem>
           <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
             {t('settings.title')}

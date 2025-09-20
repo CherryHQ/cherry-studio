@@ -3,8 +3,8 @@ import { Assistant } from '@renderer/types'
 import { FC, useRef } from 'react'
 import styled from 'styled-components'
 
-import { Agents } from './Agents'
-import Assistants from './Assistants'
+import { Agents } from './components/Agents'
+import Assistants from './components/Assistants'
 
 interface AssistantsTabProps {
   activeAssistant: Assistant

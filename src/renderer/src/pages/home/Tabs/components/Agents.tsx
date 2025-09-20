@@ -3,13 +3,13 @@ import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
+import { setActiveAgentId as setActiveAgentIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import AgentItem from './components/AgentItem'
-import { SectionName } from './components/SectionName'
+import AgentItem from './AgentItem'
+import { SectionName } from './SectionName'
 
 interface AssistantsTabProps {}
 
@@ -45,7 +45,10 @@ export const Agents: FC<AssistantsTabProps> = () => {
             agent={agent}
             isActive={agent.id === activeAgentId}
             onDelete={() => deleteAgent(agent.id)}
-            onPress={() => setActiveAgentId(agent.id)}
+            onPress={() => {
+              setActiveAgentId(agent.id)
+              dispatch(setActiveTopicOrSessionAction('session'))
+            }}
           />
         ))}
       <AgentModal

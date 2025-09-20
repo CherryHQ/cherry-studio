@@ -13,6 +13,7 @@ export interface ChatState {
   /** UI state. Map agent id to active session id.
    *  null represents no active session  */
   activeSessionId: Record<string, string | null>
+  /** meanwhile active Assistants or Agents */
   activeTopicOrSession: 'topic' | 'session'
   activeTabId: Tab
   /** topic ids that are currently being renamed */

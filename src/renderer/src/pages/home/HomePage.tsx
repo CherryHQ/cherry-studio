@@ -1,11 +1,12 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAssistants } from '@renderer/hooks/useAssistant'
+import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
 import { useActiveTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import { newMessagesActions } from '@renderer/store/newMessage'
-import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveAgentId, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { Assistant, Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { AnimatePresence, motion } from 'motion/react'
@@ -32,6 +33,8 @@ const HomePage: FC = () => {
   const { activeTopic, setActiveTopic: _setActiveTopic } = useActiveTopic(activeAssistant?.id, state?.topic)
   const { showAssistants, showTopics, topicPosition } = useSettings()
   const dispatch = useDispatch()
+  const { chat } = useRuntime()
+  const { activeTopicOrSession } = chat
 
   _activeAssistant = activeAssistant
 
@@ -90,6 +93,29 @@ const HomePage: FC = () => {
       window.api.window.resetMinimumSize()
     }
   }, [showAssistants, showTopics, topicPosition])
+
+  useEffect(() => {
+    if (activeTopicOrSession === 'session') {
+      setActiveAssistant({
+        id: 'fake',
+        name: '',
+        prompt: '',
+        topics: [
+          {
+            id: 'fake',
+            assistantId: 'fake',
+            name: 'fake',
+            createdAt: '',
+            updatedAt: '',
+            messages: []
+          }
+        ],
+        type: ''
+      })
+    } else if (activeTopicOrSession === 'topic') {
+      dispatch(setActiveAgentId('fake'))
+    }
+  }, [activeTopicOrSession, dispatch, setActiveAssistant])
 
   return (
     <Container id="home-page">

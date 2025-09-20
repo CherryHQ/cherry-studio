@@ -28,7 +28,7 @@ const SessionsTab: FC<SessionsTabProps> = () => {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.3 }}
-            className="text-sm text-foreground-500">
+            className="text-foreground-500 text-sm">
             {t('common.loading')}...
           </motion.p>
         </motion.div>

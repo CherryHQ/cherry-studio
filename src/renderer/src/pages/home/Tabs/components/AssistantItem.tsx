@@ -8,6 +8,8 @@ import { useTags } from '@renderer/hooks/useTags'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { useAppDispatch } from '@renderer/store'
+import { setActiveTopicOrSessionAction } from '@renderer/store/runtime'
 import { Assistant, AssistantsSortType } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
@@ -64,6 +66,7 @@ const AssistantItem: FC<AssistantItemProps> = ({
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
+  const dispatch = useAppDispatch()
 
   useEffect(() => {
     if (isActive) {
@@ -128,7 +131,8 @@ const AssistantItem: FC<AssistantItemProps> = ({
       }
     }
     onSwitch(assistant)
-  }, [clickAssistantToShowTopic, onSwitch, assistant, topicPosition])
+    dispatch(setActiveTopicOrSessionAction('topic'))
+  }, [clickAssistantToShowTopic, onSwitch, assistant, dispatch, topicPosition])
 
   const assistantName = useMemo(() => assistant.name || t('chat.default.name'), [assistant.name, t])
   const fullAssistantName = useMemo(
