@@ -1,7 +1,7 @@
 import CodeEditor from '@renderer/components/CodeEditor'
 import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { AgentEntity, UpdateAgentForm } from '@renderer/types'
@@ -16,7 +16,7 @@ import { SettingDivider } from '..'
 
 interface AgentEssentialSettingsProps {
   agent: AgentEntity | undefined | null
-  update: ReturnType<typeof useAgent>['updateAgent']
+  update: ReturnType<typeof useUpdateAgent>
 }
 
 const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {

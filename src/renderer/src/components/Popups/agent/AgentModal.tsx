@@ -19,6 +19,7 @@ import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useModels } from '@renderer/hooks/agents/useModels'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -78,7 +79,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
-  const { addAgent, updateAgent } = useAgents()
+  const { addAgent } = useAgents()
+  const updateAgent = useUpdateAgent()
   // hard-coded. We only support anthropic for now.
   const { models } = useModels({ providerType: 'anthropic' })
   const isEditing = (agent?: AgentEntity) => agent !== undefined
@@ -348,7 +350,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                   />
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">
+                      <span className="font-medium text-foreground text-sm">
                         {t('agent.session.accessible_paths.label')}
                       </span>
                       <Button size="sm" variant="flat" onPress={addAccessiblePath}>
@@ -371,7 +373,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-foreground-400">{t('agent.session.accessible_paths.empty')}</p>
+                      <p className="text-foreground-400 text-sm">{t('agent.session.accessible_paths.empty')}</p>
                     )}
                   </div>
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />

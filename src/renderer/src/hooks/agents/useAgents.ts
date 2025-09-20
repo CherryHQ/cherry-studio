@@ -1,4 +1,4 @@
-import { AddAgentForm, UpdateAgentForm } from '@renderer/types'
+import { AddAgentForm } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,7 @@ export const useAgents = () => {
   const key = client.agentPaths.base
   const fetcher = useCallback(async () => {
     const result = await client.listAgents()
+    // NOTE: We only use the array for now. useUpdateAgent depends on this behavior.
     return result.data
   }, [client])
   const { data, error, isLoading, mutate } = useSWR(key, fetcher)
@@ -24,20 +25,6 @@ export const useAgents = () => {
         window.toast.success(t('common.add_success'))
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed')))
-      }
-    },
-    [client, mutate, t]
-  )
-
-  const updateAgent = useCallback(
-    async (form: UpdateAgentForm) => {
-      try {
-        // may change to optimistic update
-        const result = await client.updateAgent(form)
-        mutate((prev) => prev?.map((a) => (a.id === result.id ? result : a)) ?? [])
-        window.toast.success(t('common.update_success'))
-      } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.update.error.failed')))
       }
     },
     [client, mutate, t]
@@ -69,7 +56,6 @@ export const useAgents = () => {
     error,
     isLoading,
     addAgent,
-    updateAgent,
     deleteAgent,
     getAgent
   }

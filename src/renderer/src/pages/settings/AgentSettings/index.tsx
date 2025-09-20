@@ -3,6 +3,7 @@ import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { getAgentAvatar } from '@renderer/config/agent'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +27,8 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const { t } = useTranslation()
   const [menu, setMenu] = useState<AgentSettingPopupTab>(tab || 'essential')
 
-  const { agent, updateAgent } = useAgent(agentId)
+  const { agent } = useAgent(agentId)
+  const updateAgent = useUpdateAgent()
 
   const onOk = () => {
     setOpen(false)
