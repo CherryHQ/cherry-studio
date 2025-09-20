@@ -6,6 +6,7 @@ import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/c
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
+import anthropicService from "@main/services/AnthropicService";
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
@@ -67,8 +68,19 @@ class ClaudeCodeService implements AgentServiceInterface {
     const apiConfig = await apiConfigService.get()
     // process.env.ANTHROPIC_AUTH_TOKEN = apiConfig.apiKey
     // process.env.ANTHROPIC_BASE_URL = `http://${apiConfig.host}:${apiConfig.port}`
-    process.env.ANTHROPIC_AUTH_TOKEN = modelInfo.provider.apiKey
-    process.env.ANTHROPIC_BASE_URL = modelInfo.provider.apiHost
+    const env = {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+    }
+
+    if (modelInfo.provider.authType === 'oauth') {
+      env['ANTHROPIC_AUTH_TOKEN'] = await anthropicService.getValidAccessToken()
+      env['ANTHROPIC_BASE_URL'] = 'https://api.anthropic.com'
+    } else {
+      env['ANTHROPIC_AUTH_TOKEN'] = modelInfo.provider.apiKey
+      env['ANTHROPIC_API_KEY'] = modelInfo.provider.apiKey
+      env['ANTHROPIC_BASE_URL'] = modelInfo.provider.apiHost
+    }
 
     // Build SDK options from parameters
     const options: Options = {
