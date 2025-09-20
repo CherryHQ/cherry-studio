@@ -120,7 +120,7 @@ export async function reset() {
         content: i18n.t('message.reset.double.confirm.content'),
         centered: true,
         onOk: async () => {
-          await localStorage.clear()
+          localStorage.clear()
           await clearDatabase()
           await window.api.file.clear()
           window.api.reload()
@@ -223,7 +223,7 @@ export async function backupToWebdav({
           })
 
           // 筛选当前设备的备份文件
-          const currentDeviceFiles = files.filter((file) => {
+          const currentDeviceFiles = files.filter((file: { fileName: string }) => {
             // 检查文件名是否包含当前设备的标识信息
             return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
           })
@@ -389,7 +389,7 @@ export async function backupToS3({
           const files = await window.api.backup.listS3Files(s3Config)
 
           // 筛选当前设备的备份文件
-          const currentDeviceFiles = files.filter((file) => {
+          const currentDeviceFiles = files.filter((file: { fileName: string }) => {
             return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
           })
 
@@ -842,7 +842,7 @@ export async function handleData(data: Record<string, any>) {
       }
     }
 
-    await localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
+    localStorage.setItem('persist:cherry-studio', data.localStorage['persist:cherry-studio'])
     window.toast.success(i18n.t('message.restore.success'))
     setTimeout(() => window.api.reload(), 1000)
     return
@@ -981,14 +981,17 @@ export async function backupToLocal({
           const files = await window.api.backup.listLocalBackupFiles(localBackupDir)
 
           // Filter backups for current device
-          const currentDeviceFiles = files.filter((file) => {
+          const currentDeviceFiles = files.filter((file: { fileName: string }) => {
             return file.fileName.includes(deviceType) && file.fileName.includes(hostname)
           })
 
           if (currentDeviceFiles.length > localBackupMaxBackups) {
             // Sort by modified time (oldest first)
             const filesToDelete = currentDeviceFiles
-              .sort((a, b) => new Date(a.modifiedTime).getTime() - new Date(b.modifiedTime).getTime())
+              .sort(
+                (a: { modifiedTime: string }, b: { modifiedTime: string }) =>
+                  new Date(a.modifiedTime).getTime() - new Date(b.modifiedTime).getTime()
+              )
               .slice(0, currentDeviceFiles.length - localBackupMaxBackups)
 
             // Delete older backups
