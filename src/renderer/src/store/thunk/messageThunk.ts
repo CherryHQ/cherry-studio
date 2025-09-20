@@ -11,6 +11,7 @@ import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
+import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
@@ -441,6 +442,9 @@ const fetchAndProcessAgentResponseImpl = async (
     })
 
     const streamProcessorCallbacks = createStreamProcessor(callbacks)
+
+    // Emit initial chunk to mirror assistant behaviour and ensure pending UI state
+    streamProcessorCallbacks({ type: ChunkType.LLM_RESPONSE_CREATED })
 
     const state = getState()
     const userMessageEntity = state.messages.entities[userMessageId]
