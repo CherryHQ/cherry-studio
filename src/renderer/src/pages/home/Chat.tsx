@@ -17,7 +17,7 @@ import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useState } from 'react'
+import React, { FC, useMemo,useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -141,27 +141,27 @@ const Chat: FC<Props> = (props) => {
     ? 'calc(100vh - var(--navbar-height) - var(--navbar-height) - 12px)'
     : 'calc(100vh - var(--navbar-height))'
 
-  const SessionMessages = () => {
+  const SessionMessages = useMemo(() => {
     if (activeAgentId === null) {
-      return <div> Active Agent ID is invalid.</div>
+      return () => <div> Active Agent ID is invalid.</div>
     }
     const sessionId = activeSessionId[activeAgentId]
     if (!sessionId) {
-      return <div> Active Session ID is invalid.</div>
+      return () => <div> Active Session ID is invalid.</div>
     }
-    return <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
-  }
+    return () => <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
+  }, [activeAgentId, activeSessionId])
 
-  const SessionInputBar = () => {
+  const SessionInputBar = useMemo(() => {
     if (activeAgentId === null) {
-      return <div> Active Agent ID is invalid.</div>
+      return () => <div> Active Agent ID is invalid.</div>
     }
     const sessionId = activeSessionId[activeAgentId]
     if (!sessionId) {
-      return <div> Active Session ID is invalid.</div>
+      return () => <div> Active Session ID is invalid.</div>
     }
-    return <AgentSessionInputbar agentId={activeAgentId} sessionId={sessionId} />
-  }
+    return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={sessionId} />
+  }, [activeAgentId, activeSessionId])
 
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
