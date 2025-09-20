@@ -6,7 +6,6 @@ import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/c
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
-import anthropicService from "@main/services/AnthropicService";
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
@@ -74,8 +73,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (modelInfo.provider.authType === 'oauth') {
-      env['ANTHROPIC_AUTH_TOKEN'] = await anthropicService.getValidAccessToken()
-      env['ANTHROPIC_BASE_URL'] = 'https://api.anthropic.com'
+      // TODO: support claude code max oauth
+      // env['ANTHROPIC_AUTH_TOKEN'] = await anthropicService.getValidAccessToken()
+      // env['ANTHROPIC_BASE_URL'] = 'https://api.anthropic.com'
     } else {
       env['ANTHROPIC_AUTH_TOKEN'] = modelInfo.provider.apiKey
       env['ANTHROPIC_API_KEY'] = modelInfo.provider.apiKey
@@ -86,6 +86,8 @@ class ClaudeCodeService implements AgentServiceInterface {
     const options: Options = {
       abortController,
       cwd,
+      env,
+      model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.info('claude stderr', { chunk })
