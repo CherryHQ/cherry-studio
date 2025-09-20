@@ -17,6 +17,7 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/config/models'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { AgentEntity, AgentSessionEntity, BaseSessionForm, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
@@ -80,15 +81,16 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
   const { createSession, updateSession } = useSessions(agentId)
   // Only support claude code for now
   const { models } = useModels({ providerType: 'anthropic' })
+  const { agent } = useAgent(agentId)
   const isEditing = (session?: AgentSessionEntity) => session !== undefined
 
-  const [form, setForm] = useState<BaseSessionForm>(() => buildSessionForm(session))
+  const [form, setForm] = useState<BaseSessionForm>(() => buildSessionForm(session, agent ?? undefined))
 
   useEffect(() => {
     if (isOpen) {
-      setForm(buildSessionForm(session))
+      setForm(buildSessionForm(session, agent ?? undefined))
     }
-  }, [session, isOpen])
+  }, [session, agent, isOpen])
 
   const Item = useCallback(({ item }: { item: SelectedItemProps<BaseOption> }) => <Option option={item.data} />, [])
 
@@ -115,35 +117,6 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
     setForm((prev) => ({
       ...prev,
       instructions
-    }))
-  }, [])
-
-  const addAccessiblePath = useCallback(async () => {
-    try {
-      const selected = await window.api.file.selectFolder()
-      if (!selected) {
-        return
-      }
-      setForm((prev) => {
-        if (prev.accessible_paths.includes(selected)) {
-          window.toast.warning(t('agent.session.accessible_paths.duplicate'))
-          return prev
-        }
-        return {
-          ...prev,
-          accessible_paths: [...prev.accessible_paths, selected]
-        }
-      })
-    } catch (error) {
-      logger.error('Failed to select accessible path:', error as Error)
-      window.toast.error(t('agent.session.accessible_paths.select_failed'))
-    }
-  }, [t])
-
-  const removeAccessiblePath = useCallback((path: string) => {
-    setForm((prev) => ({
-      ...prev,
-      accessible_paths: prev.accessible_paths.filter((item) => item !== path)
     }))
   }, [])
 
@@ -284,35 +257,6 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">
-                        {t('agent.session.accessible_paths.label')}
-                      </span>
-                      <Button size="sm" variant="flat" onPress={addAccessiblePath}>
-                        {t('agent.session.accessible_paths.add')}
-                      </Button>
-                    </div>
-                    {form.accessible_paths.length > 0 ? (
-                      <div className="space-y-2">
-                        {form.accessible_paths.map((path) => (
-                          <div
-                            key={path}
-                            className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-3 py-2">
-                            <span className="truncate text-sm" title={path}>
-                              {path}
-                            </span>
-                            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
-                              {t('common.remove')}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-foreground-400">{t('agent.session.accessible_paths.empty')}</p>
-                    )}
-                  </div>
-                  {/* TODO: accessible paths */}
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>
                 <ModalFooter className="w-full">
