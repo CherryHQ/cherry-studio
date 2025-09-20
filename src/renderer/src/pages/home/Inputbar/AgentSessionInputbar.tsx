@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { QuickPanelView } from '@renderer/components/QuickPanel'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
@@ -108,12 +109,18 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
       })
       const userMessageBlocks: MessageBlock[] = [mainBlock]
 
+      // Extract the actual model ID from session.model (format: "sessionId:modelId")
+      const actualModelId = session?.model ? session.model.split(':').pop() : undefined
+
+      // Try to find the actual model from providers
+      const actualModel = actualModelId ? getModel(actualModelId) : undefined
+
       const model: Model | undefined = session?.model
         ? {
             id: session.model,
-            name: session.model.split(':').pop() || session.model, // Extract model name after ':'
-            provider: 'agent-session',
-            group: 'agent-session'
+            name: actualModel?.name || actualModelId || session.model, // Use actual model name if found
+            provider: actualModel?.provider || 'agent-session',
+            group: actualModel?.group || 'agent-session'
           }
         : undefined
 
