@@ -4,8 +4,10 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
-import { ModelMessage, modelMessageSchema, TextStreamPart } from 'ai'
+import { TextStreamPart } from 'ai'
 import { z } from 'zod'
+
+import type { Message, MessageBlock } from './newMessage'
 
 // ------------------ Core enums and helper types ------------------
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
@@ -109,8 +111,8 @@ export const AgentSessionMessageEntitySchema = z.object({
   id: z.number(), // Auto-increment primary key
   session_id: z.string(), // Reference to session
   // manual defined. may not synced with ai sdk definition
-  role: SessionMessageRoleSchema, // Enforce roles supported by modelMessageSchema
-  content: modelMessageSchema,
+  role: SessionMessageRoleSchema,
+  content: z.unknown(),
   agent_session_id: z.string(), // agent session id, use to resume agent session
   metadata: z.record(z.string(), z.any()).optional(), // Additional metadata (optional)
   created_at: z.iso.datetime(), // ISO timestamp
@@ -118,6 +120,35 @@ export const AgentSessionMessageEntitySchema = z.object({
 })
 
 export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
+
+export interface AgentPersistedMessage {
+  message: Message
+  blocks: MessageBlock[]
+}
+
+export interface AgentMessageUserPersistPayload {
+  payload: AgentPersistedMessage
+  metadata?: Record<string, unknown>
+  createdAt?: string
+}
+
+export interface AgentMessageAssistantPersistPayload {
+  payload: AgentPersistedMessage
+  metadata?: Record<string, unknown>
+  createdAt?: string
+}
+
+export interface AgentMessagePersistExchangePayload {
+  sessionId: string
+  agentSessionId: string
+  user?: AgentMessageUserPersistPayload
+  assistant?: AgentMessageAssistantPersistPayload
+}
+
+export interface AgentMessagePersistExchangeResult {
+  userMessage?: AgentSessionMessageEntity
+  assistantMessage?: AgentSessionMessageEntity
+}
 
 // ------------------ Session message payload ------------------
 

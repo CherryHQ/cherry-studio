@@ -51,6 +51,14 @@
         "error": {
           "failed": "更新会话失败"
         }
+      },
+      "accessible_paths": {
+        "label": "工作目录",
+        "add": "添加目录",
+        "empty": "请选择至少一个智能体可访问的目录。",
+        "required": "请至少选择一个可访问的目录。",
+        "duplicate": "该目录已添加。",
+        "select_failed": "选择目录失败"
       }
     },
     "update": {

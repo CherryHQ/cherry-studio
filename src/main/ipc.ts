@@ -16,6 +16,7 @@ import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
+import { agentMessageRepository } from './services/agents/database'
 import { apiServerService } from './services/ApiServerService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
@@ -196,6 +197,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     if (channel !== configManager.getTestChannel()) {
       appUpdater.cancelDownload()
       configManager.setTestChannel(channel)
+    }
+  })
+
+  ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
+    try {
+      return await agentMessageRepository.persistExchange(payload)
+    } catch (error) {
+      logger.error('Failed to persist agent session messages', error as Error)
+      throw error
     }
   })
 

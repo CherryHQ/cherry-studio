@@ -4,13 +4,20 @@ import { useSession } from '@renderer/hooks/agents/useSession'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
+import { useAppDispatch } from '@renderer/store'
+import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
+import type { Assistant, Message, MessageBlock, Model, Topic } from '@renderer/types'
+import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
+import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty } from 'lodash'
 import React, { CSSProperties, FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { v4 as uuid } from 'uuid'
 
 import NarrowLayout from '../Messages/NarrowLayout'
 import SendMessageButton from './SendMessageButton'
@@ -27,7 +34,7 @@ const _text = ''
 const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
-  const { createSessionMessage } = useSession(agentId, sessionId)
+  const { session } = useSession(agentId, sessionId)
 
   const { sendMessageShortcut, fontSize, enableSpellCheck } = useSettings()
   const textareaRef = useRef<TextAreaRef>(null)
@@ -36,6 +43,8 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const containerRef = useRef(null)
 
   const { setTimeoutTimer } = useTimer()
+  const dispatch = useAppDispatch()
+  const sessionTopicId = buildAgentSessionTopicId(sessionId)
 
   const focusTextarea = useCallback(() => {
     textareaRef.current?.focus()
@@ -93,14 +102,65 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
     logger.info('Starting to send message')
 
     try {
-      createSessionMessage(text)
-      // Clear input
+      const userMessageId = uuid()
+      const mainBlock = createMainTextBlock(userMessageId, text, {
+        status: MessageBlockStatus.SUCCESS
+      })
+      const userMessageBlocks: MessageBlock[] = [mainBlock]
+
+      const model: Model | undefined = session?.model
+        ? {
+            id: session.model,
+            name: session.model,
+            provider: 'agent-session',
+            group: 'agent-session'
+          }
+        : undefined
+
+      const userMessage: Message = createMessage('user', sessionTopicId, agentId, {
+        id: userMessageId,
+        blocks: userMessageBlocks.map((block) => block.id),
+        model,
+        modelId: model?.id
+      })
+
+      const assistantStub: Assistant = {
+        id: session?.agent_id ?? agentId,
+        name: session?.name ?? 'Agent Session',
+        prompt: session?.instructions ?? '',
+        topics: [] as Topic[],
+        type: 'agent-session',
+        model,
+        defaultModel: model,
+        tags: [],
+        enableWebSearch: false
+      }
+
+      dispatch(
+        dispatchSendMessage(userMessage, userMessageBlocks, assistantStub, sessionTopicId, {
+          agentId,
+          sessionId
+        })
+      )
+
       setText('')
       setTimeoutTimer('sendMessage_1', () => setText(''), 500)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
     }
-  }, [createSessionMessage, inputEmpty, setTimeoutTimer, text])
+  }, [
+    agentId,
+    dispatch,
+    inputEmpty,
+    session?.agent_id,
+    session?.instructions,
+    session?.model,
+    session?.name,
+    sessionId,
+    sessionTopicId,
+    setTimeoutTimer,
+    text
+  ])
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newText = e.target.value

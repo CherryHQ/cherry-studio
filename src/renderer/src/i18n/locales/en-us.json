@@ -51,6 +51,14 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "accessible_paths": {
+        "label": "Accessible directories",
+        "add": "Add directory",
+        "empty": "Select at least one directory that the agent can access.",
+        "required": "Please select at least one accessible directory.",
+        "duplicate": "This directory is already included.",
+        "select_failed": "Failed to select directory."
       }
     },
     "update": {

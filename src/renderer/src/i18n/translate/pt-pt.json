@@ -51,6 +51,14 @@
         "error": {
           "failed": "[to be translated]:Failed to update the session"
         }
+      },
+      "accessible_paths": {
+        "label": "[to be translated]:Accessible directories",
+        "add": "[to be translated]:Add directory",
+        "empty": "[to be translated]:Select at least one directory that the agent can access.",
+        "required": "[to be translated]:Please select at least one accessible directory.",
+        "duplicate": "[to be translated]:This directory is already included.",
+        "select_failed": "[to be translated]:Failed to select directory."
       }
     },
     "update": {

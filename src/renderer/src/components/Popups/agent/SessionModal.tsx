@@ -118,6 +118,35 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
     }))
   }, [])
 
+  const addAccessiblePath = useCallback(async () => {
+    try {
+      const selected = await window.api.file.selectFolder()
+      if (!selected) {
+        return
+      }
+      setForm((prev) => {
+        if (prev.accessible_paths.includes(selected)) {
+          window.toast.warning(t('agent.session.accessible_paths.duplicate'))
+          return prev
+        }
+        return {
+          ...prev,
+          accessible_paths: [...prev.accessible_paths, selected]
+        }
+      })
+    } catch (error) {
+      logger.error('Failed to select accessible path:', error as Error)
+      window.toast.error(t('agent.session.accessible_paths.select_failed'))
+    }
+  }, [t])
+
+  const removeAccessiblePath = useCallback((path: string) => {
+    setForm((prev) => ({
+      ...prev,
+      accessible_paths: prev.accessible_paths.filter((item) => item !== path)
+    }))
+  }, [])
+
   const modelOptions = useMemo(() => {
     // mocked data. not final version
     return (models ?? []).map((model) => ({
@@ -152,6 +181,12 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
         return
       }
 
+      if (form.accessible_paths.length === 0) {
+        window.toast.error(t('agent.session.accessible_paths.required'))
+        loadingRef.current = false
+        return
+      }
+
       if (isEditing(session)) {
         if (!session) {
           throw new Error('Agent is required for editing mode')
@@ -162,7 +197,8 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
           name: form.name,
           description: form.description,
           instructions: form.instructions,
-          model: form.model
+          model: form.model,
+          accessible_paths: [...form.accessible_paths]
         } satisfies UpdateSessionForm
 
         updateSession(updatePayload)
@@ -248,6 +284,34 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-foreground">
+                        {t('agent.session.accessible_paths.label')}
+                      </span>
+                      <Button size="sm" variant="flat" onPress={addAccessiblePath}>
+                        {t('agent.session.accessible_paths.add')}
+                      </Button>
+                    </div>
+                    {form.accessible_paths.length > 0 ? (
+                      <div className="space-y-2">
+                        {form.accessible_paths.map((path) => (
+                          <div
+                            key={path}
+                            className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-3 py-2">
+                            <span className="truncate text-sm" title={path}>
+                              {path}
+                            </span>
+                            <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
+                              {t('common.remove')}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground-400">{t('agent.session.accessible_paths.empty')}</p>
+                    )}
+                  </div>
                   {/* TODO: accessible paths */}
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>

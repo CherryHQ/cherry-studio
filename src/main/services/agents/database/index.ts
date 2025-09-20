@@ -9,3 +9,6 @@
 
 // Drizzle ORM schemas
 export * from './schema'
+
+// Repository helpers
+export * from './sessionMessageRepository'
