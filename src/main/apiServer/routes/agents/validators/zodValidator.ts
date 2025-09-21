@@ -1,4 +1,4 @@
-import { NextFunction,Request, Response } from 'express'
+import { NextFunction, Request, Response } from 'express'
 import { ZodError, ZodType } from 'zod'
 
 export interface ValidationRequest extends Request {
@@ -35,7 +35,7 @@ export const createZodValidator = (config: ZodValidationConfig) => {
           type: 'field',
           value: err.input,
           msg: err.message,
-          path: err.path.map(p => String(p)).join('.'),
+          path: err.path.map((p) => String(p)).join('.'),
           location: getLocationFromPath(err.path, config)
         }))
 

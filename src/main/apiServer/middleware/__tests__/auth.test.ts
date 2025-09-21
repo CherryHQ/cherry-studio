@@ -1,8 +1,8 @@
-import type {NextFunction, Request, Response} from 'express'
-import {beforeEach, describe, expect, it, vi} from 'vitest'
+import type { NextFunction, Request, Response } from 'express'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {config} from '../../config'
-import {authMiddleware} from '../auth'
+import { config } from '../../config'
+import { authMiddleware } from '../auth'
 
 // Mock the config module
 vi.mock('../../config', () => ({
@@ -31,7 +31,7 @@ describe('authMiddleware', () => {
 
   beforeEach(() => {
     jsonMock = vi.fn()
-    statusMock = vi.fn(() => ({json: jsonMock}))
+    statusMock = vi.fn(() => ({ json: jsonMock }))
 
     req = {
       header: vi.fn()
@@ -51,7 +51,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: missing credentials'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: missing credentials' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -65,7 +65,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: missing credentials'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: missing credentials' })
       expect(next).not.toHaveBeenCalled()
     })
   })
@@ -77,12 +77,12 @@ describe('authMiddleware', () => {
         return ''
       })
 
-      mockConfig.get.mockResolvedValue({apiKey: ''})
+      mockConfig.get.mockResolvedValue({ apiKey: '' })
 
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -92,12 +92,12 @@ describe('authMiddleware', () => {
         return ''
       })
 
-      mockConfig.get.mockResolvedValue({apiKey: null})
+      mockConfig.get.mockResolvedValue({ apiKey: null })
 
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
   })
@@ -106,7 +106,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({apiKey: validApiKey})
+      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
     })
 
     it('should authenticate successfully with valid API key', async () => {
@@ -130,7 +130,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -143,7 +143,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: empty x-api-key'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: empty x-api-key' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -182,7 +182,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
   })
@@ -191,7 +191,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({apiKey: validApiKey})
+      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
     })
 
     it('should authenticate successfully with valid Bearer token when no API key', async () => {
@@ -215,7 +215,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -228,7 +228,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: invalid authorization format'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -241,20 +241,20 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: invalid authorization format'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
 
     it('should handle Bearer token with only trailing spaces (edge case)', async () => {
       ;(req.header as any).mockImplementation((header: string) => {
-        if (header === 'authorization') return 'Bearer    '  // This will be trimmed to "Bearer" and fail format check
+        if (header === 'authorization') return 'Bearer    ' // This will be trimmed to "Bearer" and fail format check
         return ''
       })
 
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: invalid authorization format'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -287,7 +287,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({apiKey: validApiKey})
+      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
     })
 
     it('should handle config.get() rejection', async () => {
@@ -310,7 +310,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -323,7 +323,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(401)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Unauthorized: invalid authorization format'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Unauthorized: invalid authorization format' })
       expect(next).not.toHaveBeenCalled()
     })
   })
@@ -332,7 +332,7 @@ describe('authMiddleware', () => {
     const validApiKey = 'valid-api-key-123'
 
     beforeEach(() => {
-      mockConfig.get.mockResolvedValue({apiKey: validApiKey})
+      mockConfig.get.mockResolvedValue({ apiKey: validApiKey })
     })
 
     it('should handle similar length but different API keys securely', async () => {
@@ -346,7 +346,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
 
@@ -361,7 +361,7 @@ describe('authMiddleware', () => {
       await authMiddleware(req as Request, res as Response, next)
 
       expect(statusMock).toHaveBeenCalledWith(403)
-      expect(jsonMock).toHaveBeenCalledWith({error: 'Forbidden'})
+      expect(jsonMock).toHaveBeenCalledWith({ error: 'Forbidden' })
       expect(next).not.toHaveBeenCalled()
     })
   })

@@ -1,14 +1,14 @@
-import {MessageCreateParams} from '@anthropic-ai/sdk/resources'
-import {loggerService} from '@logger'
-import express, {Request, Response} from 'express'
+import { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { loggerService } from '@logger'
+import express, { Request, Response } from 'express'
 
-import {messagesService} from '../services/messages'
-import {getProviderById, validateModelId} from '../utils'
+import { messagesService } from '../services/messages'
+import { getProviderById, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
 
 const router = express.Router()
-const providerRouter = express.Router({mergeParams: true})
+const providerRouter = express.Router({ mergeParams: true })
 
 // Helper functions for shared logic
 async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
@@ -28,7 +28,7 @@ async function validateRequestBody(req: Request): Promise<{ valid: boolean; erro
     }
   }
 
-  return {valid: true}
+  return { valid: true }
 }
 
 async function handleStreamingResponse(
@@ -318,7 +318,7 @@ router.post('/', async (req: Request, res: Response) => {
       model: request.model,
       messageCount: request.messages?.length || 0,
       stream: request.stream,
-      max_tokens: request.max_tokens,
+      max_tokens: request.max_tokens
     })
 
     // Validate model ID and get provider
@@ -522,4 +522,4 @@ providerRouter.post('/', async (req: Request, res: Response) => {
   }
 })
 
-export {providerRouter as messagesProviderRoutes, router as messagesRoutes}
+export { providerRouter as messagesProviderRoutes, router as messagesRoutes }

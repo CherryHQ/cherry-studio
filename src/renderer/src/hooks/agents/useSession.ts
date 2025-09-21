@@ -1,5 +1,5 @@
 import { useAppDispatch } from '@renderer/store'
-import { removeManyBlocks,upsertManyBlocks } from '@renderer/store/messageBlock'
+import { removeManyBlocks, upsertManyBlocks } from '@renderer/store/messageBlock'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { AgentPersistedMessage, UpdateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'

@@ -38,9 +38,10 @@ export type PrepareRequestResult =
     }
 
 export class ChatCompletionService {
-  async resolveProviderContext(model: string): Promise<
-    | { ok: false; error: ModelValidationError }
-    | { ok: true; provider: Provider; modelId: string; client: OpenAI }
+  async resolveProviderContext(
+    model: string
+  ): Promise<
+    { ok: false; error: ModelValidationError } | { ok: true; provider: Provider; modelId: string; client: OpenAI }
   > {
     const modelValidation = await validateModelId(model)
     if (!modelValidation.valid) {
@@ -196,9 +197,7 @@ export class ChatCompletionService {
     }
   }
 
-  async processStreamingCompletion(
-    request: ChatCompletionCreateParams
-  ): Promise<{
+  async processStreamingCompletion(request: ChatCompletionCreateParams): Promise<{
     provider: Provider
     modelId: string
     stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
@@ -227,9 +226,9 @@ export class ChatCompletionService {
       })
 
       const streamRequest = providerRequest as ChatCompletionCreateParamsStreaming
-      const stream = (await client.chat.completions.create(streamRequest)) as AsyncIterable<
-        OpenAI.Chat.Completions.ChatCompletionChunk
-      >
+      const stream = (await client.chat.completions.create(
+        streamRequest
+      )) as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
       logger.info('Successfully started streaming chat completion')
       return {

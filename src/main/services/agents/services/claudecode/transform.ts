@@ -119,7 +119,7 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
             toolCallId: block.tool_use_id,
             toolName: '',
             input: '',
-            output: block.content,
+            output: block.content
           })
           break
         default:
@@ -244,17 +244,18 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
       }
       break
 
-    case 'content_block_stop': {
-      const contentBlock = contentBlockState.get(blockKey)
-      if (contentBlock?.type === 'text') {
-        chunks.push({
-          type: 'text-end',
-          id: String(event.index)
-        })
+    case 'content_block_stop':
+      {
+        const contentBlock = contentBlockState.get(blockKey)
+        if (contentBlock?.type === 'text') {
+          chunks.push({
+            type: 'text-end',
+            id: String(event.index)
+          })
+        }
+        contentBlockState.delete(blockKey)
       }
-      contentBlockState.delete(blockKey)
-    }
-    break
+      break
     case 'message_delta':
       // Handle usage updates or other message-level deltas
       break
@@ -304,9 +305,7 @@ function handleResultMessage(message: Extract<SDKMessage, { type: 'result' }>): 
     usage = {
       inputTokens: message.usage.input_tokens ?? 0,
       outputTokens: message.usage.output_tokens ?? 0,
-      totalTokens:
-        (message.usage.input_tokens ?? 0) +
-        (message.usage.output_tokens ?? 0)
+      totalTokens: (message.usage.input_tokens ?? 0) + (message.usage.output_tokens ?? 0)
     }
   }
   if (message.subtype === 'success') {

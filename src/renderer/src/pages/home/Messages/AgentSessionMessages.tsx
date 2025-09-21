@@ -6,7 +6,7 @@ import { useAppSelector } from '@renderer/store'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { Topic } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { memo,useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 import MessageGroup from './MessageGroup'

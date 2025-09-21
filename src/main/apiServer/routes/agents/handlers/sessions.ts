@@ -1,9 +1,5 @@
 import { loggerService } from '@logger'
-import {
-  AgentModelValidationError,
-  sessionMessageService,
-  sessionService
-} from '@main/services/agents'
+import { AgentModelValidationError, sessionMessageService, sessionService } from '@main/services/agents'
 import {
   CreateSessionResponse,
   ListAgentSessionsResponse,

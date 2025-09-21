@@ -1,10 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
-import {Message, MessageCreateParams, RawMessageStreamEvent} from '@anthropic-ai/sdk/resources'
-import {loggerService} from '@logger'
-import anthropicService from "@main/services/AnthropicService";
+import Anthropic from '@anthropic-ai/sdk'
+import { Message, MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import { loggerService } from '@logger'
+import anthropicService from '@main/services/AnthropicService'
 import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
-import {Provider} from '@types'
-
+import { Provider } from '@types'
 
 const logger = loggerService.withContext('MessagesService')
 
@@ -46,7 +45,6 @@ export class MessagesService {
     return getSdkClient(provider)
   }
 
-
   async processMessage(request: MessageCreateParams, provider: Provider): Promise<Message> {
     logger.info('Processing Anthropic message request:', {
       model: request.model,
@@ -79,7 +77,7 @@ export class MessagesService {
     return response
   }
 
-  async* processStreamingMessage(
+  async *processStreamingMessage(
     request: MessageCreateParams,
     provider: Provider
   ): AsyncIterable<RawMessageStreamEvent> {

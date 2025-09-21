@@ -1,4 +1,4 @@
-import type {ProviderMetadata} from "ai";
+import type { ProviderMetadata } from 'ai'
 import type { CompletionUsage } from 'openai/resources'
 
 import type {

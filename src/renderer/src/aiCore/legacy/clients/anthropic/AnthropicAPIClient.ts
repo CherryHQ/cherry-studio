@@ -22,14 +22,14 @@ import {
   WebSearchToolResultBlockParam,
   WebSearchToolResultError
 } from '@anthropic-ai/sdk/resources/messages'
-import {MessageStream} from '@anthropic-ai/sdk/resources/messages/messages'
+import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import AnthropicVertex from '@anthropic-ai/vertex-sdk'
-import {loggerService} from '@logger'
-import {DEFAULT_MAX_TOKENS} from '@renderer/config/constant'
-import {findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel} from '@renderer/config/models'
-import {getAssistantSettings} from '@renderer/services/AssistantService'
+import { loggerService } from '@logger'
+import { DEFAULT_MAX_TOKENS } from '@renderer/config/constant'
+import { findTokenLimit, isClaudeReasoningModel, isReasoningModel, isWebSearchModel } from '@renderer/config/models'
+import { getAssistantSettings } from '@renderer/services/AssistantService'
 import FileManager from '@renderer/services/FileManager'
-import {estimateTextTokens} from '@renderer/services/TokenService'
+import { estimateTextTokens } from '@renderer/services/TokenService'
 import {
   Assistant,
   EFFORT_RATIO,
@@ -53,17 +53,27 @@ import {
   ThinkingDeltaChunk,
   ThinkingStartChunk
 } from '@renderer/types/chunk'
-import {type Message} from '@renderer/types/newMessage'
-import {AnthropicSdkMessageParam, AnthropicSdkParams, AnthropicSdkRawChunk, AnthropicSdkRawOutput} from '@renderer/types/sdk'
-import {addImageFileToContents} from '@renderer/utils/formats'
-import {anthropicToolUseToMcpTool, isSupportedToolUse, mcpToolCallResponseToAnthropicMessage, mcpToolsToAnthropicTools} from '@renderer/utils/mcp-tools'
-import {findFileBlocks, findImageBlocks} from '@renderer/utils/messageUtils/find'
-import {buildClaudeCodeSystemMessage, getSdkClient} from "@shared/anthropic";
-import {t} from 'i18next'
+import { type Message } from '@renderer/types/newMessage'
+import {
+  AnthropicSdkMessageParam,
+  AnthropicSdkParams,
+  AnthropicSdkRawChunk,
+  AnthropicSdkRawOutput
+} from '@renderer/types/sdk'
+import { addImageFileToContents } from '@renderer/utils/formats'
+import {
+  anthropicToolUseToMcpTool,
+  isSupportedToolUse,
+  mcpToolCallResponseToAnthropicMessage,
+  mcpToolsToAnthropicTools
+} from '@renderer/utils/mcp-tools'
+import { findFileBlocks, findImageBlocks } from '@renderer/utils/messageUtils/find'
+import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
+import { t } from 'i18next'
 
-import {GenericChunk} from '../../middleware/schemas'
-import {BaseApiClient} from '../BaseApiClient'
-import {AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer} from '../types'
+import { GenericChunk } from '../../middleware/schemas'
+import { BaseApiClient } from '../BaseApiClient'
+import { AnthropicStreamListener, RawStreamListener, RequestTransformer, ResponseChunkTransformer } from '../types'
 
 const logger = loggerService.withContext('AnthropicAPIClient')
 
@@ -105,7 +115,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     if (payload.stream) {
       return sdk.messages.stream(payload, options)
     }
-    return sdk.messages.create(payload, options);
+    return sdk.messages.create(payload, options)
   }
 
   // @ts-ignore sdk未提供
@@ -149,7 +159,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     if (!isReasoningModel(model)) {
       return undefined
     }
-    const {maxTokens} = getAssistantSettings(assistant)
+    const { maxTokens } = getAssistantSettings(assistant)
 
     const reasoningEffort = assistant?.settings?.reasoning_effort
 
@@ -166,7 +176,7 @@ export class AnthropicAPIClient extends BaseApiClient<
       Math.floor(
         Math.min(
           (findTokenLimit(model.id)?.max! - findTokenLimit(model.id)?.min!) * effortRatio +
-          findTokenLimit(model.id)?.min!,
+            findTokenLimit(model.id)?.min!,
           (maxTokens || DEFAULT_MAX_TOKENS) * effortRatio
         )
       )
@@ -188,7 +198,7 @@ export class AnthropicAPIClient extends BaseApiClient<
    * @returns The message parameter
    */
   public async convertMessageToSdkParam(message: Message): Promise<AnthropicSdkMessageParam> {
-    const {textContent, imageContents} = await this.getMessageContent(message)
+    const { textContent, imageContents } = await this.getMessageContent(message)
 
     const parts: MessageParam['content'] = [
       {
@@ -211,7 +221,7 @@ export class AnthropicAPIClient extends BaseApiClient<
             }
           })
         } else {
-          logger.warn('Unsupported image type, ignored.', {mime: base64Data.mime})
+          logger.warn('Unsupported image type, ignored.', { mime: base64Data.mime })
         }
       }
     }
@@ -236,7 +246,7 @@ export class AnthropicAPIClient extends BaseApiClient<
     // Get and process file blocks
     const fileBlocks = findFileBlocks(message)
     for (const fileBlock of fileBlocks) {
-      const {file} = fileBlock
+      const { file } = fileBlock
       if ([FileTypes.TEXT, FileTypes.DOCUMENT].includes(file.type)) {
         if (file.ext === '.pdf' && file.size < 32 * 1024 * 1024) {
           const base64Data = await FileManager.readBase64File(file)
@@ -464,25 +474,25 @@ export class AnthropicAPIClient extends BaseApiClient<
         messages: AnthropicSdkMessageParam[]
         metadata: Record<string, any>
       }> => {
-        const {messages, mcpTools, maxTokens, streamOutput, enableWebSearch} = coreRequest
+        const { messages, mcpTools, maxTokens, streamOutput, enableWebSearch } = coreRequest
         // 1. 处理系统消息
         const systemPrompt = assistant.prompt
 
         // 2. 设置工具
-        const {tools} = this.setupToolsConfig({
+        const { tools } = this.setupToolsConfig({
           mcpTools: mcpTools,
           model,
           enableToolUse: isSupportedToolUse(assistant)
         })
 
         const systemMessage: TextBlockParam | undefined = systemPrompt
-          ? {type: 'text', text: systemPrompt}
+          ? { type: 'text', text: systemPrompt }
           : undefined
 
         // 3. 处理用户消息
         const sdkMessages: AnthropicSdkMessageParam[] = []
         if (typeof messages === 'string') {
-          sdkMessages.push({role: 'user', content: messages})
+          sdkMessages.push({ role: 'user', content: messages })
         } else {
           const processedMessages = addImageFileToContents(messages)
           for (const message of processedMessages) {
@@ -516,7 +526,7 @@ export class AnthropicAPIClient extends BaseApiClient<
         }
 
         const timeout = this.getTimeout(model)
-        return {payload: commonParams, messages: sdkMessages, metadata: {timeout}}
+        return { payload: commonParams, messages: sdkMessages, metadata: { timeout } }
       }
     }
   }
@@ -531,7 +541,7 @@ export class AnthropicAPIClient extends BaseApiClient<
             try {
               rawChunk = JSON.parse(rawChunk)
             } catch (error) {
-              logger.error('invalid chunk', {rawChunk, error})
+              logger.error('invalid chunk', { rawChunk, error })
               throw new Error(t('error.chat.chunk.non_json'))
             }
           }
