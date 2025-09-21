@@ -69,6 +69,7 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
           placeholder={t('common.placeholders.select.model')}
         />
       </SettingsItem>
+      {/* TODO: Add accessible_paths and description */}
     </SettingsContainer>
   )
 }
