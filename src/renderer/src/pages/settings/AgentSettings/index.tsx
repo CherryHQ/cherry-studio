@@ -1,7 +1,5 @@
-import { Avatar } from '@heroui/react'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
-import { getAgentAvatar } from '@renderer/config/agent'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { Menu, Modal } from 'antd'
@@ -11,6 +9,7 @@ import styled from 'styled-components'
 
 import AgentEssentialSettings from './AgentEssentialSettings'
 import AgentPromptSettings from './AgentPromptSettings'
+import { AgentLabel } from './shared'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -65,10 +64,12 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       maskClosable={false}
       footer={null}
       title={
-        <div className="flex items-center">
-          <Avatar size="sm" className="mr-2 h-5 w-5" src={agent ? getAgentAvatar(agent.type) : undefined} />
-          <span className="font-extrabold text-xl">{agent?.name ?? ''}</span>
-        </div>
+        <AgentLabel
+          type={agent?.type ?? 'claude-code'}
+          name={agent?.name}
+          classNames={{ name: 'text-lg font-extrabold' }}
+          avatarProps={{ size: 'sm' }}
+        />
       }
       transitionName="animation-move-down"
       styles={{

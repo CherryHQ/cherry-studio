@@ -1,5 +1,5 @@
 import CodeEditor from '@renderer/components/CodeEditor'
-import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
+import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
@@ -11,6 +11,8 @@ import { FC, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
+
+import { SettingsTitle } from './shared'
 
 interface AgentPromptSettingsProps {
   agent: AgentEntity | undefined | null
@@ -50,12 +52,12 @@ const AgentPromptSettings: FC<AgentPromptSettingsProps> = ({ agent, update }) =>
 
   return (
     <Container>
-      <HStack mb={8} alignItems="center" gap={4}>
-        <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
+      <SettingsTitle>
+        {t('common.prompt')}
         <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
           <HelpCircle size={14} color="var(--color-text-2)" />
         </Popover>
-      </HStack>
+      </SettingsTitle>
       <TextAreaContainer>
         <RichEditorContainer>
           {showPreview ? (

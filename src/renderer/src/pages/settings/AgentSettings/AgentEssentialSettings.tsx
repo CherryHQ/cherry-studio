@@ -1,11 +1,12 @@
-import { Avatar } from '@heroui/react'
-import { Box, HStack } from '@renderer/components/Layout'
-import { getAgentAvatar } from '@renderer/config/agent'
+import { HStack } from '@renderer/components/Layout'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { AgentEntity, UpdateAgentForm } from '@renderer/types'
 import { Input } from 'antd'
 import { FC, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { SettingDivider } from '..'
+import { AgentLabel, SettingsInline, SettingsTitle } from './shared'
 
 interface AgentEssentialSettingsProps {
   agent: AgentEntity | undefined | null
@@ -26,11 +27,13 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.name')}
-      </Box>
+      <SettingsInline>
+        <SettingsTitle>{t('agent.type.label')}</SettingsTitle>
+        <AgentLabel type={agent.type} />
+      </SettingsInline>
+      <SettingDivider />
+      <SettingsTitle>{t('common.name')}</SettingsTitle>
       <HStack gap={8} alignItems="center">
-        <Avatar src={getAgentAvatar(agent.type)} title={agent.type} className="h-5 w-5" />
         <Input
           placeholder={t('common.assistant') + t('common.name')}
           value={name}
