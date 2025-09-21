@@ -4,7 +4,7 @@ import useSWR from 'swr'
 
 import { useAgentClient } from './useAgentClient'
 
-export const useModels = (filter?: ApiModelsFilter) => {
+export const useApiModels = (filter?: ApiModelsFilter) => {
   const client = useAgentClient()
   const path = client.getModelsPath(filter)
   const fetcher = useCallback(() => {

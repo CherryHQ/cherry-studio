@@ -1,4 +1,5 @@
-import { useModels } from '@renderer/hooks/agents/useModels'
+import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
+import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { AgentEntity, UpdateAgentForm } from '@renderer/types'
 import { Input, Select } from 'antd'
@@ -6,7 +7,7 @@ import { DefaultOptionType } from 'antd/es/select'
 import { FC, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { AgentLabel, ModelLabel, SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+import { AgentLabel, SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
 interface AgentEssentialSettingsProps {
   agent: AgentEntity | undefined | null
@@ -16,7 +17,7 @@ interface AgentEssentialSettingsProps {
 const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {
   const { t } = useTranslation()
   const [name, setName] = useState<string>((agent?.name ?? '').trim())
-  const { models } = useModels({ providerType: 'anthropic' })
+  const { models } = useApiModels({ providerType: 'anthropic' })
   const agentModel = models.find((model) => model.id === agent?.model)
   const [model, setModel] = useState<string | undefined>(agentModel?.id)
 
@@ -29,7 +30,7 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
   const modelOptions = useMemo(() => {
     return models.map((model) => ({
       value: model.id,
-      label: <ModelLabel model={model} />
+      label: <ApiModelLabel model={model} />
     })) satisfies DefaultOptionType[]
   }, [models])
 

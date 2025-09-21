@@ -18,7 +18,7 @@ import {
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useModels } from '@renderer/hooks/agents/useModels'
+import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { AgentEntity, AgentSessionEntity, BaseSessionForm, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -80,7 +80,7 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
   // const { setTimeoutTimer } = useTimer()
   const { createSession, updateSession } = useSessions(agentId)
   // Only support claude code for now
-  const { models } = useModels({ providerType: 'anthropic' })
+  const { models } = useApiModels({ providerType: 'anthropic' })
   const { agent } = useAgent(agentId)
   const isEditing = (session?: AgentSessionEntity) => session !== undefined
 

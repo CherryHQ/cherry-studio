@@ -1,8 +1,7 @@
 import { Avatar, AvatarProps, cn } from '@heroui/react'
 import { getAgentAvatar } from '@renderer/config/agent'
-import { getModelLogo } from '@renderer/config/models'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { AgentType, ApiModel } from '@renderer/types'
+import { AgentType } from '@renderer/types'
 import React from 'react'
 
 import { SettingDivider } from '..'
@@ -61,21 +60,6 @@ export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'>> = (
   return (
     <div className={cn('flex flex-1 flex-col overflow-hidden', className)} {...props}>
       {children}
-    </div>
-  )
-}
-
-export interface ModelLabelProps extends Omit<React.ComponentPropsWithRef<'div'>, 'children'> {
-  model: ApiModel
-}
-
-export const ModelLabel: React.FC<ModelLabelProps> = ({ model, className, ...props }) => {
-  return (
-    <div className={cn('flex items-center gap-1', className)} {...props}>
-      <Avatar src={getModelLogo(model.id)} className="h-4 w-4" />
-      <span>
-        {model.name} | {model.provider_name}
-      </span>
     </div>
   )
 }
