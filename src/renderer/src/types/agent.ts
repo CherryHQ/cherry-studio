@@ -35,6 +35,7 @@ export const isAgentType = (type: unknown): type is AgentType => {
 export const ToolSchema = z.object({
   id: z.string(),
   name: z.string(),
+  type: z.enum(['builtin', 'mcp', 'custom']),
   description: z.string().optional(),
   requirePermissions: z.boolean().optional()
 })
@@ -201,7 +202,7 @@ export interface UpdateAgentRequest extends Partial<AgentBase> {}
 export type ReplaceAgentRequest = AgentBase
 
 export const GetAgentResponseSchema = AgentEntitySchema.extend({
-  built_in_tools: z.array(ToolSchema).optional() // Built-in tools available to the agent
+  tools: z.array(ToolSchema).optional() // All tools available to the agent (including built-in and custom)
 })
 
 export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
@@ -224,7 +225,7 @@ export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
 export interface UpdateSessionRequest extends Partial<AgentBase> {}
 
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
-  built_in_tools: z.array(ToolSchema).optional(), // Built-in tools available to the agent
+  tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
   messages: z.array(AgentSessionMessageEntitySchema).optional() // Messages in the session
 })
 
@@ -240,12 +241,6 @@ export const ListAgentSessionsResponseSchema = z.object({
 export type ListAgentSessionsResponse = z.infer<typeof ListAgentSessionsResponseSchema>
 
 export type CreateSessionMessageRequest = z.infer<typeof CreateSessionMessageRequestSchema>
-
-export const CreateSessionResponseSchema = AgentSessionEntitySchema
-
-export type CreateSessionResponse = AgentSessionEntity
-
-export const UpdateSessionResponseSchema = GetAgentSessionResponseSchema
 
 export type UpdateSessionResponse = GetAgentSessionResponse
 

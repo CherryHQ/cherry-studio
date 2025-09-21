@@ -11,11 +11,10 @@ import {
   CreateAgentResponseSchema,
   CreateSessionForm,
   CreateSessionRequest,
-  CreateSessionResponse,
-  CreateSessionResponseSchema,
   GetAgentResponse,
   GetAgentResponseSchema,
   GetAgentSessionResponse,
+  GetAgentSessionResponseSchema,
   ListAgentSessionsResponse,
   ListAgentSessionsResponseSchema,
   type ListAgentsResponse,
@@ -27,9 +26,7 @@ import {
   UpdateAgentResponse,
   UpdateAgentResponseSchema,
   UpdateSessionForm,
-  UpdateSessionRequest,
-  UpdateSessionResponse,
-  UpdateSessionResponseSchema
+  UpdateSessionRequest
 } from '@types'
 import axios, { Axios, AxiosRequestConfig, isAxiosError } from 'axios'
 import { ZodError } from 'zod'
@@ -172,12 +169,12 @@ export class AgentApiClient {
     }
   }
 
-  public async createSession(agentId: string, session: CreateSessionForm): Promise<CreateSessionResponse> {
+  public async createSession(agentId: string, session: CreateSessionForm): Promise<GetAgentSessionResponse> {
     const url = this.getSessionPaths(agentId).base
     try {
       const payload = session satisfies CreateSessionRequest
       const response = await this.axios.post(url, payload)
-      const data = CreateSessionResponseSchema.parse(response.data)
+      const data = GetAgentSessionResponseSchema.parse(response.data)
       return data
     } catch (error) {
       throw processError(error, 'Failed to add session.')
@@ -209,12 +206,12 @@ export class AgentApiClient {
     }
   }
 
-  public async updateSession(agentId: string, session: UpdateSessionForm): Promise<UpdateSessionResponse> {
+  public async updateSession(agentId: string, session: UpdateSessionForm): Promise<GetAgentSessionResponse> {
     const url = this.getSessionPaths(agentId).withId(session.id)
     try {
       const payload = session satisfies UpdateSessionRequest
       const response = await this.axios.patch(url, payload)
-      const data = UpdateSessionResponseSchema.parse(response.data)
+      const data = GetAgentSessionResponseSchema.parse(response.data)
       if (session.id !== data.id) {
         throw new Error('Session ID mismatch in response')
       }

@@ -1,11 +1,6 @@
 import { loggerService } from '@logger'
 import { AgentModelValidationError, sessionMessageService, sessionService } from '@main/services/agents'
-import {
-  CreateSessionResponse,
-  ListAgentSessionsResponse,
-  type ReplaceSessionRequest,
-  UpdateSessionResponse
-} from '@types'
+import { ListAgentSessionsResponse, type ReplaceSessionRequest, UpdateSessionResponse } from '@types'
 import { Request, Response } from 'express'
 
 import type { ValidationRequest } from '../validators/zodValidator'
@@ -28,9 +23,9 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
     logger.info(`Creating new session for agent: ${agentId}`)
     logger.debug('Session data:', sessionData)
 
-    const session = (await sessionService.createSession(agentId, sessionData)) satisfies CreateSessionResponse
+    const session = await sessionService.createSession(agentId, sessionData)
 
-    logger.info(`Session created successfully: ${session.id}`)
+    logger.info(`Session created successfully: ${session?.id}`)
     return res.status(201).json(session)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
@@ -328,38 +323,6 @@ export const listAllSessions = async (req: Request, res: Response): Promise<Resp
         message: 'Failed to list sessions',
         type: 'internal_error',
         code: 'session_list_failed'
-      }
-    })
-  }
-}
-
-export const getSessionById = async (req: Request, res: Response): Promise<Response> => {
-  try {
-    const { sessionId } = req.params
-    logger.info(`Getting session: ${sessionId}`)
-
-    const session = await sessionService.getSessionById(sessionId)
-
-    if (!session) {
-      logger.warn(`Session not found: ${sessionId}`)
-      return res.status(404).json({
-        error: {
-          message: 'Session not found',
-          type: 'not_found',
-          code: 'session_not_found'
-        }
-      })
-    }
-
-    logger.info(`Session retrieved successfully: ${sessionId}`)
-    return res.json(session)
-  } catch (error: any) {
-    logger.error('Error getting session:', error)
-    return res.status(500).json({
-      error: {
-        message: 'Failed to get session',
-        type: 'internal_error',
-        code: 'session_get_failed'
       }
     })
   }

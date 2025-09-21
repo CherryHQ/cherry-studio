@@ -115,41 +115,6 @@ class MCPApiService extends EventEmitter {
 
       logger.info(`Server with id ${id} info:`, { tools: JSON.stringify(tools) })
 
-      // const [version, tools, prompts, resources] = await Promise.all([
-      //   () => {
-      //     try {
-      //       return client.getServerVersion()
-      //     } catch (error) {
-      //       logger.error(`Failed to get server version for id ${id}:`, { error: error })
-      //       return '1.0.0'
-      //     }
-      //   },
-      //   (() => {
-      //     try {
-      //       return client.listTools()
-      //     } catch (error) {
-      //       logger.error(`Failed to list tools for id ${id}:`, { error: error })
-      //       return []
-      //     }
-      //   })(),
-      //   (() => {
-      //     try {
-      //       return client.listPrompts()
-      //     } catch (error) {
-      //       logger.error(`Failed to list prompts for id ${id}:`, { error: error })
-      //       return []
-      //     }
-      //   })(),
-      //   (() => {
-      //     try {
-      //       return client.listResources()
-      //     } catch (error) {
-      //       logger.error(`Failed to list resources for id ${id}:`, { error: error })
-      //       return []
-      //     }
-      //   })()
-      // ])
-
       return {
         id: server.id,
         name: server.name,

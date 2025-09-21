@@ -16,7 +16,6 @@ import { count, eq } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import { type AgentRow, agentsTable, type InsertAgentRow } from '../database/schema'
 import { AgentModelField } from '../errors'
-import { builtinTools } from './claudecode/tools'
 
 export class AgentService extends BaseService {
   private static instance: AgentService | null = null
@@ -92,10 +91,7 @@ export class AgentService extends BaseService {
     }
 
     const agent = this.deserializeJsonFields(result[0]) as GetAgentResponse
-    if (agent.type === 'claude-code') {
-      agent.built_in_tools = builtinTools
-    }
-
+    agent.tools = await this.listMcpTools(agent.type, agent.mcps)
     return agent
   }
 
@@ -115,11 +111,9 @@ export class AgentService extends BaseService {
 
     const agents = result.map((row) => this.deserializeJsonFields(row)) as GetAgentResponse[]
 
-    agents.forEach((agent) => {
-      if (agent.type === 'claude-code') {
-        agent.built_in_tools = builtinTools
-      }
-    })
+    for (const agent of agents) {
+      agent.tools = await this.listMcpTools(agent.type, agent.mcps)
+    }
 
     return { agents, total: totalResult[0].count }
   }

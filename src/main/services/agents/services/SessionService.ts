@@ -3,7 +3,6 @@ import {
   type AgentEntity,
   type AgentSessionEntity,
   type CreateSessionRequest,
-  type CreateSessionResponse,
   type GetAgentSessionResponse,
   type ListOptions,
   type UpdateSessionRequest,
@@ -30,7 +29,7 @@ export class SessionService extends BaseService {
     await BaseService.initialize()
   }
 
-  async createSession(agentId: string, req: CreateSessionRequest): Promise<CreateSessionResponse> {
+  async createSession(agentId: string, req: CreateSessionRequest): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     // Validate agent exists - we'll need to import AgentService for this check
@@ -89,7 +88,8 @@ export class SessionService extends BaseService {
       throw new Error('Failed to create session')
     }
 
-    return this.deserializeJsonFields(result[0]) as AgentSessionEntity
+    const session = this.deserializeJsonFields(result[0])
+    return await this.getSession(agentId, session.id)
   }
 
   async getSession(agentId: string, id: string): Promise<GetAgentSessionResponse | null> {
@@ -106,21 +106,7 @@ export class SessionService extends BaseService {
     }
 
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
-
-    return session
-  }
-
-  async getSessionById(id: string): Promise<GetAgentSessionResponse | null> {
-    this.ensureInitialized()
-
-    const result = await this.database.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
-
-    if (!result[0]) {
-      return null
-    }
-
-    const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
-
+    session.tools = await this.listMcpTools(session.agent_type, session.mcps)
     return session
   }
 

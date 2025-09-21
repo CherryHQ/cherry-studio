@@ -1,7 +1,8 @@
 import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import { mcpApiService } from '@main/apiServer/services/mcp'
 import { ModelValidationError, validateModelId } from '@main/apiServer/utils'
-import { AgentType, objectKeys, Provider } from '@types'
+import { AgentType, MCPTool, objectKeys, Provider, Tool } from '@types'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -10,6 +11,7 @@ import { MigrationService } from './database/MigrationService'
 import * as schema from './database/schema'
 import { dbPath } from './drizzle.config'
 import { AgentModelField, AgentModelValidationError } from './errors'
+import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
 
@@ -30,7 +32,7 @@ export abstract class BaseService {
   protected static db: LibSQLDatabase<typeof schema> | null = null
   protected static isInitialized = false
   protected static initializationPromise: Promise<void> | null = null
-  protected jsonFields: string[] = ['built_in_tools', 'mcps', 'configuration', 'accessible_paths', 'allowed_tools']
+  protected jsonFields: string[] = ['tools', 'mcps', 'configuration', 'accessible_paths', 'allowed_tools']
 
   /**
    * Initialize database with retry logic and proper error handling
@@ -47,6 +49,31 @@ export abstract class BaseService {
 
     BaseService.initializationPromise = BaseService.performInitialization()
     return BaseService.initializationPromise
+  }
+
+  public async listMcpTools(agentType: AgentType, ids?: string[]): Promise<Tool[]> {
+    const tools: Tool[] = []
+    if (agentType === 'claude-code') {
+      tools.push(...builtinTools)
+    }
+    if (ids && ids.length > 0) {
+      for (const id of ids) {
+        const server = await mcpApiService.getServerInfo(id)
+        if (server) {
+          server.tools.forEach((tool: MCPTool) => {
+            tools.push({
+              id: `mcp_${id}_${tool.name}`,
+              name: tool.name,
+              type: 'mcp',
+              description: tool.description || '',
+              requirePermissions: true
+            })
+          })
+        }
+      }
+    }
+
+    return tools
   }
 
   private static async performInitialization(): Promise<void> {

@@ -365,11 +365,11 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
  *               small_model:
  *                 type: string
  *                 description: Optional small/fast model ID
- *               built_in_tools:
+ *               tools:
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Built-in tool IDs
+ *                 description: Tools
  *               mcps:
  *                 type: array
  *                 items:
