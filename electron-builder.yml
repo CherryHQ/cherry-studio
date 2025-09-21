@@ -125,16 +125,20 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
+    ✨ 新功能：
+    - 支持在对话中显示 AI 生成的图片
+    - 代码编辑工具支持更多终端类型
+    - 新增 Azure AI 服务支持
+    - 新增通义千问 Plus 模型
+
     🐛 问题修复：
-    - 修复 Anthropic API URL 处理，移除尾部斜杠并添加端点路径处理
-    - 修复 MessageEditor 缺少 QuickPanelProvider 包装的问题
-    - 修复 MiniWindow 高度问题
+    - 修复翻译功能中选中文本未正确使用的问题
+    - 修复文件管理中空格键误删文件的问题
+    - 修复部分 AI 服务连接不稳定的问题
+    - 修复翻译页面长文本显示异常
+    - 优化列表显示样式
 
     🚀 性能优化：
-    - 优化输入栏提及模型状态缓存，在渲染间保持状态
-    - 重构网络搜索参数支持模型内置搜索，新增 OpenAI Chat 和 OpenRouter 支持
-
-    🔧 重构改进：
-    - 更新 HeroUIProvider 导入路径，改善上下文管理
-    - 更新依赖项和 VSCode 开发环境配置
-    - 升级 @cherrystudio/ai-core 到 v1.0.0-alpha.17
+    - 提升输入框响应速度
+    - 优化模型切换性能
+    - 改进翻译功能的引用和邮件格式处理

@@ -84,6 +84,7 @@ export function buildProviderOptions(
       case 'openai':
       case 'openai-chat':
       case 'azure':
+      case 'azure-responses':
         providerSpecificOptions = {
           ...buildOpenAIProviderOptions(assistant, model, capabilities),
           serviceTier: serviceTierSetting

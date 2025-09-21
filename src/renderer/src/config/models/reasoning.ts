@@ -225,6 +225,8 @@ export function isSupportedThinkingTokenQwenModel(model?: Model): boolean {
     'qwen-plus-2025-04-28',
     'qwen-plus-0714',
     'qwen-plus-2025-07-14',
+    'qwen-plus-2025-07-28',
+    'qwen-plus-2025-09-11',
     'qwen-turbo',
     'qwen-turbo-latest',
     'qwen-turbo-0428',
@@ -410,13 +412,14 @@ export const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = 
   'gemini-.*-pro.*$': { min: 128, max: 32768 },
 
   // Qwen models
+  // qwen-plus-x 系列自 qwen-plus-2025-07-28 后模型最长思维链变为 81_920, qwen-plus 模型于 2025.9.16 同步变更
   'qwen3-235b-a22b-thinking-2507$': { min: 0, max: 81_920 },
   'qwen3-30b-a3b-thinking-2507$': { min: 0, max: 81_920 },
-  'qwen-plus-2025-07-28$': { min: 0, max: 81_920 },
-  'qwen-plus-latest$': { min: 0, max: 81_920 },
+  'qwen-plus-2025-07-14$': { min: 0, max: 38_912 },
+  'qwen-plus-2025-04-28$': { min: 0, max: 38_912 },
   'qwen3-1\\.7b$': { min: 0, max: 30_720 },
   'qwen3-0\\.6b$': { min: 0, max: 30_720 },
-  'qwen-plus.*$': { min: 0, max: 38_912 },
+  'qwen-plus.*$': { min: 0, max: 81_920 },
   'qwen-turbo.*$': { min: 0, max: 38_912 },
   'qwen-flash.*$': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },

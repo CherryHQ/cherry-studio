@@ -20,6 +20,10 @@ export function formatApiKeys(value: string): string {
  * @returns {string} 格式化后的 API 主机地址。
  */
 export function formatApiHost(host: string, apiVersion: string = 'v1'): string {
+  if (!host) {
+    return ''
+  }
+
   const forceUseOriginalHost = () => {
     if (host.endsWith('/')) {
       return true

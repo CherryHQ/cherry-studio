@@ -8,7 +8,8 @@ import {
   setCurrentDirectory,
   setEnvironmentVariables,
   setSelectedCliTool,
-  setSelectedModel
+  setSelectedModel,
+  setSelectedTerminal
 } from '@renderer/store/codeTools'
 import { Model } from '@renderer/types'
 import { codeTools } from '@shared/config/constant'
@@ -31,6 +32,14 @@ export const useCodeTools = () => {
   const setModel = useCallback(
     (model: Model | null) => {
       dispatch(setSelectedModel(model))
+    },
+    [dispatch]
+  )
+
+  // 设置选择的终端
+  const setTerminal = useCallback(
+    (terminal: string) => {
+      dispatch(setSelectedTerminal(terminal))
     },
     [dispatch]
   )
@@ -105,6 +114,7 @@ export const useCodeTools = () => {
     // 状态
     selectedCliTool: codeToolsState.selectedCliTool,
     selectedModel: selectedModel,
+    selectedTerminal: codeToolsState.selectedTerminal,
     environmentVariables: environmentVariables,
     directories: codeToolsState.directories,
     currentDirectory: codeToolsState.currentDirectory,
@@ -113,6 +123,7 @@ export const useCodeTools = () => {
     // 操作函数
     setCliTool,
     setModel,
+    setTerminal,
     setEnvVars,
     addDir,
     removeDir,

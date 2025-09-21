@@ -13,16 +13,6 @@ import { ToolCallChunkHandler } from './handleToolCallChunk'
 
 const logger = loggerService.withContext('AiSdkToChunkAdapter')
 
-export interface CherryStudioChunk {
-  type: 'text-delta' | 'text-complete' | 'tool-call' | 'tool-result' | 'finish' | 'error'
-  text?: string
-  toolCall?: any
-  toolResult?: any
-  finishReason?: string
-  usage?: any
-  error?: any
-}
-
 /**
  * AI SDK 到 Cherry Studio Chunk 适配器类
  * 处理 fullStream 到 Cherry Studio chunk 的转换

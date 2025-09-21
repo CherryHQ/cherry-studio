@@ -44,7 +44,7 @@ function mapMaxResultToOpenAIContextSize(maxResults: number): OpenAISearchConfig
 export function buildProviderBuiltinWebSearchConfig(
   providerId: BaseProviderId,
   webSearchConfig: CherryWebSearchConfig
-): WebSearchPluginConfig {
+): WebSearchPluginConfig | undefined {
   switch (providerId) {
     case 'openai': {
       return {
@@ -99,7 +99,7 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     default: {
-      throw new Error(`Unsupported provider: ${providerId}`)
+      return {}
     }
   }
 }
