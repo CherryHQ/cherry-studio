@@ -7,7 +7,6 @@
       },
       "title": "Add Agent",
       "type": {
-        "label": "Agent Type",
         "placeholder": "Select an agent type"
       }
     },
@@ -62,7 +61,12 @@
       }
     },
     "settings": {
-      "essential": "Essential Settings"
+      "essential": "Essential Settings",
+      "prompt": "Prompt Settings"
+    },
+    "type": {
+      "label": "Agent Type",
+      "unknown": "Unknown Type"
     },
     "update": {
       "error": {

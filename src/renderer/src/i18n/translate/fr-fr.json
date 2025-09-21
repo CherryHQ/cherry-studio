@@ -7,7 +7,6 @@
       },
       "title": "Ajouter un agent",
       "type": {
-        "label": "Type d'agent",
         "placeholder": "Sélectionner le type d'Agent"
       }
     },
@@ -62,7 +61,12 @@
       }
     },
     "settings": {
-      "essential": "Paramètres essentiels"
+      "essential": "Paramètres essentiels",
+      "prompt": "[to be translated]:Prompt Settings"
+    },
+    "type": {
+      "label": "[to be translated]:Agent Type",
+      "unknown": "[to be translated]:Unknown Type"
     },
     "update": {
       "error": {

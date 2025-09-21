@@ -7,7 +7,6 @@
       },
       "title": "エージェントを追加",
       "type": {
-        "label": "エージェントタイプ",
         "placeholder": "エージェントタイプを選択"
       }
     },
@@ -62,7 +61,12 @@
       }
     },
     "settings": {
-      "essential": "必須設定"
+      "essential": "必須設定",
+      "prompt": "[to be translated]:Prompt Settings"
+    },
+    "type": {
+      "label": "[to be translated]:Agent Type",
+      "unknown": "[to be translated]:Unknown Type"
     },
     "update": {
       "error": {

@@ -7,7 +7,6 @@
       },
       "title": "新增代理",
       "type": {
-        "label": "代理類型",
         "placeholder": "選擇 Agent 類型"
       }
     },
@@ -62,7 +61,12 @@
       }
     },
     "settings": {
-      "essential": "必要設定"
+      "essential": "必要設定",
+      "prompt": "[to be translated]:Prompt Settings"
+    },
+    "type": {
+      "label": "[to be translated]:Agent Type",
+      "unknown": "[to be translated]:Unknown Type"
     },
     "update": {
       "error": {

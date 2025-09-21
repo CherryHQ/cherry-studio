@@ -7,7 +7,6 @@
       },
       "title": "添加 Agent",
       "type": {
-        "label": "Agent 类型",
         "placeholder": "选择 Agent 类型"
       }
     },
@@ -62,11 +61,16 @@
       }
     },
     "settings": {
-      "essential": "基础设置"
+      "essential": "基础设置",
+      "prompt": "提示词设置"
+    },
+    "type": {
+      "label": "智能体类型",
+      "unknown": "未知类型"
     },
     "update": {
       "error": {
-        "failed": "更新 Agent 失败"
+        "failed": "更新智能体失败"
       }
     }
   },
@@ -817,10 +821,10 @@
     "add": "添加",
     "add_success": "添加成功",
     "advanced_settings": "高级设置",
-    "agent_one": "Agent",
-    "agent_other": "Agents",
+    "agent_one": "智能体",
+    "agent_other": "智能体",
     "and": "和",
-    "assistant": "智能体",
+    "assistant": "助手",
     "assistant_one": "助手",
     "assistant_other": "助手",
     "avatar": "头像",

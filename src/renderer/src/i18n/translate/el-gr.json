@@ -7,7 +7,6 @@
       },
       "title": "Προσθήκη Agent",
       "type": {
-        "label": "Τύπος πράκτορα",
         "placeholder": "Επιλέξτε τύπο Agent"
       }
     },
@@ -62,7 +61,12 @@
       }
     },
     "settings": {
-      "essential": "Βασικές Ρυθμίσεις"
+      "essential": "Βασικές Ρυθμίσεις",
+      "prompt": "[to be translated]:Prompt Settings"
+    },
+    "type": {
+      "label": "[to be translated]:Agent Type",
+      "unknown": "[to be translated]:Unknown Type"
     },
     "update": {
       "error": {
