@@ -204,6 +204,31 @@ export function transformModelToOpenAI(model: Model, providers: Provider[]): Api
   }
 }
 
+export async function getProviderById(providerId: string): Promise<Provider | undefined> {
+  try {
+    if (!providerId || typeof providerId !== 'string') {
+      logger.warn(`Invalid provider ID parameter: ${providerId}`)
+      return undefined
+    }
+
+    const providers = await getAvailableProviders()
+    const provider = providers.find((p: Provider) => p.id === providerId)
+
+    if (!provider) {
+      logger.warn(
+        `Provider '${providerId}' not found or not enabled. Available providers: ${providers.map((p) => p.id).join(', ')}`
+      )
+      return undefined
+    }
+
+    logger.debug(`Found provider '${providerId}'`)
+    return provider
+  } catch (error: any) {
+    logger.error('Failed to get provider by ID:', error)
+    return undefined
+  }
+}
+
 export function validateProvider(provider: Provider): boolean {
   try {
     if (!provider) {

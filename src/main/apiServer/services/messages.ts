@@ -1,8 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { Message, MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
-import { Provider } from '@types'
+import Anthropic from "@anthropic-ai/sdk";
+import {Message, MessageCreateParams, RawMessageStreamEvent} from '@anthropic-ai/sdk/resources'
+import {loggerService} from '@logger'
+import anthropicService from "@main/services/AnthropicService";
+import { buildClaudeCodeSystemMessage, getSdkClient } from '@shared/anthropic'
+import {Provider} from '@types'
 
-import { loggerService } from '../../services/LoggerService'
 
 const logger = loggerService.withContext('MessagesService')
 
@@ -35,6 +37,16 @@ export class MessagesService {
     }
   }
 
+  async getClient(provider: Provider): Promise<Anthropic> {
+    // Create Anthropic client for the provider
+    if (provider.authType === 'oauth') {
+      const oauthToken = await anthropicService.getValidAccessToken()
+      return getSdkClient(provider, oauthToken)
+    }
+    return getSdkClient(provider)
+  }
+
+
   async processMessage(request: MessageCreateParams, provider: Provider): Promise<Message> {
     logger.info('Processing Anthropic message request:', {
       model: request.model,
@@ -44,15 +56,16 @@ export class MessagesService {
     })
 
     // Create Anthropic client for the provider
-    const client = new Anthropic({
-      baseURL: provider.apiHost,
-      apiKey: provider.apiKey
-    })
+    const client = await this.getClient(provider)
 
     // Prepare request with the actual model ID
     const anthropicRequest: MessageCreateParams = {
       ...request,
       stream: false
+    }
+
+    if (provider.authType === 'oauth') {
+      anthropicRequest.system = buildClaudeCodeSystemMessage(request.system || '')
     }
 
     logger.debug('Sending request to Anthropic provider:', {
@@ -66,7 +79,7 @@ export class MessagesService {
     return response
   }
 
-  async *processStreamingMessage(
+  async* processStreamingMessage(
     request: MessageCreateParams,
     provider: Provider
   ): AsyncIterable<RawMessageStreamEvent> {
@@ -76,15 +89,16 @@ export class MessagesService {
     })
 
     // Create Anthropic client for the provider
-    const client = new Anthropic({
-      baseURL: provider.apiHost,
-      apiKey: provider.apiKey
-    })
+    const client = await this.getClient(provider)
 
     // Prepare streaming request
     const streamingRequest: MessageCreateParams = {
       ...request,
       stream: true
+    }
+
+    if (provider.authType === 'oauth') {
+      streamingRequest.system = buildClaudeCodeSystemMessage(request.system || '')
     }
 
     logger.debug('Sending streaming request to Anthropic provider:', {

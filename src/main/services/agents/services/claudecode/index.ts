@@ -69,17 +69,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     // process.env.ANTHROPIC_BASE_URL = `http://${apiConfig.host}:${apiConfig.port}`
     const env = {
       ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
-    }
-
-    if (modelInfo.provider.authType === 'oauth') {
-      // TODO: support claude code max oauth
-      // env['ANTHROPIC_AUTH_TOKEN'] = await anthropicService.getValidAccessToken()
-      // env['ANTHROPIC_BASE_URL'] = 'https://api.anthropic.com'
-    } else {
-      env['ANTHROPIC_AUTH_TOKEN'] = modelInfo.provider.apiKey
-      env['ANTHROPIC_API_KEY'] = modelInfo.provider.apiKey
-      env['ANTHROPIC_BASE_URL'] = modelInfo.provider.apiHost
+      ANTHROPIC_API_KEY: apiConfig.apiKey,
+      ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      ELECTRON_RUN_AS_NODE: '1'
     }
 
     // Build SDK options from parameters
@@ -121,7 +113,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.resume = lastAgentSessionId
     }
 
-    logger.info('Starting Claude Code SDK query', {
+    logger.silly('Starting Claude Code SDK query', {
       prompt,
       options
     })

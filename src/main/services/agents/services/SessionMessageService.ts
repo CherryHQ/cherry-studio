@@ -1,16 +1,11 @@
-import { loggerService } from '@logger'
-import type {
-  AgentSessionMessageEntity,
-  CreateSessionMessageRequest,
-  GetAgentSessionResponse,
-  ListOptions
-} from '@types'
-import { ModelMessage, TextStreamPart } from 'ai'
-import { desc, eq } from 'drizzle-orm'
+import {loggerService} from '@logger'
+import type {AgentSessionMessageEntity, CreateSessionMessageRequest, GetAgentSessionResponse, ListOptions} from '@types'
+import {TextStreamPart} from 'ai'
+import {desc, eq} from 'drizzle-orm'
 
-import { BaseService } from '../BaseService'
-import { sessionMessagesTable } from '../database/schema'
-import { AgentStreamEvent } from '../interfaces/AgentStreamInterface'
+import {BaseService} from '../BaseService'
+import {sessionMessagesTable} from '../database/schema'
+import {AgentStreamEvent} from '../interfaces/AgentStreamInterface'
 import ClaudeCodeService from './claudecode'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -34,7 +29,7 @@ function serializeError(error: unknown): { message: string; name?: string; stack
   }
 
   if (typeof error === 'string') {
-    return { message: error }
+    return {message: error}
   }
 
   return {
@@ -104,7 +99,7 @@ export class SessionMessageService extends BaseService {
     this.ensureInitialized()
 
     const result = await this.database
-      .select({ id: sessionMessagesTable.id })
+      .select({id: sessionMessagesTable.id})
       .from(sessionMessagesTable)
       .where(eq(sessionMessagesTable.id, id))
       .limit(1)
@@ -134,7 +129,7 @@ export class SessionMessageService extends BaseService {
 
     const messages = result.map((row) => this.deserializeSessionMessage(row)) as AgentSessionMessageEntity[]
 
-    return { messages }
+    return {messages}
   }
 
   async createSessionMessage(
@@ -153,11 +148,11 @@ export class SessionMessageService extends BaseService {
     abortController: AbortController
   ): Promise<SessionStreamResult> {
     const agentSessionId = await this.getLastAgentSessionId(session.id)
-    logger.debug('Session Message stream message data:', { message: req, session_id: agentSessionId })
+    logger.debug('Session Message stream message data:', {message: req, session_id: agentSessionId})
 
     if (session.agent_type !== 'claude-code') {
       // TODO: Implement support for other agent types
-      logger.error('Unsupported agent type for streaming:', { agent_type: session.agent_type })
+      logger.error('Unsupported agent type for streaming:', {agent_type: session.agent_type})
       throw new Error('Unsupported agent type for streaming')
     }
 
@@ -248,7 +243,7 @@ export class SessionMessageService extends BaseService {
       }
     })
 
-    return { stream, completion }
+    return {stream, completion}
   }
 
   private async getLastAgentSessionId(sessionId: string): Promise<string> {
@@ -256,7 +251,7 @@ export class SessionMessageService extends BaseService {
 
     try {
       const result = await this.database
-        .select({ agent_session_id: sessionMessagesTable.agent_session_id })
+        .select({agent_session_id: sessionMessagesTable.agent_session_id})
         .from(sessionMessagesTable)
         .where(eq(sessionMessagesTable.session_id, sessionId))
         .orderBy(desc(sessionMessagesTable.created_at))
@@ -275,7 +270,7 @@ export class SessionMessageService extends BaseService {
   private deserializeSessionMessage(data: any): AgentSessionMessageEntity {
     if (!data) return data
 
-    const deserialized = { ...data }
+    const deserialized = {...data}
 
     // Parse content JSON
     if (deserialized.content && typeof deserialized.content === 'string') {

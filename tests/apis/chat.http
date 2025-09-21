@@ -77,3 +77,20 @@ Content-Type: application/json
     }
   ]
 }
+
+### Anthropic Chat Message with streaming
+POST {{host}}/anthropic/v1/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "model": "claude-sonnet-4-20250514",
+  "stream": true,
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain the theory of relativity in simple terms."
+    }
+  ]
+}

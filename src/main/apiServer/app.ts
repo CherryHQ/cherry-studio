@@ -1,16 +1,16 @@
-import { loggerService } from '@main/services/LoggerService'
+import {loggerService} from '@main/services/LoggerService'
 import cors from 'cors'
 import express from 'express'
-import { v4 as uuidv4 } from 'uuid'
+import {v4 as uuidv4} from 'uuid'
 
-import { authMiddleware } from './middleware/auth'
-import { errorHandler } from './middleware/error'
-import { setupOpenAPIDocumentation } from './middleware/openapi'
-import { agentsRoutes } from './routes/agents'
-import { chatRoutes } from './routes/chat'
-import { mcpRoutes } from './routes/mcp'
-import { messagesRoutes } from './routes/messages'
-import { modelsRoutes } from './routes/models'
+import {authMiddleware} from './middleware/auth'
+import {errorHandler} from './middleware/error'
+import {setupOpenAPIDocumentation} from './middleware/openapi'
+import {agentsRoutes} from './routes/agents'
+import {chatRoutes} from './routes/chat'
+import {mcpRoutes} from './routes/mcp'
+import {messagesProviderRoutes, messagesRoutes} from './routes/messages'
+import {modelsRoutes} from './routes/models'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -108,6 +108,14 @@ app.get('/', (_req, res) => {
   })
 })
 
+// Provider-specific API routes with auth (must be before /v1 to avoid conflicts)
+const providerRouter = express.Router({mergeParams: true})
+providerRouter.use(authMiddleware)
+providerRouter.use(express.json())
+// Mount provider-specific messages route
+providerRouter.use('/v1/messages', messagesProviderRoutes)
+app.use('/:provider', providerRouter)
+
 // API v1 routes with auth
 const apiRouter = express.Router()
 apiRouter.use(authMiddleware)
@@ -120,10 +128,11 @@ apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)
 
+
 // Setup OpenAPI documentation
 setupOpenAPIDocumentation(app)
 
 // Error handling (must be last)
 app.use(errorHandler)
 
-export { app }
+export {app}

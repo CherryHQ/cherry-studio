@@ -150,8 +150,7 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
       break
 
     case 'content_block_start':
-      const contentBlockType = event.content_block.type
-      switch (contentBlockType) {
+      switch (event.content_block.type) {
         case 'text': {
           contentBlockState.set(blockKey, { type: 'text' })
           chunks.push({
