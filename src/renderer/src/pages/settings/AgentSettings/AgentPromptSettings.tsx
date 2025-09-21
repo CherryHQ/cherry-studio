@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 import styled from 'styled-components'
 
-import { SettingsTitle } from './shared'
+import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
 interface AgentPromptSettingsProps {
   agent: AgentEntity | undefined | null
@@ -51,69 +51,64 @@ const AgentPromptSettings: FC<AgentPromptSettingsProps> = ({ agent, update }) =>
   if (!agent) return null
 
   return (
-    <Container>
-      <SettingsTitle>
-        {t('common.prompt')}
-        <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-          <HelpCircle size={14} color="var(--color-text-2)" />
-        </Popover>
-      </SettingsTitle>
-      <TextAreaContainer>
-        <RichEditorContainer>
-          {showPreview ? (
-            <MarkdownContainer
-              onDoubleClick={() => {
-                const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+    <SettingsContainer>
+      <SettingsItem divider={false} className="flex-1">
+        <SettingsTitle>
+          {t('common.prompt')}
+          <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
+            <HelpCircle size={14} color="var(--color-text-2)" />
+          </Popover>
+        </SettingsTitle>
+        <TextAreaContainer>
+          <RichEditorContainer>
+            {showPreview ? (
+              <MarkdownContainer
+                onDoubleClick={() => {
+                  const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+                  setShowPreview(false)
+                  requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+                }}>
+                <ReactMarkdown>{processedPrompt || instructions}</ReactMarkdown>
+              </MarkdownContainer>
+            ) : (
+              <CodeEditor
+                value={instructions}
+                language="markdown"
+                onChange={setInstructions}
+                height="100%"
+                expanded={false}
+                style={{
+                  height: '100%'
+                }}
+              />
+            )}
+          </RichEditorContainer>
+        </TextAreaContainer>
+        <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
+          <TokenCount>Tokens: {tokenCount}</TokenCount>
+          <Button
+            type="primary"
+            icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
+            onClick={() => {
+              const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
+              if (showPreview) {
                 setShowPreview(false)
                 requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-              }}>
-              <ReactMarkdown>{processedPrompt || instructions}</ReactMarkdown>
-            </MarkdownContainer>
-          ) : (
-            <CodeEditor
-              value={instructions}
-              language="markdown"
-              onChange={setInstructions}
-              height="100%"
-              expanded={false}
-              style={{
-                height: '100%'
-              }}
-            />
-          )}
-        </RichEditorContainer>
-      </TextAreaContainer>
-      <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
-        <TokenCount>Tokens: {tokenCount}</TokenCount>
-        <Button
-          type="primary"
-          icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
-          onClick={() => {
-            const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
-            if (showPreview) {
-              setShowPreview(false)
-              requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-            } else {
-              onUpdate()
-              requestAnimationFrame(() => {
-                setShowPreview(true)
-                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-              })
-            }
-          }}>
-          {showPreview ? t('common.edit') : t('common.save')}
-        </Button>
-      </HSpaceBetweenStack>
-    </Container>
+              } else {
+                onUpdate()
+                requestAnimationFrame(() => {
+                  setShowPreview(true)
+                  requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
+                })
+              }
+            }}>
+            {showPreview ? t('common.edit') : t('common.save')}
+          </Button>
+        </HSpaceBetweenStack>
+      </SettingsItem>
+    </SettingsContainer>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-`
 
 const TextAreaContainer = styled.div`
   position: relative;
