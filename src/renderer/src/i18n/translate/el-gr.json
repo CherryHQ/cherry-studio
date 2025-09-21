@@ -62,11 +62,11 @@
     },
     "settings": {
       "essential": "Βασικές Ρυθμίσεις",
-      "prompt": "[to be translated]:Prompt Settings"
+      "prompt": "Ρυθμίσεις Προτροπής"
     },
     "type": {
-      "label": "[to be translated]:Agent Type",
-      "unknown": "[to be translated]:Unknown Type"
+      "label": "Τύπος Πράκτορα",
+      "unknown": "Άγνωστος Τύπος"
     },
     "update": {
       "error": {

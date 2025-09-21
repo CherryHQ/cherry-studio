@@ -62,11 +62,11 @@
     },
     "settings": {
       "essential": "Основные настройки",
-      "prompt": "[to be translated]:Prompt Settings"
+      "prompt": "Настройки подсказки"
     },
     "type": {
-      "label": "[to be translated]:Agent Type",
-      "unknown": "[to be translated]:Unknown Type"
+      "label": "Тип агента",
+      "unknown": "Неизвестный тип"
     },
     "update": {
       "error": {
