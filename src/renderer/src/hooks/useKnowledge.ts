@@ -67,7 +67,8 @@ export const useKnowledge = (baseId: string) => {
   // 添加笔记
   const addNote = async (content: string) => {
     await dispatch(addNoteThunk(baseId, content))
-    checkAllBases()
+    // 确保数据库写入完成后再触发队列检查
+    setTimeout(() => KnowledgeQueue.checkAllBases(), 100)
   }
 
   // 添加URL
