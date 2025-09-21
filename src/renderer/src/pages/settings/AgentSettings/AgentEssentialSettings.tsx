@@ -17,10 +17,12 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
   const { t } = useTranslation()
   const [name, setName] = useState<string>((agent?.name ?? '').trim())
   const { models } = useModels({ providerType: 'anthropic' })
+  const agentModel = models.find((model) => model.id === agent?.model)
+  const [model, setModel] = useState<string | undefined>(agentModel?.id)
 
   const onUpdate = () => {
     if (!agent) return
-    const _agent = { ...agent, type: undefined, name: name.trim() } satisfies UpdateAgentForm
+    const _agent = { ...agent, type: undefined, name: name.trim(), model } satisfies UpdateAgentForm
     update(_agent)
   }
 
@@ -57,6 +59,11 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
         <SettingsTitle>{t('common.model')}</SettingsTitle>
         <Select
           options={modelOptions}
+          value={model}
+          onChange={(value) => {
+            setModel(value)
+            onUpdate()
+          }}
           className="max-w-80 flex-1"
           placeholder={t('common.placeholders.select.model')}
         />
