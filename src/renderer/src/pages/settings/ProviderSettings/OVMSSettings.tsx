@@ -4,8 +4,6 @@ import { FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingRow, SettingSubtitle } from '..'
-const urlGuide =
-    'https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md'
 
 const OVMSSettings: FC = () => {
   const { t } = useTranslation()

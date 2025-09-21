@@ -221,6 +221,7 @@ export enum IpcChannel {
   // system
   System_GetDeviceType = 'system:getDeviceType',
   System_GetHostname = 'system:getHostname',
+  System_GetCpuName = 'system:getCpuName',
 
   // DevTools
   System_ToggleDevTools = 'system:toggleDevTools',
