@@ -3,6 +3,7 @@
 import type { LanguageModelV2Usage } from '@ai-sdk/provider'
 import { SDKMessage } from '@anthropic-ai/claude-code'
 import { loggerService } from '@logger'
+import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import type { ProviderMetadata, TextStreamPart } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -281,15 +282,16 @@ function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): 
       chunks.push({
         type: 'start'
       })
+      const rawValue: ClaudeCodeRawValue = {
+        type: 'init',
+        session_id: message.session_id,
+        slash_commands: message.slash_commands,
+        tools: message.tools,
+        raw: message
+      }
       chunks.push({
         type: 'raw',
-        rawValue: {
-          type: 'init',
-          session_id: message.session_id,
-          slash_commands: message.slash_commands,
-          tools: message.tools,
-          raw: message
-        }
+        rawValue
       })
     }
   }
