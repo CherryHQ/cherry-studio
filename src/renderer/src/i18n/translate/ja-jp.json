@@ -23,12 +23,12 @@
     },
     "session": {
       "accessible_paths": {
-        "add": "[to be translated]:Add directory",
-        "duplicate": "[to be translated]:This directory is already included.",
-        "empty": "[to be translated]:Select at least one directory that the agent can access.",
-        "label": "[to be translated]:Accessible directories",
-        "required": "[to be translated]:Please select at least one accessible directory.",
-        "select_failed": "[to be translated]:Failed to select directory."
+        "add": "ディレクトリを追加",
+        "duplicate": "このディレクトリは既に含まれています。",
+        "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
+        "label": "アクセス可能なディレクトリ",
+        "required": "アクセス可能なディレクトリを少なくとも1つ選択してください。",
+        "select_failed": "ディレクトリの選択に失敗しました。"
       },
       "add": {
         "title": "セッションを追加"
@@ -62,7 +62,7 @@
       }
     },
     "settings": {
-      "essential": "[to be translated]:Essential Settings"
+      "essential": "必須設定"
     },
     "update": {
       "error": {
