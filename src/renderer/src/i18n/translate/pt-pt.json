@@ -62,11 +62,11 @@
     },
     "settings": {
       "essential": "Configurações Essenciais",
-      "prompt": "[to be translated]:Prompt Settings"
+      "prompt": "Configurações de Prompt"
     },
     "type": {
-      "label": "[to be translated]:Agent Type",
-      "unknown": "[to be translated]:Unknown Type"
+      "label": "Tipo de Agente",
+      "unknown": "Tipo Desconhecido"
     },
     "update": {
       "error": {

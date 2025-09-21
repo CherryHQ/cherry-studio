@@ -62,11 +62,11 @@
     },
     "settings": {
       "essential": "必須設定",
-      "prompt": "[to be translated]:Prompt Settings"
+      "prompt": "プロンプト設定"
     },
     "type": {
-      "label": "[to be translated]:Agent Type",
-      "unknown": "[to be translated]:Unknown Type"
+      "label": "エージェントタイプ",
+      "unknown": "不明なタイプ"
     },
     "update": {
       "error": {
