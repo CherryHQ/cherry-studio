@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AgentEssentialSettings from './AgentEssentialSettings'
+import AgentPromptSettings from './AgentPromptSettings'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -47,6 +48,10 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       {
         key: 'essential',
         label: t('agent.settings.essential')
+      },
+      {
+        key: 'prompt',
+        label: t('agent.settings.prompt')
       }
     ] satisfies { key: AgentSettingPopupTab; label: string }[]
   ).filter(Boolean) as { key: string; label: string }[]
@@ -88,7 +93,10 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
             onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
           />
         </LeftMenu>
-        <Settings>{menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}</Settings>
+        <Settings>
+          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
+          {menu === 'prompt' && <AgentPromptSettings agent={agent} update={updateAgent} />}
+        </Settings>
       </HStack>
     </StyledModal>
   )
@@ -100,6 +108,8 @@ const LeftMenu = styled.div`
 `
 
 const Settings = styled.div`
+  display: flex;
+  flex-direction: column;
   flex: 1;
   padding: 16px 16px;
   height: calc(80vh - 16px);
