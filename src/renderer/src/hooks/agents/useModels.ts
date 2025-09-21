@@ -12,7 +12,7 @@ export const useModels = (filter?: ApiModelsFilter) => {
   }, [client, filter])
   const { data, error, isLoading } = useSWR(path, fetcher)
   return {
-    models: data?.data,
+    models: data?.data ?? [],
     error,
     isLoading
   }
