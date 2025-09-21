@@ -7,6 +7,7 @@ import { loggerService } from '@logger'
 import { AISDKWebSearchResult, MCPTool, WebSearchResults, WebSearchSource } from '@renderer/types'
 import { Chunk, ChunkType } from '@renderer/types/chunk'
 import { convertLinks, flushLinkConverterBuffer } from '@renderer/utils/linkConverter'
+import type { ClaudeCodeRawValue } from '@shared/agents/claudecode/types'
 import type { TextStreamPart, ToolSet } from 'ai'
 
 import { ToolCallChunkHandler } from './handleToolCallChunk'
@@ -101,14 +102,19 @@ export class AiSdkToChunkAdapter {
     chunk: TextStreamPart<any>,
     final: { text: string; reasoningContent: string; webSearchResults: AISDKWebSearchResult[]; reasoningId: string }
   ) {
-    // @ts-ignore
-    if (chunk.type === 'raw' && chunk.rawValue.type === 'init' && chunk.rawValue.session_id) {
-      // @ts-ignore
-      this.onSessionUpdate?.(chunk.rawValue.session_id)
-    }
-
     logger.silly(`AI SDK chunk type: ${chunk.type}`, chunk)
     switch (chunk.type) {
+      case 'raw': {
+        const agentRawMessage = chunk.rawValue as ClaudeCodeRawValue
+        if (agentRawMessage.type === 'init' && agentRawMessage.session_id) {
+          this.onSessionUpdate?.(agentRawMessage.session_id)
+        }
+        this.onChunk({
+          type: ChunkType.RAW,
+          content: agentRawMessage
+        })
+        break
+      }
       // === 文本相关事件 ===
       case 'text-start':
         this.onChunk({
