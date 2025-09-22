@@ -84,6 +84,9 @@
       "error": {
         "failed": "エージェントの更新に失敗しました"
       }
+    },
+    "warning": {
+      "enable_server": "[to be translated]:Enable API Server to use agents."
     }
   },
   "agents": {

@@ -84,6 +84,9 @@
       "error": {
         "failed": "更新智能体失败"
       }
+    },
+    "warning": {
+      "enable_server": "请启用 API 服务器以使用智能体功能"
     }
   },
   "agents": {

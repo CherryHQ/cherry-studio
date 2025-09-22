@@ -84,6 +84,9 @@
       "error": {
         "failed": "Failed to update the agent"
       }
+    },
+    "warning": {
+      "enable_server": "Enable API Server to use agents."
     }
   },
   "agents": {

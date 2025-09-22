@@ -84,6 +84,9 @@
       "error": {
         "failed": "Error al actualizar el agente"
       }
+    },
+    "warning": {
+      "enable_server": "[to be translated]:Enable API Server to use agents."
     }
   },
   "agents": {
