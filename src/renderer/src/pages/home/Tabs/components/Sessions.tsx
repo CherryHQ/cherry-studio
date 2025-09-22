@@ -34,14 +34,17 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     [dispatch]
   )
 
-  const handleCreateSession = useCallback(() => {
+  const handleCreateSession = useCallback(async () => {
     if (!agent) return
     const session = {
       ...agent,
       id: undefined
     } satisfies CreateSessionForm
-    createSession(session)
-  }, [agent, createSession])
+    const created = await createSession(session)
+    if (created) {
+      dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
+    }
+  }, [agent, agentId, createSession, dispatch])
 
   const currentActiveSessionId = activeSessionId[agentId]
 
