@@ -311,8 +311,7 @@ export class AgentMessageDataSource implements MessageDataSource {
         if (cached) {
           // Update existing cached message
           currentMessage = { ...cached.message, ...messageUpdates }
-          // Merge blocks - use new blocks if provided, otherwise keep cached
-          currentBlocks = blocksToUpdate.length > 0 ? blocksToUpdate : cached.blocks
+          currentBlocks = this.mergeBlockUpdates(cached.blocks ?? [], blocksToUpdate)
         } else {
           // First streaming update - fetch from backend or create new
           const historicalMessages: AgentPersistedMessage[] = await window.electron.ipcRenderer.invoke(
@@ -324,7 +323,7 @@ export class AgentMessageDataSource implements MessageDataSource {
 
           if (existingMessage?.message) {
             currentMessage = { ...existingMessage.message, ...messageUpdates }
-            currentBlocks = blocksToUpdate.length > 0 ? blocksToUpdate : existingMessage.blocks || []
+            currentBlocks = this.mergeBlockUpdates(existingMessage.blocks || [], blocksToUpdate)
           } else {
             // New message
             if (!messageUpdates.topicId || !messageUpdates.role) {
@@ -332,7 +331,7 @@ export class AgentMessageDataSource implements MessageDataSource {
               return
             }
             currentMessage = messageUpdates as Message
-            currentBlocks = blocksToUpdate
+            currentBlocks = [...blocksToUpdate]
           }
         }
 
@@ -363,7 +362,7 @@ export class AgentMessageDataSource implements MessageDataSource {
         if (cached) {
           // Use cached data as base
           finalMessage = { ...cached.message, ...messageUpdates }
-          finalBlocks = blocksToUpdate.length > 0 ? blocksToUpdate : cached.blocks
+          finalBlocks = this.mergeBlockUpdates(cached.blocks ?? [], blocksToUpdate)
         } else {
           // Fetch from backend if no cache
           const historicalMessages: AgentPersistedMessage[] = await window.electron.ipcRenderer.invoke(
@@ -375,14 +374,14 @@ export class AgentMessageDataSource implements MessageDataSource {
 
           if (existingMessage?.message) {
             finalMessage = { ...existingMessage.message, ...messageUpdates }
-            finalBlocks = blocksToUpdate.length > 0 ? blocksToUpdate : existingMessage.blocks || []
+            finalBlocks = this.mergeBlockUpdates(existingMessage.blocks || [], blocksToUpdate)
           } else {
             if (!messageUpdates.topicId || !messageUpdates.role) {
               logger.warn(`Incomplete message data for ${messageUpdates.id}`)
               return
             }
             finalMessage = messageUpdates as Message
-            finalBlocks = blocksToUpdate
+            finalBlocks = [...blocksToUpdate]
           }
         }
 
