@@ -1,9 +1,10 @@
 import { Alert, Button, Spinner } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
+import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveAgentId as setActiveAgentIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { setActiveAgentId as setActiveAgentIdAction } from '@renderer/store/runtime'
 import { Plus } from 'lucide-react'
 import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,14 +18,17 @@ export const Agents: FC<AssistantsTabProps> = () => {
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
+  const { initializeAgentSession } = useAgentSessionInitializer()
 
   const dispatch = useAppDispatch()
 
   const setActiveAgentId = useCallback(
-    (id: string) => {
+    async (id: string) => {
       dispatch(setActiveAgentIdAction(id))
+      // Initialize the session for this agent
+      await initializeAgentSession(id)
     },
-    [dispatch]
+    [dispatch, initializeAgentSession]
   )
 
   useEffect(() => {
@@ -47,7 +51,6 @@ export const Agents: FC<AssistantsTabProps> = () => {
             onDelete={() => deleteAgent(agent.id)}
             onPress={() => {
               setActiveAgentId(agent.id)
-              dispatch(setActiveTopicOrSessionAction('session'))
             }}
           />
         ))}

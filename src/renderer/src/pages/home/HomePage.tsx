@@ -1,4 +1,5 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
@@ -25,6 +26,9 @@ const HomePage: FC = () => {
   const { assistants } = useAssistants()
   const navigate = useNavigate()
   const { isLeftNavbar } = useNavbarPosition()
+
+  // Initialize agent session hook
+  useAgentSessionInitializer()
 
   const location = useLocation()
   const state = location.state
@@ -108,9 +112,9 @@ const HomePage: FC = () => {
             createdAt: '',
             updatedAt: '',
             messages: []
-          }
+          } as unknown as Topic
         ],
-        type: ''
+        type: 'chat'
       })
     } else if (activeTopicOrSession === 'topic') {
       dispatch(setActiveAgentId('fake'))
