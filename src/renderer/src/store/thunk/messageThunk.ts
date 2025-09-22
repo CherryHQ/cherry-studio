@@ -1,7 +1,10 @@
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
+import { AgentApiClient } from '@renderer/api/agent'
 import { featureFlags } from '@renderer/config/featureFlags'
 import db from '@renderer/databases'
+import { fetchMessagesSummary } from '@renderer/services/ApiService'
+import { DbService } from '@renderer/services/db/DbService'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
 import { createCallbacks } from '@renderer/services/messageStreaming/callbacks'
@@ -11,6 +14,7 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
+import type { AgentSessionEntity, GetAgentSessionResponse } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -30,6 +34,7 @@ import type { TextStreamPart } from 'ai'
 import { t } from 'i18next'
 import { isEmpty, throttle } from 'lodash'
 import { LRUCache } from 'lru-cache'
+import { mutate } from 'swr'
 
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
@@ -60,11 +65,106 @@ type AgentSessionContext = {
   sessionId: string
 }
 
+const agentSessionRenameLocks = new Set<string>()
+const dbFacade = DbService.getInstance()
+
 const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
   const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
   const baseHost = hasProtocol ? apiServer.host : `http://${apiServer.host}`
   const portSegment = apiServer.port ? `:${apiServer.port}` : ''
   return `${baseHost}${portSegment}`
+}
+
+const renameAgentSessionIfNeeded = async (
+  agentSession: AgentSessionContext,
+  assistant: Assistant,
+  topicId: string,
+  getState: () => RootState
+): Promise<void> => {
+  const lockId = `${agentSession.agentId}:${agentSession.sessionId}`
+  if (agentSessionRenameLocks.has(lockId)) {
+    return
+  }
+
+  try {
+    const state = getState()
+    const apiServer = state.settings.apiServer
+    if (!apiServer?.apiKey) {
+      return
+    }
+
+    const { messages } = await dbFacade.fetchMessages(topicId, true)
+    if (!messages.length) {
+      return
+    }
+
+    const summary = await fetchMessagesSummary({ messages, assistant })
+    const summaryText = summary?.trim()
+    if (!summaryText) {
+      return
+    }
+
+    const baseURL = buildAgentBaseURL(apiServer)
+    const client = new AgentApiClient({
+      baseURL,
+      headers: {
+        Authorization: `Bearer ${apiServer.apiKey}`
+      }
+    })
+
+    agentSessionRenameLocks.add(lockId)
+
+    let session: GetAgentSessionResponse
+    try {
+      session = await client.getSession(agentSession.agentId, agentSession.sessionId)
+    } catch (error) {
+      logger.warn('Failed to fetch agent session for rename', error as Error)
+      return
+    }
+
+    const currentName = (session.name ?? '').trim()
+    if (currentName === summaryText) {
+      return
+    }
+
+    let updatedSession: GetAgentSessionResponse
+    try {
+      updatedSession = await client.updateSession(agentSession.agentId, {
+        id: agentSession.sessionId,
+        name: summaryText
+      })
+    } catch (error) {
+      logger.warn('Failed to update agent session name', error as Error)
+      return
+    }
+
+    const paths = client.getSessionPaths(agentSession.agentId)
+
+    try {
+      await mutate(paths.withId(agentSession.sessionId), updatedSession, {
+        revalidate: false
+      })
+
+      await mutate<AgentSessionEntity[]>(
+        paths.base,
+        (prev) =>
+          prev?.map((sessionItem) =>
+            sessionItem.id === updatedSession.id
+              ? ({ ...sessionItem, name: updatedSession.name } as AgentSessionEntity)
+              : sessionItem
+          ) ?? prev,
+        {
+          revalidate: false
+        }
+      )
+    } catch (error) {
+      logger.warn('Failed to update agent session cache after rename', error as Error)
+    }
+  } catch (error) {
+    logger.warn('Unexpected error during agent session rename', error as Error)
+  } finally {
+    agentSessionRenameLocks.delete(lockId)
+  }
 }
 
 const createSSEReadableStream = (
@@ -568,6 +668,8 @@ const fetchAndProcessAgentResponseImpl = async (
     if (latestAgentSessionId) {
       await persistAgentSessionId(latestAgentSessionId)
     }
+
+    await renameAgentSessionIfNeeded(agentSession, assistant, topicId, getState)
   } catch (error: any) {
     logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
     try {
