@@ -154,8 +154,13 @@ export const saveMessageAndBlocksToDBV2 = async (
   messageIndex: number = -1
 ): Promise<void> => {
   try {
+    const blockIds = blocks.map((block) => block.id)
+    const shouldSyncBlocks =
+      blockIds.length > 0 && (!message.blocks || blockIds.some((id, index) => message.blocks?.[index] !== id))
+
+    const messageWithBlocks = shouldSyncBlocks ? { ...message, blocks: blockIds } : message
     // Direct call without conditional logic, now with messageIndex
-    await dbService.appendMessage(topicId, message, blocks, messageIndex)
+    await dbService.appendMessage(topicId, messageWithBlocks, blocks, messageIndex)
     logger.info('Saved message and blocks via DbService', {
       topicId,
       messageId: message.id,

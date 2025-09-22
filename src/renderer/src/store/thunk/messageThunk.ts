@@ -249,25 +249,29 @@ const updateExistingMessageAndBlocksInDB = async (
   updatedBlocks: MessageBlock[]
 ) => {
   try {
-    if (isAgentSessionTopicId(updatedMessage.topicId)) {
-      return
-    }
-    await db.transaction('rw', db.topics, db.message_blocks, async () => {
-      // Always update blocks if provided
-      if (updatedBlocks.length > 0) {
-        // Use V2 implementation if feature flag is enabled
-        if (featureFlags.USE_UNIFIED_DB_SERVICE) {
-          await updateBlocksV2(updatedBlocks)
-        } else {
+    // Always update blocks if provided
+    if (updatedBlocks.length > 0) {
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateBlocksV2(updatedBlocks)
+      } else {
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
           await db.message_blocks.bulkPut(updatedBlocks)
-        }
+        })
       }
+    }
 
-      // Check if there are message properties to update beyond id and topicId
-      const messageKeysToUpdate = Object.keys(updatedMessage).filter((key) => key !== 'id' && key !== 'topicId')
+    // Check if there are message properties to update beyond id and topicId
+    const messageKeysToUpdate = Object.keys(updatedMessage).filter((key) => key !== 'id' && key !== 'topicId')
 
-      // Only proceed with topic update if there are actual message changes
-      if (messageKeysToUpdate.length > 0) {
+    if (messageKeysToUpdate.length > 0) {
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        const messageUpdatesPayload = messageKeysToUpdate.reduce<Partial<Message>>((acc, key) => {
+          acc[key] = updatedMessage[key]
+          return acc
+        }, {})
+
+        await updateMessageV2(updatedMessage.topicId, updatedMessage.id, messageUpdatesPayload)
+      } else {
         // 使用 where().modify() 进行原子更新
         await db.topics
           .where('id')
@@ -283,10 +287,10 @@ const updateExistingMessageAndBlocksInDB = async (
               })
             }
           })
-
-        store.dispatch(updateTopicUpdatedAt({ topicId: updatedMessage.topicId }))
       }
-    })
+
+      store.dispatch(updateTopicUpdatedAt({ topicId: updatedMessage.topicId }))
+    }
   } catch (error) {
     logger.error(`[updateExistingMsg] Failed to update message ${updatedMessage.id}:`, error as Error)
   }
@@ -494,8 +498,59 @@ const fetchAndProcessAgentResponseImpl = async (
     )
 
     let latestAgentSessionId = ''
-    const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false, (sessionId) => {
+
+    const persistAgentSessionId = async (sessionId: string) => {
+      if (!sessionId || sessionId === latestAgentSessionId) {
+        return
+      }
+
       latestAgentSessionId = sessionId
+
+      logger.debug(`Agent session ID updated`, {
+        topicId,
+        assistantMessageId: assistantMessage.id,
+        value: sessionId
+      })
+
+      try {
+        const stateAfterUpdate = getState()
+        const assistantInState = stateAfterUpdate.messages.entities[assistantMessage.id]
+        const userInState = stateAfterUpdate.messages.entities[userMessageId]
+
+        const persistTasks: Promise<void>[] = []
+
+        if (assistantInState?.agentSessionId !== sessionId) {
+          dispatch(
+            newMessagesActions.updateMessage({
+              topicId,
+              messageId: assistantMessage.id,
+              updates: { agentSessionId: sessionId }
+            })
+          )
+          persistTasks.push(saveUpdatesToDB(assistantMessage.id, topicId, { agentSessionId: sessionId }, []))
+        }
+
+        if (userInState && userInState.agentSessionId !== sessionId) {
+          dispatch(
+            newMessagesActions.updateMessage({
+              topicId,
+              messageId: userMessageId,
+              updates: { agentSessionId: sessionId }
+            })
+          )
+          persistTasks.push(saveUpdatesToDB(userMessageId, topicId, { agentSessionId: sessionId }, []))
+        }
+
+        if (persistTasks.length > 0) {
+          await Promise.all(persistTasks)
+        }
+      } catch (error) {
+        logger.error('Failed to persist agent session ID during stream', error as Error)
+      }
+    }
+
+    const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false, (sessionId) => {
+      void persistAgentSessionId(sessionId)
     })
 
     await adapter.processStream({
@@ -509,10 +564,9 @@ const fetchAndProcessAgentResponseImpl = async (
     // 3. Updates during streaming are saved via updateMessageAndBlocks
     // This eliminates the duplicate save issue
 
-    // Only persist the agentSessionId update if it changed
+    // Attempt final persistence in case the session id arrived late in the stream
     if (latestAgentSessionId) {
-      logger.info(`Agent session ID updated to: ${latestAgentSessionId}`)
-      // In the future, you might want to update some session metadata here
+      await persistAgentSessionId(latestAgentSessionId)
     }
   } catch (error: any) {
     logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
@@ -759,7 +813,8 @@ export const sendMessage =
  * Loads agent session messages from backend
  */
 export const loadAgentSessionMessagesThunk =
-  (sessionId: string) => async (dispatch: AppDispatch, getState: () => RootState) => {
+  // oxlint-disable-next-line no-unused-vars
+  (sessionId: string) => async (dispatch: AppDispatch, _getState: () => RootState) => {
     const topicId = buildAgentSessionTopicId(sessionId)
 
     try {

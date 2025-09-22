@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import store from '@renderer/store'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -21,6 +22,7 @@ const streamingMessageCache = new LRUCache<
     blocks: MessageBlock[]
     isComplete: boolean
     sessionId: string
+    agentSessionId?: string
   }
 >({
   max: 100,
@@ -51,13 +53,14 @@ export class AgentMessageDataSource implements MessageDataSource {
         const cached = streamingMessageCache.get(messageId)
         if (!cached) return
 
-        const { message, blocks, sessionId, isComplete } = cached
+        const { message, blocks, sessionId, isComplete, agentSessionId } = cached
+        const sessionPointer = agentSessionId ?? message.agentSessionId ?? ''
 
         try {
           // Persist to backend
           await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
             sessionId,
-            agentSessionId: '',
+            agentSessionId: sessionPointer,
             ...(message.role === 'user'
               ? { user: { payload: { message, blocks } } }
               : { assistant: { payload: { message, blocks } } })
@@ -98,6 +101,42 @@ export class AgentMessageDataSource implements MessageDataSource {
       throttler.cancel()
       messagePersistThrottlers.delete(messageId)
     }
+  }
+
+  private mergeBlockUpdates(existingBlocks: MessageBlock[], updates: MessageBlock[]): MessageBlock[] {
+    if (existingBlocks.length === 0) {
+      return [...updates]
+    }
+
+    const existingById = new Map(existingBlocks.map((block) => [block.id, block]))
+
+    for (const update of updates) {
+      if (!update?.id) {
+        continue
+      }
+      existingById.set(update.id, update)
+    }
+
+    const merged: MessageBlock[] = []
+
+    for (const original of existingBlocks) {
+      const updated = existingById.get(original.id)
+      if (updated) {
+        merged.push(updated)
+        existingById.delete(original.id)
+      }
+    }
+
+    for (const update of updates) {
+      if (!update?.id) {
+        continue
+      }
+      if (!merged.some((block) => block.id === update.id)) {
+        merged.push(update)
+      }
+    }
+
+    return merged
   }
 
   // ============ Read Operations ============
@@ -146,6 +185,7 @@ export class AgentMessageDataSource implements MessageDataSource {
   }
 
   // ============ Write Operations ============
+  // oxlint-disable-next-line no-unused-vars
   async appendMessage(topicId: string, message: Message, blocks: MessageBlock[], _insertIndex?: number): Promise<void> {
     const sessionId = extractSessionId(topicId)
     if (!sessionId) {
@@ -154,6 +194,7 @@ export class AgentMessageDataSource implements MessageDataSource {
 
     try {
       const isStreaming = this.isMessageStreaming(message)
+      const agentSessionId = message.agentSessionId ?? ''
 
       // Always persist immediately for visibility in UI
       const payload: AgentPersistedMessage = {
@@ -163,7 +204,7 @@ export class AgentMessageDataSource implements MessageDataSource {
 
       await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
         sessionId,
-        agentSessionId: '',
+        agentSessionId,
         ...(message.role === 'user' ? { user: { payload } } : { assistant: { payload } })
       })
 
@@ -180,7 +221,8 @@ export class AgentMessageDataSource implements MessageDataSource {
           message,
           blocks,
           isComplete: false,
-          sessionId
+          sessionId,
+          agentSessionId
         })
 
         // Set up throttled persister for future updates
@@ -218,15 +260,25 @@ export class AgentMessageDataSource implements MessageDataSource {
 
       // Merge updates with existing message
       const updatedMessage = { ...existingMessage.message, ...updates }
+      const agentSessionId = updatedMessage.agentSessionId ?? existingMessage.message.agentSessionId ?? ''
 
       // Save updated message back to backend
       await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
         sessionId,
-        agentSessionId: '',
+        agentSessionId,
         ...(updatedMessage.role === 'user'
           ? { user: { payload: { message: updatedMessage, blocks: existingMessage.blocks || [] } } }
           : { assistant: { payload: { message: updatedMessage, blocks: existingMessage.blocks || [] } } })
       })
+
+      const cacheEntry = streamingMessageCache.get(messageId)
+      if (cacheEntry) {
+        streamingMessageCache.set(messageId, {
+          ...cacheEntry,
+          message: updatedMessage,
+          agentSessionId: agentSessionId || cacheEntry.agentSessionId
+        })
+      }
 
       logger.info(`Updated message ${messageId} in agent session ${sessionId}`)
     } catch (error) {
@@ -284,12 +336,15 @@ export class AgentMessageDataSource implements MessageDataSource {
           }
         }
 
+        const agentSessionId = currentMessage.agentSessionId ?? cached?.agentSessionId ?? ''
+
         // Update cache
         streamingMessageCache.set(messageUpdates.id, {
           message: currentMessage,
           blocks: currentBlocks,
           isComplete: false,
-          sessionId
+          sessionId,
+          agentSessionId
         })
 
         // Trigger throttled persist
@@ -331,20 +386,23 @@ export class AgentMessageDataSource implements MessageDataSource {
           }
         }
 
+        const agentSessionId = finalMessage.agentSessionId ?? cached?.agentSessionId ?? ''
+
         // Mark as complete in cache if it was streaming
         if (cached) {
           streamingMessageCache.set(messageUpdates.id, {
             message: finalMessage,
             blocks: finalBlocks,
             isComplete: true,
-            sessionId
+            sessionId,
+            agentSessionId
           })
         }
 
         // Persist to backend
         await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
           sessionId,
-          agentSessionId: '',
+          agentSessionId,
           ...(finalMessage.role === 'user'
             ? { user: { payload: { message: finalMessage, blocks: finalBlocks } } }
             : { assistant: { payload: { message: finalMessage, blocks: finalBlocks } } })
@@ -364,6 +422,7 @@ export class AgentMessageDataSource implements MessageDataSource {
     }
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async deleteMessage(topicId: string, _messageId: string): Promise<void> {
     // Agent session messages cannot be deleted individually
     logger.warn(`deleteMessage called for agent session ${topicId}, operation not supported`)
@@ -373,6 +432,7 @@ export class AgentMessageDataSource implements MessageDataSource {
     // 2. Or just hide from UI without actual deletion
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async deleteMessages(topicId: string, _messageIds: string[]): Promise<void> {
     // Agent session messages cannot be deleted in batch
     logger.warn(`deleteMessages called for agent session ${topicId}, operation not supported`)
@@ -382,6 +442,7 @@ export class AgentMessageDataSource implements MessageDataSource {
     // 2. Update local state accordingly
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async deleteMessagesByAskId(topicId: string, _askId: string): Promise<void> {
     // Agent session messages cannot be deleted
     logger.warn(`deleteMessagesByAskId called for agent session ${topicId}, operation not supported`)
@@ -389,11 +450,134 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Block Operations ============
 
-  async updateBlocks(_blocks: MessageBlock[]): Promise<void> {
-    // Blocks are updated through persistExchange for agent sessions
-    logger.warn('updateBlocks called for agent session, operation not supported individually')
+  async updateBlocks(blocks: MessageBlock[]): Promise<void> {
+    if (!blocks.length) {
+      return
+    }
+
+    try {
+      if (!window.electron?.ipcRenderer) {
+        logger.warn('IPC renderer not available for agent block update')
+        return
+      }
+
+      const state = store.getState()
+
+      const sessionMessageMap = new Map<
+        string,
+        Map<
+          string,
+          {
+            message: Message | undefined
+            updates: MessageBlock[]
+            baseBlocks?: MessageBlock[]
+          }
+        >
+      >()
+
+      for (const block of blocks) {
+        const messageId = block.messageId
+        if (!messageId) {
+          logger.warn('Skipping block update without messageId')
+          continue
+        }
+
+        const cached = streamingMessageCache.get(messageId)
+        const storeMessage = cached?.message ?? state.messages.entities[messageId]
+
+        if (!storeMessage) {
+          logger.warn(`Unable to locate parent message ${messageId} for block update`)
+          continue
+        }
+
+        const sessionId = cached?.sessionId ?? extractSessionId(storeMessage.topicId)
+        if (!sessionId) {
+          logger.warn(`Unable to determine session for message ${messageId}`)
+          continue
+        }
+
+        if (!sessionMessageMap.has(sessionId)) {
+          sessionMessageMap.set(sessionId, new Map())
+        }
+
+        const messageMap = sessionMessageMap.get(sessionId)!
+        if (!messageMap.has(messageId)) {
+          messageMap.set(messageId, {
+            message: storeMessage,
+            updates: [],
+            baseBlocks: cached?.blocks
+          })
+        }
+
+        messageMap.get(messageId)!.updates.push(block)
+      }
+
+      for (const [sessionId, messageMap] of sessionMessageMap) {
+        let historyMap: Map<string, AgentPersistedMessage> | null = null
+
+        for (const [messageId, pending] of messageMap) {
+          let baseBlocks = pending.baseBlocks
+          let message = pending.message
+
+          if (!baseBlocks) {
+            if (!historyMap) {
+              const historicalMessages: AgentPersistedMessage[] = await window.electron.ipcRenderer.invoke(
+                IpcChannel.AgentMessage_GetHistory,
+                { sessionId }
+              )
+              historyMap = new Map(
+                (historicalMessages || [])
+                  .filter((persisted) => persisted?.message?.id)
+                  .map((persisted) => [persisted.message.id, persisted])
+              )
+            }
+
+            const persisted = historyMap.get(messageId)
+            if (persisted) {
+              baseBlocks = persisted.blocks || []
+              if (!message) {
+                message = persisted.message
+              }
+            }
+          }
+
+          if (!message) {
+            logger.warn(`Failed to resolve message payload for ${messageId}, skipping block persist`)
+            continue
+          }
+
+          const mergedBlocks = this.mergeBlockUpdates(baseBlocks || [], pending.updates)
+          const cacheEntry = streamingMessageCache.get(messageId)
+          const agentSessionId = message.agentSessionId ?? cacheEntry?.agentSessionId ?? ''
+
+          if (cacheEntry) {
+            streamingMessageCache.set(messageId, {
+              ...cacheEntry,
+              blocks: mergedBlocks,
+              agentSessionId
+            })
+          }
+
+          await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
+            sessionId,
+            agentSessionId,
+            ...(message.role === 'user'
+              ? { user: { payload: { message, blocks: mergedBlocks } } }
+              : { assistant: { payload: { message, blocks: mergedBlocks } } })
+          })
+
+          logger.debug(`Persisted block updates for message ${messageId} in agent session ${sessionId}`, {
+            blockCount: mergedBlocks.length
+          })
+        }
+      }
+    } catch (error) {
+      logger.error('Failed to update agent message blocks:', error as Error)
+      throw error
+    }
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async deleteBlocks(_blockIds: string[]): Promise<void> {
     // Blocks cannot be deleted individually for agent sessions
     logger.warn('deleteBlocks called for agent session, operation not supported')
@@ -456,21 +640,25 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Additional Methods for Interface Compatibility ============
 
+  // oxlint-disable-next-line no-unused-vars
   async updateSingleBlock(blockId: string, _updates: Partial<MessageBlock>): Promise<void> {
     // Agent session blocks are immutable once persisted
     logger.warn(`updateSingleBlock called for agent session block ${blockId}, operation not supported`)
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async bulkAddBlocks(_blocks: MessageBlock[]): Promise<void> {
     // Agent session blocks are added through persistExchange
     logger.warn(`bulkAddBlocks called for agent session, operation not supported individually`)
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async updateFileCount(fileId: string, _delta: number, _deleteIfZero?: boolean): Promise<void> {
     // Agent sessions don't manage file reference counts locally
     logger.warn(`updateFileCount called for agent session file ${fileId}, operation not supported`)
   }
 
+  // oxlint-disable-next-line no-unused-vars
   async updateFileCounts(_files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     // Agent sessions don't manage file reference counts locally
     logger.warn(`updateFileCounts called for agent session, operation not supported`)

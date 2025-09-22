@@ -70,13 +70,13 @@ class TextStreamAccumulator {
         if (part.toolCallId) {
           this.toolCalls.set(part.toolCallId, {
             toolName: part.toolName,
-            input: part.input ?? part.args ?? part.providerMetadata?.raw?.input
+            input: part.input ?? part.providerMetadata?.raw?.input
           })
         }
         break
       case 'tool-result':
         if (part.toolCallId) {
-          this.toolResults.set(part.toolCallId, part.output ?? part.result ?? part.providerMetadata?.raw)
+          this.toolResults.set(part.toolCallId, part.output)
         }
         break
       default:

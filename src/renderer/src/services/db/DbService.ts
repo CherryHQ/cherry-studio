@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import store from '@renderer/store'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { AgentMessageDataSource } from './AgentMessageDataSource'
@@ -94,12 +95,31 @@ class DbService implements MessageDataSource {
   // ============ Block Operations ============
 
   async updateBlocks(blocks: MessageBlock[]): Promise<void> {
-    // For block operations, we need to infer the source from the first block's message
-    // This is a limitation of the current design where blocks don't have topicId
-    // In practice, blocks are usually updated in context of a topic operation
+    if (blocks.length === 0) {
+      return
+    }
 
-    // Default to Dexie for now since agent blocks are updated through persistExchange
-    return this.dexieSource.updateBlocks(blocks)
+    const state = store.getState()
+
+    const agentBlocks: MessageBlock[] = []
+    const regularBlocks: MessageBlock[] = []
+
+    for (const block of blocks) {
+      const parentMessage = state.messages.entities[block.messageId]
+      if (parentMessage && isAgentSessionTopicId(parentMessage.topicId)) {
+        agentBlocks.push(block)
+      } else {
+        regularBlocks.push(block)
+      }
+    }
+
+    if (agentBlocks.length > 0) {
+      await this.agentSource.updateBlocks(agentBlocks)
+    }
+
+    if (regularBlocks.length > 0) {
+      await this.dexieSource.updateBlocks(regularBlocks)
+    }
   }
 
   async deleteBlocks(blockIds: string[]): Promise<void> {

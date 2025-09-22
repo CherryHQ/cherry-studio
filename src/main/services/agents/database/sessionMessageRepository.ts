@@ -7,10 +7,10 @@ import type {
   AgentPersistedMessage,
   AgentSessionMessageEntity
 } from '@types'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import type { InsertSessionMessageRow } from './schema'
+import type { InsertSessionMessageRow, SessionMessageRow } from './schema'
 import { sessionMessagesTable } from './schema'
 
 const logger = loggerService.withContext('AgentMessageRepository')
@@ -91,19 +91,86 @@ class AgentMessageRepository extends BaseService {
     return tx ?? this.database
   }
 
-  async persistUserMessage(params: PersistUserMessageParams): Promise<AgentSessionMessageEntity> {
+  private async findExistingMessageRow(
+    writer: TxClient,
+    sessionId: string,
+    role: string,
+    messageId: string
+  ): Promise<SessionMessageRow | null> {
+    const candidateRows: SessionMessageRow[] = await writer
+      .select()
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.session_id, sessionId), eq(sessionMessagesTable.role, role)))
+      .orderBy(asc(sessionMessagesTable.created_at))
+
+    for (const row of candidateRows) {
+      if (!row?.content) continue
+
+      try {
+        const parsed = JSON.parse(row.content) as AgentPersistedMessage | undefined
+        if (parsed?.message?.id === messageId) {
+          return row
+        }
+      } catch (error) {
+        logger.warn('Failed to parse session message content JSON during lookup', error as Error)
+      }
+    }
+
+    return null
+  }
+
+  private async upsertMessage(
+    params: PersistUserMessageParams | PersistAssistantMessageParams
+  ): Promise<AgentSessionMessageEntity> {
     await AgentMessageRepository.initialize()
     this.ensureInitialized()
 
-    const writer = this.getWriter(params.tx)
-    const now = params.createdAt ?? params.payload.message.createdAt ?? new Date().toISOString()
+    const { sessionId, agentSessionId = '', payload, metadata, createdAt, tx } = params
+
+    if (!payload?.message?.role) {
+      throw new Error('Message payload missing role')
+    }
+
+    if (!payload.message.id) {
+      throw new Error('Message payload missing id')
+    }
+
+    const writer = this.getWriter(tx)
+    const now = createdAt ?? payload.message.createdAt ?? new Date().toISOString()
+    const serializedPayload = this.serializeMessage(payload)
+    const serializedMetadata = this.serializeMetadata(metadata)
+
+    const existingRow = await this.findExistingMessageRow(writer, sessionId, payload.message.role, payload.message.id)
+
+    if (existingRow) {
+      const metadataToPersist = serializedMetadata ?? existingRow.metadata ?? undefined
+      const agentSessionToPersist = agentSessionId || existingRow.agent_session_id || ''
+
+      await writer
+        .update(sessionMessagesTable)
+        .set({
+          content: serializedPayload,
+          metadata: metadataToPersist,
+          agent_session_id: agentSessionToPersist,
+          updated_at: now
+        })
+        .where(eq(sessionMessagesTable.id, existingRow.id))
+
+      return this.deserialize({
+        ...existingRow,
+        content: serializedPayload,
+        metadata: metadataToPersist,
+        agent_session_id: agentSessionToPersist,
+        updated_at: now
+      })
+    }
 
     const insertData: InsertSessionMessageRow = {
-      session_id: params.sessionId,
-      role: params.payload.message.role,
-      content: this.serializeMessage(params.payload),
-      agent_session_id: params.agentSessionId ?? '',
-      metadata: this.serializeMetadata(params.metadata),
+      session_id: sessionId,
+      role: payload.message.role,
+      content: serializedPayload,
+      agent_session_id: agentSessionId,
+      metadata: serializedMetadata,
       created_at: now,
       updated_at: now
     }
@@ -113,26 +180,12 @@ class AgentMessageRepository extends BaseService {
     return this.deserialize(saved)
   }
 
+  async persistUserMessage(params: PersistUserMessageParams): Promise<AgentSessionMessageEntity> {
+    return this.upsertMessage({ ...params, agentSessionId: params.agentSessionId ?? '' })
+  }
+
   async persistAssistantMessage(params: PersistAssistantMessageParams): Promise<AgentSessionMessageEntity> {
-    await AgentMessageRepository.initialize()
-    this.ensureInitialized()
-
-    const writer = this.getWriter(params.tx)
-    const now = params.createdAt ?? params.payload.message.createdAt ?? new Date().toISOString()
-
-    const insertData: InsertSessionMessageRow = {
-      session_id: params.sessionId,
-      role: params.payload.message.role,
-      content: this.serializeMessage(params.payload),
-      agent_session_id: params.agentSessionId,
-      metadata: this.serializeMetadata(params.metadata),
-      created_at: now,
-      updated_at: now
-    }
-
-    const [saved] = await writer.insert(sessionMessagesTable).values(insertData).returning()
-
-    return this.deserialize(saved)
+    return this.upsertMessage(params)
   }
 
   async persistExchange(params: PersistExchangeParams): Promise<PersistExchangeResult> {
@@ -145,9 +198,6 @@ class AgentMessageRepository extends BaseService {
       const exchangeResult: PersistExchangeResult = {}
 
       if (user?.payload) {
-        if (!user.payload.message?.role) {
-          throw new Error('User message payload missing role')
-        }
         exchangeResult.userMessage = await this.persistUserMessage({
           sessionId,
           agentSessionId,
@@ -159,9 +209,6 @@ class AgentMessageRepository extends BaseService {
       }
 
       if (assistant?.payload) {
-        if (!assistant.payload.message?.role) {
-          throw new Error('Assistant message payload missing role')
-        }
         exchangeResult.assistantMessage = await this.persistAssistantMessage({
           sessionId,
           agentSessionId,
