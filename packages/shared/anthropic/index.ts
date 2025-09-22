@@ -72,6 +72,7 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
   }
   return new Anthropic({
     apiKey: provider.apiKey,
+    authToken: provider.apiKey,
     baseURL: provider.apiHost,
     dangerouslyAllowBrowser: true,
     defaultHeaders: {
