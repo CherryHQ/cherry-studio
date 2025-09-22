@@ -19,16 +19,26 @@ const assistantsSlice = createSlice({
   initialState,
   reducers: {
     setAssistantPresets: (state, action: PayloadAction<AssistantPreset[]>) => {
-      state.agents = { ...action.payload }
+      const presets = action.payload
+      state.agents = []
+      presets.forEach((p) => {
+        state.agents.push(p)
+      })
     },
     addAssistantPreset: (state, action: PayloadAction<AssistantPreset>) => {
+      // @ts-ignore ts-2589 false positive
       state.agents.push(action.payload)
     },
     removeAssistantPreset: (state, action: PayloadAction<{ id: string }>) => {
       state.agents = state.agents.filter((c) => c.id !== action.payload.id)
     },
     updateAssistantPreset: (state, action: PayloadAction<AssistantPreset>) => {
-      state.agents = state.agents.map((c) => (c.id === action.payload.id ? action.payload : c))
+      const preset = action.payload
+      state.agents.forEach((a) => {
+        if (a.id === preset.id) {
+          a = preset
+        }
+      })
     },
     updateAssistantPresetSettings: (
       state,

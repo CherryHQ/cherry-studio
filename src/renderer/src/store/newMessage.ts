@@ -102,6 +102,7 @@ export const messagesSlice = createSlice({
     },
     messagesReceived(state, action: PayloadAction<MessagesReceivedPayload>) {
       const { topicId, messages } = action.payload
+      // @ts-ignore ts-2589 false positive
       messagesAdapter.upsertMany(state, messages)
       state.messageIdsByTopic[topicId] = messages.map((m) => m.id)
       state.currentTopicId = topicId
