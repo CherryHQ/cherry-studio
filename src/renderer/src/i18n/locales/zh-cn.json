@@ -20,13 +20,25 @@
     "edit": {
       "title": "编辑 Agent"
     },
+    "get": {
+      "error": {
+        "failed": "获取智能体失败"
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "获取智能体列表失败"
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "添加目录",
         "duplicate": "该目录已添加。",
         "empty": "请选择至少一个智能体可访问的目录。",
+        "error": {
+          "at_least_one": "请至少选择一个可访问的目录"
+        },
         "label": "工作目录",
-        "required": "请至少选择一个可访问的目录。",
         "select_failed": "选择目录失败"
       },
       "add": {

@@ -20,13 +20,25 @@
     "edit": {
       "title": "Agent de edición"
     },
+    "get": {
+      "error": {
+        "failed": "[to be translated]:Failed to get the agent."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "[to be translated]:Failed to list agents."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Agregar directorio",
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
+        "error": {
+          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+        },
         "label": "Directorios accesibles",
-        "required": "Por favor, seleccione al menos un directorio accesible.",
         "select_failed": "Error al seleccionar el directorio."
       },
       "add": {

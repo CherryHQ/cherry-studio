@@ -20,13 +20,25 @@
     "edit": {
       "title": "Edit Agent"
     },
+    "get": {
+      "error": {
+        "failed": "Failed to get the agent."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "Failed to list agents."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Add directory",
         "duplicate": "This directory is already included.",
         "empty": "Select at least one directory that the agent can access.",
+        "error": {
+          "at_least_one": "Please select at least one accessible directory."
+        },
         "label": "Accessible directories",
-        "required": "Please select at least one accessible directory.",
         "select_failed": "Failed to select directory."
       },
       "add": {

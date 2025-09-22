@@ -20,13 +20,25 @@
     "edit": {
       "title": "Редактировать агент"
     },
+    "get": {
+      "error": {
+        "failed": "[to be translated]:Failed to get the agent."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "[to be translated]:Failed to list agents."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Добавить каталог",
         "duplicate": "Этот каталог уже включён.",
         "empty": "Выберите хотя бы один каталог, к которому агент имеет доступ.",
+        "error": {
+          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+        },
         "label": "Доступные директории",
-        "required": "Пожалуйста, выберите хотя бы один доступный каталог.",
         "select_failed": "Не удалось выбрать каталог."
       },
       "add": {

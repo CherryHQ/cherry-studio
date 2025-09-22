@@ -20,13 +20,25 @@
     "edit": {
       "title": "Éditer Agent"
     },
+    "get": {
+      "error": {
+        "failed": "[to be translated]:Failed to get the agent."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "[to be translated]:Failed to list agents."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Ajouter un répertoire",
         "duplicate": "Ce répertoire est déjà inclus.",
         "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
+        "error": {
+          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+        },
         "label": "Répertoires accessibles",
-        "required": "Veuillez sélectionner au moins un répertoire accessible.",
         "select_failed": "Échec de la sélection du répertoire."
       },
       "add": {

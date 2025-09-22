@@ -20,13 +20,25 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "get": {
+      "error": {
+        "failed": "[to be translated]:Failed to get the agent."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "[to be translated]:Failed to list agents."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
+        "error": {
+          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+        },
         "label": "可存取的目錄",
-        "required": "請至少選擇一個可存取的目錄。",
         "select_failed": "無法選擇目錄。"
       },
       "add": {
