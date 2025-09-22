@@ -135,7 +135,6 @@ const Settings = styled.div`
   flex-direction: column;
   flex: 1;
   padding: 16px 16px;
-  overflow-y: scroll;
 `
 
 const StyledModal = styled(Modal)`

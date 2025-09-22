@@ -67,7 +67,7 @@ export const SettingsItem: React.FC<SettingsItemProps> = ({
 
 export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'>> = ({ children, className, ...props }) => {
   return (
-    <div className={cn('flex flex-1 flex-col overflow-hidden', className)} {...props}>
+    <div className={cn('flex flex-1 flex-col overflow-auto pr-2', className)} {...props}>
       {children}
     </div>
   )
