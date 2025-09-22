@@ -46,6 +46,7 @@ const buildSessionForm = (existing?: AgentSessionEntity, agent?: AgentEntity): B
 interface BaseProps {
   agentId: string
   session?: AgentSessionEntity
+  onSessionCreated?: (session: AgentSessionEntity) => void
 }
 
 interface TriggerProps extends BaseProps {
@@ -73,7 +74,14 @@ type Props = TriggerProps | StateProps
  * @param onClose - Optional callback when modal closes. From useDisclosure.
  * @returns Modal component for agent creation/editing
  */
-export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpen: _isOpen, onClose: _onClose }) => {
+export const SessionModal: React.FC<Props> = ({
+  agentId,
+  session,
+  trigger,
+  isOpen: _isOpen,
+  onClose: _onClose,
+  onSessionCreated
+}) => {
   const { isOpen, onClose, onOpen } = useDisclosure({ isOpen: _isOpen, onClose: _onClose })
   const { t } = useTranslation()
   const loadingRef = useRef(false)
@@ -161,38 +169,43 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
         return
       }
 
-      if (isEditing(session)) {
-        if (!session) {
-          throw new Error('Agent is required for editing mode')
+      try {
+        if (isEditing(session)) {
+          if (!session) {
+            throw new Error('Agent is required for editing mode')
+          }
+
+          const updatePayload = {
+            id: session.id,
+            name: form.name,
+            description: form.description,
+            instructions: form.instructions,
+            model: form.model,
+            accessible_paths: [...form.accessible_paths]
+          } satisfies UpdateSessionForm
+
+          updateSession(updatePayload)
+          logger.debug('Updated agent', updatePayload)
+        } else {
+          const newSession = {
+            name: form.name,
+            description: form.description,
+            instructions: form.instructions,
+            model: form.model,
+            accessible_paths: [...form.accessible_paths]
+          } satisfies CreateSessionForm
+          const createdSession = await createSession(newSession)
+          if (createdSession) {
+            onSessionCreated?.(createdSession)
+          }
+          logger.debug('Added agent', newSession)
         }
 
-        const updatePayload = {
-          id: session.id,
-          name: form.name,
-          description: form.description,
-          instructions: form.instructions,
-          model: form.model,
-          accessible_paths: [...form.accessible_paths]
-        } satisfies UpdateSessionForm
-
-        updateSession(updatePayload)
-        logger.debug('Updated agent', updatePayload)
-      } else {
-        const newSession = {
-          name: form.name,
-          description: form.description,
-          instructions: form.instructions,
-          model: form.model,
-          accessible_paths: [...form.accessible_paths]
-        } satisfies CreateSessionForm
-        createSession(newSession)
-        logger.debug('Added agent', newSession)
+        // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
+        onClose()
+      } finally {
+        loadingRef.current = false
       }
-
-      loadingRef.current = false
-
-      // setTimeoutTimer('onCreateAgent', () => EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS), 0)
-      onClose()
     },
     [
       form.model,
@@ -202,6 +215,7 @@ export const SessionModal: React.FC<Props> = ({ agentId, session, trigger, isOpe
       form.accessible_paths,
       session,
       onClose,
+      onSessionCreated,
       t,
       updateSession,
       createSession

@@ -21,9 +21,11 @@ export const useSessions = (agentId: string) => {
     async (form: CreateSessionForm) => {
       try {
         const result = await client.createSession(agentId, form)
-        mutate((prev) => [...(prev ?? []), result])
+        await mutate((prev) => [...(prev ?? []), result], { revalidate: false })
+        return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
+        return undefined
       }
     },
     [agentId, client, mutate, t]

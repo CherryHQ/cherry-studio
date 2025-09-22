@@ -66,6 +66,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         transition={{ duration: 0.2, delay: 0.1 }}>
         <SessionModal
           agentId={agentId}
+          onSessionCreated={(created) => setActiveSessionId(agentId, created.id)}
           trigger={{
             content: (
               <Button
