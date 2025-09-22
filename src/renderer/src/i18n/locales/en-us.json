@@ -44,6 +44,12 @@
       "add": {
         "title": "Add a session"
       },
+      "allowed_tools": {
+        "empty": "No tools available for this agent.",
+        "helper": "Choose which tools are pre-approved. Unselected tools require approval before use.",
+        "label": "Allowed tools",
+        "placeholder": "Select allowed tools"
+      },
       "create": {
         "error": {
           "failed": "Failed to add a session"

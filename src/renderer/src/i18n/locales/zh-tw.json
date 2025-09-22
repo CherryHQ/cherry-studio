@@ -44,6 +44,12 @@
       "add": {
         "title": "新增會議"
       },
+      "allowed_tools": {
+        "empty": "目前此代理沒有可用的工具。",
+        "helper": "選擇預先授權的工具，未選取的工具在使用時需要手動審批。",
+        "label": "允許的工具",
+        "placeholder": "選擇允許使用的工具"
+      },
       "create": {
         "error": {
           "failed": "無法新增工作階段"

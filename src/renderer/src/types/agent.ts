@@ -169,6 +169,7 @@ export type BaseAgentForm = {
   instructions?: string
   model: string
   accessible_paths: string[]
+  allowed_tools: string[]
 }
 
 export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }

@@ -1,5 +1,6 @@
 import {
   Button,
+  Chip,
   cn,
   Form,
   Input,
@@ -10,17 +11,19 @@ import {
   ModalHeader,
   Select,
   SelectedItemProps,
+  SelectedItems,
   SelectItem,
   Textarea,
   useDisclosure
 } from '@heroui/react'
 import { loggerService } from '@logger'
+import type { Selection } from '@react-types/shared'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
+import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, Tool, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -37,17 +40,20 @@ interface AgentTypeOption extends BaseOption {
 
 type Option = AgentTypeOption | ModelOption
 
-const buildAgentForm = (existing?: AgentEntity): BaseAgentForm => ({
+type AgentWithTools = AgentEntity & { tools?: Tool[] }
+
+const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   type: existing?.type ?? 'claude-code',
   name: existing?.name ?? 'Claude Code',
   description: existing?.description,
   instructions: existing?.instructions,
   model: existing?.model ?? 'claude-4-sonnet',
-  accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : []
+  accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
+  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : []
 })
 
 interface BaseProps {
-  agent?: AgentEntity
+  agent?: AgentWithTools
 }
 
 interface TriggerProps extends BaseProps {
@@ -83,7 +89,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const updateAgent = useUpdateAgent()
   // hard-coded. We only support anthropic for now.
   const { models } = useApiModels({ providerType: 'anthropic' })
-  const isEditing = (agent?: AgentEntity) => agent !== undefined
+  const isEditing = (agent?: AgentWithTools) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
 
@@ -92,6 +98,26 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       setForm(buildAgentForm(agent))
     }
   }, [agent, isOpen])
+
+  const availableTools = useMemo(() => agent?.tools ?? [], [agent?.tools])
+  const selectedToolKeys = useMemo(() => new Set(form.allowed_tools), [form.allowed_tools])
+
+  useEffect(() => {
+    if (!availableTools.length) {
+      return
+    }
+
+    setForm((prev) => {
+      const validTools = prev.allowed_tools.filter((id) => availableTools.some((tool) => tool.id === id))
+      if (validTools.length === prev.allowed_tools.length) {
+        return prev
+      }
+      return {
+        ...prev,
+        allowed_tools: validTools
+      }
+    })
+  }, [availableTools])
 
   // add supported agents type here.
   const agentConfig = useMemo(
@@ -159,6 +185,48 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       instructions
     }))
   }, [])
+
+  const onAllowedToolsChange = useCallback(
+    (keys: Selection) => {
+      setForm((prev) => {
+        if (keys === 'all') {
+          return {
+            ...prev,
+            allowed_tools: availableTools.map((tool) => tool.id)
+          }
+        }
+
+        const next = Array.from(keys).map(String)
+        const filtered = availableTools.length
+          ? next.filter((id) => availableTools.some((tool) => tool.id === id))
+          : next
+
+        return {
+          ...prev,
+          allowed_tools: filtered
+        }
+      })
+    },
+    [availableTools]
+  )
+
+  const renderSelectedTools = useCallback(
+    (items: SelectedItems<Tool>) => {
+      if (!items.length) {
+        return null
+      }
+      return (
+        <div className="flex flex-wrap gap-2">
+          {items.map((item) => (
+            <Chip key={item.key} size="sm" variant="flat" className="max-w-[160px] truncate">
+              {item.data?.name ?? item.textValue ?? item.key}
+            </Chip>
+          ))}
+        </div>
+      )
+    },
+    []
+  )
 
   const addAccessiblePath = useCallback(async () => {
     try {
@@ -246,7 +314,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessible_paths: [...form.accessible_paths]
+          accessible_paths: [...form.accessible_paths],
+          allowed_tools: [...form.allowed_tools]
         } satisfies UpdateAgentForm
 
         updateAgent(updatePayload)
@@ -258,7 +327,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           description: form.description,
           instructions: form.instructions,
           model: form.model,
-          accessible_paths: [...form.accessible_paths]
+          accessible_paths: [...form.accessible_paths],
+          allowed_tools: [...form.allowed_tools]
         } satisfies AddAgentForm
         addAgent(newAgent)
         logger.debug('Added agent', newAgent)
@@ -276,6 +346,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       form.description,
       form.instructions,
       form.accessible_paths,
+      form.allowed_tools,
       agent,
       onClose,
       t,
@@ -347,6 +418,31 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
+                  <Select
+                    selectionMode="multiple"
+                    selectedKeys={selectedToolKeys}
+                    onSelectionChange={onAllowedToolsChange}
+                    label={t('agent.session.allowed_tools.label')}
+                    placeholder={t('agent.session.allowed_tools.placeholder')}
+                    description={
+                      availableTools.length
+                        ? t('agent.session.allowed_tools.helper')
+                        : t('agent.session.allowed_tools.empty')
+                    }
+                    isDisabled={!availableTools.length}
+                    items={availableTools}
+                    renderValue={renderSelectedTools}>
+                    {(tool) => (
+                      <SelectItem key={tool.id} textValue={tool.name}>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{tool.name}</span>
+                          {tool.description ? (
+                            <span className="text-xs text-foreground-500">{tool.description}</span>
+                          ) : null}
+                        </div>
+                      </SelectItem>
+                    )}
+                  </Select>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-foreground text-sm">
