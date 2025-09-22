@@ -52,7 +52,8 @@
       "delete": {
         "content": "您確定要刪除此工作階段嗎？",
         "error": {
-          "failed": "無法刪除工作階段"
+          "failed": "無法刪除工作階段",
+          "last": "[to be translated]:At least one session must be kept"
         },
         "title": "刪除工作階段"
       },

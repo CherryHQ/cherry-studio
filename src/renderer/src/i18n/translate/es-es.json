@@ -52,7 +52,8 @@
       "delete": {
         "content": "¿Estás seguro de eliminar esta sesión?",
         "error": {
-          "failed": "Error al eliminar la sesión"
+          "failed": "Error al eliminar la sesión",
+          "last": "[to be translated]:At least one session must be kept"
         },
         "title": "Eliminar sesión"
       },
