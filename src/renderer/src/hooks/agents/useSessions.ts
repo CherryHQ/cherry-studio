@@ -1,4 +1,4 @@
-import { CreateSessionForm, UpdateSessionForm } from '@renderer/types'
+import { CreateSessionForm } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,25 +46,14 @@ export const useSessions = (agentId: string) => {
 
   const deleteSession = useCallback(
     async (id: string) => {
-      if (!agentId) return
+      if (!agentId) return false
       try {
         await client.deleteSession(agentId, id)
         mutate((prev) => prev?.filter((session) => session.id !== id))
+        return true
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
-      }
-    },
-    [agentId, client, mutate, t]
-  )
-
-  const updateSession = useCallback(
-    async (form: UpdateSessionForm) => {
-      if (!agentId) return
-      try {
-        const result = await client.updateSession(agentId, form)
-        mutate((prev) => prev?.map((session) => (session.id === form.id ? result : session)))
-      } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.update.error.failed')))
+        return false
       }
     },
     [agentId, client, mutate, t]
@@ -76,7 +65,6 @@ export const useSessions = (agentId: string) => {
     isLoading,
     createSession,
     getSession,
-    deleteSession,
-    updateSession
+    deleteSession
   }
 }

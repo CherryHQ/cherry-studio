@@ -1,9 +1,14 @@
 import { Alert, Button, Spinner } from '@heroui/react'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import {
+  setActiveSessionIdAction,
+  setActiveTopicOrSessionAction,
+  setSessionWaitingAction
+} from '@renderer/store/runtime'
 import { CreateSessionForm } from '@renderer/types'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
@@ -22,8 +27,9 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
   const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
+  const updateSession = useUpdateSession(agentId)
   const { chat } = useRuntime()
-  const { activeSessionId } = chat
+  const { activeSessionId, sessionWaiting } = chat
   const dispatch = useAppDispatch()
 
   const setActiveSessionId = useCallback(
@@ -45,6 +51,27 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
     }
   }, [agent, agentId, createSession, dispatch])
+
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      if (sessions.length === 1) {
+        window.toast.error(t('agent.session.delete.error.last'))
+        return
+      }
+      dispatch(setSessionWaitingAction({ id, value: true }))
+      const success = await deleteSession(id)
+      if (success) {
+        const newSessionId = sessions.find((s) => s.id !== id)?.id
+        if (newSessionId) {
+          dispatch(setActiveSessionIdAction({ agentId, sessionId: newSessionId }))
+        } else {
+          // may clear messages instead of forbidden deletion
+        }
+      }
+      dispatch(setSessionWaitingAction({ id, value: false }))
+    },
+    [agentId, deleteSession, dispatch, sessions]
+  )
 
   const currentActiveSessionId = activeSessionId[agentId]
 
@@ -96,7 +123,9 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
             <SessionItem
               session={session}
               agentId={agentId}
-              onDelete={() => deleteSession(session.id)}
+              isDisabled={sessionWaiting[session.id]}
+              isLoading={sessionWaiting[session.id]}
+              onDelete={() => handleDeleteSession(session.id)}
               onPress={() => setActiveSessionId(agentId, session.id)}
             />
           </motion.div>
