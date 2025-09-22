@@ -15,6 +15,11 @@ import { modelsRoutes } from './routes/models'
 const logger = loggerService.withContext('ApiServer')
 
 const app = express()
+app.use(
+  express.json({
+    limit: '50mb'
+  })
+)
 
 // Global middleware
 app.use((req, res, next) => {
@@ -111,7 +116,6 @@ app.get('/', (_req, res) => {
 // Provider-specific API routes with auth (must be before /v1 to avoid conflicts)
 const providerRouter = express.Router({ mergeParams: true })
 providerRouter.use(authMiddleware)
-providerRouter.use(express.json())
 // Mount provider-specific messages route
 providerRouter.use('/v1/messages', messagesProviderRoutes)
 app.use('/:provider', providerRouter)
@@ -119,7 +123,6 @@ app.use('/:provider', providerRouter)
 // API v1 routes with auth
 const apiRouter = express.Router()
 apiRouter.use(authMiddleware)
-apiRouter.use(express.json())
 // Mount routes
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
