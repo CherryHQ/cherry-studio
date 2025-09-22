@@ -64,9 +64,9 @@ export interface MessageDataSource {
   deleteMessage(topicId: string, messageId: string): Promise<void>
 
   /**
-   * Delete messages by askId (user query + assistant responses)
+   * Delete multiple messages and their blocks
    */
-  deleteMessagesByAskId(topicId: string, askId: string): Promise<void>
+  deleteMessages(topicId: string, messageIds: string[]): Promise<void>
 
   // ============ Block Operations ============
   /**

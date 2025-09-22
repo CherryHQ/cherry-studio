@@ -373,6 +373,15 @@ export class AgentMessageDataSource implements MessageDataSource {
     // 2. Or just hide from UI without actual deletion
   }
 
+  async deleteMessages(topicId: string, _messageIds: string[]): Promise<void> {
+    // Agent session messages cannot be deleted in batch
+    logger.warn(`deleteMessages called for agent session ${topicId}, operation not supported`)
+
+    // In a full implementation, you might want to:
+    // 1. Implement batch soft delete in backend
+    // 2. Update local state accordingly
+  }
+
   async deleteMessagesByAskId(topicId: string, _askId: string): Promise<void> {
     // Agent session messages cannot be deleted
     logger.warn(`deleteMessagesByAskId called for agent session ${topicId}, operation not supported`)

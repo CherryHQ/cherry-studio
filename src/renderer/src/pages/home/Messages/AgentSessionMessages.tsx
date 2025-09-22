@@ -1,13 +1,11 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
-import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
-import { Topic } from '@renderer/types'
+import { type Topic, TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { memo, useEffect, useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import styled from 'styled-components'
 
 import MessageGroup from './MessageGroup'
@@ -22,23 +20,10 @@ type Props = {
 }
 
 const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
-  const dispatch = useAppDispatch()
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
-
-  // Load messages when session changes or when messages are empty
-  useEffect(() => {
-    if (sessionId) {
-      // Only load if we don't have messages yet
-      // This prevents overwriting messages that were just added
-      const hasMessages = messages && messages.length > 0
-      if (!hasMessages) {
-        logger.info('Loading messages for agent session', { sessionId })
-        dispatch(loadTopicMessagesThunk(sessionTopicId, false)) // Don't force reload if we have messages in Redux
-      }
-    }
-  }, [dispatch, sessionId, sessionTopicId, messages?.length])
+  // Use the same hook as Messages.tsx for consistent behavior
+  const messages = useTopicMessages(sessionTopicId)
 
   const displayMessages = useMemo(() => {
     if (!messages || messages.length === 0) return []
@@ -58,6 +43,7 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   const derivedTopic = useMemo<Topic>(
     () => ({
       id: sessionTopicId,
+      type: TopicType.Session,
       assistantId: sessionAssistantId,
       name: sessionName,
       createdAt: sessionCreatedAt,

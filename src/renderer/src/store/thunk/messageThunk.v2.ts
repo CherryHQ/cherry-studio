@@ -5,10 +5,7 @@
 
 import { loggerService } from '@logger'
 import { dbService } from '@renderer/services/db'
-import type { Topic } from '@renderer/types'
-import { TopicType } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
 
 import type { AppDispatch, RootState } from '../index'
 import { upsertManyBlocks } from '../messageBlock'
@@ -79,42 +76,6 @@ export const getRawTopicV2 = async (topicId: string): Promise<{ id: string; mess
 // =================================================================
 // Phase 2.2 - Batch 2: Helper functions
 // =================================================================
-
-/**
- * Get a full topic object with type information
- * This builds on getRawTopicV2 to provide additional metadata
- */
-export const getTopicV2 = async (topicId: string): Promise<Topic | undefined> => {
-  try {
-    const rawTopic = await dbService.getRawTopic(topicId)
-    if (!rawTopic) {
-      logger.info('Topic not found', { topicId })
-      return undefined
-    }
-
-    // Construct the full Topic object
-    const topic: Topic = {
-      id: rawTopic.id,
-      type: isAgentSessionTopicId(topicId) ? TopicType.Session : TopicType.Chat,
-      messages: rawTopic.messages,
-      assistantId: '', // These fields would need to be fetched from appropriate source
-      name: '',
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    }
-
-    logger.info('Retrieved topic with type via DbService', {
-      topicId,
-      type: topic.type,
-      messageCount: topic.messages.length
-    })
-
-    return topic
-  } catch (error) {
-    logger.error('Failed to get topic:', { topicId, error })
-    return undefined
-  }
-}
 
 /**
  * Update file reference count

@@ -86,9 +86,9 @@ class DbService implements MessageDataSource {
     return source.deleteMessage(topicId, messageId)
   }
 
-  async deleteMessagesByAskId(topicId: string, askId: string): Promise<void> {
+  async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     const source = this.getDataSource(topicId)
-    return source.deleteMessagesByAskId(topicId, askId)
+    return source.deleteMessages(topicId, messageIds)
   }
 
   // ============ Block Operations ============

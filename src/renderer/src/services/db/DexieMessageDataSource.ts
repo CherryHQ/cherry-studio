@@ -203,39 +203,48 @@ export class DexieMessageDataSource implements MessageDataSource {
     }
   }
 
-  async deleteMessagesByAskId(topicId: string, askId: string): Promise<void> {
+  async deleteMessages(topicId: string, messageIds: string[]): Promise<void> {
     try {
       await db.transaction('rw', db.topics, db.message_blocks, db.files, async () => {
         const topic = await db.topics.get(topicId)
         if (!topic) return
 
-        // Find all messages with the given askId
-        const messagesToDelete = topic.messages.filter((m) => m.askId === askId || m.id === askId)
-        const blockIdsToDelete = messagesToDelete.flatMap((m) => m.blocks || [])
+        // Collect all block IDs from messages to be deleted
+        const allBlockIds: string[] = []
+        const messagesToDelete: Message[] = []
+
+        for (const messageId of messageIds) {
+          const message = topic.messages.find((m) => m.id === messageId)
+          if (message) {
+            messagesToDelete.push(message)
+            if (message.blocks && message.blocks.length > 0) {
+              allBlockIds.push(...message.blocks)
+            }
+          }
+        }
 
         // Delete blocks and handle files
-        if (blockIdsToDelete.length > 0) {
-          const blocks = await db.message_blocks.where('id').anyOf(blockIdsToDelete).toArray()
+        if (allBlockIds.length > 0) {
+          const blocks = await db.message_blocks.where('id').anyOf(allBlockIds).toArray()
           const files = blocks
             .filter((block) => block.type === 'file' || block.type === 'image')
             .map((block: any) => block.file)
             .filter((file) => file !== undefined)
 
+          // Clean up files
           if (!isEmpty(files)) {
             await Promise.all(files.map((file) => FileManager.deleteFile(file.id, false)))
           }
-
-          await db.message_blocks.bulkDelete(blockIdsToDelete)
+          await db.message_blocks.bulkDelete(allBlockIds)
         }
 
-        // Filter out deleted messages
-        const remainingMessages = topic.messages.filter((m) => m.askId !== askId && m.id !== askId)
+        // Remove messages from topic
+        const remainingMessages = topic.messages.filter((m) => !messageIds.includes(m.id))
         await db.topics.update(topicId, { messages: remainingMessages })
       })
-
       store.dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
-      logger.error(`Failed to delete messages with askId ${askId} from topic ${topicId}:`, error as Error)
+      logger.error(`Failed to delete messages from topic ${topicId}:`, error as Error)
       throw error
     }
   }
