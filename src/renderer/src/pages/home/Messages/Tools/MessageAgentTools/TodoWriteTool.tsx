@@ -1,11 +1,11 @@
-import { AccordionItem, Chip, Card, CardBody } from '@heroui/react'
-import { ListTodo, CheckCircle, Clock, Circle } from 'lucide-react'
+import { AccordionItem, Card, CardBody, Chip } from '@heroui/react'
+import { CheckCircle, Circle, Clock, ListTodo } from 'lucide-react'
 
 import { ToolTitle } from './GenericTools'
 import type {
+  TodoItem,
   TodoWriteToolInput as TodoWriteToolInputType,
-  TodoWriteToolOutput as TodoWriteToolOutputType,
-  TodoItem
+  TodoWriteToolOutput as TodoWriteToolOutputType
 } from './types'
 import { AgentToolsType } from './types'
 

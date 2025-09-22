@@ -1,3 +1,6 @@
+import { loggerService } from '@logger'
+
+const logger = loggerService.withContext('Feature Flag')
 /**
  * Feature flags for controlling gradual rollout of new features
  * These flags can be toggled to enable/disable features without code changes
@@ -33,7 +36,6 @@ export function initializeFeatureFlags(): void {
   // Usage: VITE_USE_UNIFIED_DB_SERVICE=true yarn dev
   if (import.meta.env?.VITE_USE_UNIFIED_DB_SERVICE === 'true') {
     featureFlags.USE_UNIFIED_DB_SERVICE = true
-    console.log('[FeatureFlags] USE_UNIFIED_DB_SERVICE enabled via environment variable')
   }
 
   // Then check localStorage for runtime overrides (higher priority)
@@ -45,15 +47,12 @@ export function initializeFeatureFlags(): void {
       Object.keys(overrides).forEach((key) => {
         if (key in featureFlags) {
           featureFlags[key as keyof FeatureFlags] = overrides[key]
-          console.log(`[FeatureFlags] ${key} set to ${overrides[key]} via localStorage`)
         }
       })
     }
   } catch (e) {
-    console.warn('[FeatureFlags] Failed to parse feature flags from localStorage:', e)
+    logger.warn('Failed to parse feature flags from localStorage:', e as Error)
   }
-
-  console.log('[FeatureFlags] Current flags:', featureFlags)
 }
 
 /**

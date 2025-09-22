@@ -5,14 +5,15 @@
  */
 
 // Export main service
-export { DbService,dbService } from './DbService'
+export { DbService, dbService } from './DbService'
 
 // Export types
 export type { MessageDataSource, MessageExchange } from './types'
 export {
   buildAgentSessionTopicId,
   extractSessionId,
-  isAgentSessionTopicId} from './types'
+  isAgentSessionTopicId
+} from './types'
 
 // Export implementations (for testing or direct access if needed)
 export { AgentMessageDataSource } from './AgentMessageDataSource'

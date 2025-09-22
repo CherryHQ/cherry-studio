@@ -440,9 +440,9 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     {(tool) => (
                       <SelectItem key={tool.id} textValue={tool.name}>
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium">{tool.name}</span>
+                          <span className="font-medium text-sm">{tool.name}</span>
                           {tool.description ? (
-                            <span className="text-xs text-foreground-500">{tool.description}</span>
+                            <span className="text-foreground-500 text-xs">{tool.description}</span>
                           ) : null}
                         </div>
                       </SelectItem>

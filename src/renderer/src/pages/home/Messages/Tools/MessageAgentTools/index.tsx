@@ -14,9 +14,9 @@ import { SearchTool } from './SearchTool'
 import { TaskTool } from './TaskTool'
 import { TodoWriteTool } from './TodoWriteTool'
 import { AgentToolsType, ToolInput, ToolOutput } from './types'
+import { WebFetchTool } from './WebFetchTool'
 import { WebSearchTool } from './WebSearchTool'
 import { WriteTool } from './WriteTool'
-import { WebFetchTool } from './WebFetchTool'
 
 const logger = loggerService.withContext('MessageAgentTools')
 

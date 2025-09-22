@@ -1,9 +1,8 @@
 import { AccordionItem } from '@heroui/react'
 import { Bot } from 'lucide-react'
-
-import { ToolTitle } from './GenericTools'
 import Markdown from 'react-markdown'
 
+import { ToolTitle } from './GenericTools'
 import type { TaskToolInput as TaskToolInputType, TaskToolOutput as TaskToolOutputType } from './types'
 
 export function TaskTool({ input, output }: { input: TaskToolInputType; output?: TaskToolOutputType }) {

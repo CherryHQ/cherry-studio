@@ -205,7 +205,7 @@ export enum TopicType {
 
 export type Topic = {
   id: string
-  type: TopicType
+  type?: TopicType
   assistantId: string
   name: string
   createdAt: string
