@@ -188,15 +188,17 @@ export const clearMessagesFromDBV2 = async (topicId: string): Promise<void> => {
 export const saveMessageAndBlocksToDBV2 = async (
   topicId: string,
   message: Message,
-  blocks: MessageBlock[]
+  blocks: MessageBlock[],
+  messageIndex: number = -1
 ): Promise<void> => {
   try {
-    // Direct call without conditional logic
-    await dbService.appendMessage(topicId, message, blocks)
+    // Direct call without conditional logic, now with messageIndex
+    await dbService.appendMessage(topicId, message, blocks, messageIndex)
     logger.info('Saved message and blocks via DbService', {
       topicId,
       messageId: message.id,
-      blockCount: blocks.length
+      blockCount: blocks.length,
+      messageIndex
     })
   } catch (error) {
     logger.error('Failed to save message and blocks:', { topicId, messageId: message.id, error })

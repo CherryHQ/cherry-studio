@@ -27,13 +27,18 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   const messages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
 
-  // Load messages when session changes
+  // Load messages when session changes or when messages are empty
   useEffect(() => {
     if (sessionId) {
-      logger.info('Loading messages for agent session', { sessionId })
-      dispatch(loadTopicMessagesThunk(sessionTopicId, true)) // Force reload to get latest from backend
+      // Only load if we don't have messages yet
+      // This prevents overwriting messages that were just added
+      const hasMessages = messages && messages.length > 0
+      if (!hasMessages) {
+        logger.info('Loading messages for agent session', { sessionId })
+        dispatch(loadTopicMessagesThunk(sessionTopicId, false)) // Don't force reload if we have messages in Redux
+      }
     }
-  }, [dispatch, sessionId, sessionTopicId])
+  }, [dispatch, sessionId, sessionTopicId, messages?.length])
 
   const displayMessages = useMemo(() => {
     if (!messages || messages.length === 0) return []

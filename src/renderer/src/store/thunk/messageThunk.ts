@@ -204,7 +204,7 @@ const createAgentMessageStream = async (
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
   // Use V2 implementation if feature flag is enabled
   if (featureFlags.USE_UNIFIED_DB_SERVICE) {
-    return saveMessageAndBlocksToDBV2(message.topicId, message, blocks)
+    return saveMessageAndBlocksToDBV2(message.topicId, message, blocks, messageIndex)
   }
 
   // Original implementation
