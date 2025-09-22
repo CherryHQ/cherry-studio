@@ -256,7 +256,7 @@ export class WindowService {
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:5173')) {
+      if (url.includes('localhost:517')) {
         return
       }
 
