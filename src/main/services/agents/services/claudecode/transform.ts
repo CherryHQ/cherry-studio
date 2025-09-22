@@ -13,15 +13,20 @@ const logger = loggerService.withContext('ClaudeCodeTransform')
 
 type AgentStreamPart = TextStreamPart<Record<string, any>>
 
-const contentBlockState = new Map<
-  string,
-  {
-    type: 'text' | 'tool-call'
-    toolCallId?: string
-    toolName?: string
-    input?: string
-  }
->()
+type contentBlock =
+  | {
+      type: 'text'
+    }
+  | {
+      type: 'tool-call'
+      toolCallId: string
+      toolName: string
+      input?: string
+    }
+
+const contentBlockState = new Map<string, contentBlock>()
+
+type toolCallBlock = Extract<contentBlock, { type: 'tool-call' }>
 
 // Helper function to generate unique IDs for text blocks
 const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
@@ -114,16 +119,25 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
             providerExecuted: true,
             providerMetadata: sdkMessageToProviderMetadata(message)
           })
+          contentBlockState.set(block.id, {
+            type: 'tool-call',
+            toolCallId: block.id,
+            toolName: block.name
+          })
           break
-        case 'tool_result':
+        case 'tool_result': {
+          logger.debug('Handling tool result:', { block })
+          logger.debug('contentblockState', { content: contentBlockState })
+          const toolCall = contentBlockState.get(block.tool_use_id) as toolCallBlock
           chunks.push({
             type: 'tool-result',
             toolCallId: block.tool_use_id,
-            toolName: contentBlockState[block.tool_use_id].toolName,
+            toolName: contentBlockState.has(block.tool_use_id) ? toolCall.toolName : 'Unknown',
             input: '',
             output: block.content
           })
           break
+        }
         default:
           logger.warn('Unknown content block type in user/assistant message:', {
             type: block.type
