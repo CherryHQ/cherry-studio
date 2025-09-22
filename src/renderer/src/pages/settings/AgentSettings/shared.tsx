@@ -2,12 +2,21 @@ import { Avatar, AvatarProps, cn } from '@heroui/react'
 import { getAgentAvatar } from '@renderer/config/agent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
 import { AgentType } from '@renderer/types'
-import React from 'react'
+import React, { ReactNode } from 'react'
 
 import { SettingDivider } from '..'
 
-export const SettingsTitle: React.FC<React.PropsWithChildren> = ({ children }) => {
-  return <div className="mb-1 flex items-center gap-2 font-bold">{children}</div>
+export interface SettingsTitleProps extends React.ComponentPropsWithRef<'div'> {
+  actions?: ReactNode
+}
+
+export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, actions }) => {
+  return (
+    <div className={cn(actions ? 'justify-between' : undefined, 'mb-1 flex items-center gap-2')}>
+      <span className="flex items-center gap-1 font-bold">{children}</span>
+      {actions !== undefined && actions}
+    </div>
+  )
 }
 
 export type AgentLabelProps = {

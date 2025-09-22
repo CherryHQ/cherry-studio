@@ -327,7 +327,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     )}
                   </Select>
                   <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
-                  {/* FIXME: Model type definition is string. It cannot be related to provider. Just mock a model now. */}
                   <Select
                     isRequired
                     selectionMode="single"

@@ -1,4 +1,4 @@
-import { Button, Spinner } from '@heroui/react'
+import { Alert, Button, Spinner } from '@heroui/react'
 import { AgentModal } from '@renderer/components/Popups/agent/AgentModal'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -14,7 +14,7 @@ import { SectionName } from './SectionName'
 interface AssistantsTabProps {}
 
 export const Agents: FC<AssistantsTabProps> = () => {
-  const { agents, deleteAgent, isLoading } = useAgents()
+  const { agents, deleteAgent, isLoading, error } = useAgents()
   const { t } = useTranslation()
   const { chat } = useRuntime()
   const { activeAgentId } = chat
@@ -38,7 +38,9 @@ export const Agents: FC<AssistantsTabProps> = () => {
     <div className="agents-tab h-full w-full">
       <SectionName name={t('common.agent_other')} />
       {isLoading && <Spinner />}
+      {error && <Alert color="danger" title={t('agent.list.error.failed')} />}
       {!isLoading &&
+        !error &&
         agents.map((agent) => (
           <AgentItem
             key={agent.id}
