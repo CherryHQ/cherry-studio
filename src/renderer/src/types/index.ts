@@ -730,7 +730,7 @@ export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done
 interface BaseToolResponse {
   id: string // unique id
   tool: BaseTool | MCPTool
-  arguments: Record<string, unknown> | undefined
+  arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: MCPToolResponseStatus
   response?: any
 }

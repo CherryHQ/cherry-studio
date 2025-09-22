@@ -11,6 +11,7 @@ import type {
   MemoryItem,
   Metrics,
   Model,
+  NormalToolResponse,
   Topic,
   Usage,
   WebSearchResponse,
@@ -114,7 +115,7 @@ export interface ToolMessageBlock extends BaseMessageBlock {
   arguments?: Record<string, any>
   content?: string | object
   metadata?: BaseMessageBlock['metadata'] & {
-    rawMcpToolResponse?: MCPToolResponse
+    rawMcpToolResponse?: MCPToolResponse | NormalToolResponse
   }
 }
 
