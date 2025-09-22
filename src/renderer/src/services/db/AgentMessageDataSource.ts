@@ -105,14 +105,36 @@ export class AgentMessageDataSource implements MessageDataSource {
   }
 
   async appendMessage(topicId: string, message: Message, blocks: MessageBlock[], insertIndex?: number): Promise<void> {
-    // For agent sessions, messages are persisted through persistExchange
-    // This method might be called for user messages before the exchange
-    // We'll store them temporarily in memory or skip for now
-    logger.info(`appendMessage called for agent session ${topicId}, deferring to persistExchange`)
+    // For agent sessions, we need to save messages immediately
+    // Don't wait for persistExchange which happens after response completion
+    const sessionId = extractSessionId(topicId)
+    if (!sessionId) {
+      throw new Error(`Invalid agent session topicId: ${topicId}`)
+    }
 
-    // In a full implementation, you might want to:
-    // 1. Store temporarily in Redux only
-    // 2. Or call a specific backend endpoint for single messages
+    try {
+      // Create a persisted message payload
+      const payload: AgentPersistedMessage = {
+        message,
+        blocks
+      }
+
+      // Save single message immediately to backend
+      // Use persistExchange with only one side of the conversation
+      await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
+        sessionId,
+        agentSessionId: '', // Will be set later if needed
+        ...(message.role === 'user' ? { user: { payload } } : { assistant: { payload } })
+      })
+
+      logger.info(`Saved ${message.role} message for agent session ${sessionId}`, {
+        messageId: message.id,
+        blockCount: blocks.length
+      })
+    } catch (error) {
+      logger.error(`Failed to save message for agent session ${topicId}:`, error as Error)
+      throw error
+    }
   }
 
   async updateMessage(topicId: string, messageId: string, updates: Partial<Message>): Promise<void> {
