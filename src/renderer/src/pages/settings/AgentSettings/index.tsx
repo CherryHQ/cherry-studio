@@ -53,8 +53,8 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         key: 'prompt',
         label: t('agent.settings.prompt')
       }
-    ] satisfies { key: AgentSettingPopupTab; label: string }[]
-  ).filter(Boolean) as { key: string; label: string }[]
+    ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
+  ).filter(Boolean)
 
   const ModalContent = () => {
     if (!agent) {

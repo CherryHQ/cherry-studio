@@ -1,5 +1,5 @@
 import ClaudeAvatar from '@renderer/assets/images/models/claude.png'
-import { AgentBase, AgentEntity } from '@renderer/types'
+import { AgentBase, AgentType } from '@renderer/types'
 
 // base agent config. no default config for now.
 const DEFAULT_AGENT_CONFIG: Omit<AgentBase, 'model'> = {
@@ -11,7 +11,7 @@ export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
   ...DEFAULT_AGENT_CONFIG
 } as const
 
-export const getAgentAvatar = (type: AgentEntity['type']): string => {
+export const getAgentAvatar = (type: AgentType): string => {
   switch (type) {
     case 'claude-code':
       return ClaudeAvatar

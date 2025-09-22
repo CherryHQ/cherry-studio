@@ -346,10 +346,11 @@ export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   else return getLabel(builtinOcrProviderKeyMap, key)
 }
 
-const agentTypeKeyMap = {
-  'claude-code': 'Claude Code'
-} as const satisfies Record<AgentType, string>
-
 export const getAgentTypeLabel = (key: AgentType) => {
-  return getLabel(agentTypeKeyMap, key, t('agent.type.unknown'))
+  switch (key) {
+    case 'claude-code':
+      return 'Claude Code'
+    default:
+      return 'Unknown Type'
+  }
 }
