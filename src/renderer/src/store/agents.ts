@@ -19,7 +19,7 @@ const assistantsSlice = createSlice({
   initialState,
   reducers: {
     setAssistantPresets: (state, action: PayloadAction<AssistantPreset[]>) => {
-      state.agents = action.payload
+      state.agents = { ...action.payload }
     },
     addAssistantPreset: (state, action: PayloadAction<AssistantPreset>) => {
       state.agents.push(action.payload)
