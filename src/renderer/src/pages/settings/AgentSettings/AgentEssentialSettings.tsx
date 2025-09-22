@@ -23,7 +23,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
   const { t } = useTranslation()
   const [name, setName] = useState<string>((agent?.name ?? '').trim())
   const { models } = useApiModels({ providerType: 'anthropic' })
-  const agentModel = models.find((model) => model.id === agent?.model)
 
   const updateName = (name: string) => {
     if (!agent) return
@@ -118,7 +117,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
           placeholder={t('common.placeholders.select.model')}
         />
       </SettingsItem>
-      {/* TODO: Add accessible_paths and description */}
       <SettingsItem>
         <SettingsTitle
           actions={
