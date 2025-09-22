@@ -84,6 +84,9 @@
       "error": {
         "failed": "無法更新代理程式"
       }
+    },
+    "warning": {
+      "enable_server": "[to be translated]:Enable API Server to use agents."
     }
   },
   "agents": {
