@@ -1,3 +1,4 @@
+import { Spinner } from '@heroui/react'
 import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
@@ -55,6 +56,28 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
     ] satisfies { key: AgentSettingPopupTab; label: string }[]
   ).filter(Boolean) as { key: string; label: string }[]
 
+  const ModalContent = () => {
+    if (!agent) {
+      return <Spinner />
+    }
+    return (
+      <HStack>
+        <LeftMenu>
+          <StyledMenu
+            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
+            mode="vertical"
+            items={items}
+            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
+          />
+        </LeftMenu>
+        <Settings>
+          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
+          {menu === 'prompt' && <AgentPromptSettings agent={agent} update={updateAgent} />}
+        </Settings>
+      </HStack>
+    )
+  }
+
   return (
     <StyledModal
       open={open}
@@ -85,20 +108,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       width="min(800px, 70vw)"
       height="80vh"
       centered>
-      <HStack>
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
-            mode="vertical"
-            items={items}
-            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
-          />
-        </LeftMenu>
-        <Settings>
-          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
-          {menu === 'prompt' && <AgentPromptSettings agent={agent} update={updateAgent} />}
-        </Settings>
-      </HStack>
+      <ModalContent />
     </StyledModal>
   )
 }
