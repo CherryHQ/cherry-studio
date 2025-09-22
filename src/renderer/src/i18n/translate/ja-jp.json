@@ -53,7 +53,7 @@
         "content": "このセッションを削除してもよろしいですか？",
         "error": {
           "failed": "セッションの削除に失敗しました",
-          "last": "[to be translated]:At least one session must be kept"
+          "last": "少なくとも1つのセッションを維持する必要があります"
         },
         "title": "セッションを削除"
       },

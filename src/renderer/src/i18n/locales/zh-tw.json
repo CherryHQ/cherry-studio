@@ -53,7 +53,7 @@
         "content": "您確定要刪除此工作階段嗎？",
         "error": {
           "failed": "無法刪除工作階段",
-          "last": "[to be translated]:At least one session must be kept"
+          "last": "至少必須保留一個工作階段"
         },
         "title": "刪除工作階段"
       },
