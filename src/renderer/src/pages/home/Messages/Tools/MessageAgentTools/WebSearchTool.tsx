@@ -1,7 +1,7 @@
 import { AccordionItem } from '@heroui/react'
 import { Globe } from 'lucide-react'
 
-import { SimpleFieldInputTool, ToolTitle } from './GenericTools'
+import { ToolTitle } from './GenericTools'
 import type { WebSearchToolInput, WebSearchToolOutput } from './types'
 
 export function WebSearchTool({ input, output }: { input: WebSearchToolInput; output?: WebSearchToolOutput }) {
