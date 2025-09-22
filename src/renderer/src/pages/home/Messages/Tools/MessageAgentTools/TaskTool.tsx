@@ -2,6 +2,8 @@ import { AccordionItem } from '@heroui/react'
 import { Bot } from 'lucide-react'
 
 import { ToolTitle } from './GenericTools'
+import Markdown from 'react-markdown'
+
 import type { TaskToolInput as TaskToolInputType, TaskToolOutput as TaskToolOutputType } from './types'
 
 export function TaskTool({ input, output }: { input: TaskToolInputType; output?: TaskToolOutputType }) {
@@ -12,8 +14,7 @@ export function TaskTool({ input, output }: { input: TaskToolInputType; output?:
       title={<ToolTitle icon={<Bot className="h-4 w-4" />} label="Task" params={input.description} />}>
       {output?.map((item) => (
         <div key={item.type}>
-          <div>Type: {item.type}</div>
-          <div>{item.text}</div>
+          <div>{item.type === 'text' ? <Markdown>{item.text}</Markdown> : item.text}</div>
         </div>
       ))}
     </AccordionItem>

@@ -7,7 +7,8 @@ export enum AgentToolsType {
   TodoWrite = 'TodoWrite',
   WebSearch = 'WebSearch',
   Grep = 'Grep',
-  Write = 'Write'
+  Write = 'Write',
+  WebFetch = 'WebFetch'
 }
 
 // Read 工具的类型定义
@@ -52,7 +53,7 @@ export type GlobToolOutput = string
 // TodoWrite 工具的类型定义
 export interface TodoItem {
   content: string
-  status: string
+  status: 'completed' | 'in_progress' | 'pending'
   activeForm?: string
 }
 
@@ -66,8 +67,14 @@ export type TodoWriteToolOutput = string
 export interface WebSearchToolInput {
   query: string
 }
-
 export type WebSearchToolOutput = string
+
+// WebFetch 工具的类型定义
+export type WebFetchToolInput = {
+  prompt: string
+  url: string
+}
+export type WebFetchToolOutput = string
 
 // Grep 工具的类型定义
 export interface GrepToolInput {
@@ -93,6 +100,7 @@ export type ToolInput =
   | GlobToolInput
   | TodoWriteToolInput
   | WebSearchToolInput
+  | WebFetchToolInput
   | GrepToolInput
   | WriteToolInput
 export type ToolOutput =
@@ -104,6 +112,7 @@ export type ToolOutput =
   | TodoWriteToolOutput
   | WebSearchToolOutput
   | GrepToolOutput
+  | WebFetchToolOutput
   | WriteToolOutput
 // 工具渲染器接口
 export interface ToolRenderer {

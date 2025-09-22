@@ -34,6 +34,7 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
     case 'WebSearch':
     case 'Grep':
     case 'Write':
+    case 'WebFetch':
       return <MessageAgentTools toolResponse={toolResponse} />
     default:
       return null

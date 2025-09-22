@@ -16,15 +16,16 @@ export function BashTool({ input, output }: { input: BashToolInputType; output?:
         <ToolTitle
           icon={<Terminal className="h-4 w-4" />}
           label="Bash"
-          params={
-            <Code size="sm" className="text-sm">
-              {input.command}
-            </Code>
-          }
+          params={input.description}
           stats={output ? `${outputLines} ${outputLines === 1 ? 'line' : 'lines'}` : undefined}
         />
+      }
+      subtitle={
+        <Code size="sm" className="line-clamp-1 w-max max-w-full text-ellipsis text-xs">
+          {input.command}
+        </Code>
       }>
-      <div>{output}</div>
+      <div className="whitespace-pre-line">{output}</div>
     </AccordionItem>
   )
 }

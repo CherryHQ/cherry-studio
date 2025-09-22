@@ -1,7 +1,9 @@
-import { AccordionItem } from '@heroui/react'
+import { AccordionItem, ScrollShadow } from '@heroui/react'
 import { FileText } from 'lucide-react'
 
-import { SimpleFieldInputTool, StringOutputTool, ToolTitle } from './GenericTools'
+import { ToolTitle } from './GenericTools'
+import { AgentToolsType } from './types'
+import ReactMarkdown from 'react-markdown'
 import type { ReadToolInput as ReadToolInputType, ReadToolOutput as ReadToolOutputType } from './types'
 
 export function ReadTool({ input, output }: { input: ReadToolInputType; output?: ReadToolOutputType }) {
@@ -20,7 +22,7 @@ export function ReadTool({ input, output }: { input: ReadToolInputType; output?:
 
   return (
     <AccordionItem
-      key="tool"
+      key={AgentToolsType.Read}
       aria-label="Read Tool"
       title={
         <ToolTitle
@@ -30,14 +32,11 @@ export function ReadTool({ input, output }: { input: ReadToolInputType; output?:
           stats={output && stats ? `${stats.lineCount} lines, ${stats.formatSize(stats.fileSize)}` : undefined}
         />
       }>
-      <div>
-        <SimpleFieldInputTool input={input} label="File Path" fieldName="file_path" />
-        {output && (
-          <div>
-            <StringOutputTool output={output} label="File Content" />
-          </div>
-        )}
-      </div>
+      {output ? (
+        // <div className="h-full scroll-auto">
+        <ReactMarkdown>{output}</ReactMarkdown>
+        // </div>
+      ) : null}
     </AccordionItem>
   )
 }

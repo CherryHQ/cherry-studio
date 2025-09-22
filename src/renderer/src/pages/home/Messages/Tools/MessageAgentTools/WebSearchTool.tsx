@@ -20,10 +20,7 @@ export function WebSearchTool({ input, output }: { input: WebSearchToolInput; ou
           stats={output ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}` : undefined}
         />
       }>
-      <div>
-        <SimpleFieldInputTool input={input} label="Web Search Query" fieldName="query" />
-        {output}
-      </div>
+      {output}
     </AccordionItem>
   )
 }

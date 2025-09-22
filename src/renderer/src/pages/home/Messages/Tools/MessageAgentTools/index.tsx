@@ -16,6 +16,7 @@ import { TodoWriteTool } from './TodoWriteTool'
 import { AgentToolsType, ToolInput, ToolOutput } from './types'
 import { WebSearchTool } from './WebSearchTool'
 import { WriteTool } from './WriteTool'
+import { WebFetchTool } from './WebFetchTool'
 
 const logger = loggerService.withContext('MessageAgentTools')
 
@@ -29,7 +30,8 @@ export const toolRenderers = {
   [AgentToolsType.TodoWrite]: TodoWriteTool,
   [AgentToolsType.WebSearch]: WebSearchTool,
   [AgentToolsType.Grep]: GrepTool,
-  [AgentToolsType.Write]: WriteTool
+  [AgentToolsType.Write]: WriteTool,
+  [AgentToolsType.WebFetch]: WebFetchTool
 } as const
 
 // 类型守卫函数
@@ -40,18 +42,18 @@ export function isValidAgentToolsType(toolName: unknown): toolName is AgentTools
 // 统一的渲染函数
 function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: ToolOutput) {
   const Renderer = toolRenderers[toolName]
-  if (!Renderer) {
-    logger.error('Unknown tool type', { toolName })
-    return <div>Unknown tool type: {toolName}</div>
-  }
 
   return (
     <Accordion
       className="w-max max-w-full"
       itemClasses={{
         trigger:
-          'p-0 [&>div:first-child]:!flex-none [&>div:first-child]:flex [&>div:first-child]:flex-col [&>div:first-child]:text-start'
-      }}>
+          'p-0 [&>div:first-child]:!flex-none [&>div:first-child]:flex [&>div:first-child]:flex-col [&>div:first-child]:text-start [&>div:first-child]:max-w-full',
+        indicator: 'flex-shrink-0',
+        subtitle: 'text-xs',
+        content: 'rounded-md bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 h-fit max-h-96 scroll-auto'
+      }}
+      defaultExpandedKeys={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}>
       {/* <Renderer input={input as any} output={output as any} /> */}
       {Renderer({ input: input as any, output: output as any })}
     </Accordion>
