@@ -27,7 +27,7 @@
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:Failed to list agents."
+        "failed": "Falha ao listar agentes."
       }
     },
     "session": {

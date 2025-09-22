@@ -22,7 +22,7 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "Αποτυχία λήψης του πράκτορα."
       }
     },
     "list": {
