@@ -173,8 +173,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
         Modal.success({
-          title: t('settings.models.download.ov.success'),
-          content: t('settings.models.download.ov.success.content', { modelName: modelName, modelId: modelId }),
+          title: t('ovms.download.success'),
+          content: t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }),
           onOk: () => {
             setOpen(false)
           }
@@ -232,7 +232,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         disabled={false}>
         <Form.Item
           name="modelId"
-          label={t('ovms.download.model_id')}
+          label={t('ovms.download.model_id.label')}
           rules={[
             { required: true, message: t('ovms.download.model_id.required') },
             {
@@ -254,7 +254,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         </Form.Item>
         <Form.Item
           name="modelName"
-          label={t('ovms.download.model_name')}
+          label={t('ovms.download.model_name.label')}
           rules={[{ required: true, message: t('ovms.download.model_name.required') }]}>
           <Input
             placeholder={t('ovms.download.model_name.placeholder')}
@@ -305,7 +305,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               format={(percent) => `${percent}%`}
             />
             <div style={{ textAlign: 'center', marginTop: 8, color: '#666', fontSize: '14px' }}>
-              The model is downloading, sometimes it takes hours. Please be patient...
+              {t('ovms.download.tip')}
             </div>
           </Form.Item>
         )}
