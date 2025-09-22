@@ -6,28 +6,30 @@ import { NormalToolResponse } from '@renderer/types'
 export * from './types'
 
 // 导入所有渲染器
-import { BashToolRenderer } from './BashTool'
-import { GlobToolRenderer } from './GlobTool'
-import { GrepToolRenderer } from './GrepTool'
-import { ReadToolRenderer } from './ReadTool'
-import { SearchToolRenderer } from './SearchTool'
-import { TaskToolRenderer } from './TaskTool'
-import { TodoWriteToolRenderer } from './TodoWriteTool'
+import { BashTool } from './BashTool'
+import { GlobTool } from './GlobTool'
+import { GrepTool } from './GrepTool'
+import { ReadTool } from './ReadTool'
+import { SearchTool } from './SearchTool'
+import { TaskTool } from './TaskTool'
+import { TodoWriteTool } from './TodoWriteTool'
 import { AgentToolsType, ToolInput, ToolOutput } from './types'
-import { WebSearchToolRenderer } from './WebSearchTool'
+import { WebSearchTool } from './WebSearchTool'
+import { WriteTool } from './WriteTool'
 
 const logger = loggerService.withContext('MessageAgentTools')
 
 // 创建工具渲染器映射，这样就实现了完全的类型安全
 export const toolRenderers = {
-  [AgentToolsType.Read]: ReadToolRenderer,
-  [AgentToolsType.Task]: TaskToolRenderer,
-  [AgentToolsType.Bash]: BashToolRenderer,
-  [AgentToolsType.Search]: SearchToolRenderer,
-  [AgentToolsType.Glob]: GlobToolRenderer,
-  [AgentToolsType.TodoWrite]: TodoWriteToolRenderer,
-  [AgentToolsType.WebSearch]: WebSearchToolRenderer,
-  [AgentToolsType.Grep]: GrepToolRenderer
+  [AgentToolsType.Read]: ReadTool,
+  [AgentToolsType.Task]: TaskTool,
+  [AgentToolsType.Bash]: BashTool,
+  [AgentToolsType.Search]: SearchTool,
+  [AgentToolsType.Glob]: GlobTool,
+  [AgentToolsType.TodoWrite]: TodoWriteTool,
+  [AgentToolsType.WebSearch]: WebSearchTool,
+  [AgentToolsType.Grep]: GrepTool,
+  [AgentToolsType.Write]: WriteTool
 } as const
 
 // 类型守卫函数
@@ -37,22 +39,21 @@ export function isValidAgentToolsType(toolName: unknown): toolName is AgentTools
 
 // 统一的渲染函数
 function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: ToolOutput) {
-  const renderer = toolRenderers[toolName]
-  if (!renderer) {
+  const Renderer = toolRenderers[toolName]
+  if (!Renderer) {
     logger.error('Unknown tool type', { toolName })
     return <div>Unknown tool type: {toolName}</div>
   }
 
-  const item = renderer.render({ input: input as any, output: output as any })
-
   return (
     <Accordion
-      className="max-w-max"
+      className="w-max max-w-full"
       itemClasses={{
         trigger:
           'p-0 [&>div:first-child]:!flex-none [&>div:first-child]:flex [&>div:first-child]:flex-col [&>div:first-child]:text-start'
       }}>
-      {item}
+      {/* <Renderer input={input as any} output={output as any} /> */}
+      {Renderer({ input: input as any, output: output as any })}
     </Accordion>
   )
 }

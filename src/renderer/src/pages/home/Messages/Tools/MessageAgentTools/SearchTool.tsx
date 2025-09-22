@@ -31,8 +31,3 @@ export function SearchTool({ input, output }: { input: SearchToolInputType; outp
     </AccordionItem>
   )
 }
-
-// 导出渲染器对象
-export const SearchToolRenderer = {
-  render: SearchTool
-}

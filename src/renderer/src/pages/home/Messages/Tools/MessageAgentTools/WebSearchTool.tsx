@@ -27,8 +27,3 @@ export function WebSearchTool({ input, output }: { input: WebSearchToolInput; ou
     </AccordionItem>
   )
 }
-
-// 导出渲染器对象
-export const WebSearchToolRenderer = {
-  render: WebSearchTool
-}

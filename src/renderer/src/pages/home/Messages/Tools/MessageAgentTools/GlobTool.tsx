@@ -24,8 +24,3 @@ export function GlobTool({ input, output }: { input: GlobToolInputType; output?:
     </AccordionItem>
   )
 }
-
-// 导出渲染器对象
-export const GlobToolRenderer = {
-  render: GlobTool
-}

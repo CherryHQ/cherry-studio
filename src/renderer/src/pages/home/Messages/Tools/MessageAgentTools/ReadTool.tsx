@@ -41,8 +41,3 @@ export function ReadTool({ input, output }: { input: ReadToolInputType; output?:
     </AccordionItem>
   )
 }
-
-// 导出渲染器对象
-export const ReadToolRenderer = {
-  render: ReadTool
-}

@@ -16,36 +16,21 @@ export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType
         <ToolTitle
           icon={<ListTodo className="h-4 w-4" />}
           label="Todo Update"
-          stats={`${input.length} ${input.length === 1 ? 'item' : 'items'}`}
+          stats={`${input.todos.length} ${input.todos.length === 1 ? 'item' : 'items'}`}
         />
       }>
       <div>
-        <div>
-          <div>Todo List Update:</div>
-          <div>
-            {input.map((todo, index) => (
-              <div key={index}>
-                <div>
-                  <span>{todo.status}</span>
-                  {todo.activeForm && <span>{todo.activeForm}</span>}
-                </div>
-                <div>{todo.content}</div>
-              </div>
-            ))}
+        {input.todos.map((todo, index) => (
+          <div key={index}>
+            <div>
+              <span>{todo.status}</span>
+              {todo.activeForm && <span>{todo.activeForm}</span>}
+            </div>
+            <div>{todo.content}</div>
           </div>
-        </div>
-        {output && (
-          <div>
-            <div>Todo Update Result:</div>
-            <div>{output}</div>
-          </div>
-        )}
+        ))}
       </div>
+      {output}
     </AccordionItem>
   )
-}
-
-// 导出渲染器对象
-export const TodoWriteToolRenderer = {
-  render: TodoWriteTool
 }

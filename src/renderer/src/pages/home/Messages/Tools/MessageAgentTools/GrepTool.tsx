@@ -29,8 +29,3 @@ export function GrepTool({ input, output }: { input: GrepToolInput; output?: Gre
     </AccordionItem>
   )
 }
-
-// 导出渲染器对象
-export const GrepToolRenderer = {
-  render: GrepTool
-}
