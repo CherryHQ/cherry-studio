@@ -21,7 +21,7 @@ type contentBlock =
       type: 'tool-call'
       toolCallId: string
       toolName: string
-      input?: string
+      input: unknown
     }
 
 const contentBlockState = new Map<string, contentBlock>()
@@ -122,18 +122,20 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
           contentBlockState.set(block.id, {
             type: 'tool-call',
             toolCallId: block.id,
-            toolName: block.name
+            toolName: block.name,
+            input: block.input
           })
           break
         case 'tool_result': {
           logger.debug('Handling tool result:', { block })
           logger.debug('contentblockState', { content: contentBlockState })
+          const hasToolCall = contentBlockState.has(block.tool_use_id)
           const toolCall = contentBlockState.get(block.tool_use_id) as toolCallBlock
           chunks.push({
             type: 'tool-result',
             toolCallId: block.tool_use_id,
-            toolName: contentBlockState.has(block.tool_use_id) ? toolCall.toolName : 'Unknown',
-            input: '',
+            toolName: hasToolCall ? toolCall.toolName : 'Unknown',
+            input: hasToolCall ? toolCall.input : '',
             output: block.content
           })
           break
