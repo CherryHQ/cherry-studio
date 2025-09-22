@@ -183,6 +183,7 @@ const CardContainer = styled.div<{ $isActive: boolean }>`
   margin-bottom: 5px;
   height: 125px;
   opacity: ${(props) => (props.$isActive ? 1 : 0.6)};
+  width: calc(100vw - var(--settings-width) - 40px);
 
   &:hover {
     opacity: 1;

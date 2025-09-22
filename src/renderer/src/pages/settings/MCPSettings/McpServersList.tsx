@@ -249,7 +249,9 @@ const McpServersList: FC = () => {
         items={filteredMcpServers}
         itemKey="id"
         onSortEnd={onSortEnd}
-        layout="grid"
+        layout="list"
+        horizontal={false}
+        listStyle={{ display: 'flex', flexDirection: 'column' }}
         gap="12px"
         restrictions={{ scrollableAncestor: true }}
         useDragOverlay
