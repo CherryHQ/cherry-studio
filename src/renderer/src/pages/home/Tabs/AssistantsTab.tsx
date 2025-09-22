@@ -3,7 +3,7 @@ import { Assistant } from '@renderer/types'
 import { FC, useRef } from 'react'
 import styled from 'styled-components'
 
-import { Agents } from './components/Agents'
+import { AgentSection } from './components/AgentSection'
 import Assistants from './components/Assistants'
 
 interface AssistantsTabProps {
@@ -17,7 +17,7 @@ const AssistantsTab: FC<AssistantsTabProps> = (props) => {
   const containerRef = useRef<HTMLDivElement>(null)
   return (
     <Container className="assistants-tab" ref={containerRef}>
-      <Agents />
+      <AgentSection />
       <Assistants {...props} />
     </Container>
   )

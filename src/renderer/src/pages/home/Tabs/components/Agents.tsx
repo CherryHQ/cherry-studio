@@ -9,7 +9,6 @@ import { FC, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AgentItem from './AgentItem'
-import { SectionName } from './SectionName'
 
 interface AssistantsTabProps {}
 
@@ -35,8 +34,7 @@ export const Agents: FC<AssistantsTabProps> = () => {
   }, [isLoading, agents, activeAgentId, setActiveAgentId])
 
   return (
-    <div className="agents-tab h-full w-full">
-      <SectionName name={t('common.agent_other')} />
+    <>
       {isLoading && <Spinner />}
       {error && <Alert color="danger" title={t('agent.list.error.failed')} />}
       {!isLoading &&
@@ -65,6 +63,6 @@ export const Agents: FC<AssistantsTabProps> = () => {
           )
         }}
       />
-    </div>
+    </>
   )
 }
