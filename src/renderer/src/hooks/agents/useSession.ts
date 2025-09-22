@@ -1,9 +1,8 @@
 import { useAppDispatch } from '@renderer/store'
-import { removeManyBlocks, upsertManyBlocks } from '@renderer/store/messageBlock'
-import { newMessagesActions } from '@renderer/store/newMessage'
-import { AgentPersistedMessage, UpdateSessionForm } from '@renderer/types'
+import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
+import { UpdateSessionForm } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
@@ -15,7 +14,6 @@ export const useSession = (agentId: string, sessionId: string) => {
   const key = client.getSessionPaths(agentId).withId(sessionId)
   const dispatch = useAppDispatch()
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const blockIdsRef = useRef<string[]>([])
 
   const fetcher = async () => {
     const data = await client.getSession(agentId, sessionId)
@@ -23,37 +21,15 @@ export const useSession = (agentId: string, sessionId: string) => {
   }
   const { data, error, isLoading, mutate } = useSWR(key, fetcher)
 
+  // Use loadTopicMessagesThunk to load messages (with caching mechanism)
+  // This ensures messages are preserved when switching between sessions/tabs
   useEffect(() => {
-    const messages = data?.messages ?? []
-    if (!messages.length) {
-      dispatch(newMessagesActions.messagesReceived({ topicId: sessionTopicId, messages: [] }))
-      blockIdsRef.current = []
-      return
+    if (sessionId) {
+      // loadTopicMessagesThunk will check if messages already exist in Redux
+      // and skip loading if they do (unless forceReload is true)
+      dispatch(loadTopicMessagesThunk(sessionTopicId))
     }
-
-    const persistedEntries = messages
-      .map((entity) => entity.content as AgentPersistedMessage | undefined)
-      .filter((entry): entry is AgentPersistedMessage => Boolean(entry))
-
-    const allBlocks = persistedEntries.flatMap((entry) => entry.blocks)
-    if (allBlocks.length > 0) {
-      dispatch(upsertManyBlocks(allBlocks))
-    }
-
-    blockIdsRef.current = allBlocks.map((block) => block.id)
-
-    const messageRecords = persistedEntries.map((entry) => entry.message)
-    dispatch(newMessagesActions.messagesReceived({ topicId: sessionTopicId, messages: messageRecords }))
-  }, [data?.messages, dispatch, sessionTopicId])
-
-  useEffect(() => {
-    return () => {
-      if (blockIdsRef.current.length > 0) {
-        dispatch(removeManyBlocks(blockIdsRef.current))
-      }
-      dispatch(newMessagesActions.clearTopicMessages(sessionTopicId))
-    }
-  }, [dispatch, sessionTopicId])
+  }, [dispatch, sessionId, sessionTopicId])
 
   const updateSession = useCallback(
     async (form: UpdateSessionForm) => {

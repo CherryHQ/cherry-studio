@@ -91,6 +91,7 @@ export enum IpcChannel {
 
   // agent messages
   AgentMessage_PersistExchange = 'agent-message:persist-exchange',
+  AgentMessage_GetHistory = 'agent-message:get-history',
 
   //copilot
   Copilot_GetAuthMessage = 'copilot:get-auth-message',

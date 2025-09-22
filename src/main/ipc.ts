@@ -209,6 +209,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
+  ipcMain.handle(IpcChannel.AgentMessage_GetHistory, async (_event, { sessionId }: { sessionId: string }) => {
+    try {
+      return await agentMessageRepository.getSessionHistory(sessionId)
+    } catch (error) {
+      logger.error('Failed to get agent session history', error as Error)
+      throw error
+    }
+  })
+
   //only for mac
   if (isMac) {
     ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {

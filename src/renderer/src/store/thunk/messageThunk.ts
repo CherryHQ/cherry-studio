@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
+import { featureFlags } from '@renderer/config/featureFlags'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
@@ -10,13 +11,12 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type { AgentPersistedMessage } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
-import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId, isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   createAssistantMessage,
   createTranslationBlock,
@@ -34,6 +34,18 @@ import { LRUCache } from 'lru-cache'
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
+import {
+  bulkAddBlocksV2,
+  clearMessagesFromDBV2,
+  deleteMessageFromDBV2,
+  deleteMessagesFromDBV2,
+  loadTopicMessagesThunkV2,
+  saveMessageAndBlocksToDBV2,
+  updateBlocksV2,
+  updateFileCountV2,
+  updateMessageV2,
+  updateSingleBlockV2
+} from './messageThunk.v2'
 
 const logger = loggerService.withContext('MessageThunk')
 
@@ -190,12 +202,23 @@ const createAgentMessageStream = async (
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
+  // Use V2 implementation if feature flag is enabled
+  if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+    return saveMessageAndBlocksToDBV2(message.topicId, message, blocks, messageIndex)
+  }
+
+  // Original implementation
   try {
     if (isAgentSessionTopicId(message.topicId)) {
       return
     }
     if (blocks.length > 0) {
-      await db.message_blocks.bulkPut(blocks)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateBlocksV2(blocks)
+      } else {
+        await db.message_blocks.bulkPut(blocks)
+      }
     }
     const topic = await db.topics.get(message.topicId)
     if (topic) {
@@ -232,7 +255,12 @@ const updateExistingMessageAndBlocksInDB = async (
     await db.transaction('rw', db.topics, db.message_blocks, async () => {
       // Always update blocks if provided
       if (updatedBlocks.length > 0) {
-        await db.message_blocks.bulkPut(updatedBlocks)
+        // Use V2 implementation if feature flag is enabled
+        if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+          await updateBlocksV2(updatedBlocks)
+        } else {
+          await db.message_blocks.bulkPut(updatedBlocks)
+        }
       }
 
       // Check if there are message properties to update beyond id and topicId
@@ -301,7 +329,12 @@ const getBlockThrottler = (id: string) => {
       })
 
       blockUpdateRafs.set(id, rafId)
-      await db.message_blocks.update(id, blockUpdate)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateSingleBlockV2(id, blockUpdate)
+      } else {
+        await db.message_blocks.update(id, blockUpdate)
+      }
     }, 150)
 
     blockUpdateThrottlers.set(id, throttler)
@@ -470,13 +503,17 @@ const fetchAndProcessAgentResponseImpl = async (
       text: Promise.resolve('')
     })
 
-    await persistAgentExchange({
-      getState,
-      agentSession,
-      userMessageId,
-      assistantMessageId: assistantMessage.id,
-      latestAgentSessionId
-    })
+    // No longer need persistAgentExchange here since:
+    // 1. User message is already saved via appendMessage when created
+    // 2. Assistant message is saved via appendMessage when created
+    // 3. Updates during streaming are saved via updateMessageAndBlocks
+    // This eliminates the duplicate save issue
+
+    // Only persist the agentSessionId update if it changed
+    if (latestAgentSessionId) {
+      logger.info(`Agent session ID updated to: ${latestAgentSessionId}`)
+      // In the future, you might want to update some session metadata here
+    }
   } catch (error: any) {
     logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
     try {
@@ -489,73 +526,9 @@ const fetchAndProcessAgentResponseImpl = async (
   }
 }
 
-interface PersistAgentExchangeParams {
-  getState: () => RootState
-  agentSession: AgentSessionContext
-  userMessageId: string
-  assistantMessageId: string
-  latestAgentSessionId: string
-}
-
-const persistAgentExchange = async ({
-  getState,
-  agentSession,
-  userMessageId,
-  assistantMessageId,
-  latestAgentSessionId
-}: PersistAgentExchangeParams) => {
-  if (!window.electron?.ipcRenderer) {
-    return
-  }
-
-  try {
-    const state = getState()
-    const userMessage = state.messages.entities[userMessageId]
-    const assistantMessage = state.messages.entities[assistantMessageId]
-
-    if (!userMessage || !assistantMessage) {
-      logger.warn('persistAgentExchange: missing user or assistant message entity')
-      return
-    }
-
-    const userPersistedPayload = createPersistedMessagePayload(userMessage, state)
-    const assistantPersistedPayload = createPersistedMessagePayload(assistantMessage, state)
-
-    await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
-      sessionId: agentSession.sessionId,
-      agentSessionId: latestAgentSessionId || '',
-      user: userPersistedPayload ? { payload: userPersistedPayload } : undefined,
-      assistant: assistantPersistedPayload ? { payload: assistantPersistedPayload } : undefined
-    })
-  } catch (error) {
-    logger.warn('Failed to persist agent exchange', error as Error)
-  }
-}
-
-const createPersistedMessagePayload = (
-  message: Message | undefined,
-  state: RootState
-): AgentPersistedMessage | undefined => {
-  if (!message) {
-    return undefined
-  }
-
-  try {
-    const clonedMessage = JSON.parse(JSON.stringify(message)) as Message
-    const blockEntities = (message.blocks || [])
-      .map((blockId) => state.messageBlocks.entities[blockId])
-      .filter((block): block is MessageBlock => Boolean(block))
-      .map((block) => JSON.parse(JSON.stringify(block)) as MessageBlock)
-
-    return {
-      message: clonedMessage,
-      blocks: blockEntities
-    }
-  } catch (error) {
-    logger.warn('Failed to build persisted payload for message', error as Error)
-    return undefined
-  }
-}
+// Removed persistAgentExchange and createPersistedMessagePayload functions
+// These are no longer needed since messages are saved immediately via appendMessage
+// and updated during streaming via updateMessageAndBlocks
 
 // --- Helper Function for Multi-Model Dispatch ---
 // 多模型创建和发送请求的逻辑，用于用户消息多模型发送和重发
@@ -783,15 +756,77 @@ export const sendMessage =
   }
 
 /**
+ * Loads agent session messages from backend
+ */
+export const loadAgentSessionMessagesThunk =
+  (sessionId: string) => async (dispatch: AppDispatch, getState: () => RootState) => {
+    const topicId = buildAgentSessionTopicId(sessionId)
+
+    try {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+      // Fetch from agent backend
+      const historicalMessages = await window.electron?.ipcRenderer.invoke(IpcChannel.AgentMessage_GetHistory, {
+        sessionId
+      })
+
+      if (historicalMessages && Array.isArray(historicalMessages)) {
+        const messages: Message[] = []
+        const blocks: MessageBlock[] = []
+
+        for (const persistedMsg of historicalMessages) {
+          if (persistedMsg?.message) {
+            messages.push(persistedMsg.message)
+            if (persistedMsg.blocks && persistedMsg.blocks.length > 0) {
+              blocks.push(...persistedMsg.blocks)
+            }
+          }
+        }
+
+        // Update Redux store
+        if (blocks.length > 0) {
+          dispatch(upsertManyBlocks(blocks))
+        }
+        dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
+
+        logger.info(`Loaded ${messages.length} messages for agent session ${sessionId}`)
+      } else {
+        dispatch(newMessagesActions.messagesReceived({ topicId, messages: [] }))
+      }
+    } catch (error) {
+      logger.error(`Failed to load agent session messages for ${sessionId}:`, error as Error)
+      dispatch(newMessagesActions.messagesReceived({ topicId, messages: [] }))
+    } finally {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    }
+  }
+
+/**
  * Loads messages and their blocks for a specific topic from the database
  * and updates the Redux store.
  */
 export const loadTopicMessagesThunk =
   (topicId: string, forceReload: boolean = false) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
+    // Use V2 implementation if feature flag is enabled
+    if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+      return loadTopicMessagesThunkV2(topicId, forceReload)(dispatch, getState)
+    }
+
+    // Original implementation
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
     dispatch(newMessagesActions.setCurrentTopicId(topicId))
+
+    // Check if it's an agent session topic
+    if (isAgentSessionTopicId(topicId)) {
+      if (topicMessagesExist && !forceReload) {
+        return // Keep existing messages in memory
+      }
+      // Load from agent backend instead of local DB
+      const sessionId = topicId.replace('agent-session:', '')
+      return dispatch(loadAgentSessionMessagesThunk(sessionId))
+    }
 
     if (topicMessagesExist && !forceReload) {
       return
@@ -843,12 +878,19 @@ export const deleteSingleMessageThunk =
     try {
       dispatch(newMessagesActions.removeMessage({ topicId, messageId }))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
-      await db.message_blocks.bulkDelete(blockIdsToDelete)
-      const topic = await db.topics.get(topicId)
-      if (topic) {
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        dispatch(updateTopicUpdatedAt({ topicId }))
+
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await deleteMessageFromDBV2(topicId, messageId)
+      } else {
+        // Original implementation
+        await db.message_blocks.bulkDelete(blockIdsToDelete)
+        const topic = await db.topics.get(topicId)
+        if (topic) {
+          const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          dispatch(updateTopicUpdatedAt({ topicId }))
+        }
       }
     } catch (error) {
       logger.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error as Error)
@@ -883,16 +925,24 @@ export const deleteMessageGroupThunk =
     }
 
     const blockIdsToDelete = messagesToDelete.flatMap((m) => m.blocks || [])
+    const messageIdsToDelete = messagesToDelete.map((m) => m.id)
 
     try {
       dispatch(newMessagesActions.removeMessagesByAskId({ topicId, askId }))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
-      await db.message_blocks.bulkDelete(blockIdsToDelete)
-      const topic = await db.topics.get(topicId)
-      if (topic) {
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        dispatch(updateTopicUpdatedAt({ topicId }))
+
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await deleteMessagesFromDBV2(topicId, messageIdsToDelete)
+      } else {
+        // Original implementation
+        await db.message_blocks.bulkDelete(blockIdsToDelete)
+        const topic = await db.topics.get(topicId)
+        if (topic) {
+          const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          dispatch(updateTopicUpdatedAt({ topicId }))
+        }
       }
     } catch (error) {
       logger.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error as Error)
@@ -919,10 +969,16 @@ export const clearTopicMessagesThunk =
       dispatch(newMessagesActions.clearTopicMessages(topicId))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
 
-      await db.topics.update(topicId, { messages: [] })
-      dispatch(updateTopicUpdatedAt({ topicId }))
-      if (blockIdsToDelete.length > 0) {
-        await db.message_blocks.bulkDelete(blockIdsToDelete)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await clearMessagesFromDBV2(topicId)
+      } else {
+        // Original implementation
+        await db.topics.update(topicId, { messages: [] })
+        dispatch(updateTopicUpdatedAt({ topicId }))
+        if (blockIdsToDelete.length > 0) {
+          await db.message_blocks.bulkDelete(blockIdsToDelete)
+        }
       }
     } catch (error) {
       logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error as Error)
@@ -1245,7 +1301,12 @@ export const updateTranslationBlockThunk =
       dispatch(updateOneBlock({ id: blockId, changes }))
 
       // 更新数据库
-      await db.message_blocks.update(blockId, changes)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateSingleBlockV2(blockId, changes)
+      } else {
+        await db.message_blocks.update(blockId, changes)
+      }
       // Logger.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
     } catch (error) {
       logger.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error as Error)
@@ -1458,20 +1519,33 @@ export const cloneMessagesToNewTopicThunk =
 
         // Add the NEW blocks
         if (clonedBlocks.length > 0) {
-          await db.message_blocks.bulkAdd(clonedBlocks)
+          // Use V2 implementation if feature flag is enabled
+          if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+            await bulkAddBlocksV2(clonedBlocks)
+          } else {
+            await db.message_blocks.bulkAdd(clonedBlocks)
+          }
         }
         // Update file counts
         const uniqueFiles = [...new Map(filesToUpdateCount.map((f) => [f.id, f])).values()]
-        for (const file of uniqueFiles) {
-          await db.files
-            .where('id')
-            .equals(file.id)
-            .modify((f) => {
-              if (f) {
-                // Ensure file exists before modifying
-                f.count = (f.count || 0) + 1
-              }
-            })
+        if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+          // Use V2 implementation for file count updates
+          for (const file of uniqueFiles) {
+            await updateFileCountV2(file.id, 1, false)
+          }
+        } else {
+          // Original implementation
+          for (const file of uniqueFiles) {
+            await db.files
+              .where('id')
+              .equals(file.id)
+              .modify((f) => {
+                if (f) {
+                  // Ensure file exists before modifying
+                  f.count = (f.count || 0) + 1
+                }
+              })
+          }
         }
       })
 
@@ -1525,33 +1599,46 @@ export const updateMessageAndBlocksThunk =
       }
 
       // 2. 更新数据库 (在事务中)
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        // Only update topic.messages if there were actual message changes
-        if (messageUpdates && Object.keys(messageUpdates).length > 0) {
-          const topic = await db.topics.get(topicId)
-          if (topic && topic.messages) {
-            const messageIndex = topic.messages.findIndex((m) => m.id === messageId)
-            if (messageIndex !== -1) {
-              Object.assign(topic.messages[messageIndex], messageUpdates)
-              await db.topics.update(topicId, { messages: topic.messages })
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        // Update message properties if provided
+        if (messageUpdates && Object.keys(messageUpdates).length > 0 && messageId) {
+          await updateMessageV2(topicId, messageId, messageUpdates)
+        }
+        // Update blocks if provided
+        if (blockUpdatesList.length > 0) {
+          await updateBlocksV2(blockUpdatesList)
+        }
+      } else {
+        // Original implementation with transaction
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          // Only update topic.messages if there were actual message changes
+          if (messageUpdates && Object.keys(messageUpdates).length > 0) {
+            const topic = await db.topics.get(topicId)
+            if (topic && topic.messages) {
+              const messageIndex = topic.messages.findIndex((m) => m.id === messageId)
+              if (messageIndex !== -1) {
+                Object.assign(topic.messages[messageIndex], messageUpdates)
+                await db.topics.update(topicId, { messages: topic.messages })
+              } else {
+                logger.error(
+                  `[updateMessageAndBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
+                )
+                throw new Error(`Message ${messageId} not found in DB topic ${topicId} for property update.`)
+              }
             } else {
               logger.error(
-                `[updateMessageAndBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
+                `[updateMessageAndBlocksThunk] Topic ${topicId} not found or empty for message property update.`
               )
-              throw new Error(`Message ${messageId} not found in DB topic ${topicId} for property update.`)
+              throw new Error(`Topic ${topicId} not found or empty for message property update.`)
             }
-          } else {
-            logger.error(
-              `[updateMessageAndBlocksThunk] Topic ${topicId} not found or empty for message property update.`
-            )
-            throw new Error(`Topic ${topicId} not found or empty for message property update.`)
           }
-        }
 
-        if (blockUpdatesList.length > 0) {
-          await db.message_blocks.bulkPut(blockUpdatesList)
-        }
-      })
+          if (blockUpdatesList.length > 0) {
+            await db.message_blocks.bulkPut(blockUpdatesList)
+          }
+        })
+      }
 
       dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {

@@ -198,8 +198,14 @@ export type Metrics = {
   time_thinking_millsec?: number
 }
 
+export enum TopicType {
+  Chat = 'chat',
+  Session = 'session'
+}
+
 export type Topic = {
   id: string
+  type: TopicType
   assistantId: string
   name: string
   createdAt: string

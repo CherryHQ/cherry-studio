@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
 import ContextMenu from '@renderer/components/ContextMenu'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
-import { useAppSelector } from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { Topic } from '@renderer/types'
+import { type Topic, TopicType } from '@renderer/types'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { memo, useMemo } from 'react'
 import styled from 'styled-components'
@@ -23,7 +22,8 @@ type Props = {
 const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   const { session } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
+  // Use the same hook as Messages.tsx for consistent behavior
+  const messages = useTopicMessages(sessionTopicId)
 
   const displayMessages = useMemo(() => {
     if (!messages || messages.length === 0) return []
@@ -43,6 +43,7 @@ const AgentSessionMessages: React.FC<Props> = ({ agentId, sessionId }) => {
   const derivedTopic = useMemo<Topic>(
     () => ({
       id: sessionTopicId,
+      type: TopicType.Session,
       assistantId: sessionAssistantId,
       name: sessionName,
       createdAt: sessionCreatedAt,
