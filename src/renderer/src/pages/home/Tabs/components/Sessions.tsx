@@ -1,9 +1,10 @@
-import { Button, Spinner } from '@heroui/react'
-import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
+import { Alert, Button, Spinner } from '@heroui/react'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import { CreateSessionForm } from '@renderer/types'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { memo, useCallback, useEffect } from 'react'
@@ -19,7 +20,8 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, deleteSession } = useSessions(agentId)
+  const { agent } = useAgent(agentId)
+  const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
   const { chat } = useRuntime()
   const { activeSessionId } = chat
   const dispatch = useAppDispatch()
@@ -31,6 +33,15 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     },
     [dispatch]
   )
+
+  const handleCreateSession = useCallback(() => {
+    if (!agent) return
+    const session = {
+      ...agent,
+      id: undefined
+    } satisfies CreateSessionForm
+    createSession(session)
+  }, [agent, createSession])
 
   const currentActiveSessionId = activeSessionId[agentId]
 
@@ -52,7 +63,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     )
   }
 
-  // if (error) return
+  if (error) return <Alert color="danger" content={t('agent.session.get.error.failed')} />
 
   return (
     <motion.div
@@ -64,20 +75,12 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, delay: 0.1 }}>
-        <SessionModal
-          agentId={agentId}
-          onSessionCreated={(created) => setActiveSessionId(agentId, created.id)}
-          trigger={{
-            content: (
-              <Button
-                onPress={(e) => e.continuePropagation()}
-                className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
-                <Plus size={16} className="mr-1 shrink-0" />
-                {t('agent.session.add.title')}
-              </Button>
-            )
-          }}
-        />
+        <Button
+          onPress={handleCreateSession}
+          className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+          <Plus size={16} className="mr-1 shrink-0" />
+          {t('agent.session.add.title')}
+        </Button>
       </motion.div>
       <AnimatePresence>
         {sessions.map((session, index) => (
