@@ -6,6 +6,7 @@ import {
   MAX_CONTEXT_COUNT,
   UNLIMITED_CONTEXT_COUNT
 } from '@renderer/config/constant'
+import { isQwenMTModel } from '@renderer/config/models'
 import { UNKNOWN } from '@renderer/config/translate'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -69,11 +70,13 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
     temperature: 0.7
   }
 
-  const content = store
+  let content = text
+  if (!isQwenMTModel(model)) {
+   content = store
     .getState()
     .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
     .replaceAll('{{text}}', text)
-
+  }
   const translateAssistant = {
     ...assistant,
     model,
