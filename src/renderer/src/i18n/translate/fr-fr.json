@@ -87,7 +87,7 @@
       }
     },
     "warning": {
-      "enable_server": "[to be translated]:Enable API Server to use agents."
+      "enable_server": "Permettre au serveur API d'utiliser des agents."
     }
   },
   "agents": {
