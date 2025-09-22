@@ -72,14 +72,14 @@ export function getDefaultTranslateAssistant(targetLanguage: TranslateLanguage, 
 
   const getTranslateContent = (model: Model, text: string, targetLanguage: TranslateLanguage): string => {
     if (isQwenMTModel(model)) {
-      return text; // QwenMT models handle raw text directly
+      return text // QwenMT models handle raw text directly
     }
 
-    return store.getState()
-      .settings.translateModelPrompt
-      .replaceAll('{{target_language}}', targetLanguage.value)
-      .replaceAll('{{text}}', text);
-  };
+    return store
+      .getState()
+      .settings.translateModelPrompt.replaceAll('{{target_language}}', targetLanguage.value)
+      .replaceAll('{{text}}', text)
+  }
 
   const content = getTranslateContent(model, text, targetLanguage)
   const translateAssistant = {
