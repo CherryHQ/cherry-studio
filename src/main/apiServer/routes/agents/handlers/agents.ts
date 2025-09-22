@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { AgentModelValidationError, agentService } from '@main/services/agents'
+import { AgentModelValidationError, agentService, sessionService } from '@main/services/agents'
 import { ListAgentsResponse, type ReplaceAgentRequest, type UpdateAgentRequest } from '@types'
 import { Request, Response } from 'express'
 
@@ -20,7 +20,8 @@ const modelValidationErrorBody = (error: AgentModelValidationError) => ({
  * /v1/agents:
  *   post:
  *     summary: Create a new agent
- *     description: Creates a new autonomous agent with the specified configuration
+ *     description: Creates a new autonomous agent with the specified configuration and automatically
+ *       provisions an initial session that mirrors the agent's settings.
  *     tags: [Agents]
  *     requestBody:
  *       required: true
@@ -55,8 +56,37 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
 
     const agent = await agentService.createAgent(req.body)
 
-    logger.info(`Agent created successfully: ${agent.id}`)
-    return res.status(201).json(agent)
+    try {
+      logger.info(`Agent created successfully: ${agent.id}`)
+      logger.info(`Creating default session for new agent: ${agent.id}`)
+
+      await sessionService.createSession(agent.id, {})
+
+      logger.info(`Default session created for agent: ${agent.id}`)
+      return res.status(201).json(agent)
+    } catch (sessionError: any) {
+      logger.error('Failed to create default session for new agent, rolling back agent creation', {
+        agentId: agent.id,
+        error: sessionError
+      })
+
+      try {
+        await agentService.deleteAgent(agent.id)
+      } catch (rollbackError: any) {
+        logger.error('Failed to roll back agent after session creation failure', {
+          agentId: agent.id,
+          error: rollbackError
+        })
+      }
+
+      return res.status(500).json({
+        error: {
+          message: `Failed to create default session for agent: ${sessionError.message}`,
+          type: 'internal_error',
+          code: 'agent_session_creation_failed'
+        }
+      })
+    }
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
       logger.warn('Agent model validation error during create:', {
