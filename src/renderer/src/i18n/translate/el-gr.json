@@ -27,7 +27,7 @@
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:Failed to list agents."
+        "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
     },
     "session": {
@@ -36,7 +36,7 @@
         "duplicate": "Αυτός ο κατάλογος έχει ήδη συμπεριληφθεί.",
         "empty": "Επιλέξτε τουλάχιστον έναν κατάλογο στον οποίο ο πράκτορας μπορεί να έχει πρόσβαση.",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "Παρακαλώ επιλέξτε τουλάχιστον έναν προσβάσιμο κατάλογο."
         },
         "label": "Προσβάσιμοι κατάλογοι",
         "select_failed": "Αποτυχία επιλογής καταλόγου."

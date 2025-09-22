@@ -22,12 +22,12 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "エージェントの取得に失敗しました。"
       }
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:Failed to list agents."
+        "failed": "エージェントの一覧取得に失敗しました。"
       }
     },
     "session": {
@@ -36,7 +36,7 @@
         "duplicate": "このディレクトリは既に含まれています。",
         "empty": "エージェントがアクセスできるディレクトリを少なくとも1つ選択してください。",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "アクセス可能なディレクトリを少なくとも1つ選択してください。"
         },
         "label": "アクセス可能なディレクトリ",
         "select_failed": "ディレクトリの選択に失敗しました。"

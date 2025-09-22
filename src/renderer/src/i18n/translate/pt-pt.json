@@ -22,7 +22,7 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "Falha ao obter o agente."
       }
     },
     "list": {
@@ -36,7 +36,7 @@
         "duplicate": "Este diretório já está incluído.",
         "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "Por favor, selecione pelo menos um diretório acessível."
         },
         "label": "Diretórios acessíveis",
         "select_failed": "Falha ao selecionar o diretório."

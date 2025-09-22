@@ -22,12 +22,12 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "No se pudo obtener el agente."
       }
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:Failed to list agents."
+        "failed": "Error al listar agentes."
       }
     },
     "session": {
@@ -36,7 +36,7 @@
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "Por favor, seleccione al menos un directorio accesible."
         },
         "label": "Directorios accesibles",
         "select_failed": "Error al seleccionar el directorio."

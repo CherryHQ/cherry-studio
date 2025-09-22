@@ -22,7 +22,7 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "Échec de l'obtention de l'agent."
       }
     },
     "list": {
@@ -36,7 +36,7 @@
         "duplicate": "Ce répertoire est déjà inclus.",
         "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "Veuillez sélectionner au moins un répertoire accessible."
         },
         "label": "Répertoires accessibles",
         "select_failed": "Échec de la sélection du répertoire."

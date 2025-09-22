@@ -22,12 +22,12 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "Не удалось получить агента."
       }
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:Failed to list agents."
+        "failed": "Не удалось получить список агентов."
       }
     },
     "session": {
@@ -36,7 +36,7 @@
         "duplicate": "Этот каталог уже включён.",
         "empty": "Выберите хотя бы один каталог, к которому агент имеет доступ.",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "Пожалуйста, выберите хотя бы один доступный каталог."
         },
         "label": "Доступные директории",
         "select_failed": "Не удалось выбрать каталог."

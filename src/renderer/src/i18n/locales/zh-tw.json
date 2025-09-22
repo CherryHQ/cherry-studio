@@ -22,12 +22,12 @@
     },
     "get": {
       "error": {
-        "failed": "[to be translated]:Failed to get the agent."
+        "failed": "無法取得代理程式。"
       }
     },
     "list": {
       "error": {
-        "failed": "[to be translated]:Failed to list agents."
+        "failed": "無法列出代理程式。"
       }
     },
     "session": {
@@ -36,7 +36,7 @@
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
         "error": {
-          "at_least_one": "[to be translated]:Please select at least one accessible directory."
+          "at_least_one": "請至少選取一個可存取的目錄。"
         },
         "label": "可存取的目錄",
         "select_failed": "無法選擇目錄。"
