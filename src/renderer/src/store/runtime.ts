@@ -150,6 +150,7 @@ const runtimeSlice = createSlice({
       state.chat.selectedMessageIds = action.payload
     },
     setActiveTopic: (state, action: PayloadAction<Topic>) => {
+      // @ts-ignore ts2589 false positive
       state.chat.activeTopic = action.payload
     },
     setActiveAgentId: (state, action: PayloadAction<string>) => {
