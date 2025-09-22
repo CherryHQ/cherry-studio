@@ -100,6 +100,7 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
     }
   } else if (Array.isArray(message.message.content)) {
     for (const block of message.message.content) {
+      logger.debug('Handling user or assistant message:', { block })
       switch (block.type) {
         case 'text':
           chunks.push(...generateTextChunks(messageId, block.text, message))
