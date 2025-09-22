@@ -53,7 +53,7 @@
         "content": "Вы уверены, что хотите удалить этот сеанс?",
         "error": {
           "failed": "Не удалось удалить сеанс",
-          "last": "[to be translated]:At least one session must be kept"
+          "last": "Должен быть сохранён хотя бы один сеанс"
         },
         "title": "Удалить сеанс"
       },

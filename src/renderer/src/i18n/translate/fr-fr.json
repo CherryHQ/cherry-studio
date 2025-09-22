@@ -53,7 +53,7 @@
         "content": "Êtes-vous sûr de vouloir supprimer cette session ?",
         "error": {
           "failed": "Échec de la suppression de la session",
-          "last": "[to be translated]:At least one session must be kept"
+          "last": "Au moins une session doit être conservée"
         },
         "title": "Supprimer la session"
       },

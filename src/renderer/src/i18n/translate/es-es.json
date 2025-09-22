@@ -53,7 +53,7 @@
         "content": "¿Estás seguro de eliminar esta sesión?",
         "error": {
           "failed": "Error al eliminar la sesión",
-          "last": "[to be translated]:At least one session must be kept"
+          "last": "Debe mantenerse al menos una sesión"
         },
         "title": "Eliminar sesión"
       },
