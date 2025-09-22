@@ -20,6 +20,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { AgentEntity, AgentSessionEntity, BaseSessionForm, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -86,7 +87,8 @@ export const SessionModal: React.FC<Props> = ({
   const { t } = useTranslation()
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
-  const { createSession, updateSession } = useSessions(agentId)
+  const { createSession } = useSessions(agentId)
+  const updateSession = useUpdateSession(agentId)
   // Only support claude code for now
   const { models } = useApiModels({ providerType: 'anthropic' })
   const { agent } = useAgent(agentId)
@@ -164,7 +166,7 @@ export const SessionModal: React.FC<Props> = ({
       }
 
       if (form.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.required'))
+        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
         loadingRef.current = false
         return
       }

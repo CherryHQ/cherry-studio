@@ -52,7 +52,8 @@
       "delete": {
         "content": "Êtes-vous sûr de vouloir supprimer cette session ?",
         "error": {
-          "failed": "Échec de la suppression de la session"
+          "failed": "Échec de la suppression de la session",
+          "last": "Au moins une session doit être conservée"
         },
         "title": "Supprimer la session"
       },

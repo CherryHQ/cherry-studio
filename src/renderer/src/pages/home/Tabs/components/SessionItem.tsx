@@ -13,11 +13,13 @@ interface SessionItemProps {
   session: AgentSessionEntity
   // use external agentId as SSOT, instead of session.agent_id
   agentId: string
+  isDisabled?: boolean
+  isLoading?: boolean
   onDelete: () => void
   onPress: () => void
 }
 
-const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress }) => {
+const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoading, onDelete, onPress }) => {
   const { t } = useTranslation()
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { chat } = useRuntime()
@@ -38,7 +40,11 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, onDelete, onPress
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
-          <ButtonContainer onPress={onPress} className={isActive ? 'active' : ''}>
+          <ButtonContainer
+            isDisabled={isDisabled}
+            isLoading={isLoading}
+            onPress={onPress}
+            className={isActive ? 'active' : ''}>
             <SessionLabelContainer className="name" title={session.name ?? session.id}>
               <SessionLabel />
             </SessionLabelContainer>

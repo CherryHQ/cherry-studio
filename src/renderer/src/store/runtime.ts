@@ -18,6 +18,8 @@ export interface ChatState {
   renamingTopics: string[]
   /** topic ids that are newly renamed */
   newlyRenamedTopics: string[]
+  /** is a session waiting for updating/deleting. undefined and false share same semantics.  */
+  sessionWaiting: Record<string, boolean>
 }
 
 export interface WebSearchState {
@@ -90,7 +92,8 @@ const initialState: RuntimeState = {
     activeTopicOrSession: 'topic',
     activeSessionId: {},
     renamingTopics: [],
-    newlyRenamedTopics: []
+    newlyRenamedTopics: [],
+    sessionWaiting: {}
   },
   websearch: {
     activeSearches: {}
@@ -184,6 +187,10 @@ const runtimeSlice = createSlice({
     },
     addIknowAction: (state, action: PayloadAction<string>) => {
       state.iknow[action.payload] = true
+    },
+    setSessionWaitingAction: (state, action: PayloadAction<{ id: string; value: boolean }>) => {
+      const { id, value } = action.payload
+      state.chat.sessionWaiting[id] = value
     }
   }
 })
@@ -212,6 +219,7 @@ export const {
   setActiveTopicOrSessionAction,
   setRenamingTopics,
   setNewlyRenamedTopics,
+  setSessionWaitingAction,
   // WebSearch related actions
   setActiveSearches,
   setWebSearchStatus
