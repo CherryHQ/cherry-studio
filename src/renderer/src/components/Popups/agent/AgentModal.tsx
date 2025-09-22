@@ -18,7 +18,7 @@ import { loggerService } from '@logger'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useModels } from '@renderer/hooks/agents/useModels'
+import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { AddAgentForm, AgentEntity, AgentType, BaseAgentForm, isAgentType, UpdateAgentForm } from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -82,7 +82,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const { addAgent } = useAgents()
   const updateAgent = useUpdateAgent()
   // hard-coded. We only support anthropic for now.
-  const { models } = useModels({ providerType: 'anthropic' })
+  const { models } = useApiModels({ providerType: 'anthropic' })
   const isEditing = (agent?: AgentEntity) => agent !== undefined
 
   const [form, setForm] = useState<BaseAgentForm>(() => buildAgentForm(agent))
@@ -317,7 +317,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     selectedKeys={[form.type]}
                     onChange={onAgentTypeChange}
                     items={agentOptions}
-                    label={t('agent.add.type.label')}
+                    label={t('agent.type.label')}
                     placeholder={t('agent.add.type.placeholder')}
                     renderValue={renderOption}>
                     {(option) => (
@@ -327,7 +327,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     )}
                   </Select>
                   <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
-                  {/* FIXME: Model type definition is string. It cannot be related to provider. Just mock a model now. */}
                   <Select
                     isRequired
                     selectionMode="single"

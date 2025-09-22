@@ -7,7 +7,6 @@
       },
       "title": "新增代理",
       "type": {
-        "label": "代理類型",
         "placeholder": "選擇 Agent 類型"
       }
     },
@@ -21,13 +20,25 @@
     "edit": {
       "title": "編輯 Agent"
     },
+    "get": {
+      "error": {
+        "failed": "無法取得代理程式。"
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "無法列出代理程式。"
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "新增目錄",
         "duplicate": "此目錄已包含在內。",
         "empty": "選擇至少一個代理可以存取的目錄。",
+        "error": {
+          "at_least_one": "請至少選取一個可存取的目錄。"
+        },
         "label": "可存取的目錄",
-        "required": "請至少選擇一個可存取的目錄。",
         "select_failed": "無法選擇目錄。"
       },
       "add": {
@@ -62,7 +73,12 @@
       }
     },
     "settings": {
-      "essential": "必要設定"
+      "essential": "必要設定",
+      "prompt": "提示設定"
+    },
+    "type": {
+      "label": "代理類型",
+      "unknown": "未知類型"
     },
     "update": {
       "error": {

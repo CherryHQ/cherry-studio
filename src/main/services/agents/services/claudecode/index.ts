@@ -86,7 +86,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       },
       appendSystemPrompt: session.instructions,
       permissionMode: session.configuration?.permission_mode,
-      maxTurns: session.configuration?.max_turns
+      maxTurns: session.configuration?.max_turns,
+      allowedTools: session.allowed_tools
     }
 
     if (session.accessible_paths.length > 1) {

@@ -5,7 +5,13 @@
  */
 
 import { loggerService } from '@logger'
-import { BuiltinMCPServerName, BuiltinMCPServerNames, BuiltinOcrProviderId, ThinkingOption } from '@renderer/types'
+import {
+  AgentType,
+  BuiltinMCPServerName,
+  BuiltinMCPServerNames,
+  BuiltinOcrProviderId,
+  ThinkingOption
+} from '@renderer/types'
 
 import i18n from './index'
 
@@ -338,4 +344,13 @@ export const getBuiltinOcrProviderLabel = (key: BuiltinOcrProviderId) => {
   if (key === 'tesseract') return 'Tesseract'
   else if (key == 'paddleocr') return 'PaddleOCR'
   else return getLabel(builtinOcrProviderKeyMap, key)
+}
+
+export const getAgentTypeLabel = (key: AgentType) => {
+  switch (key) {
+    case 'claude-code':
+      return 'Claude Code'
+    default:
+      return 'Unknown Type'
+  }
 }

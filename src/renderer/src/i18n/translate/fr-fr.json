@@ -7,7 +7,6 @@
       },
       "title": "Ajouter un agent",
       "type": {
-        "label": "Type d'agent",
         "placeholder": "Sélectionner le type d'Agent"
       }
     },
@@ -21,13 +20,25 @@
     "edit": {
       "title": "Éditer Agent"
     },
+    "get": {
+      "error": {
+        "failed": "Échec de l'obtention de l'agent."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "[to be translated]:Failed to list agents."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Ajouter un répertoire",
         "duplicate": "Ce répertoire est déjà inclus.",
         "empty": "Sélectionnez au moins un répertoire auquel l'agent peut accéder.",
+        "error": {
+          "at_least_one": "Veuillez sélectionner au moins un répertoire accessible."
+        },
         "label": "Répertoires accessibles",
-        "required": "Veuillez sélectionner au moins un répertoire accessible.",
         "select_failed": "Échec de la sélection du répertoire."
       },
       "add": {
@@ -62,7 +73,12 @@
       }
     },
     "settings": {
-      "essential": "Paramètres essentiels"
+      "essential": "Paramètres essentiels",
+      "prompt": "Paramètres de l'invite"
+    },
+    "type": {
+      "label": "Type d'agent",
+      "unknown": "Type inconnu"
     },
     "update": {
       "error": {

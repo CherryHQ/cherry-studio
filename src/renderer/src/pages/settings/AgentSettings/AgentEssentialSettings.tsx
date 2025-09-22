@@ -1,18 +1,18 @@
-import CodeEditor from '@renderer/components/CodeEditor'
-import { Box, HSpaceBetweenStack, HStack } from '@renderer/components/Layout'
-import { RichEditorRef } from '@renderer/components/RichEditor/types'
+import { Button, Tooltip } from '@heroui/react'
+import { loggerService } from '@logger'
+import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
+import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import { AgentEntity, UpdateAgentForm } from '@renderer/types'
-import { Button, Input, Popover } from 'antd'
-import { Edit, HelpCircle, Save } from 'lucide-react'
-import { FC, useEffect, useRef, useState } from 'react'
+import { Input, Select } from 'antd'
+import { DefaultOptionType } from 'antd/es/select'
+import { Plus } from 'lucide-react'
+import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import ReactMarkdown from 'react-markdown'
-import styled from 'styled-components'
 
-import { SettingDivider } from '..'
+import { AgentLabel, SettingsContainer, SettingsItem, SettingsTitle } from './shared'
+
+const logger = loggerService.withContext('AgentEssentialSettings')
 
 interface AgentEssentialSettingsProps {
   agent: AgentEntity | undefined | null
@@ -22,157 +22,127 @@ interface AgentEssentialSettingsProps {
 const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {
   const { t } = useTranslation()
   const [name, setName] = useState<string>((agent?.name ?? '').trim())
-  const [instructions, setInstructions] = useState<string>(agent?.instructions ?? '')
-  const [showPreview, setShowPreview] = useState<boolean>(!!agent?.instructions?.length)
-  const [tokenCount, setTokenCount] = useState(0)
+  const { models } = useApiModels({ providerType: 'anthropic' })
 
-  useEffect(() => {
-    const updateTokenCount = async () => {
-      const count = estimateTextTokens(instructions)
-      setTokenCount(count)
-    }
-    updateTokenCount()
-  }, [instructions])
-
-  const editorRef = useRef<RichEditorRef>(null)
-
-  const processedPrompt = usePromptProcessor({
-    prompt: instructions,
-    modelName: agent?.model
-  })
-
-  const onUpdate = () => {
+  const updateName = (name: string) => {
     if (!agent) return
-    const _agent = { ...agent, type: undefined, name: name.trim(), instructions } satisfies UpdateAgentForm
-    update(_agent)
+    update({ id: agent.id, name: name.trim() })
   }
 
-  const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
+  const updateModel = (model: UpdateAgentForm['model']) => {
+    if (!agent) return
+    update({ id: agent.id, model })
+  }
+
+  const updateAccessiblePaths = useCallback(
+    (accessible_paths: UpdateAgentForm['accessible_paths']) => {
+      if (!agent) return
+      update({ id: agent.id, accessible_paths })
+    },
+    [agent, update]
+  )
+
+  const modelOptions = useMemo(() => {
+    return models.map((model) => ({
+      value: model.id,
+      label: <ApiModelLabel model={model} />
+    })) satisfies DefaultOptionType[]
+  }, [models])
+
+  const addAccessiblePath = useCallback(async () => {
+    if (!agent) return
+
+    try {
+      const selected = await window.api.file.selectFolder()
+      if (!selected) {
+        return
+      }
+
+      if (agent.accessible_paths.includes(selected)) {
+        window.toast.warning(t('agent.session.accessible_paths.duplicate'))
+        return
+      }
+
+      updateAccessiblePaths([...agent.accessible_paths, selected])
+    } catch (error) {
+      logger.error('Failed to select accessible path:', error as Error)
+      window.toast.error(t('agent.session.accessible_paths.select_failed'))
+    }
+  }, [agent, t, updateAccessiblePaths])
+
+  const removeAccessiblePath = useCallback(
+    (path: string) => {
+      if (!agent) return
+      const newPaths = agent.accessible_paths.filter((p) => p !== path)
+      if (newPaths.length === 0) {
+        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
+        return
+      }
+      updateAccessiblePaths(newPaths)
+    },
+    [agent, t, updateAccessiblePaths]
+  )
 
   if (!agent) return null
 
   return (
-    <Container>
-      <Box mb={8} style={{ fontWeight: 'bold' }}>
-        {t('common.name')}
-      </Box>
-      <HStack gap={8} alignItems="center">
+    <SettingsContainer>
+      <SettingsItem inline>
+        <SettingsTitle>{t('agent.type.label')}</SettingsTitle>
+        <AgentLabel type={agent.type} />
+      </SettingsItem>
+      <SettingsItem inline>
+        <SettingsTitle>{t('common.name')}</SettingsTitle>
         <Input
-          placeholder={t('common.assistant') + t('common.name')}
+          placeholder={t('common.agent_one') + t('common.name')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => {
             if (name !== agent.name) {
-              onUpdate()
+              updateName(name)
             }
           }}
-          style={{ flex: 1 }}
+          className="max-w-80 flex-1"
         />
-      </HStack>
-      <SettingDivider />
-      <HStack mb={8} alignItems="center" gap={4}>
-        <Box style={{ fontWeight: 'bold' }}>{t('common.prompt')}</Box>
-        <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
-          <HelpCircle size={14} color="var(--color-text-2)" />
-        </Popover>
-      </HStack>
-      <TextAreaContainer>
-        <RichEditorContainer>
-          {showPreview ? (
-            <MarkdownContainer
-              onDoubleClick={() => {
-                const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
-                setShowPreview(false)
-                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-              }}>
-              <ReactMarkdown>{processedPrompt || instructions}</ReactMarkdown>
-            </MarkdownContainer>
-          ) : (
-            <CodeEditor
-              value={instructions}
-              language="markdown"
-              onChange={setInstructions}
-              height="100%"
-              expanded={false}
-              style={{
-                height: '100%'
-              }}
-            />
-          )}
-        </RichEditorContainer>
-      </TextAreaContainer>
-      <HSpaceBetweenStack width="100%" justifyContent="flex-end" mt="10px">
-        <TokenCount>Tokens: {tokenCount}</TokenCount>
-        <Button
-          type="primary"
-          icon={showPreview ? <Edit size={14} /> : <Save size={14} />}
-          onClick={() => {
-            const currentScrollTop = editorRef.current?.getScrollTop?.() || 0
-            if (showPreview) {
-              setShowPreview(false)
-              requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-            } else {
-              onUpdate()
-              requestAnimationFrame(() => {
-                setShowPreview(true)
-                requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
-              })
-            }
-          }}>
-          {showPreview ? t('common.edit') : t('common.save')}
-        </Button>
-      </HSpaceBetweenStack>
-    </Container>
+      </SettingsItem>
+      <SettingsItem inline className="gap-8">
+        <SettingsTitle>{t('common.model')}</SettingsTitle>
+        <Select
+          options={modelOptions}
+          value={agent.model}
+          onChange={(value) => {
+            updateModel(value)
+          }}
+          className="max-w-80 flex-1"
+          placeholder={t('common.placeholders.select.model')}
+        />
+      </SettingsItem>
+      <SettingsItem>
+        <SettingsTitle
+          actions={
+            <Tooltip content={t('agent.session.accessible_paths.add')}>
+              <Button size="sm" startContent={<Plus />} isIconOnly onPress={addAccessiblePath} />
+            </Tooltip>
+          }>
+          {t('agent.session.accessible_paths.label')}
+        </SettingsTitle>
+        <ul className="mt-2 flex flex-col gap-2 rounded-xl border p-2">
+          {agent.accessible_paths.map((path) => (
+            <li
+              key={path}
+              className="flex items-center justify-between gap-2 rounded-medium border border-default-200 px-3 py-2">
+              <span className="truncate text-sm" title={path}>
+                {path}
+              </span>
+              <Button size="sm" variant="light" color="danger" onPress={() => removeAccessiblePath(path)}>
+                {t('common.delete')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </SettingsItem>
+    </SettingsContainer>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  overflow: hidden;
-`
-
-const TextAreaContainer = styled.div`
-  position: relative;
-  width: 100%;
-`
-
-const TokenCount = styled.div`
-  padding: 2px 2px;
-  border-radius: 4px;
-  font-size: 14px;
-  color: var(--color-text-2);
-  user-select: none;
-`
-
-const RichEditorContainer = styled.div`
-  height: calc(80vh - 202px);
-  border: 0.5px solid var(--color-border);
-  border-radius: 5px;
-  overflow: hidden;
-
-  .prompt-rich-editor {
-    border: none;
-    height: 100%;
-
-    .rich-editor-wrapper {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .rich-editor-content {
-      flex: 1;
-      overflow: auto;
-    }
-  }
-`
-
-const MarkdownContainer = styled.div.attrs({ className: 'markdown' })`
-  height: 100%;
-  padding: 0.5em;
-  overflow: auto;
-`
 
 export default AgentEssentialSettings

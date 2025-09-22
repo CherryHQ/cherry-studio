@@ -7,7 +7,6 @@
       },
       "title": "Agregar Agente",
       "type": {
-        "label": "Tipo de agente",
         "placeholder": "Seleccionar tipo de Agente"
       }
     },
@@ -21,13 +20,25 @@
     "edit": {
       "title": "Agent de edición"
     },
+    "get": {
+      "error": {
+        "failed": "No se pudo obtener el agente."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "Error al listar agentes."
+      }
+    },
     "session": {
       "accessible_paths": {
         "add": "Agregar directorio",
         "duplicate": "Este directorio ya está incluido.",
         "empty": "Selecciona al menos un directorio al que el agente pueda acceder.",
+        "error": {
+          "at_least_one": "Por favor, seleccione al menos un directorio accesible."
+        },
         "label": "Directorios accesibles",
-        "required": "Por favor, seleccione al menos un directorio accesible.",
         "select_failed": "Error al seleccionar el directorio."
       },
       "add": {
@@ -62,7 +73,12 @@
       }
     },
     "settings": {
-      "essential": "Configuraciones esenciales"
+      "essential": "Configuraciones esenciales",
+      "prompt": "Configuración de indicaciones"
+    },
+    "type": {
+      "label": "Tipo de Agente",
+      "unknown": "Tipo desconocido"
     },
     "update": {
       "error": {

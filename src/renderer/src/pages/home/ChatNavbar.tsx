@@ -1,8 +1,11 @@
+import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
-import { modelGenerating } from '@renderer/hooks/useRuntime'
+import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
@@ -35,6 +38,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { topicPosition, narrowMode } = useSettings()
   const { showTopics, toggleShowTopics } = useShowTopics()
   const dispatch = useAppDispatch()
+  const { chat } = useRuntime()
+  const { activeTopicOrSession, activeAgentId } = chat
+  const { agent } = useAgent(activeAgentId)
+  const agentModel = useApiModel(agent?.model)
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -94,7 +101,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             </motion.div>
           )}
         </AnimatePresence>
-        <SelectModelButton assistant={assistant} />
+        {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
+        {/* TODO: Show a select model button for agent. */}
+        {/* FIXME: models endpoint doesn't return all models, so cannot found. */}
+        {activeTopicOrSession === 'session' && <ApiModelLabel model={agentModel} />}
       </HStack>
       <HStack alignItems="center" gap={8}>
         <UpdateAppButton />

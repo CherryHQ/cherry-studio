@@ -1,7 +1,5 @@
-import { Avatar } from '@heroui/react'
-import { HStack } from '@renderer/components/Layout'
+import { Alert, Spinner } from '@heroui/react'
 import { TopView } from '@renderer/components/TopView'
-import { getAgentAvatar } from '@renderer/config/agent'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { Menu, Modal } from 'antd'
@@ -10,6 +8,8 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import AgentEssentialSettings from './AgentEssentialSettings'
+import AgentPromptSettings from './AgentPromptSettings'
+import { AgentLabel } from './shared'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -27,7 +27,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const { t } = useTranslation()
   const [menu, setMenu] = useState<AgentSettingPopupTab>(tab || 'essential')
 
-  const { agent } = useAgent(agentId)
+  const { agent, isLoading, error } = useAgent(agentId)
   const updateAgent = useUpdateAgent()
 
   const onOk = () => {
@@ -47,9 +47,44 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       {
         key: 'essential',
         label: t('agent.settings.essential')
+      },
+      {
+        key: 'prompt',
+        label: t('agent.settings.prompt')
       }
-    ] satisfies { key: AgentSettingPopupTab; label: string }[]
-  ).filter(Boolean) as { key: string; label: string }[]
+    ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
+  ).filter(Boolean)
+
+  const ModalContent = () => {
+    if (isLoading) {
+      // TODO: use skeleton for better ux
+      return <Spinner />
+    }
+    if (error) {
+      return (
+        <div>
+          <Alert color="danger" title={t('agent.get.error.failed')} />
+        </div>
+      )
+    }
+    return (
+      <div className="flex w-full flex-1">
+        <LeftMenu>
+          <StyledMenu
+            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
+            mode="vertical"
+            selectedKeys={[menu]}
+            items={items}
+            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
+          />
+        </LeftMenu>
+        <Settings>
+          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
+          {menu === 'prompt' && <AgentPromptSettings agent={agent} update={updateAgent} />}
+        </Settings>
+      </div>
+    )
+  }
 
   return (
     <StyledModal
@@ -60,50 +95,46 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       maskClosable={false}
       footer={null}
       title={
-        <div className="flex items-center">
-          <Avatar size="sm" className="mr-2 h-5 w-5" src={agent ? getAgentAvatar(agent.type) : undefined} />
-          <span className="font-extrabold text-xl">{agent?.name ?? ''}</span>
-        </div>
+        <AgentLabel
+          type={agent?.type ?? 'claude-code'}
+          name={agent?.name}
+          classNames={{ name: 'text-lg font-extrabold' }}
+          avatarProps={{ size: 'sm' }}
+        />
       }
       transitionName="animation-move-down"
       styles={{
         content: {
           padding: 0,
-          overflow: 'hidden'
+          overflow: 'hidden',
+          height: '80vh',
+          display: 'flex',
+          flexDirection: 'column'
         },
         header: { padding: '10px 15px', borderBottom: '0.5px solid var(--color-border)', margin: 0, borderRadius: 0 },
         body: {
-          padding: 0
+          padding: 0,
+          display: 'flex',
+          flex: 1
         }
       }}
       width="min(800px, 70vw)"
-      height="80vh"
       centered>
-      <HStack>
-        <LeftMenu>
-          <StyledMenu
-            defaultSelectedKeys={[tab || 'essential'] satisfies AgentSettingPopupTab[]}
-            mode="vertical"
-            items={items}
-            onSelect={({ key }) => setMenu(key as AgentSettingPopupTab)}
-          />
-        </LeftMenu>
-        <Settings>{menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}</Settings>
-      </HStack>
+      <ModalContent />
     </StyledModal>
   )
 }
 
 const LeftMenu = styled.div`
-  height: calc(80vh - 20px);
+  height: 100%;
   border-right: 0.5px solid var(--color-border);
 `
 
 const Settings = styled.div`
+  display: flex;
+  flex-direction: column;
   flex: 1;
   padding: 16px 16px;
-  height: calc(80vh - 16px);
-  overflow-y: scroll;
 `
 
 const StyledModal = styled(Modal)`

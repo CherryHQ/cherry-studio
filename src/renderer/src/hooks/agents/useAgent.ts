@@ -7,7 +7,7 @@ export const useAgent = (id: string | null) => {
   const client = useAgentClient()
   const key = id ? client.agentPaths.withId(id) : null
   const fetcher = useCallback(async () => {
-    if (!id) {
+    if (!id || id === 'fake') {
       return null
     }
     const result = await client.getAgent(id)
