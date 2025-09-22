@@ -302,6 +302,43 @@ class OvmsManager {
     return true
   }
 
+  private async applyModelPath(modelDirPath: string): Promise<boolean> {
+    const homeDir = homedir()
+    const patchDir = path.join(homeDir, '.cherrystudio', 'ovms', 'patch')
+    if (!(await fs.pathExists(patchDir))) {
+      return true
+    }
+
+    const modelId = path.basename(modelDirPath)
+
+    // get all sub directories in patchDir
+    const patchs = await fs.readdir(patchDir)
+    for (const patch of patchs) {
+      const fullPatchPath = path.join(patchDir, patch)
+
+      if (fs.lstatSync(fullPatchPath).isDirectory()) {
+        if (modelId.toLowerCase().includes(patch.toLowerCase())) {
+          // copy all files from fullPath to modelDirPath
+          try {
+            const files = await fs.readdir(fullPatchPath)
+            for (const file of files) {
+              const srcFile = path.join(fullPatchPath, file)
+              const destFile = path.join(modelDirPath, file)
+              await fs.copyFile(srcFile, destFile)
+            }
+          } catch (error) {
+            logger.error(`Failed to copy files from ${fullPatchPath} to ${modelDirPath}: ${error}`)
+            return false
+          }
+          logger.info(`Applied patchs for model ${modelId}`)
+          return true
+        }
+      }
+    }
+
+    return true
+  }
+
   /**
    * Add a model to OVMS by downloading it
    * @param modelName Name of the model to add
@@ -378,6 +415,11 @@ class OvmsManager {
     if (!(await this.updateModelConfig(modelName, modelId))) {
       logger.error('Failed to update model config')
       return { success: false, message: 'Failed to update model config' }
+    }
+
+    if (!(await this.applyModelPath(pathModel))) {
+      logger.error('Failed to apply model patchs')
+      return { success: false, message: 'Failed to apply model patchs' }
     }
 
     logger.info(`Model ${modelName} added successfully with ID ${modelId}`)
