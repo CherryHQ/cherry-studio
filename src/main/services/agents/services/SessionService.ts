@@ -29,7 +29,10 @@ export class SessionService extends BaseService {
     await BaseService.initialize()
   }
 
-  async createSession(agentId: string, req: CreateSessionRequest): Promise<GetAgentSessionResponse | null> {
+  async createSession(
+    agentId: string,
+    req: Partial<CreateSessionRequest> = {}
+  ): Promise<GetAgentSessionResponse | null> {
     this.ensureInitialized()
 
     // Validate agent exists - we'll need to import AgentService for this check

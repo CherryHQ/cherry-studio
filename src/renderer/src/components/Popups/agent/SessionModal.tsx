@@ -1,5 +1,6 @@
 import {
   Button,
+  Chip,
   cn,
   Form,
   Input,
@@ -16,12 +17,20 @@ import {
   useDisclosure
 } from '@heroui/react'
 import { loggerService } from '@logger'
+import type { Selection } from '@react-types/shared'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { AgentEntity, AgentSessionEntity, BaseSessionForm, CreateSessionForm, UpdateSessionForm } from '@renderer/types'
+import {
+  AgentEntity,
+  AgentSessionEntity,
+  BaseSessionForm,
+  CreateSessionForm,
+  Tool,
+  UpdateSessionForm
+} from '@renderer/types'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,7 +41,10 @@ const logger = loggerService.withContext('SessionAgentPopup')
 
 type Option = ModelOption
 
-const buildSessionForm = (existing?: AgentSessionEntity, agent?: AgentEntity): BaseSessionForm => ({
+type AgentWithTools = AgentEntity & { tools?: Tool[] }
+type SessionWithTools = AgentSessionEntity & { tools?: Tool[] }
+
+const buildSessionForm = (existing?: SessionWithTools, agent?: AgentWithTools): BaseSessionForm => ({
   name: existing?.name ?? agent?.name ?? 'Claude Code',
   description: existing?.description ?? agent?.description,
   instructions: existing?.instructions ?? agent?.instructions,
@@ -41,12 +53,17 @@ const buildSessionForm = (existing?: AgentSessionEntity, agent?: AgentEntity): B
     ? [...existing.accessible_paths]
     : agent?.accessible_paths
       ? [...agent.accessible_paths]
+      : [],
+  allowed_tools: existing?.allowed_tools
+    ? [...existing.allowed_tools]
+    : agent?.allowed_tools
+      ? [...agent.allowed_tools]
       : []
 })
 
 interface BaseProps {
   agentId: string
-  session?: AgentSessionEntity
+  session?: SessionWithTools
   onSessionCreated?: (session: AgentSessionEntity) => void
 }
 
@@ -102,6 +119,27 @@ export const SessionModal: React.FC<Props> = ({
     }
   }, [session, agent, isOpen])
 
+  const availableTools = useMemo(() => session?.tools ?? agent?.tools ?? [], [agent?.tools, session?.tools])
+  const selectedToolKeys = useMemo(() => new Set(form.allowed_tools ?? []), [form.allowed_tools])
+
+  useEffect(() => {
+    if (!availableTools.length) {
+      return
+    }
+
+    setForm((prev) => {
+      const allowed = prev.allowed_tools ?? []
+      const validTools = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
+      if (validTools.length === allowed.length) {
+        return prev
+      }
+      return {
+        ...prev,
+        allowed_tools: validTools
+      }
+    })
+  }, [availableTools])
+
   const Item = useCallback(({ item }: { item: SelectedItemProps<BaseOption> }) => <Option option={item.data} />, [])
 
   const renderOption = useCallback(
@@ -128,6 +166,50 @@ export const SessionModal: React.FC<Props> = ({
       ...prev,
       instructions
     }))
+  }, [])
+
+  const onAllowedToolsChange = useCallback(
+    (keys: Selection) => {
+      setForm((prev) => {
+        const existing = prev.allowed_tools ?? []
+        if (keys === 'all') {
+          return {
+            ...prev,
+            allowed_tools: availableTools.map((tool) => tool.id)
+          }
+        }
+
+        const next = Array.from(keys).map(String)
+        const filtered = availableTools.length
+          ? next.filter((id) => availableTools.some((tool) => tool.id === id))
+          : next
+
+        if (existing.length === filtered.length && existing.every((id) => filtered.includes(id))) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          allowed_tools: filtered
+        }
+      })
+    },
+    [availableTools]
+  )
+
+  const renderSelectedTools = useCallback((items: SelectedItems<Tool>) => {
+    if (!items.length) {
+      return null
+    }
+    return (
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <Chip key={item.key} size="sm" variant="flat" className="max-w-[160px] truncate">
+            {item.data?.name ?? item.textValue ?? item.key}
+          </Chip>
+        ))}
+      </div>
+    )
   }, [])
 
   const modelOptions = useMemo(() => {
@@ -183,7 +265,8 @@ export const SessionModal: React.FC<Props> = ({
             description: form.description,
             instructions: form.instructions,
             model: form.model,
-            accessible_paths: [...form.accessible_paths]
+            accessible_paths: [...form.accessible_paths],
+            allowed_tools: [...(form.allowed_tools ?? [])]
           } satisfies UpdateSessionForm
 
           updateSession(updatePayload)
@@ -194,7 +277,8 @@ export const SessionModal: React.FC<Props> = ({
             description: form.description,
             instructions: form.instructions,
             model: form.model,
-            accessible_paths: [...form.accessible_paths]
+            accessible_paths: [...form.accessible_paths],
+            allowed_tools: [...(form.allowed_tools ?? [])]
           } satisfies CreateSessionForm
           const createdSession = await createSession(newSession)
           if (createdSession) {
@@ -215,6 +299,7 @@ export const SessionModal: React.FC<Props> = ({
       form.description,
       form.instructions,
       form.accessible_paths,
+      form.allowed_tools,
       session,
       onClose,
       onSessionCreated,
@@ -274,6 +359,31 @@ export const SessionModal: React.FC<Props> = ({
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
+                  <Select
+                    selectionMode="multiple"
+                    selectedKeys={selectedToolKeys}
+                    onSelectionChange={onAllowedToolsChange}
+                    label={t('agent.session.allowed_tools.label')}
+                    placeholder={t('agent.session.allowed_tools.placeholder')}
+                    description={
+                      availableTools.length
+                        ? t('agent.session.allowed_tools.helper')
+                        : t('agent.session.allowed_tools.empty')
+                    }
+                    isDisabled={!availableTools.length}
+                    items={availableTools}
+                    renderValue={renderSelectedTools}>
+                    {(tool) => (
+                      <SelectItem key={tool.id} textValue={tool.name}>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{tool.name}</span>
+                          {tool.description ? (
+                            <span className="text-xs text-foreground-500">{tool.description}</span>
+                          ) : null}
+                        </div>
+                      </SelectItem>
+                    )}
+                  </Select>
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>
                 <ModalFooter className="w-full">

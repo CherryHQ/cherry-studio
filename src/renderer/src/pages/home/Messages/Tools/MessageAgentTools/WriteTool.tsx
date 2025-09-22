@@ -4,7 +4,7 @@ import { FileText } from 'lucide-react'
 import { ToolTitle } from './GenericTools'
 import type { WriteToolInput, WriteToolOutput } from './types'
 
-export function WriteTool({ input, output }: { input: WriteToolInput; output?: WriteToolOutput }) {
+export function WriteTool({ input }: { input: WriteToolInput; output?: WriteToolOutput }) {
   return (
     <AccordionItem
       key="tool"

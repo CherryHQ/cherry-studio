@@ -44,6 +44,12 @@
       "add": {
         "title": "添加会话"
       },
+      "allowed_tools": {
+        "empty": "当前智能体暂无可用工具。",
+        "helper": "选择预先授权的工具，未选中的工具在使用时需要手动审批。",
+        "label": "允许的工具",
+        "placeholder": "选择允许使用的工具"
+      },
       "create": {
         "error": {
           "failed": "添加会话失败"

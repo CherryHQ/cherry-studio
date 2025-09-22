@@ -44,6 +44,12 @@
       "add": {
         "title": "Agregar una sesión"
       },
+      "allowed_tools": {
+        "empty": "No hay herramientas disponibles para este agente.",
+        "helper": "Elige qué herramientas quedan preaprobadas. Las no seleccionadas requerirán aprobación manual antes de usarse.",
+        "label": "Herramientas permitidas",
+        "placeholder": "Selecciona las herramientas permitidas"
+      },
       "create": {
         "error": {
           "failed": "Error al añadir una sesión"

@@ -1,7 +1,6 @@
 import { Alert, Button, Spinner } from '@heroui/react'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
 import {
@@ -27,7 +26,6 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
   const { agent } = useAgent(agentId)
   const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
-  const updateSession = useUpdateSession(agentId)
   const { chat } = useRuntime()
   const { activeSessionId, sessionWaiting } = chat
   const dispatch = useAppDispatch()
@@ -70,7 +68,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       }
       dispatch(setSessionWaitingAction({ id, value: false }))
     },
-    [agentId, deleteSession, dispatch, sessions]
+    [agentId, deleteSession, dispatch, sessions, t]
   )
 
   const currentActiveSessionId = activeSessionId[agentId]

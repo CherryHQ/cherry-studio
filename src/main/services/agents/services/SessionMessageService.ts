@@ -68,15 +68,23 @@ class TextStreamAccumulator {
       }
       case 'tool-call':
         if (part.toolCallId) {
+          const legacyPart = part as typeof part & {
+            args?: unknown
+            providerMetadata?: { raw?: { input?: unknown } }
+          }
           this.toolCalls.set(part.toolCallId, {
             toolName: part.toolName,
-            input: part.input ?? part.providerMetadata?.raw?.input
+            input: part.input ?? legacyPart.args ?? legacyPart.providerMetadata?.raw?.input
           })
         }
         break
       case 'tool-result':
         if (part.toolCallId) {
-          this.toolResults.set(part.toolCallId, part.output)
+          const legacyPart = part as typeof part & {
+            result?: unknown
+            providerMetadata?: { raw?: unknown }
+          }
+          this.toolResults.set(part.toolCallId, part.output ?? legacyPart.result ?? legacyPart.providerMetadata?.raw)
         }
         break
       default:

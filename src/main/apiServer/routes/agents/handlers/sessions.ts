@@ -285,6 +285,32 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
     }
 
     logger.info(`Session deleted successfully: ${sessionId}`)
+
+    const { total } = await sessionService.listSessions(agentId, { limit: 1 })
+
+    if (total === 0) {
+      logger.info(`No remaining sessions for agent ${agentId}, creating default session`)
+      try {
+        const fallbackSession = await sessionService.createSession(agentId, {})
+        logger.info('Default session created after deleting last session', {
+          agentId,
+          sessionId: fallbackSession?.id
+        })
+      } catch (recoveryError: any) {
+        logger.error('Failed to recreate session after deleting last session', {
+          agentId,
+          error: recoveryError
+        })
+        return res.status(500).json({
+          error: {
+            message: `Failed to recreate session after deletion: ${recoveryError.message}`,
+            type: 'internal_error',
+            code: 'session_recovery_failed'
+          }
+        })
+      }
+    }
+
     return res.status(204).send()
   } catch (error: any) {
     logger.error('Error deleting session:', error)
