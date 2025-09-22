@@ -52,7 +52,8 @@
       "delete": {
         "content": "Tem certeza de que deseja excluir esta sessão?",
         "error": {
-          "failed": "Falha ao excluir a sessão"
+          "failed": "Falha ao excluir a sessão",
+          "last": "[to be translated]:At least one session must be kept"
         },
         "title": "Excluir sessão"
       },

@@ -52,7 +52,8 @@
       "delete": {
         "content": "Είσαι σίγουρος ότι θέλεις να διαγράψεις αυτήν τη συνεδρία;",
         "error": {
-          "failed": "Αποτυχία διαγραφής της συνεδρίας"
+          "failed": "Αποτυχία διαγραφής της συνεδρίας",
+          "last": "[to be translated]:At least one session must be kept"
         },
         "title": "Διαγραφή συνεδρίας"
       },

@@ -52,7 +52,8 @@
       "delete": {
         "content": "このセッションを削除してもよろしいですか？",
         "error": {
-          "failed": "セッションの削除に失敗しました"
+          "failed": "セッションの削除に失敗しました",
+          "last": "[to be translated]:At least one session must be kept"
         },
         "title": "セッションを削除"
       },
