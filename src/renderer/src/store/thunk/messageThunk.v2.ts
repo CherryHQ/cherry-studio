@@ -53,7 +53,7 @@ export const loadTopicMessagesThunkV2 =
       }
       dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
     } catch (error) {
-      logger.error(`Failed to load messages for topic ${topicId}:`, error)
+      logger.error(`Failed to load messages for topic ${topicId}:`, error as Error)
       // Could dispatch an error action here if needed
     } finally {
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
@@ -95,7 +95,7 @@ export const getTopicV2 = async (topicId: string): Promise<Topic | undefined> =>
     // Construct the full Topic object
     const topic: Topic = {
       id: rawTopic.id,
-      type: isAgentSessionTopicId(topicId) ? TopicType.AgentSession : TopicType.Chat,
+      type: isAgentSessionTopicId(topicId) ? TopicType.Session : TopicType.Chat,
       messages: rawTopic.messages,
       assistantId: '', // These fields would need to be fetched from appropriate source
       name: '',
@@ -261,7 +261,7 @@ export const updateSingleBlockV2 = async (blockId: string, updates: Partial<Mess
 }
 
 /**
- * Bulk add message blocks
+ * Bulk add message blocks (for new blocks)
  */
 export const bulkAddBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => {
   try {
@@ -269,6 +269,19 @@ export const bulkAddBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => 
     logger.info('Bulk added blocks via DbService', { count: blocks.length })
   } catch (error) {
     logger.error('Failed to bulk add blocks:', { count: blocks.length, error })
+    throw error
+  }
+}
+
+/**
+ * Update multiple message blocks (upsert operation)
+ */
+export const updateBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => {
+  try {
+    await dbService.updateBlocks(blocks)
+    logger.info('Updated blocks via DbService', { count: blocks.length })
+  } catch (error) {
+    logger.error('Failed to update blocks:', { count: blocks.length, error })
     throw error
   }
 }

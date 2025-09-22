@@ -35,7 +35,18 @@ import { LRUCache } from 'lru-cache'
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
-import { loadTopicMessagesThunkV2 } from './messageThunk.v2'
+import {
+  bulkAddBlocksV2,
+  clearMessagesFromDBV2,
+  deleteMessageFromDBV2,
+  deleteMessagesFromDBV2,
+  loadTopicMessagesThunkV2,
+  saveMessageAndBlocksToDBV2,
+  updateBlocksV2,
+  updateFileCountV2,
+  updateMessageV2,
+  updateSingleBlockV2
+} from './messageThunk.v2'
 
 const logger = loggerService.withContext('MessageThunk')
 
@@ -192,12 +203,23 @@ const createAgentMessageStream = async (
 }
 // TODO: 后续可以将db操作移到Listener Middleware中
 export const saveMessageAndBlocksToDB = async (message: Message, blocks: MessageBlock[], messageIndex: number = -1) => {
+  // Use V2 implementation if feature flag is enabled
+  if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+    return saveMessageAndBlocksToDBV2(message.topicId, message, blocks)
+  }
+
+  // Original implementation
   try {
     if (isAgentSessionTopicId(message.topicId)) {
       return
     }
     if (blocks.length > 0) {
-      await db.message_blocks.bulkPut(blocks)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateBlocksV2(blocks)
+      } else {
+        await db.message_blocks.bulkPut(blocks)
+      }
     }
     const topic = await db.topics.get(message.topicId)
     if (topic) {
@@ -234,7 +256,12 @@ const updateExistingMessageAndBlocksInDB = async (
     await db.transaction('rw', db.topics, db.message_blocks, async () => {
       // Always update blocks if provided
       if (updatedBlocks.length > 0) {
-        await db.message_blocks.bulkPut(updatedBlocks)
+        // Use V2 implementation if feature flag is enabled
+        if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+          await updateBlocksV2(updatedBlocks)
+        } else {
+          await db.message_blocks.bulkPut(updatedBlocks)
+        }
       }
 
       // Check if there are message properties to update beyond id and topicId
@@ -303,7 +330,12 @@ const getBlockThrottler = (id: string) => {
       })
 
       blockUpdateRafs.set(id, rafId)
-      await db.message_blocks.update(id, blockUpdate)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateSingleBlockV2(id, blockUpdate)
+      } else {
+        await db.message_blocks.update(id, blockUpdate)
+      }
     }, 150)
 
     blockUpdateThrottlers.set(id, throttler)
@@ -907,12 +939,19 @@ export const deleteSingleMessageThunk =
     try {
       dispatch(newMessagesActions.removeMessage({ topicId, messageId }))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
-      await db.message_blocks.bulkDelete(blockIdsToDelete)
-      const topic = await db.topics.get(topicId)
-      if (topic) {
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        dispatch(updateTopicUpdatedAt({ topicId }))
+
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await deleteMessageFromDBV2(topicId, messageId)
+      } else {
+        // Original implementation
+        await db.message_blocks.bulkDelete(blockIdsToDelete)
+        const topic = await db.topics.get(topicId)
+        if (topic) {
+          const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          dispatch(updateTopicUpdatedAt({ topicId }))
+        }
       }
     } catch (error) {
       logger.error(`[deleteSingleMessage] Failed to delete message ${messageId}:`, error as Error)
@@ -947,16 +986,24 @@ export const deleteMessageGroupThunk =
     }
 
     const blockIdsToDelete = messagesToDelete.flatMap((m) => m.blocks || [])
+    const messageIdsToDelete = messagesToDelete.map((m) => m.id)
 
     try {
       dispatch(newMessagesActions.removeMessagesByAskId({ topicId, askId }))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
-      await db.message_blocks.bulkDelete(blockIdsToDelete)
-      const topic = await db.topics.get(topicId)
-      if (topic) {
-        const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
-        await db.topics.update(topicId, { messages: finalMessagesToSave })
-        dispatch(updateTopicUpdatedAt({ topicId }))
+
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await deleteMessagesFromDBV2(topicId, messageIdsToDelete)
+      } else {
+        // Original implementation
+        await db.message_blocks.bulkDelete(blockIdsToDelete)
+        const topic = await db.topics.get(topicId)
+        if (topic) {
+          const finalMessagesToSave = selectMessagesForTopic(getState(), topicId)
+          await db.topics.update(topicId, { messages: finalMessagesToSave })
+          dispatch(updateTopicUpdatedAt({ topicId }))
+        }
       }
     } catch (error) {
       logger.error(`[deleteMessageGroup] Failed to delete messages with askId ${askId}:`, error as Error)
@@ -983,10 +1030,16 @@ export const clearTopicMessagesThunk =
       dispatch(newMessagesActions.clearTopicMessages(topicId))
       cleanupMultipleBlocks(dispatch, blockIdsToDelete)
 
-      await db.topics.update(topicId, { messages: [] })
-      dispatch(updateTopicUpdatedAt({ topicId }))
-      if (blockIdsToDelete.length > 0) {
-        await db.message_blocks.bulkDelete(blockIdsToDelete)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await clearMessagesFromDBV2(topicId)
+      } else {
+        // Original implementation
+        await db.topics.update(topicId, { messages: [] })
+        dispatch(updateTopicUpdatedAt({ topicId }))
+        if (blockIdsToDelete.length > 0) {
+          await db.message_blocks.bulkDelete(blockIdsToDelete)
+        }
       }
     } catch (error) {
       logger.error(`[clearTopicMessagesThunk] Failed to clear messages for topic ${topicId}:`, error as Error)
@@ -1309,7 +1362,12 @@ export const updateTranslationBlockThunk =
       dispatch(updateOneBlock({ id: blockId, changes }))
 
       // 更新数据库
-      await db.message_blocks.update(blockId, changes)
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        await updateSingleBlockV2(blockId, changes)
+      } else {
+        await db.message_blocks.update(blockId, changes)
+      }
       // Logger.log(`[updateTranslationBlockThunk] Successfully updated translation block ${blockId}.`)
     } catch (error) {
       logger.error(`[updateTranslationBlockThunk] Failed to update translation block ${blockId}:`, error as Error)
@@ -1522,20 +1580,33 @@ export const cloneMessagesToNewTopicThunk =
 
         // Add the NEW blocks
         if (clonedBlocks.length > 0) {
-          await db.message_blocks.bulkAdd(clonedBlocks)
+          // Use V2 implementation if feature flag is enabled
+          if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+            await bulkAddBlocksV2(clonedBlocks)
+          } else {
+            await db.message_blocks.bulkAdd(clonedBlocks)
+          }
         }
         // Update file counts
         const uniqueFiles = [...new Map(filesToUpdateCount.map((f) => [f.id, f])).values()]
-        for (const file of uniqueFiles) {
-          await db.files
-            .where('id')
-            .equals(file.id)
-            .modify((f) => {
-              if (f) {
-                // Ensure file exists before modifying
-                f.count = (f.count || 0) + 1
-              }
-            })
+        if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+          // Use V2 implementation for file count updates
+          for (const file of uniqueFiles) {
+            await updateFileCountV2(file.id, 1, false)
+          }
+        } else {
+          // Original implementation
+          for (const file of uniqueFiles) {
+            await db.files
+              .where('id')
+              .equals(file.id)
+              .modify((f) => {
+                if (f) {
+                  // Ensure file exists before modifying
+                  f.count = (f.count || 0) + 1
+                }
+              })
+          }
         }
       })
 
@@ -1589,33 +1660,46 @@ export const updateMessageAndBlocksThunk =
       }
 
       // 2. 更新数据库 (在事务中)
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        // Only update topic.messages if there were actual message changes
-        if (messageUpdates && Object.keys(messageUpdates).length > 0) {
-          const topic = await db.topics.get(topicId)
-          if (topic && topic.messages) {
-            const messageIndex = topic.messages.findIndex((m) => m.id === messageId)
-            if (messageIndex !== -1) {
-              Object.assign(topic.messages[messageIndex], messageUpdates)
-              await db.topics.update(topicId, { messages: topic.messages })
+      // Use V2 implementation if feature flag is enabled
+      if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+        // Update message properties if provided
+        if (messageUpdates && Object.keys(messageUpdates).length > 0 && messageId) {
+          await updateMessageV2(topicId, messageId, messageUpdates)
+        }
+        // Update blocks if provided
+        if (blockUpdatesList.length > 0) {
+          await updateBlocksV2(blockUpdatesList)
+        }
+      } else {
+        // Original implementation with transaction
+        await db.transaction('rw', db.topics, db.message_blocks, async () => {
+          // Only update topic.messages if there were actual message changes
+          if (messageUpdates && Object.keys(messageUpdates).length > 0) {
+            const topic = await db.topics.get(topicId)
+            if (topic && topic.messages) {
+              const messageIndex = topic.messages.findIndex((m) => m.id === messageId)
+              if (messageIndex !== -1) {
+                Object.assign(topic.messages[messageIndex], messageUpdates)
+                await db.topics.update(topicId, { messages: topic.messages })
+              } else {
+                logger.error(
+                  `[updateMessageAndBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
+                )
+                throw new Error(`Message ${messageId} not found in DB topic ${topicId} for property update.`)
+              }
             } else {
               logger.error(
-                `[updateMessageAndBlocksThunk] Message ${messageId} not found in DB topic ${topicId} for property update.`
+                `[updateMessageAndBlocksThunk] Topic ${topicId} not found or empty for message property update.`
               )
-              throw new Error(`Message ${messageId} not found in DB topic ${topicId} for property update.`)
+              throw new Error(`Topic ${topicId} not found or empty for message property update.`)
             }
-          } else {
-            logger.error(
-              `[updateMessageAndBlocksThunk] Topic ${topicId} not found or empty for message property update.`
-            )
-            throw new Error(`Topic ${topicId} not found or empty for message property update.`)
           }
-        }
 
-        if (blockUpdatesList.length > 0) {
-          await db.message_blocks.bulkPut(blockUpdatesList)
-        }
-      })
+          if (blockUpdatesList.length > 0) {
+            await db.message_blocks.bulkPut(blockUpdatesList)
+          }
+        })
+      }
 
       dispatch(updateTopicUpdatedAt({ topicId }))
     } catch (error) {
