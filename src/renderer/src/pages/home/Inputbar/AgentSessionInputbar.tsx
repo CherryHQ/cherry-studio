@@ -1,21 +1,28 @@
+import { Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
+import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelView } from '@renderer/components/QuickPanel'
 import { useSession } from '@renderer/hooks/agents/useSession'
+import { selectNewTopicLoading } from '@renderer/hooks/useMessageOperations'
 import { getModel } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import PasteService from '@renderer/services/PasteService'
-import { useAppDispatch } from '@renderer/store'
+import { pauseTrace } from '@renderer/services/SpanManagerService'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { newMessagesActions, selectMessagesForTopic } from '@renderer/store/newMessage'
 import { sendMessage as dispatchSendMessage } from '@renderer/store/thunk/messageThunk'
 import type { Assistant, Message, Model, Topic } from '@renderer/types'
 import { MessageBlock, MessageBlockStatus } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
+import { abortCompletion } from '@renderer/utils/abortController'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel, isSendMessageKeyPressed } from '@renderer/utils/input'
 import { createMainTextBlock, createMessage } from '@renderer/utils/messageUtils/create'
 import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
 import { isEmpty } from 'lodash'
-import React, { CSSProperties, FC, useCallback, useEffect, useRef, useState } from 'react'
+import { CirclePause } from 'lucide-react'
+import React, { CSSProperties, FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 import { v4 as uuid } from 'uuid'
@@ -47,6 +54,8 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const { setTimeoutTimer } = useTimer()
   const dispatch = useAppDispatch()
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
+  const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, sessionTopicId))
+  const loading = useAppSelector((state) => selectNewTopicLoading(state, sessionTopicId))
 
   const focusTextarea = useCallback(() => {
     textareaRef.current?.focus()
@@ -54,6 +63,28 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
 
   const inputEmpty = isEmpty(text)
   const sendDisabled = inputEmpty || !apiServer.enabled
+
+  const streamingAskIds = useMemo(() => {
+    if (!topicMessages) {
+      return []
+    }
+
+    const askIdSet = new Set<string>()
+    for (const message of topicMessages) {
+      if (!message) continue
+      if (message.status === 'processing' || message.status === 'pending') {
+        if (message.askId) {
+          askIdSet.add(message.askId)
+        } else if (message.id) {
+          askIdSet.add(message.id)
+        }
+      }
+    }
+
+    return Array.from(askIdSet)
+  }, [topicMessages])
+
+  const canAbort = loading && streamingAskIds.length > 0
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     //to check if the SendMessage key is pressed
@@ -96,6 +127,25 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
       }
     }
   }
+
+  const abortAgentSession = useCallback(async () => {
+    if (!streamingAskIds.length) {
+      logger.debug('No active agent session streams to abort', { sessionTopicId })
+      return
+    }
+
+    logger.info('Aborting agent session message generation', {
+      sessionTopicId,
+      askIds: streamingAskIds
+    })
+
+    for (const askId of streamingAskIds) {
+      abortCompletion(askId)
+    }
+
+    pauseTrace(sessionTopicId)
+    dispatch(newMessagesActions.setTopicLoading({ topicId: sessionTopicId, loading: false }))
+  }, [dispatch, sessionTopicId, streamingAskIds])
 
   const sendMessage = useCallback(async () => {
     if (sendDisabled) {
@@ -233,7 +283,16 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
             onBlur={() => setInputFocus(false)}
           />
           <div className="flex justify-end px-1">
-            <SendMessageButton sendMessage={sendMessage} disabled={sendDisabled} />
+            <div className="flex items-center gap-1">
+              <SendMessageButton sendMessage={sendMessage} disabled={sendDisabled} />
+              {canAbort && (
+                <Tooltip placement="top" content={t('chat.input.pause')}>
+                  <ActionIconButton onClick={abortAgentSession} style={{ marginRight: -2 }}>
+                    <CirclePause size={20} color="var(--color-error)" />
+                  </ActionIconButton>
+                </Tooltip>
+              )}
+            </div>
           </div>
         </InputBarContainer>
       </Container>
