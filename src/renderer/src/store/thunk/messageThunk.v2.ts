@@ -87,9 +87,8 @@ export const updateFileCountV2 = async (
   deleteIfZero: boolean = false
 ): Promise<void> => {
   try {
-    // DbService.updateFileCount only accepts fileId and delta
-    // deleteIfZero parameter is not currently supported in DbService
-    await dbService.updateFileCount(fileId, delta)
+    // Pass all parameters to dbService, including deleteIfZero
+    await dbService.updateFileCount(fileId, delta, deleteIfZero)
     logger.info('Updated file count', { fileId, delta, deleteIfZero })
   } catch (error) {
     logger.error('Failed to update file count:', { fileId, delta, error })

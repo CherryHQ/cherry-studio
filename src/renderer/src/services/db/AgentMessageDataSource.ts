@@ -466,12 +466,12 @@ export class AgentMessageDataSource implements MessageDataSource {
     logger.warn(`bulkAddBlocks called for agent session, operation not supported individually`)
   }
 
-  async updateFileCount(fileId: string, _delta: number): Promise<void> {
+  async updateFileCount(fileId: string, _delta: number, _deleteIfZero?: boolean): Promise<void> {
     // Agent sessions don't manage file reference counts locally
     logger.warn(`updateFileCount called for agent session file ${fileId}, operation not supported`)
   }
 
-  async updateFileCounts(_files: Array<{ id: string; delta: number }>): Promise<void> {
+  async updateFileCounts(_files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     // Agent sessions don't manage file reference counts locally
     logger.warn(`updateFileCounts called for agent session, operation not supported`)
   }

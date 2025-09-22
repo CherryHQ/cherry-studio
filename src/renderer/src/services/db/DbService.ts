@@ -150,16 +150,16 @@ class DbService implements MessageDataSource {
     return this.dexieSource.updateBlocks(blocks)
   }
 
-  async updateFileCount(fileId: string, delta: number): Promise<void> {
+  async updateFileCount(fileId: string, delta: number, deleteIfZero: boolean = false): Promise<void> {
     // File operations only apply to Dexie source
     if (this.dexieSource.updateFileCount) {
-      return this.dexieSource.updateFileCount(fileId, delta)
+      return this.dexieSource.updateFileCount(fileId, delta, deleteIfZero)
     }
     // No-op if not supported
     logger.warn(`updateFileCount not supported for file ${fileId}`)
   }
 
-  async updateFileCounts(files: Array<{ id: string; delta: number }>): Promise<void> {
+  async updateFileCounts(files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     // File operations only apply to Dexie source
     if (this.dexieSource.updateFileCounts) {
       return this.dexieSource.updateFileCounts(files)

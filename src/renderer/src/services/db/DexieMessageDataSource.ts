@@ -364,29 +364,40 @@ export class DexieMessageDataSource implements MessageDataSource {
 
   // ============ File Operations ============
 
-  async updateFileCount(fileId: string, delta: number): Promise<void> {
+  async updateFileCount(fileId: string, delta: number, deleteIfZero: boolean = false): Promise<void> {
     try {
-      await db.files
-        .where('id')
-        .equals(fileId)
-        .modify((f) => {
-          if (f) {
-            f.count = (f.count || 0) + delta
-          }
-        })
+      await db.transaction('rw', db.files, async () => {
+        const file = await db.files.get(fileId)
+
+        if (!file) {
+          logger.warn(`File ${fileId} not found for count update`)
+          return
+        }
+
+        const newCount = (file.count || 0) + delta
+
+        if (newCount <= 0 && deleteIfZero) {
+          // Delete the file when count reaches 0 or below
+          await FileManager.deleteFile(fileId, false)
+          await db.files.delete(fileId)
+          logger.info(`Deleted file ${fileId} as reference count reached ${newCount}`)
+        } else {
+          // Update the count
+          await db.files.update(fileId, { count: Math.max(0, newCount) })
+          logger.debug(`Updated file ${fileId} count to ${Math.max(0, newCount)}`)
+        }
+      })
     } catch (error) {
       logger.error(`Failed to update file count for ${fileId}:`, error as Error)
       throw error
     }
   }
 
-  async updateFileCounts(files: Array<{ id: string; delta: number }>): Promise<void> {
+  async updateFileCounts(files: Array<{ id: string; delta: number; deleteIfZero?: boolean }>): Promise<void> {
     try {
-      await db.transaction('rw', db.files, async () => {
-        for (const file of files) {
-          await this.updateFileCount(file.id, file.delta)
-        }
-      })
+      for (const file of files) {
+        await this.updateFileCount(file.id, file.delta, file.deleteIfZero || false)
+      }
     } catch (error) {
       logger.error('Failed to update file counts:', error as Error)
       throw error
