@@ -138,12 +138,41 @@ export class AgentMessageDataSource implements MessageDataSource {
   }
 
   async updateMessage(topicId: string, messageId: string, updates: Partial<Message>): Promise<void> {
-    // Agent session messages are immutable once persisted
-    logger.warn(`updateMessage called for agent session ${topicId}, operation not supported`)
+    const sessionId = extractSessionId(topicId)
+    if (!sessionId) {
+      throw new Error(`Invalid agent session topicId: ${topicId}`)
+    }
 
-    // In a full implementation, you might want to:
-    // 1. Update in Redux only for UI consistency
-    // 2. Or implement a backend endpoint for message updates
+    try {
+      // Fetch current message from backend to merge updates
+      const historicalMessages: AgentPersistedMessage[] = await window.electron.ipcRenderer.invoke(
+        IpcChannel.AgentMessage_GetHistory,
+        { sessionId }
+      )
+
+      const existingMessage = historicalMessages?.find((pm) => pm.message?.id === messageId)
+      if (!existingMessage?.message) {
+        logger.warn(`Message ${messageId} not found in agent session ${sessionId}`)
+        return
+      }
+
+      // Merge updates with existing message
+      const updatedMessage = { ...existingMessage.message, ...updates }
+
+      // Save updated message back to backend
+      await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
+        sessionId,
+        agentSessionId: '',
+        ...(updatedMessage.role === 'user'
+          ? { user: { payload: { message: updatedMessage, blocks: existingMessage.blocks || [] } } }
+          : { assistant: { payload: { message: updatedMessage, blocks: existingMessage.blocks || [] } } })
+      })
+
+      logger.info(`Updated message ${messageId} in agent session ${sessionId}`)
+    } catch (error) {
+      logger.error(`Failed to update message ${messageId} in agent session ${topicId}:`, error as Error)
+      throw error
+    }
   }
 
   async updateMessageAndBlocks(
@@ -151,8 +180,47 @@ export class AgentMessageDataSource implements MessageDataSource {
     messageUpdates: Partial<Message> & Pick<Message, 'id'>,
     blocksToUpdate: MessageBlock[]
   ): Promise<void> {
-    // Agent session messages and blocks are immutable once persisted
-    logger.warn(`updateMessageAndBlocks called for agent session ${topicId}, operation not supported`)
+    const sessionId = extractSessionId(topicId)
+    if (!sessionId) {
+      throw new Error(`Invalid agent session topicId: ${topicId}`)
+    }
+
+    try {
+      // Fetch current message from backend if we need to merge
+      const historicalMessages: AgentPersistedMessage[] = await window.electron.ipcRenderer.invoke(
+        IpcChannel.AgentMessage_GetHistory,
+        { sessionId }
+      )
+
+      const existingMessage = historicalMessages?.find((pm) => pm.message?.id === messageUpdates.id)
+      let finalMessage: Message
+
+      if (existingMessage?.message) {
+        // Merge updates with existing message
+        finalMessage = { ...existingMessage.message, ...messageUpdates }
+      } else {
+        // New message, ensure we have required fields
+        if (!messageUpdates.topicId || !messageUpdates.role) {
+          logger.warn(`Incomplete message data for ${messageUpdates.id}`)
+          return
+        }
+        finalMessage = messageUpdates as Message
+      }
+
+      // Save updated message and blocks to backend
+      await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
+        sessionId,
+        agentSessionId: '',
+        ...(finalMessage.role === 'user'
+          ? { user: { payload: { message: finalMessage, blocks: blocksToUpdate } } }
+          : { assistant: { payload: { message: finalMessage, blocks: blocksToUpdate } } })
+      })
+
+      logger.info(`Updated message and blocks for ${messageUpdates.id} in agent session ${sessionId}`)
+    } catch (error) {
+      logger.error(`Failed to update message and blocks for agent session ${topicId}:`, error as Error)
+      throw error
+    }
   }
 
   async deleteMessage(topicId: string, messageId: string): Promise<void> {

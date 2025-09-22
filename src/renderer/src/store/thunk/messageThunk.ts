@@ -11,7 +11,6 @@ import { createStreamProcessor, type StreamProcessorCallbacks } from '@renderer/
 import store from '@renderer/store'
 import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import { type ApiServerConfig, type Assistant, type FileMetadata, type Model, type Topic } from '@renderer/types'
-import type { AgentPersistedMessage } from '@renderer/types/agent'
 import { ChunkType } from '@renderer/types/chunk'
 import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -504,13 +503,17 @@ const fetchAndProcessAgentResponseImpl = async (
       text: Promise.resolve('')
     })
 
-    await persistAgentExchange({
-      getState,
-      agentSession,
-      userMessageId,
-      assistantMessageId: assistantMessage.id,
-      latestAgentSessionId
-    })
+    // No longer need persistAgentExchange here since:
+    // 1. User message is already saved via appendMessage when created
+    // 2. Assistant message is saved via appendMessage when created
+    // 3. Updates during streaming are saved via updateMessageAndBlocks
+    // This eliminates the duplicate save issue
+
+    // Only persist the agentSessionId update if it changed
+    if (latestAgentSessionId) {
+      logger.info(`Agent session ID updated to: ${latestAgentSessionId}`)
+      // In the future, you might want to update some session metadata here
+    }
   } catch (error: any) {
     logger.error('Error in fetchAndProcessAgentResponseImpl:', error)
     try {
@@ -523,73 +526,9 @@ const fetchAndProcessAgentResponseImpl = async (
   }
 }
 
-interface PersistAgentExchangeParams {
-  getState: () => RootState
-  agentSession: AgentSessionContext
-  userMessageId: string
-  assistantMessageId: string
-  latestAgentSessionId: string
-}
-
-const persistAgentExchange = async ({
-  getState,
-  agentSession,
-  userMessageId,
-  assistantMessageId,
-  latestAgentSessionId
-}: PersistAgentExchangeParams) => {
-  if (!window.electron?.ipcRenderer) {
-    return
-  }
-
-  try {
-    const state = getState()
-    const userMessage = state.messages.entities[userMessageId]
-    const assistantMessage = state.messages.entities[assistantMessageId]
-
-    if (!userMessage || !assistantMessage) {
-      logger.warn('persistAgentExchange: missing user or assistant message entity')
-      return
-    }
-
-    const userPersistedPayload = createPersistedMessagePayload(userMessage, state)
-    const assistantPersistedPayload = createPersistedMessagePayload(assistantMessage, state)
-
-    await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, {
-      sessionId: agentSession.sessionId,
-      agentSessionId: latestAgentSessionId || '',
-      user: userPersistedPayload ? { payload: userPersistedPayload } : undefined,
-      assistant: assistantPersistedPayload ? { payload: assistantPersistedPayload } : undefined
-    })
-  } catch (error) {
-    logger.warn('Failed to persist agent exchange', error as Error)
-  }
-}
-
-const createPersistedMessagePayload = (
-  message: Message | undefined,
-  state: RootState
-): AgentPersistedMessage | undefined => {
-  if (!message) {
-    return undefined
-  }
-
-  try {
-    const clonedMessage = JSON.parse(JSON.stringify(message)) as Message
-    const blockEntities = (message.blocks || [])
-      .map((blockId) => state.messageBlocks.entities[blockId])
-      .filter((block): block is MessageBlock => Boolean(block))
-      .map((block) => JSON.parse(JSON.stringify(block)) as MessageBlock)
-
-    return {
-      message: clonedMessage,
-      blocks: blockEntities
-    }
-  } catch (error) {
-    logger.warn('Failed to build persisted payload for message', error as Error)
-    return undefined
-  }
-}
+// Removed persistAgentExchange and createPersistedMessagePayload functions
+// These are no longer needed since messages are saved immediately via appendMessage
+// and updated during streaming via updateMessageAndBlocks
 
 // --- Helper Function for Multi-Model Dispatch ---
 // 多模型创建和发送请求的逻辑，用于用户消息多模型发送和重发
