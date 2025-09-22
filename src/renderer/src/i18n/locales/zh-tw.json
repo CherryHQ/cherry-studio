@@ -52,7 +52,8 @@
       "delete": {
         "content": "您確定要刪除此工作階段嗎？",
         "error": {
-          "failed": "無法刪除工作階段"
+          "failed": "無法刪除工作階段",
+          "last": "至少必須保留一個工作階段"
         },
         "title": "刪除工作階段"
       },
@@ -84,6 +85,9 @@
       "error": {
         "failed": "無法更新代理程式"
       }
+    },
+    "warning": {
+      "enable_server": "啟用 API 伺服器以使用代理程式。"
     }
   },
   "agents": {

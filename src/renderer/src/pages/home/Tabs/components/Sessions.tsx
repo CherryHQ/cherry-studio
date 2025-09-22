@@ -1,9 +1,15 @@
-import { Button, Spinner } from '@heroui/react'
-import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
+import { Alert, Button, Spinner } from '@heroui/react'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
-import { setActiveSessionIdAction, setActiveTopicOrSessionAction } from '@renderer/store/runtime'
+import {
+  setActiveSessionIdAction,
+  setActiveTopicOrSessionAction,
+  setSessionWaitingAction
+} from '@renderer/store/runtime'
+import { CreateSessionForm } from '@renderer/types'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { memo, useCallback, useEffect } from 'react'
@@ -19,9 +25,11 @@ interface SessionsProps {
 
 const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
   const { t } = useTranslation()
-  const { sessions, isLoading, deleteSession } = useSessions(agentId)
+  const { agent } = useAgent(agentId)
+  const { sessions, isLoading, error, deleteSession, createSession } = useSessions(agentId)
+  const updateSession = useUpdateSession(agentId)
   const { chat } = useRuntime()
-  const { activeSessionId } = chat
+  const { activeSessionId, sessionWaiting } = chat
   const dispatch = useAppDispatch()
 
   const setActiveSessionId = useCallback(
@@ -30,6 +38,39 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       dispatch(setActiveTopicOrSessionAction('session'))
     },
     [dispatch]
+  )
+
+  const handleCreateSession = useCallback(async () => {
+    if (!agent) return
+    const session = {
+      ...agent,
+      id: undefined
+    } satisfies CreateSessionForm
+    const created = await createSession(session)
+    if (created) {
+      dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
+    }
+  }, [agent, agentId, createSession, dispatch])
+
+  const handleDeleteSession = useCallback(
+    async (id: string) => {
+      if (sessions.length === 1) {
+        window.toast.error(t('agent.session.delete.error.last'))
+        return
+      }
+      dispatch(setSessionWaitingAction({ id, value: true }))
+      const success = await deleteSession(id)
+      if (success) {
+        const newSessionId = sessions.find((s) => s.id !== id)?.id
+        if (newSessionId) {
+          dispatch(setActiveSessionIdAction({ agentId, sessionId: newSessionId }))
+        } else {
+          // may clear messages instead of forbidden deletion
+        }
+      }
+      dispatch(setSessionWaitingAction({ id, value: false }))
+    },
+    [agentId, deleteSession, dispatch, sessions]
   )
 
   const currentActiveSessionId = activeSessionId[agentId]
@@ -52,7 +93,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     )
   }
 
-  // if (error) return
+  if (error) return <Alert color="danger" content={t('agent.session.get.error.failed')} />
 
   return (
     <motion.div
@@ -64,20 +105,12 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2, delay: 0.1 }}>
-        <SessionModal
-          agentId={agentId}
-          onSessionCreated={(created) => setActiveSessionId(agentId, created.id)}
-          trigger={{
-            content: (
-              <Button
-                onPress={(e) => e.continuePropagation()}
-                className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
-                <Plus size={16} className="mr-1 shrink-0" />
-                {t('agent.session.add.title')}
-              </Button>
-            )
-          }}
-        />
+        <Button
+          onPress={handleCreateSession}
+          className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+          <Plus size={16} className="mr-1 shrink-0" />
+          {t('agent.session.add.title')}
+        </Button>
       </motion.div>
       <AnimatePresence>
         {sessions.map((session, index) => (
@@ -90,7 +123,9 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
             <SessionItem
               session={session}
               agentId={agentId}
-              onDelete={() => deleteSession(session.id)}
+              isDisabled={sessionWaiting[session.id]}
+              isLoading={sessionWaiting[session.id]}
+              onDelete={() => handleDeleteSession(session.id)}
               onPress={() => setActiveSessionId(agentId, session.id)}
             />
           </motion.div>

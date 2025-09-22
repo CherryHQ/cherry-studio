@@ -52,7 +52,8 @@
       "delete": {
         "content": "Tem certeza de que deseja excluir esta sessão?",
         "error": {
-          "failed": "Falha ao excluir a sessão"
+          "failed": "Falha ao excluir a sessão",
+          "last": "Pelo menos uma sessão deve ser mantida"
         },
         "title": "Excluir sessão"
       },
@@ -84,6 +85,9 @@
       "error": {
         "failed": "Falha ao atualizar o agente"
       }
+    },
+    "warning": {
+      "enable_server": "Ativar o Servidor de API para usar agentes."
     }
   },
   "agents": {

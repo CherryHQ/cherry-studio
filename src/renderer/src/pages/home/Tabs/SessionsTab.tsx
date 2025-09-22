@@ -1,5 +1,6 @@
-import { Spinner } from '@heroui/react'
+import { Alert, Spinner } from '@heroui/react'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { AnimatePresence, motion } from 'framer-motion'
 import { FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +13,15 @@ const SessionsTab: FC<SessionsTabProps> = () => {
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { t } = useTranslation()
+  const { apiServer } = useSettings()
+
+  if (!apiServer.enabled) {
+    return (
+      <div>
+        <Alert color="warning" title={t('agent.warning.enable_server')} />
+      </div>
+    )
+  }
 
   return (
     <AnimatePresence mode="wait">

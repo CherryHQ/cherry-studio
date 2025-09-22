@@ -52,7 +52,8 @@
       "delete": {
         "content": "Are you sure to delete this session?",
         "error": {
-          "failed": "Failed to delete the session"
+          "failed": "Failed to delete the session",
+          "last": "At least one session must be kept"
         },
         "title": "Delete session"
       },
@@ -84,6 +85,9 @@
       "error": {
         "failed": "Failed to update the agent"
       }
+    },
+    "warning": {
+      "enable_server": "Enable API Server to use agents."
     }
   },
   "agents": {

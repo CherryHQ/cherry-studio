@@ -52,7 +52,8 @@
       "delete": {
         "content": "¿Estás seguro de eliminar esta sesión?",
         "error": {
-          "failed": "Error al eliminar la sesión"
+          "failed": "Error al eliminar la sesión",
+          "last": "Debe mantenerse al menos una sesión"
         },
         "title": "Eliminar sesión"
       },
@@ -84,6 +85,9 @@
       "error": {
         "failed": "Error al actualizar el agente"
       }
+    },
+    "warning": {
+      "enable_server": "Habilitar el servidor API para usar agentes."
     }
   },
   "agents": {
