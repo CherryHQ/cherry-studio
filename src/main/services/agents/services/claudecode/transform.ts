@@ -118,7 +118,7 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
           chunks.push({
             type: 'tool-result',
             toolCallId: block.tool_use_id,
-            toolName: contentBlockState[block.tool_use_id].toolName,
+            toolName: contentBlockState[blockKey].toolName,
             input: '',
             output: block.content
           })
