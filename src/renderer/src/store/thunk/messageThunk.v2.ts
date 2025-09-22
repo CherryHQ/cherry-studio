@@ -28,7 +28,6 @@ export const loadTopicMessagesThunkV2 =
 
     // Skip if already cached and not forcing reload
     if (!forceReload && state.messages.messageIdsByTopic[topicId]) {
-      logger.info('Messages already cached for topic', { topicId })
       return
     }
 
@@ -38,7 +37,7 @@ export const loadTopicMessagesThunkV2 =
       // Unified call - no need to check isAgentSessionTopicId
       const { messages, blocks } = await dbService.fetchMessages(topicId)
 
-      logger.info('Loaded messages via DbService', {
+      logger.silly('Loaded messages via DbService', {
         topicId,
         messageCount: messages.length,
         blockCount: blocks.length
@@ -65,7 +64,7 @@ export const loadTopicMessagesThunkV2 =
 export const getRawTopicV2 = async (topicId: string): Promise<{ id: string; messages: Message[] } | undefined> => {
   try {
     const rawTopic = await dbService.getRawTopic(topicId)
-    logger.info('Retrieved raw topic via DbService', { topicId, found: !!rawTopic })
+    logger.silly('Retrieved raw topic via DbService', { topicId, found: !!rawTopic })
     return rawTopic
   } catch (error) {
     logger.error('Failed to get raw topic:', { topicId, error })
@@ -89,7 +88,7 @@ export const updateFileCountV2 = async (
   try {
     // Pass all parameters to dbService, including deleteIfZero
     await dbService.updateFileCount(fileId, delta, deleteIfZero)
-    logger.info('Updated file count', { fileId, delta, deleteIfZero })
+    logger.silly('Updated file count', { fileId, delta, deleteIfZero })
   } catch (error) {
     logger.error('Failed to update file count:', { fileId, delta, error })
     throw error
@@ -106,7 +105,7 @@ export const updateFileCountV2 = async (
 export const deleteMessageFromDBV2 = async (topicId: string, messageId: string): Promise<void> => {
   try {
     await dbService.deleteMessage(topicId, messageId)
-    logger.info('Deleted message via DbService', { topicId, messageId })
+    logger.silly('Deleted message via DbService', { topicId, messageId })
   } catch (error) {
     logger.error('Failed to delete message:', { topicId, messageId, error })
     throw error
@@ -119,7 +118,7 @@ export const deleteMessageFromDBV2 = async (topicId: string, messageId: string):
 export const deleteMessagesFromDBV2 = async (topicId: string, messageIds: string[]): Promise<void> => {
   try {
     await dbService.deleteMessages(topicId, messageIds)
-    logger.info('Deleted messages via DbService', { topicId, count: messageIds.length })
+    logger.silly('Deleted messages via DbService', { topicId, count: messageIds.length })
   } catch (error) {
     logger.error('Failed to delete messages:', { topicId, messageIds, error })
     throw error
@@ -132,7 +131,7 @@ export const deleteMessagesFromDBV2 = async (topicId: string, messageIds: string
 export const clearMessagesFromDBV2 = async (topicId: string): Promise<void> => {
   try {
     await dbService.clearMessages(topicId)
-    logger.info('Cleared all messages via DbService', { topicId })
+    logger.silly('Cleared all messages via DbService', { topicId })
   } catch (error) {
     logger.error('Failed to clear messages:', { topicId, error })
     throw error
@@ -161,7 +160,7 @@ export const saveMessageAndBlocksToDBV2 = async (
     const messageWithBlocks = shouldSyncBlocks ? { ...message, blocks: blockIds } : message
     // Direct call without conditional logic, now with messageIndex
     await dbService.appendMessage(topicId, messageWithBlocks, blocks, messageIndex)
-    logger.info('Saved message and blocks via DbService', {
+    logger.silly('Saved message and blocks via DbService', {
       topicId,
       messageId: message.id,
       blockCount: blocks.length,
@@ -186,7 +185,7 @@ export const saveMessageAndBlocksToDBV2 = async (
 export const updateMessageV2 = async (topicId: string, messageId: string, updates: Partial<Message>): Promise<void> => {
   try {
     await dbService.updateMessage(topicId, messageId, updates)
-    logger.info('Updated message via DbService', { topicId, messageId })
+    logger.silly('Updated message via DbService', { topicId, messageId })
   } catch (error) {
     logger.error('Failed to update message:', { topicId, messageId, error })
     throw error
@@ -199,7 +198,7 @@ export const updateMessageV2 = async (topicId: string, messageId: string, update
 export const updateSingleBlockV2 = async (blockId: string, updates: Partial<MessageBlock>): Promise<void> => {
   try {
     await dbService.updateSingleBlock(blockId, updates)
-    logger.info('Updated single block via DbService', { blockId })
+    logger.silly('Updated single block via DbService', { blockId })
   } catch (error) {
     logger.error('Failed to update single block:', { blockId, error })
     throw error
@@ -212,7 +211,7 @@ export const updateSingleBlockV2 = async (blockId: string, updates: Partial<Mess
 export const bulkAddBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => {
   try {
     await dbService.bulkAddBlocks(blocks)
-    logger.info('Bulk added blocks via DbService', { count: blocks.length })
+    logger.silly('Bulk added blocks via DbService', { count: blocks.length })
   } catch (error) {
     logger.error('Failed to bulk add blocks:', { count: blocks.length, error })
     throw error
@@ -225,7 +224,7 @@ export const bulkAddBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => 
 export const updateBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => {
   try {
     await dbService.updateBlocks(blocks)
-    logger.info('Updated blocks via DbService', { count: blocks.length })
+    logger.silly('Updated blocks via DbService', { count: blocks.length })
   } catch (error) {
     logger.error('Failed to update blocks:', { count: blocks.length, error })
     throw error
