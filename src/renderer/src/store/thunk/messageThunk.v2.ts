@@ -1,0 +1,274 @@
+/**
+ * V2 implementations of message thunk functions using the unified DbService
+ * These implementations will be gradually rolled out using feature flags
+ */
+
+import { loggerService } from '@logger'
+import { dbService } from '@renderer/services/db'
+import type { Topic } from '@renderer/types'
+import { TopicType } from '@renderer/types'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
+
+import type { AppDispatch, RootState } from '../index'
+import { upsertManyBlocks } from '../messageBlock'
+import { newMessagesActions } from '../newMessage'
+
+const logger = loggerService.withContext('MessageThunkV2')
+
+// =================================================================
+// Phase 2.1 - Batch 1: Read-only operations (lowest risk)
+// =================================================================
+
+/**
+ * Load messages for a topic using unified DbService
+ * This is the V2 implementation that will replace the original
+ */
+export const loadTopicMessagesThunkV2 =
+  (topicId: string, forceReload: boolean = false) =>
+  async (dispatch: AppDispatch, getState: () => RootState) => {
+    const state = getState()
+
+    // Skip if already cached and not forcing reload
+    if (!forceReload && state.messages.messageIdsByTopic[topicId]) {
+      logger.info('Messages already cached for topic', { topicId })
+      return
+    }
+
+    try {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+      // Unified call - no need to check isAgentSessionTopicId
+      const { messages, blocks } = await dbService.fetchMessages(topicId)
+
+      logger.info('Loaded messages via DbService', {
+        topicId,
+        messageCount: messages.length,
+        blockCount: blocks.length
+      })
+
+      // Update Redux state with fetched data
+      if (blocks.length > 0) {
+        dispatch(upsertManyBlocks(blocks))
+      }
+      dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
+    } catch (error) {
+      logger.error(`Failed to load messages for topic ${topicId}:`, error)
+      // Could dispatch an error action here if needed
+    } finally {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+      dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
+    }
+  }
+
+/**
+ * Get raw topic data using unified DbService
+ * Returns topic with messages array
+ */
+export const getRawTopicV2 = async (topicId: string): Promise<{ id: string; messages: Message[] } | undefined> => {
+  try {
+    const rawTopic = await dbService.getRawTopic(topicId)
+    logger.info('Retrieved raw topic via DbService', { topicId, found: !!rawTopic })
+    return rawTopic
+  } catch (error) {
+    logger.error('Failed to get raw topic:', { topicId, error })
+    return undefined
+  }
+}
+
+// =================================================================
+// Phase 2.2 - Batch 2: Helper functions
+// =================================================================
+
+/**
+ * Get a full topic object with type information
+ * This builds on getRawTopicV2 to provide additional metadata
+ */
+export const getTopicV2 = async (topicId: string): Promise<Topic | undefined> => {
+  try {
+    const rawTopic = await dbService.getRawTopic(topicId)
+    if (!rawTopic) {
+      logger.info('Topic not found', { topicId })
+      return undefined
+    }
+
+    // Construct the full Topic object
+    const topic: Topic = {
+      id: rawTopic.id,
+      type: isAgentSessionTopicId(topicId) ? TopicType.AgentSession : TopicType.Chat,
+      messages: rawTopic.messages,
+      assistantId: '', // These fields would need to be fetched from appropriate source
+      name: '',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+
+    logger.info('Retrieved topic with type via DbService', {
+      topicId,
+      type: topic.type,
+      messageCount: topic.messages.length
+    })
+
+    return topic
+  } catch (error) {
+    logger.error('Failed to get topic:', { topicId, error })
+    return undefined
+  }
+}
+
+/**
+ * Update file reference count
+ * Only applies to Dexie data source, no-op for agent sessions
+ */
+export const updateFileCountV2 = async (
+  fileId: string,
+  delta: number,
+  deleteIfZero: boolean = false
+): Promise<void> => {
+  try {
+    await dbService.updateFileCount(fileId, delta, deleteIfZero)
+    logger.info('Updated file count', { fileId, delta, deleteIfZero })
+  } catch (error) {
+    logger.error('Failed to update file count:', { fileId, delta, error })
+    throw error
+  }
+}
+
+// =================================================================
+// Phase 2.3 - Batch 3: Delete operations
+// =================================================================
+
+/**
+ * Delete a single message from database
+ */
+export const deleteMessageFromDBV2 = async (topicId: string, messageId: string): Promise<void> => {
+  try {
+    await dbService.deleteMessage(topicId, messageId)
+    logger.info('Deleted message via DbService', { topicId, messageId })
+  } catch (error) {
+    logger.error('Failed to delete message:', { topicId, messageId, error })
+    throw error
+  }
+}
+
+/**
+ * Delete multiple messages from database
+ */
+export const deleteMessagesFromDBV2 = async (topicId: string, messageIds: string[]): Promise<void> => {
+  try {
+    await dbService.deleteMessages(topicId, messageIds)
+    logger.info('Deleted messages via DbService', { topicId, count: messageIds.length })
+  } catch (error) {
+    logger.error('Failed to delete messages:', { topicId, messageIds, error })
+    throw error
+  }
+}
+
+/**
+ * Clear all messages from a topic
+ */
+export const clearMessagesFromDBV2 = async (topicId: string): Promise<void> => {
+  try {
+    await dbService.clearMessages(topicId)
+    logger.info('Cleared all messages via DbService', { topicId })
+  } catch (error) {
+    logger.error('Failed to clear messages:', { topicId, error })
+    throw error
+  }
+}
+
+// =================================================================
+// Phase 2.4 - Batch 4: Complex write operations
+// =================================================================
+
+/**
+ * Save a message and its blocks to database
+ * Uses unified interface, no need for isAgentSessionTopicId check
+ */
+export const saveMessageAndBlocksToDBV2 = async (
+  topicId: string,
+  message: Message,
+  blocks: MessageBlock[]
+): Promise<void> => {
+  try {
+    // Direct call without conditional logic
+    await dbService.appendMessage(topicId, message, blocks)
+    logger.info('Saved message and blocks via DbService', {
+      topicId,
+      messageId: message.id,
+      blockCount: blocks.length
+    })
+  } catch (error) {
+    logger.error('Failed to save message and blocks:', { topicId, messageId: message.id, error })
+    throw error
+  }
+}
+
+/**
+ * Persist a message exchange (user + assistant messages)
+ */
+export const persistExchangeV2 = async (
+  topicId: string,
+  exchange: {
+    user?: { message: Message; blocks: MessageBlock[] }
+    assistant?: { message: Message; blocks: MessageBlock[] }
+  }
+): Promise<void> => {
+  try {
+    await dbService.persistExchange(topicId, exchange)
+    logger.info('Persisted exchange via DbService', {
+      topicId,
+      hasUser: !!exchange.user,
+      hasAssistant: !!exchange.assistant
+    })
+  } catch (error) {
+    logger.error('Failed to persist exchange:', { topicId, error })
+    throw error
+  }
+}
+
+// Note: sendMessageV2 would be implemented here but it's more complex
+// and would require more of the supporting code from messageThunk.ts
+
+// =================================================================
+// Phase 2.5 - Batch 5: Update operations
+// =================================================================
+
+/**
+ * Update a message in the database
+ */
+export const updateMessageV2 = async (topicId: string, messageId: string, updates: Partial<Message>): Promise<void> => {
+  try {
+    await dbService.updateMessage(topicId, messageId, updates)
+    logger.info('Updated message via DbService', { topicId, messageId })
+  } catch (error) {
+    logger.error('Failed to update message:', { topicId, messageId, error })
+    throw error
+  }
+}
+
+/**
+ * Update a single message block
+ */
+export const updateSingleBlockV2 = async (blockId: string, updates: Partial<MessageBlock>): Promise<void> => {
+  try {
+    await dbService.updateSingleBlock(blockId, updates)
+    logger.info('Updated single block via DbService', { blockId })
+  } catch (error) {
+    logger.error('Failed to update single block:', { blockId, error })
+    throw error
+  }
+}
+
+/**
+ * Bulk add message blocks
+ */
+export const bulkAddBlocksV2 = async (blocks: MessageBlock[]): Promise<void> => {
+  try {
+    await dbService.bulkAddBlocks(blocks)
+    logger.info('Bulk added blocks via DbService', { count: blocks.length })
+  } catch (error) {
+    logger.error('Failed to bulk add blocks:', { count: blocks.length, error })
+    throw error
+  }
+}

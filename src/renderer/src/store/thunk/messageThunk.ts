@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { AiSdkToChunkAdapter } from '@renderer/aiCore/chunk/AiSdkToChunkAdapter'
+import { featureFlags } from '@renderer/config/featureFlags'
 import db from '@renderer/databases'
 import FileManager from '@renderer/services/FileManager'
 import { BlockManager } from '@renderer/services/messageStreaming/BlockManager'
@@ -16,7 +17,7 @@ import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from 
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
-import { isAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentSessionTopicId, isAgentSessionTopicId } from '@renderer/utils/agentSession'
 import {
   createAssistantMessage,
   createTranslationBlock,
@@ -34,6 +35,7 @@ import { LRUCache } from 'lru-cache'
 import type { AppDispatch, RootState } from '../index'
 import { removeManyBlocks, updateOneBlock, upsertManyBlocks, upsertOneBlock } from '../messageBlock'
 import { newMessagesActions, selectMessagesForTopic } from '../newMessage'
+import { loadTopicMessagesThunkV2 } from './messageThunk.v2'
 
 const logger = loggerService.withContext('MessageThunk')
 
@@ -783,15 +785,77 @@ export const sendMessage =
   }
 
 /**
+ * Loads agent session messages from backend
+ */
+export const loadAgentSessionMessagesThunk =
+  (sessionId: string) => async (dispatch: AppDispatch, getState: () => RootState) => {
+    const topicId = buildAgentSessionTopicId(sessionId)
+
+    try {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: true }))
+
+      // Fetch from agent backend
+      const historicalMessages = await window.electron?.ipcRenderer.invoke(IpcChannel.AgentMessage_GetHistory, {
+        sessionId
+      })
+
+      if (historicalMessages && Array.isArray(historicalMessages)) {
+        const messages: Message[] = []
+        const blocks: MessageBlock[] = []
+
+        for (const persistedMsg of historicalMessages) {
+          if (persistedMsg?.message) {
+            messages.push(persistedMsg.message)
+            if (persistedMsg.blocks && persistedMsg.blocks.length > 0) {
+              blocks.push(...persistedMsg.blocks)
+            }
+          }
+        }
+
+        // Update Redux store
+        if (blocks.length > 0) {
+          dispatch(upsertManyBlocks(blocks))
+        }
+        dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
+
+        logger.info(`Loaded ${messages.length} messages for agent session ${sessionId}`)
+      } else {
+        dispatch(newMessagesActions.messagesReceived({ topicId, messages: [] }))
+      }
+    } catch (error) {
+      logger.error(`Failed to load agent session messages for ${sessionId}:`, error as Error)
+      dispatch(newMessagesActions.messagesReceived({ topicId, messages: [] }))
+    } finally {
+      dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
+    }
+  }
+
+/**
  * Loads messages and their blocks for a specific topic from the database
  * and updates the Redux store.
  */
 export const loadTopicMessagesThunk =
   (topicId: string, forceReload: boolean = false) =>
   async (dispatch: AppDispatch, getState: () => RootState) => {
+    // Use V2 implementation if feature flag is enabled
+    if (featureFlags.USE_UNIFIED_DB_SERVICE) {
+      return loadTopicMessagesThunkV2(topicId, forceReload)(dispatch, getState)
+    }
+
+    // Original implementation
     const state = getState()
     const topicMessagesExist = !!state.messages.messageIdsByTopic[topicId]
     dispatch(newMessagesActions.setCurrentTopicId(topicId))
+
+    // Check if it's an agent session topic
+    if (isAgentSessionTopicId(topicId)) {
+      if (topicMessagesExist && !forceReload) {
+        return // Keep existing messages in memory
+      }
+      // Load from agent backend instead of local DB
+      const sessionId = topicId.replace('agent-session:', '')
+      return dispatch(loadAgentSessionMessagesThunk(sessionId))
+    }
 
     if (topicMessagesExist && !forceReload) {
       return

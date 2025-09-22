@@ -7,6 +7,7 @@ import type {
   AgentPersistedMessage,
   AgentSessionMessageEntity
 } from '@types'
+import { asc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import type { InsertSessionMessageRow } from './schema'
@@ -175,6 +176,34 @@ class AgentMessageRepository extends BaseService {
     })
 
     return result
+  }
+
+  async getSessionHistory(sessionId: string): Promise<AgentPersistedMessage[]> {
+    await AgentMessageRepository.initialize()
+    this.ensureInitialized()
+
+    try {
+      const rows = await this.database
+        .select()
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.session_id, sessionId))
+        .orderBy(asc(sessionMessagesTable.created_at))
+
+      const messages: AgentPersistedMessage[] = []
+
+      for (const row of rows) {
+        const deserialized = this.deserialize(row)
+        if (deserialized?.content) {
+          messages.push(deserialized.content as AgentPersistedMessage)
+        }
+      }
+
+      logger.info(`Loaded ${messages.length} messages for session ${sessionId}`)
+      return messages
+    } catch (error) {
+      logger.error('Failed to load session history', error as Error)
+      throw error
+    }
   }
 }
 
