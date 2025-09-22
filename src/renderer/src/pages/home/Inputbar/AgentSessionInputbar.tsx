@@ -36,6 +36,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   const [text, setText] = useState(_text)
   const [inputFocus, setInputFocus] = useState(false)
   const { session } = useSession(agentId, sessionId)
+  const { apiServer } = useSettings()
 
   const { sendMessageShortcut, fontSize, enableSpellCheck } = useSettings()
   const textareaRef = useRef<TextAreaRef>(null)
@@ -52,6 +53,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   }, [])
 
   const inputEmpty = isEmpty(text)
+  const sendDisabled = inputEmpty || !apiServer.enabled
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     //to check if the SendMessage key is pressed
@@ -96,7 +98,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   }
 
   const sendMessage = useCallback(async () => {
-    if (inputEmpty) {
+    if (sendDisabled) {
       return
     }
 
@@ -158,7 +160,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
   }, [
     agentId,
     dispatch,
-    inputEmpty,
+    sendDisabled,
     session?.agent_id,
     session?.instructions,
     session?.model,
@@ -231,7 +233,7 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
             onBlur={() => setInputFocus(false)}
           />
           <div className="flex justify-end px-1">
-            <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
+            <SendMessageButton sendMessage={sendMessage} disabled={sendDisabled} />
           </div>
         </InputBarContainer>
       </Container>

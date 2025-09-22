@@ -1,3 +1,4 @@
+import { Alert } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ContentSearch, ContentSearchRef } from '@renderer/components/ContentSearch'
 import { HStack } from '@renderer/components/Layout'
@@ -49,6 +50,7 @@ const Chat: FC<Props> = (props) => {
   const chatMaxWidth = useChatMaxWidth()
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId, activeSessionId } = chat
+  const { apiServer } = useSettings()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
@@ -149,8 +151,15 @@ const Chat: FC<Props> = (props) => {
     if (!sessionId) {
       return () => <div> Active Session ID is invalid.</div>
     }
+    if (!apiServer.enabled) {
+      return () => (
+        <div>
+          <Alert color="warning" title={t('agent.warning.enable_server')} />
+        </div>
+      )
+    }
     return () => <AgentSessionMessages agentId={activeAgentId} sessionId={sessionId} />
-  }, [activeAgentId, activeSessionId])
+  }, [activeAgentId, activeSessionId, apiServer.enabled, t])
 
   const SessionInputBar = useMemo(() => {
     if (activeAgentId === null) {
