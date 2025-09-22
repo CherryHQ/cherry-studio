@@ -36,14 +36,9 @@ export interface MessageDataSource {
   /**
    * Get raw topic data (just id and messages)
    */
-  getRawTopic?(topicId: string): Promise<{ id: string; messages: Message[] } | undefined>
+  getRawTopic(topicId: string): Promise<{ id: string; messages: Message[] } | undefined>
 
   // ============ Write Operations ============
-  /**
-   * Persist a complete message exchange (user + assistant)
-   */
-  persistExchange(topicId: string, exchange: MessageExchange): Promise<void>
-
   /**
    * Append a single message with its blocks
    */

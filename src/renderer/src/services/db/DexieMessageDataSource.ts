@@ -6,7 +6,7 @@ import { updateTopicUpdatedAt } from '@renderer/store/assistants'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { isEmpty } from 'lodash'
 
-import type { MessageDataSource, MessageExchange } from './types'
+import type { MessageDataSource } from './types'
 
 const logger = loggerService.withContext('DexieMessageDataSource')
 
@@ -58,61 +58,6 @@ export class DexieMessageDataSource implements MessageDataSource {
   }
 
   // ============ Write Operations ============
-
-  async persistExchange(topicId: string, exchange: MessageExchange): Promise<void> {
-    try {
-      await db.transaction('rw', db.topics, db.message_blocks, async () => {
-        const topic = await db.topics.get(topicId)
-        if (!topic) {
-          throw new Error(`Topic ${topicId} not found`)
-        }
-
-        const updatedMessages = [...topic.messages]
-        const blocksToSave: MessageBlock[] = []
-
-        // Handle user message
-        if (exchange.user) {
-          const userIndex = updatedMessages.findIndex((m) => m.id === exchange.user!.message.id)
-          if (userIndex !== -1) {
-            updatedMessages[userIndex] = exchange.user.message
-          } else {
-            updatedMessages.push(exchange.user.message)
-          }
-          if (exchange.user.blocks.length > 0) {
-            blocksToSave.push(...exchange.user.blocks)
-          }
-        }
-
-        // Handle assistant message
-        if (exchange.assistant) {
-          const assistantIndex = updatedMessages.findIndex((m) => m.id === exchange.assistant!.message.id)
-          if (assistantIndex !== -1) {
-            updatedMessages[assistantIndex] = exchange.assistant.message
-          } else {
-            updatedMessages.push(exchange.assistant.message)
-          }
-          if (exchange.assistant.blocks.length > 0) {
-            blocksToSave.push(...exchange.assistant.blocks)
-          }
-        }
-
-        // Save blocks
-        if (blocksToSave.length > 0) {
-          await db.message_blocks.bulkPut(blocksToSave)
-        }
-
-        // Update topic with new messages
-        await db.topics.update(topicId, { messages: updatedMessages })
-      })
-
-      // Update Redux state
-      store.dispatch(updateTopicUpdatedAt({ topicId }))
-    } catch (error) {
-      logger.error(`Failed to persist exchange for topic ${topicId}:`, error as Error)
-      throw error
-    }
-  }
-
   async appendMessage(topicId: string, message: Message, blocks: MessageBlock[], insertIndex?: number): Promise<void> {
     try {
       await db.transaction('rw', db.topics, db.message_blocks, async () => {

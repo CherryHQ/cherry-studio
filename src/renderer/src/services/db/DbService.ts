@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
-import type { Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { AgentMessageDataSource } from './AgentMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
-import type { MessageDataSource, MessageExchange } from './types'
+import type { MessageDataSource } from './types'
 import { isAgentSessionTopicId } from './types'
 
 const logger = loggerService.withContext('DbService')
@@ -62,18 +61,7 @@ class DbService implements MessageDataSource {
     return source.fetchMessages(topicId, forceReload)
   }
 
-  async fetchTopic(topicId: string): Promise<Topic | undefined> {
-    const source = this.getDataSource(topicId)
-    return source.fetchTopic(topicId)
-  }
-
   // ============ Write Operations ============
-
-  async persistExchange(topicId: string, exchange: MessageExchange): Promise<void> {
-    const source = this.getDataSource(topicId)
-    return source.persistExchange(topicId, exchange)
-  }
-
   async appendMessage(topicId: string, message: Message, blocks: MessageBlock[], insertIndex?: number): Promise<void> {
     const source = this.getDataSource(topicId)
     return source.appendMessage(topicId, message, blocks, insertIndex)
@@ -141,12 +129,7 @@ class DbService implements MessageDataSource {
 
   async getRawTopic(topicId: string): Promise<{ id: string; messages: Message[] } | undefined> {
     const source = this.getDataSource(topicId)
-    if (source.getRawTopic) {
-      return source.getRawTopic(topicId)
-    }
-    // Fallback: fetch using fetchTopic and extract messages
-    const topic = await source.fetchTopic(topicId)
-    return topic ? { id: topic.id, messages: topic.messages } : undefined
+    return source.getRawTopic(topicId)
   }
 
   async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {

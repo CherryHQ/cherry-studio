@@ -1,10 +1,9 @@
 import { loggerService } from '@logger'
-import type { Topic } from '@renderer/types'
 import type { AgentPersistedMessage } from '@renderer/types/agent'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import type { MessageDataSource, MessageExchange } from './types'
+import type { MessageDataSource } from './types'
 import { extractSessionId } from './types'
 
 const logger = loggerService.withContext('AgentMessageDataSource')
@@ -60,51 +59,7 @@ export class AgentMessageDataSource implements MessageDataSource {
   }
 
   // ============ Write Operations ============
-
-  async persistExchange(topicId: string, exchange: MessageExchange): Promise<void> {
-    try {
-      const sessionId = extractSessionId(topicId)
-
-      if (!window.electron?.ipcRenderer) {
-        logger.warn('IPC renderer not available for persist exchange')
-        return
-      }
-
-      const payload: any = {
-        sessionId,
-        agentSessionId: exchange.agentSessionId || ''
-      }
-
-      // Prepare user payload
-      if (exchange.user) {
-        payload.user = {
-          payload: {
-            message: exchange.user.message,
-            blocks: exchange.user.blocks
-          }
-        }
-      }
-
-      // Prepare assistant payload
-      if (exchange.assistant) {
-        payload.assistant = {
-          payload: {
-            message: exchange.assistant.message,
-            blocks: exchange.assistant.blocks
-          }
-        }
-      }
-
-      await window.electron.ipcRenderer.invoke(IpcChannel.AgentMessage_PersistExchange, payload)
-
-      logger.info(`Persisted exchange for agent session ${sessionId}`)
-    } catch (error) {
-      logger.error(`Failed to persist exchange for agent session ${topicId}:`, error as Error)
-      throw error
-    }
-  }
-
-  async appendMessage(topicId: string, message: Message, blocks: MessageBlock[], insertIndex?: number): Promise<void> {
+  async appendMessage(topicId: string, message: Message, blocks: MessageBlock[], _insertIndex?: number): Promise<void> {
     // For agent sessions, we need to save messages immediately
     // Don't wait for persistExchange which happens after response completion
     const sessionId = extractSessionId(topicId)
@@ -239,12 +194,12 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Block Operations ============
 
-  async updateBlocks(blocks: MessageBlock[]): Promise<void> {
+  async updateBlocks(_blocks: MessageBlock[]): Promise<void> {
     // Blocks are updated through persistExchange for agent sessions
     logger.warn('updateBlocks called for agent session, operation not supported individually')
   }
 
-  async deleteBlocks(blockIds: string[]): Promise<void> {
+  async deleteBlocks(_blockIds: string[]): Promise<void> {
     // Blocks cannot be deleted individually for agent sessions
     logger.warn('deleteBlocks called for agent session, operation not supported')
   }
@@ -277,11 +232,7 @@ export class AgentMessageDataSource implements MessageDataSource {
       if (!window.electron?.ipcRenderer) {
         return false
       }
-
-      // Check if session exists by trying to fetch messages
-      // In a full implementation, you'd have a dedicated endpoint
-      const messages = await this.fetchMessages(topicId)
-      return true // If no error thrown, session exists
+      return sessionId != null
     } catch (error) {
       return false
     }
@@ -292,26 +243,6 @@ export class AgentMessageDataSource implements MessageDataSource {
     // This is a no-op for agent sessions
     const sessionId = extractSessionId(topicId)
     logger.info(`ensureTopic called for agent session ${sessionId}, no action needed`)
-  }
-
-  async fetchTopic(topicId: string): Promise<Topic | undefined> {
-    try {
-      const sessionId = extractSessionId(topicId)
-
-      // For agent sessions, we construct a synthetic topic
-      // In a real implementation, you might fetch session metadata from backend
-      return {
-        id: topicId,
-        name: `Session ${sessionId}`,
-        assistantId: 'agent',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        messages: [] // Messages are fetched separately
-      } as Topic
-    } catch (error) {
-      logger.error(`Failed to fetch topic for agent session ${topicId}:`, error as Error)
-      throw error
-    }
   }
 
   async getRawTopic(topicId: string): Promise<{ id: string; messages: Message[] } | undefined> {
@@ -330,22 +261,22 @@ export class AgentMessageDataSource implements MessageDataSource {
 
   // ============ Additional Methods for Interface Compatibility ============
 
-  async updateSingleBlock(blockId: string, updates: Partial<MessageBlock>): Promise<void> {
+  async updateSingleBlock(blockId: string, _updates: Partial<MessageBlock>): Promise<void> {
     // Agent session blocks are immutable once persisted
     logger.warn(`updateSingleBlock called for agent session block ${blockId}, operation not supported`)
   }
 
-  async bulkAddBlocks(blocks: MessageBlock[]): Promise<void> {
+  async bulkAddBlocks(_blocks: MessageBlock[]): Promise<void> {
     // Agent session blocks are added through persistExchange
     logger.warn(`bulkAddBlocks called for agent session, operation not supported individually`)
   }
 
-  async updateFileCount(fileId: string, delta: number): Promise<void> {
+  async updateFileCount(fileId: string, _delta: number): Promise<void> {
     // Agent sessions don't manage file reference counts locally
     logger.warn(`updateFileCount called for agent session file ${fileId}, operation not supported`)
   }
 
-  async updateFileCounts(files: Array<{ id: string; delta: number }>): Promise<void> {
+  async updateFileCounts(_files: Array<{ id: string; delta: number }>): Promise<void> {
     // Agent sessions don't manage file reference counts locally
     logger.warn(`updateFileCounts called for agent session, operation not supported`)
   }

@@ -204,29 +204,6 @@ export const saveMessageAndBlocksToDBV2 = async (
   }
 }
 
-/**
- * Persist a message exchange (user + assistant messages)
- */
-export const persistExchangeV2 = async (
-  topicId: string,
-  exchange: {
-    user?: { message: Message; blocks: MessageBlock[] }
-    assistant?: { message: Message; blocks: MessageBlock[] }
-  }
-): Promise<void> => {
-  try {
-    await dbService.persistExchange(topicId, exchange)
-    logger.info('Persisted exchange via DbService', {
-      topicId,
-      hasUser: !!exchange.user,
-      hasAssistant: !!exchange.assistant
-    })
-  } catch (error) {
-    logger.error('Failed to persist exchange:', { topicId, error })
-    throw error
-  }
-}
-
 // Note: sendMessageV2 would be implemented here but it's more complex
 // and would require more of the supporting code from messageThunk.ts
 
