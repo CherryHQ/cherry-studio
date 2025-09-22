@@ -118,7 +118,7 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
           chunks.push({
             type: 'tool-result',
             toolCallId: block.tool_use_id,
-            toolName: contentBlockState[blockKey].toolName,
+            toolName: contentBlockState[block.tool_use_id].toolName,
             input: '',
             output: block.content
           })
@@ -144,7 +144,7 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
   const chunks: AgentStreamPart[] = []
   const event = message.event
   const blockKey = `${message.uuid ?? message.session_id ?? 'session'}:${event.type}`
-
+  logger.debug('Handling stream event:', { event })
   switch (event.type) {
     case 'message_start':
       // No specific UI chunk needed for message start in this protocol
@@ -169,7 +169,7 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
           break
         }
         case 'tool_use': {
-          contentBlockState.set(blockKey, {
+          contentBlockState.set(event.content_block.id, {
             type: 'tool-call',
             toolCallId: event.content_block.id,
             toolName: event.content_block.name,
