@@ -251,6 +251,7 @@
     "added": "追加済み",
     "case_sensitive": "大文字と小文字の区別",
     "collapse": "折りたたむ",
+    "download": "ダウンロード",
     "includes_user_questions": "ユーザーからの質問を含む",
     "manage": "管理",
     "select_model": "モデルを選択",
@@ -1825,6 +1826,57 @@
     },
     "title": "Ollama"
   },
+  "ovms": {
+    "action": {
+      "install": "インストール",
+      "installing": "インストール中",
+      "reinstall": "再インストール",
+      "run": "OVMSを実行",
+      "starting": "起動中",
+      "stop": "OVMSを停止",
+      "stopping": "停止中"
+    },
+    "description": "<div><p>1. OVモデルをダウンロードします。</p><p>2. 'マネージャー'でモデルを追加します。</p><p>Windowsのみサポート！</p><p>OVMSインストールパス: '%USERPROFILE%\\.cherrystudio\\ovms' 。</p><p>詳細は<a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMSガイド</a>をご参照ください。</p></dev>",
+    "download": {
+      "button": "ダウンロード",
+      "error": "ダウンロードエラー",
+      "model_id": {
+        "label": "モデルID",
+        "model_id_pattern": "モデルIDはOpenVINO/で始まる必要があります",
+        "placeholder": "必須 例: OpenVINO/Qwen3-8B-int4-ov",
+        "required": "モデルIDを入力してください"
+      },
+      "model_name": {
+        "label": "モデル名",
+        "placeholder": "必須 例: Qwen3-8B-int4-ov",
+        "required": "モデル名を入力してください"
+      },
+      "model_source": "モデルソース:",
+      "model_task": "モデルタスク:",
+      "success": "ダウンロード成功",
+      "success_desc": "モデル\"{{modelName}}\"-\"{{modelId}}\"ダウンロード成功、OVMS管理インターフェースに移動してモデルを追加してください",
+      "tip": "モデルはダウンロードされていますが、時には数時間かかります。我慢してください...",
+      "title": "Intel OpenVINOモデルをダウンロード"
+    },
+    "failed": {
+      "install": "OVMSのインストールに失敗しました:",
+      "install_code_100": "不明なエラー",
+      "install_code_101": "Intel(R) Core(TM) Ultra CPUのみサポート",
+      "install_code_102": "Windowsのみサポート",
+      "install_code_103": "OVMSランタイムのダウンロードに失敗しました",
+      "install_code_104": "OVMSランタイムの解凍に失敗しました",
+      "install_code_105": "OVMSランタイムのクリーンアップに失敗しました",
+      "run": "OVMSの実行に失敗しました:",
+      "stop": "OVMSの停止に失敗しました:"
+    },
+    "status": {
+      "not_installed": "OVMSはインストールされていません",
+      "not_running": "OVMSは実行されていません",
+      "running": "OVMSは実行中です",
+      "unknown": "OVMSのステータスが不明です"
+    },
+    "title": "Intel OVMS"
+  },
   "paintings": {
     "aspect_ratio": "画幅比例",
     "aspect_ratios": {
@@ -2056,6 +2108,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",

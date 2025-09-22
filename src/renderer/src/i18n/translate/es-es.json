@@ -251,6 +251,7 @@
     "added": "Agregado",
     "case_sensitive": "Distingue mayúsculas y minúsculas",
     "collapse": "Colapsar",
+    "download": "Descargar",
     "includes_user_questions": "Incluye preguntas del usuario",
     "manage": "Administrar",
     "select_model": "Seleccionar Modelo",
@@ -1825,6 +1826,57 @@
     },
     "title": "Ollama"
   },
+  "ovms": {
+    "action": {
+      "install": "Instalar",
+      "installing": "Instalando",
+      "reinstall": "Reinstalar",
+      "run": "Ejecutar OVMS",
+      "starting": "Iniciando",
+      "stop": "Detener OVMS",
+      "stopping": "Deteniendo"
+    },
+    "description": "<div><p>1. Descargar modelo OV.</p><p>2. Agregar modelo en 'Administrador'.</p><p>¡Solo compatible con Windows!</p><p>Ruta de instalación de OVMS: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Consulte la <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Guía de Intel OVMS</a></p></dev>",
+    "download": {
+      "button": "Descargar",
+      "error": "Selección fallida",
+      "model_id": {
+        "label": "ID del modelo:",
+        "model_id_pattern": "El ID del modelo debe comenzar con OpenVINO/",
+        "placeholder": "Requerido, por ejemplo, OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Por favor, ingrese el ID del modelo"
+      },
+      "model_name": {
+        "label": "Nombre del modelo:",
+        "placeholder": "Requerido, por ejemplo, Qwen3-8B-int4-ov",
+        "required": "Por favor, ingrese el nombre del modelo"
+      },
+      "model_source": "Fuente del modelo:",
+      "model_task": "Tarea del modelo:",
+      "success": "Descarga exitosa",
+      "success_desc": "El modelo \"{{modelName}}\"-\"{{modelId}}\" se descargó exitosamente, por favor vaya a la interfaz de administración de OVMS para agregar el modelo",
+      "tip": "El modelo se está descargando, a veces toma varias horas. Por favor espere pacientemente...",
+      "title": "Descargar modelo Intel OpenVINO"
+    },
+    "failed": {
+      "install": "Error al instalar OVMS:",
+      "install_code_100": "Error desconocido",
+      "install_code_101": "Solo compatible con CPU Intel(R) Core(TM) Ultra",
+      "install_code_102": "Solo compatible con Windows",
+      "install_code_103": "Error al descargar el tiempo de ejecución de OVMS",
+      "install_code_104": "Error al descomprimir el tiempo de ejecución de OVMS",
+      "install_code_105": "Error al limpiar el tiempo de ejecución de OVMS",
+      "run": "Error al ejecutar OVMS:",
+      "stop": "Error al detener OVMS:"
+    },
+    "status": {
+      "not_installed": "OVMS no instalado",
+      "not_running": "OVMS no está en ejecución",
+      "running": "OVMS en ejecución",
+      "unknown": "Estado de OVMS desconocido"
+    },
+    "title": "Intel OVMS"
+  },
   "paintings": {
     "aspect_ratio": "Relación de aspecto",
     "aspect_ratios": {
@@ -2056,6 +2108,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplejidad",
     "ph8": "Plataforma Abierta de Grandes Modelos PH8",
     "poe": "Poe",
