@@ -34,7 +34,7 @@ const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
 // Main transform function
 export function transformSDKMessageToStreamParts(sdkMessage: SDKMessage): AgentStreamPart[] {
   const chunks: AgentStreamPart[] = []
-  logger.debug('Transforming SDKMessage to stream parts', sdkMessage)
+  logger.silly('Transforming SDKMessage to stream parts', sdkMessage)
   switch (sdkMessage.type) {
     case 'assistant':
     case 'user':
@@ -105,7 +105,6 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
     }
   } else if (Array.isArray(message.message.content)) {
     for (const block of message.message.content) {
-      logger.debug('Handling user or assistant message:', { block })
       switch (block.type) {
         case 'text':
           chunks.push(...generateTextChunks(messageId, block.text, message))
@@ -127,8 +126,7 @@ function handleUserOrAssistantMessage(message: Extract<SDKMessage, { type: 'assi
           })
           break
         case 'tool_result': {
-          logger.debug('Handling tool result:', { block })
-          logger.debug('contentblockState', { content: contentBlockState })
+          logger.silly('Handling tool result:', { block, content: contentBlockState })
           const hasToolCall = contentBlockState.has(block.tool_use_id)
           const toolCall = contentBlockState.get(block.tool_use_id) as toolCallBlock
           chunks.push({
@@ -161,7 +159,7 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
   const chunks: AgentStreamPart[] = []
   const event = message.event
   const blockKey = `${message.uuid ?? message.session_id ?? 'session'}:${event.type}`
-  logger.debug('Handling stream event:', { event })
+  logger.silly('Handling stream event:', { event })
   switch (event.type) {
     case 'message_start':
       // No specific UI chunk needed for message start in this protocol
@@ -291,9 +289,6 @@ function handleStreamEvent(message: Extract<SDKMessage, { type: 'stream_event' }
 // Handle system messages
 function handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>): AgentStreamPart[] {
   const chunks: AgentStreamPart[] = []
-  logger.debug('Received system message', {
-    subtype: message.subtype
-  })
   switch (message.subtype) {
     case 'init': {
       chunks.push({
