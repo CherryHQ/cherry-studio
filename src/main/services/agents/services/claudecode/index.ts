@@ -6,6 +6,7 @@ import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/c
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
+import { app } from 'electron'
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
@@ -26,6 +27,9 @@ class ClaudeCodeService implements AgentServiceInterface {
   constructor() {
     // Resolve Claude Code CLI robustly (works in dev and in asar)
     this.claudeExecutablePath = require_.resolve('@anthropic-ai/claude-code/cli.js')
+    if (app.isPackaged) {
+      this.claudeExecutablePath = this.claudeExecutablePath.replace(/\.asar([\\/])/, '.asar.unpacked$1')
+    }
   }
 
   async invoke(
