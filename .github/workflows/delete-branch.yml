@@ -1,4 +1,4 @@
-name: Delete merged branch of the backport PRs
+name: Delete merged branch
 on:
   pull_request:
     types:
@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    if: startsWith(github.event.pull_request.head.ref,'backport/')
+    if: github.event.pull_request.merged == true
     steps:
       - name: Delete merged branch
         uses: actions/github-script@v7
