@@ -110,15 +110,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // Check if message is still processing
   const isProcessing = isMessageProcessing(message)
 
-  // Check if there's already a placeholder block being shown
-  const hasPlaceholderBlock = useMemo(() =>
-    groupedBlocks.some(block =>
-      !Array.isArray(block) &&
-      block.type === MessageBlockType.UNKNOWN &&
-      block.status === MessageBlockStatus.PROCESSING
-    ), [groupedBlocks]
-  )
-
   return (
     <AnimatePresence mode="sync">
       {groupedBlocks.map((block) => {
@@ -163,9 +154,6 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
 
         switch (block.type) {
           case MessageBlockType.UNKNOWN:
-            if (block.status === MessageBlockStatus.PROCESSING) {
-              blockComponent = <PlaceholderBlock key={block.id} block={block} />
-            }
             break
           case MessageBlockType.MAIN_TEXT:
           case MessageBlockType.CODE: {
@@ -225,7 +213,7 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           </AnimatedBlockWrapper>
         )
       })}
-      {isProcessing && !hasPlaceholderBlock && (
+      {isProcessing && (
         <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
           <PlaceholderBlock
             block={{
