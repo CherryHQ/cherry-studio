@@ -46,6 +46,7 @@ const HomeTabs: FC<Props> = ({
 
   const { chat } = useRuntime()
   const { activeTopicOrSession } = chat
+  const isSessionView = activeTopicOrSession === 'session'
 
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
   const borderStyle = '0.5px solid var(--color-border)'
@@ -59,6 +60,7 @@ const HomeTabs: FC<Props> = ({
   }
 
   const showTab = position === 'left' && topicPosition === 'left'
+  const canShowSettingsTab = !isSessionView
 
   const onCreateAssistant = async () => {
     const assistant = await AddAssistantPopup.show()
@@ -113,9 +115,11 @@ const HomeTabs: FC<Props> = ({
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {activeTopicOrSession === 'topic' ? t('common.topics') : t('agent.session.label_other')}
           </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
+          {canShowSettingsTab && (
+            <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
+              {t('settings.title')}
+            </TabItem>
+          )}
         </CustomTabs>
       )}
 
@@ -124,9 +128,11 @@ const HomeTabs: FC<Props> = ({
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
             {activeTopicOrSession === 'topic' ? t('common.topics') : t('agent.session.label_other')}
           </TabItem>
-          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-            {t('settings.title')}
-          </TabItem>
+          {canShowSettingsTab && (
+            <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
+              {t('settings.title')}
+            </TabItem>
+          )}
         </CustomTabs>
       )}
 
@@ -147,7 +153,7 @@ const HomeTabs: FC<Props> = ({
             position={position}
           />
         )}
-        {tab === 'settings' && <Settings assistant={activeAssistant} />}
+        {tab === 'settings' && canShowSettingsTab && <Settings assistant={activeAssistant} />}
       </TabContent>
     </Container>
   )

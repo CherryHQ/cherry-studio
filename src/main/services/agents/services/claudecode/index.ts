@@ -6,6 +6,7 @@ import { McpHttpServerConfig, Options, query, SDKMessage } from '@anthropic-ai/c
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
+import getLoginShellEnvironment from '@main/utils/shell-env'
 import { app } from 'electron'
 
 import { GetAgentSessionResponse } from '../..'
@@ -67,12 +68,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       return aiStream
     }
 
-    // TODO: use cherry studio api server config instead of direct provider config to provide more flexibility (e.g. custom headers, proxy, statistics, etc).
     const apiConfig = await apiConfigService.get()
-    // process.env.ANTHROPIC_AUTH_TOKEN = apiConfig.apiKey
-    // process.env.ANTHROPIC_BASE_URL = `http://${apiConfig.host}:${apiConfig.port}`
+    const loginShellEnv = await getLoginShellEnvironment()
     const env = {
-      ...process.env,
+      ...loginShellEnv,
       ANTHROPIC_API_KEY: apiConfig.apiKey,
       ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
       ELECTRON_RUN_AS_NODE: '1',
@@ -123,7 +122,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.resume = lastAgentSessionId
     }
 
-    logger.silly('Starting Claude Code SDK query', {
+    logger.info('Starting Claude Code SDK query', {
       prompt,
       cwd: options.cwd,
       model: options.model,
