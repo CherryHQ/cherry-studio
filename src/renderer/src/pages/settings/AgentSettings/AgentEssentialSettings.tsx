@@ -1,13 +1,11 @@
-import { Button, Tooltip } from '@heroui/react'
+import { Button, Input, Select, SelectedItems, SelectItem, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { GetAgentResponse, UpdateAgentForm } from '@renderer/types'
-import { Input, Select } from 'antd'
-import { DefaultOptionType } from 'antd/es/select'
+import { ApiModel, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import { Plus } from 'lucide-react'
-import { FC, useCallback, useMemo, useState } from 'react'
+import { FC, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AgentLabel, SettingsContainer, SettingsItem, SettingsTitle } from './shared'
@@ -41,13 +39,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     },
     [agent, update]
   )
-
-  const modelOptions = useMemo(() => {
-    return models.map((model) => ({
-      value: model.id,
-      label: <ApiModelLabel model={model} />
-    })) satisfies DefaultOptionType[]
-  }, [models])
 
   const addAccessiblePath = useCallback(async () => {
     if (!agent) return
@@ -83,6 +74,13 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     [agent, t, updateAccessiblePaths]
   )
 
+  const renderModels = useCallback((items: SelectedItems<ApiModel>) => {
+    return items.map((item) => {
+      const model = item.data ?? undefined
+      return <ApiModelLabel key={model?.id} model={model} />
+    })
+  }, [])
+
   if (!agent) return null
 
   return (
@@ -96,7 +94,7 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
         <Input
           placeholder={t('common.agent_one') + t('common.name')}
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onValueChange={(value) => setName(value)}
           onBlur={() => {
             if (name !== agent.name) {
               updateName(name)
@@ -106,16 +104,24 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
         />
       </SettingsItem>
       <SettingsItem inline className="gap-8">
-        <SettingsTitle>{t('common.model')}</SettingsTitle>
+        <SettingsTitle id="model">{t('common.model')}</SettingsTitle>
         <Select
-          options={modelOptions}
-          value={agent.model}
-          onChange={(value) => {
-            updateModel(value)
+          selectionMode="single"
+          aria-labelledby="model"
+          items={models}
+          selectedKeys={[agent.model]}
+          onSelectionChange={(keys) => {
+            updateModel(keys.currentKey)
           }}
           className="max-w-80 flex-1"
           placeholder={t('common.placeholders.select.model')}
-        />
+          renderValue={renderModels}>
+          {(model) => (
+            <SelectItem textValue={model.id}>
+              <ApiModelLabel model={model} />
+            </SelectItem>
+          )}
+        </Select>
       </SettingsItem>
       <SettingsItem>
         <SettingsTitle
