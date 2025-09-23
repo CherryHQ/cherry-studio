@@ -1,6 +1,7 @@
 import { Alert, Card, CardBody, CardHeader, Chip, Input, Switch } from '@heroui/react'
 import { useAgentClient } from '@renderer/hooks/agents/useAgentClient'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
+import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import {
   AgentConfiguration,
   AgentConfigurationSchema,
@@ -11,7 +12,7 @@ import {
 } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { mutate } from 'swr'
 
@@ -105,6 +106,7 @@ const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
 const unique = (values: string[]) => Array.from(new Set(values))
 
 export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, updateAgent }) => {
+  const { containerRef, handleScroll } = useScrollPosition('AgentToolingSettings', 100)
   const { t } = useTranslation()
   const client = useAgentClient()
   const { mcpServers: allServers } = useMCPServers()
@@ -252,22 +254,26 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
       if (!agent || isUpdatingTools) {
         return
       }
-      setApprovedToolIds((prev) => {
-        const exists = prev.includes(toolId)
-        if (isApproved === exists) {
-          return prev
-        }
-        const next = isApproved ? [...prev, toolId] : prev.filter((id) => id !== toolId)
-        const sanitized = unique(next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds))
-        setIsUpdatingTools(true)
-        void (async () => {
-          try {
-            await updateAgent({ id: agent.id, allowed_tools: sanitized })
-          } finally {
-            setIsUpdatingTools(false)
+      startTransition(() => {
+        setApprovedToolIds((prev) => {
+          const exists = prev.includes(toolId)
+          if (isApproved === exists) {
+            return prev
           }
-        })()
-        return sanitized
+          const next = isApproved ? [...prev, toolId] : prev.filter((id) => id !== toolId)
+          const sanitized = unique(
+            next.filter((id) => availableTools.some((tool) => tool.id === id)).concat(autoToolIds)
+          )
+          setIsUpdatingTools(true)
+          void (async () => {
+            try {
+              await updateAgent({ id: agent.id, allowed_tools: sanitized })
+            } finally {
+              setIsUpdatingTools(false)
+            }
+          })()
+          return sanitized
+        })
       })
     },
     [agent, isUpdatingTools, availableTools, autoToolIds, updateAgent]
@@ -322,7 +328,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
   }
 
   return (
-    <SettingsContainer>
+    <SettingsContainer ref={containerRef} onScroll={handleScroll}>
       {contextHolder}
       <SettingsItem>
         <SettingsTitle>
