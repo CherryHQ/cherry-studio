@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Aucun outil disponible pour cet agent.",
         "helper": "Choisissez les outils préapprouvés. Les outils non sélectionnés nécessiteront une approbation avant utilisation.",
-        "label": "[to be translated]:Pre-approved tools",
-        "placeholder": "[to be translated]:Select pre-approved tools"
+        "label": "Outils pré-approuvés",
+        "placeholder": "Sélectionner des outils pré-approuvés"
       },
       "create": {
         "error": {
@@ -82,95 +82,95 @@
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
-          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
-          "label": "[to be translated]:会话轮次数上限"
+          "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
+          "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",
+          "label": "Limite maximale de tours de conversation"
         },
         "permissionMode": {
-          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
-          "label": "[to be translated]:权限模式",
+          "description": "Contrôle la manière dont l'agent gère les demandes d'autorisation.",
+          "label": "mode d'autorisation",
           "options": {
-            "acceptEdits": "[to be translated]:自动接受编辑",
-            "bypassPermissions": "[to be translated]:跳过权限检查",
-            "default": "[to be translated]:默认（继续前询问）",
-            "plan": "[to be translated]:规划模式（需审批计划）"
+            "acceptEdits": "Accepter automatiquement les modifications",
+            "bypassPermissions": "Passer la vérification des autorisations",
+            "default": "Par défaut (demander avant de continuer)",
+            "plan": "Mode de planification (plan soumis à approbation)"
           },
-          "placeholder": "[to be translated]:选择权限模式"
+          "placeholder": "Choisir le mode d'autorisation"
         },
-        "title": "[to be translated]:高级设置"
+        "title": "Paramètres avancés"
       },
       "essential": "Paramètres essentiels",
       "mcps": "Serveur MCP",
       "prompt": "Paramètres de l'invite",
       "tooling": {
         "mcp": {
-          "description": "[to be translated]:Connect MCP servers to unlock additional tools you can approve above.",
-          "empty": "[to be translated]:No MCP servers detected. Add one from the MCP settings page.",
-          "manageHint": "[to be translated]:Need advanced configuration? Visit Settings → MCP Servers.",
-          "toggle": "[to be translated]:Toggle {{name}}"
+          "description": "Connectez des serveurs MCP pour débloquer des outils supplémentaires que vous pouvez approuver ci-dessus.",
+          "empty": "Aucun serveur MCP détecté. Ajoutez-en un depuis la page des paramètres MCP.",
+          "manageHint": "Besoin d'une configuration avancée ? Visitez Paramètres → Serveurs MCP.",
+          "toggle": "Basculer {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "[to be translated]:Pre-approves trusted filesystem tools so edits run immediately.",
-            "description": "[to be translated]:File edits and filesystem operations are automatically approved.",
-            "title": "[to be translated]:Auto-accept file edits"
+            "behavior": "Pré-approuve les outils de système de fichiers de confiance afin que les modifications s'exécutent immédiatement.",
+            "description": "Les modifications de fichiers et les opérations sur le système de fichiers sont automatiquement approuvées.",
+            "title": "Accepter automatiquement les modifications de fichiers"
           },
           "bypassPermissions": {
-            "behavior": "[to be translated]:Every tool is pre-approved automatically.",
-            "description": "[to be translated]:All permission prompts are skipped — use with caution.",
-            "title": "[to be translated]:Bypass permission checks",
-            "warning": "[to be translated]:Use with caution — all tools will run without asking for approval."
+            "behavior": "Chaque outil est pré-approuvé automatiquement.",
+            "description": "Toutes les demandes de permission sont ignorées — à utiliser avec prudence.",
+            "title": "Contourner les vérifications de permission",
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
           },
           "confirmChange": {
-            "description": "[to be translated]:Switching modes updates the automatically approved tools.",
-            "title": "[to be translated]:Change permission mode?"
+            "description": "Le changement de mode met à jour les outils approuvés automatiquement.",
+            "title": "Changer le mode d'autorisation ?"
           },
           "default": {
-            "behavior": "[to be translated]:No tools are pre-approved automatically.",
-            "description": "[to be translated]:Normal permission checks apply.",
-            "title": "[to be translated]:Default (ask before continuing)"
+            "behavior": "Aucun outil n’est pré-approuvé automatiquement.",
+            "description": "Les vérifications d'autorisation normales s'appliquent.",
+            "title": "Par défaut (demander avant de continuer)"
           },
           "plan": {
-            "behavior": "[to be translated]:Read-only tools only. Execution is disabled.",
-            "description": "[to be translated]:Claude can only use read-only tools and presents a plan before execution.",
-            "title": "[to be translated]:Planning mode (coming soon)"
+            "behavior": "Outils en lecture seule uniquement. L'exécution est désactivée.",
+            "description": "Claude ne peut utiliser que des outils en lecture seule et présente un plan avant l'exécution.",
+            "title": "Mode de planification (à venir)"
           }
         },
         "preapproved": {
-          "autoBadge": "[to be translated]:Added by mode",
-          "autoDescription": "[to be translated]:This tool is auto-approved by the current permission mode.",
-          "empty": "[to be translated]:No tools match your filters.",
-          "mcpBadge": "[to be translated]:MCP tool",
-          "requiresApproval": "[to be translated]:Requires approval when disabled",
-          "search": "[to be translated]:Search tools",
-          "toggle": "[to be translated]:Toggle {{name}}",
+          "autoBadge": "Ajouté par mode",
+          "autoDescription": "Cet outil est automatiquement approuvé par le mode d'autorisation actuel.",
+          "empty": "Aucun outil ne correspond à vos filtres.",
+          "mcpBadge": "outil MCP",
+          "requiresApproval": "Nécessite une approbation lorsqu’il est désactivé",
+          "search": "Outils de recherche",
+          "toggle": "Basculer {{name}}",
           "warning": {
-            "description": "[to be translated]:Enable only tools you trust. Mode defaults are highlighted automatically.",
-            "title": "[to be translated]:Pre-approved tools run without manual review."
+            "description": "Activez uniquement les outils en lesquels vous avez confiance. Les paramètres par défaut du mode sont mis en surbrillance automatiquement.",
+            "title": "Les outils pré-approuvés s'exécutent sans révision manuelle."
           }
         },
         "review": {
-          "autoTools": "[to be translated]:Auto: {{count}}",
-          "customTools": "[to be translated]:Custom: {{count}}",
-          "helper": "[to be translated]:Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
-          "mcp": "[to be translated]:MCP: {{count}}",
-          "mode": "[to be translated]:Mode: {{mode}}"
+          "autoTools": "Auto : {{count}}",
+          "customTools": "Personnalisé : {{count}}",
+          "helper": "Les modifications sont enregistrées automatiquement. Ajustez les étapes ci-dessus à tout moment pour affiner les autorisations.",
+          "mcp": "MCP : {{count}}",
+          "mode": "Mode : {{mode}}"
         },
         "steps": {
           "mcp": {
-            "title": "[to be translated]:MCP servers"
+            "title": "Serveurs MCP"
           },
           "permissionMode": {
-            "title": "[to be translated]:Step 1 · Permission mode"
+            "title": "Étape 1 · Mode d’autorisation"
           },
           "preapproved": {
-            "title": "[to be translated]:Step 2 · Pre-approved tools"
+            "title": "Étape 2 · Outils pré-approuvés"
           },
           "review": {
-            "title": "[to be translated]:Step 3 · Review"
+            "title": "Étape 3 · Révision"
           }
         },
-        "tab": "[to be translated]:Tooling & permissions"
+        "tab": "Outils et autorisations"
       },
       "tools": {
         "approved": "approuvé",

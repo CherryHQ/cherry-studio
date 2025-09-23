@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Δεν υπάρχουν διαθέσιμα εργαλεία για αυτόν τον agent.",
         "helper": "Επιλέξτε ποια εργαλεία είναι προεγκεκριμένα. Τα μη επιλεγμένα θα χρειαστούν έγκριση πριν από τη χρήση.",
-        "label": "[to be translated]:Pre-approved tools",
-        "placeholder": "[to be translated]:Select pre-approved tools"
+        "label": "Προεγκεκριμένα εργαλεία",
+        "placeholder": "Επιλέξτε προεγκεκριμένα εργαλεία"
       },
       "create": {
         "error": {
@@ -82,95 +82,95 @@
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
-          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
-          "label": "[to be translated]:会话轮次数上限"
+          "description": "Ορίστε τον αριθμό γύρων αιτήματος/απάντησης που θα εκτελούνται αυτόματα από τον διαμεσολαβητή.",
+          "helper": "Όσο υψηλότερη είναι η τιμή, τόσο περισσότερο μπορεί να λειτουργεί αυτόνομα· όσο χαμηλότερη είναι, τόσο πιο εύκολα ελέγχεται.",
+          "label": "Όριο αριθμού γύρων συνεδρίας"
         },
         "permissionMode": {
-          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
-          "label": "[to be translated]:权限模式",
+          "description": "Ο τρόπος με τον οποίο ο πληρεξούσιος ελεγκτής χειρίζεται την κατάσταση όταν απαιτείται εξουσιοδότηση.",
+          "label": "Λειτουργία δικαιωμάτων",
           "options": {
-            "acceptEdits": "[to be translated]:自动接受编辑",
-            "bypassPermissions": "[to be translated]:跳过权限检查",
-            "default": "[to be translated]:默认（继续前询问）",
-            "plan": "[to be translated]:规划模式（需审批计划）"
+            "acceptEdits": "Αυτόματη αποδοχή επεξεργασίας",
+            "bypassPermissions": "παράλειψη ελέγχου δικαιωμάτων",
+            "default": "Προεπιλογή (να ερωτηθεί πριν από τη συνέχεια)",
+            "plan": "Λειτουργία σχεδιασμού (απαιτείται έγκριση σχεδίου)"
           },
-          "placeholder": "[to be translated]:选择权限模式"
+          "placeholder": "Επιλέξτε λειτουργία δικαιωμάτων"
         },
-        "title": "[to be translated]:高级设置"
+        "title": "Ρυθμίσεις για προχωρημένους"
       },
       "essential": "Βασικές Ρυθμίσεις",
       "mcps": "Διακομιστής MCP",
       "prompt": "Ρυθμίσεις Προτροπής",
       "tooling": {
         "mcp": {
-          "description": "[to be translated]:Connect MCP servers to unlock additional tools you can approve above.",
-          "empty": "[to be translated]:No MCP servers detected. Add one from the MCP settings page.",
-          "manageHint": "[to be translated]:Need advanced configuration? Visit Settings → MCP Servers.",
-          "toggle": "[to be translated]:Toggle {{name}}"
+          "description": "Συνδέστε διακομιστές MCP για να ξεκλειδώσετε πρόσθετα εργαλεία που μπορείτε να εγκρίνετε παραπάνω.",
+          "empty": "Δεν εντοπίστηκαν διακομιστές MCP. Προσθέστε έναν από τη σελίδα ρυθμίσεων MCP.",
+          "manageHint": "Χρειάζεστε προηγμένη διαμόρφωση; Επισκεφθείτε Ρυθμίσεις → Διακομιστές MCP.",
+          "toggle": "Εναλλαγή {{name}}"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "[to be translated]:Pre-approves trusted filesystem tools so edits run immediately.",
-            "description": "[to be translated]:File edits and filesystem operations are automatically approved.",
-            "title": "[to be translated]:Auto-accept file edits"
+            "behavior": "Προεγκρίνει αξιόπιστα εργαλεία συστήματος αρχείων ώστε οι επεξεργασίες να εκτελούνται αμέσως.",
+            "description": "Οι επεξεργασίες αρχείων και οι λειτουργίες του συστήματος αρχείων εγκρίνονται αυτόματα.",
+            "title": "Αυτόματη αποδοχή επεξεργασιών αρχείων"
           },
           "bypassPermissions": {
-            "behavior": "[to be translated]:Every tool is pre-approved automatically.",
-            "description": "[to be translated]:All permission prompts are skipped — use with caution.",
-            "title": "[to be translated]:Bypass permission checks",
-            "warning": "[to be translated]:Use with caution — all tools will run without asking for approval."
+            "behavior": "Κάθε εργαλείο εγκρίνεται αυτόματα εκ των προτέρων.",
+            "description": "Όλα τα αιτήματα άδειας παραλείπονται — χρησιμοποιήστε με προσοχή.",
+            "title": "Παράκαμψη ελέγχων αδειών",
+            "warning": "Χρησιμοποιήστε με προσοχή — όλα τα εργαλεία θα εκτελεστούν χωρίς να ζητηθεί έγκριση."
           },
           "confirmChange": {
-            "description": "[to be translated]:Switching modes updates the automatically approved tools.",
-            "title": "[to be translated]:Change permission mode?"
+            "description": "Η αλλαγή λειτουργιών ενημερώνει τα εργαλεία που εγκρίνονται αυτόματα.",
+            "title": "Αλλαγή λειτουργίας δικαιωμάτων;"
           },
           "default": {
-            "behavior": "[to be translated]:No tools are pre-approved automatically.",
-            "description": "[to be translated]:Normal permission checks apply.",
-            "title": "[to be translated]:Default (ask before continuing)"
+            "behavior": "Κανένα εργαλείο δεν εγκρίνεται αυτόματα εκ των προτέρων.",
+            "description": "Ισχύουν οι κανονικοί έλεγχοι δικαιωμάτων.",
+            "title": "Προεπιλογή (να ερωτηθώ πριν συνεχίσω)"
           },
           "plan": {
-            "behavior": "[to be translated]:Read-only tools only. Execution is disabled.",
-            "description": "[to be translated]:Claude can only use read-only tools and presents a plan before execution.",
-            "title": "[to be translated]:Planning mode (coming soon)"
+            "behavior": "Μόνο εργαλεία μόνο για ανάγνωση. Η εκτέλεση είναι απενεργοποιημένη.",
+            "description": "Ο Claude μπορεί να χρησιμοποιεί μόνο εργαλεία μόνο για ανάγνωση και παρουσιάζει ένα σχέδιο πριν από την εκτέλεση.",
+            "title": "Λειτουργία σχεδιασμού (έρχεται σύντομα)"
           }
         },
         "preapproved": {
-          "autoBadge": "[to be translated]:Added by mode",
-          "autoDescription": "[to be translated]:This tool is auto-approved by the current permission mode.",
-          "empty": "[to be translated]:No tools match your filters.",
-          "mcpBadge": "[to be translated]:MCP tool",
-          "requiresApproval": "[to be translated]:Requires approval when disabled",
-          "search": "[to be translated]:Search tools",
-          "toggle": "[to be translated]:Toggle {{name}}",
+          "autoBadge": "Προστέθηκε από τη λειτουργία",
+          "autoDescription": "Αυτό το εργαλείο έχει εγκριθεί αυτόματα από την τρέχουσα λειτουργία δικαιωμάτων.",
+          "empty": "Δεν υπάρχουν εργαλεία που να ταιριάζουν με τα φίλτρα σας.",
+          "mcpBadge": "εργαλείο MCP",
+          "requiresApproval": "Απαιτείται έγκριση όταν είναι απενεργοποιημένο",
+          "search": "Εργαλεία αναζήτησης",
+          "toggle": "Εναλλαγή {{name}}",
           "warning": {
-            "description": "[to be translated]:Enable only tools you trust. Mode defaults are highlighted automatically.",
-            "title": "[to be translated]:Pre-approved tools run without manual review."
+            "description": "Ενεργοποιήστε μόνο εργαλεία που εμπιστεύεστε. Οι προεπιλογές λειτουργίας τονίζονται αυτόματα.",
+            "title": "Τα προεγκεκριμένα εργαλεία εκτελούνται χωρίς χειροκίνητη αναθεώρηση."
           }
         },
         "review": {
-          "autoTools": "[to be translated]:Auto: {{count}}",
-          "customTools": "[to be translated]:Custom: {{count}}",
-          "helper": "[to be translated]:Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
-          "mcp": "[to be translated]:MCP: {{count}}",
-          "mode": "[to be translated]:Mode: {{mode}}"
+          "autoTools": "Αυτόματο: {{count}}",
+          "customTools": "Προσαρμοσμένο: {{count}}",
+          "helper": "Οι αλλαγές αποθηκεύονται αυτόματα. Προσαρμόστε τα παραπάνω βήματα ανά πάσα στιγμή για να εξειδικεύσετε τα δικαιώματα.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Λειτουργία: {{mode}}"
         },
         "steps": {
           "mcp": {
-            "title": "[to be translated]:MCP servers"
+            "title": "Διακομιστές MCP"
           },
           "permissionMode": {
-            "title": "[to be translated]:Step 1 · Permission mode"
+            "title": "Βήμα 1 · Λειτουργία αδειών"
           },
           "preapproved": {
-            "title": "[to be translated]:Step 2 · Pre-approved tools"
+            "title": "Βήμα 2 · Προεγκεκριμένα εργαλεία"
           },
           "review": {
-            "title": "[to be translated]:Step 3 · Review"
+            "title": "Βήμα 3 · Ανασκόπηση"
           }
         },
-        "tab": "[to be translated]:Tooling & permissions"
+        "tab": "Εργαλεία & άδειες"
       },
       "tools": {
         "approved": "εγκεκριμένο",
