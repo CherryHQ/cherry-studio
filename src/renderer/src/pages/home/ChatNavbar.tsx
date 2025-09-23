@@ -41,7 +41,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
   const { agent } = useAgent(activeAgentId)
-  const agentModel = useApiModel(agent?.model)
+  // TODO: filter is temporally for agent since it cannot get all models once
+  const agentModel = useApiModel({ id: agent?.model, filter: { providerType: 'anthropic' } })
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -104,7 +105,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
         {/* TODO: Show a select model button for agent. */}
         {/* FIXME: models endpoint doesn't return all models, so cannot found. */}
-        {activeTopicOrSession === 'session' && <ApiModelLabel model={agentModel} />}
+        {activeTopicOrSession === 'session' && (
+          <ApiModelLabel classNames={{ container: 'text-xs' }} model={agentModel} />
+        )}
       </HStack>
       <HStack alignItems="center" gap={8}>
         <UpdateAppButton />
