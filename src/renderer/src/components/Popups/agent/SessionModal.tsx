@@ -361,6 +361,7 @@ export const SessionModal: React.FC<Props> = ({
                   />
                   <Select
                     selectionMode="multiple"
+                    isMultiline
                     selectedKeys={selectedToolKeys}
                     onSelectionChange={onAllowedToolsChange}
                     label={t('agent.session.allowed_tools.label')}
