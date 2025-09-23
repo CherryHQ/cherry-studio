@@ -26,6 +26,8 @@ export const loadTopicMessagesThunkV2 =
   async (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
 
+    dispatch(newMessagesActions.setCurrentTopicId(topicId))
+
     // Skip if already cached and not forcing reload
     if (!forceReload && state.messages.messageIdsByTopic[topicId]) {
       return

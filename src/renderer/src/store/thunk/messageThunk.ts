@@ -20,7 +20,11 @@ import type { FileMessageBlock, ImageMessageBlock, Message, MessageBlock } from 
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { uuid } from '@renderer/utils'
 import { addAbortController } from '@renderer/utils/abortController'
-import { buildAgentSessionTopicId, isAgentSessionTopicId } from '@renderer/utils/agentSession'
+import {
+  buildAgentSessionTopicId,
+  extractAgentSessionIdFromTopicId,
+  isAgentSessionTopicId
+} from '@renderer/utils/agentSession'
 import {
   createAssistantMessage,
   createTranslationBlock,
@@ -63,10 +67,54 @@ const finishTopicLoading = async (topicId: string) => {
 type AgentSessionContext = {
   agentId: string
   sessionId: string
+  agentSessionId?: string
 }
 
 const agentSessionRenameLocks = new Set<string>()
 const dbFacade = DbService.getInstance()
+
+const findExistingAgentSessionContext = (
+  state: RootState,
+  topicId: string,
+  assistantId: string
+): AgentSessionContext | undefined => {
+  if (!isAgentSessionTopicId(topicId)) {
+    return undefined
+  }
+
+  const sessionId = extractAgentSessionIdFromTopicId(topicId)
+  if (!sessionId) {
+    return undefined
+  }
+
+  const messageIds = state.messages.messageIdsByTopic[topicId]
+  let existingAgentSessionId: string | undefined
+
+  if (messageIds?.length) {
+    for (let index = messageIds.length - 1; index >= 0; index -= 1) {
+      const messageId = messageIds[index]
+      const message = state.messages.entities[messageId]
+      const candidate = message?.agentSessionId?.trim()
+
+      if (!candidate) {
+        continue
+      }
+
+      if (message.assistantId !== assistantId) {
+        continue
+      }
+
+      existingAgentSessionId = candidate
+      break
+    }
+  }
+
+  return {
+    agentId: assistantId,
+    sessionId,
+    agentSessionId: existingAgentSessionId
+  }
+}
 
 const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
   const hasProtocol = apiServer.host.startsWith('http://') || apiServer.host.startsWith('https://')
@@ -605,6 +653,7 @@ const fetchAndProcessAgentResponseImpl = async (
       }
 
       latestAgentSessionId = sessionId
+      agentSession.agentSessionId = sessionId
 
       logger.debug(`Agent session ID updated`, {
         topicId,
@@ -650,7 +699,7 @@ const fetchAndProcessAgentResponseImpl = async (
     }
 
     const adapter = new AiSdkToChunkAdapter(streamProcessorCallbacks, [], false, false, (sessionId) => {
-      void persistAgentSessionId(sessionId)
+      persistAgentSessionId(sessionId)
     })
 
     await adapter.processStream({
@@ -658,13 +707,6 @@ const fetchAndProcessAgentResponseImpl = async (
       text: Promise.resolve('')
     })
 
-    // No longer need persistAgentExchange here since:
-    // 1. User message is already saved via appendMessage when created
-    // 2. Assistant message is saved via appendMessage when created
-    // 3. Updates during streaming are saved via updateMessageAndBlocks
-    // This eliminates the duplicate save issue
-
-    // Attempt final persistence in case the session id arrived late in the stream
     if (latestAgentSessionId) {
       await persistAgentSessionId(latestAgentSessionId)
     }
@@ -858,6 +900,19 @@ export const sendMessage =
         logger.warn('sendMessage: No blocks in the provided message.')
         return
       }
+
+      const stateBeforeSend = getState()
+      let activeAgentSession = agentSession ?? findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
+      if (activeAgentSession) {
+        const derivedSession = findExistingAgentSessionContext(stateBeforeSend, topicId, assistant.id)
+        if (derivedSession?.agentSessionId && derivedSession.agentSessionId !== activeAgentSession.agentSessionId) {
+          activeAgentSession = { ...activeAgentSession, agentSessionId: derivedSession.agentSessionId }
+        }
+      }
+      if (activeAgentSession?.agentSessionId && !userMessage.agentSessionId) {
+        userMessage.agentSessionId = activeAgentSession.agentSessionId
+      }
+
       await saveMessageAndBlocksToDB(userMessage, userMessageBlocks)
       dispatch(newMessagesActions.addMessage({ topicId, message: userMessage }))
       if (userMessageBlocks.length > 0) {
@@ -867,12 +922,15 @@ export const sendMessage =
 
       const queue = getTopicQueue(topicId)
 
-      if (agentSession) {
+      if (activeAgentSession) {
         const assistantMessage = createAssistantMessage(assistant.id, topicId, {
           askId: userMessage.id,
           model: assistant.model,
           traceId: userMessage.traceId
         })
+        if (activeAgentSession.agentSessionId && !assistantMessage.agentSessionId) {
+          assistantMessage.agentSessionId = activeAgentSession.agentSessionId
+        }
         await saveMessageAndBlocksToDB(assistantMessage, [])
         dispatch(newMessagesActions.addMessage({ topicId, message: assistantMessage }))
 
@@ -881,7 +939,7 @@ export const sendMessage =
             topicId,
             assistant,
             assistantMessage,
-            agentSession,
+            agentSession: activeAgentSession,
             userMessageId: userMessage.id
           })
         })
@@ -946,7 +1004,7 @@ export const loadAgentSessionMessagesThunk =
         }
         dispatch(newMessagesActions.messagesReceived({ topicId, messages }))
 
-        logger.info(`Loaded ${messages.length} messages for agent session ${sessionId}`)
+        logger.silly(`Loaded ${messages.length} messages for agent session ${sessionId}`)
       } else {
         dispatch(newMessagesActions.messagesReceived({ topicId, messages: [] }))
       }
