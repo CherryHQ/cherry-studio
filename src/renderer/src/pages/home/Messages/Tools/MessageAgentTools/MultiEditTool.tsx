@@ -6,7 +6,7 @@ import { ToolTitle } from './GenericTools'
 import type { MultiEditToolInput, MultiEditToolOutput } from './types'
 import { AgentToolsType } from './types'
 
-export function MultiEditTool({ input, output }: { input: MultiEditToolInput; output?: MultiEditToolOutput }) {
+export function MultiEditTool({ input }: { input: MultiEditToolInput; output?: MultiEditToolOutput }) {
   return (
     <AccordionItem
       key={AgentToolsType.MultiEdit}
