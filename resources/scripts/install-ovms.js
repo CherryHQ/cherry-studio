@@ -5,7 +5,7 @@ const { execSync } = require('child_process')
 const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
-const OVMS_PKG_NAME = 'ovms2509111.zip'
+const OVMS_PKG_NAME = 'ovms250911.zip'
 const OVMS_RELEASE_BASE_URL = [`https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/${OVMS_PKG_NAME}`]
 
 /**
