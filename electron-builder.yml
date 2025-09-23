@@ -126,17 +126,13 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ✨ 新功能：
-    - 支持在对话中显示 AI 生成的图片
-    - 代码编辑工具支持更多终端类型
-    - 新增 Azure AI 服务支持
-    - 新增通义千问 Plus 模型
+    - 新增 CherryIN 服务商
+    - 新增 AiOnly AI 服务商
+    - 更新 MCP 服务器卡片布局和样式，改为列表视图
 
     🐛 问题修复：
-    - 修复翻译功能中选中文本未正确使用的问题
-    - 修复文件管理中空格键误删文件的问题
-    - 修复部分 AI 服务连接不稳定的问题
-    - 修复翻译页面长文本显示异常
-    - 优化列表显示样式
+    - 修复 QwenMT 模型的翻译内容处理逻辑
+    - 修复无法将外部笔记添加到知识库的问题
 
     🚀 性能优化：
     - 提升输入框响应速度
