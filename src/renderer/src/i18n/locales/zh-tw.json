@@ -3283,6 +3283,7 @@
       "builtinServers": "內置伺服器",
       "builtinServersDescriptions": {
         "brave_search": "一個集成了Brave 搜索 API 的 MCP 伺服器實現，提供網頁與本地搜尋雙重功能。需要配置 BRAVE_API_KEY 環境變數",
+        "didi_mcp": "一個集成了滴滴 MCP 伺服器實現，提供網約車服務包括地圖搜尋、價格預估、訂單管理和司機追蹤。僅支援中國大陸地區。需要配置 DIDI_API_KEY 環境變數",
         "dify_knowledge": "Dify 的 MCP 伺服器實現，提供了一個簡單的 API 來與 Dify 進行互動。需要配置 Dify Key",
         "fetch": "用於獲取 URL 網頁內容的 MCP 伺服器",
         "filesystem": "實現文件系統操作的模型上下文協議（MCP）的 Node.js 伺服器。需要配置允許訪問的目錄",
