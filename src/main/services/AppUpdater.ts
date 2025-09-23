@@ -30,7 +30,8 @@ export default class AppUpdater {
     autoUpdater.autoInstallOnAppQuit = configManager.getAutoUpdate()
     autoUpdater.requestHeaders = {
       ...autoUpdater.requestHeaders,
-      'User-Agent': generateUserAgent()
+      'User-Agent': generateUserAgent(),
+      'X-Client-Id': configManager.getClientId()
     }
 
     autoUpdater.on('error', (error) => {

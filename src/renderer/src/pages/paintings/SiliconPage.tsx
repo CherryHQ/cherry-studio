@@ -47,6 +47,12 @@ export const TEXT_TO_IMAGES_MODELS = [
     provider: 'silicon',
     name: 'Kolors',
     group: 'Kwai-Kolors'
+  },
+  {
+    id: 'Qwen/Qwen-Image',
+    provider: 'silicon',
+    name: 'Qwen-Image',
+    group: 'qwen'
   }
 ]
 

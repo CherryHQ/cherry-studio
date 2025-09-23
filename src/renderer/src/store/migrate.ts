@@ -2480,6 +2480,13 @@ const migrateConfig = {
   '156': (state: RootState) => {
     try {
       addProvider(state, 'aionly')
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === SystemProviderIds.anthropic) {
+          if (provider.apiHost.endsWith('/')) {
+            provider.apiHost = provider.apiHost.slice(0, -1)
+          }
+        }
+      })
       return state
     } catch (error) {
       logger.error('migrate 156 error', error as Error)

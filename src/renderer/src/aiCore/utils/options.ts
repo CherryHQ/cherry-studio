@@ -82,7 +82,9 @@ export function buildProviderOptions(
     // 应该覆盖所有类型
     switch (baseProviderId) {
       case 'openai':
+      case 'openai-chat':
       case 'azure':
+      case 'azure-responses':
         providerSpecificOptions = {
           ...buildOpenAIProviderOptions(assistant, model, capabilities),
           serviceTier: serviceTierSetting
@@ -101,13 +103,15 @@ export function buildProviderOptions(
         providerSpecificOptions = buildXAIProviderOptions(assistant, model, capabilities)
         break
       case 'deepseek':
-      case 'openai-compatible':
+      case 'openrouter':
+      case 'openai-compatible': {
         // 对于其他 provider，使用通用的构建逻辑
         providerSpecificOptions = {
           ...buildGenericProviderOptions(assistant, model, capabilities),
           serviceTier: serviceTierSetting
         }
         break
+      }
       default:
         throw new Error(`Unsupported base provider ${baseProviderId}`)
     }

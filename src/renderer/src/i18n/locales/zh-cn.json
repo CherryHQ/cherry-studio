@@ -132,7 +132,6 @@
     },
     "title": "API 服务器"
   },
-
   "assistants": {
     "abbr": "助手",
     "clear": {
@@ -333,7 +332,8 @@
       },
       "new_topic": "新话题 {{Command}}",
       "pause": "暂停",
-      "placeholder": "在这里输入消息，按 {{key}} 发送...",
+      "placeholder": "在这里输入消息，按 {{key}} 发送 - @ 选择模型， / 选择工具",
+      "placeholder_without_triggers": "在这里输入消息，按 {{key}} 发送",
       "send": "发送",
       "settings": "设置",
       "thinking": {
@@ -661,13 +661,22 @@
       "title": "话题",
       "unpin": "取消固定"
     },
-    "translate": "翻译"
+    "translate": "翻译",
+    "web_search": {
+      "warning": {
+        "openai": "GPT5 模型 minimal 思考强度不支持网络搜索"
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "检查更新并安装最新版本",
     "bun_required_message": "运行 CLI 工具需要安装 Bun 环境",
     "cli_tool": "CLI 工具",
     "cli_tool_placeholder": "选择要使用的 CLI 工具",
+    "custom_path": "自定义路径",
+    "custom_path_error": "设置自定义终端路径失败",
+    "custom_path_required": "此终端需要设置自定义路径",
+    "custom_path_set": "自定义终端路径设置成功",
     "description": "快速启动多个代码 CLI 工具，提高开发效率",
     "env_vars_help": "输入自定义环境变量（每行一个，格式：KEY=value）",
     "environment_variables": "环境变量",
@@ -686,7 +695,10 @@
     "model_placeholder": "选择要使用的模型",
     "model_required": "请选择模型",
     "select_folder": "选择文件夹",
+    "set_custom_path": "设置自定义终端路径",
     "supported_providers": "支持的服务商",
+    "terminal": "终端",
+    "terminal_placeholder": "选择终端应用",
     "title": "代码工具",
     "update_options": "更新选项",
     "working_directory": "工作目录"

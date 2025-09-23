@@ -155,23 +155,23 @@ const Chat: FC<Props> = (props) => {
           flex={1}
           justify="space-between"
           style={{ maxWidth: chatMaxWidth, height: mainHeight }}>
-          <Messages
-            key={props.activeTopic.id}
-            assistant={assistant}
-            topic={props.activeTopic}
-            setActiveTopic={props.setActiveTopic}
-            onComponentUpdate={messagesComponentUpdateHandler}
-            onFirstUpdate={messagesComponentFirstUpdateHandler}
-          />
-          <ContentSearch
-            ref={contentSearchRef}
-            searchTarget={mainRef as React.RefObject<HTMLElement>}
-            filter={contentSearchFilter}
-            includeUser={filterIncludeUser}
-            onIncludeUserChange={userOutlinedItemClickHandler}
-          />
-          {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
           <QuickPanelProvider>
+            <Messages
+              key={props.activeTopic.id}
+              assistant={assistant}
+              topic={props.activeTopic}
+              setActiveTopic={props.setActiveTopic}
+              onComponentUpdate={messagesComponentUpdateHandler}
+              onFirstUpdate={messagesComponentFirstUpdateHandler}
+            />
+            <ContentSearch
+              ref={contentSearchRef}
+              searchTarget={mainRef as React.RefObject<HTMLElement>}
+              filter={contentSearchFilter}
+              includeUser={filterIncludeUser}
+              onIncludeUserChange={userOutlinedItemClickHandler}
+            />
+            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
             <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
             {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
           </QuickPanelProvider>

@@ -255,7 +255,9 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
     try {
       if (isNoteMode) {
         const note = source.data as NotesTreeNode
-        const content = await window.api.file.read(note.id + '.md')
+        const content = note.externalPath
+          ? await window.api.file.readExternal(note.externalPath)
+          : await window.api.file.read(note.id + '.md')
         logger.debug('Note content:', content)
         await addNote(content)
         savedCount = 1

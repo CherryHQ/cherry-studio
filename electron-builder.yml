@@ -126,19 +126,19 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     ✨ 新功能：
-    - 集成 Perplexity SDK 和 Anthropic OAuth
-    - 支持 API 服务器模式，提供外部调用接口
-    - 新增字体自定义设置功能
-    - 笔记支持文件夹批量上传
-    - 集成 HeroUI 和 Tailwind CSS 提升界面体验
-
-    🚀 性能优化：
-    - 优化大文件上传，支持 OpenAI 标准文件服务
-    - 重构 MCP 服务，改进错误处理和状态管理
+    - 支持在对话中显示 AI 生成的图片
+    - 代码编辑工具支持更多终端类型
+    - 新增 Azure AI 服务支持
+    - 新增通义千问 Plus 模型
 
     🐛 问题修复：
-    - 修复 WebSearch RAG 并发问题
-    - 修复翻译页面长文本渲染布局问题
-    - 修复笔记拖拽排序和无限循环问题
-    - 修复 macOS CodeTool 工作目录错误
-    - 修复多个 UI 组件的响应式设计问题
+    - 修复翻译功能中选中文本未正确使用的问题
+    - 修复文件管理中空格键误删文件的问题
+    - 修复部分 AI 服务连接不稳定的问题
+    - 修复翻译页面长文本显示异常
+    - 优化列表显示样式
+
+    🚀 性能优化：
+    - 提升输入框响应速度
+    - 优化模型切换性能
+    - 改进翻译功能的引用和邮件格式处理

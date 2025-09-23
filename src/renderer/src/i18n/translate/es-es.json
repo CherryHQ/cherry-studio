@@ -362,8 +362,9 @@
       "translate": "Traducir a {{target_language}}",
       "translating": "Traduciendo...",
       "upload": {
+        "attachment": "Subir archivo adjunto",
         "document": "Subir documento (el modelo no admite imágenes)",
-        "label": "Subir imagen o documento",
+        "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
       "url_context": "Contexto de la página web",
@@ -659,13 +660,22 @@
       "title": "Tema",
       "unpin": "Quitar fijación"
     },
-    "translate": "Traducir"
+    "translate": "Traducir",
+    "web_search": {
+      "warning": {
+        "openai": "El modelo GPT5 con intensidad de pensamiento mínima no admite búsqueda en la web."
+      }
+    }
   },
   "code": {
     "auto_update_to_latest": "Comprobar actualizaciones e instalar la versión más reciente",
     "bun_required_message": "Se requiere instalar el entorno Bun para ejecutar la herramienta de línea de comandos",
     "cli_tool": "Herramienta de línea de comandos",
     "cli_tool_placeholder": "Seleccione la herramienta de línea de comandos que desea utilizar",
+    "custom_path": "Ruta personalizada",
+    "custom_path_error": "Error al establecer la ruta de terminal personalizada",
+    "custom_path_required": "此终端需要设置自定义路径",
+    "custom_path_set": "Configuración de ruta de terminal personalizada exitosa",
     "description": "Inicia rápidamente múltiples herramientas de línea de comandos para código, aumentando la eficiencia del desarrollo",
     "env_vars_help": "Introduzca variables de entorno personalizadas (una por línea, formato: CLAVE=valor)",
     "environment_variables": "Variables de entorno",
@@ -684,7 +694,10 @@
     "model_placeholder": "Seleccionar el modelo que se va a utilizar",
     "model_required": "Seleccione el modelo",
     "select_folder": "Seleccionar carpeta",
+    "set_custom_path": "Establecer ruta de terminal personalizada",
     "supported_providers": "Proveedores de servicios compatibles",
+    "terminal": "terminal",
+    "terminal_placeholder": "Seleccionar aplicación de terminal",
     "title": "Herramientas de código",
     "update_options": "Opciones de actualización",
     "working_directory": "directorio de trabajo"

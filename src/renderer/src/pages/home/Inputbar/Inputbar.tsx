@@ -71,6 +71,7 @@ interface Props {
 
 let _text = ''
 let _files: FileType[] = []
+let _mentionedModelsCache: Model[] = []
 
 const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
   const [text, setText] = useState(_text)
@@ -103,7 +104,8 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const [isTranslating, setIsTranslating] = useState(false)
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
-  const [mentionedModels, setMentionedModels] = useState<Model[]>([])
+  const [mentionedModels, setMentionedModels] = useState<Model[]>(_mentionedModelsCache)
+  const mentionedModelsRef = useRef(mentionedModels)
   const [isDragging, setIsDragging] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
@@ -113,6 +115,10 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
+
+  useEffect(() => {
+    mentionedModelsRef.current = mentionedModels
+  }, [mentionedModels])
 
   const isVisionSupported = useMemo(
     () =>
@@ -156,6 +162,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const [tokenCount, setTokenCount] = useState(0)
 
   const inputbarToolsRef = useRef<InputbarToolsRef>(null)
+  const prevTextRef = useRef(text)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedEstimate = useCallback(
@@ -172,12 +179,32 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     debouncedEstimate(text)
   }, [text, debouncedEstimate])
 
+  useEffect(() => {
+    prevTextRef.current = text
+  }, [text])
+
   const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
+
+  const placeholderText = enableQuickPanelTriggers
+    ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
+    : t('chat.input.placeholder_without_triggers', {
+        key: getSendMessageShortcutLabel(sendMessageShortcut),
+        defaultValue: t('chat.input.placeholder', {
+          key: getSendMessageShortcutLabel(sendMessageShortcut)
+        })
+      })
 
   const inputEmpty = isEmpty(text.trim()) && files.length === 0
 
   _text = text
   _files = files
+
+  useEffect(() => {
+    // 利用useEffect清理函数在卸载组件时更新状态缓存
+    return () => {
+      _mentionedModelsCache = mentionedModelsRef.current
+    }
+  }, [])
 
   const focusTextarea = useCallback(() => {
     textareaRef.current?.focus()
@@ -364,7 +391,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       }
     }
 
-    if (event.key === 'Backspace' && text.trim() === '' && files.length > 0) {
+    if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
       setFiles((prev) => prev.slice(0, -1))
       return event.preventDefault()
     }
@@ -428,43 +455,91 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const newText = e.target.value
       setText(newText)
 
+      const prevText = prevTextRef.current
+      const isDeletion = newText.length < prevText.length
+
       const textArea = textareaRef.current?.resizableTextArea?.textArea
-      const cursorPosition = textArea?.selectionStart ?? 0
+      const cursorPosition = textArea?.selectionStart ?? newText.length
       const lastSymbol = newText[cursorPosition - 1]
+      const previousChar = newText[cursorPosition - 2]
+      const isCursorAtTextStart = cursorPosition <= 1
+      const hasValidTriggerBoundary = previousChar === ' ' || isCursorAtTextStart
+
+      const openRootPanelAt = (position: number) => {
+        const quickPanelMenu =
+          inputbarToolsRef.current?.getQuickPanelMenu({
+            text: newText,
+            translate
+          }) || []
+
+        quickPanel.open({
+          title: t('settings.quickPanel.title'),
+          list: quickPanelMenu,
+          symbol: QuickPanelReservedSymbol.Root,
+          triggerInfo: {
+            type: 'input',
+            position,
+            originalText: newText
+          }
+        })
+      }
+
+      const openMentionPanelAt = (position: number) => {
+        inputbarToolsRef.current?.openMentionModelsPanel({
+          type: 'input',
+          position,
+          originalText: newText
+        })
+      }
+
+      if (enableQuickPanelTriggers && !quickPanel.isVisible) {
+        const textBeforeCursor = newText.slice(0, cursorPosition)
+        const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
+        const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
+        const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
+
+        if (lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
+          const triggerChar = newText[lastTriggerIndex]
+          const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
+          const hasBoundary = lastTriggerIndex === 0 || /\s/.test(boundaryChar)
+          const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
+          const hasSearchContent = searchSegment.trim().length > 0
+
+          if (hasBoundary && (!hasSearchContent || isDeletion)) {
+            if (triggerChar === QuickPanelReservedSymbol.Root) {
+              openRootPanelAt(lastTriggerIndex)
+            } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
+              openMentionPanelAt(lastTriggerIndex)
+            }
+          }
+        }
+      }
 
       // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root) {
+      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root && hasValidTriggerBoundary) {
         if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
           quickPanel.close('switch-symbol')
         }
         if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
-          const quickPanelMenu =
-            inputbarToolsRef.current?.getQuickPanelMenu({
-              text: newText,
-              translate
-            }) || []
-
-          quickPanel.open({
-            title: t('settings.quickPanel.title'),
-            list: quickPanelMenu,
-            symbol: QuickPanelReservedSymbol.Root
-          })
+          openRootPanelAt(cursorPosition - 1)
         }
       }
 
       // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.MentionModels) {
+      if (
+        enableQuickPanelTriggers &&
+        lastSymbol === QuickPanelReservedSymbol.MentionModels &&
+        hasValidTriggerBoundary
+      ) {
         if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
           quickPanel.close('switch-symbol')
         }
         if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
-          inputbarToolsRef.current?.openMentionModelsPanel({
-            type: 'input',
-            position: cursorPosition - 1,
-            originalText: newText
-          })
+          openMentionPanelAt(cursorPosition - 1)
         }
       }
+
+      prevTextRef.current = newText
     },
     [enableQuickPanelTriggers, quickPanel, t, translate]
   )
@@ -770,11 +845,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
             value={text}
             onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={
-              isTranslating
-                ? t('chat.input.translating')
-                : t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
-            }
+            placeholder={isTranslating ? t('chat.input.translating') : placeholderText}
             autoFocus
             variant="borderless"
             spellCheck={enableSpellCheck}

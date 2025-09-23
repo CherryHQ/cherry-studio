@@ -213,7 +213,8 @@ export function providerToAiSdkConfig(
     options: {
       ...options,
       name: actualProvider.id,
-      ...extraOptions
+      ...extraOptions,
+      includeUsage: true
     }
   }
 }
