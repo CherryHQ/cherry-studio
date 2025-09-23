@@ -19,8 +19,8 @@ import {
   Provider,
   Shortcut,
   SupportedOcrFile,
-  ThemeMode,
-} from "@types";
+  ThemeMode
+} from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
@@ -220,18 +220,15 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(
     IpcChannel.AgentMessage_GetHistory,
-    async (
-      _event,
-      { sessionId }: { sessionId: string }
-    ): Promise<AgentPersistedMessage[]> => {
+    async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
       try {
-        return await agentMessageRepository.getSessionHistory(sessionId);
+        return await agentMessageRepository.getSessionHistory(sessionId)
       } catch (error) {
-        logger.error("Failed to get agent session history", error as Error);
-        throw error;
+        logger.error('Failed to get agent session history', error as Error)
+        throw error
       }
     }
-  );
+  )
 
   //only for mac
   if (isMac) {

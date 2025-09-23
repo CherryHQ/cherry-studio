@@ -903,7 +903,7 @@ const createMessagesRouter = (): express.Router => {
    *           application/json:
    *             schema:
    *               $ref: '#/components/schemas/ErrorResponse'
-  */
+   */
   messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessage)
 
   /**
