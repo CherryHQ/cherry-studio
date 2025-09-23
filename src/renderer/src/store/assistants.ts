@@ -46,8 +46,9 @@ const assistantsSlice = createSlice({
     removeAssistant: (state, action: PayloadAction<{ id: string }>) => {
       state.assistants = state.assistants.filter((c) => c.id !== action.payload.id)
     },
-    updateAssistant: (state, action: PayloadAction<Partial<Assistant>>) => {
-      state.assistants = state.assistants.map((c) => (c.id === action.payload.id ? { ...c, ...action.payload } : c))
+    updateAssistant: (state, action: PayloadAction<Partial<Assistant> & { id: string }>) => {
+      const { id, ...update } = action.payload
+      state.assistants = state.assistants.map((c) => (c.id === id ? { ...c, ...update } : c))
     },
     updateAssistantSettings: (
       state,

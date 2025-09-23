@@ -147,10 +147,10 @@ const InputbarTools = ({
 
   const handleKnowledgeBaseSelect = useCallback(
     (bases?: KnowledgeBase[]) => {
-      updateAssistant({ knowledge_bases: bases })
+      updateAssistant({ id: assistant.id, knowledge_bases: bases })
       setSelectedKnowledgeBases(bases ?? [])
     },
-    [setSelectedKnowledgeBases, updateAssistant]
+    [assistant.id, setSelectedKnowledgeBases, updateAssistant]
   )
 
   // 仅允许在不含图片文件时mention非视觉模型
@@ -177,8 +177,8 @@ const InputbarTools = ({
   const onClearMentionModels = useCallback(() => setMentionedModels([]), [setMentionedModels])
 
   const onEnableGenerateImage = useCallback(() => {
-    updateAssistant({ enableGenerateImage: !assistant.enableGenerateImage })
-  }, [assistant.enableGenerateImage, updateAssistant])
+    updateAssistant({ id: assistant.id, enableGenerateImage: !assistant.enableGenerateImage })
+  }, [assistant.enableGenerateImage, assistant.id, updateAssistant])
 
   const newTopicShortcut = useShortcutDisplay('new_topic')
   const clearTopicShortcut = useShortcutDisplay('clear_topic')
