@@ -11,6 +11,7 @@ import {
   validateSession,
   validateSessionId,
   validateSessionMessage,
+  validateSessionMessageId,
   validateSessionReplace,
   validateSessionUpdate
 } from './validators'
@@ -362,7 +363,7 @@ const agentsRouter = express.Router()
 
 /**
  * @swagger
- * /api/agents:
+ * /agents:
  *   post:
  *     summary: Create a new agent
  *     tags: [Agents]
@@ -391,7 +392,7 @@ agentsRouter.post('/', validateAgent, handleValidationErrors, agentHandlers.crea
 
 /**
  * @swagger
- * /api/agents:
+ * /agents:
  *   get:
  *     summary: List all agents with pagination
  *     tags: [Agents]
@@ -429,7 +430,7 @@ agentsRouter.get('/', validatePagination, handleValidationErrors, agentHandlers.
 
 /**
  * @swagger
- * /api/agents/{agentId}:
+ * /agents/{agentId}:
  *   get:
  *     summary: Get agent by ID
  *     tags: [Agents]
@@ -457,7 +458,7 @@ agentsRouter.get('/', validatePagination, handleValidationErrors, agentHandlers.
 agentsRouter.get('/:agentId', validateAgentId, handleValidationErrors, agentHandlers.getAgent)
 /**
  * @swagger
- * /api/agents/{agentId}:
+ * /agents/{agentId}:
  *   put:
  *     summary: Replace agent (full update)
  *     tags: [Agents]
@@ -497,7 +498,7 @@ agentsRouter.get('/:agentId', validateAgentId, handleValidationErrors, agentHand
 agentsRouter.put('/:agentId', validateAgentId, validateAgentReplace, handleValidationErrors, agentHandlers.updateAgent)
 /**
  * @swagger
- * /api/agents/{agentId}:
+ * /agents/{agentId}:
  *   patch:
  *     summary: Update agent (partial update)
  *     tags: [Agents]
@@ -537,7 +538,7 @@ agentsRouter.put('/:agentId', validateAgentId, validateAgentReplace, handleValid
 agentsRouter.patch('/:agentId', validateAgentId, validateAgentUpdate, handleValidationErrors, agentHandlers.patchAgent)
 /**
  * @swagger
- * /api/agents/{agentId}:
+ * /agents/{agentId}:
  *   delete:
  *     summary: Delete agent
  *     tags: [Agents]
@@ -567,7 +568,7 @@ const createSessionsRouter = (): express.Router => {
   // Session CRUD routes (nested under agent)
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions:
+   * /agents/{agentId}/sessions:
    *   post:
    *     summary: Create a new session for an agent
    *     tags: [Sessions]
@@ -608,7 +609,7 @@ const createSessionsRouter = (): express.Router => {
 
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions:
+   * /agents/{agentId}/sessions:
    *   get:
    *     summary: List sessions for an agent
    *     tags: [Sessions]
@@ -657,7 +658,7 @@ const createSessionsRouter = (): express.Router => {
   sessionsRouter.get('/', validatePagination, handleValidationErrors, sessionHandlers.listSessions)
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions/{sessionId}:
+   * /agents/{agentId}/sessions/{sessionId}:
    *   get:
    *     summary: Get session by ID
    *     tags: [Sessions]
@@ -691,7 +692,7 @@ const createSessionsRouter = (): express.Router => {
   sessionsRouter.get('/:sessionId', validateSessionId, handleValidationErrors, sessionHandlers.getSession)
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions/{sessionId}:
+   * /agents/{agentId}/sessions/{sessionId}:
    *   put:
    *     summary: Replace session (full update)
    *     tags: [Sessions]
@@ -743,7 +744,7 @@ const createSessionsRouter = (): express.Router => {
   )
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions/{sessionId}:
+   * /agents/{agentId}/sessions/{sessionId}:
    *   patch:
    *     summary: Update session (partial update)
    *     tags: [Sessions]
@@ -795,7 +796,7 @@ const createSessionsRouter = (): express.Router => {
   )
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions/{sessionId}:
+   * /agents/{agentId}/sessions/{sessionId}:
    *   delete:
    *     summary: Delete session
    *     tags: [Sessions]
@@ -834,7 +835,7 @@ const createMessagesRouter = (): express.Router => {
   // Message CRUD routes (nested under agent/session)
   /**
    * @swagger
-   * /api/agents/{agentId}/sessions/{sessionId}/messages:
+   * /agents/{agentId}/sessions/{sessionId}/messages:
    *   post:
    *     summary: Create a new message in a session
    *     tags: [Messages]
@@ -902,8 +903,45 @@ const createMessagesRouter = (): express.Router => {
    *           application/json:
    *             schema:
    *               $ref: '#/components/schemas/ErrorResponse'
-   */
+  */
   messagesRouter.post('/', validateSessionMessage, handleValidationErrors, messageHandlers.createMessage)
+
+  /**
+   * @swagger
+   * /agents/{agentId}/sessions/{sessionId}/messages/{messageId}:
+   *   delete:
+   *     summary: Delete a message from a session
+   *     tags: [Messages]
+   *     parameters:
+   *       - in: path
+   *         name: agentId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Agent ID
+   *       - in: path
+   *         name: sessionId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: Session ID
+   *       - in: path
+   *         name: messageId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *         description: Message ID
+   *     responses:
+   *       204:
+   *         description: Message deleted successfully
+   *       404:
+   *         description: Agent, session, or message not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ErrorResponse'
+   */
+  messagesRouter.delete('/:messageId', validateSessionMessageId, handleValidationErrors, messageHandlers.deleteMessage)
   return messagesRouter
 }
 

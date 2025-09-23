@@ -228,3 +228,53 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.end()
   }
 }
+
+export const deleteMessage = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { agentId, sessionId, messageId: messageIdParam } = req.params
+    const messageId = Number(messageIdParam)
+
+    await verifyAgentAndSession(agentId, sessionId)
+
+    const deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
+
+    if (!deleted) {
+      logger.warn(`Message ${messageId} not found for session ${sessionId}`)
+      return res.status(404).json({
+        error: {
+          message: 'Message not found for this session',
+          type: 'not_found',
+          code: 'session_message_not_found'
+        }
+      })
+    }
+
+    logger.info(`Message ${messageId} deleted successfully for session ${sessionId}`)
+    return res.status(204).send()
+  } catch (error: any) {
+    if (error?.status === 404) {
+      logger.warn('Delete message failed - missing resource', {
+        agentId: req.params.agentId,
+        sessionId: req.params.sessionId,
+        messageId: req.params.messageId,
+        error
+      })
+      return res.status(404).json({
+        error: {
+          message: error.message,
+          type: 'not_found',
+          code: error.code ?? 'session_message_not_found'
+        }
+      })
+    }
+
+    logger.error('Error deleting session message:', error)
+    return res.status(500).json({
+      error: {
+        message: 'Failed to delete session message',
+        type: 'internal_error',
+        code: 'session_message_delete_failed'
+      }
+    })
+  }
+}

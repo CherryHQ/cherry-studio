@@ -6,9 +6,14 @@ import { NormalToolResponse } from '@renderer/types'
 export * from './types'
 
 // 导入所有渲染器
+import { BashOutputTool } from './BashOutputTool'
 import { BashTool } from './BashTool'
+import { EditTool } from './EditTool'
+import { ExitPlanModeTool } from './ExitPlanModeTool'
 import { GlobTool } from './GlobTool'
 import { GrepTool } from './GrepTool'
+import { MultiEditTool } from './MultiEditTool'
+import { NotebookEditTool } from './NotebookEditTool'
 import { ReadTool } from './ReadTool'
 import { SearchTool } from './SearchTool'
 import { TaskTool } from './TaskTool'
@@ -31,7 +36,12 @@ export const toolRenderers = {
   [AgentToolsType.WebSearch]: WebSearchTool,
   [AgentToolsType.Grep]: GrepTool,
   [AgentToolsType.Write]: WriteTool,
-  [AgentToolsType.WebFetch]: WebFetchTool
+  [AgentToolsType.WebFetch]: WebFetchTool,
+  [AgentToolsType.Edit]: EditTool,
+  [AgentToolsType.MultiEdit]: MultiEditTool,
+  [AgentToolsType.BashOutput]: BashOutputTool,
+  [AgentToolsType.NotebookEdit]: NotebookEditTool,
+  [AgentToolsType.ExitPlanMode]: ExitPlanModeTool
 } as const
 
 // 类型守卫函数
@@ -51,7 +61,8 @@ function renderToolContent(toolName: AgentToolsType, input: ToolInput, output?: 
           'p-0 [&>div:first-child]:!flex-none [&>div:first-child]:flex [&>div:first-child]:flex-col [&>div:first-child]:text-start [&>div:first-child]:max-w-full',
         indicator: 'flex-shrink-0',
         subtitle: 'text-xs',
-        content: 'rounded-md bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 h-fit max-h-96 scroll-auto'
+        content:
+          'rounded-md bg-foreground-50 p-2 text-foreground-900 dark:bg-foreground-100 max-h-96 p-2 overflow-scroll'
       }}
       defaultExpandedKeys={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}>
       {/* <Renderer input={input as any} output={output as any} /> */}

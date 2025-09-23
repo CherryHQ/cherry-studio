@@ -6,7 +6,7 @@ import type {
   ListOptions
 } from '@types'
 import { TextStreamPart } from 'ai'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
@@ -145,6 +145,16 @@ export class SessionMessageService extends BaseService {
     return { messages }
   }
 
+  async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
+    this.ensureInitialized()
+
+    const result = await this.database
+      .delete(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.session_id, sessionId)))
+
+    return result.rowsAffected > 0
+  }
+
   async createSessionMessage(
     session: GetAgentSessionResponse,
     messageData: CreateSessionMessageRequest,
@@ -270,6 +280,7 @@ export class SessionMessageService extends BaseService {
         .orderBy(desc(sessionMessagesTable.created_at))
         .limit(1)
 
+      logger.silly('Last agent session ID result:', { agentSessionId: result[0]?.agent_session_id, sessionId })
       return result[0]?.agent_session_id || ''
     } catch (error) {
       logger.error('Failed to get last agent session ID', {

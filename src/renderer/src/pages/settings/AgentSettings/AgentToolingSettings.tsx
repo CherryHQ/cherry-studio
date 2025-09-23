@@ -108,6 +108,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
   const { t } = useTranslation()
   const client = useAgentClient()
   const { mcpServers: allServers } = useMCPServers()
+  const [modal, contextHolder] = Modal.useModal()
 
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [selectedMode, setSelectedMode] = useState<PermissionMode>(defaultConfiguration.permission_mode)
@@ -192,8 +193,12 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
       }
 
       if (removedDefaults.length > 0) {
-        Modal.confirm({
-          title: t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?'),
+        modal.confirm({
+          title: (
+            <span className="text-foreground">
+              {t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?')}
+            </span>
+          ),
           content: (
             <div className="flex flex-col gap-2">
               <p className="text-foreground-500 text-sm">
@@ -207,7 +212,11 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
                 <ul className="mt-1 list-disc pl-4">
                   {removedDefaults.map((id) => {
                     const tool = availableTools.find((item) => item.id === id)
-                    return <li key={id}>{tool?.name ?? id}</li>
+                    return (
+                      <li className="text-foreground" key={id}>
+                        {tool?.name ?? id}
+                      </li>
+                    )
                   })}
                 </ul>
               </div>
@@ -215,13 +224,27 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
           ),
           okText: t('common.confirm'),
           cancelText: t('common.cancel'),
-          onOk: applyChange
+          onOk: applyChange,
+          classNames: {
+            content: 'bg-background! border! border-solid! rounded border-grey border-default-200!'
+          }
         })
       } else {
         void applyChange()
       }
     },
-    [agent, selectedMode, isUpdatingMode, availableTools, userAddedIds, autoToolIds, configuration, updateAgent, t]
+    [
+      agent,
+      selectedMode,
+      isUpdatingMode,
+      availableTools,
+      userAddedIds,
+      autoToolIds,
+      configuration,
+      updateAgent,
+      modal,
+      t
+    ]
   )
 
   const handleToggleTool = useCallback(
@@ -300,6 +323,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
 
   return (
     <SettingsContainer>
+      {contextHolder}
       <SettingsItem>
         <SettingsTitle>
           {t('agent.settings.tooling.steps.permissionMode.title', 'Step 1 · Permission mode')}
@@ -309,6 +333,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
             const isSelected = card.mode === selectedMode
             const disabled = card.unsupported
             const showCaution = card.caution
+
             return (
               <Card
                 key={card.mode}
@@ -338,13 +363,15 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
                 <CardBody className="gap-2 text-left text-xs">
                   <span className="text-foreground-600">{t(card.behaviorKey, card.behaviorFallback)}</span>
                   {showCaution ? (
-                    <span className="flex items-center gap-1 text-danger-600">
-                      <ShieldAlert size={14} />
-                      {t(
-                        'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                        'Use with caution — all tools will run without asking for approval.'
-                      )}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <ShieldAlert size={24} />
+                      <span className="text-danger-600">
+                        {t(
+                          'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+                          'Use with caution — all tools will run without asking for approval.'
+                        )}
+                      </span>
+                    </div>
                   ) : null}
                 </CardBody>
               </Card>
@@ -375,7 +402,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
             onValueChange={setSearchTerm}
             placeholder={t('agent.settings.tooling.preapproved.search', 'Search tools')}
             aria-label={t('agent.settings.tooling.preapproved.search', 'Search tools')}
-            className="max-w-md"
+            className="w-full"
           />
           <div className="flex flex-col gap-3">
             {filteredTools.length === 0 ? (

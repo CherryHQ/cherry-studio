@@ -14,31 +14,28 @@ const getStatusConfig = (status: TodoItem['status']) => {
     case 'completed':
       return {
         color: 'success' as const,
-        icon: <CheckCircle className="h-3 w-3" />,
-        label: '已完成'
+        icon: <CheckCircle className="h-3 w-3" />
       }
     case 'in_progress':
       return {
         color: 'primary' as const,
-        icon: <Clock className="h-3 w-3" />,
-        label: '进行中'
+        icon: <Clock className="h-3 w-3" />
       }
     case 'pending':
       return {
         color: 'default' as const,
-        icon: <Circle className="h-3 w-3" />,
-        label: '待处理'
+        icon: <Circle className="h-3 w-3" />
       }
     default:
       return {
         color: 'default' as const,
-        icon: <Circle className="h-3 w-3" />,
-        label: '待处理'
+        icon: <Circle className="h-3 w-3" />
       }
   }
 }
 
 export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType; output?: TodoWriteToolOutputType }) {
+  const doneCount = input.todos.filter((todo) => todo.status === 'completed').length
   return (
     <AccordionItem
       key={AgentToolsType.TodoWrite}
@@ -46,7 +43,8 @@ export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType
       title={
         <ToolTitle
           icon={<ListTodo className="h-4 w-4" />}
-          label="Todo Update"
+          label="Todo Write"
+          params={`${doneCount} Done`}
           stats={`${input.todos.length} ${input.todos.length === 1 ? 'item' : 'items'}`}
         />
       }>
@@ -55,15 +53,10 @@ export function TodoWriteTool({ input, output }: { input: TodoWriteToolInputType
           const statusConfig = getStatusConfig(todo.status)
           return (
             <Card key={index} className="shadow-sm">
-              <CardBody>
+              <CardBody className="p-2">
                 <div className="flex items-start gap-3">
-                  <Chip
-                    color={statusConfig.color}
-                    variant="flat"
-                    size="sm"
-                    startContent={statusConfig.icon}
-                    className="flex-shrink-0">
-                    {statusConfig.label}
+                  <Chip color={statusConfig.color} variant="flat" size="sm" className="flex-shrink-0">
+                    {statusConfig.icon}
                   </Chip>
                   <div className="min-w-0 flex-1">
                     <div className={`text-sm ${todo.status === 'completed' ? 'text-default-500 line-through' : ''}`}>

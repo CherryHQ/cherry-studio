@@ -102,19 +102,14 @@ class MCPApiService extends EventEmitter {
 
   async getServerInfo(id: string): Promise<any> {
     try {
-      logger.silly(`getServerInfo called with id: ${id}`)
       const server = await this.getServerById(id)
       if (!server) {
         logger.warn(`Server with id ${id} not found`)
         return null
       }
-      logger.silly(`Returning server info for id ${id}`)
 
       const client = await mcpService.initClient(server)
       const tools = await client.listTools()
-
-      logger.silly(`Server with id ${id} info:`, { tools: JSON.stringify(tools.tools) })
-
       return {
         id: server.id,
         name: server.name,
