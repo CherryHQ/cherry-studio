@@ -77,10 +77,7 @@ export const AgentToolSettings: FC<AgentToolSettingsProps> = ({ agent, updateAge
               {t('agent.settings.tools.title', 'Pre-approved tools')}
               <Tooltip
                 placement="right"
-                content={t(
-                  'agent.settings.tools.description',
-                  'Choose which tools can run without manual approval.'
-                )}>
+                content={t('agent.settings.tools.description', 'Choose which tools can run without manual approval.')}>
                 <Info size={16} className="text-foreground-400" />
               </Tooltip>
             </SettingsTitle>
@@ -91,13 +88,15 @@ export const AgentToolSettings: FC<AgentToolSettingsProps> = ({ agent, updateAge
             ) : null}
           </div>
 
-          <Alert
-            color="warning"
-            title={t(
-              'agent.settings.tools.caution',
-              'Pre-approved tools bypass human review. Enable only trusted tools.'
-            )}
-          />
+          <div>
+            <Alert
+              color="warning"
+              title={t(
+                'agent.settings.tools.caution',
+                'Pre-approved tools bypass human review. Enable only trusted tools.'
+              )}
+            />
+          </div>
 
           {availableTools.length > 0 ? (
             <div className="flex flex-1 flex-col gap-3 overflow-auto pr-1">
@@ -124,10 +123,7 @@ export const AgentToolSettings: FC<AgentToolSettingsProps> = ({ agent, updateAge
                     {tool.requirePermissions ? (
                       <CardBody className="py-0 pb-3">
                         <span className="text-foreground-400 text-xs">
-                          {t(
-                            'agent.settings.tools.requiresPermission',
-                            'Requires permission when not pre-approved.'
-                          )}
+                          {t('agent.settings.tools.requiresPermission', 'Requires permission when not pre-approved.')}
                         </span>
                       </CardBody>
                     ) : null}
