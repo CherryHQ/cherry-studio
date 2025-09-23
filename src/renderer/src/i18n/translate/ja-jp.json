@@ -82,26 +82,96 @@
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
-          "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
-          "label": "会話ラウンド数の上限"
+          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
+          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
+          "label": "[to be translated]:会话轮次数上限"
         },
         "permissionMode": {
-          "description": "制御エージェントが認可を必要とする場合の処理方法。",
-          "label": "権限モード",
+          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
+          "label": "[to be translated]:权限模式",
           "options": {
-            "acceptEdits": "自動的に編集を受け入れる",
-            "bypassPermissions": "権限チェックをスキップ",
-            "default": "デフォルト（続行する前に確認）",
-            "plan": "計画モード（承認が必要な計画）"
+            "acceptEdits": "[to be translated]:自动接受编辑",
+            "bypassPermissions": "[to be translated]:跳过权限检查",
+            "default": "[to be translated]:默认（继续前询问）",
+            "plan": "[to be translated]:规划模式（需审批计划）"
           },
-          "placeholder": "権限モードを選択"
+          "placeholder": "[to be translated]:选择权限模式"
         },
-        "title": "高級設定"
+        "title": "[to be translated]:高级设置"
       },
       "essential": "必須設定",
       "mcps": "MCPサーバー",
       "prompt": "プロンプト設定",
+      "tooling": {
+        "mcp": {
+          "description": "[to be translated]:Connect MCP servers to unlock additional tools you can approve above.",
+          "empty": "[to be translated]:No MCP servers detected. Add one from the MCP settings page.",
+          "manageHint": "[to be translated]:Need advanced configuration? Visit Settings → MCP Servers.",
+          "toggle": "[to be translated]:Toggle {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "[to be translated]:Pre-approves trusted filesystem tools so edits run immediately.",
+            "description": "[to be translated]:File edits and filesystem operations are automatically approved.",
+            "title": "[to be translated]:Auto-accept file edits"
+          },
+          "bypassPermissions": {
+            "behavior": "[to be translated]:Every tool is pre-approved automatically.",
+            "description": "[to be translated]:All permission prompts are skipped — use with caution.",
+            "title": "[to be translated]:Bypass permission checks",
+            "warning": "[to be translated]:Use with caution — all tools will run without asking for approval."
+          },
+          "confirmChange": {
+            "description": "[to be translated]:Switching modes updates the automatically approved tools.",
+            "title": "[to be translated]:Change permission mode?"
+          },
+          "default": {
+            "behavior": "[to be translated]:No tools are pre-approved automatically.",
+            "description": "[to be translated]:Normal permission checks apply.",
+            "title": "[to be translated]:Default (ask before continuing)"
+          },
+          "plan": {
+            "behavior": "[to be translated]:Read-only tools only. Execution is disabled.",
+            "description": "[to be translated]:Claude can only use read-only tools and presents a plan before execution.",
+            "title": "[to be translated]:Planning mode (coming soon)"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "[to be translated]:Added by mode",
+          "autoDescription": "[to be translated]:This tool is auto-approved by the current permission mode.",
+          "empty": "[to be translated]:No tools match your filters.",
+          "mcpBadge": "[to be translated]:MCP tool",
+          "requiresApproval": "[to be translated]:Requires approval when disabled",
+          "search": "[to be translated]:Search tools",
+          "toggle": "[to be translated]:Toggle {{name}}",
+          "warning": {
+            "description": "[to be translated]:Enable only tools you trust. Mode defaults are highlighted automatically.",
+            "title": "[to be translated]:Pre-approved tools run without manual review."
+          }
+        },
+        "review": {
+          "autoTools": "[to be translated]:Auto: {{count}}",
+          "customTools": "[to be translated]:Custom: {{count}}",
+          "helper": "[to be translated]:Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
+          "mcp": "[to be translated]:MCP: {{count}}",
+          "mode": "[to be translated]:Mode: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "[to be translated]:MCP servers"
+          },
+          "permissionMode": {
+            "title": "[to be translated]:Step 1 · Permission mode"
+          },
+          "preapproved": {
+            "title": "[to be translated]:Step 2 · Pre-approved tools"
+          },
+          "review": {
+            "title": "[to be translated]:Step 3 · Review"
+          }
+        },
+        "tab": "[to be translated]:Tooling & permissions"
+      },
       "tools": {
         "approved": "承認済み",
         "caution": "事前承認したツールは人によるレビューをスキップします。信頼できるツールのみ有効にしてください。",
