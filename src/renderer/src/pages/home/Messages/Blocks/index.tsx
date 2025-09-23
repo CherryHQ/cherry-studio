@@ -3,7 +3,7 @@ import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
-import { isMainTextBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
+import { isMainTextBlock, isMessageProcessing, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import React, { useMemo } from 'react'
 import { useSelector } from 'react-redux'
@@ -106,6 +106,18 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
   const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
+
+  // Check if message is still processing
+  const isProcessing = isMessageProcessing(message)
+
+  // Check if there's already a placeholder block being shown
+  const hasPlaceholderBlock = useMemo(() =>
+    groupedBlocks.some(block =>
+      !Array.isArray(block) &&
+      block.type === MessageBlockType.UNKNOWN &&
+      block.status === MessageBlockStatus.PROCESSING
+    ), [groupedBlocks]
+  )
 
   return (
     <AnimatePresence mode="sync">
@@ -213,6 +225,19 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
           </AnimatedBlockWrapper>
         )
       })}
+      {isProcessing && !hasPlaceholderBlock && (
+        <AnimatedBlockWrapper key="message-loading-placeholder" enableAnimation={true}>
+          <PlaceholderBlock
+            block={{
+              id: `loading-${message.id}`,
+              messageId: message.id,
+              type: MessageBlockType.UNKNOWN,
+              status: MessageBlockStatus.PROCESSING,
+              createdAt: new Date().toISOString()
+            }}
+          />
+        </AnimatedBlockWrapper>
+      )}
     </AnimatePresence>
   )
 }
