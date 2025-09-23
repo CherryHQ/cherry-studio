@@ -1,10 +1,11 @@
-import { Button, Chip, Select as HeroSelect, SelectedItems, SelectItem, Tooltip } from '@heroui/react'
+import { Button, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { Selection } from '@react-types/shared'
+import { AllowedToolsSelect } from '@renderer/components/agent'
 import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { GetAgentResponse, Tool, UpdateAgentForm } from '@renderer/types'
+import { GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import { Input, Select } from 'antd'
 import { DefaultOptionType } from 'antd/es/select'
 import { Plus } from 'lucide-react'
@@ -116,22 +117,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     [agent, t, updateAccessiblePaths]
   )
 
-  const renderSelectedTools = useCallback((items: SelectedItems<Tool>) => {
-    if (!items.length) {
-      return null
-    }
-
-    return (
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <Chip key={item.key} size="sm" variant="flat" className="max-w-[160px] truncate">
-            {item.data?.name ?? item.textValue ?? item.key}
-          </Chip>
-        ))}
-      </div>
-    )
-  }, [])
-
   const onAllowedToolsChange = useCallback(
     (keys: Selection) => {
       if (!agent) return
@@ -149,19 +134,22 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
         }
         return filtered
       })
-
-      const previous = agent.allowed_tools ?? []
-      const previousSet = new Set(previous)
-      const isSameSelection = filtered.length === previousSet.size && filtered.every((id) => previousSet.has(id))
-
-      if (isSameSelection) {
-        return
-      }
-
-      updateAllowedTools(filtered)
     },
-    [agent, availableTools, updateAllowedTools]
+    [agent, availableTools]
   )
+
+  const onAllowedToolsSelected = useCallback(() => {
+    if (!agent) return
+    const previous = agent.allowed_tools ?? []
+    const previousSet = new Set(previous)
+    const isSameSelection =
+      allowedToolIds.length === previousSet.size && allowedToolIds.every((id) => previousSet.has(id))
+
+    if (isSameSelection) {
+      return
+    }
+    updateAllowedTools(allowedToolIds)
+  }, [agent, allowedToolIds, updateAllowedTools])
 
   if (!agent) return null
 
@@ -199,28 +187,12 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
       </SettingsItem>
       <SettingsItem>
         <SettingsTitle>{t('agent.session.allowed_tools.label')}</SettingsTitle>
-        <HeroSelect
-          aria-label={t('agent.session.allowed_tools.label')}
-          selectionMode="multiple"
+        <AllowedToolsSelect
+          items={availableTools}
           selectedKeys={selectedToolKeys}
           onSelectionChange={onAllowedToolsChange}
-          placeholder={t('agent.session.allowed_tools.placeholder')}
-          description={
-            availableTools.length ? t('agent.session.allowed_tools.helper') : t('agent.session.allowed_tools.empty')
-          }
-          isDisabled={!availableTools.length}
-          items={availableTools}
-          renderValue={renderSelectedTools}
-          className="max-w-xl">
-          {(tool) => (
-            <SelectItem key={tool.id} textValue={tool.name}>
-              <div className="flex flex-col">
-                <span className="font-medium text-sm">{tool.name}</span>
-                {tool.description ? <span className="text-foreground-500 text-xs">{tool.description}</span> : null}
-              </div>
-            </SelectItem>
-          )}
-        </HeroSelect>
+          onClose={onAllowedToolsSelected}
+        />
       </SettingsItem>
       <SettingsItem>
         <SettingsTitle
