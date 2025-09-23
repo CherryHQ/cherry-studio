@@ -15,7 +15,7 @@ interface Props {
 }
 
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
-  if (model.provider !== 'cherryin') {
+  if (model.provider !== 'cherryai') {
     return null
   }
 

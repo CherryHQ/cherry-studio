@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
-import { generateSignature } from '@main/integration/cherryin'
+import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
@@ -841,6 +841,6 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     ocrService.ocr(file, provider)
   )
 
-  // CherryIN
-  ipcMain.handle(IpcChannel.Cherryin_GetSignature, (_, params) => generateSignature(params))
+  // CherryAI
+  ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
 }

@@ -455,9 +455,9 @@ const api = {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider)
   },
-  cherryin: {
+  cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
-      ipcRenderer.invoke(IpcChannel.Cherryin_GetSignature, params)
+      ipcRenderer.invoke(IpcChannel.Cherryai_GetSignature, params)
   },
   windowControls: {
     minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.Windows_Minimize),

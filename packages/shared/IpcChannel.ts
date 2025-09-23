@@ -330,6 +330,6 @@ export enum IpcChannel {
   // OCR
   OCR_ocr = 'ocr:ocr',
 
-  // Cherryin
-  Cherryin_GetSignature = 'cherryin:get-signature'
+  // CherryAI
+  Cherryai_GetSignature = 'cherryai:get-signature'
 }

@@ -8,7 +8,7 @@
     "tests/__mocks__/**/*",
     "packages/mcp-trace/**/*",
     "packages/aiCore/src/**/*",
-    "src/main/integration/cherryin/index.js",
+    "src/main/integration/cherryai/index.js",
     "packages/extension-table-plus/**/*"
   ],
   "compilerOptions": {

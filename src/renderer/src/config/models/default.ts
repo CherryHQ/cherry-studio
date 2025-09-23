@@ -3,14 +3,14 @@ import { Model, SystemProviderId } from '@renderer/types'
 export const glm45FlashModel: Model = {
   id: 'glm-4.5-flash',
   name: 'GLM-4.5-Flash',
-  provider: 'cherryin',
+  provider: 'cherryai',
   group: 'GLM-4.5'
 }
 
 export const qwen38bModel: Model = {
   id: 'Qwen/Qwen3-8B',
   name: 'Qwen3-8B',
-  provider: 'cherryin',
+  provider: 'cherryai',
   group: 'Qwen'
 }
 
@@ -25,20 +25,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     // Default quick assistant model
     glm45FlashModel
   ],
-  cherryin: [
-    {
-      id: 'glm-4.5-flash',
-      name: 'GLM-4.5-Flash',
-      provider: 'cherryin',
-      group: 'GLM-4.5'
-    },
-    {
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen3-8B',
-      provider: 'cherryin',
-      group: 'Qwen'
-    }
-  ],
+  cherryin: [],
   vertexai: [],
   '302ai': [
     {

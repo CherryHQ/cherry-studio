@@ -1,6 +1,6 @@
 import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
-import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.png'
+import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'

@@ -70,7 +70,7 @@ const CodeToolsPage: FC = () => {
       if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
         return false
       }
-      if (m.provider === 'cherryin') {
+      if (m.provider === 'cherryai') {
         return false
       }
       if (selectedCliTool === codeTools.claudeCode) {

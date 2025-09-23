@@ -3,8 +3,8 @@ import SelectModelPopup from '@renderer/components/Popups/SelectModelPopup'
 import { isLocalAi } from '@renderer/config/env'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { useAppSelector } from '@renderer/store'
 import { Assistant, Model } from '@renderer/types'
 import { Button, Tag } from 'antd'
 import { ChevronsUpDown } from 'lucide-react'
@@ -20,7 +20,7 @@ const SelectModelButton: FC<Props> = ({ assistant }) => {
   const { model, updateAssistant } = useAssistant(assistant.id)
   const { t } = useTranslation()
   const timerRef = useRef<NodeJS.Timeout>(undefined)
-  const provider = useAppSelector((state) => state.llm.providers.find((p) => p.id === model?.provider))
+  const provider = useProvider(model?.provider)
 
   const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
 
