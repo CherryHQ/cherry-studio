@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Não há ferramentas disponíveis para este agente.",
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
-        "label": "Ferramentas permitidas",
-        "placeholder": "Selecione as ferramentas permitidas"
+        "label": "Ferramentas pré-aprovadas",
+        "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
       "create": {
         "error": {
@@ -80,8 +80,37 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Define o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
+          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
+          "label": "Limite máximo de turnos de conversa"
+        },
+        "permissionMode": {
+          "description": "Controla como o agente lida com situações que exigem autorização.",
+          "label": "Modo de permissão",
+          "options": {
+            "acceptEdits": "Aceitar edições automaticamente",
+            "bypassPermissions": "忽略检查 de permissão",
+            "default": "Padrão (perguntar antes de continuar)",
+            "plan": "Modo de planejamento (plano sujeito a aprovação)"
+          },
+          "placeholder": "Selecione o modo de permissão"
+        },
+        "title": "Configurações avançadas"
+      },
       "essential": "Configurações Essenciais",
-      "prompt": "Configurações de Prompt"
+      "mcps": "Servidor MCP",
+      "prompt": "Configurações de Prompt",
+      "tools": {
+        "approved": "aprovado",
+        "caution": "Ferramentas pré-aprovadas ignoram a revisão humana. Ative apenas ferramentas confiáveis.",
+        "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
+        "requiresPermission": "Requer permissão quando não pré-aprovado.",
+        "tab": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas pré-aprovadas",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Tipo de Agente",

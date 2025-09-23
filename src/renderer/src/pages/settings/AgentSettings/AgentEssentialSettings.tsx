@@ -1,7 +1,5 @@
 import { Button, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
-import type { Selection } from '@react-types/shared'
-import { AllowedToolsSelect } from '@renderer/components/agent'
 import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
@@ -9,7 +7,7 @@ import { GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import { Input, Select } from 'antd'
 import { DefaultOptionType } from 'antd/es/select'
 import { Plus } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import { FC, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AgentLabel, SettingsContainer, SettingsItem, SettingsTitle } from './shared'
@@ -25,9 +23,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
   const { t } = useTranslation()
   const [name, setName] = useState<string>((agent?.name ?? '').trim())
   const { models } = useApiModels({ providerType: 'anthropic' })
-  const availableTools = useMemo(() => agent?.tools ?? [], [agent?.tools])
-  const [allowedToolIds, setAllowedToolIds] = useState<string[]>([])
-  const selectedToolKeys = useMemo<Selection>(() => new Set<string>(allowedToolIds), [allowedToolIds])
 
   const updateName = (name: string) => {
     if (!agent) return
@@ -47,41 +42,12 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     [agent, update]
   )
 
-  const updateAllowedTools = useCallback(
-    (allowed_tools: UpdateAgentForm['allowed_tools']) => {
-      if (!agent) return
-      update({ id: agent.id, allowed_tools })
-    },
-    [agent, update]
-  )
-
   const modelOptions = useMemo(() => {
     return models.map((model) => ({
       value: model.id,
       label: <ApiModelLabel model={model} />
     })) satisfies DefaultOptionType[]
   }, [models])
-
-  useEffect(() => {
-    if (!agent) {
-      setAllowedToolIds((prev) => (prev.length === 0 ? prev : []))
-      return
-    }
-
-    const allowed = agent.allowed_tools ?? []
-    const filtered = availableTools.length
-      ? allowed.filter((id) => availableTools.some((tool) => tool.id === id))
-      : allowed
-
-    setAllowedToolIds((prev) => {
-      const prevSet = new Set(prev)
-      const isSame = filtered.length === prevSet.size && filtered.every((id) => prevSet.has(id))
-      if (isSame) {
-        return prev
-      }
-      return filtered
-    })
-  }, [agent, availableTools])
 
   const addAccessiblePath = useCallback(async () => {
     if (!agent) return
@@ -117,40 +83,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     [agent, t, updateAccessiblePaths]
   )
 
-  const onAllowedToolsChange = useCallback(
-    (keys: Selection) => {
-      if (!agent) return
-
-      const nextIds = keys === 'all' ? availableTools.map((tool) => tool.id) : Array.from(keys).map(String)
-      const filtered = availableTools.length
-        ? nextIds.filter((id) => availableTools.some((tool) => tool.id === id))
-        : nextIds
-
-      setAllowedToolIds((prev) => {
-        const prevSet = new Set(prev)
-        const isSame = filtered.length === prevSet.size && filtered.every((id) => prevSet.has(id))
-        if (isSame) {
-          return prev
-        }
-        return filtered
-      })
-    },
-    [agent, availableTools]
-  )
-
-  const onAllowedToolsSelected = useCallback(() => {
-    if (!agent) return
-    const previous = agent.allowed_tools ?? []
-    const previousSet = new Set(previous)
-    const isSameSelection =
-      allowedToolIds.length === previousSet.size && allowedToolIds.every((id) => previousSet.has(id))
-
-    if (isSameSelection) {
-      return
-    }
-    updateAllowedTools(allowedToolIds)
-  }, [agent, allowedToolIds, updateAllowedTools])
-
   if (!agent) return null
 
   return (
@@ -183,15 +115,6 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
           }}
           className="max-w-80 flex-1"
           placeholder={t('common.placeholders.select.model')}
-        />
-      </SettingsItem>
-      <SettingsItem>
-        <SettingsTitle>{t('agent.session.allowed_tools.label')}</SettingsTitle>
-        <AllowedToolsSelect
-          items={availableTools}
-          selectedKeys={selectedToolKeys}
-          onSelectionChange={onAllowedToolsChange}
-          onClose={onAllowedToolsSelected}
         />
       </SettingsItem>
       <SettingsItem>

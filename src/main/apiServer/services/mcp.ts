@@ -113,14 +113,14 @@ class MCPApiService extends EventEmitter {
       const client = await mcpService.initClient(server)
       const tools = await client.listTools()
 
-      logger.info(`Server with id ${id} info:`, { tools: JSON.stringify(tools) })
+      logger.silly(`Server with id ${id} info:`, { tools: JSON.stringify(tools.tools) })
 
       return {
         id: server.id,
         name: server.name,
         type: server.type,
         description: server.description,
-        tools
+        tools: tools.tools
       }
     } catch (error: any) {
       logger.error(`Failed to get server info with id ${id}:`, error)

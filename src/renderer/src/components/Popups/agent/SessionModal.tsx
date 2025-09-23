@@ -58,7 +58,8 @@ const buildSessionForm = (existing?: SessionWithTools, agent?: AgentWithTools): 
     ? [...existing.allowed_tools]
     : agent?.allowed_tools
       ? [...agent.allowed_tools]
-      : []
+      : [],
+  mcps: existing?.mcps ? [...existing.mcps] : agent?.mcps ? [...agent.mcps] : []
 })
 
 interface BaseProps {
@@ -251,7 +252,8 @@ export const SessionModal: React.FC<Props> = ({
             instructions: form.instructions,
             model: form.model,
             accessible_paths: [...form.accessible_paths],
-            allowed_tools: [...(form.allowed_tools ?? [])]
+            allowed_tools: [...(form.allowed_tools ?? [])],
+            mcps: [...(form.mcps ?? [])]
           } satisfies UpdateSessionForm
 
           updateSession(updatePayload)
@@ -263,7 +265,8 @@ export const SessionModal: React.FC<Props> = ({
             instructions: form.instructions,
             model: form.model,
             accessible_paths: [...form.accessible_paths],
-            allowed_tools: [...(form.allowed_tools ?? [])]
+            allowed_tools: [...(form.allowed_tools ?? [])],
+            mcps: [...(form.mcps ?? [])]
           } satisfies CreateSessionForm
           const createdSession = await createSession(newSession)
           if (createdSession) {
@@ -285,6 +288,7 @@ export const SessionModal: React.FC<Props> = ({
       form.instructions,
       form.accessible_paths,
       form.allowed_tools,
+      form.mcps,
       session,
       onClose,
       onSessionCreated,

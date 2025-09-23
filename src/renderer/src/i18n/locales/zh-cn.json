@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "当前智能体暂无可用工具。",
         "helper": "选择预先授权的工具，未选中的工具在使用时需要手动审批。",
-        "label": "允许的工具",
-        "placeholder": "选择允许使用的工具"
+        "label": "预先授权工具",
+        "placeholder": "选择预先授权的工具"
       },
       "create": {
         "error": {
@@ -80,8 +80,37 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "设定代理自动执行的请求/回复轮次数。",
+          "helper": "数值越高可自主运行越久；数值越低更易控制。",
+          "label": "会话轮次数上限"
+        },
+        "permissionMode": {
+          "description": "控制代理在需要授权时的处理方式。",
+          "label": "权限模式",
+          "options": {
+            "acceptEdits": "自动接受编辑",
+            "bypassPermissions": "跳过权限检查",
+            "default": "默认（继续前询问）",
+            "plan": "规划模式（需审批计划）"
+          },
+          "placeholder": "选择权限模式"
+        },
+        "title": "高级设置"
+      },
       "essential": "基础设置",
-      "prompt": "提示词设置"
+      "mcps": "MCP 服务器",
+      "prompt": "提示词设置",
+      "tools": {
+        "approved": "已授权",
+        "caution": "预先授权的工具会跳过人工审核，请仅启用可信的工具。",
+        "description": "选择哪些工具可以在无需人工审批的情况下执行。",
+        "requiresPermission": "未预先授权时需要人工审批。",
+        "tab": "预先授权工具",
+        "title": "预先授权工具",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "智能体类型",

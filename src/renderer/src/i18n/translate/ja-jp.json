@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "このエージェントが利用できるツールはありません。",
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
-        "label": "許可されたツール",
-        "placeholder": "許可するツールを選択"
+        "label": "事前承認済みツール",
+        "placeholder": "事前承認するツールを選択"
       },
       "create": {
         "error": {
@@ -80,8 +80,37 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
+          "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
+          "label": "会話ラウンド数の上限"
+        },
+        "permissionMode": {
+          "description": "制御エージェントが認可を必要とする場合の処理方法。",
+          "label": "権限モード",
+          "options": {
+            "acceptEdits": "自動的に編集を受け入れる",
+            "bypassPermissions": "権限チェックをスキップ",
+            "default": "デフォルト（続行する前に確認）",
+            "plan": "計画モード（承認が必要な計画）"
+          },
+          "placeholder": "権限モードを選択"
+        },
+        "title": "高級設定"
+      },
       "essential": "必須設定",
-      "prompt": "プロンプト設定"
+      "mcps": "MCPサーバー",
+      "prompt": "プロンプト設定",
+      "tools": {
+        "approved": "承認済み",
+        "caution": "事前承認したツールは人によるレビューをスキップします。信頼できるツールのみ有効にしてください。",
+        "description": "人による承認なしで実行できるツールを選択します。",
+        "requiresPermission": "事前承認されていない場合は承認が必要です。",
+        "tab": "事前承認済みツール",
+        "title": "事前承認済みツール",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "エージェントタイプ",

@@ -46,9 +46,9 @@
       },
       "allowed_tools": {
         "empty": "No tools available for this agent.",
-        "helper": "Choose which tools are pre-approved. Unselected tools require approval before use.",
-        "label": "Allowed tools",
-        "placeholder": "Select allowed tools"
+        "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
+        "label": "Pre-approved tools",
+        "placeholder": "Select pre-approved tools"
       },
       "create": {
         "error": {
@@ -80,8 +80,37 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Define how many request/response cycles the agent may complete automatically.",
+          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
+          "label": "Conversation turn limit"
+        },
+        "permissionMode": {
+          "description": "Control how the agent handles actions that require approval.",
+          "label": "Permission mode",
+          "options": {
+            "acceptEdits": "Accept edits automatically",
+            "bypassPermissions": "Bypass permission checks",
+            "default": "Default (ask before continuing)",
+            "plan": "Planning mode (requires plan approval)"
+          },
+          "placeholder": "Choose a permission behavior"
+        },
+        "title": "Advanced Settings"
+      },
       "essential": "Essential Settings",
-      "prompt": "Prompt Settings"
+      "mcps": "MCP Servers",
+      "prompt": "Prompt Settings",
+      "tools": {
+        "approved": "approved",
+        "caution": "Pre-approved tools bypass human review. Enable only trusted tools.",
+        "description": "Choose which tools can run without manual approval.",
+        "requiresPermission": "Requires permission when not pre-approved.",
+        "tab": "Pre-approved tools",
+        "title": "Pre-approved tools",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Agent Type",

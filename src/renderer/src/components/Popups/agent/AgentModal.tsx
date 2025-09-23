@@ -25,6 +25,7 @@ import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import {
   AddAgentForm,
+  AgentConfigurationSchema,
   AgentEntity,
   AgentType,
   BaseAgentForm,
@@ -57,7 +58,9 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   instructions: existing?.instructions,
   model: existing?.model ?? 'claude-4-sonnet',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
-  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : []
+  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
+  mcps: existing?.mcps ? [...existing.mcps] : [],
+  configuration: AgentConfigurationSchema.parse(existing?.configuration ?? {})
 })
 
 interface BaseProps {
@@ -320,7 +323,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           instructions: form.instructions,
           model: form.model,
           accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools]
+          allowed_tools: [...form.allowed_tools],
+          configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies UpdateAgentForm
 
         updateAgent(updatePayload)
@@ -333,7 +337,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           instructions: form.instructions,
           model: form.model,
           accessible_paths: [...form.accessible_paths],
-          allowed_tools: [...form.allowed_tools]
+          allowed_tools: [...form.allowed_tools],
+          configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
         addAgent(newAgent)
         logger.debug('Added agent', newAgent)
@@ -352,6 +357,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       form.instructions,
       form.accessible_paths,
       form.allowed_tools,
+      form.configuration,
       agent,
       onClose,
       t,

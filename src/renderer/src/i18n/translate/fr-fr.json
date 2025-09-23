@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Aucun outil disponible pour cet agent.",
         "helper": "Choisissez les outils préapprouvés. Les outils non sélectionnés nécessiteront une approbation avant utilisation.",
-        "label": "Outils autorisés",
-        "placeholder": "Sélectionner les outils autorisés"
+        "label": "Outils pré-approuvés",
+        "placeholder": "Sélectionner des outils pré-approuvés"
       },
       "create": {
         "error": {
@@ -80,8 +80,37 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
+          "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",
+          "label": "Limite maximale de tours de conversation"
+        },
+        "permissionMode": {
+          "description": "Contrôle la manière dont l'agent gère les demandes d'autorisation.",
+          "label": "mode d'autorisation",
+          "options": {
+            "acceptEdits": "Accepter automatiquement les modifications",
+            "bypassPermissions": "sauter la vérification des autorisations",
+            "default": "Par défaut (demander avant de continuer)",
+            "plan": "Mode de planification (plan soumis à approbation)"
+          },
+          "placeholder": "Choisir le mode d'autorisation"
+        },
+        "title": "Paramètres avancés"
+      },
       "essential": "Paramètres essentiels",
-      "prompt": "Paramètres de l'invite"
+      "mcps": "Serveur MCP",
+      "prompt": "Paramètres de l'invite",
+      "tools": {
+        "approved": "approuvé",
+        "caution": "Outils pré-approuvés contournent la révision humaine. Activez uniquement les outils de confiance.",
+        "description": "Choisissez quels outils peuvent s'exécuter sans approbation manuelle.",
+        "requiresPermission": "Nécessite une autorisation lorsqu'elle n'est pas préapprouvée.",
+        "tab": "Outils pré-approuvés",
+        "title": "Outils pré-approuvés",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Type d'agent",
