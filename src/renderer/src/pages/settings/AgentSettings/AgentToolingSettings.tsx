@@ -108,6 +108,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
   const { t } = useTranslation()
   const client = useAgentClient()
   const { mcpServers: allServers } = useMCPServers()
+  const [modal, contextHolder] = Modal.useModal()
 
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [selectedMode, setSelectedMode] = useState<PermissionMode>(defaultConfiguration.permission_mode)
@@ -192,8 +193,12 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
       }
 
       if (removedDefaults.length > 0) {
-        Modal.confirm({
-          title: t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?'),
+        modal.confirm({
+          title: (
+            <span className="text-foreground">
+              {t('agent.settings.tooling.permissionMode.confirmChange.title', 'Change permission mode?')}
+            </span>
+          ),
           content: (
             <div className="flex flex-col gap-2">
               <p className="text-foreground-500 text-sm">
@@ -207,7 +212,11 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
                 <ul className="mt-1 list-disc pl-4">
                   {removedDefaults.map((id) => {
                     const tool = availableTools.find((item) => item.id === id)
-                    return <li key={id}>{tool?.name ?? id}</li>
+                    return (
+                      <li className="text-foreground" key={id}>
+                        {tool?.name ?? id}
+                      </li>
+                    )
                   })}
                 </ul>
               </div>
@@ -215,13 +224,27 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
           ),
           okText: t('common.confirm'),
           cancelText: t('common.cancel'),
-          onOk: applyChange
+          onOk: applyChange,
+          classNames: {
+            content: 'bg-background! border! border-solid! rounded border-grey border-default-200!'
+          }
         })
       } else {
         void applyChange()
       }
     },
-    [agent, selectedMode, isUpdatingMode, availableTools, userAddedIds, autoToolIds, configuration, updateAgent, t]
+    [
+      agent,
+      selectedMode,
+      isUpdatingMode,
+      availableTools,
+      userAddedIds,
+      autoToolIds,
+      configuration,
+      updateAgent,
+      modal,
+      t
+    ]
   )
 
   const handleToggleTool = useCallback(
@@ -300,6 +323,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
 
   return (
     <SettingsContainer>
+      {contextHolder}
       <SettingsItem>
         <SettingsTitle>
           {t('agent.settings.tooling.steps.permissionMode.title', 'Step 1 · Permission mode')}
