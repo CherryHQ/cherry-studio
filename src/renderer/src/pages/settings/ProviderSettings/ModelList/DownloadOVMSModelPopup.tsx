@@ -89,22 +89,26 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const startFakeProgress = () => {
     setProgress(0)
-    setIntervalTimer('progress', () => {
-      setProgress((prev) => {
-        if (prev >= 95) {
-          return prev // Stop at 95% until actual completion
-        }
-        // Simulate realistic download progress with slowing speed
-        const increment =
-          prev < 30
-            ? Math.random() * 1 + 0.25
-            : prev < 60
-              ? Math.random() * 0.5 + 0.125
-              : Math.random() * 0.25 + 0.03125
+    setIntervalTimer(
+      'progress',
+      () => {
+        setProgress((prev) => {
+          if (prev >= 95) {
+            return prev // Stop at 95% until actual completion
+          }
+          // Simulate realistic download progress with slowing speed
+          const increment =
+            prev < 30
+              ? Math.random() * 1 + 0.25
+              : prev < 60
+                ? Math.random() * 0.5 + 0.125
+                : Math.random() * 0.25 + 0.03125
 
-        return Math.min(prev + increment, 95)
-      })
-    }, 500)
+          return Math.min(prev + increment, 95)
+        })
+      },
+      500
+    )
   }
 
   const stopFakeProgress = (complete = false) => {
