@@ -64,7 +64,7 @@ export const AgentAdvanceSettings: React.FC<AgentAdvanceSettingsProps> = ({ agen
           }>
           {t('agent.settings.advance.maxTurns.label')}
         </SettingsTitle>
-        <div className="flex max-w-md flex-col gap-2">
+        <div className="flex w-full flex-col gap-2">
           <Input
             type="number"
             min={1}
