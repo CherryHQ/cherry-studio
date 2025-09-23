@@ -173,8 +173,8 @@ export function useAssistant(id: string) {
       [assistant, dispatch]
     ),
     updateAssistant: useCallback(
-      (update: Partial<Assistant> & { id: string }) => dispatch(updateAssistant(update)),
-      [dispatch]
+      (update: Partial<Omit<Assistant, 'id'>>) => dispatch(updateAssistant({ id, ...update })),
+      [dispatch, id]
     ),
     updateAssistantSettings
   }
