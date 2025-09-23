@@ -156,8 +156,6 @@ export interface AgentMessagePersistExchangeResult {
 // Not implemented fields:
 // - plan_model: Optional model for planning/thinking tasks
 // - small_model: Optional lightweight model for quick responses
-// - mcps: Optional array of MCP (Model Control Protocol) tool IDs
-// - allowed_tools: Optional array of permitted tool IDs
 // - configuration: Optional agent settings (temperature, top_p, etc.)
 // ------------------ Form models ------------------
 export type BaseAgentForm = {
@@ -170,6 +168,7 @@ export type BaseAgentForm = {
   model: string
   accessible_paths: string[]
   allowed_tools: string[]
+  mcps?: string[]
 }
 
 export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }

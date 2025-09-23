@@ -57,7 +57,8 @@ const buildAgentForm = (existing?: AgentWithTools): BaseAgentForm => ({
   instructions: existing?.instructions,
   model: existing?.model ?? 'claude-4-sonnet',
   accessible_paths: existing?.accessible_paths ? [...existing.accessible_paths] : [],
-  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : []
+  allowed_tools: existing?.allowed_tools ? [...existing.allowed_tools] : [],
+  mcps: existing?.mcps ? [...existing.mcps] : []
 })
 
 interface BaseProps {

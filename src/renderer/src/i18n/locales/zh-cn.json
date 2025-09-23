@@ -81,6 +81,7 @@
     },
     "settings": {
       "essential": "基础设置",
+      "mcps": "MCP 服务器",
       "prompt": "提示词设置"
     },
     "type": {
