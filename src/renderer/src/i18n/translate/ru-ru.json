@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Для этого агента нет доступных инструментов.",
         "helper": "Выберите инструменты с предварительным допуском. Неотмеченные инструменты потребуют подтверждения перед использованием.",
-        "label": "[to be translated]:Pre-approved tools",
-        "placeholder": "[to be translated]:Select pre-approved tools"
+        "label": "Предварительно одобренные инструменты",
+        "placeholder": "Выберите предварительно одобренные инструменты"
       },
       "create": {
         "error": {
@@ -82,33 +82,33 @@
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
-          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
-          "label": "[to be translated]:会话轮次数上限"
+          "description": "Установить количество циклов запрос/ответ, выполняемых автоматически через прокси.",
+          "helper": "Чем выше значение, тем дольше может работать автономно; чем ниже значение, тем легче контролировать.",
+          "label": "Максимальное количество раундов в сеансе"
         },
         "permissionMode": {
-          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
-          "label": "[to be translated]:权限模式",
+          "description": "Как агент управления обрабатывает ситуации, требующие авторизации.",
+          "label": "Режим разрешений",
           "options": {
-            "acceptEdits": "[to be translated]:自动接受编辑",
-            "bypassPermissions": "[to be translated]:跳过权限检查",
-            "default": "[to be translated]:默认（继续前询问）",
-            "plan": "[to be translated]:规划模式（需审批计划）"
+            "acceptEdits": "Автоматически принимать правки",
+            "bypassPermissions": "Пропустить проверку разрешений",
+            "default": "По умолчанию (спросить перед продолжением)",
+            "plan": "Режим планирования (требуется утверждение плана)"
           },
-          "placeholder": "[to be translated]:选择权限模式"
+          "placeholder": "Выбрать режим разрешений"
         },
-        "title": "[to be translated]:高级设置"
+        "title": "Расширенные настройки"
       },
       "essential": "Основные настройки",
-      "mcps": "[to be translated]:MCP 服务器",
+      "mcps": "MCP сервер",
       "prompt": "Настройки подсказки",
       "tools": {
-        "approved": "[to be translated]:approved",
-        "caution": "[to be translated]:Pre-approved tools bypass human review. Enable only trusted tools.",
-        "description": "[to be translated]:Choose which tools can run without manual approval.",
-        "requiresPermission": "[to be translated]:Requires permission when not pre-approved.",
-        "tab": "[to be translated]:Pre-approved tools",
-        "title": "[to be translated]:Pre-approved tools",
+        "approved": "одобрено",
+        "caution": "Предварительно одобренные инструменты обходят проверку человеком. Включайте только доверенные инструменты.",
+        "description": "Выберите, какие инструменты могут запускаться без ручного подтверждения.",
+        "requiresPermission": "Требуется разрешение, если не предварительно одобрено.",
+        "tab": "Предварительно одобренные инструменты",
+        "title": "Предварительно одобренные инструменты",
         "toggle": "{{defaultValue}}"
       }
     },

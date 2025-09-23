@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Não há ferramentas disponíveis para este agente.",
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
-        "label": "[to be translated]:Pre-approved tools",
-        "placeholder": "[to be translated]:Select pre-approved tools"
+        "label": "Ferramentas pré-aprovadas",
+        "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
       "create": {
         "error": {
@@ -82,33 +82,33 @@
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
-          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
-          "label": "[to be translated]:会话轮次数上限"
+          "description": "Define o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
+          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
+          "label": "Limite máximo de turnos de conversa"
         },
         "permissionMode": {
-          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
-          "label": "[to be translated]:权限模式",
+          "description": "Controla como o agente lida com situações que exigem autorização.",
+          "label": "Modo de permissão",
           "options": {
-            "acceptEdits": "[to be translated]:自动接受编辑",
-            "bypassPermissions": "[to be translated]:跳过权限检查",
-            "default": "[to be translated]:默认（继续前询问）",
-            "plan": "[to be translated]:规划模式（需审批计划）"
+            "acceptEdits": "Aceitar edições automaticamente",
+            "bypassPermissions": "忽略检查 de permissão",
+            "default": "Padrão (perguntar antes de continuar)",
+            "plan": "Modo de planejamento (plano sujeito a aprovação)"
           },
-          "placeholder": "[to be translated]:选择权限模式"
+          "placeholder": "Selecione o modo de permissão"
         },
-        "title": "[to be translated]:高级设置"
+        "title": "Configurações avançadas"
       },
       "essential": "Configurações Essenciais",
-      "mcps": "[to be translated]:MCP 服务器",
+      "mcps": "Servidor MCP",
       "prompt": "Configurações de Prompt",
       "tools": {
-        "approved": "[to be translated]:approved",
-        "caution": "[to be translated]:Pre-approved tools bypass human review. Enable only trusted tools.",
-        "description": "[to be translated]:Choose which tools can run without manual approval.",
-        "requiresPermission": "[to be translated]:Requires permission when not pre-approved.",
-        "tab": "[to be translated]:Pre-approved tools",
-        "title": "[to be translated]:Pre-approved tools",
+        "approved": "aprovado",
+        "caution": "Ferramentas pré-aprovadas ignoram a revisão humana. Ative apenas ferramentas confiáveis.",
+        "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
+        "requiresPermission": "Requer permissão quando não pré-aprovado.",
+        "tab": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas pré-aprovadas",
         "toggle": "{{defaultValue}}"
       }
     },
