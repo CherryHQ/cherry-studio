@@ -133,7 +133,7 @@
           "plan": {
             "behavior": "Solo herramientas de solo lectura. La ejecución está deshabilitada.",
             "description": "Claude solo puede usar herramientas de solo lectura y presenta un plan antes de ejecutarlo.",
-            "title": "[to be translated]:Planning mode (coming soon)"
+            "title": "Modo de planificación (próximamente)"
           }
         },
         "preapproved": {
