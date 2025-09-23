@@ -75,7 +75,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       ...process.env,
       ANTHROPIC_API_KEY: apiConfig.apiKey,
       ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
-      ELECTRON_RUN_AS_NODE: '1'
+      ELECTRON_RUN_AS_NODE: '1',
+      ELECTRON_NO_ATTACH_CONSOLE: '1'
     }
 
     const errorChunks: string[] = []
@@ -86,6 +87,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       cwd,
       env,
       model: modelInfo.modelId,
+      executable: app.getPath('exe') as 'node' ,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
