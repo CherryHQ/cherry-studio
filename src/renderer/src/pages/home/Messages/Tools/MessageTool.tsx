@@ -35,6 +35,11 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
     case 'Grep':
     case 'Write':
     case 'WebFetch':
+    case 'Edit':
+    case 'MultiEdit':
+    case 'BashOutput':
+    case 'NotebookEdit':
+    case 'ExitPlanMode':
       return <MessageAgentTools toolResponse={toolResponse} />
     default:
       return null

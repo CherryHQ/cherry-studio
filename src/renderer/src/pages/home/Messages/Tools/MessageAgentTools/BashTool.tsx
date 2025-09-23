@@ -21,7 +21,7 @@ export function BashTool({ input, output }: { input: BashToolInputType; output?:
         />
       }
       subtitle={
-        <Code size="sm" className="line-clamp-1 w-max max-w-full text-ellipsis text-xs">
+        <Code size="sm" className="line-clamp-1 w-max max-w-full text-ellipsis py-0 text-xs">
           {input.command}
         </Code>
       }>
