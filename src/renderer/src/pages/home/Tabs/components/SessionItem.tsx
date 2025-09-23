@@ -1,6 +1,8 @@
-import { Button, cn, useDisclosure } from '@heroui/react'
+import { Button, cn, Input, useDisclosure } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { SessionModal } from '@renderer/components/Popups/agent/SessionModal'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { AgentSessionEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
@@ -23,7 +25,16 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
   const { t } = useTranslation()
   const { isOpen, onOpen, onClose } = useDisclosure()
   const { chat } = useRuntime()
+  const updateSession = useUpdateSession(agentId)
   const activeSessionId = chat.activeSessionId[agentId]
+
+  const { isEditing, isSaving, editValue, inputRef, startEdit, handleKeyDown, handleValueChange } = useInPlaceEdit({
+    onSave: async (value) => {
+      if (value !== session.name) {
+        await updateSession({ id: session.id, name: value })
+      }
+    }
+  })
 
   const isActive = activeSessionId === session.id
 
@@ -31,7 +42,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
     const displayName = session.name ?? session.id
     return (
       <>
-        <span className="text-sm">{displayName}</span>
+        <span className="px-2 text-sm">{displayName}</span>
       </>
     )
   }, [session.id, session.name])
@@ -44,9 +55,26 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
             isDisabled={isDisabled}
             isLoading={isLoading}
             onPress={onPress}
-            className={isActive ? 'active' : ''}>
-            <SessionLabelContainer className="name" title={session.name ?? session.id}>
-              <SessionLabel />
+            className={isActive ? 'active' : ''}
+            onDoubleClick={() => startEdit(session.name ?? '')}>
+            <SessionLabelContainer className="name h-full w-full" title={session.name ?? session.id}>
+              {isEditing && (
+                <Input
+                  ref={inputRef}
+                  variant="bordered"
+                  value={editValue}
+                  onValueChange={handleValueChange}
+                  onKeyDown={handleKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  classNames={{
+                    base: 'h-full',
+                    mainWrapper: 'h-full',
+                    inputWrapper: 'h-full min-h-0 px-1.5',
+                    input: isSaving ? 'brightness-50' : undefined
+                  }}
+                />
+              )}
+              {!isEditing && <SessionLabel />}
             </SessionLabelContainer>
           </ButtonContainer>
         </ContextMenuTrigger>
@@ -79,7 +107,7 @@ const ButtonContainer: React.FC<React.ComponentProps<typeof Button>> = ({ classN
   <Button
     {...props}
     className={cn(
-      'relative mb-2 flex h-[37px] flex-row justify-between p-2.5',
+      'relative mb-2 flex h-[37px] flex-row justify-between p-0',
       'rounded-[var(--list-item-border-radius)]',
       'border-[0.5px] border-transparent',
       'w-[calc(var(--assistants-width)_-_20px)]',
