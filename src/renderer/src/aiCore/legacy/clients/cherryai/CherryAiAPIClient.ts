@@ -4,7 +4,7 @@ import OpenAI from 'openai'
 
 import { OpenAIAPIClient } from '../openai/OpenAIApiClient'
 
-export class CherryinAPIClient extends OpenAIAPIClient {
+export class CherryAiAPIClient extends OpenAIAPIClient {
   constructor(provider: Provider) {
     super(provider)
   }
@@ -17,7 +17,7 @@ export class CherryinAPIClient extends OpenAIAPIClient {
     options = options || {}
     options.headers = options.headers || {}
 
-    const signature = await window.api.cherryin.generateSignature({
+    const signature = await window.api.cherryai.generateSignature({
       method: 'POST',
       path: '/chat/completions',
       query: '',
@@ -34,7 +34,7 @@ export class CherryinAPIClient extends OpenAIAPIClient {
   }
 
   override getClientCompatibilityType(): string[] {
-    return ['CherryinAPIClient']
+    return ['CherryAiAPIClient']
   }
 
   public async listModels(): Promise<OpenAI.Models.Model[]> {
@@ -43,7 +43,7 @@ export class CherryinAPIClient extends OpenAIAPIClient {
     const created = Date.now()
     return models.map((id) => ({
       id,
-      owned_by: 'cherryin',
+      owned_by: 'cherryai',
       object: 'model' as const,
       created
     }))

@@ -21,4 +21,4 @@ export const titleBarOverlayLight = {
   symbolColor: '#000'
 }
 
-global.CHERRYIN_CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYIN_CLIENT_SECRET
+global.CHERRYAI_CLIENT_SECRET = import.meta.env.MAIN_VITE_CHERRYAI_CLIENT_SECRET

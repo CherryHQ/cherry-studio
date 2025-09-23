@@ -527,7 +527,8 @@
       },
       "new_topic": "New Topic {{Command}}",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send...",
+      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
+      "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "send": "Send",
       "settings": "Settings",
       "thinking": {
@@ -2231,6 +2232,7 @@
   "provider": {
     "302ai": "302.AI",
     "aihubmix": "AiHubMix",
+    "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",

@@ -256,7 +256,7 @@ export class WindowService {
 
   private setupWebContentsHandlers(mainWindow: BrowserWindow) {
     mainWindow.webContents.on('will-navigate', (event, url) => {
-      if (url.includes('localhost:5173')) {
+      if (url.includes('localhost:517')) {
         return
       }
 
@@ -275,7 +275,8 @@ export class WindowService {
         'https://aihubmix.com/topup',
         'https://aihubmix.com/statistics',
         'https://dash.302.ai/sso/login',
-        'https://dash.302.ai/charge'
+        'https://dash.302.ai/charge',
+        'https://www.aiionly.com/login'
       ]
 
       if (oauthProviderUrls.some((link) => url.startsWith(link))) {

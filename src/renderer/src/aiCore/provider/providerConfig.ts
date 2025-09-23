@@ -250,10 +250,10 @@ export async function prepareSpecialProviderConfig(
       config.options.apiKey = token
       break
     }
-    case 'cherryin': {
+    case 'cherryai': {
       config.options.fetch = async (url, options) => {
         // 在这里对最终参数进行签名
-        const signature = await window.api.cherryin.generateSignature({
+        const signature = await window.api.cherryai.generateSignature({
           method: 'POST',
           path: '/chat/completions',
           query: '',

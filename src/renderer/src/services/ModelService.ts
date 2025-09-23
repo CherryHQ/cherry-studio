@@ -1,4 +1,4 @@
-import store from '@renderer/store'
+import { getStoreProviders } from '@renderer/hooks/useStore'
 import { Model } from '@renderer/types'
 import { pick } from 'lodash'
 
@@ -9,9 +9,8 @@ export const getModelUniqId = (m?: Model) => {
 }
 
 export const hasModel = (m?: Model) => {
-  const allModels = store
-    .getState()
-    .llm.providers.filter((p) => p.enabled)
+  const allModels = getStoreProviders()
+    .filter((p) => p.enabled)
     .map((p) => p.models)
     .flat()
 
@@ -20,7 +19,8 @@ export const hasModel = (m?: Model) => {
 
 export function getModelName(model?: Model) {
   const modelName = model?.name || model?.id || ''
-  const provider = store.getState().llm.providers.find((p) => p.id === model?.provider)
+  const provider = getStoreProviders().find((p) => p.id === model?.provider)
+
   if (provider) {
     const providerName = getProviderName(model as Model)
     return `${modelName} | ${providerName}`

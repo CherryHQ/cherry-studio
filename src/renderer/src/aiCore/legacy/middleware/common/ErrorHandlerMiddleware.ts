@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isZhipuModel } from '@renderer/config/models'
-import store from '@renderer/store'
+import { getStoreProviders } from '@renderer/hooks/useStore'
 import { Chunk } from '@renderer/types/chunk'
 
 import { CompletionsParams, CompletionsResult } from '../schemas'
@@ -87,7 +87,7 @@ function handleError(error: any, params: CompletionsParams): any {
  * 2. 绘画功能（enableGenerateImage为true）使用通用错误处理
  */
 function handleZhipuError(error: any): any {
-  const provider = store.getState().llm.providers.find((p) => p.id === 'zhipu')
+  const provider = getStoreProviders().find((p) => p.id === 'zhipu')
   const logger = loggerService.withContext('handleZhipuError')
 
   // 定义错误模式映射

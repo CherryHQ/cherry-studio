@@ -3,6 +3,7 @@ import HunyuanProviderLogo from '@renderer/assets/images/models/hunyuan.png'
 import AzureProviderLogo from '@renderer/assets/images/models/microsoft.png'
 import Ai302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
+import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
 import AlayaNewProviderLogo from '@renderer/assets/images/providers/alayanew.webp'
 import AnthropicProviderLogo from '@renderer/assets/images/providers/anthropic.png'
 import AwsProviderLogo from '@renderer/assets/images/providers/aws-bedrock.webp'
@@ -63,7 +64,18 @@ import {
 } from '@renderer/types'
 
 import { TOKENFLUX_HOST } from './constant'
-import { SYSTEM_MODELS } from './models'
+import { glm45FlashModel, qwen38bModel, SYSTEM_MODELS } from './models'
+
+export const CHERRYAI_PROVIDER: SystemProvider = {
+  id: 'cherryai' as SystemProviderId,
+  name: 'CherryAI',
+  type: 'openai',
+  apiKey: '',
+  apiHost: 'https://api.cherry-ai.com/',
+  models: [glm45FlashModel, qwen38bModel],
+  isSystem: true,
+  enabled: true
+}
 
 export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> = {
   cherryin: {
@@ -71,8 +83,8 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     name: 'CherryIN',
     type: 'openai',
     apiKey: '',
-    apiHost: 'https://api.cherry-ai.com/',
-    models: SYSTEM_MODELS.cherryin,
+    apiHost: 'https://open.cherryin.ai',
+    models: [],
     isSystem: true,
     enabled: true
   },
@@ -600,6 +612,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
     enabled: false
+  },
+  aionly: {
+    id: 'aionly',
+    name: 'AIOnly',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.aiionly.com',
+    models: SYSTEM_MODELS.aionly,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -661,7 +683,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   vertexai: VertexAIProviderLogo,
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
-  poe: 'poe' // use svg icon component
+  poe: 'poe', // use svg icon component
+  aionly: AiOnlyProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -687,12 +710,13 @@ type ProviderUrls = {
 export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
   cherryin: {
     api: {
-      url: 'https://api.cherry-ai.com'
+      url: 'https://open.cherryin.ai'
     },
     websites: {
-      official: 'https://cherry-ai.com',
-      docs: 'https://docs.cherry-ai.com',
-      models: 'https://docs.cherry-ai.com/pre-basic/providers/cherryin'
+      official: 'https://open.cherryin.ai',
+      apiKey: 'https://open.cherryin.ai/console/token',
+      docs: 'https://open.cherryin.ai',
+      models: 'https://open.cherryin.ai/pricing'
     }
   },
   ph8: {
@@ -1254,6 +1278,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://poe.com/api_key',
       docs: 'https://creator.poe.com/docs/external-applications/openai-compatible-api',
       models: 'https://poe.com/'
+    }
+  },
+  aionly: {
+    api: {
+      url: 'https://api.aiionly.com'
+    },
+    websites: {
+      official: 'https://www.aiionly.com',
+      apiKey: 'https://www.aiionly.com/keyApi',
+      docs: 'https://www.aiionly.com/document',
+      models: 'https://www.aiionly.com'
     }
   }
 }
