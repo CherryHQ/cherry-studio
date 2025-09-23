@@ -82,95 +82,95 @@
     "settings": {
       "advance": {
         "maxTurns": {
-          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
-          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
-          "label": "[to be translated]:会话轮次数上限"
+          "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
+          "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
+          "label": "会話ラウンド数の上限"
         },
         "permissionMode": {
-          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
-          "label": "[to be translated]:权限模式",
+          "description": "制御エージェントが認可を必要とする場合の処理方法。",
+          "label": "権限モード",
           "options": {
-            "acceptEdits": "[to be translated]:自动接受编辑",
-            "bypassPermissions": "[to be translated]:跳过权限检查",
-            "default": "[to be translated]:默认（继续前询问）",
-            "plan": "[to be translated]:规划模式（需审批计划）"
+            "acceptEdits": "自動的に編集を受け入れる",
+            "bypassPermissions": "権限チェックをスキップ",
+            "default": "デフォルト（続行する前に確認）",
+            "plan": "計画モード（承認が必要な計画）"
           },
-          "placeholder": "[to be translated]:选择权限模式"
+          "placeholder": "権限モードを選択"
         },
-        "title": "[to be translated]:高级设置"
+        "title": "高級設定"
       },
       "essential": "必須設定",
       "mcps": "MCPサーバー",
       "prompt": "プロンプト設定",
       "tooling": {
         "mcp": {
-          "description": "[to be translated]:Connect MCP servers to unlock additional tools you can approve above.",
-          "empty": "[to be translated]:No MCP servers detected. Add one from the MCP settings page.",
-          "manageHint": "[to be translated]:Need advanced configuration? Visit Settings → MCP Servers.",
-          "toggle": "[to be translated]:Toggle {{name}}"
+          "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
+          "empty": "MCPサーバーが検出されませんでした。MCP設定ページから追加してください。",
+          "manageHint": "高度な設定が必要ですか？設定 → MCPサーバーにアクセスしてください。",
+          "toggle": "{{name}}を切り替え"
         },
         "permissionMode": {
           "acceptEdits": {
-            "behavior": "[to be translated]:Pre-approves trusted filesystem tools so edits run immediately.",
-            "description": "[to be translated]:File edits and filesystem operations are automatically approved.",
-            "title": "[to be translated]:Auto-accept file edits"
+            "behavior": "信頼できるファイルシステムツールを事前に承認し、編集が即座に実行されるようにします。",
+            "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
+            "title": "ファイル編集を自動承認"
           },
           "bypassPermissions": {
-            "behavior": "[to be translated]:Every tool is pre-approved automatically.",
-            "description": "[to be translated]:All permission prompts are skipped — use with caution.",
-            "title": "[to be translated]:Bypass permission checks",
-            "warning": "[to be translated]:Use with caution — all tools will run without asking for approval."
+            "behavior": "すべてのツールは自動的に事前承認されます。",
+            "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
+            "title": "権限チェックをバイパス",
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
           },
           "confirmChange": {
-            "description": "[to be translated]:Switching modes updates the automatically approved tools.",
-            "title": "[to be translated]:Change permission mode?"
+            "description": "モードを切り替えると、自動承認されたツールが更新されます。",
+            "title": "パーミッションモードを変更しますか？"
           },
           "default": {
-            "behavior": "[to be translated]:No tools are pre-approved automatically.",
-            "description": "[to be translated]:Normal permission checks apply.",
-            "title": "[to be translated]:Default (ask before continuing)"
+            "behavior": "ツールは自動的に事前承認されません。",
+            "description": "通常の権限チェックが適用されます。",
+            "title": "デフォルト（続行する前に確認）"
           },
           "plan": {
-            "behavior": "[to be translated]:Read-only tools only. Execution is disabled.",
-            "description": "[to be translated]:Claude can only use read-only tools and presents a plan before execution.",
-            "title": "[to be translated]:Planning mode (coming soon)"
+            "behavior": "読み取り専用ツールのみ。実行は無効です。",
+            "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
+            "title": "計画モード（近日公開）"
           }
         },
         "preapproved": {
-          "autoBadge": "[to be translated]:Added by mode",
-          "autoDescription": "[to be translated]:This tool is auto-approved by the current permission mode.",
-          "empty": "[to be translated]:No tools match your filters.",
-          "mcpBadge": "[to be translated]:MCP tool",
-          "requiresApproval": "[to be translated]:Requires approval when disabled",
-          "search": "[to be translated]:Search tools",
-          "toggle": "[to be translated]:Toggle {{name}}",
+          "autoBadge": "モードによって追加されました",
+          "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
+          "empty": "フィルターに一致するツールはありません。",
+          "mcpBadge": "MCPツール",
+          "requiresApproval": "無効にするには承認が必要",
+          "search": "検索ツール",
+          "toggle": "{{name}}を切り替える",
           "warning": {
-            "description": "[to be translated]:Enable only tools you trust. Mode defaults are highlighted automatically.",
-            "title": "[to be translated]:Pre-approved tools run without manual review."
+            "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
+            "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
           }
         },
         "review": {
-          "autoTools": "[to be translated]:Auto: {{count}}",
-          "customTools": "[to be translated]:Custom: {{count}}",
-          "helper": "[to be translated]:Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
-          "mcp": "[to be translated]:MCP: {{count}}",
-          "mode": "[to be translated]:Mode: {{mode}}"
+          "autoTools": "自動: {{count}}",
+          "customTools": "カスタム: {{count}}",
+          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
+          "mcp": "MCP: {{count}}",
+          "mode": "モード: {{mode}}"
         },
         "steps": {
           "mcp": {
-            "title": "[to be translated]:MCP servers"
+            "title": "MCPサーバー"
           },
           "permissionMode": {
-            "title": "[to be translated]:Step 1 · Permission mode"
+            "title": "ステップ1・権限モード"
           },
           "preapproved": {
-            "title": "[to be translated]:Step 2 · Pre-approved tools"
+            "title": "ステップ2・事前承認済みツール"
           },
           "review": {
-            "title": "[to be translated]:Step 3 · Review"
+            "title": "ステップ3・レビュー"
           }
         },
-        "tab": "[to be translated]:Tooling & permissions"
+        "tab": "ツールと権限"
       },
       "tools": {
         "approved": "承認済み",

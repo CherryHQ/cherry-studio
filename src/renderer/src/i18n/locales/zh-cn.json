@@ -99,81 +99,81 @@
         },
         "title": "高级设置"
       },
-  "essential": "基础设置",
-  "prompt": "提示词设置",
-  "tooling": {
-    "mcp": {
-      "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
-      "empty": "未检测到 MCP 服务器，请前往 MCP 设置页添加。",
-      "manageHint": "需要更多配置？前往 设置 → MCP 服务器。",
-      "toggle": "切换 {{name}}"
-    },
-    "permissionMode": {
-      "acceptEdits": {
-        "behavior": "预先授权受信任的文件系统工具，允许即时执行。",
-        "description": "文件编辑和文件系统操作将自动通过审批。",
-        "title": "自动接受文件编辑"
+      "essential": "基础设置",
+      "prompt": "提示词设置",
+      "tooling": {
+        "mcp": {
+          "description": "连接 MCP 服务器即可解锁更多可在上方预先授权的工具。",
+          "empty": "未检测到 MCP 服务器，请前往 MCP 设置页添加。",
+          "manageHint": "需要更多配置？前往 设置 → MCP 服务器。",
+          "toggle": "切换 {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "预先授权受信任的文件系统工具，允许即时执行。",
+            "description": "文件编辑和文件系统操作将自动通过审批。",
+            "title": "自动接受文件编辑"
+          },
+          "bypassPermissions": {
+            "behavior": "所有工具都会被自动预先授权。",
+            "description": "所有权限提示都会被跳过，请谨慎使用。",
+            "title": "跳过所有权限检查",
+            "warning": "危险：所有工具都会在无审批情况下执行。"
+          },
+          "confirmChange": {
+            "description": "切换模式会更新自动预先授权的工具。",
+            "title": "确认切换权限模式？"
+          },
+          "default": {
+            "behavior": "只读工具会自动预先授权。",
+            "description": "只读工具会自动预先授权，其它操作仍需权限。",
+            "title": "默认（继续前询问）"
+          },
+          "plan": {
+            "behavior": "默认的只读工具会自动预先授权，但执行仍被禁用。",
+            "description": "继承默认的只读工具集，并会在执行前先呈现计划。",
+            "title": "规划模式（即将支持）"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "模式自动添加",
+          "autoDescription": "该工具由当前权限模式自动预先授权。",
+          "empty": "没有符合筛选条件的工具。",
+          "mcpBadge": "MCP 工具",
+          "requiresApproval": "禁用时需要人工审批",
+          "search": "搜索工具",
+          "toggle": "切换 {{name}}",
+          "warning": {
+            "description": "仅启用你信任的工具。模式默认值会自动标注。",
+            "title": "预先授权的工具将在无人工审核时运行。"
+          }
+        },
+        "review": {
+          "autoTools": "自动：{{count}}",
+          "customTools": "自定义：{{count}}",
+          "helper": "设置会自动保存，可随时返回上方步骤进行调整。",
+          "mcp": "MCP：{{count}}",
+          "mode": "模式：{{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCP 服务器"
+          },
+          "permissionMode": {
+            "title": "步骤 1 · 权限模式"
+          },
+          "preapproved": {
+            "title": "步骤 2 · 预先授权工具"
+          },
+          "review": {
+            "title": "步骤 3 · 总览"
+          }
+        },
+        "tab": "工具与权限"
       },
-      "bypassPermissions": {
-        "behavior": "所有工具都会被自动预先授权。",
-        "description": "所有权限提示都会被跳过，请谨慎使用。",
-        "title": "跳过所有权限检查",
-        "warning": "危险：所有工具都会在无审批情况下执行。"
-      },
-      "confirmChange": {
-        "description": "切换模式会更新自动预先授权的工具。",
-        "title": "确认切换权限模式？"
-      },
-      "default": {
-    "behavior": "只读工具会自动预先授权。",
-    "description": "只读工具会自动预先授权，其它操作仍需权限。",
-        "title": "默认（继续前询问）"
-      },
-      "plan": {
-    "behavior": "默认的只读工具会自动预先授权，但执行仍被禁用。",
-    "description": "继承默认的只读工具集，并会在执行前先呈现计划。",
-        "title": "规划模式（即将支持）"
-      }
-    },
-    "preapproved": {
-      "autoBadge": "模式自动添加",
-      "autoDescription": "该工具由当前权限模式自动预先授权。",
-      "empty": "没有符合筛选条件的工具。",
-      "mcpBadge": "MCP 工具",
-      "requiresApproval": "禁用时需要人工审批",
-      "search": "搜索工具",
-      "toggle": "切换 {{name}}",
-      "warning": {
-        "description": "仅启用你信任的工具。模式默认值会自动标注。",
-        "title": "预先授权的工具将在无人工审核时运行。"
-      }
-    },
-    "review": {
-      "autoTools": "自动：{{count}}",
-      "customTools": "自定义：{{count}}",
-      "helper": "设置会自动保存，可随时返回上方步骤进行调整。",
-      "mcp": "MCP：{{count}}",
-      "mode": "模式：{{mode}}"
-    },
-    "steps": {
-      "mcp": {
-        "title": "MCP 服务器"
-      },
-      "permissionMode": {
-        "title": "步骤 1 · 权限模式"
-      },
-      "preapproved": {
-        "title": "步骤 2 · 预先授权工具"
-      },
-      "review": {
-        "title": "步骤 3 · 总览"
-      }
-    },
-    "tab": "工具与权限"
-  },
-  "tools": {
-    "approved": "已授权",
-    "caution": "预先授权的工具会跳过人工审核，请仅启用可信的工具。",
+      "tools": {
+        "approved": "已授权",
+        "caution": "预先授权的工具会跳过人工审核，请仅启用可信的工具。",
         "description": "选择哪些工具可以在无需人工审批的情况下执行。",
         "requiresPermission": "未预先授权时需要人工审批。",
         "tab": "预先授权工具",
