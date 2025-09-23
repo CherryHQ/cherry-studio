@@ -270,6 +270,7 @@ export class SessionMessageService extends BaseService {
         .orderBy(desc(sessionMessagesTable.created_at))
         .limit(1)
 
+      logger.silly('Last agent session ID result:', { agentSessionId: result[0]?.agent_session_id, sessionId })
       return result[0]?.agent_session_id || ''
     } catch (error) {
       logger.error('Failed to get last agent session ID', {

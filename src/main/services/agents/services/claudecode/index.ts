@@ -74,6 +74,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       ELECTRON_RUN_AS_NODE: '1'
     }
 
+    const errorChunks: string[] = []
+
     // Build SDK options from parameters
     const options: Options = {
       abortController,
@@ -82,7 +84,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
-        logger.info('claude stderr', { chunk })
+        logger.warn('claude stderr', { chunk })
+        errorChunks.push(chunk)
       },
       appendSystemPrompt: session.instructions,
       permissionMode: session.configuration?.permission_mode,
@@ -116,11 +119,16 @@ class ClaudeCodeService implements AgentServiceInterface {
 
     logger.silly('Starting Claude Code SDK query', {
       prompt,
-      options
+      cwd: options.cwd,
+      model: options.model,
+      permissionMode: options.permissionMode,
+      maxTurns: options.maxTurns,
+      allowedTools: options.allowedTools,
+      resume: options.resume
     })
 
     // Start async processing
-    this.processSDKQuery(prompt, options, aiStream)
+    this.processSDKQuery(prompt, options, aiStream, errorChunks)
 
     return aiStream
   }
@@ -142,7 +150,12 @@ class ClaudeCodeService implements AgentServiceInterface {
   /**
    * Process SDK query and emit stream events
    */
-  private async processSDKQuery(prompt: string, options: Options, stream: ClaudeCodeStream): Promise<void> {
+  private async processSDKQuery(
+    prompt: string,
+    options: Options,
+    stream: ClaudeCodeStream,
+    errorChunks: string[]
+  ): Promise<void> {
     const jsonOutput: SDKMessage[] = []
     let hasCompleted = false
     const startTime = Date.now()
@@ -209,17 +222,12 @@ class ClaudeCodeService implements AgentServiceInterface {
         return
       }
 
-      // Original error handling for non-abort errors
-      logger.error('SDK query error:', {
-        error: errorObj instanceof Error ? errorObj.message : String(errorObj),
-        duration,
-        messageCount: jsonOutput.length
-      })
-
+      errorChunks.push(errorObj instanceof Error ? errorObj.message : String(errorObj))
+      const errorMessage = errorChunks.join('\n\n')
       // Emit error event
       stream.emit('data', {
         type: 'error',
-        error: errorObj instanceof Error ? errorObj : new Error(String(errorObj))
+        error: new Error(errorMessage)
       })
     }
   }
