@@ -8,19 +8,13 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
-  Select,
-  SelectedItemProps,
-  SelectedItems,
-  SelectItem,
   Textarea,
   useDisclosure
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { Selection } from '@react-types/shared'
 import { AllowedToolsSelect } from '@renderer/components/agent'
-import { getModelLogo } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import {
@@ -31,11 +25,11 @@ import {
   Tool,
   UpdateSessionForm
 } from '@renderer/types'
-import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
-import { BaseOption, ModelOption, Option } from './shared'
+import { ModelOption } from './shared'
 
 const logger = loggerService.withContext('SessionAgentPopup')
 
@@ -107,8 +101,6 @@ export const SessionModal: React.FC<Props> = ({
   // const { setTimeoutTimer } = useTimer()
   const { createSession } = useSessions(agentId)
   const updateSession = useUpdateSession(agentId)
-  // Only support claude code for now
-  const { models } = useApiModels({ providerType: 'anthropic' })
   const { agent } = useAgent(agentId)
   const isEditing = (session?: AgentSessionEntity) => session !== undefined
 
@@ -140,13 +132,6 @@ export const SessionModal: React.FC<Props> = ({
       }
     })
   }, [availableTools])
-
-  const Item = useCallback(({ item }: { item: SelectedItemProps<BaseOption> }) => <Option option={item.data} />, [])
-
-  const renderOption = useCallback(
-    (items: SelectedItems<BaseOption>) => items.map((item) => <Item key={item.key} item={item} />),
-    [Item]
-  )
 
   const onNameChange = useCallback((name: string) => {
     setForm((prev) => ({
@@ -197,25 +182,6 @@ export const SessionModal: React.FC<Props> = ({
     },
     [availableTools]
   )
-
-  const modelOptions = useMemo(() => {
-    // mocked data. not final version
-    return (models ?? []).map((model) => ({
-      type: 'model',
-      key: model.id,
-      label: model.name,
-      avatar: getModelLogo(model.id),
-      providerId: model.provider,
-      providerName: model.provider_name
-    })) satisfies ModelOption[]
-  }, [models])
-
-  const onModelChange = useCallback((e: ChangeEvent<HTMLSelectElement>) => {
-    setForm((prev) => ({
-      ...prev,
-      model: e.target.value
-    }))
-  }, [])
 
   const onSubmit = useCallback(
     async (e: FormEvent<HTMLFormElement>) => {
@@ -327,22 +293,6 @@ export const SessionModal: React.FC<Props> = ({
               <Form onSubmit={onSubmit} className="w-full">
                 <ModalBody className="w-full">
                   <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
-                  {/* FIXME: Model type definition is string. It cannot be related to provider. Just mock a model now. */}
-                  <Select
-                    isRequired
-                    selectionMode="single"
-                    selectedKeys={form.model ? [form.model] : []}
-                    onChange={onModelChange}
-                    items={modelOptions}
-                    label={t('common.model')}
-                    placeholder={t('common.placeholders.select.model')}
-                    renderValue={renderOption}>
-                    {(option) => (
-                      <SelectItem key={option.key} textValue={option.label}>
-                        <Option option={option} />
-                      </SelectItem>
-                    )}
-                  </Select>
                   <Textarea
                     label={t('common.description')}
                     value={form.description ?? ''}
