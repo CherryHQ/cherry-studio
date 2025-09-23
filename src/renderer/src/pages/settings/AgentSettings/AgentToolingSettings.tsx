@@ -309,6 +309,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
             const isSelected = card.mode === selectedMode
             const disabled = card.unsupported
             const showCaution = card.caution
+
             return (
               <Card
                 key={card.mode}
@@ -338,13 +339,15 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
                 <CardBody className="gap-2 text-left text-xs">
                   <span className="text-foreground-600">{t(card.behaviorKey, card.behaviorFallback)}</span>
                   {showCaution ? (
-                    <span className="flex items-center gap-1 text-danger-600">
-                      <ShieldAlert size={14} />
-                      {t(
-                        'agent.settings.tooling.permissionMode.bypassPermissions.warning',
-                        'Use with caution — all tools will run without asking for approval.'
-                      )}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <ShieldAlert size={24} />
+                      <span className="text-danger-600">
+                        {t(
+                          'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+                          'Use with caution — all tools will run without asking for approval.'
+                        )}
+                      </span>
+                    </div>
                   ) : null}
                 </CardBody>
               </Card>
@@ -375,7 +378,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
             onValueChange={setSearchTerm}
             placeholder={t('agent.settings.tooling.preapproved.search', 'Search tools')}
             aria-label={t('agent.settings.tooling.preapproved.search', 'Search tools')}
-            className="max-w-md"
+            className="w-full"
           />
           <div className="flex flex-col gap-3">
             {filteredTools.length === 0 ? (
