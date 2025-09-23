@@ -8,7 +8,7 @@ import {
   type UpdateSessionRequest,
   UpdateSessionResponse
 } from '@types'
-import { and, count, eq, type SQL } from 'drizzle-orm'
+import { and, count, desc, eq, type SQL } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
@@ -137,8 +137,12 @@ export class SessionService extends BaseService {
 
     const total = totalResult[0].count
 
-    // Build list query with pagination
-    const baseQuery = this.database.select().from(sessionsTable).where(whereClause).orderBy(sessionsTable.created_at)
+    // Build list query with pagination - sort by updated_at descending (latest first)
+    const baseQuery = this.database
+      .select()
+      .from(sessionsTable)
+      .where(whereClause)
+      .orderBy(desc(sessionsTable.updated_at))
 
     const result =
       options.limit !== undefined
