@@ -11,7 +11,16 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, Notification, OcrProvider, Provider, Shortcut, SupportedOcrFile, ThemeMode } from '@types'
+import {
+  AgentPersistedMessage,
+  FileMetadata,
+  Notification,
+  OcrProvider,
+  Provider,
+  Shortcut,
+  SupportedOcrFile,
+  ThemeMode,
+} from "@types";
 import checkDiskSpace from 'check-disk-space'
 import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
@@ -209,14 +218,20 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     }
   })
 
-  ipcMain.handle(IpcChannel.AgentMessage_GetHistory, async (_event, { sessionId }: { sessionId: string }) => {
-    try {
-      return await agentMessageRepository.getSessionHistory(sessionId)
-    } catch (error) {
-      logger.error('Failed to get agent session history', error as Error)
-      throw error
+  ipcMain.handle(
+    IpcChannel.AgentMessage_GetHistory,
+    async (
+      _event,
+      { sessionId }: { sessionId: string }
+    ): Promise<AgentPersistedMessage[]> => {
+      try {
+        return await agentMessageRepository.getSessionHistory(sessionId);
+      } catch (error) {
+        logger.error("Failed to get agent session history", error as Error);
+        throw error;
+      }
     }
-  })
+  );
 
   //only for mac
   if (isMac) {

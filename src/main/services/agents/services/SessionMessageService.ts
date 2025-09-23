@@ -6,7 +6,7 @@ import type {
   ListOptions
 } from '@types'
 import { TextStreamPart } from 'ai'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import { sessionMessagesTable } from '../database/schema'
@@ -143,6 +143,16 @@ export class SessionMessageService extends BaseService {
     const messages = result.map((row) => this.deserializeSessionMessage(row)) as AgentSessionMessageEntity[]
 
     return { messages }
+  }
+
+  async deleteSessionMessage(sessionId: string, messageId: number): Promise<boolean> {
+    this.ensureInitialized()
+
+    const result = await this.database
+      .delete(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.session_id, sessionId)))
+
+    return result.rowsAffected > 0
   }
 
   async createSessionMessage(

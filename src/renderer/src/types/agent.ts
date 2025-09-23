@@ -267,6 +267,10 @@ export const SessionIdParamSchema = z.object({
   sessionId: z.string().min(1, 'Session ID is required')
 })
 
+export const SessionMessageIdParamSchema = z.object({
+  messageId: z.coerce.number().int().positive('Message ID must be a positive integer')
+})
+
 // Query validation schemas
 export const PaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
