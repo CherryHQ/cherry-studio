@@ -1,10 +1,5 @@
 import { Input, Tooltip } from '@heroui/react'
-import {
-  AgentConfiguration,
-  AgentConfigurationSchema,
-  GetAgentResponse,
-  UpdateAgentForm
-} from '@renderer/types'
+import { AgentConfiguration, AgentConfigurationSchema, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -83,9 +78,7 @@ export const AgentAdvanceSettings: React.FC<AgentAdvanceSettingsProps> = ({ agen
             }}
             aria-label={t('agent.settings.advance.maxTurns.label')}
           />
-          <span className="text-foreground-500 text-xs">
-            {t('agent.settings.advance.maxTurns.helper')}
-          </span>
+          <span className="text-foreground-500 text-xs">{t('agent.settings.advance.maxTurns.helper')}</span>
         </div>
       </SettingsItem>
     </SettingsContainer>
