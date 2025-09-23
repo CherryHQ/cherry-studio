@@ -381,7 +381,8 @@ export function isReasoningModel(model?: Model): boolean {
     isDeepSeekHybridInferenceModel(model) ||
     modelId.includes('magistral') ||
     modelId.includes('minimax-m1') ||
-    modelId.includes('pangu-pro-moe')
+    modelId.includes('pangu-pro-moe') ||
+    modelId.includes('seed-oss')
   ) {
     return true
   }
