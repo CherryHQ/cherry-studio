@@ -47,5 +47,9 @@
   "search.exclude": {
     "**/dist/**": true,
     ".yarn/releases/**": true
-  }
+  },
+  "tailwindCSS.classAttributes": [
+    "className",
+    "classNames",
+  ]
 }
