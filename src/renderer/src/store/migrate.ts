@@ -2479,6 +2479,7 @@ const migrateConfig = {
   },
   '156': (state: RootState) => {
     try {
+      addProvider(state, 'aionly')
       state.llm.providers.forEach((provider) => {
         if (provider.id === SystemProviderIds.anthropic) {
           if (provider.apiHost.endsWith('/')) {
