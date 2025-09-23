@@ -21,13 +21,18 @@ This file provides guidance to AI coding assistants when working with code in th
 
 ## Development Commands
 
-- **Install**: `yarn install`
-- **Development**: `yarn dev` - Runs Electron app in development mode
-- **Debug**: `yarn debug` - Starts with debugging enabled, use chrome://inspect
-- **Build Check**: `yarn build:check` - REQUIRED before commits (lint + test + typecheck)
-- **Test**: `yarn test` - Run all tests (Vitest)
-- **Single Test**: `yarn test:main` or `yarn test:renderer`
-- **Lint**: `yarn lint` - Fix linting issues and run typecheck
+- **Install**: `yarn install` - Install all project dependencies
+- **Development**: `yarn dev` - Runs Electron app in development mode with hot reload
+- **Debug**: `yarn debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
+- **Build Check**: `yarn build:check` - **REQUIRED** before commits (lint + test + typecheck)
+  - If having i18n sort issues, run `yarn i18n:sync` first to sync template
+  - If having formatting issues, run `yarn format` first
+- **Test**: `yarn test` - Run all tests (Vitest) across main and renderer processes
+- **Single Test**:
+  - `yarn test:main` - Run tests for main process only
+  - `yarn test:renderer` - Run tests for renderer process only
+- **Lint**: `yarn lint` - Fix linting issues and run TypeScript type checking
+- **Format**: `yarn format` - Auto-format code using Biome
 
 ## Project Architecture
 

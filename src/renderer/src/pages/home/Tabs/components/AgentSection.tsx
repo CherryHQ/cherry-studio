@@ -31,7 +31,7 @@ export const AgentSection = () => {
   }
 
   return (
-    <div className="agents-tab h-full w-full">
+    <div className="agents-tab mb-2 h-full w-full">
       <SectionName name={t('common.agent_other')} />
       <Agents />
     </div>

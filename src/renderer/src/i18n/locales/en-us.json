@@ -46,9 +46,9 @@
       },
       "allowed_tools": {
         "empty": "No tools available for this agent.",
-        "helper": "Choose which tools are pre-approved. Unselected tools require approval before use.",
-        "label": "Allowed tools",
-        "placeholder": "Select allowed tools"
+        "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
+        "label": "Pre-approved tools",
+        "placeholder": "Select pre-approved tools"
       },
       "create": {
         "error": {
@@ -80,8 +80,106 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Define how many request/response cycles the agent may complete automatically.",
+          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
+          "label": "Conversation turn limit"
+        },
+        "permissionMode": {
+          "description": "Control how the agent handles actions that require approval.",
+          "label": "Permission mode",
+          "options": {
+            "acceptEdits": "Accept edits automatically",
+            "bypassPermissions": "Bypass permission checks",
+            "default": "Default (ask before continuing)",
+            "plan": "Planning mode (requires plan approval)"
+          },
+          "placeholder": "Choose a permission behavior"
+        },
+        "title": "Advanced Settings"
+      },
       "essential": "Essential Settings",
-      "prompt": "Prompt Settings"
+      "prompt": "Prompt Settings",
+      "tooling": {
+        "mcp": {
+          "description": "Connect MCP servers to unlock additional tools you can approve above.",
+          "empty": "No MCP servers detected. Add one from the MCP settings page.",
+          "manageHint": "Need advanced configuration? Visit Settings → MCP Servers.",
+          "toggle": "Toggle {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pre-approves trusted filesystem tools so edits run immediately.",
+            "description": "File edits and filesystem operations are automatically approved.",
+            "title": "Auto-accept file edits"
+          },
+          "bypassPermissions": {
+            "behavior": "Every tool is pre-approved automatically.",
+            "description": "All permission prompts are skipped — use with caution.",
+            "title": "Bypass permission checks",
+            "warning": "Use with caution — all tools will run without asking for approval."
+          },
+          "confirmChange": {
+            "description": "Switching modes updates the automatically approved tools.",
+            "title": "Change permission mode?"
+          },
+          "default": {
+            "behavior": "Read-only tools are pre-approved automatically.",
+            "description": "Read-only tools are pre-approved; everything else still needs permission.",
+            "title": "Default (ask before continuing)"
+          },
+          "plan": {
+            "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
+            "description": "Shares the default read-only tool set but presents a plan before execution.",
+            "title": "Planning mode (coming soon)"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "Added by mode",
+          "autoDescription": "This tool is auto-approved by the current permission mode.",
+          "empty": "No tools match your filters.",
+          "mcpBadge": "MCP tool",
+          "requiresApproval": "Requires approval when disabled",
+          "search": "Search tools",
+          "toggle": "Toggle {{name}}",
+          "warning": {
+            "description": "Enable only tools you trust. Mode defaults are highlighted automatically.",
+            "title": "Pre-approved tools run without manual review."
+          }
+        },
+        "review": {
+          "autoTools": "Auto: {{count}}",
+          "customTools": "Custom: {{count}}",
+          "helper": "Changes save automatically. Adjust the steps above any time to fine-tune permissions.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Mode: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCP servers"
+          },
+          "permissionMode": {
+            "title": "Step 1 · Permission mode"
+          },
+          "preapproved": {
+            "title": "Step 2 · Pre-approved tools"
+          },
+          "review": {
+            "title": "Step 3 · Review"
+          }
+        },
+        "tab": "Tooling & permissions"
+      },
+      "tools": {
+        "approved": "approved",
+        "caution": "Pre-approved tools bypass human review. Enable only trusted tools.",
+        "description": "Choose which tools can run without manual approval.",
+        "requiresPermission": "Requires permission when not pre-approved.",
+        "tab": "Pre-approved tools",
+        "title": "Pre-approved tools",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Agent Type",

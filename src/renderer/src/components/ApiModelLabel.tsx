@@ -5,15 +5,22 @@ import React from 'react'
 
 export interface ModelLabelProps extends Omit<React.ComponentPropsWithRef<'div'>, 'children'> {
   model?: ApiModel
+  classNames?: {
+    container?: string
+    avatar?: string
+    modelName?: string
+    divider?: string
+    providerName?: string
+  }
 }
 
-export const ApiModelLabel: React.FC<ModelLabelProps> = ({ model, className, ...props }) => {
+export const ApiModelLabel: React.FC<ModelLabelProps> = ({ model, className, classNames, ...props }) => {
   return (
-    <div className={cn('flex items-center gap-1', className)} {...props}>
-      <Avatar src={model ? getModelLogo(model.id) : undefined} className="h-4 w-4" />
-      <span>
-        {model?.name} | {model?.provider_name}
-      </span>
+    <div className={cn('flex items-center gap-1', className, classNames?.container)} {...props}>
+      <Avatar src={model ? getModelLogo(model.id) : undefined} className={cn('h-4 w-4', classNames?.avatar)} />
+      <span className={classNames?.modelName}>{model?.name}</span>
+      <span className={classNames?.divider}> | </span>
+      <span className={classNames?.providerName}>{model?.provider_name}</span>
     </div>
   )
 }

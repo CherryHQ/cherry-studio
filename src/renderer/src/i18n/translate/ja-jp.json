@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "このエージェントが利用できるツールはありません。",
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
-        "label": "許可されたツール",
-        "placeholder": "許可するツールを選択"
+        "label": "事前承認済みツール",
+        "placeholder": "事前承認するツールを選択"
       },
       "create": {
         "error": {
@@ -80,8 +80,107 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "プロキシが自動的に実行するリクエスト/レスポンスのラウンド数を設定します。",
+          "helper": "数値が高いほど自律動作の時間が長くなり、数値が低いほど制御しやすくなります。",
+          "label": "会話ラウンド数の上限"
+        },
+        "permissionMode": {
+          "description": "制御エージェントが認可を必要とする場合の処理方法。",
+          "label": "権限モード",
+          "options": {
+            "acceptEdits": "自動的に編集を受け入れる",
+            "bypassPermissions": "権限チェックをスキップ",
+            "default": "デフォルト（続行する前に確認）",
+            "plan": "計画モード（承認が必要な計画）"
+          },
+          "placeholder": "権限モードを選択"
+        },
+        "title": "高級設定"
+      },
       "essential": "必須設定",
-      "prompt": "プロンプト設定"
+      "mcps": "MCPサーバー",
+      "prompt": "プロンプト設定",
+      "tooling": {
+        "mcp": {
+          "description": "MCPサーバーを接続して、上で承認できる追加ツールを解放します。",
+          "empty": "MCPサーバーが検出されませんでした。MCP設定ページから追加してください。",
+          "manageHint": "高度な設定が必要ですか？設定 → MCPサーバーにアクセスしてください。",
+          "toggle": "{{name}}を切り替え"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "信頼できるファイルシステムツールを事前に承認し、編集が即座に実行されるようにします。",
+            "description": "ファイルの編集とファイルシステムの操作は自動的に承認されます。",
+            "title": "ファイル編集を自動承認"
+          },
+          "bypassPermissions": {
+            "behavior": "すべてのツールは自動的に事前承認されます。",
+            "description": "すべての権限プロンプトはスキップされます — 注意して使用してください。",
+            "title": "権限チェックをバイパス",
+            "warning": "注意して使用してください — すべてのツールは承認なしで実行されます。"
+          },
+          "confirmChange": {
+            "description": "モードを切り替えると、自動承認されたツールが更新されます。",
+            "title": "パーミッションモードを変更しますか？"
+          },
+          "default": {
+            "behavior": "ツールは自動的に事前承認されません。",
+            "description": "通常の権限チェックが適用されます。",
+            "title": "デフォルト（続行する前に確認）"
+          },
+          "plan": {
+            "behavior": "読み取り専用ツールのみ。実行は無効です。",
+            "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
+            "title": "計画モード（近日公開）"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "モードによって追加されました",
+          "autoDescription": "このツールは現在の権限モードによって自動承認されています。",
+          "empty": "フィルターに一致するツールはありません。",
+          "mcpBadge": "MCPツール",
+          "requiresApproval": "無効にするには承認が必要",
+          "search": "検索ツール",
+          "toggle": "{{name}}を切り替える",
+          "warning": {
+            "description": "信頼できるツールのみを有効にしてください。モードのデフォルトは自動的に強調表示されます。",
+            "title": "事前承認されたツールは手動でのレビューなしに実行されます。"
+          }
+        },
+        "review": {
+          "autoTools": "自動: {{count}}",
+          "customTools": "カスタム: {{count}}",
+          "helper": "変更は自動的に保存されます。権限を微調整するには、上記の手順をいつでも調整してください。",
+          "mcp": "MCP: {{count}}",
+          "mode": "モード: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "MCPサーバー"
+          },
+          "permissionMode": {
+            "title": "ステップ1・権限モード"
+          },
+          "preapproved": {
+            "title": "ステップ2・事前承認済みツール"
+          },
+          "review": {
+            "title": "ステップ3・レビュー"
+          }
+        },
+        "tab": "ツールと権限"
+      },
+      "tools": {
+        "approved": "承認済み",
+        "caution": "事前承認したツールは人によるレビューをスキップします。信頼できるツールのみ有効にしてください。",
+        "description": "人による承認なしで実行できるツールを選択します。",
+        "requiresPermission": "事前承認されていない場合は承認が必要です。",
+        "tab": "事前承認済みツール",
+        "title": "事前承認済みツール",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "エージェントタイプ",

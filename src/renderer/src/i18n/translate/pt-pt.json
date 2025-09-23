@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Não há ferramentas disponíveis para este agente.",
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
-        "label": "Ferramentas permitidas",
-        "placeholder": "Selecione as ferramentas permitidas"
+        "label": "Ferramentas pré-aprovadas",
+        "placeholder": "Selecionar ferramentas pré-aprovadas"
       },
       "create": {
         "error": {
@@ -80,8 +80,107 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Defina o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
+          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
+          "label": "Limite máximo de turnos de conversação"
+        },
+        "permissionMode": {
+          "description": "Como o agente de controle lida com situações que exigem autorização.",
+          "label": "Modo de permissão",
+          "options": {
+            "acceptEdits": "Aceitar edições automaticamente",
+            "bypassPermissions": "忽略检查 de permissão",
+            "default": "Padrão (perguntar antes de continuar)",
+            "plan": "Modo de planejamento (plano sujeito a aprovação)"
+          },
+          "placeholder": "Selecionar modo de permissão"
+        },
+        "title": "Configurações avançadas"
+      },
       "essential": "Configurações Essenciais",
-      "prompt": "Configurações de Prompt"
+      "mcps": "Servidor MCP",
+      "prompt": "Configurações de Prompt",
+      "tooling": {
+        "mcp": {
+          "description": "Conecte servidores MCP para desbloquear ferramentas adicionais que você pode aprovar acima.",
+          "empty": "Nenhum servidor MCP detectado. Adicione um na página de configurações do MCP.",
+          "manageHint": "Precisa de configuração avançada? Visite Configurações → Servidores MCP.",
+          "toggle": "Alternar {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pré-aplica ferramentas confiáveis do sistema de arquivos para que as edições sejam executadas imediatamente.",
+            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
+            "title": "Aceitar automaticamente edições de arquivos"
+          },
+          "bypassPermissions": {
+            "behavior": "Cada ferramenta é pré-aprovada automaticamente.",
+            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
+            "title": "Ignorar verificações de permissão",
+            "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
+          },
+          "confirmChange": {
+            "description": "Alternar modos atualiza as ferramentas aprovadas automaticamente.",
+            "title": "Alterar modo de permissão?"
+          },
+          "default": {
+            "behavior": "Nenhuma ferramenta é pré-aprovada automaticamente.",
+            "description": "Verificações normais de permissão aplicam-se.",
+            "title": "Padrão (perguntar antes de continuar)"
+          },
+          "plan": {
+            "behavior": "Ferramentas somente leitura. A execução está desabilitada.",
+            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
+            "title": "Modo de planejamento (em breve)"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "Adicionado por modo",
+          "autoDescription": "Esta ferramenta é aprovada automaticamente pelo modo de permissão atual.",
+          "empty": "Nenhuma ferramenta corresponde aos seus filtros.",
+          "mcpBadge": "Ferramenta MCP",
+          "requiresApproval": "Requer aprovação quando desativado",
+          "search": "Ferramentas de pesquisa",
+          "toggle": "Alternar {{name}}",
+          "warning": {
+            "description": "Ative apenas ferramentas em que confie. As configurações padrão do modo são destacadas automaticamente.",
+            "title": "Ferramentas pré-aprovadas são executadas sem revisão manual."
+          }
+        },
+        "review": {
+          "autoTools": "Auto: {{count}}",
+          "customTools": "Personalizado: {{count}}",
+          "helper": "As alterações são salvas automaticamente. Ajuste as etapas acima a qualquer momento para refinar as permissões.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Modo: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "Servidores MCP"
+          },
+          "permissionMode": {
+            "title": "Passo 1 · Modo de permissão"
+          },
+          "preapproved": {
+            "title": "Passo 2 · Ferramentas pré-aprovadas"
+          },
+          "review": {
+            "title": "Passo 3 · Revisão"
+          }
+        },
+        "tab": "Ferramentas e permissões"
+      },
+      "tools": {
+        "approved": "aprovado",
+        "caution": "Ferramentas pré-aprovadas ignoram a revisão humana. Ative apenas ferramentas confiáveis.",
+        "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
+        "requiresPermission": "Requer permissão quando não pré-aprovado.",
+        "tab": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas pré-aprovadas",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Tipo de Agente",

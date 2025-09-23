@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Aucun outil disponible pour cet agent.",
         "helper": "Choisissez les outils préapprouvés. Les outils non sélectionnés nécessiteront une approbation avant utilisation.",
-        "label": "Outils autorisés",
-        "placeholder": "Sélectionner les outils autorisés"
+        "label": "Outils pré-approuvés",
+        "placeholder": "Sélectionner des outils pré-approuvés"
       },
       "create": {
         "error": {
@@ -80,8 +80,107 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Définir le nombre de cycles de requête/réponse exécutés automatiquement par l'agent.",
+          "helper": "Une valeur plus élevée permet une autonomie prolongée ; une valeur plus faible facilite le contrôle.",
+          "label": "Limite maximale de tours de conversation"
+        },
+        "permissionMode": {
+          "description": "Contrôle la manière dont l'agent gère les demandes d'autorisation.",
+          "label": "mode d'autorisation",
+          "options": {
+            "acceptEdits": "Accepter automatiquement les modifications",
+            "bypassPermissions": "Passer la vérification des autorisations",
+            "default": "Par défaut (demander avant de continuer)",
+            "plan": "Mode de planification (plan soumis à approbation)"
+          },
+          "placeholder": "Choisir le mode d'autorisation"
+        },
+        "title": "Paramètres avancés"
+      },
       "essential": "Paramètres essentiels",
-      "prompt": "Paramètres de l'invite"
+      "mcps": "Serveur MCP",
+      "prompt": "Paramètres de l'invite",
+      "tooling": {
+        "mcp": {
+          "description": "Connectez des serveurs MCP pour débloquer des outils supplémentaires que vous pouvez approuver ci-dessus.",
+          "empty": "Aucun serveur MCP détecté. Ajoutez-en un depuis la page des paramètres MCP.",
+          "manageHint": "Besoin d'une configuration avancée ? Visitez Paramètres → Serveurs MCP.",
+          "toggle": "Basculer {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pré-approuve les outils de système de fichiers de confiance afin que les modifications s'exécutent immédiatement.",
+            "description": "Les modifications de fichiers et les opérations sur le système de fichiers sont automatiquement approuvées.",
+            "title": "Accepter automatiquement les modifications de fichiers"
+          },
+          "bypassPermissions": {
+            "behavior": "Chaque outil est pré-approuvé automatiquement.",
+            "description": "Toutes les demandes de permission sont ignorées — à utiliser avec prudence.",
+            "title": "Contourner les vérifications de permission",
+            "warning": "Utiliser avec prudence — tous les outils s'exécuteront sans demander d'approbation."
+          },
+          "confirmChange": {
+            "description": "Le changement de mode met à jour les outils approuvés automatiquement.",
+            "title": "Changer le mode d'autorisation ?"
+          },
+          "default": {
+            "behavior": "Aucun outil n’est pré-approuvé automatiquement.",
+            "description": "Les vérifications d'autorisation normales s'appliquent.",
+            "title": "Par défaut (demander avant de continuer)"
+          },
+          "plan": {
+            "behavior": "Outils en lecture seule uniquement. L'exécution est désactivée.",
+            "description": "Claude ne peut utiliser que des outils en lecture seule et présente un plan avant l'exécution.",
+            "title": "Mode de planification (à venir)"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "Ajouté par mode",
+          "autoDescription": "Cet outil est automatiquement approuvé par le mode d'autorisation actuel.",
+          "empty": "Aucun outil ne correspond à vos filtres.",
+          "mcpBadge": "outil MCP",
+          "requiresApproval": "Nécessite une approbation lorsqu’il est désactivé",
+          "search": "Outils de recherche",
+          "toggle": "Basculer {{name}}",
+          "warning": {
+            "description": "Activez uniquement les outils en lesquels vous avez confiance. Les paramètres par défaut du mode sont mis en surbrillance automatiquement.",
+            "title": "Les outils pré-approuvés s'exécutent sans révision manuelle."
+          }
+        },
+        "review": {
+          "autoTools": "Auto : {{count}}",
+          "customTools": "Personnalisé : {{count}}",
+          "helper": "Les modifications sont enregistrées automatiquement. Ajustez les étapes ci-dessus à tout moment pour affiner les autorisations.",
+          "mcp": "MCP : {{count}}",
+          "mode": "Mode : {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "Serveurs MCP"
+          },
+          "permissionMode": {
+            "title": "Étape 1 · Mode d’autorisation"
+          },
+          "preapproved": {
+            "title": "Étape 2 · Outils pré-approuvés"
+          },
+          "review": {
+            "title": "Étape 3 · Révision"
+          }
+        },
+        "tab": "Outils et autorisations"
+      },
+      "tools": {
+        "approved": "approuvé",
+        "caution": "Outils pré-approuvés contournent la révision humaine. Activez uniquement les outils de confiance.",
+        "description": "Choisissez quels outils peuvent s'exécuter sans approbation manuelle.",
+        "requiresPermission": "Nécessite une autorisation lorsqu'elle n'est pas préapprouvée.",
+        "tab": "Outils pré-approuvés",
+        "title": "Outils pré-approuvés",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Type d'agent",

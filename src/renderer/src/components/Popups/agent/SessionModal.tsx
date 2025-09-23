@@ -1,6 +1,5 @@
 import {
   Button,
-  Chip,
   cn,
   Form,
   Input,
@@ -18,6 +17,7 @@ import {
 } from '@heroui/react'
 import { loggerService } from '@logger'
 import type { Selection } from '@react-types/shared'
+import { AllowedToolsSelect } from '@renderer/components/agent'
 import { getModelLogo } from '@renderer/config/models'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
@@ -58,7 +58,8 @@ const buildSessionForm = (existing?: SessionWithTools, agent?: AgentWithTools): 
     ? [...existing.allowed_tools]
     : agent?.allowed_tools
       ? [...agent.allowed_tools]
-      : []
+      : [],
+  mcps: existing?.mcps ? [...existing.mcps] : agent?.mcps ? [...agent.mcps] : []
 })
 
 interface BaseProps {
@@ -197,21 +198,6 @@ export const SessionModal: React.FC<Props> = ({
     [availableTools]
   )
 
-  const renderSelectedTools = useCallback((items: SelectedItems<Tool>) => {
-    if (!items.length) {
-      return null
-    }
-    return (
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <Chip key={item.key} size="sm" variant="flat" className="max-w-[160px] truncate">
-            {item.data?.name ?? item.textValue ?? item.key}
-          </Chip>
-        ))}
-      </div>
-    )
-  }, [])
-
   const modelOptions = useMemo(() => {
     // mocked data. not final version
     return (models ?? []).map((model) => ({
@@ -266,7 +252,8 @@ export const SessionModal: React.FC<Props> = ({
             instructions: form.instructions,
             model: form.model,
             accessible_paths: [...form.accessible_paths],
-            allowed_tools: [...(form.allowed_tools ?? [])]
+            allowed_tools: [...(form.allowed_tools ?? [])],
+            mcps: [...(form.mcps ?? [])]
           } satisfies UpdateSessionForm
 
           updateSession(updatePayload)
@@ -278,7 +265,8 @@ export const SessionModal: React.FC<Props> = ({
             instructions: form.instructions,
             model: form.model,
             accessible_paths: [...form.accessible_paths],
-            allowed_tools: [...(form.allowed_tools ?? [])]
+            allowed_tools: [...(form.allowed_tools ?? [])],
+            mcps: [...(form.mcps ?? [])]
           } satisfies CreateSessionForm
           const createdSession = await createSession(newSession)
           if (createdSession) {
@@ -300,6 +288,7 @@ export const SessionModal: React.FC<Props> = ({
       form.instructions,
       form.accessible_paths,
       form.allowed_tools,
+      form.mcps,
       session,
       onClose,
       onSessionCreated,
@@ -359,31 +348,11 @@ export const SessionModal: React.FC<Props> = ({
                     value={form.description ?? ''}
                     onValueChange={onDescChange}
                   />
-                  <Select
-                    selectionMode="multiple"
+                  <AllowedToolsSelect
+                    items={availableTools}
                     selectedKeys={selectedToolKeys}
                     onSelectionChange={onAllowedToolsChange}
-                    label={t('agent.session.allowed_tools.label')}
-                    placeholder={t('agent.session.allowed_tools.placeholder')}
-                    description={
-                      availableTools.length
-                        ? t('agent.session.allowed_tools.helper')
-                        : t('agent.session.allowed_tools.empty')
-                    }
-                    isDisabled={!availableTools.length}
-                    items={availableTools}
-                    renderValue={renderSelectedTools}>
-                    {(tool) => (
-                      <SelectItem key={tool.id} textValue={tool.name}>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-sm">{tool.name}</span>
-                          {tool.description ? (
-                            <span className="text-foreground-500 text-xs">{tool.description}</span>
-                          ) : null}
-                        </div>
-                      </SelectItem>
-                    )}
-                  </Select>
+                  />
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
                 </ModalBody>
                 <ModalFooter className="w-full">
