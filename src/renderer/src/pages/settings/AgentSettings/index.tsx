@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+import AgentAdvanceSettings from './AgentAdvanceSettings'
 import AgentEssentialSettings from './AgentEssentialSettings'
 import AgentMCPSettings from './AgentMCPSettings'
 import AgentPromptSettings from './AgentPromptSettings'
@@ -21,7 +22,7 @@ interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'mcps' | 'session-mcps'
+type AgentSettingPopupTab = 'essential' | 'prompt' | 'mcps' | 'advance' | 'session-mcps'
 
 const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -56,6 +57,10 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       {
         key: 'mcps',
         label: t('agent.settings.mcps', 'MCP Servers')
+      },
+      {
+        key: 'advance',
+        label: t('agent.settings.advance.title', 'Advanced Settings')
       }
     ] as const satisfies { key: AgentSettingPopupTab; label: string }[]
   ).filter(Boolean)
@@ -87,6 +92,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
           {menu === 'prompt' && <AgentPromptSettings agent={agent} update={updateAgent} />}
           {menu === 'mcps' && <AgentMCPSettings agent={agent} updateAgent={updateAgent} />}
+          {menu === 'advance' && <AgentAdvanceSettings agent={agent} updateAgent={updateAgent} />}
         </Settings>
       </div>
     )

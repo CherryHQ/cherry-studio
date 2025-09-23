@@ -169,6 +169,7 @@ export type BaseAgentForm = {
   accessible_paths: string[]
   allowed_tools: string[]
   mcps?: string[]
+  configuration?: AgentConfiguration
 }
 
 export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }

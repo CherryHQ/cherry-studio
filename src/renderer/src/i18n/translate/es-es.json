@@ -80,7 +80,27 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "[to be translated]:设定代理自动执行的请求/回复轮次数。",
+          "helper": "[to be translated]:数值越高可自主运行越久；数值越低更易控制。",
+          "label": "[to be translated]:会话轮次数上限"
+        },
+        "permissionMode": {
+          "description": "[to be translated]:控制代理在需要授权时的处理方式。",
+          "label": "[to be translated]:权限模式",
+          "options": {
+            "acceptEdits": "[to be translated]:自动接受编辑",
+            "bypassPermissions": "[to be translated]:跳过权限检查",
+            "default": "[to be translated]:默认（继续前询问）",
+            "plan": "[to be translated]:规划模式（需审批计划）"
+          },
+          "placeholder": "[to be translated]:选择权限模式"
+        },
+        "title": "[to be translated]:高级设置"
+      },
       "essential": "Configuraciones esenciales",
+      "mcps": "[to be translated]:MCP 服务器",
       "prompt": "Configuración de indicaciones"
     },
     "type": {

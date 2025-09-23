@@ -80,7 +80,27 @@
       }
     },
     "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "設定代理自動執行的請求／回覆輪次数。",
+          "helper": "數值越高可自動運行越久；數值越低更容易掌控。",
+          "label": "會話輪次上限"
+        },
+        "permissionMode": {
+          "description": "控制代理在需要授權時的處理方式。",
+          "label": "權限模式",
+          "options": {
+            "acceptEdits": "自動接受編輯",
+            "bypassPermissions": "略過權限檢查",
+            "default": "預設（繼續前先詢問）",
+            "plan": "規劃模式（需核准計畫）"
+          },
+          "placeholder": "選擇權限模式"
+        },
+        "title": "進階設定"
+      },
       "essential": "必要設定",
+      "mcps": "MCP 伺服器",
       "prompt": "提示設定"
     },
     "type": {
