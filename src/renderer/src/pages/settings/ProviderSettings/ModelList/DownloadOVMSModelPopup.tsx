@@ -3,8 +3,9 @@ import { TopView } from '@renderer/components/TopView'
 import { Provider } from '@renderer/types'
 import { AutoComplete, Button, Flex, Form, FormProps, Input, Modal, Progress, Select } from 'antd'
 import { useState } from 'react'
-import { useTimer } from '../../../../hooks/useTimer'
 import { useTranslation } from 'react-i18next'
+
+import { useTimer } from '../../../../hooks/useTimer'
 
 const logger = loggerService.withContext('OVMSClient')
 
