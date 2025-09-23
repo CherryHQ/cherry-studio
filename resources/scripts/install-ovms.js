@@ -5,7 +5,7 @@ const { execSync } = require('child_process')
 const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
-const OVMS_PKG_NAME = 'ovms250911.zip'
+const OVMS_PKG_NAME = 'ovms2509111.zip'
 const OVMS_RELEASE_BASE_URL = [`https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/${OVMS_PKG_NAME}`]
 
 /**
@@ -82,7 +82,6 @@ async function downloadOvmsBinary() {
     // Clean up temporary file
     fs.unlinkSync(tempFilename)
     console.log(`Installation directory: ${csDir}`)
-
   } catch (error) {
     console.error(`Error installing OVMS: ${error.message}`)
     if (fs.existsSync(tempFilename)) {
@@ -165,7 +164,7 @@ async function installOvms() {
 // Run the installation
 installOvms()
   .then((retcode) => {
-    if(retcode===0) {
+    if (retcode === 0) {
       console.log('OVMS installation successful')
     } else {
       console.error('OVMS installation failed')

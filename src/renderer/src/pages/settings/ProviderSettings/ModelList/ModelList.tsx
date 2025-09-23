@@ -94,8 +94,8 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
     }
   }, [provider, t])
 
-  const onDownloadModel = useCallback(() => 
-    DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
+  const onDownloadModel = useCallback(
+    () => DownloadOVMSModelPopup.show({ title: t('ovms.download.title'), provider }),
     [provider, t]
   )
 

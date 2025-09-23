@@ -7,7 +7,7 @@ import { SettingRow, SettingSubtitle } from '..'
 
 const OVMSSettings: FC = () => {
   const { t } = useTranslation()
-  
+
   const [ovmsStatus, setOvmsStatus] = useState<'not-installed' | 'not-running' | 'running'>('not-running')
   const [isInstallingOvms, setIsInstallingOvms] = useState(false)
   const [isRunningOvms, setIsRunningOvms] = useState(false)
@@ -42,7 +42,7 @@ const OVMSSettings: FC = () => {
       const code = match ? match[1] : 'unknown'
       const errorMsg = errCodeMsg[code as keyof typeof errCodeMsg] || error.message
 
-      window.message.error({ content: t('ovms.failed.install') + errorMsg , key: 'ovms-install-error' })
+      window.toast.error(t('ovms.failed.install') + errorMsg)
       setIsInstallingOvms(false)
     }
   }
@@ -56,7 +56,7 @@ const OVMSSettings: FC = () => {
       setOvmsStatus(status)
       setIsRunningOvms(false)
     } catch (error: any) {
-      window.message.error({ content: t('ovms.failed.run') + error.message, key: 'ovms-run-error' })
+      window.toast.error(t('ovms.failed.run') + error.message)
       setIsRunningOvms(false)
     }
   }
@@ -70,7 +70,7 @@ const OVMSSettings: FC = () => {
       setOvmsStatus(status)
       setIsStoppingOvms(false)
     } catch (error: any) {
-      window.message.error({ content: t('ovms.failed.stop') + error.message, key: 'ovms-stop-error' })
+      window.toast.error(t('ovms.failed.stop') + error.message)
       setIsStoppingOvms(false)
     }
   }
@@ -160,9 +160,7 @@ const OVMSSettings: FC = () => {
         type="info"
         style={{ marginTop: 5 }}
         message={'Intel OVMS Guide:'}
-        description={
-            <div dangerouslySetInnerHTML={{ __html: t('ovms.description') }}></div>
-        }
+        description={<div dangerouslySetInnerHTML={{ __html: t('ovms.description') }}></div>}
         showIcon
       />
     </>
