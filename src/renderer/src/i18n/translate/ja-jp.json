@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "このエージェントが利用できるツールはありません。",
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
-        "label": "許可されたツール",
-        "placeholder": "許可するツールを選択"
+        "label": "事前承認済みツール",
+        "placeholder": "事前承認するツールを選択"
       },
       "create": {
         "error": {
@@ -101,7 +101,16 @@
       },
       "essential": "必須設定",
       "mcps": "[to be translated]:MCP 服务器",
-      "prompt": "プロンプト設定"
+      "prompt": "プロンプト設定",
+      "tools": {
+        "approved": "承認済み",
+        "caution": "事前承認したツールは人によるレビューをスキップします。信頼できるツールのみ有効にしてください。",
+        "description": "人による承認なしで実行できるツールを選択します。",
+        "requiresPermission": "事前承認されていない場合は承認が必要です。",
+        "tab": "事前承認済みツール",
+        "title": "事前承認済みツール",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "エージェントタイプ",

@@ -11,6 +11,7 @@ import AgentAdvanceSettings from './AgentAdvanceSettings'
 import AgentEssentialSettings from './AgentEssentialSettings'
 import AgentMCPSettings from './AgentMCPSettings'
 import AgentPromptSettings from './AgentPromptSettings'
+import AgentToolSettings from './AgentToolSettings'
 import { AgentLabel } from './shared'
 
 interface AgentSettingPopupShowParams {
@@ -22,7 +23,7 @@ interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
   resolve: () => void
 }
 
-type AgentSettingPopupTab = 'essential' | 'prompt' | 'mcps' | 'advance' | 'session-mcps'
+type AgentSettingPopupTab = 'essential' | 'prompt' | 'tools' | 'mcps' | 'advance' | 'session-mcps'
 
 const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
   const [open, setOpen] = useState(true)
@@ -53,6 +54,10 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       {
         key: 'prompt',
         label: t('agent.settings.prompt')
+      },
+      {
+        key: 'tools',
+        label: t('agent.settings.tools.tab', 'Pre-approved tools')
       },
       {
         key: 'mcps',
@@ -91,6 +96,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
         <Settings>
           {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
           {menu === 'prompt' && <AgentPromptSettings agent={agent} update={updateAgent} />}
+          {menu === 'tools' && <AgentToolSettings agent={agent} updateAgent={updateAgent} />}
           {menu === 'mcps' && <AgentMCPSettings agent={agent} updateAgent={updateAgent} />}
           {menu === 'advance' && <AgentAdvanceSettings agent={agent} updateAgent={updateAgent} />}
         </Settings>

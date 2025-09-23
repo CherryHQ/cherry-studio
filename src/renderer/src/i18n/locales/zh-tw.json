@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "目前此代理沒有可用的工具。",
         "helper": "選擇預先授權的工具，未選取的工具在使用時需要手動審批。",
-        "label": "允許的工具",
-        "placeholder": "選擇允許使用的工具"
+        "label": "預先授權工具",
+        "placeholder": "選擇預先授權的工具"
       },
       "create": {
         "error": {
@@ -101,7 +101,16 @@
       },
       "essential": "必要設定",
       "mcps": "MCP 伺服器",
-      "prompt": "提示設定"
+      "prompt": "提示設定",
+      "tools": {
+        "approved": "已授權",
+        "caution": "預先授權的工具會略過人工審查，請僅啟用可信任的工具。",
+        "description": "選擇哪些工具可在無需人工核准的情況下執行。",
+        "requiresPermission": "未預先授權時需要人工核准。",
+        "tab": "預先授權工具",
+        "title": "預先授權工具",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "代理類型",

@@ -47,8 +47,8 @@
       "allowed_tools": {
         "empty": "Não há ferramentas disponíveis para este agente.",
         "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
-        "label": "Ferramentas permitidas",
-        "placeholder": "Selecione as ferramentas permitidas"
+        "label": "[to be translated]:Pre-approved tools",
+        "placeholder": "[to be translated]:Select pre-approved tools"
       },
       "create": {
         "error": {
@@ -101,7 +101,16 @@
       },
       "essential": "Configurações Essenciais",
       "mcps": "[to be translated]:MCP 服务器",
-      "prompt": "Configurações de Prompt"
+      "prompt": "Configurações de Prompt",
+      "tools": {
+        "approved": "[to be translated]:approved",
+        "caution": "[to be translated]:Pre-approved tools bypass human review. Enable only trusted tools.",
+        "description": "[to be translated]:Choose which tools can run without manual approval.",
+        "requiresPermission": "[to be translated]:Requires permission when not pre-approved.",
+        "tab": "[to be translated]:Pre-approved tools",
+        "title": "[to be translated]:Pre-approved tools",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Tipo de Agente",

@@ -46,9 +46,9 @@
       },
       "allowed_tools": {
         "empty": "No tools available for this agent.",
-        "helper": "Choose which tools are pre-approved. Unselected tools require approval before use.",
-        "label": "Allowed tools",
-        "placeholder": "Select allowed tools"
+        "helper": "Pre-approved tools run without manual approval. Unselected tools require approval before use.",
+        "label": "Pre-approved tools",
+        "placeholder": "Select pre-approved tools"
       },
       "create": {
         "error": {
@@ -101,7 +101,16 @@
       },
       "essential": "Essential Settings",
       "mcps": "MCP Servers",
-      "prompt": "Prompt Settings"
+      "prompt": "Prompt Settings",
+      "tools": {
+        "approved": "approved",
+        "caution": "Pre-approved tools bypass human review. Enable only trusted tools.",
+        "description": "Choose which tools can run without manual approval.",
+        "requiresPermission": "Requires permission when not pre-approved.",
+        "tab": "Pre-approved tools",
+        "title": "Pre-approved tools",
+        "toggle": "{{defaultValue}}"
+      }
     },
     "type": {
       "label": "Agent Type",
