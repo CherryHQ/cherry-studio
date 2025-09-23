@@ -34,7 +34,7 @@ const generateMessageId = (): string => `msg_${uuidv4().replace(/-/g, '')}`
 // Main transform function
 export function transformSDKMessageToStreamParts(sdkMessage: SDKMessage): AgentStreamPart[] {
   const chunks: AgentStreamPart[] = []
-  logger.silly('Transforming SDKMessage to stream parts', sdkMessage)
+  // logger.silly('Transforming SDKMessage to stream parts', sdkMessage)
   switch (sdkMessage.type) {
     case 'assistant':
     case 'user':
