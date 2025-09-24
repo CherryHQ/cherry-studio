@@ -12,7 +12,9 @@ const providerRouter = express.Router({ mergeParams: true })
 
 // Helper functions for shared logic
 async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
-  logger.info('Validating request body', { body: req.body })
+  logger.debug('Validating message request body', {
+    hasBody: Boolean(req.body)
+  })
   const request: MessageCreateParams = req.body
 
   if (!request) {
@@ -50,7 +52,7 @@ async function handleStreamingResponse(
     }
     res.write('data: [DONE]\n\n')
   } catch (streamError: any) {
-    logger.error('Stream error:', streamError)
+    logger.error('Stream error', { error: streamError })
     res.write(
       `data: ${JSON.stringify({
         type: 'error',
@@ -66,7 +68,7 @@ async function handleStreamingResponse(
 }
 
 function handleErrorResponse(res: Response, error: any, logger: any): Response {
-  logger.error('Message processing error:', error)
+  logger.error('Message processing error', { error })
 
   let statusCode = 500
   let errorType = 'api_error'
@@ -303,7 +305,10 @@ router.post('/', async (req: Request, res: Response) => {
     const modelValidation = await validateModelId(request.model)
     if (!modelValidation.valid) {
       const error = modelValidation.error!
-      logger.warn(`Model validation failed for '${request.model}':`, error)
+      logger.warn('Model validation failed', {
+        model: request.model,
+        error
+      })
       return res.status(400).json({
         type: 'error',
         error: {

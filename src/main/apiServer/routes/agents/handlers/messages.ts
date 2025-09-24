@@ -32,8 +32,8 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
     const messageData = req.body
 
-    logger.info(`Creating streaming message for session: ${sessionId}`)
-    logger.debug('Streaming message data:', messageData)
+    logger.info('Creating streaming message', { agentId, sessionId })
+    logger.debug('Streaming message payload', { messageData })
 
     // Set SSE headers
     res.setHeader('Content-Type', 'text/event-stream')
@@ -68,7 +68,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
         // res.write('data: {"type":"finish"}\n\n')
         res.write('data: [DONE]\n\n')
       } catch (writeError) {
-        logger.error('Error writing final sentinel to SSE stream:', { error: writeError as Error })
+        logger.error('Error writing final sentinel to SSE stream', { error: writeError as Error })
       }
       res.end()
     }
@@ -94,7 +94,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
      */
     const handleDisconnect = () => {
       if (responseEnded) return
-      logger.info(`Client disconnected from streaming message for session: ${sessionId}`)
+      logger.info('Streaming client disconnected', { agentId, sessionId })
       responseEnded = true
       abortController.abort('Client disconnected')
       reader.cancel('Client disconnected').catch(() => {})
@@ -119,7 +119,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
         finalizeResponse()
       } catch (error) {
         if (responseEnded) return
-        logger.error('Error reading agent stream:', { error })
+        logger.error('Error reading agent stream', { error })
         try {
           res.write(
             `data: ${JSON.stringify({
@@ -132,7 +132,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             })}\n\n`
           )
         } catch (writeError) {
-          logger.error('Error writing stream error to SSE:', { error: writeError })
+          logger.error('Error writing stream error to SSE', { error: writeError })
         }
         responseEnded = true
         res.end()
@@ -140,7 +140,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     }
 
     pumpStream().catch((error) => {
-      logger.error('Pump stream failure:', { error })
+      logger.error('Pump stream failure', { error })
     })
 
     completion
@@ -150,7 +150,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       })
       .catch((error) => {
         if (responseEnded) return
-        logger.error(`Streaming message error for session: ${sessionId}:`, error)
+        logger.error('Streaming message error', { agentId, sessionId, error })
         try {
           res.write(
             `data: ${JSON.stringify({
@@ -163,7 +163,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
             })}\n\n`
           )
         } catch (writeError) {
-          logger.error('Error writing completion error to SSE stream:', { error: writeError })
+          logger.error('Error writing completion error to SSE stream', { error: writeError })
         }
         responseEnded = true
         res.end()
@@ -173,7 +173,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     const timeout = setTimeout(
       () => {
         if (!responseEnded) {
-          logger.error(`Streaming message timeout for session: ${sessionId}`)
+          logger.error('Streaming message timeout', { agentId, sessionId })
           try {
             res.write(
               `data: ${JSON.stringify({
@@ -186,7 +186,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
               })}\n\n`
             )
           } catch (writeError) {
-            logger.error('Error writing timeout to SSE stream:', { error: writeError })
+            logger.error('Error writing timeout to SSE stream', { error: writeError })
           }
           abortController.abort('stream timeout')
           reader.cancel('stream timeout').catch(() => {})
@@ -201,7 +201,11 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.on('close', () => clearTimeout(timeout))
     res.on('finish', () => clearTimeout(timeout))
   } catch (error: any) {
-    logger.error('Error in streaming message handler:', error)
+    logger.error('Error in streaming message handler', {
+      error,
+      agentId: req.params.agentId,
+      sessionId: req.params.sessionId
+    })
 
     // Send error as SSE if possible
     if (!res.headersSent) {
@@ -222,7 +226,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
 
       res.write(`data: ${JSON.stringify(errorResponse)}\n\n`)
     } catch (writeError) {
-      logger.error('Error writing initial error to SSE stream:', { error: writeError })
+      logger.error('Error writing initial error to SSE stream', { error: writeError })
     }
 
     res.end()
@@ -239,7 +243,7 @@ export const deleteMessage = async (req: Request, res: Response): Promise<Respon
     const deleted = await sessionMessageService.deleteSessionMessage(sessionId, messageId)
 
     if (!deleted) {
-      logger.warn(`Message ${messageId} not found for session ${sessionId}`)
+      logger.warn('Session message not found', { agentId, sessionId, messageId })
       return res.status(404).json({
         error: {
           message: 'Message not found for this session',
@@ -249,7 +253,7 @@ export const deleteMessage = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    logger.info(`Message ${messageId} deleted successfully for session ${sessionId}`)
+    logger.info('Session message deleted', { agentId, sessionId, messageId })
     return res.status(204).send()
   } catch (error: any) {
     if (error?.status === 404) {
@@ -268,7 +272,12 @@ export const deleteMessage = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    logger.error('Error deleting session message:', error)
+    logger.error('Error deleting session message', {
+      error,
+      agentId: req.params.agentId,
+      sessionId: req.params.sessionId,
+      messageId: Number(req.params.messageId)
+    })
     return res.status(500).json({
       error: {
         message: 'Failed to delete session message',

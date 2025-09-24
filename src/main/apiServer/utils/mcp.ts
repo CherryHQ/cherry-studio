@@ -47,12 +47,12 @@ async function getMcpServerConfigById(id: string): Promise<MCPServer | undefined
  */
 export async function getMCPServersFromRedux(): Promise<MCPServer[]> {
   try {
-    logger.silly('Getting servers from Redux store')
+    logger.debug('Getting servers from Redux store')
 
     // Try to get from cache first (faster)
     const cachedServers = CacheService.get<MCPServer[]>(MCP_SERVERS_CACHE_KEY)
     if (cachedServers) {
-      logger.silly(`Found ${cachedServers.length} servers (from cache)`)
+      logger.debug('MCP servers resolved from cache', { count: cachedServers.length })
       return cachedServers
     }
 
@@ -63,10 +63,10 @@ export async function getMCPServersFromRedux(): Promise<MCPServer[]> {
     // Cache the results
     CacheService.set(MCP_SERVERS_CACHE_KEY, serverList, MCP_SERVERS_CACHE_TTL)
 
-    logger.silly(`Fetched ${serverList.length} servers from Redux store`)
+    logger.debug('Fetched servers from Redux store', { count: serverList.length })
     return serverList
   } catch (error: any) {
-    logger.error('Failed to get servers from Redux:', error)
+    logger.error('Failed to get servers from Redux', { error })
     return []
   }
 }
@@ -91,6 +91,6 @@ export async function getMcpServerById(id: string): Promise<Server> {
     cachedServers[id] = newServer
     return newServer
   }
-  logger.silly('getMcpServer ', { server: server })
+  logger.debug('Returning cached MCP server', { id, hasHandlers: Boolean(server) })
   return server
 }

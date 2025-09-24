@@ -29,7 +29,10 @@ export const checkAgentExists = async (req: Request, res: Response, next: any): 
 
     next()
   } catch (error) {
-    logger.error('Error checking agent existence:', error as Error)
+    logger.error('Error checking agent existence', {
+      error: error as Error,
+      agentId: req.params.agentId
+    })
     res.status(500).json({
       error: {
         message: 'Failed to validate agent',

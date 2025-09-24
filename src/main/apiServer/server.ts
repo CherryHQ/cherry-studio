@@ -17,12 +17,12 @@ export class ApiServer {
     }
 
     // Load config
-    const { port, host, apiKey } = await config.load()
+    const { port, host } = await config.load()
 
     // Initialize AgentService
-    logger.info('Initializing AgentService...')
+    logger.info('Initializing AgentService')
     await agentService.initialize()
-    logger.info('AgentService initialized successfully')
+    logger.info('AgentService initialized')
 
     // Create server with Express app
     this.server = createServer(app)
@@ -30,8 +30,7 @@ export class ApiServer {
     // Start server
     return new Promise((resolve, reject) => {
       this.server!.listen(port, host, () => {
-        logger.info(`API Server started at http://${host}:${port}`)
-        logger.info(`API Key: ${apiKey}`)
+        logger.info('API server started', { host, port })
         resolve()
       })
 
@@ -44,7 +43,7 @@ export class ApiServer {
 
     return new Promise((resolve) => {
       this.server!.close(() => {
-        logger.info('API Server stopped')
+        logger.info('API server stopped')
         this.server = null
         resolve()
       })
@@ -62,7 +61,7 @@ export class ApiServer {
     const isListening = this.server?.listening || false
     const result = hasServer && isListening
 
-    logger.debug('isRunning check:', { hasServer, isListening, result })
+    logger.debug('isRunning check', { hasServer, isListening, result })
 
     return result
   }
