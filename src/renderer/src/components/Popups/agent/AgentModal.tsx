@@ -385,30 +385,38 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           {trigger.content}
         </div>
       )}
-      <Modal isOpen={isOpen} onClose={onClose}>
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        classNames={{
+          base: 'max-h-[90vh]',
+          wrapper: 'overflow-hidden'
+        }}>
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader>{isEditing(agent) ? t('agent.edit.title') : t('agent.add.title')}</ModalHeader>
-              <Form onSubmit={onSubmit} className="w-full">
-                <ModalBody className="w-full">
-                  <Select
-                    isRequired
-                    isDisabled={isEditing(agent)}
-                    selectionMode="single"
-                    selectedKeys={[form.type]}
-                    onChange={onAgentTypeChange}
-                    items={agentOptions}
-                    label={t('agent.type.label')}
-                    placeholder={t('agent.add.type.placeholder')}
-                    renderValue={renderOption}>
-                    {(option) => (
-                      <SelectItem key={option.key} textValue={option.label}>
-                        <Option option={option} />
-                      </SelectItem>
-                    )}
-                  </Select>
-                  <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
+              <Form onSubmit={onSubmit} className="min-h-0 w-full shrink overflow-auto">
+                <ModalBody className="min-h-0 w-full flex-1 shrink overflow-auto">
+                  <div className="flex gap-2">
+                    <Select
+                      isRequired
+                      isDisabled={isEditing(agent)}
+                      selectionMode="single"
+                      selectedKeys={[form.type]}
+                      onChange={onAgentTypeChange}
+                      items={agentOptions}
+                      label={t('agent.type.label')}
+                      placeholder={t('agent.add.type.placeholder')}
+                      renderValue={renderOption}>
+                      {(option) => (
+                        <SelectItem key={option.key} textValue={option.label}>
+                          <Option option={option} />
+                        </SelectItem>
+                      )}
+                    </Select>
+                    <Input isRequired value={form.name} onValueChange={onNameChange} label={t('common.name')} />
+                  </div>
                   <Select
                     isRequired
                     selectionMode="single"
@@ -424,11 +432,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                       </SelectItem>
                     )}
                   </Select>
-                  <Textarea
-                    label={t('common.description')}
-                    value={form.description ?? ''}
-                    onValueChange={onDescChange}
-                  />
                   <Select
                     selectionMode="multiple"
                     selectedKeys={selectedToolKeys}
@@ -483,6 +486,11 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     )}
                   </div>
                   <Textarea label={t('common.prompt')} value={form.instructions ?? ''} onValueChange={onInstChange} />
+                  <Textarea
+                    label={t('common.description')}
+                    value={form.description ?? ''}
+                    onValueChange={onDescChange}
+                  />
                 </ModalBody>
                 <ModalFooter className="w-full">
                   <Button onPress={onClose}>{t('common.close')}</Button>
