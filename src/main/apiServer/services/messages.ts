@@ -46,11 +46,12 @@ export class MessagesService {
   }
 
   async processMessage(request: MessageCreateParams, provider: Provider): Promise<Message> {
-    logger.info('Processing Anthropic message request:', {
+    logger.debug('Preparing Anthropic message request', {
       model: request.model,
       messageCount: request.messages.length,
       stream: request.stream,
-      max_tokens: request.max_tokens
+      maxTokens: request.max_tokens,
+      provider: provider.id
     })
 
     // Create Anthropic client for the provider
@@ -66,14 +67,12 @@ export class MessagesService {
       anthropicRequest.system = buildClaudeCodeSystemMessage(request.system || '')
     }
 
-    logger.debug('Sending request to Anthropic provider:', {
-      provider: provider.id,
-      apiHost: provider.apiHost
-    })
-
     const response = await client.messages.create(anthropicRequest)
 
-    logger.info('Successfully processed Anthropic message')
+    logger.info('Anthropic message completed', {
+      model: request.model,
+      provider: provider.id
+    })
     return response
   }
 
@@ -81,9 +80,10 @@ export class MessagesService {
     request: MessageCreateParams,
     provider: Provider
   ): AsyncIterable<RawMessageStreamEvent> {
-    logger.info('Processing streaming Anthropic message request:', {
+    logger.debug('Preparing streaming Anthropic message request', {
       model: request.model,
-      messageCount: request.messages.length
+      messageCount: request.messages.length,
+      provider: provider.id
     })
 
     // Create Anthropic client for the provider
@@ -99,18 +99,16 @@ export class MessagesService {
       streamingRequest.system = buildClaudeCodeSystemMessage(request.system || '')
     }
 
-    logger.debug('Sending streaming request to Anthropic provider:', {
-      provider: provider.id,
-      apiHost: provider.apiHost
-    })
-
     const stream = client.messages.stream(streamingRequest)
 
     for await (const chunk of stream) {
       yield chunk
     }
 
-    logger.info('Successfully completed streaming Anthropic message')
+    logger.info('Completed streaming Anthropic message', {
+      model: request.model,
+      provider: provider.id
+    })
   }
 }
 

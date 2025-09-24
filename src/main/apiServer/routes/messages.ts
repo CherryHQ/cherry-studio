@@ -129,15 +129,6 @@ async function processMessageRequest(
       request.model = modelId
     }
 
-    logger.info('Processing message request:', {
-      provider: provider.id,
-      model: request.model,
-      messageCount: request.messages?.length || 0,
-      stream: request.stream,
-      max_tokens: request.max_tokens,
-      temperature: request.temperature
-    })
-
     // Ensure provider is Anthropic type
     if (provider.type !== 'anthropic') {
       return res.status(400).json({
@@ -148,12 +139,6 @@ async function processMessageRequest(
         }
       })
     }
-
-    logger.info('Provider validation successful:', {
-      provider: provider.id,
-      providerType: provider.type,
-      modelId: request.model
-    })
 
     // Validate request
     const validation = messagesService.validateRequest(request)
@@ -314,13 +299,6 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const request: MessageCreateParams = req.body
 
-    logger.info('Anthropic message request:', {
-      model: request.model,
-      messageCount: request.messages?.length || 0,
-      stream: request.stream,
-      max_tokens: request.max_tokens
-    })
-
     // Validate model ID and get provider
     const modelValidation = await validateModelId(request.model)
     if (!modelValidation.valid) {
@@ -337,13 +315,6 @@ router.post('/', async (req: Request, res: Response) => {
 
     const provider = modelValidation.provider!
     const modelId = modelValidation.modelId!
-
-    logger.info('Model validation successful:', {
-      provider: provider.id,
-      providerType: provider.type,
-      modelId: modelId,
-      fullModelId: request.model
-    })
 
     // Use shared processing function
     return await processMessageRequest(req, res, provider, modelId)
@@ -489,14 +460,6 @@ providerRouter.post('/', async (req: Request, res: Response) => {
       })
     }
 
-    logger.info('Provider-specific message request:', {
-      providerId,
-      model: request.model,
-      messageCount: request.messages?.length || 0,
-      stream: request.stream,
-      max_tokens: request.max_tokens
-    })
-
     // Get provider directly by ID from URL path
     const provider = await getProviderById(providerId)
     if (!provider) {
@@ -508,12 +471,6 @@ providerRouter.post('/', async (req: Request, res: Response) => {
         }
       })
     }
-
-    logger.info('Provider validation successful:', {
-      provider: provider.id,
-      providerType: provider.type,
-      modelId: request.model
-    })
 
     // Use shared processing function (no modelId override needed)
     return await processMessageRequest(req, res, provider)
