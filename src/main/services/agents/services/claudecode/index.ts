@@ -86,7 +86,6 @@ class ClaudeCodeService implements AgentServiceInterface {
       cwd,
       env,
       model: modelInfo.modelId,
-      executable: app.getPath('exe') as 'node' ,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })
