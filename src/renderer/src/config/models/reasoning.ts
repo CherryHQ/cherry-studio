@@ -93,7 +93,17 @@ export function isSupportedThinkingTokenModel(model?: Model): boolean {
   // Specifically for DeepSeek V3.1. White list for now
   if (isDeepSeekHybridInferenceModel(model)) {
     return (
-      ['openrouter', 'dashscope', 'modelscope', 'doubao', 'silicon', 'nvidia', 'ppio'] satisfies SystemProviderId[]
+      [
+        'openrouter',
+        'dashscope',
+        'modelscope',
+        'doubao',
+        'silicon',
+        'nvidia',
+        'ppio',
+        'hunyuan',
+        'tencent-cloud-ti'
+      ] satisfies SystemProviderId[]
     ).some((id) => id === model.provider)
   }
 
