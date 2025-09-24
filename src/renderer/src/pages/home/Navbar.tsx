@@ -1,7 +1,7 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isWin } from '@renderer/config/constant'
+import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -113,7 +113,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </AnimatePresence>
         </NavbarLeft>
       )}
-      <HStack alignItems="center" gap={6}>
+      <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
         <SelectModelButton assistant={assistant} />
       </HStack>
       <NavbarRight

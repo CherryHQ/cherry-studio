@@ -125,16 +125,13 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ✨ 新功能：
-    - 新增 CherryIN 服务商
-    - 新增 AiOnly AI 服务商
-    - 更新 MCP 服务器卡片布局和样式，改为列表视图
+    🎨 界面优化：
+    - 优化了多个组件的布局和间距，提升视觉体验
+    - 改进了导航栏和标签栏的样式显示
+    - MCP 服务器卡片宽度调整为 100%，提高响应式布局效果
+    - 优化了笔记侧边栏的滚动行为
 
     🐛 问题修复：
-    - 修复 QwenMT 模型的翻译内容处理逻辑
-    - 修复无法将外部笔记添加到知识库的问题
-
-    🚀 性能优化：
-    - 提升输入框响应速度
-    - 优化模型切换性能
-    - 改进翻译功能的引用和邮件格式处理
+    - 修复了小应用打开功能无法正常工作的问题
+    - 修复了助手更新时 ID 丢失导致更新失败的问题
+    - 确保助手更新时 ID 字段为必填项，防止数据错误
