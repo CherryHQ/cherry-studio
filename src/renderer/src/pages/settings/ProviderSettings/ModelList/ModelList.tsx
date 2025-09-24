@@ -173,14 +173,16 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
         <Button type="primary" onClick={onManageModel} icon={<ListCheck size={16} />} disabled={isHealthChecking}>
           {t('button.manage')}
         </Button>
-        {provider.id !== 'ovms'?
-        (<Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
-          {t('button.add')}
-        </Button>):(
-        <Button type="default" onClick={onDownloadModel} icon={<Plus size={16} />}>
-          {t('button.download')}
-        </Button>)}
-      </Flex>      
+        {provider.id !== 'ovms' ? (
+          <Button type="default" onClick={onAddModel} icon={<Plus size={16} />} disabled={isHealthChecking}>
+            {t('button.add')}
+          </Button>
+        ) : (
+          <Button type="default" onClick={onDownloadModel} icon={<Plus size={16} />}>
+            {t('button.download')}
+          </Button>
+        )}
+      </Flex>
     </>
   )
 }
