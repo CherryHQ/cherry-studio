@@ -1,4 +1,4 @@
-import { Button, Input, Select, SelectedItems, SelectItem, Tooltip } from '@heroui/react'
+import { Button, Input, Select, SelectedItems, SelectItem, Textarea, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
@@ -20,6 +20,7 @@ interface AgentEssentialSettingsProps {
 const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {
   const { t } = useTranslation()
   const [name, setName] = useState<string>((agent?.name ?? '').trim())
+  const [description, setDescription] = useState<string>((agent?.description ?? '').trim())
   const { models } = useApiModels({ providerType: 'anthropic' })
 
   const updateName = (name: string) => {
@@ -36,6 +37,14 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
     (accessible_paths: UpdateAgentForm['accessible_paths']) => {
       if (!agent) return
       update({ id: agent.id, accessible_paths })
+    },
+    [agent, update]
+  )
+
+  const updateDesc = useCallback(
+    (description: UpdateAgentForm['description']) => {
+      if (!agent) return
+      update({ id: agent.id, description })
     },
     [agent, update]
   )
@@ -146,6 +155,18 @@ const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update
             </li>
           ))}
         </ul>
+      </SettingsItem>
+      <SettingsItem>
+        <SettingsTitle>{t('common.description')}</SettingsTitle>
+        <Textarea
+          value={description}
+          onValueChange={setDescription}
+          onBlur={() => {
+            if (description !== agent.description) {
+              updateDesc(description)
+            }
+          }}
+        />
       </SettingsItem>
     </SettingsContainer>
   )
