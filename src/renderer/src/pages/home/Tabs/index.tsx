@@ -124,16 +124,14 @@ const HomeTabs: FC<Props> = ({
         </CustomTabs>
       )}
 
-      {position === 'right' && topicPosition === 'right' && (
+      {position === 'right' && topicPosition === 'right' && isTopicView && (
         <CustomTabs>
           <TabItem active={tab === 'topic'} onClick={() => setTab('topic')}>
-            {isTopicView ? t('common.topics') : t('agent.session.label_other')}
+            {t('common.topics')}
           </TabItem>
-          {shouldShowSettingsTab && (
-            <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
-              {t('settings.title')}
-            </TabItem>
-          )}
+          <TabItem active={tab === 'settings'} onClick={() => setTab('settings')}>
+            {t('settings.title')}
+          </TabItem>
         </CustomTabs>
       )}
 
