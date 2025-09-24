@@ -70,6 +70,10 @@ export class OpenAIResponseAPIClient extends OpenAIBaseClient<
 
   private formatApiHost() {
     const host = this.provider.apiHost
+    // 支持以 # 结尾时强制使用输入地址（去掉 #，不自动追加 /openai/v1）
+    if (host.endsWith('#')) {
+      return host.slice(0, -1)
+    }
     if (host.endsWith('/openai/v1')) {
       return host
     } else {
