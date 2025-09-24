@@ -1,4 +1,4 @@
-import { GeneratePainting } from '@renderer/types'
+import type { GeneratePainting } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 
 export const SUPPORTED_MODELS = ['gpt-image-1']

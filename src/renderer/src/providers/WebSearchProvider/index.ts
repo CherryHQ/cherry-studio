@@ -1,9 +1,9 @@
 import { withSpanResult } from '@renderer/services/SpanManagerService'
 import type { WebSearchState } from '@renderer/store/websearch'
-import { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
+import type { WebSearchProvider, WebSearchProviderResponse } from '@renderer/types'
 import { filterResultWithBlacklist } from '@renderer/utils/blacklistMatchPattern'
 
-import BaseWebSearchProvider from './BaseWebSearchProvider'
+import type BaseWebSearchProvider from './BaseWebSearchProvider'
 import WebSearchProviderFactory from './WebSearchProviderFactory'
 
 export default class WebSearchEngineProvider {

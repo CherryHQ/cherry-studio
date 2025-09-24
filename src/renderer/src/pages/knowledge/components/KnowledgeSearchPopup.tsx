@@ -1,9 +1,10 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { searchKnowledgeBase } from '@renderer/services/KnowledgeService'
-import { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
-import { Divider, Input, InputRef, List, Modal, Spin } from 'antd'
+import type { FileMetadata, KnowledgeBase, KnowledgeSearchResult } from '@renderer/types'
+import type { InputRef } from 'antd'
+import { Divider, Input, List, Modal, Spin } from 'antd'
 import { Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -95,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           padding: 0
         }
       }}>
-      <HStack style={{ padding: '0 12px', marginTop: 8 }}>
+      <RowFlex className="mt-2 px-3">
         <Input
           ref={searchInputRef}
           prefix={
@@ -114,7 +115,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           onChange={(e) => setSearchKeyword(e.target.value)}
           onPressEnter={() => handleSearch(searchKeyword)}
         />
-      </HStack>
+      </RowFlex>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       <ResultsContainer>

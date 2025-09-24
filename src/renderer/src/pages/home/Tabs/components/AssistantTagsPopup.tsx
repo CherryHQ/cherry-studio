@@ -1,6 +1,6 @@
+import { Box } from '@cherrystudio/ui'
 import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { DeleteIcon } from '@renderer/components/Icons'
-import { Box } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useTags } from '@renderer/hooks/useTags'
@@ -91,7 +91,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
                     <Draggable key={tag} draggableId={tag} index={index}>
                       {(provided) => (
                         <TagItem ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
-                          <Box mr={8}>{tag}</Box>
+                          <Box className="mr-2">{tag}</Box>
                           <Button
                             type="text"
                             icon={<DeleteIcon size={16} className="lucide-custom" />}

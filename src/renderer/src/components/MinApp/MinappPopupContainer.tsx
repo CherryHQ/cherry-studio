@@ -10,6 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
@@ -18,16 +19,13 @@ import { useBridge } from '@renderer/hooks/useBridge'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useNavbarPosition, useSettings } from '@renderer/hooks/useSettings'
+import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useAppDispatch } from '@renderer/store'
-import { setMinappsOpenLinkExternal } from '@renderer/store/settings'
-import { MinAppType } from '@renderer/types'
+import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
-import { WebviewTag } from 'electron'
+import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
@@ -142,13 +140,13 @@ const GoogleLoginTip = ({
 
 /** The main container for MinApp popup */
 const MinappPopupContainer: React.FC = () => {
-  const { openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } = useRuntime()
+  const [minappsOpenLinkExternal, setMinappsOpenLinkExternal] = usePreference('feature.minapp.open_link_external')
   const { closeMinapp, hideMinappPopup } = useMinappPopup()
-  const { pinned, updatePinnedMinapps } = useMinapps()
+  const { pinned, updatePinnedMinapps, openedKeepAliveMinapps, openedOneOffMinapp, currentMinappId, minappShow } =
+    useMinapps()
   const { t } = useTranslation()
   const backgroundColor = useNavBackgroundColor()
   const { isTopNavbar } = useNavbarPosition()
-  const dispatch = useAppDispatch()
 
   /** control the drawer open or close */
   const [isPopupShow, setIsPopupShow] = useState(true)
@@ -166,7 +164,6 @@ const MinappPopupContainer: React.FC = () => {
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
   /** Note: WebView loaded states now managed globally via webviewStateManager */
   /** whether the minapps open link external is enabled */
-  const { minappsOpenLinkExternal } = useSettings()
 
   const { isLeftNavbar } = useNavbarPosition()
 
@@ -351,7 +348,7 @@ const MinappPopupContainer: React.FC = () => {
 
   /** set the open external status */
   const handleToggleOpenExternal = () => {
-    dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
+    setMinappsOpenLinkExternal(!minappsOpenLinkExternal)
   }
 
   /** navigate back in webview history */

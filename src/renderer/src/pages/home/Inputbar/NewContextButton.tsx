@@ -2,7 +2,7 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { Tooltip } from 'antd'
 import { Eraser } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 interface Props {
   onNewContext: () => void

@@ -1,7 +1,8 @@
 import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
+import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { convertToBase64 } from '@renderer/utils'
-import { Button, Input, InputNumber, Select, Switch, Upload } from 'antd'
+import { Button, Input, InputNumber, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
 
@@ -205,8 +206,8 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   if (type === 'boolean') {
     return (
       <Switch
-        checked={value !== undefined ? value : defaultValue}
-        onChange={(checked) => onChange(propertyName, checked)}
+        isSelected={value !== undefined ? value : defaultValue}
+        onValueChange={(checked) => onChange(propertyName, checked)}
         style={{ width: '2px' }}
       />
     )

@@ -1,28 +1,32 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { HStack } from '@renderer/components/Layout'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
-import {
-  setClickTrayToShowQuickAssistant,
-  setEnableQuickAssistant,
-  setReadClipboardAtStartup
-} from '@renderer/store/settings'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Button, Select, Switch, Tooltip } from 'antd'
-import { FC } from 'react'
+import { Button, Select, Tooltip } from 'antd'
+import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
+  const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
+  const [clickTrayToShowQuickAssistant, setClickTrayToShowQuickAssistant] = usePreference(
+    'feature.quick_assistant.click_tray_to_show'
+  )
+  const [readClipboardAtStartup, setReadClipboardAtStartup] = usePreference(
+    'feature.quick_assistant.read_clipboard_at_startup'
+  )
+  const [, setTray] = usePreference('app.tray.enabled')
+
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const { enableQuickAssistant, clickTrayToShowQuickAssistant, setTray, readClipboardAtStartup } = useSettings()
   const dispatch = useAppDispatch()
   const { assistants } = useAssistants()
   const { quickAssistantId } = useAppSelector((state) => state.llm)
@@ -30,8 +34,7 @@ const QuickAssistantSettings: FC = () => {
   const { defaultModel } = useDefaultModel()
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
-    dispatch(setEnableQuickAssistant(enable))
-    await window.api.config.set('enableQuickAssistant', enable, true)
+    await setEnableQuickAssistant(enable)
 
     !enable && window.api.miniWindow.close()
 
@@ -49,14 +52,12 @@ const QuickAssistantSettings: FC = () => {
   }
 
   const handleClickTrayToShowQuickAssistant = async (checked: boolean) => {
-    dispatch(setClickTrayToShowQuickAssistant(checked))
-    await window.api.config.set('clickTrayToShowQuickAssistant', checked)
+    await setClickTrayToShowQuickAssistant(checked)
     checked && setTray(true)
   }
 
   const handleClickReadClipboardAtStartup = async (checked: boolean) => {
-    dispatch(setReadClipboardAtStartup(checked))
-    await window.api.config.set('readClipboardAtStartup', checked)
+    await setReadClipboardAtStartup(checked)
     window.api.miniWindow.close()
   }
 
@@ -72,14 +73,14 @@ const QuickAssistantSettings: FC = () => {
               <InfoCircleOutlined style={{ cursor: 'pointer' }} />
             </Tooltip>
           </SettingRowTitle>
-          <Switch checked={enableQuickAssistant} onChange={handleEnableQuickAssistant} />
+          <Switch isSelected={enableQuickAssistant} onValueChange={handleEnableQuickAssistant} />
         </SettingRow>
         {enableQuickAssistant && (
           <>
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
-              <Switch checked={clickTrayToShowQuickAssistant} onChange={handleClickTrayToShowQuickAssistant} />
+              <Switch isSelected={clickTrayToShowQuickAssistant} onValueChange={handleClickTrayToShowQuickAssistant} />
             </SettingRow>
           </>
         )}
@@ -88,24 +89,24 @@ const QuickAssistantSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
-              <Switch checked={readClipboardAtStartup} onChange={handleClickReadClipboardAtStartup} />
+              <Switch isSelected={readClipboardAtStartup} onValueChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
           </>
         )}
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <HStack alignItems="center" justifyContent="space-between">
-            <HStack alignItems="center" gap={10}>
+          <RowFlex className="items-center justify-between">
+            <RowFlex className="items-center gap-2.5">
               {t('settings.models.quick_assistant_model')}
               <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
                 <InfoCircleOutlined style={{ cursor: 'pointer' }} />
               </Tooltip>
               <Spacer />
-            </HStack>
-            <HStack alignItems="center" gap={10}>
+            </RowFlex>
+            <RowFlex className="items-center gap-2.5">
               {!quickAssistantId ? null : (
-                <HStack alignItems="center">
+                <RowFlex className="items-center">
                   <Select
                     value={quickAssistantId || defaultAssistant.id}
                     style={{ width: 300, height: 34 }}
@@ -131,9 +132,9 @@ const QuickAssistantSettings: FC = () => {
                         </Select.Option>
                       ))}
                   </Select>
-                </HStack>
+                </RowFlex>
               )}
-              <HStack alignItems="center" gap={0}>
+              <RowFlex className="items-center gap-0">
                 <StyledButton
                   type={quickAssistantId ? 'primary' : 'default'}
                   onClick={() => {
@@ -148,9 +149,9 @@ const QuickAssistantSettings: FC = () => {
                   selected={!quickAssistantId}>
                   {t('settings.models.use_model')}
                 </StyledButton>
-              </HStack>
-            </HStack>
-          </HStack>
+              </RowFlex>
+            </RowFlex>
+          </RowFlex>
         </SettingGroup>
       )}
       {enableQuickAssistant && (

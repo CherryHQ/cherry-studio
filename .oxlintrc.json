@@ -27,7 +27,7 @@
       "env": {
         "node": true
       },
-      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts"]
+      "files": ["src/main/**", "resources/scripts/**", "scripts/**", "playwright.config.ts", "electron.vite.config.ts", "packages/ui/scripts/**"]
     },
     {
       "env": {
@@ -37,6 +37,7 @@
         "src/renderer/**/*.{ts,tsx}",
         "packages/aiCore/**",
         "packages/extension-table-plus/**",
+        "packages/ui/**",
         "resources/js/**"
       ]
     },
@@ -140,7 +141,7 @@
     "typescript/await-thenable": "warn",
     // "typescript/ban-ts-comment": "error",
     "typescript/no-array-constructor": "error",
-    // "typescript/consistent-type-imports": "error",
+    "typescript/consistent-type-imports": "error",
     "typescript/no-array-delete": "warn",
     "typescript/no-base-to-string": "warn",
     "typescript/no-duplicate-enum-values": "error",

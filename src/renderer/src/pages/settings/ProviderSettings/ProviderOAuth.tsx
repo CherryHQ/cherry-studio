@@ -1,10 +1,10 @@
+import { RowFlex } from '@cherrystudio/ui'
 import AI302ProviderLogo from '@renderer/assets/images/providers/302ai.webp'
 import AiHubMixProviderLogo from '@renderer/assets/images/providers/aihubmix.webp'
 import AiOnlyProviderLogo from '@renderer/assets/images/providers/aiOnly.webp'
 import PPIOProviderLogo from '@renderer/assets/images/providers/ppio.png'
 import SiliconFlowProviderLogo from '@renderer/assets/images/providers/silicon.png'
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
-import { HStack } from '@renderer/components/Layout'
 import OAuthButton from '@renderer/components/OAuth/OAuthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -13,7 +13,7 @@ import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { Button } from 'antd'
 import { isEmpty } from 'lodash'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
-import { FC } from 'react'
+import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -52,14 +52,14 @@ const ProviderOAuth: FC<Props> = ({ providerId }) => {
           {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
         </OAuthButton>
       ) : (
-        <HStack gap={10}>
+        <RowFlex className="gap-2.5">
           <Button shape="round" icon={<CircleDollarSign size={16} />} onClick={() => providerCharge(provider.id)}>
             {t('settings.provider.charge')}
           </Button>
           <Button shape="round" icon={<ReceiptText size={16} />} onClick={() => providerBills(provider.id)}>
             {t('settings.provider.bills')}
           </Button>
-        </HStack>
+        </RowFlex>
       )}
       <Description>
         <Trans

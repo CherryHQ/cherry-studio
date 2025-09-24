@@ -1,16 +1,12 @@
 import mcpService from '@main/services/MCPService'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp'
-import {
-  isJSONRPCRequest,
-  JSONRPCMessage,
-  JSONRPCMessageSchema,
-  MessageExtraInfo
-} from '@modelcontextprotocol/sdk/types'
-import { MCPServer } from '@types'
+import type { JSONRPCMessage, MessageExtraInfo } from '@modelcontextprotocol/sdk/types'
+import { isJSONRPCRequest, JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types'
+import type { MCPServer } from '@types'
 import { randomUUID } from 'crypto'
 import { EventEmitter } from 'events'
-import { Request, Response } from 'express'
-import { IncomingMessage, ServerResponse } from 'http'
+import type { Request, Response } from 'express'
+import type { IncomingMessage, ServerResponse } from 'http'
 
 import { loggerService } from '../../services/LoggerService'
 import { reduxService } from '../../services/ReduxService'

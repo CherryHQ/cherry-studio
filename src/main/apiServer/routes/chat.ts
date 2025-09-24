@@ -1,6 +1,7 @@
-import express, { Request, Response } from 'express'
+import type { Request, Response } from 'express'
+import express from 'express'
 import OpenAI from 'openai'
-import { ChatCompletionCreateParams } from 'openai/resources'
+import type { ChatCompletionCreateParams } from 'openai/resources'
 
 import { loggerService } from '../../services/LoggerService'
 import { chatCompletionService } from '../services/chat-completion'

@@ -1,5 +1,6 @@
 import { InputNumber } from 'antd'
-import { FC, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 export interface EditableNumberProps {

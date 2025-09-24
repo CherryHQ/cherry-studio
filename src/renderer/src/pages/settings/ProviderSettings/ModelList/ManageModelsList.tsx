@@ -1,3 +1,4 @@
+import { Flex } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -6,8 +7,8 @@ import { getModelLogo } from '@renderer/config/models'
 import { isNewApiProvider } from '@renderer/config/providers'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
-import { Model, Provider } from '@renderer/types'
-import { Button, Flex, Tooltip } from 'antd'
+import type { Model, Provider } from '@renderer/types'
+import { Button, Tooltip } from 'antd'
 import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
@@ -148,14 +149,14 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           return (
             <GroupHeaderContainer isCollapsed={isCollapsed}>
               <GroupHeader isCollapsed={isCollapsed} onClick={() => handleGroupToggle(row.groupName)}>
-                <Flex align="center" gap={10} style={{ flex: 1 }}>
+                <Flex className="flex-1 items-center gap-2.5">
                   <ChevronRight
                     size={16}
                     color="var(--color-text-3)"
                     strokeWidth={1.5}
-                    style={{ transform: isCollapsed ? 'rotate(0deg)' : 'rotate(90deg)' }}
+                    className={isCollapsed ? '' : 'rotate-90'}
                   />
-                  <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{row.groupName}</span>
+                  <span className="font-bold text-sm">{row.groupName}</span>
                   <CustomTag color="#02B96B" size={10}>
                     {row.models.length}
                   </CustomTag>

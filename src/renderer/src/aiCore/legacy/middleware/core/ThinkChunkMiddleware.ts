@@ -1,8 +1,9 @@
 import { loggerService } from '@logger'
-import { ChunkType, ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
+import type { ThinkingCompleteChunk, ThinkingDeltaChunk } from '@renderer/types/chunk'
+import { ChunkType } from '@renderer/types/chunk'
 
-import { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { CompletionsParams, CompletionsResult, GenericChunk } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 
 export const MIDDLEWARE_NAME = 'ThinkChunkMiddleware'
 

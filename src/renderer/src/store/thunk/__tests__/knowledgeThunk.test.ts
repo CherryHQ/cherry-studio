@@ -1,5 +1,6 @@
 import { addFiles as addFilesAction, addItem, updateNotes } from '@renderer/store/knowledge'
-import { FileMetadata, FileTypes, KnowledgeItem } from '@renderer/types'
+import type { FileMetadata, KnowledgeItem } from '@renderer/types'
+import { FileTypes } from '@renderer/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { addFilesThunk, addItemThunk, addNoteThunk } from '../knowledgeThunk'

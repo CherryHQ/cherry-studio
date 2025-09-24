@@ -3,9 +3,10 @@ import EmojiPicker from '@renderer/components/EmojiPicker'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { addCustomLanguage, updateCustomLanguage } from '@renderer/services/TranslateService'
-import { CustomTranslateLanguage } from '@renderer/types'
+import type { CustomTranslateLanguage } from '@renderer/types'
 import { Button, Form, Input, Modal, Popover, Space } from 'antd'
-import { FC, useCallback, useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {

@@ -1,7 +1,7 @@
 import { TopView } from '@renderer/components/TopView'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { Button, Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'

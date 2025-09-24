@@ -1,4 +1,4 @@
-import { MultiModalDocument, RerankStrategy } from './RerankStrategy'
+import type { MultiModalDocument, RerankStrategy } from './RerankStrategy'
 export class BailianStrategy implements RerankStrategy {
   buildUrl(): string {
     return 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank'

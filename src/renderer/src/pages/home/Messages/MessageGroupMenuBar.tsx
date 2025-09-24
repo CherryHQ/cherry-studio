@@ -6,16 +6,17 @@ import {
   NumberOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { HStack } from '@renderer/components/Layout'
+import { RowFlex } from '@cherrystudio/ui'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Button, Tooltip } from 'antd'
-import { FC, memo } from 'react'
+import type { FC } from 'react'
+import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -101,7 +102,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <HStack style={{ alignItems: 'center', flex: 1, overflow: 'hidden' }}>
+      <RowFlex className="flex-1 items-center overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
@@ -132,7 +133,7 @@ const MessageGroupMenuBar: FC<Props> = ({
           />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
-      </HStack>
+      </RowFlex>
       {hasFailedMessages && (
         <Tooltip title={t('message.group.retry_failed')} mouseEnterDelay={0.6}>
           <Button

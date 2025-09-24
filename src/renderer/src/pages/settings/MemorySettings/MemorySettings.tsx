@@ -1,7 +1,9 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import TextBadge from '@renderer/components/TextBadge'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useModel } from '@renderer/hooks/useModel'
@@ -15,7 +17,7 @@ import {
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import { Badge, Button, Dropdown, Empty, Flex, Form, Input, Modal, Pagination, Space, Spin, Switch } from 'antd'
+import { Badge, Button, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
@@ -88,7 +90,7 @@ const AddMemoryModal: React.FC<AddMemoryModalProps> = ({ visible, onCancel, onAd
       onOk={() => form.submit()}
       okButtonProps={{ loading: loading }}
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <PlusIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.add_memory')}</span>
         </Flex>
@@ -146,7 +148,7 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
   return (
     <Modal
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <EditIcon size={16} color="var(--color-primary)" />
           <span>{t('memory.edit_memory')}</span>
         </Flex>
@@ -244,7 +246,7 @@ const AddUserModal: React.FC<AddUserModalProps> = ({ visible, onCancel, onAdd, e
         }
       }}
       title={
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <UserRoundPlus size={16} color="var(--color-primary)" />
           <span>{t('memory.add_user')}</span>
         </Flex>
@@ -581,16 +583,16 @@ const MemorySettings = () => {
     <SettingContainer theme={theme}>
       {/* Memory Settings */}
       <SettingGroup style={{ justifyContent: 'space-between', alignItems: 'center' }} theme={theme}>
-        <HStack style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <HStack style={{ alignItems: 'center', gap: '2px' }}>
+        <RowFlex className="items-center justify-between">
+          <RowFlex className="items-center gap-0.5">
             <SettingRowTitle>{t('memory.global_memory')}</SettingRowTitle>
             <TextBadge text="Beta" />
-          </HStack>
-          <HStack style={{ alignItems: 'center', gap: 10 }}>
-            <Switch checked={globalMemoryEnabled} onChange={handleGlobalMemoryToggle} />
+          </RowFlex>
+          <RowFlex className="items-center gap-2.5">
+            <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
             <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
       </SettingGroup>
 
       {/* User Management */}

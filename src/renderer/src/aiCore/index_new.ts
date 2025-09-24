@@ -8,18 +8,19 @@
  */
 
 import { createExecutor } from '@cherrystudio/ai-core'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
-import { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
+import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
 import type { Assistant, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { AiSdkModel, StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type ImageModel, type LanguageModel, type Provider as AiSdkProvider, wrapLanguageModel } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import LegacyAiProvider from './legacy/index'
-import { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
-import { AiSdkMiddlewareConfig, buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
+import type { CompletionsParams, CompletionsResult } from './legacy/middleware/schemas'
+import type { AiSdkMiddlewareConfig } from './middleware/AiSdkMiddlewareBuilder'
+import { buildAiSdkMiddlewares } from './middleware/AiSdkMiddlewareBuilder'
 import { buildPlugins } from './plugins/PluginBuilder'
 import { buildClaudeCodeSystemMessage } from './provider/config/anthropic'
 import { createAiSdkProvider } from './provider/factory'
@@ -131,7 +132,7 @@ export default class ModernAiProvider {
       }
     }
 
-    if (config.topicId && getEnableDeveloperMode()) {
+    if (config.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
       // TypeScript类型窄化：确保topicId是string类型
       const traceConfig = {
         ...config,
@@ -200,7 +201,7 @@ export default class ModernAiProvider {
       isImageGeneration: config.isImageGenerationEndpoint
     })
 
-    const span = addSpan(traceParams)
+    const span = await addSpan(traceParams)
     if (!span) {
       logger.warn('Failed to create span, falling back to regular completions', {
         topicId: config.topicId,
@@ -276,7 +277,7 @@ export default class ModernAiProvider {
     // })
 
     // 根据条件构建插件数组
-    const plugins = buildPlugins(config)
+    const plugins = await buildPlugins(config)
 
     // 用构建好的插件数组创建executor
     const executor = createExecutor(this.config!.providerId, this.config!.options, plugins)

@@ -10,8 +10,8 @@ export * from './note'
 import type { StreamTextParams } from './aiCoreTypes'
 import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
-import { KnowledgeBase, KnowledgeReference } from './knowledge'
-import { MCPConfigSample, McpServerType } from './mcp'
+import type { KnowledgeBase, KnowledgeReference } from './knowledge'
+import type { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
 import type { BaseTool, MCPTool } from './tool'
 
@@ -59,7 +59,7 @@ export const isTranslateAssistant = (assistant: Assistant): assistant is Transla
   return (assistant.model && assistant.targetLanguage && typeof assistant.content === 'string') !== undefined
 }
 
-export type AssistantsSortType = 'tags' | 'list'
+// export type AssistantsSortType = 'tags' | 'list'
 
 export type AssistantMessage = {
   role: 'user' | 'assistant'
@@ -552,14 +552,8 @@ export type MinAppType = {
   type?: 'Custom' | 'Default' // Added the 'type' property
 }
 
-export enum ThemeMode {
-  light = 'light',
-  dark = 'dark',
-  system = 'system'
-}
-
 /** 有限的UI语言 */
-export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
+// export type LanguageVarious = 'zh-CN' | 'zh-TW' | 'el-GR' | 'en-US' | 'es-ES' | 'fr-FR' | 'ja-JP' | 'pt-PT' | 'ru-RU'
 
 export type CodeStyleVarious = 'auto' | string
 
@@ -667,16 +661,17 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
   return Object.hasOwn(AutoDetectionMethods, method)
 }
 
-export type SidebarIcon =
-  | 'assistants'
-  | 'agents'
-  | 'paintings'
-  | 'translate'
-  | 'minapp'
-  | 'knowledge'
-  | 'files'
-  | 'code_tools'
-  | 'notes'
+// by fullex @ data refactor
+// export type SidebarIcon =
+//   | 'assistants'
+//   | 'agents'
+//   | 'paintings'
+//   | 'translate'
+//   | 'minapp'
+//   | 'knowledge'
+//   | 'files'
+//   | 'code_tools'
+//   | 'notes'
 
 export type ExternalToolResult = {
   mcpTools?: MCPTool[]

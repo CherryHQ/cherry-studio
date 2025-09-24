@@ -1,4 +1,4 @@
-import { Model, Provider } from '@types'
+import type { Model, Provider } from '@types'
 
 /**
  * 健康检查的通用状态枚举

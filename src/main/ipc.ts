@@ -2,18 +2,22 @@ import fs from 'node:fs'
 import { arch } from 'node:os'
 import path from 'node:path'
 
+import { PreferenceService } from '@data/PreferenceService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { isLinux, isMac, isPortable, isWin } from '@main/constant'
 import { generateSignature } from '@main/integration/cherryai'
 import anthropicService from '@main/services/AnthropicService'
 import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
-import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, UpgradeChannel } from '@shared/config/constant'
+import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
+import type { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { FileMetadata, Notification, OcrProvider, Provider, Shortcut, SupportedOcrFile, ThemeMode } from '@types'
+import type { FileMetadata, Notification, OcrProvider, Provider, Shortcut, SupportedOcrFile } from '@types'
 import checkDiskSpace from 'check-disk-space'
-import { BrowserWindow, dialog, ipcMain, ProxyConfig, session, shell, systemPreferences, webContents } from 'electron'
+import type { ProxyConfig } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { apiServerService } from './services/ApiServerService'
@@ -55,7 +59,6 @@ import {
   tokenUsage
 } from './services/SpanCacheService'
 import storeSyncService from './services/StoreSyncService'
-import { themeService } from './services/ThemeService'
 import VertexAIService from './services/VertexAIService'
 import { setOpenLinkExternal } from './services/WebviewService'
 import { windowService } from './services/WindowService'
@@ -133,9 +136,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
   ipcMain.handle(IpcChannel.App_ShowUpdateDialog, () => appUpdater.showUpdateDialog(mainWindow))
 
   // language
-  ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
-    configManager.setLanguage(language)
-  })
+  // ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {
+  //   configManager.setLanguage(language)
+  // })
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
@@ -163,40 +166,38 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
 
-  // launch to tray
-  ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
-    configManager.setLaunchToTray(isActive)
-  })
+  // // launch to tray
+  // ipcMain.handle(IpcChannel.App_SetLaunchToTray, (_, isActive: boolean) => {
+  //   configManager.setLaunchToTray(isActive)
+  // })
 
-  // tray
-  ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
-    configManager.setTray(isActive)
-  })
+  // // tray
+  // ipcMain.handle(IpcChannel.App_SetTray, (_, isActive: boolean) => {
+  //   configManager.setTray(isActive)
+  // })
 
-  // to tray on close
-  ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
-    configManager.setTrayOnClose(isActive)
-  })
+  // // to tray on close
+  // ipcMain.handle(IpcChannel.App_SetTrayOnClose, (_, isActive: boolean) => {
+  //   configManager.setTrayOnClose(isActive)
+  // })
 
-  // auto update
-  ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
-    appUpdater.setAutoUpdate(isActive)
-    configManager.setAutoUpdate(isActive)
-  })
+  // // auto update
+  // ipcMain.handle(IpcChannel.App_SetAutoUpdate, (_, isActive: boolean) => {
+  //   appUpdater.setAutoUpdate(isActive)
+  //   configManager.setAutoUpdate(isActive)
+  // })
 
   ipcMain.handle(IpcChannel.App_SetTestPlan, async (_, isActive: boolean) => {
     logger.info(`set test plan: ${isActive}`)
-    if (isActive !== configManager.getTestPlan()) {
+    if (isActive !== preferenceService.get('app.dist.test_plan.enabled')) {
       appUpdater.cancelDownload()
-      configManager.setTestPlan(isActive)
     }
   })
 
   ipcMain.handle(IpcChannel.App_SetTestChannel, async (_, channel: UpgradeChannel) => {
     logger.info(`set test channel: ${channel}`)
-    if (channel !== configManager.getTestChannel()) {
+    if (channel !== preferenceService.get('app.dist.test_plan.channel')) {
       appUpdater.cancelDownload()
-      configManager.setTestChannel(channel)
     }
   })
 
@@ -239,10 +240,10 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
     return configManager.get(key)
   })
 
-  // theme
-  ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
-    themeService.setTheme(theme)
-  })
+  // // theme
+  // ipcMain.handle(IpcChannel.App_SetTheme, (_, theme: ThemeMode) => {
+  //   themeService.setTheme(theme)
+  // })
 
   ipcMain.handle(IpcChannel.App_HandleZoomFactor, (_, delta: number, reset: boolean = false) => {
     const windows = BrowserWindow.getAllWindows()
@@ -765,9 +766,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   ipcMain.handle(IpcChannel.App_QuoteToMain, (_, text: string) => windowService.quoteToMainWindow(text))
 
-  ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
-    configManager.setDisableHardwareAcceleration(isDisable)
-  })
+  // ipcMain.handle(IpcChannel.App_SetDisableHardwareAcceleration, (_, isDisable: boolean) => {
+  //   configManager.setDisableHardwareAcceleration(isDisable)
+  // })
   ipcMain.handle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => saveSpans(topicId))
   ipcMain.handle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
     getSpans(topicId, traceId, modelName)
@@ -843,4 +844,7 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))
+
+  // Preference handlers
+  PreferenceService.registerIpcHandler()
 }

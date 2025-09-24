@@ -1,9 +1,9 @@
-import { anthropic } from '@ai-sdk/anthropic'
-import { google } from '@ai-sdk/google'
-import { openai } from '@ai-sdk/openai'
+import type { anthropic } from '@ai-sdk/anthropic'
+import type { google } from '@ai-sdk/google'
+import type { openai } from '@ai-sdk/openai'
 
-import { ProviderOptionsMap } from '../../../options/types'
-import { OpenRouterSearchConfig } from './openrouter'
+import type { ProviderOptionsMap } from '../../../options/types'
+import type { OpenRouterSearchConfig } from './openrouter'
 
 /**
  * 从 AI SDK 的工具函数中提取参数类型，以确保类型安全。

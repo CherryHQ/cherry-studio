@@ -1,9 +1,12 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
+import { Switch } from '@cherrystudio/ui'
+import { useCache } from '@data/hooks/useCache'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import AiProvider from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import { HStack } from '@renderer/components/Layout'
 import Scrollbar from '@renderer/components/Scrollbar'
 import TranslateButton from '@renderer/components/TranslateButton'
 import { isMac } from '@renderer/config/constant'
@@ -12,17 +15,13 @@ import { LanguagesEnum } from '@renderer/config/translate'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
-import { useAppDispatch } from '@renderer/store'
-import { setGenerating } from '@renderer/store/runtime'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Switch, Tooltip, Upload } from 'antd'
+import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -90,11 +89,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
-  const dispatch = useAppDispatch()
-  const { generating } = useRuntime()
+  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
-  const { autoTranslateWithSpace } = useSettings()
+  const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
   const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
 
@@ -186,7 +184,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     const controller = new AbortController()
     setAbortController(controller)
     setIsLoading(true)
-    dispatch(setGenerating(true))
+    setGenerating(true)
 
     let body: string | FormData = ''
     let headers: Record<string, string> = {
@@ -303,7 +301,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             handleError(error)
           } finally {
             setIsLoading(false)
-            dispatch(setGenerating(false))
+            setGenerating(false)
             setAbortController(null)
           }
         } else {
@@ -523,7 +521,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       handleError(error)
     } finally {
       setIsLoading(false)
-      dispatch(setGenerating(false))
+      setGenerating(false)
       setAbortController(null)
     }
   }
@@ -748,12 +746,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'switch':
         return (
-          <HStack>
+          <RowFlex>
             <Switch
-              checked={(painting[item.key!] || item.initialValue) as boolean}
-              onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
+              isSelected={(painting[item.key!] || item.initialValue) as boolean}
+              onValueChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
-          </HStack>
+          </RowFlex>
         )
       case 'image': {
         return (

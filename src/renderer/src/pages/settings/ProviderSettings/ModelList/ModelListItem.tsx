@@ -1,10 +1,10 @@
+import { RowFlex } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
-import { HStack } from '@renderer/components/Layout'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import { getModelLogo } from '@renderer/config/models'
-import { Model } from '@renderer/types'
-import { ModelWithStatus } from '@renderer/types/healthCheck'
+import type { Model } from '@renderer/types'
+import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import { Avatar, Button, Tooltip } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
@@ -35,7 +35,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
 
   return (
     <ListItem ref={ref}>
-      <HStack alignItems="center" gap={10} style={{ flex: 1 }}>
+      <RowFlex className="flex-1 items-center gap-2.5">
         <Avatar src={getModelLogo(model.id)} size={24}>
           {model?.name?.[0]?.toUpperCase()}
         </Avatar>
@@ -48,18 +48,18 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
           }}
         />
         <FreeTrialModelTag model={model} />
-      </HStack>
-      <HStack alignItems="center" gap={6}>
+      </RowFlex>
+      <RowFlex className="items-center gap-1.5">
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
-        <HStack alignItems="center" gap={0}>
+        <RowFlex className="items-center">
           <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
             <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Bolt size={14} />} />
           </Tooltip>
           <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
             <Button type="text" onClick={() => onRemove(model)} disabled={disabled} icon={<Minus size={14} />} />
           </Tooltip>
-        </HStack>
-      </HStack>
+        </RowFlex>
+      </RowFlex>
     </ListItem>
   )
 }

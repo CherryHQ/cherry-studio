@@ -1,14 +1,14 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
-import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Button, Slider, Tooltip } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
-import { FC, useCallback, useEffect, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -16,14 +16,17 @@ import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
 
 const SelectionActionApp: FC = () => {
-  const { language, customCss } = useSettings()
-
+  const [language] = usePreference('app.language')
+  const [customCss] = usePreference('ui.custom_css')
   const { t } = useTranslation()
 
-  const [action, setAction] = useState<ActionItem | null>(null)
+  const [action, setAction] = useState<SelectionActionItem | null>(null)
   const isActionLoaded = useRef(false)
 
-  const { isAutoClose, isAutoPin, actionWindowOpacity } = useSelectionAssistant()
+  const [isAutoClose] = usePreference('feature.selection.auto_close')
+  const [isAutoPin] = usePreference('feature.selection.auto_pin')
+  const [actionWindowOpacity] = usePreference('feature.selection.action_window_opacity')
+
   const [isPinned, setIsPinned] = useState(isAutoPin)
   const [isWindowFocus, setIsWindowFocus] = useState(true)
 
@@ -38,7 +41,7 @@ const SelectionActionApp: FC = () => {
   useEffect(() => {
     const actionListenRemover = window.electron?.ipcRenderer.on(
       IpcChannel.Selection_UpdateActionData,
-      (_, actionItem: ActionItem) => {
+      (_, actionItem: SelectionActionItem) => {
         setAction(actionItem)
         isActionLoaded.current = true
       }

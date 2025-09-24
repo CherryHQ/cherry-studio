@@ -1,5 +1,7 @@
+import { Flex } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
-import { Button, Flex, Form, FormProps, Input, Modal } from 'antd'
+import type { FormProps } from 'antd'
+import { Button, Form, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -69,7 +71,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         labelCol={{ flex: '110px' }}
         labelAlign="right"
         colon={false}
-        style={{ marginTop: 25 }}
+        className="mt-[25px]"
         onFinish={onFinish}>
         <Form.Item name="url" label={t('settings.tool.websearch.subscribe_url')} rules={[{ required: true }]}>
           <Input
@@ -89,7 +91,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         <Form.Item name="name" label={t('settings.tool.websearch.subscribe_name.label')}>
           <Input placeholder={t('settings.tool.websearch.subscribe_name.placeholder')} spellCheck={false} />
         </Form.Item>
-        <Flex justify="end" style={{ marginBottom: 8 }}>
+        <Flex className="mb-2 justify-end">
           <Button type="primary" htmlType="submit">
             {t('settings.tool.websearch.subscribe_add')}
           </Button>

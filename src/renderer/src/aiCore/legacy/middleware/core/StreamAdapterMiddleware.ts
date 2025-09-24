@@ -1,8 +1,8 @@
-import { SdkRawChunk } from '@renderer/types/sdk'
+import type { SdkRawChunk } from '@renderer/types/sdk'
 import { asyncGeneratorToReadableStream, createSingleChunkReadableStream } from '@renderer/utils/stream'
 
-import { CompletionsParams, CompletionsResult } from '../schemas'
-import { CompletionsContext, CompletionsMiddleware } from '../types'
+import type { CompletionsParams, CompletionsResult } from '../schemas'
+import type { CompletionsContext, CompletionsMiddleware } from '../types'
 import { isAsyncIterable } from '../utils'
 
 export const MIDDLEWARE_NAME = 'StreamAdapterMiddleware'

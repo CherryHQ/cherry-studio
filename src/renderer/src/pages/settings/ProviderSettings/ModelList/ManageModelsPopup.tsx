@@ -1,6 +1,7 @@
+import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
-import { HStack } from '@renderer/components/Layout'
 import { TopView } from '@renderer/components/TopView'
 import {
   groupQwenModels,
@@ -18,10 +19,10 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import NewApiAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiAddModelPopup'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { fetchModels } from '@renderer/services/ApiService'
-import { Model, Provider } from '@renderer/types'
+import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
-import { Button, Empty, Flex, Modal, Spin, Tabs, Tooltip } from 'antd'
+import { Button, Empty, Modal, Spin, Tabs, Tooltip } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
@@ -242,7 +243,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     const isAllFilteredInProvider = list.length > 0 && list.every((model) => isModelInProvider(provider, model.id))
 
     return (
-      <HStack gap={8}>
+      <RowFlex className="gap-2">
         <Tooltip
           title={
             isAllFilteredInProvider
@@ -270,7 +271,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             disabled={loadingModels}
           />
         </Tooltip>
-      </HStack>
+      </RowFlex>
     )
   }, [list, t, loadingModels, provider, onRemoveAll, onAddAll, loadModels])
 

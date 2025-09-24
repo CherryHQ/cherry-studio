@@ -1,13 +1,15 @@
 import { ExportOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { ApiKeyListPopup } from '@renderer/components/Popups/ApiKeyListPopup'
 import { getPreprocessProviderLogo, PREPROCESS_PROVIDER_CONFIG } from '@renderer/config/preprocessProviders'
 import { usePreprocessProvider } from '@renderer/hooks/usePreprocess'
-import { PreprocessProvider } from '@renderer/types'
+import type { PreprocessProvider } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Avatar, Button, Divider, Flex, Input, Tooltip } from 'antd'
+import { Avatar, Button, Divider, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { List } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -69,7 +71,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderLogo shape="square" src={getPreprocessProviderLogo(preprocessProvider.id)} size={16} />
 
           <ProviderName> {preprocessProvider.name}</ProviderName>
@@ -96,7 +98,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
               placeholder={

@@ -1,14 +1,15 @@
 import { RedoOutlined } from '@ant-design/icons'
+import { RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { HStack } from '@renderer/components/Layout'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
-import { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBase } from '@renderer/types'
 import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -164,12 +165,12 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             )}
           </div>
         </ModelInfo>
-        <HStack gap={8} alignItems="center">
+        <RowFlex className="items-center gap-2">
           {/* 使用selected base导致修改设置后没有响应式更新 */}
           <NavbarIcon onClick={() => base && KnowledgeSearchPopup.show({ base: base })}>
             <Search size={18} />
           </NavbarIcon>
-        </HStack>
+        </RowFlex>
       </HeaderContainer>
       <StyledTabs activeKey={activeKey} onChange={setActiveKey} items={tabItems} type="line" size="small" />
     </MainContainer>
@@ -180,9 +181,9 @@ export const KnowledgeEmptyView = () => <Empty style={{ margin: 20 }} styles={{ 
 
 export const ItemHeaderLabel = ({ label }: { label: string }) => {
   return (
-    <HStack alignItems="center" gap={10}>
+    <RowFlex className="items-center gap-2.5">
       <label style={{ fontWeight: 600 }}>{label}</label>
-    </HStack>
+    </RowFlex>
   )
 }
 

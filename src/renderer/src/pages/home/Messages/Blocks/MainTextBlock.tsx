@@ -1,11 +1,11 @@
-import { useSettings } from '@renderer/hooks/useSettings'
+import { Flex } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { RootState } from '@renderer/store'
 import { selectFormattedCitationsByBlockId } from '@renderer/store/messageBlock'
 import { type Model } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
-import { Flex } from 'antd'
 import React, { useCallback } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
@@ -21,7 +21,7 @@ interface Props {
 
 const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions = [] }) => {
   // Use the passed citationBlockId directly in the selector
-  const { renderInputMessageAsMarkdown } = useSettings()
+  const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
 
   const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
 
@@ -44,7 +44,7 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     <>
       {/* Render mentions associated with the message */}
       {mentions && mentions.length > 0 && (
-        <Flex gap="8px" wrap style={{ marginBottom: 10 }}>
+        <Flex className="mb-2.5 flex-wrap gap-2">
           {mentions.map((m) => (
             <MentionTag key={getModelUniqId(m)}>{'@' + m.name}</MentionTag>
           ))}

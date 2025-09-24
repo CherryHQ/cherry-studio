@@ -1,4 +1,4 @@
-import { Assistant } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { cloneDeep } from 'lodash'
 import { describe, expect, it } from 'vitest'
 

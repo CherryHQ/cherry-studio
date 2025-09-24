@@ -1,4 +1,5 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
+import { Flex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { CopyIcon } from '@renderer/components/Icons'
@@ -18,14 +19,13 @@ import useTranslate from '@renderer/hooks/useTranslate'
 import { estimateTextTokens } from '@renderer/services/TokenService'
 import { saveTranslateHistory, translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
-import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
+// import { setTranslateAbortKey, setTranslating as setTranslatingAction } from '@renderer/store/runtime'
 import { setTranslatedContent as setTranslatedContentAction, setTranslateInput } from '@renderer/store/translate'
+import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import {
   type AutoDetectionMethod,
-  FileMetadata,
   isSupportedOcrFile,
   type Model,
-  SupportedOcrFile,
   type TranslateHistory,
   type TranslateLanguage
 } from '@renderer/types'
@@ -41,11 +41,13 @@ import {
   determineTargetLanguage
 } from '@renderer/utils/translate'
 import { imageExts, MB, textExts } from '@shared/config/constant'
-import { Button, Flex, FloatButton, Popover, Tooltip, Typography } from 'antd'
-import TextArea, { TextAreaRef } from 'antd/es/input/TextArea'
+import { Button, FloatButton, Popover, Tooltip, Typography } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
+import TextArea from 'antd/es/input/TextArea'
 import { isEmpty, throttle } from 'lodash'
 import { Check, CirclePause, FolderClock, Settings2, UploadIcon } from 'lucide-react'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FC } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -88,11 +90,13 @@ const TranslatePage: FC = () => {
   const [autoDetectionMethod, setAutoDetectionMethod] = useState<AutoDetectionMethod>('franc')
   const [isProcessing, setIsProcessing] = useState(false)
 
+  const [translating, setTranslating] = useState(false)
+  const [abortKey, setTranslateAbortKey] = useState<string>('')
   // redux states
   const text = useAppSelector((state) => state.translate.translateInput)
   const translatedContent = useAppSelector((state) => state.translate.translatedContent)
-  const translating = useAppSelector((state) => state.runtime.translating)
-  const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
+  // const translating = useAppSelector((state) => state.runtime.translating)
+  // const abortKey = useAppSelector((state) => state.runtime.translateAbortKey)
 
   // ref
   const contentContainerRef = useRef<HTMLDivElement>(null)
@@ -126,12 +130,12 @@ const TranslatePage: FC = () => {
     [dispatch]
   )
 
-  const setTranslating = useCallback(
-    (translating: boolean) => {
-      dispatch(setTranslatingAction(translating))
-    },
-    [dispatch]
-  )
+  // const setTranslating = useCallback(
+  //   (translating: boolean) => {
+  //     dispatch(setTranslatingAction(translating))
+  //   },
+  //   [dispatch]
+  // )
 
   // 控制复制行为
   const onCopy = useCallback(async () => {
@@ -163,7 +167,7 @@ const TranslatePage: FC = () => {
 
         let translated: string
         const abortKey = uuid()
-        dispatch(setTranslateAbortKey(abortKey))
+        setTranslateAbortKey(abortKey)
 
         try {
           translated = await translateText(text, actualTargetLanguage, throttle(setTranslatedContent, 100), abortKey)
@@ -200,7 +204,7 @@ const TranslatePage: FC = () => {
         window.toast.error(t('translate.error.unknown') + ': ' + formatErrorMessage(e))
       }
     },
-    [autoCopy, dispatch, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
+    [autoCopy, onCopy, setTimeoutTimer, setTranslatedContent, setTranslating, t, translating]
   )
 
   // 控制翻译按钮是否可用
@@ -339,7 +343,7 @@ const TranslatePage: FC = () => {
   useEffect(() => {
     setText('')
     setTranslatedContent('')
-  }, [])
+  }, [setText, setTranslatedContent])
 
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
@@ -446,7 +450,7 @@ const TranslatePage: FC = () => {
     try {
       if (isBidirectional) {
         return (
-          <Flex align="center" style={{ minWidth: 160 }}>
+          <Flex className="min-w-40 items-center">
             <BidirectionalLanguageDisplay>
               {`${bidirectionalPair[0].label()} ⇆ ${bidirectionalPair[1].label()}`}
             </BidirectionalLanguageDisplay>

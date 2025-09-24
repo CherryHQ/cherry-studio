@@ -1,12 +1,13 @@
-import { Switch } from '@heroui/react'
+import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import LanguageSelect from '@renderer/components/LanguageSelect'
-import { HStack } from '@renderer/components/Layout'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
-import { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Flex, Modal, Radio, Space, Tooltip } from 'antd'
+import type { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
+import { Button, Modal, Radio, Space, Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
-import { FC, memo, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import TranslateSettingsPopup from '../settings/TranslateSettingsPopup/TranslateSettingsPopup'
@@ -63,9 +64,9 @@ const TranslateSettings: FC<{
       footer={null}
       width={520}
       transitionName="animation-move-down">
-      <Flex vertical gap={16} style={{ marginTop: 16, paddingBottom: 20 }}>
+      <ColFlex className="mt-4 gap-4 pb-5">
         <div>
-          <Flex align="center" justify="space-between">
+          <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.preview')}</div>
             <Switch
               isSelected={enableMarkdown}
@@ -78,7 +79,7 @@ const TranslateSettings: FC<{
         </div>
 
         <div>
-          <HStack alignItems="center" justifyContent="space-between">
+          <RowFlex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.autoCopy')}</div>
             <Switch
               isSelected={autoCopy}
@@ -87,11 +88,11 @@ const TranslateSettings: FC<{
                 updateSettings({ autoCopy: isSelected })
               }}
             />
-          </HStack>
+          </RowFlex>
         </div>
 
         <div>
-          <Flex align="center" justify="space-between">
+          <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>{t('translate.settings.scroll_sync')}</div>
             <Switch
               isSelected={isScrollSyncEnabled}
@@ -104,7 +105,7 @@ const TranslateSettings: FC<{
           </Flex>
         </div>
 
-        <HStack style={{ justifyContent: 'space-between' }}>
+        <RowFlex className="justify-between">
           <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
             {t('translate.detect.method.label')}
             <Tooltip title={t('translate.detect.method.tip')}>
@@ -113,7 +114,7 @@ const TranslateSettings: FC<{
               </span>
             </Tooltip>
           </div>
-          <HStack alignItems="center" gap={5}>
+          <RowFlex className="items-center gap-[5px]">
             <Radio.Group
               defaultValue={'auto'}
               value={autoDetectionMethod}
@@ -132,20 +133,20 @@ const TranslateSettings: FC<{
                 <Radio.Button value="llm">LLM</Radio.Button>
               </Tooltip>
             </Radio.Group>
-          </HStack>
-        </HStack>
+          </RowFlex>
+        </RowFlex>
 
         <div>
-          <Flex align="center" justify="space-between">
+          <Flex className="items-center justify-between">
             <div style={{ fontWeight: 500 }}>
-              <HStack alignItems="center" gap={5}>
+              <RowFlex className="items-center gap-[5px]">
                 {t('translate.settings.bidirectional')}
                 <Tooltip title={t('translate.settings.bidirectional_tip')}>
                   <span style={{ display: 'flex', alignItems: 'center' }}>
                     <HelpCircle size={14} style={{ color: 'var(--color-text-3)' }} />
                   </span>
                 </Tooltip>
-              </HStack>
+              </RowFlex>
             </div>
             <Switch
               isSelected={isBidirectional}
@@ -158,7 +159,7 @@ const TranslateSettings: FC<{
           </Flex>
           {isBidirectional && (
             <Space direction="vertical" style={{ width: '100%', marginTop: 8 }}>
-              <Flex align="center" justify="space-between" gap={10}>
+              <Flex className="items-center justify-between gap-2.5">
                 <LanguageSelect
                   style={{ flex: 1 }}
                   value={localPair[0].langCode}
@@ -199,7 +200,7 @@ const TranslateSettings: FC<{
           )}
         </div>
         <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
-      </Flex>
+      </ColFlex>
     </Modal>
   )
 }

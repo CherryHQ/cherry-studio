@@ -1,9 +1,9 @@
 import App from '@renderer/components/MinApp/MinApp'
 import { useMinapps } from '@renderer/hooks/useMinapps'
-import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { Code, FileSearch, Folder, Languages, LayoutGrid, NotepadText, Palette, Sparkle } from 'lucide-react'
-import { FC, useMemo } from 'react'
+import type { FC } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import styled from 'styled-components'
@@ -12,8 +12,7 @@ const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
   const { defaultPaintingProvider } = useSettings()
-  const { pinned } = useMinapps()
-  const { openedKeepAliveMinapps } = useRuntime()
+  const { pinned, openedKeepAliveMinapps } = useMinapps()
 
   const appMenuItems = [
     {

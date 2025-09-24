@@ -1,22 +1,23 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
+import { Flex, RowFlex } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
 import SearxngLogo from '@renderer/assets/images/search/searxng.svg'
 import TavilyLogo from '@renderer/assets/images/search/tavily.png'
 import ZhipuLogo from '@renderer/assets/images/search/zhipu.png'
-import { HStack } from '@renderer/components/Layout'
 import ApiKeyListPopup from '@renderer/components/Popups/ApiKeyListPopup/popup'
 import { WEB_SEARCH_PROVIDER_CONFIG } from '@renderer/config/webSearchProviders'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
-import { WebSearchProviderId } from '@renderer/types'
+import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Flex, Form, Input, Space, Tooltip } from 'antd'
+import { Button, Divider, Form, Input, Space, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info, List } from 'lucide-react'
-import { FC, useEffect, useState } from 'react'
+import type { FC } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -155,7 +156,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
   return (
     <>
       <SettingTitle>
-        <Flex align="center" gap={8}>
+        <Flex className="items-center gap-2">
           <ProviderLogo src={getWebSearchProviderLogo(provider.id)} />
           <ProviderName> {provider.name}</ProviderName>
           {officialWebsite && webSearchProviderConfig?.websites && (
@@ -206,13 +207,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             </Button>
           </Space.Compact>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-            <HStack>
+            <RowFlex>
               {apiKeyWebsite && (
                 <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                   {t('settings.provider.get_api_key')}
                 </SettingHelpLink>
               )}
-            </HStack>
+            </RowFlex>
             <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
           </SettingHelpTextRow>
         </>
@@ -222,7 +223,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.api_host')}
           </SettingSubtitle>
-          <Flex gap={8}>
+          <Flex className="gap-2">
             <Input
               value={apiHost}
               placeholder={t('settings.provider.api_host')}
