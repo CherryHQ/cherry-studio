@@ -448,7 +448,6 @@ providerRouter.post('/', async (req: Request, res: Response) => {
 
   try {
     const providerId = req.params.provider
-    const request: MessageCreateParams = req.body
 
     if (!providerId) {
       return res.status(400).json({
