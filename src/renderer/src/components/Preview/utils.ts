@@ -37,6 +37,7 @@ export function renderSvgInShadowHost(svgContent: string, hostElement: HTMLEleme
       border-radius: var(--shadow-host-border-radius);
       padding: 1em;
       overflow: hidden; /* Prevent scrollbars, as scaling is now handled */
+      white-space: normal;
       display: block;
       position: relative;
       width: 100%;
