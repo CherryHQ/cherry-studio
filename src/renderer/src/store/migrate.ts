@@ -2495,6 +2495,7 @@ const migrateConfig = {
   '157': (state: RootState) => {
     try {
       addProvider(state, 'aionly')
+      state.llm.providers = moveProvider(state.llm.providers, 'aionly', 10)
 
       const cherryinProvider = state.llm.providers.find((provider) => provider.id === 'cherryin')
 

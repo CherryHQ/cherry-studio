@@ -3,6 +3,7 @@ import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogo } from '@renderer/config/models'
+import { isNewApiProvider } from '@renderer/config/providers'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import { Model, Provider } from '@renderer/types'
@@ -91,7 +92,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
           // 添加整组
           const wouldAddModels = models.filter((model) => !isModelInProvider(provider, model.id))
 
-          if (provider.id === 'new-api') {
+          if (isNewApiProvider(provider)) {
             if (wouldAddModels.every(isValidNewApiModel)) {
               wouldAddModels.forEach(onAddModel)
             } else {
