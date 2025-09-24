@@ -302,7 +302,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-x)' : '15px')};
+  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'calc(env(titlebar-area-x) + 4px)' : '15px')};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   min-height: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-height)' : '')};
