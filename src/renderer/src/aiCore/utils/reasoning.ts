@@ -114,11 +114,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
           }
         case SystemProviderIds.hunyuan:
         case SystemProviderIds['tencent-cloud-ti']:
-          return {
-            thinking: {
-              type: 'enabled'
-            }
-          }
         case SystemProviderIds.doubao:
           return {
             thinking: {
