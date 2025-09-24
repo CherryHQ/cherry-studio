@@ -10,10 +10,7 @@ const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ block }) => {
   if (block.status === MessageBlockStatus.PROCESSING && block.type === MessageBlockType.UNKNOWN) {
     return (
       <MessageContentLoading>
-        <Spinner
-          color="current"
-          variant="dots"
-        />
+        <Spinner color="current" variant="dots" />
       </MessageContentLoading>
     )
   }
