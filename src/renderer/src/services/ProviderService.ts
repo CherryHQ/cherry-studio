@@ -13,7 +13,7 @@ export function getProviderName(model?: Model) {
 }
 
 export function getProviderNameById(pid: string) {
-  const provider = store.getState().llm.providers.find((p) => p.id === pid)
+  const provider = getStoreProviders().find((p) => p.id === pid)
   if (provider) {
     return getFancyProviderName(provider)
   } else {

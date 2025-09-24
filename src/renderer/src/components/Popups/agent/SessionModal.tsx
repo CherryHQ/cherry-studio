@@ -29,11 +29,8 @@ import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState
 import { useTranslation } from 'react-i18next'
 
 import { ErrorBoundary } from '../../ErrorBoundary'
-import { ModelOption } from './shared'
 
 const logger = loggerService.withContext('SessionAgentPopup')
-
-type Option = ModelOption
 
 type AgentWithTools = AgentEntity & { tools?: Tool[] }
 type SessionWithTools = AgentSessionEntity & { tools?: Tool[] }
