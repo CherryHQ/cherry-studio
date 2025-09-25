@@ -1,5 +1,5 @@
 import { UpdateInfo } from 'builder-util-runtime'
-import { beforeEach,describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Mock dependencies
 vi.mock('@logger', () => ({
@@ -38,7 +38,7 @@ vi.mock('@main/utils/ipService', () => ({
 
 vi.mock('@main/utils/locales', () => ({
   locales: {
-    'en': { translation: { update: {} } },
+    en: { translation: { update: {} } },
     'zh-CN': { translation: { update: {} } }
   }
 }))
