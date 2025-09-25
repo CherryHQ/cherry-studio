@@ -170,7 +170,7 @@ export class AiSdkToChunkAdapter {
       case 'reasoning-end':
         this.onChunk({
           type: ChunkType.THINKING_COMPLETE,
-          text: (chunk.providerMetadata?.metadata?.thinking_content as string) || '',
+          text: (chunk.providerMetadata?.metadata?.thinking_content as string) || final.reasoningContent,
           thinking_millsec: (chunk.providerMetadata?.metadata?.thinking_millsec as number) || 0
         })
         final.reasoningContent = ''
