@@ -41,7 +41,8 @@ export default class AppUpdater {
 
     autoUpdater.on('update-available', (releaseInfo: UpdateInfo) => {
       logger.info('update available', releaseInfo)
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateAvailable, releaseInfo)
+      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateAvailable, processedReleaseInfo)
     })
 
     // 检测到不需要更新时
@@ -56,9 +57,10 @@ export default class AppUpdater {
 
     // 当需要更新的内容下载完成后
     autoUpdater.on('update-downloaded', (releaseInfo: UpdateInfo) => {
-      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, releaseInfo)
-      this.releaseInfo = releaseInfo
-      logger.info('update downloaded', releaseInfo)
+      const processedReleaseInfo = this.processReleaseInfo(releaseInfo)
+      windowService.getMainWindow()?.webContents.send(IpcChannel.UpdateDownloaded, processedReleaseInfo)
+      this.releaseInfo = processedReleaseInfo
+      logger.info('update downloaded', processedReleaseInfo)
     })
 
     if (isWin) {
@@ -271,16 +273,56 @@ export default class AppUpdater {
       })
   }
 
+  private parseMultiLangReleaseNotes(releaseNotes: string): string {
+    // Parse multi-language release notes with fixed format:
+    // <!--LANG:en-->...<!--LANG:zh-CN-->...<!--LANG:END-->
+    const language = configManager.getLanguage()
+    const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
+
+    // Extract English and Chinese notes
+    const enMatch = releaseNotes.match(/<!--LANG:en-->([\s\S]*?)<!--LANG:zh-CN-->/)
+    const zhMatch = releaseNotes.match(/<!--LANG:zh-CN-->([\s\S]*?)<!--LANG:END-->/)
+
+    // Return Chinese for Chinese users, English for everyone else
+    if (isChineseUser && zhMatch) {
+      return zhMatch[1].trim()
+    }
+
+    return enMatch ? enMatch[1].trim() : releaseNotes
+  }
+
+  private processReleaseInfo(releaseInfo: UpdateInfo): UpdateInfo {
+    const processedInfo = { ...releaseInfo }
+
+    // Handle multi-language release notes in string format
+    if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
+      // Check if it contains multi-language markers
+      if (releaseInfo.releaseNotes.includes('<!--LANG:')) {
+        processedInfo.releaseNotes = this.parseMultiLangReleaseNotes(releaseInfo.releaseNotes)
+      }
+    }
+
+    return processedInfo
+  }
+
   private formatReleaseNotes(releaseNotes: string | ReleaseNoteInfo[] | null | undefined): string {
     if (!releaseNotes) {
       return ''
     }
 
     if (typeof releaseNotes === 'string') {
+      // Check if it contains multi-language markers
+      if (releaseNotes.includes('<!--LANG:')) {
+        return this.parseMultiLangReleaseNotes(releaseNotes)
+      }
       return releaseNotes
     }
 
-    return releaseNotes.map((note) => note.note).join('\n')
+    if (Array.isArray(releaseNotes)) {
+      return releaseNotes.map((note) => note.note).join('\n')
+    }
+
+    return ''
   }
 }
 interface GithubReleaseInfo {
