@@ -60,7 +60,7 @@ export const Agents: FC<AssistantsTabProps> = () => {
             <Button
               onPress={(e) => e.continuePropagation()}
               startContent={<Plus size={16} className="mr-1 shrink-0 translate-x-[-2px]" />}
-              className="w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
+              className="w-full justify-start bg-transparent text-foreground-500 hover:bg-[var(--color-list-item)]">
               {t('agent.add.title')}
             </Button>
           )
