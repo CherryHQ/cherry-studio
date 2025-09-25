@@ -118,12 +118,11 @@ app.get('/', (_req, res) => {
   })
 })
 
-// Provider-specific API routes with auth (must be before /v1 to avoid conflicts)
-const providerRouter = express.Router({ mergeParams: true })
-providerRouter.use(authMiddleware)
-// Mount provider-specific messages route
-providerRouter.use('/v1/messages', messagesProviderRoutes)
-app.use('/:provider', providerRouter)
+// Setup OpenAPI documentation before protected routes so docs remain public
+setupOpenAPIDocumentation(app)
+
+// Provider-specific messages route requires authentication
+app.use('/:provider/v1/messages', authMiddleware, messagesProviderRoutes)
 
 // API v1 routes with auth
 const apiRouter = express.Router()
@@ -135,9 +134,6 @@ apiRouter.use('/messages', messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)
-
-// Setup OpenAPI documentation
-setupOpenAPIDocumentation(app)
 
 // Error handling (must be last)
 app.use(errorHandler)
