@@ -273,7 +273,7 @@ const AboutSettings: FC = () => {
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
-          <UpdateNotesWrapper>
+          <UpdateNotesWrapper className="markdown">
             <Markdown>
               {typeof update.info.releaseNotes === 'string'
                 ? update.info.releaseNotes.replace(/\n/g, '\n\n')
