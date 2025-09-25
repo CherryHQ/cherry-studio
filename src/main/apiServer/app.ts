@@ -14,6 +14,13 @@ import { modelsRoutes } from './routes/models'
 
 const logger = loggerService.withContext('ApiServer')
 
+const LONG_POLL_TIMEOUT_MS = 120 * 60_000 // 120 minutes
+const extendMessagesTimeout: express.RequestHandler = (req, res, next) => {
+  req.setTimeout(LONG_POLL_TIMEOUT_MS)
+  res.setTimeout(LONG_POLL_TIMEOUT_MS)
+  next()
+}
+
 const app = express()
 app.use(
   express.json({
@@ -122,7 +129,7 @@ app.get('/', (_req, res) => {
 setupOpenAPIDocumentation(app)
 
 // Provider-specific messages route requires authentication
-app.use('/:provider/v1/messages', authMiddleware, messagesProviderRoutes)
+app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, messagesProviderRoutes)
 
 // API v1 routes with auth
 const apiRouter = express.Router()
@@ -130,7 +137,7 @@ apiRouter.use(authMiddleware)
 // Mount routes
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
-apiRouter.use('/messages', messagesRoutes)
+apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)

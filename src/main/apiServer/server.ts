@@ -7,6 +7,10 @@ import { config } from './config'
 
 const logger = loggerService.withContext('ApiServer')
 
+const GLOBAL_REQUEST_TIMEOUT_MS = 5 * 60_000
+const GLOBAL_HEADERS_TIMEOUT_MS = GLOBAL_REQUEST_TIMEOUT_MS + 5_000
+const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
+
 export class ApiServer {
   private server: ReturnType<typeof createServer> | null = null
 
@@ -26,6 +30,7 @@ export class ApiServer {
 
     // Create server with Express app
     this.server = createServer(app)
+    this.applyServerTimeouts(this.server)
 
     // Start server
     return new Promise((resolve, reject) => {
@@ -36,6 +41,13 @@ export class ApiServer {
 
       this.server!.on('error', reject)
     })
+  }
+
+  private applyServerTimeouts(server: ReturnType<typeof createServer>): void {
+    server.requestTimeout = GLOBAL_REQUEST_TIMEOUT_MS
+    server.headersTimeout = Math.max(GLOBAL_HEADERS_TIMEOUT_MS, server.requestTimeout + 1_000)
+    server.keepAliveTimeout = GLOBAL_KEEPALIVE_TIMEOUT_MS
+    server.setTimeout(0)
   }
 
   async stop(): Promise<void> {
