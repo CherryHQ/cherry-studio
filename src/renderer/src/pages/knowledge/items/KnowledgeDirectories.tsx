@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -6,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -69,13 +70,11 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
     <ItemContainer>
       <ItemHeader>
         <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
-          onClick={(e) => {
-            e.stopPropagation()
-            handleAddDirectory()
-          }}
-          disabled={disabled}>
+          variant="solid"
+          color="primary"
+          startContent={<PlusIcon size={16} />}
+          onPress={handleAddDirectory}
+          isDisabled={disabled}>
           {t('knowledge.add_directory')}
         </ResponsiveButton>
       </ItemHeader>
@@ -103,7 +102,11 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                 extra: getDisplayTime(item),
                 actions: (
                   <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    {item.uniqueId && (
+                      <Button variant="light" isIconOnly onPress={() => refreshItem(item)}>
+                        <RefreshIcon />
+                      </Button>
+                    )}
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={item.id}
@@ -113,12 +116,9 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                         type="directory"
                       />
                     </StatusIconWrapper>
-                    <Button
-                      type="text"
-                      danger
-                      onClick={() => removeItem(item)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                    <Button variant="light" color="danger" isIconOnly onPress={() => removeItem(item)}>
+                      <DeleteIcon size={14} className="lucide-custom" />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}

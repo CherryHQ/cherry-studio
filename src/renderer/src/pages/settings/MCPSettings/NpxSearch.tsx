@@ -1,12 +1,13 @@
 import { CheckOutlined, PlusOutlined } from '@ant-design/icons'
 import { Center, RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { nanoid } from '@reduxjs/toolkit'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { MCPServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
-import { Button, Card, Input, Space, Spin, Tag, Typography } from 'antd'
+import { Card, Input, Space, Spin, Tag, Typography } from 'antd'
 import { npxFinder } from 'npx-scope-finder'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -161,12 +162,12 @@ const NpxSearch: FC = () => {
                       v{record.version}
                     </Tag>
                     <Button
-                      type="text"
-                      icon={
+                      variant="light"
+                      startContent={
                         isInstalled ? <CheckOutlined style={{ color: 'var(--color-primary)' }} /> : <PlusOutlined />
                       }
-                      size="small"
-                      onClick={() => {
+                      size="sm"
+                      onPress={() => {
                         if (isInstalled) {
                           return
                         }
@@ -186,6 +187,7 @@ const NpxSearch: FC = () => {
                         addMCPServer(newServer)
                         window.toast.success(t('settings.mcp.addSuccess'))
                       }}
+                      isIconOnly
                     />
                   </Flex>
                 }>

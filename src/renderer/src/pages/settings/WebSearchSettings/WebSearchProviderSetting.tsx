@@ -1,5 +1,6 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Flex, RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
@@ -13,7 +14,7 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Form, Input, Space, Tooltip } from 'antd'
+import { Divider, Form, Input, Tooltip } from 'antd'
 import Link from 'antd/es/typography/Link'
 import { Info, List } from 'lucide-react'
 import type { FC } from 'react'
@@ -179,10 +180,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
-              <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
+              <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
             </Tooltip>
           </SettingSubtitle>
-          <Space.Compact style={{ width: '100%' }}>
+          <Flex className="gap-2">
             <Input.Password
               value={apiKey}
               placeholder={t('settings.provider.api_key.label')}
@@ -193,10 +194,10 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               autoFocus={apiKey === ''}
             />
             <Button
-              ghost={apiValid}
-              type={apiValid ? 'primary' : 'default'}
-              onClick={checkSearch}
-              disabled={apiChecking}>
+              variant={apiValid ? 'ghost' : 'solid'}
+              color={apiValid ? 'primary' : 'default'}
+              onPress={checkSearch}
+              isDisabled={apiChecking}>
               {apiChecking ? (
                 <LoadingOutlined spin />
               ) : apiValid ? (
@@ -205,7 +206,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
                 t('settings.tool.websearch.check')
               )}
             </Button>
-          </Space.Compact>
+          </Flex>
           <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
             <RowFlex>
               {apiKeyWebsite && (

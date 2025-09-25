@@ -148,9 +148,12 @@ const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files
       title={couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')}
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={openFileSelectDialog} active={files.length > 0} disabled={disabled}>
-        <Paperclip size={18} />
-      </ActionIconButton>
+      <ActionIconButton
+        onPress={openFileSelectDialog}
+        active={files.length > 0}
+        isDisabled={disabled}
+        icon={<Paperclip size={18} />}
+      />
     </Tooltip>
   )
 }

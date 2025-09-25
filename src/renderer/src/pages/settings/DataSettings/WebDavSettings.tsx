@@ -1,6 +1,7 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -8,7 +9,7 @@ import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/We
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Button, Input, Tooltip } from 'antd'
+import { Input, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -147,10 +148,10 @@ const WebDavSettings: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
         <RowFlex className="justify-between gap-[5px]">
-          <Button onClick={showBackupModal} icon={<SaveOutlined />} loading={backuping}>
+          <Button onPress={showBackupModal} startContent={<SaveOutlined />} isLoading={backuping}>
             {t('settings.data.webdav.backup.button')}
           </Button>
-          <Button onClick={showBackupManager} icon={<FolderOpenOutlined />} disabled={!webdavHost}>
+          <Button onPress={showBackupManager} startContent={<FolderOpenOutlined />} isDisabled={!webdavHost}>
             {t('settings.data.webdav.restore.button')}
           </Button>
         </RowFlex>

@@ -1,10 +1,11 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import FileItem from '@renderer/pages/files/FileItem'
 import type { Assistant, QuickPhrase } from '@renderer/types'
-import { Button, Input, Modal, Popconfirm, Space } from 'antd'
+import { Input, Modal, Popconfirm, Space } from 'antd'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -86,7 +87,7 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
     <Container>
       <SettingTitle>
         {t('assistants.settings.regular_phrases.title', 'Regular Prompts')}
-        <Button type="text" icon={<PlusIcon size={18} />} onClick={handleAdd} />
+        <Button variant="light" isIconOnly startContent={<PlusIcon size={18} />} onPress={handleAdd} />
       </SettingTitle>
       <SettingDivider />
       <SettingRow>
@@ -106,7 +107,13 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                   extra: prompt.content,
                   actions: (
                     <Flex className="gap-1 opacity-60">
-                      <Button key="edit" type="text" icon={<EditIcon size={14} />} onClick={() => handleEdit(prompt)} />
+                      <Button
+                        key="edit"
+                        variant="light"
+                        isIconOnly
+                        startContent={<EditIcon size={14} />}
+                        onPress={() => handleEdit(prompt)}
+                      />
                       <Popconfirm
                         title={t('assistants.settings.regular_phrases.delete', 'Delete Prompt')}
                         description={t(
@@ -119,9 +126,10 @@ const AssistantRegularPromptsSettings: FC<AssistantRegularPromptsSettingsProps> 
                         icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
                         <Button
                           key="delete"
-                          type="text"
-                          danger
-                          icon={<DeleteIcon size={14} className="lucide-custom" />}
+                          variant="light"
+                          color="danger"
+                          isIconOnly
+                          startContent={<DeleteIcon size={14} className="lucide-custom" />}
                         />
                       </Popconfirm>
                     </Flex>

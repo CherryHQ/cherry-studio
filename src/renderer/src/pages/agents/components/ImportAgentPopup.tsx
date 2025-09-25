@@ -1,4 +1,5 @@
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useAgents } from '@renderer/hooks/useAgents'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -6,7 +7,7 @@ import { getDefaultModel } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Agent } from '@renderer/types'
 import { uuid } from '@renderer/utils'
-import { Button, Form, Input, Modal, Radio } from 'antd'
+import { Form, Input, Modal, Radio } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -100,8 +101,8 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       maskClosable={false}
       footer={
         <Flex className="justify-end gap-2">
-          <Button onClick={onCancel}>{t('common.cancel')}</Button>
-          <Button type="primary" onClick={() => form.submit()} loading={loading}>
+          <Button onPress={onCancel}>{t('common.cancel')}</Button>
+          <Button color="primary" onPress={() => form.submit()} isLoading={loading}>
             {t('agents.import.button')}
           </Button>
         </Flex>
@@ -124,7 +125,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
         {importType === 'file' && (
           <Form.Item>
-            <Button onClick={() => form.submit()}>{t('agents.import.select_file')}</Button>
+            <Button onPress={() => form.submit()}>{t('agents.import.select_file')}</Button>
           </Form.Item>
         )}
       </Form>

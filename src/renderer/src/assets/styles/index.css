@@ -170,10 +170,6 @@ ul {
   display: flow-root;
 }
 
-.lucide:not(.lucide-custom) {
-  color: var(--color-icon);
-}
-
 ::highlight(search-matches) {
   background-color: var(--color-background-highlight);
   color: var(--color-highlight);

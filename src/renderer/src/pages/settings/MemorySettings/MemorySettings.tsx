@@ -2,6 +2,7 @@ import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon, LoadingIcon, RefreshIcon } from '@renderer/components/Icons'
@@ -18,7 +19,7 @@ import {
   setGlobalMemoryEnabled
 } from '@renderer/store/memory'
 import type { MemoryItem } from '@types'
-import { Badge, Button, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
+import { Badge, Dropdown, Empty, Form, Input, Modal, Pagination, Space, Spin } from 'antd'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { Brain, Calendar, MenuIcon, PlusIcon, Settings2, UserRound, UserRoundMinus, UserRoundPlus } from 'lucide-react'
@@ -167,10 +168,16 @@ const EditMemoryModal: React.FC<EditMemoryModalProps> = ({ visible, memory, onCa
         }
       }}
       footer={[
-        <Button key="cancel" size="large" onClick={onCancel}>
+        <Button key="cancel" size="lg" onPress={onCancel}>
           {t('common.cancel')}
         </Button>,
-        <Button key="submit" type="primary" size="large" loading={loading} onClick={() => form.submit()}>
+        <Button
+          key="submit"
+          variant="solid"
+          color="primary"
+          size="lg"
+          isLoading={loading}
+          onPress={() => form.submit()}>
           {t('common.save')}
         </Button>
       ]}>
@@ -591,7 +598,12 @@ const MemorySettings = () => {
           </RowFlex>
           <RowFlex className="items-center gap-2.5">
             <Switch isSelected={globalMemoryEnabled} onValueChange={handleGlobalMemoryToggle} />
-            <Button type="text" icon={<Settings2 size={16} />} onClick={() => setSettingsModalVisible(true)} />
+            <Button
+              variant="light"
+              startContent={<Settings2 size={16} />}
+              onPress={() => setSettingsModalVisible(true)}
+              isIconOnly
+            />
           </RowFlex>
         </RowFlex>
       </SettingGroup>
@@ -638,7 +650,11 @@ const MemorySettings = () => {
               allowClear
               style={{ width: 240 }}
             />
-            <Button type="primary" icon={<PlusIcon size={18} />} onClick={() => setAddMemoryModalVisible(true)}>
+            <Button
+              variant="solid"
+              color="primary"
+              startContent={<PlusIcon size={18} />}
+              onPress={() => setAddMemoryModalVisible(true)}>
               {t('memory.add_memory')}
             </Button>
             <Dropdown
@@ -680,7 +696,7 @@ const MemorySettings = () => {
               }}
               trigger={['click']}
               placement="bottomRight">
-              <Button icon={<MenuIcon size={16} />}>{t('common.more')}</Button>
+              <Button startContent={<MenuIcon size={16} />}>{t('common.more')}</Button>
             </Dropdown>
           </Space>
         </div>
@@ -699,10 +715,11 @@ const MemorySettings = () => {
                     {t('memory.no_memories_description')}
                   </div>
                   <Button
-                    type="primary"
-                    icon={<PlusIcon size={18} />}
-                    onClick={() => setAddMemoryModalVisible(true)}
-                    size="large">
+                    variant="solid"
+                    color="primary"
+                    startContent={<PlusIcon size={18} />}
+                    onPress={() => setAddMemoryModalVisible(true)}
+                    size="lg">
                     {t('memory.add_first_memory')}
                   </Button>
                 </div>
@@ -732,17 +749,18 @@ const MemorySettings = () => {
                           </div>
                           <Space size="small">
                             <Button
-                              type="text"
-                              size="small"
-                              icon={<EditIcon size={14} />}
-                              onClick={() => handleEditMemory(memory)}
+                              variant="light"
+                              size="sm"
+                              startContent={<EditIcon size={14} />}
+                              onPress={() => handleEditMemory(memory)}
+                              isIconOnly
                             />
                             <Button
-                              type="text"
-                              size="small"
-                              danger
-                              icon={<DeleteIcon size={14} className="lucide-custom" />}
-                              onClick={() => {
+                              variant="light"
+                              size="sm"
+                              color="danger"
+                              startContent={<DeleteIcon size={14} className="lucide-custom" />}
+                              onPress={() => {
                                 window.modal.confirm({
                                   centered: true,
                                   title: t('memory.delete_confirm'),
@@ -752,6 +770,7 @@ const MemorySettings = () => {
                                   cancelText: t('common.cancel')
                                 })
                               }}
+                              isIconOnly
                             />
                           </Space>
                         </div>

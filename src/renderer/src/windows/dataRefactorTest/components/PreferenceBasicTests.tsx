@@ -1,7 +1,7 @@
-import { Switch } from '@cherrystudio/ui'
+import { Button, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { type PreferenceKeyType, ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Input, message, Select, Slider, Space, Typography } from 'antd'
+import { Input, message, Select, Slider, Space, Typography } from 'antd'
 import React, { useState } from 'react'
 import styled from 'styled-components'
 
@@ -122,7 +122,7 @@ const PreferenceBasicTests: React.FC = () => {
               placeholder="输入新值 (JSON格式用于对象/数组)"
               onPressEnter={handleSetValue}
             />
-            <Button type="primary" onClick={handleSetValue}>
+            <Button color="primary" onPress={handleSetValue}>
               设置
             </Button>
           </Space.Compact>
@@ -135,10 +135,10 @@ const PreferenceBasicTests: React.FC = () => {
             {/* Theme Toggle with Visual Feedback */}
             {selectedKey === 'ui.theme_mode' && (
               <Button
-                size="small"
-                type={isDarkTheme ? 'default' : 'primary'}
-                icon={isDarkTheme ? '🌙' : '☀️'}
-                onClick={() => setValue(value === 'ThemeMode.dark' ? 'ThemeMode.light' : 'ThemeMode.dark')}>
+                size="sm"
+                color={isDarkTheme ? 'default' : 'primary'}
+                startContent={isDarkTheme ? '🌙' : '☀️'}
+                onPress={() => setValue(value === 'ThemeMode.dark' ? 'ThemeMode.light' : 'ThemeMode.dark')}>
                 切换主题 ({value === 'ThemeMode.dark' ? '→ Light' : '→ Dark'})
               </Button>
             )}
@@ -151,10 +151,10 @@ const PreferenceBasicTests: React.FC = () => {
             {/* Language Switch */}
             {selectedKey === 'app.language' && (
               <>
-                <Button size="small" onClick={() => setValue('zh-CN')}>
+                <Button size="sm" onPress={() => setValue('zh-CN')}>
                   中文
                 </Button>
-                <Button size="small" onClick={() => setValue('en-US')}>
+                <Button size="sm" onPress={() => setValue('en-US')}>
                   English
                 </Button>
               </>
@@ -245,39 +245,39 @@ const PreferenceBasicTests: React.FC = () => {
                       />
                       {selectedKey === 'app.zoom_factor' && (
                         <Space>
-                          <Button size="small" onClick={() => setValue(0.8)}>
+                          <Button size="sm" onPress={() => setValue(0.8)}>
                             80%
                           </Button>
-                          <Button size="small" onClick={() => setValue(1.0)}>
+                          <Button size="sm" onPress={() => setValue(1.0)}>
                             100%
                           </Button>
-                          <Button size="small" onClick={() => setValue(1.2)}>
+                          <Button size="sm" onPress={() => setValue(1.2)}>
                             120%
                           </Button>
                         </Space>
                       )}
                       {selectedKey === 'chat.message.font_size' && (
                         <Space>
-                          <Button size="small" onClick={() => setValue(12)}>
+                          <Button size="sm" onPress={() => setValue(12)}>
                             Small
                           </Button>
-                          <Button size="small" onClick={() => setValue(14)}>
+                          <Button size="sm" onPress={() => setValue(14)}>
                             Normal
                           </Button>
-                          <Button size="small" onClick={() => setValue(16)}>
+                          <Button size="sm" onPress={() => setValue(16)}>
                             Large
                           </Button>
                         </Space>
                       )}
                       {selectedKey === 'feature.selection.action_window_opacity' && (
                         <Space>
-                          <Button size="small" onClick={() => setValue(50)}>
+                          <Button size="sm" onPress={() => setValue(50)}>
                             50%
                           </Button>
-                          <Button size="small" onClick={() => setValue(80)}>
+                          <Button size="sm" onPress={() => setValue(80)}>
                             80%
                           </Button>
-                          <Button size="small" onClick={() => setValue(100)}>
+                          <Button size="sm" onPress={() => setValue(100)}>
                             100%
                           </Button>
                         </Space>
@@ -291,9 +291,9 @@ const PreferenceBasicTests: React.FC = () => {
 
             {/* Sample Values */}
             <Button
-              size="small"
-              type="dashed"
-              onClick={() => {
+              size="sm"
+              variant="bordered"
+              onPress={() => {
                 const testCase = testCases.find((tc) => tc.key === selectedKey)
                 if (testCase) {
                   setInputValue(testCase.sampleValue)

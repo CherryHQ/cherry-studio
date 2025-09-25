@@ -1,10 +1,11 @@
 import { ColFlex, RowFlex, Switch } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import db from '@renderer/databases'
 import useTranslate from '@renderer/hooks/useTranslate'
 import type { AutoDetectionMethod, Model, TranslateLanguage } from '@renderer/types'
-import { Button, Modal, Radio, Space, Tooltip } from 'antd'
+import { Modal, Radio, Space, Tooltip } from 'antd'
 import { HelpCircle } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useEffect, useState } from 'react'
@@ -199,7 +200,7 @@ const TranslateSettings: FC<{
             </Space>
           )}
         </div>
-        <Button onClick={onMoreSetting}>{t('settings.moresetting.label')}</Button>
+        <Button onPress={onMoreSetting}>{t('settings.moresetting.label')}</Button>
       </ColFlex>
     </Modal>
   )

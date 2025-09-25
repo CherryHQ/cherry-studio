@@ -1,11 +1,12 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Button, Space, Tooltip } from 'antd'
+import { Space, Tooltip } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -114,7 +115,7 @@ const JoplinSettings: FC = () => {
               placeholder={t('settings.data.joplin.token_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
+            <Button onPress={handleJoplinConnectionCheck}>{t('settings.data.joplin.check.button')}</Button>
           </Space.Compact>
         </RowFlex>
       </SettingRow>

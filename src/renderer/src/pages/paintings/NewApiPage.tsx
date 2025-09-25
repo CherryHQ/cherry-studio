@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -27,7 +28,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { FileMetadata } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
+import { Avatar, Empty, InputNumber, Segmented, Select, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import React from 'react'
@@ -489,7 +490,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>
@@ -531,7 +532,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               description={t('paintings.no_image_generation_model', {
                 endpoint_type: t('endpoint_type.image-generation')
               })}>
-              <Button type="primary" onClick={handleShowAddModelPopup}>
+              <Button variant="solid" color="primary" onPress={handleShowAddModelPopup}>
                 {t('paintings.go_to_settings')}
               </Button>
             </Empty>

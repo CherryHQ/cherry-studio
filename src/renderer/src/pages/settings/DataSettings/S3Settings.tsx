@@ -1,6 +1,7 @@
 import { FolderOpenOutlined, InfoCircleOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
@@ -10,7 +11,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import { Button, Input, Tooltip } from 'antd'
+import { Input, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -182,16 +183,16 @@ const S3Settings: FC = () => {
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
         <RowFlex className="justify-between gap-[5px]">
           <Button
-            onClick={showBackupModal}
-            icon={<SaveOutlined />}
-            loading={backuping}
-            disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+            onPress={showBackupModal}
+            startContent={<SaveOutlined />}
+            isLoading={backuping}
+            isDisabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             {t('settings.data.s3.backup.button')}
           </Button>
           <Button
-            onClick={showBackupManager}
-            icon={<FolderOpenOutlined />}
-            disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+            onPress={showBackupManager}
+            startContent={<FolderOpenOutlined />}
+            isDisabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
             {t('settings.data.s3.backup.manager.button')}
           </Button>
         </RowFlex>

@@ -1,8 +1,9 @@
 import { getToastUtilities } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Progress, Space, Steps } from 'antd'
+import { Progress, Space, Steps } from 'antd'
 import { AlertTriangle, CheckCircle, Database, Loader2, Rocket } from 'lucide-react'
 import React, { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
@@ -218,9 +219,9 @@ const MigrateApp: React.FC = () => {
       case 'introduction':
         return (
           <>
-            <Button onClick={handleCancel}>取消</Button>
+            <Button onPress={handleCancel}>取消</Button>
             <Spacer />
-            <Button type="primary" onClick={handleProceedToBackup}>
+            <Button color="primary" onPress={handleProceedToBackup}>
               下一步
             </Button>
           </>
@@ -228,10 +229,10 @@ const MigrateApp: React.FC = () => {
       case 'backup_required':
         return (
           <>
-            <Button onClick={handleCancel}>取消</Button>
+            <Button onPress={handleCancel}>取消</Button>
             <Spacer />
-            <Button onClick={handleBackupCompleted}>我已备份，开始迁移</Button>
-            <Button type="primary" onClick={handleShowBackupDialog}>
+            <Button onPress={handleBackupCompleted}>我已备份，开始迁移</Button>
+            <Button color="primary" onPress={handleShowBackupDialog}>
               创建备份
             </Button>
           </>
@@ -239,9 +240,9 @@ const MigrateApp: React.FC = () => {
       case 'backup_confirmed':
         return (
           <ButtonRow>
-            <Button onClick={handleCancel}>取消</Button>
+            <Button onPress={handleCancel}>取消</Button>
             <Space>
-              <Button type="primary" onClick={handleStartMigration}>
+              <Button color="primary" onPress={handleStartMigration}>
                 开始迁移
               </Button>
             </Space>
@@ -251,14 +252,14 @@ const MigrateApp: React.FC = () => {
         return (
           <ButtonRow>
             <div></div>
-            <Button disabled>迁移进行中...</Button>
+            <Button isDisabled>迁移进行中...</Button>
           </ButtonRow>
         )
       case 'completed':
         return (
           <ButtonRow>
             <div></div>
-            <Button type="primary" onClick={handleRestartApp}>
+            <Button color="primary" onPress={handleRestartApp}>
               重启应用
             </Button>
           </ButtonRow>
@@ -266,9 +267,9 @@ const MigrateApp: React.FC = () => {
       case 'error':
         return (
           <ButtonRow>
-            <Button onClick={handleCloseWindow}>关闭应用</Button>
+            <Button onPress={handleCloseWindow}>关闭应用</Button>
             <Space>
-              <Button type="primary" onClick={handleRetryMigration}>
+              <Button color="primary" onPress={handleRetryMigration}>
                 重新尝试
               </Button>
             </Space>
@@ -323,9 +324,9 @@ const MigrateApp: React.FC = () => {
                 {/* Debug button to test Redux data extraction */}
                 <div style={{ marginTop: '24px', textAlign: 'center' }}>
                   <Button
-                    size="small"
-                    type="dashed"
-                    onClick={async () => {
+                    size="sm"
+                    variant="bordered"
+                    onPress={async () => {
                       try {
                         await extractAndSendReduxData()
                         alert('Redux数据提取成功！请查看应用日志。')

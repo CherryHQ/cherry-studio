@@ -360,20 +360,14 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         <ActionBarMiddle />
         <ActionBarRight>
           <Tooltip title={t('common.cancel')}>
-            <ActionIconButton onClick={onCancel}>
-              <X size={16} />
-            </ActionIconButton>
+            <ActionIconButton onPress={onCancel} icon={<X size={16} />} />
           </Tooltip>
           <Tooltip title={t('common.save')}>
-            <ActionIconButton onClick={handleSave}>
-              <Save size={16} />
-            </ActionIconButton>
+            <ActionIconButton onPress={handleSave} icon={<Save size={16} />} />
           </Tooltip>
           {message.role === 'user' && (
             <Tooltip title={t('chat.resend')}>
-              <ActionIconButton onClick={handleResend}>
-                <Send size={16} />
-              </ActionIconButton>
+              <ActionIconButton onPress={handleResend} icon={<Send size={16} />} />
             </Tooltip>
           )}
         </ActionBarRight>

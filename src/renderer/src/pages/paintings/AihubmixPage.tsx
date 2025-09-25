@@ -1,5 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { Button, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
@@ -21,7 +21,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Input, InputNumber, Radio, Segmented, Select, Slider, Tooltip, Upload } from 'antd'
+import { Avatar, Input, InputNumber, Radio, Segmented, Select, Slider, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -827,7 +827,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>

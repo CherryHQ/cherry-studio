@@ -1,7 +1,8 @@
+import { Button } from '@cherrystudio/ui'
 import ImageViewer from '@renderer/components/ImageViewer'
 import FileManager from '@renderer/services/FileManager'
 import type { Painting } from '@renderer/types'
-import { Button, Spin } from 'antd'
+import { Spin } from 'antd'
 import type { FC } from 'react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,7 +44,7 @@ const Artboard: FC<ArtboardProps> = ({
         {painting.files.length > 0 ? (
           <ImageContainer>
             {painting.files.length > 1 && (
-              <NavigationButton onClick={onPrevImage} style={{ left: 10 }}>
+              <NavigationButton onPress={onPrevImage} className="left-2.5">
                 ←
               </NavigationButton>
             )}
@@ -59,7 +60,7 @@ const Artboard: FC<ArtboardProps> = ({
               }}
             />
             {painting.files.length > 1 && (
-              <NavigationButton onClick={onNextImage} style={{ right: 10 }}>
+              <NavigationButton onPress={onNextImage} className="right-2.5">
                 →
               </NavigationButton>
             )}
@@ -78,7 +79,7 @@ const Artboard: FC<ArtboardProps> = ({
                 </ImageList>
                 <div>
                   {t('paintings.proxy_required')}
-                  <Button type="link" onClick={() => retry?.(painting)}>
+                  <Button variant="light" onPress={() => retry?.(painting)}>
                     {t('paintings.image_retry')}
                   </Button>
                 </div>
@@ -96,7 +97,7 @@ const Artboard: FC<ArtboardProps> = ({
           <LoadingOverlay>
             <Spin size="large" />
             {loadText ? loadText : ''}
-            <CancelButton onClick={onCancel}>{t('common.cancel')}</CancelButton>
+            <CancelButton onPress={onCancel}>{t('common.cancel')}</CancelButton>
           </LoadingOverlay>
         )}
       </LoadingContainer>

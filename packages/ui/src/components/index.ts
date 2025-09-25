@@ -1,4 +1,5 @@
 // Base Components
+export { default as Button, type ButtonProps } from './base/Button'
 export { default as CopyButton } from './base/CopyButton'
 export { default as CustomCollapse } from './base/CustomCollapse'
 export { default as CustomTag } from './base/CustomTag'

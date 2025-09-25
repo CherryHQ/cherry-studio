@@ -1,4 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { getTopicById } from '@renderer/hooks/useTopic'
 import { default as MessageItem } from '@renderer/pages/home/Messages/Message'
@@ -7,7 +8,6 @@ import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { runAsyncFunction } from '@renderer/utils'
-import { Button } from 'antd'
 import { Forward } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -46,14 +46,14 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
         <ContainerWrapper>
           <MessageItem message={message} topic={topic} hideMenuBar={true} />
           <Button
-            type="text"
-            size="middle"
-            style={{ color: 'var(--color-text-3)', position: 'absolute', right: 16, top: 16 }}
-            onClick={() => locateToMessage(navigate, message)}
-            icon={<Forward size={16} />}
+            variant="light"
+            size="md"
+            className="absolute top-4 right-4 text-[var(--color-text-3)]"
+            onPress={() => locateToMessage(navigate, message)}
+            startContent={<Forward size={16} />}
           />
           <RowFlex className="mt-[10px] justify-center">
-            <Button onClick={() => locateToMessage(navigate, message)} icon={<Forward size={16} />}>
+            <Button onPress={() => locateToMessage(navigate, message)} startContent={<Forward size={16} />}>
               {t('history.locate.message')}
             </Button>
           </RowFlex>

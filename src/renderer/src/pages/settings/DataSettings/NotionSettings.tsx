@@ -1,12 +1,13 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Client } from '@notionhq/client'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
-import { Button, Space, Tooltip } from 'antd'
+import { Space, Tooltip } from 'antd'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -122,7 +123,7 @@ const NotionSettings: FC = () => {
               placeholder={t('settings.data.notion.api_key_placeholder')}
               style={{ width: '100%' }}
             />
-            <Button onClick={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
+            <Button onPress={handleNotionConnectionCheck}>{t('settings.data.notion.check.button')}</Button>
           </Space.Compact>
         </RowFlex>
       </SettingRow>

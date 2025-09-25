@@ -1,9 +1,10 @@
 import { PlusOutlined, UploadOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { loadCustomMiniApp, ORIGIN_DEFAULT_MIN_APPS, updateDefaultMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
 import type { MinAppType } from '@renderer/types'
-import { Button, Form, Input, Modal, Radio, Upload } from 'antd'
+import { Form, Input, Modal, Radio, Upload } from 'antd'
 import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
 import { useState } from 'react'
@@ -146,12 +147,12 @@ const NewAppButton: FC<Props> = ({ size = 60 }) => {
                 fileList={fileList}
                 onChange={handleFileChange}
                 beforeUpload={() => false}>
-                <Button icon={<UploadOutlined />}>{t('settings.miniapps.custom.logo_upload_button')}</Button>
+                <Button startContent={<UploadOutlined />}>{t('settings.miniapps.custom.logo_upload_button')}</Button>
               </Upload>
             </Form.Item>
           )}
           <Form.Item>
-            <Button type="primary" htmlType="submit">
+            <Button variant="solid" color="primary" type="submit">
               {t('settings.miniapps.custom.save')}
             </Button>
           </Form.Item>

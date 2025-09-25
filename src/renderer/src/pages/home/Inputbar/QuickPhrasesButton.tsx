@@ -157,9 +157,7 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }:
   return (
     <>
       <Tooltip placement="top" title={t('settings.quickPhrase.title')} mouseLeaveDelay={0} arrow>
-        <ActionIconButton onClick={handleOpenQuickPanel}>
-          <Zap size={18} />
-        </ActionIconButton>
+        <ActionIconButton onPress={handleOpenQuickPanel} icon={<Zap size={18} />} />
       </Tooltip>
 
       <Modal

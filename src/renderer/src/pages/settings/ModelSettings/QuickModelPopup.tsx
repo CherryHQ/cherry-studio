@@ -1,9 +1,10 @@
 import { QuestionCircleOutlined } from '@ant-design/icons'
 import { ColFlex, Flex, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
-import { Button, Divider, Input, Modal, Popover } from 'antd'
+import { Divider, Input, Modal, Popover } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -67,7 +68,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             <Popover title={t('agents.add.prompt.variables.tip.title')} content={promptVarsContent}>
               <QuestionCircleOutlined size={14} style={{ color: 'var(--color-text-2)' }} />
             </Popover>
-            {topicNamingPrompt && <Button icon={<ResetIcon size={14} />} onClick={handleReset} type="text" />}
+            {topicNamingPrompt && (
+              <Button startContent={<ResetIcon size={14} />} onPress={handleReset} variant="light" isIconOnly />
+            )}
           </Flex>
           <Input.TextArea
             autoSize={{ minRows: 3, maxRows: 10 }}

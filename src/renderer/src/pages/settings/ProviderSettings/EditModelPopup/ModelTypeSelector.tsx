@@ -1,7 +1,8 @@
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import type { ModelCapability, ModelType } from '@renderer/types'
 import { getDifference, uniqueObjectArray } from '@renderer/utils'
-import { Button, Checkbox } from 'antd'
+import { Checkbox } from 'antd'
 import type { FC } from 'react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -172,7 +173,7 @@ const ModelTypeSelector: FC<ModelTypeSelectorProps> = ({
           ]}
         />
         {hasUserModified && (
-          <Button size="small" onClick={handleResetTypes}>
+          <Button size="sm" onPress={handleResetTypes}>
             {t('common.reset')}
           </Button>
         )}

@@ -1,5 +1,6 @@
 import { ExclamationCircleOutlined } from '@ant-design/icons'
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -12,7 +13,7 @@ import store from '@renderer/store'
 import type { FileMetadata } from '@renderer/types'
 import { FileTypes } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Button, Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
+import { Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
@@ -114,7 +115,7 @@ const FilesPage: FC = () => {
       created_at_unix: dayjs(file.created_at).unix(),
       actions: (
         <Flex className="items-center gap-0 opacity-70">
-          <Button type="text" icon={<EditIcon size={14} />} onClick={() => handleRename(file.id)} />
+          <Button variant="light" startContent={<EditIcon size={14} />} onPress={() => handleRename(file.id)} />
           <Popconfirm
             title={t('files.delete.title')}
             description={t('files.delete.content')}
@@ -123,7 +124,7 @@ const FilesPage: FC = () => {
             onConfirm={() => handleDelete(file.id, t)}
             placement="left"
             icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-            <Button type="text" danger icon={<DeleteIcon size={14} className="lucide-custom" />} />
+            <Button variant="light" color="danger" startContent={<DeleteIcon size={14} className="lucide-custom" />} />
           </Popconfirm>
           {fileType !== 'image' && (
             <Checkbox
@@ -168,7 +169,7 @@ const FilesPage: FC = () => {
                 <SortButton
                   key={field}
                   active={sortField === field}
-                  onClick={() => {
+                  onPress={() => {
                     if (sortField === field) {
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
                     } else {

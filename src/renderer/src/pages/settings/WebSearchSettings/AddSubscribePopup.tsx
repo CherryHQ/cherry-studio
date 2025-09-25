@@ -1,7 +1,8 @@
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import type { FormProps } from 'antd'
-import { Button, Form, Input, Modal } from 'antd'
+import { Form, Input, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -92,7 +93,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
           <Input placeholder={t('settings.tool.websearch.subscribe_name.placeholder')} spellCheck={false} />
         </Form.Item>
         <Flex className="mb-2 justify-end">
-          <Button type="primary" htmlType="submit">
+          <Button color="primary" type="submit">
             {t('settings.tool.websearch.subscribe_add')}
           </Button>
         </Flex>

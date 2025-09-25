@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useAgents } from '@renderer/hooks/useAgents'
@@ -5,7 +6,7 @@ import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import type { Agent } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
-import { Button, Dropdown } from 'antd'
+import { Dropdown } from 'antd'
 import { t } from 'i18next'
 import { ArrowDownAZ, Ellipsis, PlusIcon, SquareArrowOutUpRight } from 'lucide-react'
 import { type FC, memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -159,16 +160,9 @@ const AgentCard: FC<Props> = ({ agent, onClick, activegroup, getLocalizedGroupNa
                   }}
                   trigger={['click']}
                   placement="bottomRight">
-                  <MenuButton
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      e.preventDefault()
-                    }}
-                    color="default"
-                    variant="filled"
-                    shape="circle"
-                    icon={<Ellipsis size={14} color="var(--color-text-3)" />}
-                  />
+                  <MenuButton color="default" variant="light" radius="full" isIconOnly={true}>
+                    <Ellipsis size={14} color="var(--color-text-3)" />
+                  </MenuButton>
                 </Dropdown>
               </AgentCardHeaderInfoAction>
             ) : (

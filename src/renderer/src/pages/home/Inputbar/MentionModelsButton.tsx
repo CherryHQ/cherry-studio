@@ -306,9 +306,11 @@ const MentionModelsButton: FC<Props> = ({
 
   return (
     <Tooltip placement="top" title={t('agents.edit.model.select.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={mentionedModels.length > 0}>
-        <AtSign size={18} />
-      </ActionIconButton>
+      <ActionIconButton
+        onPress={handleOpenQuickPanel}
+        active={mentionedModels.length > 0}
+        icon={<AtSign size={18} />}
+      />
     </Tooltip>
   )
 }

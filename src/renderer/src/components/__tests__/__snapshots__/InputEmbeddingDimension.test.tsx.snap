@@ -18,13 +18,18 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   >
     <button
       aria-label="Get embedding dimension"
+      class="z-0 group relative inline-flex items-center justify-center box-border appearance-none select-none whitespace-nowrap font-normal subpixel-antialiased overflow-hidden tap-highlight-transparent transform-gpu data-[pressed=true]:scale-[0.97] cursor-pointer outline-solid outline-transparent data-[focus-visible=true]:z-10 data-[focus-visible=true]:outline-2 data-[focus-visible=true]:outline-focus data-[focus-visible=true]:outline-offset-2 text-tiny gap-2 rounded-small px-0 !gap-0 transition-transform-colors-opacity motion-reduce:transition-none bg-default text-default-foreground min-w-8 w-8 h-8 data-[hover=true]:opacity-hover"
+      data-react-aria-pressable="true"
       role="button"
+      tabindex="0"
       type="button"
     >
       <svg
+        aria-hidden="true"
         aria-label="refresh"
         class=""
         data-testid="refresh-icon"
+        focusable="false"
         role="img"
         size="16"
       >
@@ -53,19 +58,28 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
   >
     <button
       aria-label="Get embedding dimension"
+      class="z-0 group relative inline-flex items-center justify-center box-border appearance-none select-none whitespace-nowrap font-normal subpixel-antialiased overflow-hidden tap-highlight-transparent transform-gpu data-[pressed=true]:scale-[0.97] cursor-pointer outline-solid outline-transparent data-[focus-visible=true]:z-10 data-[focus-visible=true]:outline-2 data-[focus-visible=true]:outline-focus data-[focus-visible=true]:outline-offset-2 text-tiny gap-2 rounded-small opacity-disabled pointer-events-none px-0 !gap-0 transition-transform-colors-opacity motion-reduce:transition-none bg-default text-default-foreground min-w-8 w-8 h-8 data-[hover=true]:opacity-hover"
+      data-disabled="true"
+      data-react-aria-pressable="true"
       disabled=""
       role="button"
       type="button"
     >
       <svg
+        aria-hidden="true"
         aria-label="refresh"
         class="animation-rotate"
         data-testid="refresh-icon"
+        focusable="false"
         role="img"
         size="16"
       >
         RefreshIcon
       </svg>
+      <span
+        class="heroui-ripple"
+        style="position: absolute; background-color: currentColor; border-radius: 100%; transform-origin: center; pointer-events: none; overflow: hidden; inset: 0; z-index: 0; top: 0px; left: 0px; width: 0px; height: 0px; transform: scale(0); opacity: 0.35;"
+      />
     </button>
   </div>
 </div>

@@ -2,6 +2,7 @@
 // import { setUserTheme, UserTheme } from '@renderer/store/settings'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { getForegroundColor } from '@renderer/utils'
 import Color from 'color'
 
 export default function useUserTheme() {
@@ -15,6 +16,7 @@ export default function useUserTheme() {
     document.body.style.setProperty('--color-primary', colorPrimary.toString())
     // overwrite hero UI primary color.
     document.body.style.setProperty('--primary', colorPrimary.toString())
+    document.body.style.setProperty('--primary-foreground', getForegroundColor(colorPrimary.hex()))
     document.body.style.setProperty('--color-primary-soft', colorPrimary.alpha(0.6).toString())
     document.body.style.setProperty('--color-primary-mute', colorPrimary.alpha(0.3).toString())
 

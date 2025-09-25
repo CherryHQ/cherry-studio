@@ -488,9 +488,11 @@ const MCPToolsButton: FC<Props> = ({ ref, setInputValue, resizeTextArea, assista
 
   return (
     <Tooltip placement="top" title={t('settings.mcp.title')} mouseLeaveDelay={0} arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={assistant.mcpServers && assistant.mcpServers.length > 0}>
-        <Hammer size={18} />
-      </ActionIconButton>
+      <ActionIconButton
+        onPress={handleOpenQuickPanel}
+        active={assistant.mcpServers && assistant.mcpServers.length > 0}
+        icon={<Hammer size={18} />}
+      />
     </Tooltip>
   )
 }

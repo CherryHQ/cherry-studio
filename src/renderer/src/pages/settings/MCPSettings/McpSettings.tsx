@@ -1,4 +1,5 @@
 import { Flex, Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -8,7 +9,7 @@ import MCPDescription from '@renderer/pages/settings/MCPSettings/McpDescription'
 import type { MCPPrompt, MCPResource, MCPServer, MCPTool } from '@renderer/types'
 import { formatMcpError } from '@renderer/utils/error'
 import type { TabsProps } from 'antd'
-import { Badge, Button, Form, Input, Radio, Select, Tabs } from 'antd'
+import { Badge, Form, Input, Radio, Select, Tabs } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { ChevronDown, SaveIcon } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -738,10 +739,12 @@ const McpSettings: React.FC = () => {
               {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
             </Flex>
             <Button
-              danger
-              icon={<DeleteIcon size={14} className="lucide-custom" />}
-              type="text"
-              onClick={() => onDeleteMcpServer(server)}
+              size="sm"
+              color="danger"
+              startContent={<DeleteIcon size={14} className="lucide-custom" />}
+              variant="light"
+              onPress={() => onDeleteMcpServer(server)}
+              isIconOnly
             />
           </Flex>
           <Flex className="items-center gap-4">
@@ -752,12 +755,14 @@ const McpSettings: React.FC = () => {
               onValueChange={onToggleActive}
             />
             <Button
-              type="primary"
-              icon={<SaveIcon size={14} />}
-              onClick={onSave}
-              loading={loading}
-              shape="round"
-              disabled={!isFormChanged || activeTab !== 'settings'}>
+              size="sm"
+              variant="solid"
+              color="primary"
+              startContent={<SaveIcon size={14} />}
+              onPress={onSave}
+              isLoading={loading}
+              radius="full"
+              isDisabled={!isFormChanged || activeTab !== 'settings'}>
               {t('common.save')}
             </Button>
           </Flex>

@@ -1,7 +1,8 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
-import { Button, Input } from 'antd'
+import { Input } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -35,10 +36,10 @@ function NewFolder(props: NewFolderProps) {
     <NewFolderContainer>
       <FolderIcon className={props.className}></FolderIcon>
       <Input type="text" style={{ flex: 1 }} autoFocus value={name} onChange={(e) => setName(e.target.value)} />
-      <Button type="primary" size="small" onClick={() => onConfirm(name)}>
+      <Button color="primary" size="sm" onPress={() => onConfirm(name)}>
         {t('settings.data.nutstore.new_folder.button.confirm')}
       </Button>
-      <Button type="default" size="small" onClick={() => onCancel()}>
+      <Button size="sm" onPress={() => onCancel()}>
         {t('settings.data.nutstore.new_folder.button.cancel')}
       </Button>
     </NewFolderContainer>
@@ -234,16 +235,14 @@ export function NustorePathSelectorFooter(props: FooterProps) {
   return (
     <FooterContainer className="justify-between">
       <RowFlex className="items-center gap-2">
-        <Button onClick={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
-        <Button size="small" type="link" onClick={props.mkdir}>
+        <Button onPress={props.returnPrev}>{t('settings.data.nutstore.pathSelector.return')}</Button>
+        <Button size="sm" variant="light" onPress={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
       </RowFlex>
       <RowFlex className="items-center gap-2">
-        <Button type="default" onClick={props.cancel}>
-          {t('settings.data.nutstore.new_folder.button.cancel')}
-        </Button>
-        <Button type="primary" onClick={props.confirm}>
+        <Button onPress={props.cancel}>{t('settings.data.nutstore.new_folder.button.cancel')}</Button>
+        <Button color="primary" onPress={props.confirm}>
           {t('backup.confirm.button')}
         </Button>
       </RowFlex>

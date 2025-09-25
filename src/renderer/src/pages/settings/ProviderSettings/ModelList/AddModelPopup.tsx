@@ -1,11 +1,12 @@
 import { Flex } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { isNotSupportedTextDelta } from '@renderer/config/models'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { Model, Provider } from '@renderer/types'
 import { getDefaultGroupName } from '@renderer/utils'
 import type { FormProps } from 'antd'
-import { Button, Form, Input, Modal } from 'antd'
+import { Form, Input, Modal } from 'antd'
 import { find } from 'lodash'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -126,7 +127,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve }) => {
         </Form.Item>
         <Form.Item className="mb-2 text-center">
           <Flex className="relative items-center justify-end">
-            <Button type="primary" htmlType="submit" size="middle">
+            <Button color="primary" type="submit" size="md">
               {t('settings.models.add.add_model')}
             </Button>
           </Flex>

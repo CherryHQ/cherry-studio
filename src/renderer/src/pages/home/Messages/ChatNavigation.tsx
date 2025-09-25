@@ -6,10 +6,11 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
+// import { selectCurrentTopicId } from '@renderer/store/newMessage'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import type { RootState } from '@renderer/store'
-// import { selectCurrentTopicId } from '@renderer/store/newMessage'
-import { Button, Drawer, Tooltip } from 'antd'
+import { Drawer, Tooltip } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -338,54 +339,54 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
         <ButtonGroup>
           <Tooltip title={t('chat.navigation.close')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
-              type="text"
-              icon={<CloseOutlined />}
-              onClick={handleCloseChatNavigation}
+              variant="light"
+              startContent={<CloseOutlined />}
+              onPress={handleCloseChatNavigation}
               aria-label={t('chat.navigation.close')}
             />
           </Tooltip>
           <Divider />
           <Tooltip title={t('chat.navigation.top')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
-              type="text"
-              icon={<VerticalAlignTopOutlined />}
-              onClick={handleScrollToTop}
+              variant="light"
+              startContent={<VerticalAlignTopOutlined />}
+              onPress={handleScrollToTop}
               aria-label={t('chat.navigation.top')}
             />
           </Tooltip>
           <Divider />
           <Tooltip title={t('chat.navigation.prev')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
-              type="text"
-              icon={<ArrowUpOutlined />}
-              onClick={handlePrevMessage}
+              variant="light"
+              startContent={<ArrowUpOutlined />}
+              onPress={handlePrevMessage}
               aria-label={t('chat.navigation.prev')}
             />
           </Tooltip>
           <Divider />
           <Tooltip title={t('chat.navigation.next')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
-              type="text"
-              icon={<ArrowDownOutlined />}
-              onClick={handleNextMessage}
+              variant="light"
+              startContent={<ArrowDownOutlined />}
+              onPress={handleNextMessage}
               aria-label={t('chat.navigation.next')}
             />
           </Tooltip>
           <Divider />
           <Tooltip title={t('chat.navigation.bottom')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
-              type="text"
-              icon={<VerticalAlignBottomOutlined />}
-              onClick={handleScrollToBottom}
+              variant="light"
+              startContent={<VerticalAlignBottomOutlined />}
+              onPress={handleScrollToBottom}
               aria-label={t('chat.navigation.bottom')}
             />
           </Tooltip>
           <Divider />
           <Tooltip title={t('chat.navigation.history')} placement="left" mouseEnterDelay={0.5}>
             <NavigationButton
-              type="text"
-              icon={<HistoryOutlined />}
-              onClick={handleChatHistoryClick}
+              variant="light"
+              startContent={<HistoryOutlined />}
+              onPress={handleChatHistoryClick}
               aria-label={t('chat.navigation.history')}
             />
           </Tooltip>

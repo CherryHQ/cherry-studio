@@ -1,3 +1,4 @@
+import { Button } from '@cherrystudio/ui'
 import type { DropResult } from '@hello-pangea/dnd'
 import { loggerService } from '@logger'
 import {
@@ -14,7 +15,7 @@ import type { Provider, ProviderType } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 import { getFancyProviderName, matchKeywordsInModel, matchKeywordsInProvider, uuid } from '@renderer/utils'
 import type { MenuProps } from 'antd'
-import { Button, Dropdown, Input, Tag } from 'antd'
+import { Dropdown, Input, Tag } from 'antd'
 import { GripVertical, PlusIcon, Search, UserPen } from 'lucide-react'
 import type { FC } from 'react'
 import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
@@ -367,10 +368,11 @@ const ProviderList: FC = () => {
         </DraggableVirtualList>
         <AddButtonWrapper>
           <Button
+            size="sm"
             style={{ width: '100%', borderRadius: 'var(--list-item-border-radius)' }}
-            icon={<PlusIcon size={16} />}
-            onClick={onAddProvider}
-            disabled={dragging}>
+            startContent={<PlusIcon size={16} />}
+            onPress={onAddProvider}
+            isDisabled={dragging}>
             {t('button.add')}
           </Button>
         </AddButtonWrapper>

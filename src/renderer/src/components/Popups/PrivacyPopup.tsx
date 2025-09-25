@@ -1,8 +1,9 @@
+import { Button } from '@cherrystudio/ui'
 import { TopView } from '@renderer/components/TopView'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Modal } from 'antd'
+import { Modal } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -92,11 +93,11 @@ const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, reso
       width={900}
       footer={[
         showDeclineButton && (
-          <Button key="decline" onClick={handleDecline}>
+          <Button key="decline" onPress={handleDecline}>
             {i18n.language.startsWith('zh') ? '拒绝' : 'Decline'}
           </Button>
         ),
-        <Button key="accept" type="primary" onClick={handleAccept}>
+        <Button key="accept" variant="solid" color="primary" onPress={handleAccept}>
           {i18n.language.startsWith('zh') ? '同意并继续' : 'Accept and Continue'}
         </Button>
       ].filter(Boolean)}>

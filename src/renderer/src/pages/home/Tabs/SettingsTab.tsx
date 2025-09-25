@@ -1,4 +1,5 @@
 import { RowFlex, Selector, Switch } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -20,7 +21,7 @@ import { modalConfirm } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Button, Col, InputNumber, Row, Slider } from 'antd'
+import { Col, InputNumber, Row, Slider } from 'antd'
 import { Settings2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -173,11 +174,12 @@ const SettingsTab: FC<Props> = (props) => {
         extra={
           <RowFlex className="items-center gap-0.5">
             <Button
-              type="text"
-              size="small"
-              icon={<Settings2 size={16} />}
-              onClick={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}
-            />
+              variant="light"
+              size="sm"
+              isIconOnly
+              onPress={() => AssistantSettingsPopup.show({ assistant, tab: 'model' })}>
+              <Settings2 size={16} />
+            </Button>
           </RowFlex>
         }>
         <SettingGroup style={{ marginTop: 5 }}>

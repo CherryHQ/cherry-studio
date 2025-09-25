@@ -359,9 +359,7 @@ const InputbarTools = ({
             title={t('chat.input.new_topic', { Command: newTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
-            <ActionIconButton onClick={addNewTopic}>
-              <MessageSquareDiff size={19} />
-            </ActionIconButton>
+            <ActionIconButton onPress={addNewTopic} icon={<MessageSquareDiff size={19} />} />
           </Tooltip>
         )
       },
@@ -466,9 +464,7 @@ const InputbarTools = ({
             title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
             mouseLeaveDelay={0}
             arrow>
-            <ActionIconButton onClick={clearTopic}>
-              <PaintbrushVertical size={18} />
-            </ActionIconButton>
+            <ActionIconButton onPress={clearTopic} icon={<PaintbrushVertical size={18} />} />
           </Tooltip>
         )
       },
@@ -481,9 +477,10 @@ const InputbarTools = ({
             title={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
             mouseLeaveDelay={0}
             arrow>
-            <ActionIconButton onClick={onToggleExpended}>
-              {isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
-            </ActionIconButton>
+            <ActionIconButton
+              onPress={onToggleExpended}
+              icon={isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
+            />
           </Tooltip>
         )
       },
@@ -662,14 +659,17 @@ const InputbarTools = ({
             placement="top"
             title={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
             arrow>
-            <ActionIconButton onClick={() => dispatch(setIsCollapsed(!isCollapse))}>
-              <CircleChevronRight
-                size={18}
-                style={{
-                  transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
-                }}
-              />
-            </ActionIconButton>
+            <ActionIconButton
+              onPress={() => dispatch(setIsCollapsed(!isCollapse))}
+              icon={
+                <CircleChevronRight
+                  size={18}
+                  style={{
+                    transform: isCollapse ? 'scaleX(1)' : 'scaleX(-1)'
+                  }}
+                />
+              }
+            />
           </Tooltip>
         )}
       </ToolsContainer>

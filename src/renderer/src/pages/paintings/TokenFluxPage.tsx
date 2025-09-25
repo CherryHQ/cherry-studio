@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -15,7 +16,7 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Select, Tooltip } from 'antd'
+import { Avatar, Select, Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -367,7 +368,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
         {isMac && (
           <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="small" className="nodrag" icon={<PlusOutlined />} onClick={handleAddPainting}>
+            <Button size="sm" className="nodrag" startContent={<PlusOutlined />} onPress={handleAddPainting}>
               {t('paintings.button.new.image')}
             </Button>
           </NavbarRight>

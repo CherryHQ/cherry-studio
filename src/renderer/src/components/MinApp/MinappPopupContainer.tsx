@@ -10,6 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
@@ -24,7 +25,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
+import { Alert, Avatar, Drawer, Tooltip } from 'antd'
 import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,7 +130,7 @@ const GoogleLoginTip = ({
       banner
       onClose={handleClose}
       action={
-        <Button type="primary" size="small" onClick={openGoogleMinApp}>
+        <Button color="primary" size="sm" onPress={openGoogleMinApp}>
           {t('common.open')} Google
         </Button>
       }

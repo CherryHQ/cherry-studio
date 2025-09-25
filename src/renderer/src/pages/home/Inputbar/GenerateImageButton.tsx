@@ -24,11 +24,11 @@ const GenerateImageButton: FC<Props> = ({ model, assistant, onEnableGenerateImag
       mouseLeaveDelay={0}
       arrow>
       <ActionIconButton
-        onClick={onEnableGenerateImage}
+        onPress={onEnableGenerateImage}
         active={assistant.enableGenerateImage}
-        disabled={!isGenerateImageModel(model)}>
-        <Image size={18} />
-      </ActionIconButton>
+        isDisabled={!isGenerateImageModel(model)}
+        icon={<Image size={18} />}
+      />
     </Tooltip>
   )
 }

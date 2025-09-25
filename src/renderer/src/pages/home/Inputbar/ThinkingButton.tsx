@@ -140,9 +140,11 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
       }
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={handleOpenQuickPanel} active={currentReasoningEffort !== 'off'}>
-        {ThinkingIcon(currentReasoningEffort)}
-      </ActionIconButton>
+      <ActionIconButton
+        onPress={handleOpenQuickPanel}
+        active={currentReasoningEffort !== 'off'}
+        icon={ThinkingIcon(currentReasoningEffort)}
+      />
     </Tooltip>
   )
 }

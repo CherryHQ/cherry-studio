@@ -1,6 +1,7 @@
 import 'emoji-picker-element'
 
 import { CheckOutlined, LoadingOutlined, RollbackOutlined, ThunderboltOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { TopView } from '@renderer/components/TopView'
@@ -14,7 +15,7 @@ import type { Agent, KnowledgeBase } from '@renderer/types'
 import { getLeadingEmoji, uuid } from '@renderer/utils'
 import { AGENT_PROMPT } from '@shared/config/prompts'
 import type { FormInstance, SelectProps } from 'antd'
-import { Button, Form, Input, Modal, Popover, Select } from 'antd'
+import { Form, Input, Modal, Popover, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -202,7 +203,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             }
             arrow
             trigger="click">
-            <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
+            <Button startContent={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
         <Form.Item name="name" label={t('agents.add.name.label')} rules={[{ required: true }]}>
@@ -218,15 +219,19 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
-            icon={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
-            onClick={handleGenerateButtonClick}
+            startContent={loading ? <LoadingOutlined /> : <ThunderboltOutlined />}
+            isIconOnly
+            size="sm"
+            onPress={handleGenerateButtonClick}
             style={{ position: 'absolute', top: 8, right: 8 }}
-            disabled={loading}
+            isDisabled={loading}
           />
           {showUndoButton && (
             <Button
-              icon={<RollbackOutlined />}
-              onClick={handleUndoButtonClick}
+              startContent={<RollbackOutlined />}
+              isIconOnly
+              size="sm"
+              onPress={handleUndoButtonClick}
               style={{ position: 'absolute', top: 8, right: 48 }}
             />
           )}

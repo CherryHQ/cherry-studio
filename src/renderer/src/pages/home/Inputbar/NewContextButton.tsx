@@ -20,9 +20,7 @@ const NewContextButton: FC<Props> = ({ onNewContext }) => {
       title={t('chat.input.new.context', { Command: newContextShortcut })}
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={onNewContext}>
-        <Eraser size={18} />
-      </ActionIconButton>
+      <ActionIconButton onPress={onNewContext} icon={<Eraser size={18} />} />
     </Tooltip>
   )
 }
