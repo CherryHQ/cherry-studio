@@ -1,3 +1,4 @@
+import { Model } from '@types'
 import { z } from 'zod'
 
 import { ProviderTypeSchema } from './provider'
@@ -35,3 +36,8 @@ export const ApiModelsResponseSchema = z.object({
 export type ApiModel = z.infer<typeof ApiModelSchema>
 export type ApiModelsFilter = z.infer<typeof ApiModelsFilterSchema>
 export type ApiModelsResponse = z.infer<typeof ApiModelsResponseSchema>
+
+// Adapted
+export type AdaptedApiModel = Model & {
+  origin: ApiModel
+}

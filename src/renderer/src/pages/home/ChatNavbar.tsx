@@ -1,4 +1,3 @@
-import { ApiModelLabel } from '@renderer/components/ApiModelLabel'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -21,6 +20,7 @@ import { FC } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
+import SelectAgentModelButton from './components/SelectAgentModelButton'
 import SelectModelButton from './components/SelectModelButton'
 import UpdateAppButton from './components/UpdateAppButton'
 
@@ -74,7 +74,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <NavbarHeader className="home-navbar">
-      <HStack alignItems="center">
+      <div className="flex flex-1 items-center">
         {showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={toggleShowAssistants}>
@@ -103,12 +103,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           )}
         </AnimatePresence>
         {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
-        {/* TODO: Show a select model button for agent. */}
-        {/* FIXME: models endpoint doesn't return all models, so cannot found. */}
-        {activeTopicOrSession === 'session' && (
-          <ApiModelLabel classNames={{ container: 'text-xs' }} model={agentModel} />
+        {activeTopicOrSession === 'session' && agent && agentModel && (
+          <SelectAgentModelButton agent={agent} model={agentModel} />
         )}
-      </HStack>
+      </div>
       <HStack alignItems="center" gap={8}>
         <UpdateAppButton />
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
