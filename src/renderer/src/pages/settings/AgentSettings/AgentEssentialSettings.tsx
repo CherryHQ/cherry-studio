@@ -19,13 +19,13 @@ interface AgentEssentialSettingsProps {
 
 const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {
   const { t } = useTranslation()
-  const [name, setName] = useState<string>((agent?.name ?? '').trim())
-  const [description, setDescription] = useState<string>((agent?.description ?? '').trim())
+  const [name, setName] = useState<string | undefined>(agent?.name?.trim())
+  const [description, setDescription] = useState<string | undefined>(agent?.description?.trim())
   const { models } = useApiModels({ providerType: 'anthropic' })
 
-  const updateName = (name: string) => {
+  const updateName = (name: UpdateAgentForm['name']) => {
     if (!agent) return
-    update({ id: agent.id, name: name.trim() })
+    update({ id: agent.id, name: name?.trim() })
   }
 
   const updateModel = (model: UpdateAgentForm['model']) => {
