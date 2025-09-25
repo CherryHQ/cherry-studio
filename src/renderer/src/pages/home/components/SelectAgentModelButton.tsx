@@ -25,7 +25,7 @@ const SelectAgentModelButton: FC<Props> = ({ agent, model }) => {
 
   const onSelectModel = async () => {
     const selectedModel = await SelectApiModelPopup.show({ model, filter: modelFilter })
-    if (selectedModel) {
+    if (selectedModel && selectedModel.id !== agent.model) {
       update({ id: agent.id, model: selectedModel.id })
     }
   }
