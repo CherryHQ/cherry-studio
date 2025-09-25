@@ -125,16 +125,30 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    ✨ 新功能：
-    - 新增 CherryIN 服务商
-    - 新增 AiOnly AI 服务商
-    - 更新 MCP 服务器卡片布局和样式，改为列表视图
+    🚀 New Features:
+    - Refactored AI core engine for more efficient and stable content generation
+    - Added support for multiple AI model providers: CherryIN, AiOnly
+    - Added API server functionality for external application integration
+    - Added PaddleOCR document recognition for enhanced document processing
+    - Added Anthropic OAuth authentication support
+    - Added data storage space limit notifications
+    - Added font settings for global and code fonts customization
+    - Added auto-copy feature after translation completion
+    - Added keyboard shortcuts: rename topic, edit last message, etc.
+    - Added text attachment preview for viewing file contents in messages
+    - Added custom window control buttons (minimize, maximize, close)
+    - Support for Qwen long-text (qwen-long) and document analysis (qwen-doc) models with native file uploads
+    - Support for Qwen image recognition models (Qwen-Image)
+    - Added iFlow CLI support
+    - Converted knowledge base and web search to tool-calling approach for better flexibility
 
-    🐛 问题修复：
-    - 修复 QwenMT 模型的翻译内容处理逻辑
-    - 修复无法将外部笔记添加到知识库的问题
+    🎨 UI Improvements & Bug Fixes:
+    - Integrated HeroUI and Tailwind CSS framework
+    - Optimized message notification styles with unified toast component
+    - Moved free models to bottom with fixed position for easier access
+    - Refactored quick panel and input bar tools for smoother operation
+    - Optimized responsive design for navbar and sidebar
+    - Improved scrollbar component with horizontal scrolling support
+    - Fixed multiple translation issues: paste handling, file processing, state management
+    - Various UI optimizations and bug fixes
 
-    🚀 性能优化：
-    - 提升输入框响应速度
-    - 优化模型切换性能
-    - 改进翻译功能的引用和邮件格式处理
