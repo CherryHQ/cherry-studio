@@ -8,14 +8,14 @@ import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
-interface AgentAdvanceSettingsProps {
+interface AgentAdvancedSettingsProps {
   agent: GetAgentResponse | undefined | null
   updateAgent: (form: UpdateAgentForm) => Promise<void> | void
 }
 
 const defaultConfiguration = AgentConfigurationSchema.parse({}) as AgentConfigurationState
 
-export const AgentAdvanceSettings: React.FC<AgentAdvanceSettingsProps> = ({ agent, updateAgent }) => {
+export const AgentAdvancedSettings: React.FC<AgentAdvancedSettingsProps> = ({ agent, updateAgent }) => {
   const { t } = useTranslation()
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [maxTurnsInput, setMaxTurnsInput] = useState<string>(String(defaultConfiguration.max_turns))
@@ -85,4 +85,4 @@ export const AgentAdvanceSettings: React.FC<AgentAdvanceSettingsProps> = ({ agen
   )
 }
 
-export default AgentAdvanceSettings
+export default AgentAdvancedSettings
