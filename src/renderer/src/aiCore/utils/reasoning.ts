@@ -29,8 +29,17 @@ import { getAssistantSettings, getProviderByModel } from '@renderer/services/Ass
 import { SettingsState } from '@renderer/store/settings'
 import { Assistant, EFFORT_RATIO, isSystemProvider, Model, SystemProviderIds } from '@renderer/types'
 import { ReasoningEffortOptionalParams } from '@renderer/types/sdk'
+import { getLowerBaseModelName } from '@renderer/utils'
 
 const logger = loggerService.withContext('reasoning')
+
+const isOpenRouterGrokFastModel = (model: Model): boolean => {
+  if (!model || model.provider !== SystemProviderIds.openrouter) {
+    return false
+  }
+  const lowerModelId = getLowerBaseModelName(model.id)
+  return lowerModelId.includes('grok-4-fast') && !lowerModelId.includes('non-reasoning')
+}
 
 // The function is only for generic provider. May extract some logics to independent provider
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
@@ -47,6 +56,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   if (!reasoningEffort) {
     // openrouter: use reasoning
     if (model.provider === SystemProviderIds.openrouter) {
+      if (isOpenRouterGrokFastModel(model)) {
+        return {}
+      }
       // Don't disable reasoning for Gemini models that support thinking tokens
       if (isSupportedThinkingTokenGeminiModel(model) && !GEMINI_FLASH_MODEL_REGEX.test(model.id)) {
         return {}
@@ -100,6 +112,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   // reasoningEffort有效的情况
   // DeepSeek hybrid inference models, v3.1 and maybe more in the future
   // 不同的 provider 有不同的思考控制方式，在这里统一解决
+
+  if (isOpenRouterGrokFastModel(model)) {
+    return {}
+  }
   if (isDeepSeekHybridInferenceModel(model)) {
     if (isSystemProvider(provider)) {
       switch (provider.id) {
@@ -419,6 +435,23 @@ export function getXAIReasoningParams(assistant: Assistant, model: Model): Recor
 
   const { reasoning_effort: reasoningEffort } = getAssistantSettings(assistant)
 
+  // For OpenRouter x-ai/grok-4-fast:free model, use thinking reasoning instead of reasoningEffort
+  if (
+    model.provider === SystemProviderIds.openrouter &&
+    (model.id === 'x-ai/grok-4-fast:free' || (model.id.includes('grok-4-fast') && !model.id.includes('non-reasoning')))
+  ) {
+    if (!reasoningEffort) {
+      return {}
+    } else {
+      return {
+        reasoning: {
+          enabled: true
+        }
+      }
+    }
+  }
+
+  // For other grok models, use reasoningEffort parameter
   return {
     reasoningEffort
   }

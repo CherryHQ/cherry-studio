@@ -14,7 +14,7 @@ import { GEMINI_FLASH_MODEL_REGEX } from './websearch'
 
 // Reasoning models
 export const REASONING_REGEX =
-  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4)(?:-[\w-]+)?\b.*)$/i
+  /^(o\d+(?:-[\w-]+)?|.*\b(?:reasoning|reasoner|thinking)\b.*|.*-[rR]\d+.*|.*\bqwq(?:-[\w-]+)?\b.*|.*\bhunyuan-t1(?:-[\w-]+)?\b.*|.*\bglm-zero-preview\b.*|.*\bgrok-(?:3-mini|4|4-fast)(?:-[\w-]+)?\b.*)$/i
 
 // 模型类型到支持的reasoning_effort的映射表
 // TODO: refactor this. too many identical options
@@ -23,7 +23,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   o: ['low', 'medium', 'high'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
   gpt5_codex: ['low', 'medium', 'high'] as const,
-  grok: ['low', 'high'] as const,
+  grok: ['auto'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
   qwen: ['low', 'medium', 'high'] as const,
@@ -42,7 +42,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   o: MODEL_SUPPORTED_REASONING_EFFORT.o,
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
   gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
-  grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
+  grok: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.grok] as const,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
   qwen: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.qwen] as const,
@@ -142,7 +142,7 @@ export function isSupportedReasoningEffortGrokModel(model?: Model): boolean {
   }
 
   const modelId = getLowerBaseModelName(model.id)
-  if (modelId.includes('grok-3-mini')) {
+  if (modelId.includes('grok-3-mini') || (modelId.includes('grok-4-fast') && !modelId.includes('non-reasoning'))) {
     return true
   }
 
@@ -154,7 +154,10 @@ export function isGrokReasoningModel(model?: Model): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id)
-  if (isSupportedReasoningEffortGrokModel(model) || modelId.includes('grok-4')) {
+  if (
+    isSupportedReasoningEffortGrokModel(model) ||
+    (modelId.includes('grok-4') && !modelId.includes('non-reasoning'))
+  ) {
     return true
   }
 
