@@ -628,13 +628,34 @@ export const commandSuggestion: Omit<SuggestionOptions<Command, MentionNodeAttrs
       },
 
       onKeyDown: (props) => {
+        // Let CommandListPopover handle events first
+        const popoverHandled = component.ref?.onKeyDown?.(props.event)
+        if (popoverHandled) {
+          return true
+        }
+
+        // Handle Shift+Enter for newline when popover doesn't handle it
+        if (props.event.key === 'Enter' && props.event.shiftKey) {
+          props.event.preventDefault()
+          // Close the suggestion menu
+          if (cleanup) cleanup()
+          component.destroy()
+          // Use the view from SuggestionKeyDownProps to insert newline
+          const { view } = props
+          const { state, dispatch } = view
+          const { tr } = state
+          tr.insertText('\n')
+          dispatch(tr)
+          return true
+        }
+
         if (props.event.key === 'Escape') {
           if (cleanup) cleanup()
           component.destroy()
           return true
         }
 
-        return component.ref?.onKeyDown(props.event)
+        return false
       },
 
       onExit: () => {
