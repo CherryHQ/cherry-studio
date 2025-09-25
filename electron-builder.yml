@@ -125,13 +125,30 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    🎨 界面优化：
-    - 优化了多个组件的布局和间距，提升视觉体验
-    - 改进了导航栏和标签栏的样式显示
-    - MCP 服务器卡片宽度调整为 100%，提高响应式布局效果
-    - 优化了笔记侧边栏的滚动行为
+    🚀 New Features:
+    - Refactored AI core engine for more efficient and stable content generation
+    - Added support for multiple AI model providers: CherryIN, AiOnly
+    - Added API server functionality for external application integration
+    - Added PaddleOCR document recognition for enhanced document processing
+    - Added Anthropic OAuth authentication support
+    - Added data storage space limit notifications
+    - Added font settings for global and code fonts customization
+    - Added auto-copy feature after translation completion
+    - Added keyboard shortcuts: rename topic, edit last message, etc.
+    - Added text attachment preview for viewing file contents in messages
+    - Added custom window control buttons (minimize, maximize, close)
+    - Support for Qwen long-text (qwen-long) and document analysis (qwen-doc) models with native file uploads
+    - Support for Qwen image recognition models (Qwen-Image)
+    - Added iFlow CLI support
+    - Converted knowledge base and web search to tool-calling approach for better flexibility
 
-    🐛 问题修复：
-    - 修复了小应用打开功能无法正常工作的问题
-    - 修复了助手更新时 ID 丢失导致更新失败的问题
-    - 确保助手更新时 ID 字段为必填项，防止数据错误
+    🎨 UI Improvements & Bug Fixes:
+    - Integrated HeroUI and Tailwind CSS framework
+    - Optimized message notification styles with unified toast component
+    - Moved free models to bottom with fixed position for easier access
+    - Refactored quick panel and input bar tools for smoother operation
+    - Optimized responsive design for navbar and sidebar
+    - Improved scrollbar component with horizontal scrolling support
+    - Fixed multiple translation issues: paste handling, file processing, state management
+    - Various UI optimizations and bug fixes
+
