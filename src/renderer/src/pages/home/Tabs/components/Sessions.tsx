@@ -99,10 +99,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
       className="agents-tab h-full w-full p-2">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, delay: 0.1 }}>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Button
           onPress={handleCreateSession}
           className="mb-2 w-full justify-start bg-transparent text-foreground-500 hover:bg-accent">
@@ -114,9 +111,8 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         {sessions.map((session, index) => (
           <motion.div
             key={session.id}
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20, transition: { duration: 0.2 } }}
             transition={{ duration: 0.3, delay: index * 0.05 }}>
             <SessionItem
               session={session}
