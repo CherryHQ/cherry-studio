@@ -251,6 +251,7 @@
     "added": "Added",
     "case_sensitive": "Case Sensitive",
     "collapse": "Collapse",
+    "download": "Download",
     "includes_user_questions": "Include Your Questions",
     "manage": "Manage",
     "select_model": "Select Model",
@@ -1826,6 +1827,57 @@
     },
     "title": "Ollama"
   },
+  "ovms": {
+    "action": {
+      "install": "Install",
+      "installing": "Installing",
+      "reinstall": "Re-Install",
+      "run": "Run OVMS",
+      "starting": "Starting",
+      "stop": "Stop OVMS",
+      "stopping": "Stopping"
+    },
+    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "download": {
+      "button": "Download",
+      "error": "Download Error",
+      "model_id": {
+        "label": "Model ID:",
+        "model_id_pattern": "Model ID must start with OpenVINO/",
+        "placeholder": "Required e.g. OpenVINO/Qwen3-8B-int4-ov",
+        "required": "Please enter the model ID"
+      },
+      "model_name": {
+        "label": "Model Name:",
+        "placeholder": "Required e.g. Qwen3-8B-int4-ov",
+        "required": "Please enter the model name"
+      },
+      "model_source": "Model Source:",
+      "model_task": "Model Task:",
+      "success": "Download successful",
+      "success_desc": "Model \"{{modelName}}\"-\"{{modelId}}\" downloaded successfully, please go to the OVMS management interface to add the model",
+      "tip": "The model is downloading, sometimes it takes hours. Please be patient...",
+      "title": "Download Intel OpenVINO Model"
+    },
+    "failed": {
+      "install": "Install OVMS failed:",
+      "install_code_100": "Unknown Error",
+      "install_code_101": "Only supports Intel(R) Core(TM) Ultra CPU",
+      "install_code_102": "Only supports Windows",
+      "install_code_103": "Download OVMS runtime failed",
+      "install_code_104": "Uncompress OVMS runtime failed",
+      "install_code_105": "Clean OVMS runtime failed",
+      "run": "Run OVMS failed:",
+      "stop": "Stop OVMS failed:"
+    },
+    "status": {
+      "not_installed": "OVMS is not installed",
+      "not_running": "OVMS is not running",
+      "running": "OVMS is running",
+      "unknown": "OVMS status unknown"
+    },
+    "title": "Intel OVMS"
+  },
   "paintings": {
     "aspect_ratio": "Aspect Ratio",
     "aspect_ratios": {
@@ -2057,6 +2109,7 @@
     "ollama": "Ollama",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "ovms": "Intel OVMS",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
