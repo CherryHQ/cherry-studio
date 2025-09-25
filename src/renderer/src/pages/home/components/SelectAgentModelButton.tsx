@@ -8,7 +8,6 @@ import { apiModelAdapter } from '@renderer/utils/model'
 import { ChevronsUpDown } from 'lucide-react'
 import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface Props {
   agent: AgentEntity
@@ -33,38 +32,16 @@ const SelectAgentModelButton: FC<Props> = ({ agent, model }) => {
   const providerName = model.provider_name
 
   return (
-    <DropdownButton size="sm" onPress={onSelectModel}>
-      <ButtonContent>
+    <Button size="sm" variant="light" className="nodrag rounded-2xl px-1 py-3" onPress={onSelectModel}>
+      <div className="flex items-center gap-1.5">
         <ModelAvatar model={apiModelAdapter(model)} size={20} />
-        <ModelName>
+        <span className="-mr-0.5 font-medium">
           {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
-        </ModelName>
-      </ButtonContent>
+        </span>
+      </div>
       <ChevronsUpDown size={14} color="var(--color-icon)" />
-    </DropdownButton>
+    </Button>
   )
 }
-
-const DropdownButton = styled(Button)`
-  font-size: 11px;
-  border-radius: 15px;
-  padding: 13px 5px;
-  -webkit-app-region: none;
-  box-shadow: none;
-  background-color: transparent;
-  border: 1px solid transparent;
-  margin-top: 1px;
-`
-
-const ButtonContent = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`
-
-const ModelName = styled.span`
-  font-weight: 500;
-  margin-right: -2px;
-`
 
 export default SelectAgentModelButton
