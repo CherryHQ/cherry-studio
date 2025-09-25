@@ -125,6 +125,7 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
+    <!--LANG:en-->
     🚀 New Features:
     - Refactored AI core engine for more efficient and stable content generation
     - Added support for multiple AI model providers: CherryIN, AiOnly
@@ -151,4 +152,32 @@ releaseInfo:
     - Improved scrollbar component with horizontal scrolling support
     - Fixed multiple translation issues: paste handling, file processing, state management
     - Various UI optimizations and bug fixes
+    <!--LANG:zh-CN-->
+    🚀 新功能：
+    - 重构 AI 核心引擎，提供更高效稳定的内容生成
+    - 新增多个 AI 模型提供商支持：CherryIN、AiOnly
+    - 新增 API 服务器功能，支持外部应用集成
+    - 新增 PaddleOCR 文档识别，增强文档处理能力
+    - 新增 Anthropic OAuth 认证支持
+    - 新增数据存储空间限制提醒
+    - 新增字体设置，支持全局字体和代码字体自定义
+    - 新增翻译完成后自动复制功能
+    - 新增键盘快捷键：重命名主题、编辑最后一条消息等
+    - 新增文本附件预览，可查看消息中的文件内容
+    - 新增自定义窗口控制按钮（最小化、最大化、关闭）
+    - 支持通义千问长文本（qwen-long）和文档分析（qwen-doc）模型，原生文件上传
+    - 支持通义千问图像识别模型（Qwen-Image）
+    - 新增 iFlow CLI 支持
+    - 知识库和网页搜索转换为工具调用方式，提升灵活性
+
+    🎨 界面改进与问题修复：
+    - 集成 HeroUI 和 Tailwind CSS 框架
+    - 优化消息通知样式，统一 toast 组件
+    - 免费模型移至底部固定位置，便于访问
+    - 重构快捷面板和输入栏工具，操作更流畅
+    - 优化导航栏和侧边栏响应式设计
+    - 改进滚动条组件，支持水平滚动
+    - 修复多个翻译问题：粘贴处理、文件处理、状态管理
+    - 各种界面优化和问题修复
+    <!--LANG:END-->
 
