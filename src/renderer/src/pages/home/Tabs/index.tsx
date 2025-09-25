@@ -104,6 +104,12 @@ const HomeTabs: FC<Props> = ({
     }
   }, [position, tab, topicPosition, forceToSeeAllTab])
 
+  useEffect(() => {
+    if (activeTopicOrSession === 'session' && tab === 'settings') {
+      setTab('topic')
+    }
+  }, [activeTopicOrSession, tab])
+
   return (
     <Container
       style={{ ...border, ...style }}
