@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import AiProvider from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelSelector from '@renderer/components/ModelSelector'
@@ -16,7 +17,7 @@ import { setIsBunInstalled } from '@renderer/store/mcp'
 import type { Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
-import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
+import { Alert, Avatar, Button, Checkbox, Input, Popover, Select, Space } from 'antd'
 import { ArrowUpRight, Download, FolderOpen, HelpCircle, Terminal, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -431,7 +432,9 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.cmd &&
                     selectedTerminal !== terminalApps.powershell &&
                     selectedTerminal !== terminalApps.windowsTerminal && (
-                      <Tooltip title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                      <Tooltip
+                        placement="top"
+                        title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
                         <Button icon={<FolderOpen size={16} />} onClick={() => handleSetCustomPath(selectedTerminal)} />
                       </Tooltip>
                     )}

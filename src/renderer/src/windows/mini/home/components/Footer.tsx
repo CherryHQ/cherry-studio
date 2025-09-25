@@ -1,5 +1,6 @@
 import { ArrowLeftOutlined, LoadingOutlined } from '@ant-design/icons'
-import { Tag as AntdTag, Tooltip } from 'antd'
+import { Tooltip } from '@cherrystudio/ui'
+import { Tag as AntdTag } from 'antd'
 import { CircleArrowLeft, Copy, Pin } from 'lucide-react'
 import type { FC } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
@@ -86,7 +87,7 @@ const Footer: FC<FooterProps> = ({
         )}
       </FooterText>
       <PinButtonArea onClick={() => setIsPinned(!isPinned)} className="nodrag">
-        <Tooltip title={t('miniwindow.tooltip.pin')} mouseEnterDelay={0.8} placement="left">
+        <Tooltip placement="left" title={t('miniwindow.tooltip.pin')}>
           <Pin
             size={14}
             stroke={isPinned ? 'var(--color-primary)' : 'var(--color-text)'}

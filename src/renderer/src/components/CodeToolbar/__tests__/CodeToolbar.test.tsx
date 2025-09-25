@@ -39,11 +39,8 @@ vi.mock('../button', () => ({
   default: mocks.CodeToolButton
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: mocks.Tooltip
-}))
-
 vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: mocks.Tooltip,
   RowFlex: mocks.RowFlex
 }))
 

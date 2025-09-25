@@ -1,5 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
 import { Flex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { TopView } from '@renderer/components/TopView'
@@ -22,7 +23,7 @@ import { fetchModels } from '@renderer/services/ApiService'
 import type { Model, Provider } from '@renderer/types'
 import { filterModelsByKeywords, getDefaultGroupName, getFancyProviderName } from '@renderer/utils'
 import { isFreeModel } from '@renderer/utils/model'
-import { Button, Empty, Modal, Spin, Tabs, Tooltip } from 'antd'
+import { Button, Empty, Modal, Spin, Tabs } from 'antd'
 import Input from 'antd/es/input/Input'
 import { groupBy, isEmpty, uniqBy } from 'lodash'
 import { debounce } from 'lodash'
@@ -245,12 +246,12 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
     return (
       <RowFlex className="gap-2">
         <Tooltip
+          placement="top"
           title={
             isAllFilteredInProvider
               ? t('settings.models.manage.remove_listed')
               : t('settings.models.manage.add_listed.label')
-          }
-          mouseLeaveDelay={0}>
+          }>
           <Button
             type="default"
             icon={isAllFilteredInProvider ? <ListMinus size={18} /> : <ListPlus size={18} />}
@@ -262,7 +263,7 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
             disabled={loadingModels || list.length === 0}
           />
         </Tooltip>
-        <Tooltip title={t('settings.models.manage.refetch_list')} mouseLeaveDelay={0}>
+        <Tooltip placement="top" title={t('settings.models.manage.refetch_list')}>
           <Button
             type="default"
             icon={<RefreshCcw size={16} />}

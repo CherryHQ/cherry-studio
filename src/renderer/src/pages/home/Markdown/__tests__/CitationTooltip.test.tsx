@@ -12,19 +12,16 @@ vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
   default: (props: any) => <div data-testid="mock-favicon" {...props} />
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: ({ children, overlay, title, placement, color, styles, ...props }: any) => (
-    <div
-      data-testid="tooltip-wrapper"
-      data-placement={placement}
-      data-color={color}
-      data-styles={JSON.stringify(styles)}
-      {...props}>
+const uiMocks = vi.hoisted(() => ({
+  Tooltip: vi.fn(({ children, title, placement, ...props }: any) => (
+    <div data-testid="tooltip-wrapper" data-placement={placement} {...props}>
       {children}
-      <div data-testid="tooltip-content">{overlay || title}</div>
+      <div data-testid="tooltip-content">{title}</div>
     </div>
-  )
+  ))
 }))
+
+vi.mock('@cherrystudio/ui', () => uiMocks)
 
 const originalWindowOpen = window.open
 
@@ -91,16 +88,10 @@ describe('CitationTooltip', () => {
       const citation = createCitationData()
       renderCitationTooltip(citation)
 
-      const tooltip = screen.getByTestId('tooltip-wrapper')
-      expect(tooltip).toHaveAttribute('data-placement', 'top')
-      expect(tooltip).toHaveAttribute('data-color', 'var(--color-background)')
-
-      const styles = JSON.parse(tooltip.getAttribute('data-styles') || '{}')
-      expect(styles.body).toEqual({
-        border: '1px solid var(--color-border)',
-        padding: '12px',
-        borderRadius: '8px'
-      })
+      expect(uiMocks.Tooltip).toHaveBeenCalledTimes(1)
+      const tooltipProps = uiMocks.Tooltip.mock.calls[0][0]
+      expect(tooltipProps.placement).toBe('top')
+      expect(tooltipProps.title).toBeTruthy()
     })
 
     it('should match snapshot', () => {

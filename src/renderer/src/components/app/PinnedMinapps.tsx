@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -5,7 +6,7 @@ import { useMinapps } from '@renderer/hooks/useMinapps'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import type { MinAppType } from '@renderer/types'
 import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -86,7 +87,7 @@ export const SidebarOpenedMinappTabs: FC = () => {
             const isActive = minappShow && currentMinappId === app.id
 
             return (
-              <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+              <Tooltip key={app.id} title={app.name} placement="right">
                 <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
                   <Icon
                     theme={theme}
@@ -126,7 +127,7 @@ export const SidebarPinnedApps: FC = () => {
         ]
         const isActive = minappShow && currentMinappId === app.id
         return (
-          <Tooltip key={app.id} title={app.name} mouseEnterDelay={0.8} placement="right">
+          <Tooltip key={app.id} title={app.name} placement="right">
             <Dropdown menu={{ items: menuItems }} trigger={['contextMenu']} overlayStyle={{ zIndex: 10000 }}>
               <Icon
                 theme={theme}

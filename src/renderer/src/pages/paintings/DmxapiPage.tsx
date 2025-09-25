@@ -1,6 +1,7 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -14,9 +15,8 @@ import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { convertToBase64, uuid } from '@renderer/utils'
 import type { DmxapiPainting } from '@types'
-import { Avatar, Button, Input, InputNumber, Segmented, Select, Tooltip } from 'antd'
+import { Avatar, Button, Input, InputNumber, Segmented, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -922,9 +922,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
                 {t('paintings.seed')}
-                <Tooltip title={t('paintings.seed_desc_tip')}>
-                  <InfoIcon />
-                </Tooltip>
+                <InfoTooltip title={t('paintings.seed_desc_tip')} />
               </SettingTitle>
               <Input
                 value={painting.seed}
@@ -956,9 +954,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
             {t('paintings.auto_create_paint')}
-            <Tooltip title={t('paintings.auto_create_paint_tip')}>
-              <InfoIcon />
-            </Tooltip>
+            <InfoTooltip title={t('paintings.auto_create_paint_tip')} />
           </SettingTitle>
           <RowFlex>
             <Switch isSelected={painting.autoCreate} onValueChange={(checked) => onChangeAutoCreate(checked)} />
@@ -1100,18 +1096,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 16px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const SliderContainer = styled.div`

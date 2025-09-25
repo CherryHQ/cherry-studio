@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -6,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -95,7 +96,9 @@ const KnowledgeDirectories: FC<KnowledgeContentProps> = ({ selectedBase, progres
                 name: (
                   <ClickableSpan onClick={() => window.api.file.openPath(item.content as string)}>
                     <Ellipsis>
-                      <Tooltip title={item.content as string}>{item.content as string}</Tooltip>
+                      <Tooltip placement="top" title={item.content as string}>
+                        {item.content as string}
+                      </Tooltip>
                     </Ellipsis>
                   </ClickableSpan>
                 ),

@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
@@ -13,7 +14,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Tooltip } from 'antd'
+import { Avatar } from 'antd'
 import {
   Code,
   FileSearch,
@@ -89,10 +90,7 @@ const Sidebar: FC = () => {
         )}
       </MainMenusContainer>
       <Menus>
-        <Tooltip
-          title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}
-          mouseEnterDelay={0.8}
-          placement="right">
+        <Tooltip placement="right" title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}>
           <Icon theme={theme} onClick={toggleTheme}>
             {settedTheme === ThemeMode.dark ? (
               <Moon size={20} className="icon" />
@@ -103,7 +101,7 @@ const Sidebar: FC = () => {
             )}
           </Icon>
         </Tooltip>
-        <Tooltip title={t('settings.title')} mouseEnterDelay={0.8} placement="right">
+        <Tooltip placement="right" title={t('settings.title')}>
           <StyledLink
             onClick={async () => {
               hideMinappPopup()
@@ -161,7 +159,7 @@ const MainMenus: FC = () => {
     const isActive = path === '/' ? isRoute(path) : isRoutes(path)
 
     return (
-      <Tooltip key={icon} title={getSidebarIconLabel(icon)} mouseEnterDelay={0.8} placement="right">
+      <Tooltip key={icon} placement="right" title={getSidebarIconLabel(icon)}>
         <StyledLink
           onClick={async () => {
             hideMinappPopup()

@@ -1,8 +1,8 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
-import { Tooltip } from 'antd'
 import { Link } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
@@ -47,7 +47,7 @@ const UrlContextButton: FC<Props> = ({ assistantId }) => {
   }, [setTimeoutTimer, assistant, urlContentNewState, updateAssistant, t])
 
   return (
-    <Tooltip placement="top" title={t('chat.input.url_context')} arrow>
+    <Tooltip placement="top" title={t('chat.input.url_context')}>
       <ActionIconButton onClick={handleToggle} active={assistant.enableUrlContext}>
         <Link size={18} />
       </ActionIconButton>

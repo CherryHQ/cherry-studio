@@ -1,5 +1,5 @@
-import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined, WarningOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
+import { RowFlex, WarnTooltip } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -10,7 +10,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
 import type { AppInfo } from '@renderer/types'
-import { Button, Input, Tooltip } from 'antd'
+import { Button, Input } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -155,9 +155,10 @@ const LocalBackupSettings: React.FC = () => {
       <RowFlex className="items-center gap-[5px]">
         {localBackupSync.syncing && <SyncOutlined spin />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
-          <Tooltip title={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}>
-            <WarningOutlined style={{ color: 'red' }} />
-          </Tooltip>
+          <WarnTooltip
+            title={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
+            iconColor="red"
+          />
         )}
         {localBackupSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>

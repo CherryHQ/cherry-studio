@@ -1,6 +1,7 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -17,7 +18,7 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import type { Edge, Node, NodeTypes } from '@xyflow/react'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Position, useEdgesState, useNodesState } from '@xyflow/react'
-import { Avatar, Spin, Tooltip } from 'antd'
+import { Avatar, Spin } from 'antd'
 import { isEqual } from 'lodash'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -140,18 +141,14 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
 
   return (
     <Tooltip
+      placement="top"
       title={
         <TooltipContent>
           <TooltipTitle>{title}</TooltipTitle>
           <TooltipBody>{data.content}</TooltipBody>
           <TooltipFooter>{t('chat.history.click_to_navigate')}</TooltipFooter>
         </TooltipContent>
-      }
-      placement="top"
-      color="rgba(0, 0, 0, 0.85)"
-      mouseEnterDelay={0.3}
-      mouseLeaveDelay={0.1}
-      destroyOnHidden>
+      }>
       <CustomNodeContainer
         style={{
           borderColor,

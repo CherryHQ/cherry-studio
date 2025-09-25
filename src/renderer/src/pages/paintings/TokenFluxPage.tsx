@@ -1,4 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { InfoTooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -15,9 +17,8 @@ import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Button, Select, Tooltip } from 'antd'
+import { Avatar, Button, Select } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -432,7 +433,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Select.OptGroup key={provider} label={provider}>
                 {providerModels.map((model) => (
                   <Select.Option key={model.id} value={model.id}>
-                    <Tooltip title={model.description} placement="right">
+                    <Tooltip placement="right" title={model.description}>
                       <ModelOptionContainer>
                         <ModelName>{model.name}</ModelName>
                       </ModelOptionContainer>
@@ -460,11 +461,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                           {readI18nContext(property, 'title')}
                           {isRequired && <RequiredIndicator> *</RequiredIndicator>}
                         </ParameterName>
-                        {property.description && (
-                          <Tooltip title={readI18nContext(property, 'description')}>
-                            <InfoIcon />
-                          </Tooltip>
-                        )}
+                        {property.description && <InfoTooltip title={readI18nContext(property, 'description')} />}
                       </ParameterLabel>
                       <DynamicFormRender
                         schemaProperty={property}
@@ -747,19 +744,6 @@ const ToolbarMenu = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 6px;
-`
-
-const InfoIcon = styled(Info)`
-  margin-left: 5px;
-  cursor: help;
-  color: var(--color-text-2);
-  opacity: 0.6;
-  width: 14px;
-  height: 16px;
-
-  &:hover {
-    opacity: 1;
-  }
 `
 
 const ProviderLogo = styled(Avatar)`

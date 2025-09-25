@@ -1,6 +1,7 @@
 import { ClearOutlined, UndoOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useShortcuts } from '@renderer/hooks/useShortcuts'
@@ -10,7 +11,7 @@ import { useAppDispatch } from '@renderer/store'
 import { initialState, resetShortcuts, toggleShortcut, updateShortcut } from '@renderer/store/shortcuts'
 import type { Shortcut } from '@renderer/types'
 import type { InputRef } from 'antd'
-import { Button, Input, Table as AntTable, Tooltip } from 'antd'
+import { Button, Input, Table as AntTable } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { FC } from 'react'
 import React, { useRef, useState } from 'react'
@@ -371,7 +372,7 @@ const ShortcutSettings: FC = () => {
       width: '70px',
       render: (record: Shortcut) => (
         <RowFlex className="items-center justify-end gap-2">
-          <Tooltip title={t('settings.shortcuts.reset_to_default')}>
+          <Tooltip placement="top" title={t('settings.shortcuts.reset_to_default')}>
             <Button
               icon={<UndoOutlined />}
               size="small"
@@ -380,7 +381,7 @@ const ShortcutSettings: FC = () => {
               disabled={!isShortcutModified(record)}
             />
           </Tooltip>
-          <Tooltip title={t('settings.shortcuts.clear_shortcut')}>
+          <Tooltip placement="top" title={t('settings.shortcuts.clear_shortcut')}>
             <Button
               icon={<ClearOutlined />}
               size="small"

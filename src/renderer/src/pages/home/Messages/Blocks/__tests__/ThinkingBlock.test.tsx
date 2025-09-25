@@ -42,15 +42,18 @@ vi.mock('antd', () => ({
       ))}
     </div>
   ),
-  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
-    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
-      {children}
-    </div>
-  ),
   message: {
     success: vi.fn(),
     error: vi.fn()
   }
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: ({ title, children, mouseEnterDelay }: any) => (
+    <div data-testid="tooltip" title={title} data-mouse-enter-delay={mouseEnterDelay}>
+      {children}
+    </div>
+  )
 }))
 
 // Mock icons
@@ -68,7 +71,10 @@ vi.mock('lucide-react', () => ({
       💡
     </span>
   ),
-  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />
+  ChevronRight: (props: any) => <svg data-testid="chevron-right-icon" {...props} />,
+  CheckIcon: () => <span>check</span>,
+  CircleXIcon: () => <span>error</span>,
+  AlertTriangleIcon: () => <span>alert</span>
 }))
 
 // Mock motion

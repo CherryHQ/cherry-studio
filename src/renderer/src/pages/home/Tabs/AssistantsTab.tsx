@@ -1,4 +1,5 @@
 import { DownOutlined, RightOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useAgents } from '@renderer/hooks/useAgents'
@@ -7,7 +8,7 @@ import { useAssistantsTabSortType } from '@renderer/hooks/useStore'
 import { useTags } from '@renderer/hooks/useTags'
 import type { Assistant } from '@renderer/types'
 import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
-import { Tooltip, Typography } from 'antd'
+import { Typography } from 'antd'
 import { Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo, useRef, useState } from 'react'
@@ -93,7 +94,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             <TagsContainer key={group.tag}>
               {group.tag !== t('assistants.tags.untagged') && (
                 <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
-                  <Tooltip title={group.tag}>
+                  <Tooltip placement="top" title={group.tag}>
                     <GroupTitleName>
                       {collapsedTags[group.tag] ? (
                         <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />

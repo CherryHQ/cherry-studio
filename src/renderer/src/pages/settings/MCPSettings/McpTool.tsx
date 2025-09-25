@@ -1,10 +1,12 @@
 import { ColFlex, Flex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import type { MCPServer, MCPTool } from '@renderer/types'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
-import { Badge, Descriptions, Empty, Table, Tag, Tooltip, Typography } from 'antd'
+import { Badge, Descriptions, Empty, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { Hammer, Info, Zap } from 'lucide-react'
+import { Hammer, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface MCPToolsSectionProps {
@@ -63,7 +65,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               <Flex className="gap-1">
                 <Typography.Text strong>{key}</Typography.Text>
                 {tool.inputSchema.required?.includes(key) && (
-                  <Tooltip title="Required field">
+                  <Tooltip placement="top" title="Required field">
                     <span style={{ color: '#f5222d' }}>*</span>
                   </Tooltip>
                 )}
@@ -120,9 +122,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
             <Typography.Text strong ellipsis={{ tooltip: tool.name }}>
               {tool.name}
             </Typography.Text>
-            <Tooltip title={`ID: ${tool.id}`} mouseEnterDelay={0}>
-              <Info size={14} />
-            </Tooltip>
+            <InfoTooltip title={`ID: ${tool.id}`} iconSize={14} />
           </Flex>
           {tool.description && (
             <Typography.Paragraph

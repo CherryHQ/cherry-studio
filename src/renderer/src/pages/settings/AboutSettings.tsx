@@ -1,6 +1,7 @@
 import { GithubOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
@@ -14,7 +15,7 @@ import { handleSaveData } from '@renderer/store'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Button, Progress, Radio, Row, Tag, Tooltip } from 'antd'
+import { Avatar, Button, Progress, Radio, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -243,7 +244,7 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
+              <Tooltip placement="top" title={t('settings.general.test_plan.tooltip')}>
                 <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
@@ -258,7 +259,7 @@ const AboutSettings: FC = () => {
                     value={getTestChannel()}
                     onChange={(e) => handleTestChannelChange(e.target.value)}>
                     {getAvailableTestChannels().map((option) => (
-                      <Tooltip key={option.value} title={option.tooltip}>
+                      <Tooltip placement="top" key={option.value} title={option.tooltip}>
                         <Radio.Button value={option.value}>{option.label}</Radio.Button>
                       </Tooltip>
                     ))}

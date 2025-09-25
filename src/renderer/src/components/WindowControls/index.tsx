@@ -1,5 +1,5 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { isLinux, isWin } from '@renderer/config/constant'
-import { Tooltip } from 'antd'
 import { Minus, Square, X } from 'lucide-react'
 import type { SVGProps } from 'react'
 import { useEffect, useState } from 'react'
@@ -44,8 +44,6 @@ export const WindowRestoreIcon = ({ size = '1.1em', ...props }: WindowRestoreIco
   </svg>
 )
 
-const DEFAULT_DELAY = 1
-
 const WindowControls: React.FC = () => {
   const [isMaximized, setIsMaximized] = useState(false)
   const { t } = useTranslation()
@@ -85,20 +83,17 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
-      <Tooltip title={t('navbar.window.minimize')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip placement="bottom" title={t('navbar.window.minimize')}>
         <ControlButton onClick={handleMinimize} aria-label="Minimize">
           <Minus size={14} />
         </ControlButton>
       </Tooltip>
-      <Tooltip
-        title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}
-        placement="bottom"
-        mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip placement="bottom" title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}>
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
-      <Tooltip title={t('navbar.window.close')} placement="bottom" mouseEnterDelay={DEFAULT_DELAY}>
+      <Tooltip placement="bottom" title={t('navbar.window.close')}>
         <ControlButton $isClose onClick={handleClose} aria-label="Close">
           <X size={17} />
         </ControlButton>

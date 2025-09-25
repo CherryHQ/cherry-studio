@@ -1,5 +1,7 @@
 import { CheckOutlined, ExportOutlined, LoadingOutlined } from '@ant-design/icons'
 import { Flex, RowFlex } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import BochaLogo from '@renderer/assets/images/search/bocha.webp'
 import ExaLogo from '@renderer/assets/images/search/exa.png'
@@ -13,9 +15,9 @@ import { useWebSearchProvider } from '@renderer/hooks/useWebSearchProviders'
 import WebSearchService from '@renderer/services/WebSearchService'
 import type { WebSearchProviderId } from '@renderer/types'
 import { formatApiKeys, hasObjectKey } from '@renderer/utils'
-import { Button, Divider, Form, Input, Space, Tooltip } from 'antd'
+import { Button, Divider, Form, Input, Space } from 'antd'
 import Link from 'antd/es/typography/Link'
-import { Info, List } from 'lucide-react'
+import { List } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -93,7 +95,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
       window.toast.error({
         title: t('settings.no_provider_selected'),
         timeout: 3000,
-        icon: <Info size={18} />
+        icon: <InfoTooltip iconSize={18} title="" />
       })
       return
     }
@@ -178,7 +180,7 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip title={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+            <Tooltip placement="top" title={t('settings.provider.api.key.list.open')}>
               <Button type="text" size="small" onClick={openApiKeyList} icon={<List size={14} />} />
             </Tooltip>
           </SettingSubtitle>
@@ -238,9 +240,13 @@ const WebSearchProviderSetting: FC<Props> = ({ providerId }) => {
           <SettingDivider style={{ marginTop: 12, marginBottom: 12 }} />
           <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
             {t('settings.provider.basic_auth.label')}
-            <Tooltip title={t('settings.provider.basic_auth.tip')} placement="right">
-              <Info size={16} color="var(--color-icon)" style={{ marginLeft: 5, cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              placement="right"
+              title={t('settings.provider.basic_auth.tip')}
+              iconSize={16}
+              iconColor="var(--color-icon)"
+              iconStyle={{ marginLeft: 5, cursor: 'pointer' }}
+            />
           </SettingSubtitle>
           <Flex>
             <Form

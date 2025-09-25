@@ -1,6 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { Model } from '@renderer/types'
-import type { TooltipProps } from 'antd'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { useCallback, useMemo } from 'react'
 
 import ModelAvatar from './Avatar/ModelAvatar'
@@ -11,10 +11,22 @@ type Props = {
   onSelectModel: (model: Model) => void
   modelFilter?: (model: Model) => boolean
   noTooltip?: boolean
-  tooltipProps?: TooltipProps
+  tooltipPlacement?:
+    | 'top'
+    | 'bottom'
+    | 'left'
+    | 'right'
+    | 'top-start'
+    | 'top-end'
+    | 'bottom-start'
+    | 'bottom-end'
+    | 'left-start'
+    | 'left-end'
+    | 'right-start'
+    | 'right-end'
 }
 
-const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, tooltipProps }: Props) => {
+const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, tooltipPlacement = 'top' }: Props) => {
   const onClick = useCallback(async () => {
     const selectedModel = await SelectModelPopup.show({ model, filter: modelFilter })
     if (selectedModel) {
@@ -30,7 +42,7 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
     return button
   } else {
     return (
-      <Tooltip title={model.name} {...tooltipProps}>
+      <Tooltip placement={tooltipPlacement} title={model.name}>
         {button}
       </Tooltip>
     )

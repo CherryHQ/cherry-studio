@@ -1,9 +1,9 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAppSelector } from '@renderer/store'
 import type { KnowledgeBase } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
@@ -108,7 +108,7 @@ const KnowledgeBaseButton: FC<Props> = ({ ref, selectedBases, onSelect, disabled
   }))
 
   return (
-    <Tooltip placement="top" title={t('chat.input.knowledge_base')} mouseLeaveDelay={0} arrow>
+    <Tooltip placement="top" title={t('chat.input.knowledge_base')}>
       <ActionIconButton
         onClick={handleOpenQuickPanel}
         active={selectedBases && selectedBases.length > 0}

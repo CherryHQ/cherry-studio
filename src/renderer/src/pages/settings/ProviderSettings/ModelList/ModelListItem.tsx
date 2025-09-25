@@ -1,4 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { FreeTrialModelTag } from '@renderer/components/FreeTrialModelTag'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
@@ -6,7 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import type { ModelWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { Avatar, Button, Tooltip } from 'antd'
+import { Avatar, Button } from 'antd'
 import { Bolt, Minus } from 'lucide-react'
 import React, { memo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,10 +53,10 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, modelStatus, 
       <RowFlex className="items-center gap-1.5">
         <HealthStatusIndicator results={healthResults} loading={isChecking} showLatency />
         <RowFlex className="items-center">
-          <Tooltip title={t('models.edit')} mouseLeaveDelay={0}>
+          <Tooltip placement="top" title={t('models.edit')}>
             <Button type="text" onClick={() => onEdit(model)} disabled={disabled} icon={<Bolt size={14} />} />
           </Tooltip>
-          <Tooltip title={t('settings.models.manage.remove_model')} mouseLeaveDelay={0}>
+          <Tooltip placement="top" title={t('settings.models.manage.remove_model')}>
             <Button type="text" onClick={() => onRemove(model)} disabled={disabled} icon={<Minus size={14} />} />
           </Tooltip>
         </RowFlex>

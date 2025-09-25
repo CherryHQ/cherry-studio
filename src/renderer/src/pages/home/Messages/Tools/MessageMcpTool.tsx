@@ -1,4 +1,5 @@
 import { Flex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { CopyIcon, LoadingIcon } from '@renderer/components/Icons'
@@ -10,7 +11,7 @@ import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
 import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs, Tooltip } from 'antd'
+import { Button, Collapse, ConfigProvider, Dropdown, Modal, Progress, Tabs } from 'antd'
 import {
   Check,
   ChevronDown,
@@ -261,7 +262,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             <ToolName className="items-center gap-1">
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
-                <Tooltip title={t('message.tools.autoApproveEnabled')} mouseLeaveDelay={0}>
+                <Tooltip placement="top" title={t('message.tools.autoApproveEnabled')}>
                   <ShieldCheck size={14} color="var(--status-color-success)" />
                 </Tooltip>
               )}
@@ -273,7 +274,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
             ) : (
               renderStatusIndicator(status, hasError)
             )}
-            <Tooltip title={t('common.expand')} mouseEnterDelay={0.5}>
+            <Tooltip placement="top" title={t('common.expand')}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => {
@@ -288,7 +289,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
               </ActionButton>
             </Tooltip>
             {!isPending && (
-              <Tooltip title={t('common.copy')} mouseEnterDelay={0.5}>
+              <Tooltip placement="top" title={t('common.copy')}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => {

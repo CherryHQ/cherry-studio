@@ -1,5 +1,6 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -7,7 +8,7 @@ import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import type { MultiModelFoldDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Segmented as AntdSegmented, Tooltip } from 'antd'
+import { Avatar, Segmented as AntdSegmented } from 'antd'
 import { motion } from 'motion/react'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
@@ -39,7 +40,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+          <Tooltip key={message.id} placement="top" title={modelTip}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -66,14 +67,12 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   return (
     <Container>
       <Tooltip
+        placement="top"
         title={
           isCompact
             ? t('message.message.multi_model_style.fold.expand')
             : t('message.message.multi_model_style.fold.compress')
-        }
-        placement="top"
-        mouseEnterDelay={0.5}
-        mouseLeaveDelay={0}>
+        }>
         <DisplayModeToggle
           displayMode={foldDisplayMode}
           onClick={() => setFoldDisplayMode(isCompact ? 'expanded' : 'compact')}>

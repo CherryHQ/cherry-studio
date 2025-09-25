@@ -1,4 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -8,7 +9,6 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Assistant, Topic } from '@renderer/types'
-import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -68,14 +68,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
     <NavbarHeader className="home-navbar">
       <RowFlex className="items-center">
         {showAssistants && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" title={t('navbar.hide_sidebar')}>
             <NavbarIcon onClick={toggleShowAssistants}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showAssistants && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="bottom" title={t('navbar.show_sidebar')}>
             <NavbarIcon onClick={() => toggleShowAssistants()} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -98,25 +98,25 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       </RowFlex>
       <RowFlex className="items-center gap-2">
         <UpdateAppButton />
-        <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
+        <Tooltip placement="bottom" title={t('navbar.expand')}>
           <NarrowIcon onClick={handleNarrowModeToggle}>
             <i className="iconfont icon-icon-adaptive-width"></i>
           </NarrowIcon>
         </Tooltip>
-        <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
+        <Tooltip placement="bottom" title={t('chat.assistant.search.placeholder')}>
           <NavbarIcon onClick={() => SearchPopup.show()}>
             <Search size={18} />
           </NavbarIcon>
         </Tooltip>
         {topicPosition === 'right' && !showTopics && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
+          <Tooltip placement="bottom" title={t('navbar.show_sidebar')}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {topicPosition === 'right' && showTopics && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
+          <Tooltip placement="bottom" title={t('navbar.hide_sidebar')}>
             <NavbarIcon onClick={toggleShowTopics}>
               <PanelRightClose size={18} />
             </NavbarIcon>

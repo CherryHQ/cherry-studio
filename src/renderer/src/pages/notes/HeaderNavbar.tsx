@@ -1,4 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { BreadcrumbItem, Breadcrumbs } from '@heroui/react'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
@@ -7,7 +8,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNodeByPath, findNodeInTree, updateNodeInTree } from '@renderer/services/NotesTreeService'
 import type { NotesTreeNode } from '@types'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
@@ -163,14 +164,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('navbar.hide_sidebar')}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('navbar.show_sidebar')}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -194,7 +195,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
       </NavbarCenter>
       <NavbarRight style={{ paddingRight: 0 }}>
         {canShowStarButton && (
-          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')}>
             <StarButton onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
@@ -204,16 +205,18 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar }) => {
             </StarButton>
           </Tooltip>
         )}
-        <Tooltip title={t('notes.settings.title')} mouseEnterDelay={0.8}>
-          <Dropdown
-            menu={{ items: menuItems.map(buildMenuItem) }}
-            trigger={['click']}
-            placement="bottomRight"
-            destroyOnHidden={false}>
-            <NavbarIcon>
-              <MoreHorizontal size={18} />
-            </NavbarIcon>
-          </Dropdown>
+        <Tooltip placement="top" title={t('notes.settings.title')}>
+          <TooltipTriggerWrapper>
+            <Dropdown
+              menu={{ items: menuItems.map(buildMenuItem) }}
+              trigger={['click']}
+              placement="bottomRight"
+              destroyOnHidden={false}>
+              <NavbarIcon>
+                <MoreHorizontal size={18} />
+              </NavbarIcon>
+            </Dropdown>
+          </TooltipTriggerWrapper>
         </Tooltip>
       </NavbarRight>
     </NavbarHeader>
@@ -257,6 +260,10 @@ export const NavbarIcon = styled.div`
     background-color: var(--color-background-mute);
     color: var(--color-icon-white);
   }
+`
+
+const TooltipTriggerWrapper = styled.div`
+  display: inline-flex;
 `
 
 export const StarButton = styled.div`

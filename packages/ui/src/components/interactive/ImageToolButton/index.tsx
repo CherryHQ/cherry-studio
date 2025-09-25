@@ -1,6 +1,8 @@
 // Original path: src/renderer/src/components/Preview/ImageToolButton.tsx
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { memo } from 'react'
+
+import Tooltip from '../../base/Tooltip'
 
 interface ImageToolButtonProps {
   tooltip: string
@@ -10,7 +12,7 @@ interface ImageToolButtonProps {
 
 const ImageToolButton = ({ tooltip, icon, onClick }: ImageToolButtonProps) => {
   return (
-    <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+    <Tooltip placement="top" title={tooltip}>
       <Button shape="circle" icon={icon} onClick={onClick} role="button" aria-label={tooltip} />
     </Tooltip>
   )

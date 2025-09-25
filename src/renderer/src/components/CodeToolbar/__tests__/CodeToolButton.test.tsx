@@ -19,8 +19,11 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('antd', () => ({
-  Tooltip: mocks.Tooltip,
   Dropdown: mocks.Dropdown
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Tooltip: mocks.Tooltip
 }))
 
 // Mock ToolWrapper

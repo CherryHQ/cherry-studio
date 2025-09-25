@@ -6,10 +6,11 @@ import {
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import type { RootState } from '@renderer/store'
 // import { selectCurrentTopicId } from '@renderer/store/newMessage'
-import { Button, Drawer, Tooltip } from 'antd'
+import { Button, Drawer } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -336,7 +337,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip title={t('chat.navigation.close')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip placement="left" title={t('chat.navigation.close')}>
             <NavigationButton
               type="text"
               icon={<CloseOutlined />}
@@ -345,7 +346,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.top')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip placement="left" title={t('chat.navigation.top')}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignTopOutlined />}
@@ -354,7 +355,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.prev')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip placement="left" title={t('chat.navigation.prev')}>
             <NavigationButton
               type="text"
               icon={<ArrowUpOutlined />}
@@ -363,7 +364,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.next')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip placement="left" title={t('chat.navigation.next')}>
             <NavigationButton
               type="text"
               icon={<ArrowDownOutlined />}
@@ -372,7 +373,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.bottom')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip placement="left" title={t('chat.navigation.bottom')}>
             <NavigationButton
               type="text"
               icon={<VerticalAlignBottomOutlined />}
@@ -381,7 +382,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip title={t('chat.navigation.history')} placement="left" mouseEnterDelay={0.5}>
+          <Tooltip placement="left" title={t('chat.navigation.history')}>
             <NavigationButton
               type="text"
               icon={<HistoryOutlined />}

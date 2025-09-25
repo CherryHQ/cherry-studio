@@ -1,6 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
-import { Tooltip } from 'antd'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
@@ -363,13 +363,13 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               />
               <ToolBar>
                 {showUserToggle && (
-                  <Tooltip title={t('button.includes_user_questions')} mouseEnterDelay={0.8} placement="bottom">
+                  <Tooltip placement="bottom" title={t('button.includes_user_questions')}>
                     <ActionIconButton onClick={userOutlinedButtonOnClick}>
                       <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
                     </ActionIconButton>
                   </Tooltip>
                 )}
-                <Tooltip title={t('button.case_sensitive')} mouseEnterDelay={0.8} placement="bottom">
+                <Tooltip placement="bottom" title={t('button.case_sensitive')}>
                   <ActionIconButton onClick={caseSensitiveButtonOnClick}>
                     <CaseSensitive
                       size={18}
@@ -377,7 +377,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                     />
                   </ActionIconButton>
                 </Tooltip>
-                <Tooltip title={t('button.whole_word')} mouseEnterDelay={0.8} placement="bottom">
+                <Tooltip placement="bottom" title={t('button.whole_word')}>
                   <ActionIconButton onClick={wholeWordButtonOnClick}>
                     <WholeWord size={18} style={{ color: isWholeWord ? 'var(--color-link)' : 'var(--color-icon)' }} />
                   </ActionIconButton>

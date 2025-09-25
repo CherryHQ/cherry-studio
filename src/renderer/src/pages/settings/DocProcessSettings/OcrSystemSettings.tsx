@@ -1,7 +1,7 @@
 // import { loggerService } from '@logger'
 import { Flex } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
 import { SuccessTag } from '@renderer/components/Tags/SuccessTag'
-import { InfoTooltip } from '@renderer/components/TooltipIcons'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useOcrProvider } from '@renderer/hooks/useOcrProvider'
 import useTranslate from '@renderer/hooks/useTranslate'

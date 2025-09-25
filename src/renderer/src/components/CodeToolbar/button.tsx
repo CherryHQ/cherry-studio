@@ -1,5 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { ActionTool } from '@renderer/components/ActionTools'
-import { Dropdown, Tooltip } from 'antd'
+import { Dropdown } from 'antd'
 import { memo, useMemo } from 'react'
 
 import { ToolWrapper } from './styles'

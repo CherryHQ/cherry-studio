@@ -1,10 +1,11 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import i18n from '@renderer/i18n'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Slider, Tooltip } from 'antd'
+import { Button, Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
@@ -215,10 +216,7 @@ const SelectionActionApp: FC = () => {
               className={isPinned ? 'pinned' : ''}
             />
           </Tooltip>
-          <Tooltip
-            title={t('selection.action.window.opacity')}
-            placement="bottom"
-            {...(showOpacitySlider ? { open: false } : {})}>
+          <Tooltip title={t('selection.action.window.opacity')} placement="bottom">
             <WinButton
               type="text"
               icon={<Droplet size={14} />}

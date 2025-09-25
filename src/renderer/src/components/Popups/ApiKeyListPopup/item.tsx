@@ -1,11 +1,12 @@
 import { Flex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { type HealthResult, HealthStatusIndicator } from '@renderer/components/HealthStatusIndicator'
 import { EditIcon } from '@renderer/components/Icons'
 import { StreamlineGoodHealthAndWellBeing } from '@renderer/components/Icons/SVGIcon'
 import type { ApiKeyWithStatus } from '@renderer/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
 import type { InputRef } from 'antd'
-import { Button, Input, List, Popconfirm, Tooltip, Typography } from 'antd'
+import { Button, Input, List, Popconfirm, Typography } from 'antd'
 import { Check, Minus, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useEffect, useRef, useState } from 'react'
@@ -106,7 +107,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
             disabled={disabled}
           />
           <Flex className="items-center gap-0">
-            <Tooltip title={t('common.save')}>
+            <Tooltip placement="top" title={t('common.save')}>
               <Button
                 type={hasUnsavedChanges ? 'primary' : 'text'}
                 icon={<Check size={16} />}
@@ -114,7 +115,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 disabled={disabled}
               />
             </Tooltip>
-            <Tooltip title={t('common.cancel')}>
+            <Tooltip placement="top" title={t('common.cancel')}>
               <Button type="text" icon={<X size={16} />} onClick={handleCancelEdit} disabled={disabled} />
             </Tooltip>
           </Flex>
@@ -139,7 +140,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
             <Flex className="items-center gap-0">
               {showHealthCheck && (
-                <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                <Tooltip placement="top" title={t('settings.provider.check')} mouseLeaveDelay={0}>
                   <Button
                     type="text"
                     icon={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
@@ -148,7 +149,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   />
                 </Tooltip>
               )}
-              <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
+              <Tooltip placement="top" title={t('common.edit')} mouseLeaveDelay={0}>
                 <Button type="text" icon={<EditIcon size={16} />} onClick={handleEdit} disabled={disabled} />
               </Tooltip>
               <Popconfirm
@@ -158,7 +159,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
                 okButtonProps={{ danger: true }}>
-                <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
+                <Tooltip placement="top" title={t('common.delete')} mouseLeaveDelay={0}>
                   <Button type="text" icon={<Minus size={16} />} disabled={disabled} />
                 </Tooltip>
               </Popconfirm>

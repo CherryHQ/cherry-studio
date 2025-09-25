@@ -1,4 +1,5 @@
 // import { InfoCircleOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -41,7 +42,7 @@ import {
   findTranslationBlocksById,
   getMainTextContent
 } from '@renderer/utils/messageUtils/find'
-import { Dropdown, Popconfirm, Tooltip } from 'antd'
+import { Dropdown, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import {
   AtSign,
@@ -490,7 +491,7 @@ const MessageMenubar: FC<Props> = (props) => {
               okButtonProps={{ danger: true }}
               onConfirm={() => handleResendUserMessage()}
               onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-              <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+              <Tooltip placement="top" title={t('common.regenerate')}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => e.stopPropagation()}
@@ -500,7 +501,7 @@ const MessageMenubar: FC<Props> = (props) => {
               </Tooltip>
             </Popconfirm>
           ) : (
-            <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+            <Tooltip placement="top" title={t('common.regenerate')}>
               <ActionButton
                 className="message-action-button"
                 onClick={() => handleResendUserMessage()}
@@ -510,13 +511,13 @@ const MessageMenubar: FC<Props> = (props) => {
             </Tooltip>
           ))}
         {message.role === 'user' && (
-          <Tooltip title={t('common.edit')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('common.edit')}>
             <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
               <EditIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
-        <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+        <Tooltip placement="top" title={t('common.copy')}>
           <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
             {!copied && <CopyIcon size={15} />}
             {copied && <Check size={15} color="var(--color-primary)" />}
@@ -529,7 +530,7 @@ const MessageMenubar: FC<Props> = (props) => {
               okButtonProps={{ danger: true }}
               onConfirm={onRegenerate}
               onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-              <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+              <Tooltip placement="top" title={t('common.regenerate')}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => e.stopPropagation()}
@@ -539,14 +540,14 @@ const MessageMenubar: FC<Props> = (props) => {
               </Tooltip>
             </Popconfirm>
           ) : (
-            <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
+            <Tooltip placement="top" title={t('common.regenerate')}>
               <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
                 <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
           ))}
         {isAssistantMessage && (
-          <Tooltip title={t('message.mention.title')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('message.mention.title')}>
             <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
               <AtSign size={15} />
             </ActionButton>
@@ -617,7 +618,7 @@ const MessageMenubar: FC<Props> = (props) => {
             trigger={['click']}
             placement="top"
             arrow>
-            <Tooltip title={t('chat.translate')} mouseEnterDelay={1.2}>
+            <Tooltip placement="top" title={t('chat.translate')}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => e.stopPropagation()}
@@ -628,7 +629,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Dropdown>
         )}
         {isAssistantMessage && isGrouped && (
-          <Tooltip title={t('chat.message.useful.label')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('chat.message.useful.label')}>
             <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
@@ -639,7 +640,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         )}
         {isAssistantMessage && (
-          <Tooltip title={t('notes.save')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('notes.save')}>
             <ActionButton
               className="message-action-button"
               onClick={async (e) => {
@@ -663,11 +664,7 @@ const MessageMenubar: FC<Props> = (props) => {
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
               $softHoverBg={softHoverBg}>
-              <Tooltip
-                title={t('common.delete')}
-                mouseEnterDelay={1}
-                open={showDeleteTooltip}
-                onOpenChange={setShowDeleteTooltip}>
+              <Tooltip title={t('common.delete')} placement="top">
                 <DeleteIcon size={15} />
               </Tooltip>
             </ActionButton>
@@ -682,7 +679,7 @@ const MessageMenubar: FC<Props> = (props) => {
             $softHoverBg={softHoverBg}>
             <Tooltip
               title={t('common.delete')}
-              mouseEnterDelay={1}
+              placement="top"
               open={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
               <DeleteIcon size={15} />
@@ -690,7 +687,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         )}
         {enableDeveloperMode && message.traceId && (
-          <Tooltip title={t('trace.label')} mouseEnterDelay={0.8}>
+          <Tooltip placement="top" title={t('trace.label')}>
             <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
               <TraceIcon size={16} className={'lucide lucide-trash'} />
             </ActionButton>

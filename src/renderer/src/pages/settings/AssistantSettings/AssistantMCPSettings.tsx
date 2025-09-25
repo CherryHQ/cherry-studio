@@ -1,9 +1,10 @@
-import { InfoCircleOutlined } from '@ant-design/icons'
 import { Box } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
+import { InfoTooltip } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import type { Assistant, AssistantSettings } from '@renderer/types'
-import { Empty, Tooltip } from 'antd'
+import { Empty } from 'antd'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -55,9 +56,10 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
       <HeaderContainer>
         <Box style={{ fontWeight: 'bold', fontSize: '14px' }}>
           {t('assistants.settings.mcp.title')}
-          <Tooltip title={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}>
-            <InfoIcon />
-          </Tooltip>
+          <InfoTooltip
+            title={t('assistants.settings.mcp.description', 'Select MCP servers to use with this assistant')}
+            iconStyle={{ marginLeft: 6, fontSize: 14, color: 'var(--color-text-2)', cursor: 'help' }}
+          />
         </Box>
         {allMcpServers.length > 0 && (
           <EnabledCount>
@@ -119,13 +121,6 @@ const HeaderContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
-`
-
-const InfoIcon = styled(InfoCircleOutlined)`
-  margin-left: 6px;
-  font-size: 14px;
-  color: var(--color-text-2);
-  cursor: help;
 `
 
 const EnabledCount = styled.span`

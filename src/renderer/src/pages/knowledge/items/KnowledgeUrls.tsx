@@ -1,3 +1,4 @@
+import { Tooltip } from '@cherrystudio/ui'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -6,7 +7,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Dropdown, Tooltip } from 'antd'
+import { Button, Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
@@ -162,7 +163,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     }}
                     trigger={['contextMenu']}>
                     <ClickableSpan>
-                      <Tooltip title={item.content as string}>
+                      <Tooltip placement="top" title={item.content as string}>
                         <Ellipsis>
                           <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                             {item.remark || (item.content as string)}

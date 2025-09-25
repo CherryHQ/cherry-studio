@@ -1,4 +1,5 @@
 // TODO: Refactor this component to use HeroUI
+import { Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { loggerService } from '@renderer/services/LoggerService'
 import type { RootState } from '@renderer/store'
@@ -6,7 +7,7 @@ import { useAppDispatch } from '@renderer/store'
 import { setApiServerApiKey, setApiServerEnabled, setApiServerPort } from '@renderer/store/settings'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Input, InputNumber, Tooltip, Typography } from 'antd'
+import { Button, Input, InputNumber, Typography } from 'antd'
 import { Copy, ExternalLink, Play, RotateCcw, Square } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -147,7 +148,7 @@ const ApiServerSettings: FC = () => {
 
         <ControlSection>
           {apiServerRunning && (
-            <Tooltip title={t('apiServer.actions.restart.tooltip')}>
+            <Tooltip placement="top" title={t('apiServer.actions.restart.tooltip')}>
               <RestartButton
                 $loading={apiServerLoading}
                 onClick={apiServerLoading ? undefined : handleApiServerRestart}>
@@ -170,7 +171,9 @@ const ApiServerSettings: FC = () => {
             />
           )}
 
-          <Tooltip title={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
+          <Tooltip
+            placement="top"
+            title={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
             {apiServerRunning ? (
               <StopButton
                 $loading={apiServerLoading}
@@ -205,7 +208,7 @@ const ApiServerSettings: FC = () => {
                   {t('apiServer.actions.regenerate')}
                 </RegenerateButton>
               )}
-              <Tooltip title={t('apiServer.fields.apiKey.copyTooltip')}>
+              <Tooltip placement="top" title={t('apiServer.fields.apiKey.copyTooltip')}>
                 <InputButton icon={<Copy size={14} />} onClick={copyApiKey} disabled={!apiServerConfig.apiKey} />
               </Tooltip>
             </InputButtonContainer>

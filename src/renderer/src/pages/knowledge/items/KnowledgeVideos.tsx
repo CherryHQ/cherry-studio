@@ -1,4 +1,5 @@
 import { DeleteOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import VideoPopup from '@renderer/components/Popups/VideoPopup'
@@ -7,7 +8,7 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { FileTypes, isKnowledgeVideoItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
@@ -130,7 +131,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(videoFile)}>
                           <Ellipsis>
-                            <Tooltip title={videoFile.origin_name}>{videoFile.origin_name}</Tooltip>
+                            <Tooltip placement="top" title={videoFile.origin_name}>
+                              {videoFile.origin_name}
+                            </Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),

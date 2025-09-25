@@ -13,6 +13,7 @@ export { ErrorTag, InfoTag, StatusTag, SuccessTag, WarnTag } from './base/Status
 export { Switch } from './base/Switch'
 export { default as TextBadge } from './base/TextBadge'
 export { getToastUtilities, type ToastUtilities } from './base/Toast'
+export { default as Tooltip } from './base/Tooltip'
 
 // Display Components
 export { default as Ellipsis } from './display/Ellipsis'

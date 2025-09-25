@@ -1,5 +1,5 @@
 import { InfoCircleOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { InfoTooltip, RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -8,7 +8,7 @@ import { useAssistants, useDefaultAssistant, useDefaultModel } from '@renderer/h
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setQuickAssistantId } from '@renderer/store/llm'
 import HomeWindow from '@renderer/windows/mini/home/HomeWindow'
-import { Button, Select, Tooltip } from 'antd'
+import { Button, Select } from 'antd'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -69,9 +69,11 @@ const QuickAssistantSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
-            <Tooltip title={t('settings.quickAssistant.use_shortcut_to_show')} placement="right">
-              <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-            </Tooltip>
+            <InfoTooltip
+              title={t('settings.quickAssistant.use_shortcut_to_show')}
+              placement="right"
+              iconStyle={{ cursor: 'pointer' }}
+            />
           </SettingRowTitle>
           <Switch isSelected={enableQuickAssistant} onValueChange={handleEnableQuickAssistant} />
         </SettingRow>
@@ -99,9 +101,11 @@ const QuickAssistantSettings: FC = () => {
           <RowFlex className="items-center justify-between">
             <RowFlex className="items-center gap-2.5">
               {t('settings.models.quick_assistant_model')}
-              <Tooltip title={t('selection.settings.user_modal.model.tooltip')} arrow>
-                <InfoCircleOutlined style={{ cursor: 'pointer' }} />
-              </Tooltip>
+              <InfoTooltip
+                title={t('selection.settings.user_modal.model.tooltip')}
+                arrow
+                iconStyle={{ cursor: 'pointer' }}
+              />
               <Spacer />
             </RowFlex>
             <RowFlex className="items-center gap-2.5">

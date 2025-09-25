@@ -1,5 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import type { Model } from '@renderer/types'
-import { Tooltip, Typography } from 'antd'
+import { Typography } from 'antd'
 import { memo } from 'react'
 import styled from 'styled-components'
 
@@ -20,19 +21,11 @@ const ModelIdWithTags = ({
   return (
     <ListItemName ref={ref} $fontSize={fontSize} style={style}>
       <Tooltip
-        styles={{
-          root: {
-            width: 'auto',
-            maxWidth: '500px'
-          }
-        }}
-        destroyOnHidden
         title={
           <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
             {model.id}
           </Typography.Text>
         }
-        mouseEnterDelay={0.5}
         placement="top">
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>

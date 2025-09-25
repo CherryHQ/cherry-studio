@@ -1,12 +1,13 @@
 import { RedoOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { NavbarIcon } from '@renderer/pages/home/ChatNavbar'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase } from '@renderer/types'
-import { Button, Empty, Tabs, Tag, Tooltip } from 'antd'
+import { Button, Empty, Tabs, Tag } from 'antd'
 import { Book, Folder, Globe, Link, Notebook, Search, Settings, Video } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -154,7 +155,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             <div className="label-column">
               <label>{t('models.embedding_model')}</label>
             </div>
-            <Tooltip title={providerName} placement="bottom">
+            <Tooltip placement="bottom" title={providerName}>
               <div className="tag-column">
                 <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
               </div>

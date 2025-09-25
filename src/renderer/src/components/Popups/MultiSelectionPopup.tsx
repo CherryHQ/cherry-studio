@@ -1,7 +1,8 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { CopyIcon, DeleteIcon } from '@renderer/components/Icons'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import type { Topic } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
+import { Button } from 'antd'
 import { Save, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,7 +36,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
       <ActionBar>
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
-          <Tooltip title={t('common.save')}>
+          <Tooltip placement="top" title={t('common.save')}>
             <Button
               shape="circle"
               color="default"
@@ -45,7 +46,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               onClick={() => handleAction('save')}
             />
           </Tooltip>
-          <Tooltip title={t('common.copy')}>
+          <Tooltip placement="top" title={t('common.copy')}>
             <Button
               shape="circle"
               color="default"
@@ -55,7 +56,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               onClick={() => handleAction('copy')}
             />
           </Tooltip>
-          <Tooltip title={t('common.delete')}>
+          <Tooltip placement="top" title={t('common.delete')}>
             <Button
               shape="circle"
               color="danger"
@@ -66,7 +67,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
             />
           </Tooltip>
         </ActionButtons>
-        <Tooltip title={t('chat.navigation.close')}>
+        <Tooltip placement="top" title={t('chat.navigation.close')}>
           <Button shape="circle" color="default" variant="text" icon={<X size={16} />} onClick={handleClose} />
         </Tooltip>
       </ActionBar>
@@ -91,7 +92,7 @@ const ActionBar = styled.div`
   background-color: var(--color-background);
   padding: 4px 4px;
   border-radius: 99px;
-  box-shadow: 0px 2px 8px 0px rgb(128 128 128 / 20%);
+  box-shadow: 0 2px 8px 0 rgb(128 128 128 / 20%);
   border: 0.5px solid var(--color-border);
   gap: 16px;
 `
