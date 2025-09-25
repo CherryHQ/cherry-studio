@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isNewApiProvider } from '@renderer/config/providers'
 import { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './aihubmix/AihubmixAPIClient'
@@ -45,7 +46,7 @@ export class ApiClientFactory {
       return instance
     }
 
-    if (provider.id === 'new-api') {
+    if (isNewApiProvider(provider)) {
       logger.debug(`Creating NewAPIClient for provider: ${provider.id}`)
       instance = new NewAPIClient(provider) as BaseApiClient
       return instance

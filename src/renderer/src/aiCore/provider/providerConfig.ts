@@ -6,6 +6,7 @@ import {
   type ProviderSettingsMap
 } from '@cherrystudio/ai-core/provider'
 import { isOpenAIChatCompletionOnlyModel } from '@renderer/config/models'
+import { isNewApiProvider } from '@renderer/config/providers'
 import {
   getAwsBedrockAccessKeyId,
   getAwsBedrockRegion,
@@ -65,7 +66,7 @@ function handleSpecialProviders(model: Model, provider: Provider): Provider {
     if (provider.id === 'aihubmix') {
       return aihubmixProviderCreator(model, provider)
     }
-    if (provider.id === 'new-api') {
+    if (isNewApiProvider(provider)) {
       return newApiResolverCreator(model, provider)
     }
     if (provider.id === 'vertexai') {

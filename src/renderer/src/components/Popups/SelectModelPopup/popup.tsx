@@ -180,7 +180,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         key: `provider-${p.id}`,
         type: 'group',
         name: getFancyProviderName(p),
-        actions: (
+        actions: p.id !== 'cherryai' && (
           <Tooltip title={t('navigate.provider_settings')} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
             <Settings2
               size={12}

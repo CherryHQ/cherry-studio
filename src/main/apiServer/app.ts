@@ -14,6 +14,13 @@ import { modelsRoutes } from './routes/models'
 
 const logger = loggerService.withContext('ApiServer')
 
+const LONG_POLL_TIMEOUT_MS = 120 * 60_000 // 120 minutes
+const extendMessagesTimeout: express.RequestHandler = (req, res, next) => {
+  req.setTimeout(LONG_POLL_TIMEOUT_MS)
+  res.setTimeout(LONG_POLL_TIMEOUT_MS)
+  next()
+}
+
 const app = express()
 app.use(
   express.json({
@@ -26,7 +33,12 @@ app.use((req, res, next) => {
   const start = Date.now()
   res.on('finish', () => {
     const duration = Date.now() - start
-    logger.info(`${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`)
+    logger.info('API request completed', {
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: duration
+    })
   })
   next()
 })
@@ -113,12 +125,11 @@ app.get('/', (_req, res) => {
   })
 })
 
-// Provider-specific API routes with auth (must be before /v1 to avoid conflicts)
-const providerRouter = express.Router({ mergeParams: true })
-providerRouter.use(authMiddleware)
-// Mount provider-specific messages route
-providerRouter.use('/v1/messages', messagesProviderRoutes)
-app.use('/:provider', providerRouter)
+// Setup OpenAPI documentation before protected routes so docs remain public
+setupOpenAPIDocumentation(app)
+
+// Provider-specific messages route requires authentication
+app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, messagesProviderRoutes)
 
 // API v1 routes with auth
 const apiRouter = express.Router()
@@ -126,13 +137,10 @@ apiRouter.use(authMiddleware)
 // Mount routes
 apiRouter.use('/chat', chatRoutes)
 apiRouter.use('/mcps', mcpRoutes)
-apiRouter.use('/messages', messagesRoutes)
+apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
 apiRouter.use('/models', modelsRoutes)
 apiRouter.use('/agents', agentsRoutes)
 app.use('/v1', apiRouter)
-
-// Setup OpenAPI documentation
-setupOpenAPIDocumentation(app)
 
 // Error handling (must be last)
 app.use(errorHandler)

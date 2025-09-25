@@ -20,16 +20,16 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
   try {
     const sessionData = req.body
 
-    logger.info(`Creating new session for agent: ${agentId}`)
-    logger.debug('Session data:', sessionData)
+    logger.debug('Creating new session', { agentId })
+    logger.debug('Session payload', { sessionData })
 
     const session = await sessionService.createSession(agentId, sessionData)
 
-    logger.info(`Session created successfully: ${session?.id}`)
+    logger.info('Session created', { agentId, sessionId: session?.id })
     return res.status(201).json(session)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
-      logger.warn('Session model validation error during create:', {
+      logger.warn('Session model validation error during create', {
         agentId,
         agentType: error.context.agentType,
         field: error.context.field,
@@ -39,7 +39,7 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
       return res.status(400).json(modelValidationErrorBody(error))
     }
 
-    logger.error('Error creating session:', error)
+    logger.error('Error creating session', { error, agentId })
     return res.status(500).json({
       error: {
         message: `Failed to create session: ${error.message}`,
@@ -51,17 +51,23 @@ export const createSession = async (req: Request, res: Response): Promise<Respon
 }
 
 export const listSessions = async (req: Request, res: Response): Promise<Response> => {
+  const { agentId } = req.params
   try {
-    const { agentId } = req.params
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
     const status = req.query.status as any
 
-    logger.info(`Listing sessions for agent: ${agentId} with limit=${limit}, offset=${offset}, status=${status}`)
+    logger.debug('Listing agent sessions', { agentId, limit, offset, status })
 
     const result = await sessionService.listSessions(agentId, { limit, offset })
 
-    logger.info(`Retrieved ${result.sessions.length} sessions (total: ${result.total}) for agent: ${agentId}`)
+    logger.info('Agent sessions listed', {
+      agentId,
+      returned: result.sessions.length,
+      total: result.total,
+      limit,
+      offset
+    })
     return res.json({
       data: result.sessions,
       total: result.total,
@@ -69,7 +75,7 @@ export const listSessions = async (req: Request, res: Response): Promise<Respons
       offset
     })
   } catch (error: any) {
-    logger.error('Error listing sessions:', error)
+    logger.error('Error listing sessions', { error, agentId })
     return res.status(500).json({
       error: {
         message: 'Failed to list sessions',
@@ -83,12 +89,12 @@ export const listSessions = async (req: Request, res: Response): Promise<Respons
 export const getSession = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId, sessionId } = req.params
-    logger.info(`Getting session: ${sessionId} for agent: ${agentId}`)
+    logger.debug('Getting session', { agentId, sessionId })
 
     const session = await sessionService.getSession(agentId, sessionId)
 
     if (!session) {
-      logger.warn(`Session not found: ${sessionId}`)
+      logger.warn('Session not found', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found',
@@ -110,7 +116,7 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
     // }
 
     // Fetch session messages
-    logger.info(`Fetching messages for session: ${sessionId}`)
+    logger.debug('Fetching session messages', { sessionId })
     const { messages } = await sessionMessageService.listSessionMessages(sessionId)
 
     // Add messages to session
@@ -119,10 +125,10 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
       messages: messages
     }
 
-    logger.info(`Session retrieved successfully: ${sessionId} with ${messages.length} messages`)
+    logger.info('Session retrieved', { agentId, sessionId, messageCount: messages.length })
     return res.json(sessionWithMessages)
   } catch (error: any) {
-    logger.error('Error getting session:', error)
+    logger.error('Error getting session', { error, agentId: req.params.agentId, sessionId: req.params.sessionId })
     return res.status(500).json({
       error: {
         message: 'Failed to get session',
@@ -136,13 +142,13 @@ export const getSession = async (req: Request, res: Response): Promise<Response>
 export const updateSession = async (req: Request, res: Response): Promise<Response> => {
   const { agentId, sessionId } = req.params
   try {
-    logger.info(`Updating session: ${sessionId} for agent: ${agentId}`)
-    logger.debug('Update data:', req.body)
+    logger.debug('Updating session', { agentId, sessionId })
+    logger.debug('Replace payload', { body: req.body })
 
     // First check if session exists and belongs to agent
     const existingSession = await sessionService.getSession(agentId, sessionId)
     if (!existingSession || existingSession.agent_id !== agentId) {
-      logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
+      logger.warn('Session not found for update', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found for this agent',
@@ -158,7 +164,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
     const session = await sessionService.updateSession(agentId, sessionId, replacePayload)
 
     if (!session) {
-      logger.warn(`Session not found for update: ${sessionId}`)
+      logger.warn('Session missing during update', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found',
@@ -168,11 +174,11 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    logger.info(`Session updated successfully: ${sessionId}`)
+    logger.info('Session updated', { agentId, sessionId })
     return res.json(session satisfies UpdateSessionResponse)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
-      logger.warn('Session model validation error during update:', {
+      logger.warn('Session model validation error during update', {
         agentId,
         sessionId,
         agentType: error.context.agentType,
@@ -183,7 +189,7 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
       return res.status(400).json(modelValidationErrorBody(error))
     }
 
-    logger.error('Error updating session:', error)
+    logger.error('Error updating session', { error, agentId, sessionId })
     return res.status(500).json({
       error: {
         message: `Failed to update session: ${error.message}`,
@@ -197,13 +203,13 @@ export const updateSession = async (req: Request, res: Response): Promise<Respon
 export const patchSession = async (req: Request, res: Response): Promise<Response> => {
   const { agentId, sessionId } = req.params
   try {
-    logger.info(`Patching session: ${sessionId} for agent: ${agentId}`)
-    logger.debug('Patch data:', req.body)
+    logger.debug('Patching session', { agentId, sessionId })
+    logger.debug('Patch payload', { body: req.body })
 
     // First check if session exists and belongs to agent
     const existingSession = await sessionService.getSession(agentId, sessionId)
     if (!existingSession || existingSession.agent_id !== agentId) {
-      logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
+      logger.warn('Session not found for patch', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found for this agent',
@@ -217,7 +223,7 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
     const session = await sessionService.updateSession(agentId, sessionId, updateSession)
 
     if (!session) {
-      logger.warn(`Session not found for patch: ${sessionId}`)
+      logger.warn('Session missing while patching', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found',
@@ -227,11 +233,11 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
       })
     }
 
-    logger.info(`Session patched successfully: ${sessionId}`)
+    logger.info('Session patched', { agentId, sessionId })
     return res.json(session)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
-      logger.warn('Session model validation error during patch:', {
+      logger.warn('Session model validation error during patch', {
         agentId,
         sessionId,
         agentType: error.context.agentType,
@@ -242,7 +248,7 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
       return res.status(400).json(modelValidationErrorBody(error))
     }
 
-    logger.error('Error patching session:', error)
+    logger.error('Error patching session', { error, agentId, sessionId })
     return res.status(500).json({
       error: {
         message: `Failed to patch session, ${error.message}`,
@@ -256,12 +262,12 @@ export const patchSession = async (req: Request, res: Response): Promise<Respons
 export const deleteSession = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId, sessionId } = req.params
-    logger.info(`Deleting session: ${sessionId} for agent: ${agentId}`)
+    logger.debug('Deleting session', { agentId, sessionId })
 
     // First check if session exists and belongs to agent
     const existingSession = await sessionService.getSession(agentId, sessionId)
     if (!existingSession || existingSession.agent_id !== agentId) {
-      logger.warn(`Session ${sessionId} not found for agent ${agentId}`)
+      logger.warn('Session not found for deletion', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found for this agent',
@@ -274,7 +280,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
     const deleted = await sessionService.deleteSession(agentId, sessionId)
 
     if (!deleted) {
-      logger.warn(`Session not found for deletion: ${sessionId}`)
+      logger.warn('Session missing during delete', { agentId, sessionId })
       return res.status(404).json({
         error: {
           message: 'Session not found',
@@ -284,15 +290,15 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
       })
     }
 
-    logger.info(`Session deleted successfully: ${sessionId}`)
+    logger.info('Session deleted', { agentId, sessionId })
 
     const { total } = await sessionService.listSessions(agentId, { limit: 1 })
 
     if (total === 0) {
-      logger.info(`No remaining sessions for agent ${agentId}, creating default session`)
+      logger.info('No remaining sessions, creating default', { agentId })
       try {
         const fallbackSession = await sessionService.createSession(agentId, {})
-        logger.info('Default session created after deleting last session', {
+        logger.info('Default session created after delete', {
           agentId,
           sessionId: fallbackSession?.id
         })
@@ -313,7 +319,7 @@ export const deleteSession = async (req: Request, res: Response): Promise<Respon
 
     return res.status(204).send()
   } catch (error: any) {
-    logger.error('Error deleting session:', error)
+    logger.error('Error deleting session', { error, agentId: req.params.agentId, sessionId: req.params.sessionId })
     return res.status(500).json({
       error: {
         message: 'Failed to delete session',
@@ -331,11 +337,16 @@ export const listAllSessions = async (req: Request, res: Response): Promise<Resp
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
     const status = req.query.status as any
 
-    logger.info(`Listing all sessions with limit=${limit}, offset=${offset}, status=${status}`)
+    logger.debug('Listing all sessions', { limit, offset, status })
 
     const result = await sessionService.listSessions(undefined, { limit, offset })
 
-    logger.info(`Retrieved ${result.sessions.length} sessions (total: ${result.total})`)
+    logger.info('Sessions listed', {
+      returned: result.sessions.length,
+      total: result.total,
+      limit,
+      offset
+    })
     return res.json({
       data: result.sessions,
       total: result.total,
@@ -343,7 +354,7 @@ export const listAllSessions = async (req: Request, res: Response): Promise<Resp
       offset
     } satisfies ListAgentSessionsResponse)
   } catch (error: any) {
-    logger.error('Error listing all sessions:', error)
+    logger.error('Error listing all sessions', { error })
     return res.status(500).json({
       error: {
         message: 'Failed to list sessions',

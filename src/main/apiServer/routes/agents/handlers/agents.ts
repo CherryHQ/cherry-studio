@@ -51,18 +51,18 @@ const modelValidationErrorBody = (error: AgentModelValidationError) => ({
  */
 export const createAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
-    logger.info('Creating new agent')
-    logger.debug('Agent data:', req.body)
+    logger.debug('Creating agent')
+    logger.debug('Agent payload', { body: req.body })
 
     const agent = await agentService.createAgent(req.body)
 
     try {
-      logger.info(`Agent created successfully: ${agent.id}`)
-      logger.info(`Creating default session for new agent: ${agent.id}`)
+      logger.info('Agent created', { agentId: agent.id })
+      logger.debug('Creating default session for agent', { agentId: agent.id })
 
       await sessionService.createSession(agent.id, {})
 
-      logger.info(`Default session created for agent: ${agent.id}`)
+      logger.info('Default session created for agent', { agentId: agent.id })
       return res.status(201).json(agent)
     } catch (sessionError: any) {
       logger.error('Failed to create default session for new agent, rolling back agent creation', {
@@ -89,7 +89,7 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
     }
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
-      logger.warn('Agent model validation error during create:', {
+      logger.warn('Agent model validation error during create', {
         agentType: error.context.agentType,
         field: error.context.field,
         model: error.context.model,
@@ -98,7 +98,7 @@ export const createAgent = async (req: Request, res: Response): Promise<Response
       return res.status(400).json(modelValidationErrorBody(error))
     }
 
-    logger.error('Error creating agent:', error)
+    logger.error('Error creating agent', { error })
     return res.status(500).json({
       error: {
         message: `Failed to create agent: ${error.message}`,
@@ -171,11 +171,16 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 20
     const offset = req.query.offset ? parseInt(req.query.offset as string) : 0
 
-    logger.info(`Listing agents with limit=${limit}, offset=${offset}`)
+    logger.debug('Listing agents', { limit, offset })
 
     const result = await agentService.listAgents({ limit, offset })
 
-    logger.info(`Retrieved ${result.agents.length} agents (total: ${result.total})`)
+    logger.info('Agents listed', {
+      returned: result.agents.length,
+      total: result.total,
+      limit,
+      offset
+    })
     return res.json({
       data: result.agents,
       total: result.total,
@@ -183,7 +188,7 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
       offset
     } satisfies ListAgentsResponse)
   } catch (error: any) {
-    logger.error('Error listing agents:', error)
+    logger.error('Error listing agents', { error })
     return res.status(500).json({
       error: {
         message: 'Failed to list agents',
@@ -231,12 +236,12 @@ export const listAgents = async (req: Request, res: Response): Promise<Response>
 export const getAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId } = req.params
-    logger.info(`Getting agent: ${agentId}`)
+    logger.debug('Getting agent', { agentId })
 
     const agent = await agentService.getAgent(agentId)
 
     if (!agent) {
-      logger.warn(`Agent not found: ${agentId}`)
+      logger.warn('Agent not found', { agentId })
       return res.status(404).json({
         error: {
           message: 'Agent not found',
@@ -246,10 +251,10 @@ export const getAgent = async (req: Request, res: Response): Promise<Response> =
       })
     }
 
-    logger.info(`Agent retrieved successfully: ${agentId}`)
+    logger.info('Agent retrieved', { agentId })
     return res.json(agent)
   } catch (error: any) {
-    logger.error('Error getting agent:', error)
+    logger.error('Error getting agent', { error, agentId: req.params.agentId })
     return res.status(500).json({
       error: {
         message: 'Failed to get agent',
@@ -309,8 +314,8 @@ export const getAgent = async (req: Request, res: Response): Promise<Response> =
 export const updateAgent = async (req: Request, res: Response): Promise<Response> => {
   const { agentId } = req.params
   try {
-    logger.info(`Updating agent: ${agentId}`)
-    logger.debug('Update data:', req.body)
+    logger.debug('Updating agent', { agentId })
+    logger.debug('Replace payload', { body: req.body })
 
     const { validatedBody } = req as ValidationRequest
     const replacePayload = (validatedBody ?? {}) as ReplaceAgentRequest
@@ -318,7 +323,7 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
     const agent = await agentService.updateAgent(agentId, replacePayload, { replace: true })
 
     if (!agent) {
-      logger.warn(`Agent not found for update: ${agentId}`)
+      logger.warn('Agent not found for update', { agentId })
       return res.status(404).json({
         error: {
           message: 'Agent not found',
@@ -328,11 +333,11 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
       })
     }
 
-    logger.info(`Agent updated successfully: ${agentId}`)
+    logger.info('Agent updated', { agentId })
     return res.json(agent)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
-      logger.warn('Agent model validation error during update:', {
+      logger.warn('Agent model validation error during update', {
         agentId,
         agentType: error.context.agentType,
         field: error.context.field,
@@ -342,7 +347,7 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
       return res.status(400).json(modelValidationErrorBody(error))
     }
 
-    logger.error('Error updating agent:', error)
+    logger.error('Error updating agent', { error, agentId })
     return res.status(500).json({
       error: {
         message: 'Failed to update agent: ' + error.message,
@@ -455,8 +460,8 @@ export const updateAgent = async (req: Request, res: Response): Promise<Response
 export const patchAgent = async (req: Request, res: Response): Promise<Response> => {
   const { agentId } = req.params
   try {
-    logger.info(`Partially updating agent: ${agentId}`)
-    logger.debug('Partial update data:', req.body)
+    logger.debug('Partially updating agent', { agentId })
+    logger.debug('Patch payload', { body: req.body })
 
     const { validatedBody } = req as ValidationRequest
     const updatePayload = (validatedBody ?? {}) as UpdateAgentRequest
@@ -464,7 +469,7 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
     const agent = await agentService.updateAgent(agentId, updatePayload)
 
     if (!agent) {
-      logger.warn(`Agent not found for partial update: ${agentId}`)
+      logger.warn('Agent not found for partial update', { agentId })
       return res.status(404).json({
         error: {
           message: 'Agent not found',
@@ -474,11 +479,11 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
       })
     }
 
-    logger.info(`Agent partially updated successfully: ${agentId}`)
+    logger.info('Agent patched', { agentId })
     return res.json(agent)
   } catch (error: any) {
     if (error instanceof AgentModelValidationError) {
-      logger.warn('Agent model validation error during partial update:', {
+      logger.warn('Agent model validation error during partial update', {
         agentId,
         agentType: error.context.agentType,
         field: error.context.field,
@@ -488,7 +493,7 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
       return res.status(400).json(modelValidationErrorBody(error))
     }
 
-    logger.error('Error partially updating agent:', error)
+    logger.error('Error partially updating agent', { error, agentId })
     return res.status(500).json({
       error: {
         message: `Failed to partially update agent: ${error.message}`,
@@ -532,12 +537,12 @@ export const patchAgent = async (req: Request, res: Response): Promise<Response>
 export const deleteAgent = async (req: Request, res: Response): Promise<Response> => {
   try {
     const { agentId } = req.params
-    logger.info(`Deleting agent: ${agentId}`)
+    logger.debug('Deleting agent', { agentId })
 
     const deleted = await agentService.deleteAgent(agentId)
 
     if (!deleted) {
-      logger.warn(`Agent not found for deletion: ${agentId}`)
+      logger.warn('Agent not found for deletion', { agentId })
       return res.status(404).json({
         error: {
           message: 'Agent not found',
@@ -547,10 +552,10 @@ export const deleteAgent = async (req: Request, res: Response): Promise<Response
       })
     }
 
-    logger.info(`Agent deleted successfully: ${agentId}`)
+    logger.info('Agent deleted', { agentId })
     return res.status(204).send()
   } catch (error: any) {
-    logger.error('Error deleting agent:', error)
+    logger.error('Error deleting agent', { error, agentId: req.params.agentId })
     return res.status(500).json({
       error: {
         message: 'Failed to delete agent',

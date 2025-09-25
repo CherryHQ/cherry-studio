@@ -75,13 +75,13 @@ const router = express
    */
   .get('/', async (req: Request, res: Response) => {
     try {
-      logger.info('Models list request received', { query: req.query })
+      logger.debug('Models list request received', { query: req.query })
 
       // Validate query parameters using Zod schema
       const filterResult = ApiModelsFilterSchema.safeParse(req.query)
 
       if (!filterResult.success) {
-        logger.warn('Invalid query parameters:', filterResult.error.issues)
+        logger.warn('Invalid model query parameters', { issues: filterResult.error.issues })
         return res.status(400).json({
           error: {
             message: 'Invalid query parameters',
@@ -99,24 +99,20 @@ const router = express
       const response = await modelsService.getModels(filter)
 
       if (response.data.length === 0) {
-        logger.warn(
-          'No models available from providers. This may be because no OpenAI/Anthropic providers are configured or enabled.',
-          { filter }
-        )
+        logger.warn('No models available from providers', { filter })
       }
 
-      logger.info(`Returning ${response.data.length} models`, {
+      logger.info('Models response ready', {
         filter,
         total: response.total
       })
-      logger.debug(
-        'Model IDs:',
-        response.data.map((m) => m.id)
-      )
+      logger.debug('Model IDs returned', {
+        modelIds: response.data.map((m) => m.id)
+      })
 
       return res.json(response satisfies ApiModelsResponse)
     } catch (error: any) {
-      logger.error('Error fetching models:', error)
+      logger.error('Error fetching models', { error })
       return res.status(503).json({
         error: {
           message: 'Failed to retrieve models from available providers',

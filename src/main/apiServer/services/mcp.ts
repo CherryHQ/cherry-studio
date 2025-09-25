@@ -49,7 +49,7 @@ class MCPApiService extends EventEmitter {
   constructor() {
     super()
     this.initMcpServer()
-    logger.silly('MCPApiService initialized')
+    logger.debug('MCPApiService initialized')
   }
 
   private initMcpServer() {
@@ -60,7 +60,7 @@ class MCPApiService extends EventEmitter {
   async getAllServers(req: Request): Promise<McpServersResp> {
     try {
       const servers = await getMCPServersFromRedux()
-      logger.silly(`Returning ${servers.length} servers`)
+      logger.debug('Returning servers from Redux', { count: servers.length })
       const resp: McpServersResp = {
         servers: {}
       }
@@ -77,7 +77,7 @@ class MCPApiService extends EventEmitter {
       }
       return resp
     } catch (error: any) {
-      logger.error('Failed to get all servers:', error)
+      logger.error('Failed to get all servers', { error })
       throw new Error('Failed to retrieve servers')
     }
   }
@@ -85,17 +85,17 @@ class MCPApiService extends EventEmitter {
   // get server by id
   async getServerById(id: string): Promise<MCPServer | null> {
     try {
-      logger.silly(`getServerById called with id: ${id}`)
+      logger.debug('getServerById called', { id })
       const servers = await getMCPServersFromRedux()
       const server = servers.find((s) => s.id === id)
       if (!server) {
-        logger.warn(`Server with id ${id} not found`)
+        logger.warn('Server not found', { id })
         return null
       }
-      logger.silly(`Returning server with id ${id}`)
+      logger.debug('Returning server', { id })
       return server
     } catch (error: any) {
-      logger.error(`Failed to get server with id ${id}:`, error)
+      logger.error('Failed to get server', { id, error })
       throw new Error('Failed to retrieve server')
     }
   }
@@ -104,7 +104,7 @@ class MCPApiService extends EventEmitter {
     try {
       const server = await this.getServerById(id)
       if (!server) {
-        logger.warn(`Server with id ${id} not found`)
+        logger.warn('Server not found while fetching info', { id })
         return null
       }
 
@@ -118,14 +118,14 @@ class MCPApiService extends EventEmitter {
         tools: tools.tools
       }
     } catch (error: any) {
-      logger.error(`Failed to get server info with id ${id}:`, error)
+      logger.error('Failed to get server info', { id, error })
       throw new Error('Failed to retrieve server info')
     }
   }
 
   async handleRequest(req: Request, res: Response, server: MCPServer) {
     const sessionId = req.headers['mcp-session-id'] as string | undefined
-    logger.silly(`Handling request for server with sessionId ${sessionId}`)
+    logger.debug('Handling MCP request', { sessionId, serverId: server.id })
     let transport: StreamableHTTPServerTransport
     if (sessionId && transports[sessionId]) {
       transport = transports[sessionId]
@@ -138,7 +138,7 @@ class MCPApiService extends EventEmitter {
       })
 
       transport.onclose = () => {
-        logger.info(`Transport for sessionId ${sessionId} closed`)
+        logger.info('Transport closed', { sessionId })
         if (transport.sessionId) {
           delete transports[transport.sessionId]
         }
@@ -173,12 +173,15 @@ class MCPApiService extends EventEmitter {
       }
     }
 
-    logger.info(`Request body`, { rawBody: req.body, messages: JSON.stringify(messages) })
+    logger.debug('Dispatching MCP request', {
+      sessionId: transport.sessionId ?? sessionId,
+      messageCount: messages.length
+    })
     await transport.handleRequest(req as IncomingMessage, res as ServerResponse, messages)
   }
 
   private onMessage(message: JSONRPCMessage, extra?: MessageExtraInfo) {
-    logger.info(`Received message: ${JSON.stringify(message)}`, extra)
+    logger.debug('Received MCP message', { message, extra })
     // Handle message here
   }
 }

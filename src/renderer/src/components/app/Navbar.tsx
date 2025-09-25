@@ -88,6 +88,7 @@ const NavbarCenterContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 ${isMac ? '20px' : 0};
+  padding-left: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   position: relative;
@@ -108,7 +109,8 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: 0 ${isMac ? '20px' : 0};
+  padding-right: ${isMac ? '20px' : 0};
+  padding-left: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};

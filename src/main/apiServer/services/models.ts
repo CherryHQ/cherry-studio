@@ -58,7 +58,11 @@ export class ModelsService {
         logger.debug(`Applied offset: offset=${offset}, showing ${modelData.length} of ${total} models`)
       }
 
-      logger.info(`Successfully retrieved ${modelData.length} models from ${models.length} total models`)
+      logger.info('Models retrieved', {
+        returned: modelData.length,
+        discovered: models.length,
+        filter
+      })
 
       if (models.length > total) {
         logger.debug(`Filtered out ${models.length - total} models after deduplication and filtering`)
@@ -80,7 +84,7 @@ export class ModelsService {
 
       return response
     } catch (error: any) {
-      logger.error('Error getting models:', error)
+      logger.error('Error getting models', { error, filter })
       return {
         object: 'list',
         data: []

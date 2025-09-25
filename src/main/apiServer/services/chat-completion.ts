@@ -98,7 +98,7 @@ export class ChatCompletionService {
 
     const { provider, modelId, client } = providerContext
 
-    logger.info('Model validation successful:', {
+    logger.debug('Model validation successful', {
       provider: provider.id,
       providerType: provider.type,
       modelId,
@@ -160,7 +160,7 @@ export class ChatCompletionService {
     response: OpenAI.Chat.Completions.ChatCompletion
   }> {
     try {
-      logger.info('Processing chat completion request:', {
+      logger.debug('Processing chat completion request', {
         model: request.model,
         messageCount: request.messages.length,
         stream: request.stream
@@ -177,7 +177,7 @@ export class ChatCompletionService {
 
       const { provider, modelId, client, providerRequest } = preparation
 
-      logger.debug('Sending request to provider:', {
+      logger.debug('Sending request to provider', {
         provider: provider.id,
         model: modelId,
         apiHost: provider.apiHost
@@ -185,14 +185,20 @@ export class ChatCompletionService {
 
       const response = (await client.chat.completions.create(providerRequest)) as OpenAI.Chat.Completions.ChatCompletion
 
-      logger.info('Successfully processed chat completion')
+      logger.info('Chat completion processed', {
+        modelId,
+        provider: provider.id
+      })
       return {
         provider,
         modelId,
         response
       }
     } catch (error: any) {
-      logger.error('Error processing chat completion:', error)
+      logger.error('Error processing chat completion', {
+        error,
+        model: request.model
+      })
       throw error
     }
   }
@@ -203,7 +209,7 @@ export class ChatCompletionService {
     stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
   }> {
     try {
-      logger.info('Processing streaming chat completion request:', {
+      logger.debug('Processing streaming chat completion request', {
         model: request.model,
         messageCount: request.messages.length
       })
@@ -219,7 +225,7 @@ export class ChatCompletionService {
 
       const { provider, modelId, client, providerRequest } = preparation
 
-      logger.debug('Sending streaming request to provider:', {
+      logger.debug('Sending streaming request to provider', {
         provider: provider.id,
         model: modelId,
         apiHost: provider.apiHost
@@ -230,14 +236,20 @@ export class ChatCompletionService {
         streamRequest
       )) as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
-      logger.info('Successfully started streaming chat completion')
+      logger.info('Streaming chat completion started', {
+        modelId,
+        provider: provider.id
+      })
       return {
         provider,
         modelId,
         stream
       }
     } catch (error: any) {
-      logger.error('Error processing streaming chat completion:', error)
+      logger.error('Error processing streaming chat completion', {
+        error,
+        model: request.model
+      })
       throw error
     }
   }

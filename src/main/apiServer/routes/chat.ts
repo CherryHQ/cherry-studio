@@ -22,7 +22,7 @@ interface ErrorResponseBody {
 
 const mapChatCompletionError = (error: unknown): { status: number; body: ErrorResponseBody } => {
   if (error instanceof ChatCompletionValidationError) {
-    logger.warn('Chat completion validation error:', {
+    logger.warn('Chat completion validation error', {
       errors: error.errors
     })
 
@@ -39,7 +39,7 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
   }
 
   if (error instanceof ChatCompletionModelError) {
-    logger.warn('Chat completion model error:', error.error)
+    logger.warn('Chat completion model error', error.error)
 
     return {
       status: 400,
@@ -72,7 +72,7 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
       errorCode = 'upstream_error'
     }
 
-    logger.error('Chat completion error:', { error })
+    logger.error('Chat completion error', { error })
 
     return {
       status: statusCode,
@@ -86,7 +86,7 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
     }
   }
 
-  logger.error('Chat completion unknown error:', { error })
+  logger.error('Chat completion unknown error', { error })
 
   return {
     status: 500,
@@ -193,7 +193,7 @@ router.post('/completions', async (req: Request, res: Response) => {
       })
     }
 
-    logger.info('Chat completion request:', {
+    logger.debug('Chat completion request', {
       model: request.model,
       messageCount: request.messages?.length || 0,
       stream: request.stream,
@@ -217,7 +217,7 @@ router.post('/completions', async (req: Request, res: Response) => {
         }
         res.write('data: [DONE]\n\n')
       } catch (streamError: any) {
-        logger.error('Stream error:', streamError)
+        logger.error('Stream error', { error: streamError })
         res.write(
           `data: ${JSON.stringify({
             error: {

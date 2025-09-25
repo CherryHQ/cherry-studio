@@ -12,7 +12,6 @@ const providerRouter = express.Router({ mergeParams: true })
 
 // Helper functions for shared logic
 async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
-  logger.info('Validating request body', { body: req.body })
   const request: MessageCreateParams = req.body
 
   if (!request) {
@@ -43,14 +42,30 @@ async function handleStreamingResponse(
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
   res.flushHeaders()
+  const flushableResponse = res as Response & { flush?: () => void }
+  const flushStream = () => {
+    if (typeof flushableResponse.flush !== 'function') {
+      return
+    }
+    try {
+      flushableResponse.flush()
+    } catch (flushError: unknown) {
+      logger.warn('Failed to flush streaming response', {
+        error: flushError
+      })
+    }
+  }
 
   try {
     for await (const chunk of messagesService.processStreamingMessage(request, provider)) {
+      res.write(`event: ${chunk.type}\n`)
       res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      flushStream()
     }
     res.write('data: [DONE]\n\n')
+    flushStream()
   } catch (streamError: any) {
-    logger.error('Stream error:', streamError)
+    logger.error('Stream error', { error: streamError })
     res.write(
       `data: ${JSON.stringify({
         type: 'error',
@@ -66,7 +81,7 @@ async function handleStreamingResponse(
 }
 
 function handleErrorResponse(res: Response, error: any, logger: any): Response {
-  logger.error('Message processing error:', error)
+  logger.error('Message processing error', { error })
 
   let statusCode = 500
   let errorType = 'api_error'
@@ -303,7 +318,10 @@ router.post('/', async (req: Request, res: Response) => {
     const modelValidation = await validateModelId(request.model)
     if (!modelValidation.valid) {
       const error = modelValidation.error!
-      logger.warn(`Model validation failed for '${request.model}':`, error)
+      logger.warn('Model validation failed', {
+        model: request.model,
+        error
+      })
       return res.status(400).json({
         type: 'error',
         error: {

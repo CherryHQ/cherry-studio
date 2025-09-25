@@ -67,7 +67,9 @@ vi.mock('@renderer/config/models', () => ({
     silicon: [],
     defaultModel: []
   },
-  isOpenAIModel: vi.fn(() => false)
+  isOpenAIModel: vi.fn(() => false),
+  glm45FlashModel: {},
+  qwen38bModel: {}
 }))
 
 describe('ApiClientFactory', () => {

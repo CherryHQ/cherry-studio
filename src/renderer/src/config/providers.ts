@@ -138,16 +138,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  ppio: {
-    id: 'ppio',
-    name: 'PPIO',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.ppinfra.com/v3/openai/',
-    models: SYSTEM_MODELS.ppio,
-    isSystem: true,
-    enabled: false
-  },
   alayanew: {
     id: 'alayanew',
     name: 'AlayaNew',
@@ -158,16 +148,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
-  qiniu: {
-    id: 'qiniu',
-    name: 'Qiniu',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.qnaigc.com',
-    models: SYSTEM_MODELS.qiniu,
-    isSystem: true,
-    enabled: false
-  },
   dmxapi: {
     id: 'dmxapi',
     name: 'DMXAPI',
@@ -175,6 +155,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://www.dmxapi.cn',
     models: SYSTEM_MODELS.dmxapi,
+    isSystem: true,
+    enabled: false
+  },
+  aionly: {
+    id: 'aionly',
+    name: 'AIOnly',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.aiionly.com',
+    models: SYSTEM_MODELS.aionly,
     isSystem: true,
     enabled: false
   },
@@ -235,6 +225,26 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://ph8.co',
     models: SYSTEM_MODELS.ph8,
+    isSystem: true,
+    enabled: false
+  },
+  ppio: {
+    id: 'ppio',
+    name: 'PPIO',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.ppinfra.com/v3/openai/',
+    models: SYSTEM_MODELS.ppio,
+    isSystem: true,
+    enabled: false
+  },
+  qiniu: {
+    id: 'qiniu',
+    name: 'Qiniu',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.qnaigc.com',
+    models: SYSTEM_MODELS.qiniu,
     isSystem: true,
     enabled: false
   },
@@ -610,16 +620,6 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     apiKey: '',
     apiHost: 'https://api.poe.com/v1/',
     models: SYSTEM_MODELS['poe'],
-    isSystem: true,
-    enabled: false
-  },
-  aionly: {
-    id: 'aionly',
-    name: 'AIOnly',
-    type: 'openai',
-    apiKey: '',
-    apiHost: 'https://api.aiionly.com',
-    models: SYSTEM_MODELS.aionly,
     isSystem: true,
     enabled: false
   }
@@ -1374,4 +1374,8 @@ const SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS = ['gemini', 'vertexai'] as con
 /** 判断是否是使用 Gemini 原生搜索工具的 provider. 目前假设只有官方 API 使用原生工具 */
 export const isGeminiWebSearchProvider = (provider: Provider) => {
   return SUPPORT_GEMINI_NATIVE_WEB_SEARCH_PROVIDERS.some((id) => id === provider.id)
+}
+
+export const isNewApiProvider = (provider: Provider) => {
+  return ['new-api', 'cherryin'].includes(provider.id)
 }

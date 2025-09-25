@@ -11,7 +11,7 @@ import { app } from 'electron'
 
 import { GetAgentSessionResponse } from '../..'
 import { AgentServiceInterface, AgentStream, AgentStreamEvent } from '../../interfaces/AgentStreamInterface'
-import { transformSDKMessageToStreamParts } from './transform'
+import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -92,6 +92,7 @@ class ClaudeCodeService implements AgentServiceInterface {
         errorChunks.push(chunk)
       },
       appendSystemPrompt: session.instructions,
+      includePartialMessages: true,
       permissionMode: session.configuration?.permission_mode,
       maxTurns: session.configuration?.max_turns,
       allowedTools: session.allowed_tools
@@ -164,6 +165,7 @@ class ClaudeCodeService implements AgentServiceInterface {
     let hasCompleted = false
     const startTime = Date.now()
 
+    const streamState = new ClaudeStreamState()
     try {
       // Process streaming responses using SDK query
       for await (const message of query({
@@ -173,15 +175,21 @@ class ClaudeCodeService implements AgentServiceInterface {
         if (hasCompleted) break
 
         jsonOutput.push(message)
-        logger.silly('claude response', { message })
+
         if (message.type === 'assistant' || message.type === 'user') {
-          logger.silly('message content', {
-            message: JSON.stringify({ role: message.message.role, content: message.message.content })
+          logger.silly('claude response', {
+            message,
+            content: JSON.stringify(message.message.content)
+          })
+        } else if (message.type === 'stream_event') {
+          logger.silly('Claude stream event', {
+            message,
+            event: JSON.stringify(message.event)
           })
         }
 
         // Transform SDKMessage to UIMessageChunks
-        const chunks = transformSDKMessageToStreamParts(message)
+        const chunks = transformSDKMessageToStreamParts(message, streamState)
         for (const chunk of chunks) {
           stream.emit('data', {
             type: 'chunk',

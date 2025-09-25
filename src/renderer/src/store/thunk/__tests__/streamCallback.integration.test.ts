@@ -410,7 +410,8 @@ describe('streamCallback Integration Tests', () => {
       { type: ChunkType.THINKING_START },
       { type: ChunkType.THINKING_DELTA, text: 'Let me think...', thinking_millsec: 1000 },
       { type: ChunkType.THINKING_DELTA, text: 'I need to consider...', thinking_millsec: 2000 },
-      { type: ChunkType.THINKING_COMPLETE, text: 'Final thoughts', thinking_millsec: 3000 },
+      { type: ChunkType.THINKING_DELTA, text: 'Final thoughts', thinking_millsec: 3000 },
+      { type: ChunkType.THINKING_COMPLETE, text: 'Final thoughts' },
       { type: ChunkType.BLOCK_COMPLETE }
     ]
 
