@@ -2,16 +2,14 @@ import { Alert, Spinner } from '@heroui/react'
 import { TopView } from '@renderer/components/TopView'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { Menu, Modal } from 'antd'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import AgentAdvancedSettings from './AgentAdvancedSettings'
 import AgentEssentialSettings from './AgentEssentialSettings'
 import AgentPromptSettings from './AgentPromptSettings'
 import AgentToolingSettings from './AgentToolingSettings'
-import { AgentLabel } from './shared'
+import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
 
 interface AgentSettingPopupShowParams {
   agentId: string
@@ -136,61 +134,6 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
     </StyledModal>
   )
 }
-
-const LeftMenu = styled.div`
-  height: 100%;
-  border-right: 0.5px solid var(--color-border);
-`
-
-const Settings = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  padding: 16px 16px;
-`
-
-const StyledModal = styled(Modal)`
-  .ant-modal-title {
-    font-size: 14px;
-  }
-  .ant-modal-close {
-    top: 4px;
-    right: 4px;
-  }
-  .ant-menu-item {
-    height: 36px;
-    color: var(--color-text-2);
-    display: flex;
-    align-items: center;
-    border: 0.5px solid transparent;
-    border-radius: 6px;
-    .ant-menu-title-content {
-      line-height: 36px;
-    }
-  }
-  .ant-menu-item-active {
-    background-color: var(--color-background-soft) !important;
-    transition: none;
-  }
-  .ant-menu-item-selected {
-    background-color: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-    .ant-menu-title-content {
-      color: var(--color-text-1);
-      font-weight: 500;
-    }
-  }
-`
-
-const StyledMenu = styled(Menu)`
-  width: 220px;
-  padding: 5px;
-  background: transparent;
-  margin-top: 2px;
-  .ant-menu-item {
-    margin-bottom: 7px;
-  }
-`
 
 export default class AgentSettingsPopup {
   static show(props: AgentSettingPopupShowParams) {
