@@ -1,0 +1,36 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 110f37ec18c98b1d55ae2b73cc716194e6f9094d..91d0f336b318833c6cee9599fe91370c0ff75323 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -447,7 +447,10 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
+ }
+ 
+ // src/get-model-path.ts
+-function getModelPath(modelId) {
++function getModelPath(modelId, baseURL) {
++  if (baseURL?.includes('cherryin')) {
++    return `models/${modelId}`;
++  }
+   return modelId.includes("/") ? modelId : `models/${modelId}`;
+ }
+ 
+@@ -856,7 +859,8 @@ var GoogleGenerativeAILanguageModel = class {
+       rawValue: rawResponse
+     } = await postJsonToApi2({
+       url: `${this.config.baseURL}/${getModelPath(
+-        this.modelId
++        this.modelId,
++        this.config.baseURL
+       )}:generateContent`,
+       headers: mergedHeaders,
+       body: args,
+@@ -962,7 +966,8 @@ var GoogleGenerativeAILanguageModel = class {
+     );
+     const { responseHeaders, value: response } = await postJsonToApi2({
+       url: `${this.config.baseURL}/${getModelPath(
+-        this.modelId
++        this.modelId,
++        this.config.baseURL
+       )}:streamGenerateContent?alt=sse`,
+       headers,
+       body: args,
