@@ -48,13 +48,13 @@ export const createThinkingCallbacks = (deps: ThinkingCallbacksDependencies) => 
       }
     },
 
-    onThinkingComplete: (finalText: string, final_thinking_millsec?: number) => {
+    onThinkingComplete: (finalText: string) => {
       if (thinkingBlockId) {
         const changes = {
           type: MessageBlockType.THINKING,
           content: finalText,
-          status: MessageBlockStatus.SUCCESS,
-          thinking_millsec: final_thinking_millsec || 0
+          status: MessageBlockStatus.SUCCESS
+          // thinking_millsec: final_thinking_millsec || 0
         }
         blockManager.smartBlockUpdate(thinkingBlockId, changes, MessageBlockType.THINKING, true)
         thinkingBlockId = null
