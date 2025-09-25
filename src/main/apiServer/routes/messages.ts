@@ -12,9 +12,6 @@ const providerRouter = express.Router({ mergeParams: true })
 
 // Helper functions for shared logic
 async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
-  logger.debug('Validating message request body', {
-    hasBody: Boolean(req.body)
-  })
   const request: MessageCreateParams = req.body
 
   if (!request) {
@@ -45,12 +42,28 @@ async function handleStreamingResponse(
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
   res.flushHeaders()
+  const flushableResponse = res as Response & { flush?: () => void }
+  const flushStream = () => {
+    if (typeof flushableResponse.flush !== 'function') {
+      return
+    }
+    try {
+      flushableResponse.flush()
+    } catch (flushError: unknown) {
+      logger.warn('Failed to flush streaming response', {
+        error: flushError
+      })
+    }
+  }
 
   try {
     for await (const chunk of messagesService.processStreamingMessage(request, provider)) {
+      res.write(`event: ${chunk.type}\n`)
       res.write(`data: ${JSON.stringify(chunk)}\n\n`)
+      flushStream()
     }
     res.write('data: [DONE]\n\n')
+    flushStream()
   } catch (streamError: any) {
     logger.error('Stream error', { error: streamError })
     res.write(
