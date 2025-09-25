@@ -1,34 +1,36 @@
 import { Alert, Spinner } from '@heroui/react'
 import { TopView } from '@renderer/components/TopView'
-import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useSession } from '@renderer/hooks/agents/useSession'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import AdvancedSettings from './AdvancedSettings'
-import AgentEssentialSettings from './AgentEssentialSettings'
 import PromptSettings from './PromptSettings'
-import { AgentLabel, LeftMenu, Settings, StyledMenu, StyledModal } from './shared'
+import SessionEssentialSettings from './SessionEssentialSettings'
+import { LeftMenu, SessionLabel, Settings, StyledMenu, StyledModal } from './shared'
 import ToolingSettings from './ToolingSettings'
 
-interface AgentSettingPopupShowParams {
+interface SessionSettingPopupShowParams {
   agentId: string
+  sessionId: string
   tab?: AgentSettingPopupTab
 }
 
-interface AgentSettingPopupParams extends AgentSettingPopupShowParams {
+interface SessionSettingPopupParams extends SessionSettingPopupShowParams {
   resolve: () => void
 }
 
 type AgentSettingPopupTab = 'essential' | 'prompt' | 'tooling' | 'advanced' | 'session-mcps'
 
-const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, agentId, resolve }) => {
+const SessionSettingPopupContainer: React.FC<SessionSettingPopupParams> = ({ tab, agentId, sessionId, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
   const [menu, setMenu] = useState<AgentSettingPopupTab>(tab || 'essential')
 
-  const { agent, isLoading, error } = useAgent(agentId)
-  const updateAgent = useUpdateAgent()
+  const { session, isLoading, error } = useSession(agentId, sessionId)
+
+  const updateSession = useUpdateSession(agentId)
 
   const onOk = () => {
     setOpen(false)
@@ -87,10 +89,10 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           />
         </LeftMenu>
         <Settings>
-          {menu === 'essential' && <AgentEssentialSettings agent={agent} update={updateAgent} />}
-          {menu === 'prompt' && <PromptSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'tooling' && <ToolingSettings agentBase={agent} update={updateAgent} />}
-          {menu === 'advanced' && <AdvancedSettings agentBase={agent} update={updateAgent} />}
+          {menu === 'essential' && <SessionEssentialSettings session={session} update={updateSession} />}
+          {menu === 'prompt' && <PromptSettings agentBase={session} update={updateSession} />}
+          {menu === 'tooling' && <ToolingSettings agentBase={session} update={updateSession} />}
+          {menu === 'advanced' && <AdvancedSettings agentBase={session} update={updateSession} />}
         </Settings>
       </div>
     )
@@ -104,14 +106,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
       afterClose={afterClose}
       maskClosable={false}
       footer={null}
-      title={
-        <AgentLabel
-          type={agent?.type ?? 'claude-code'}
-          name={agent?.name}
-          classNames={{ name: 'text-lg font-extrabold' }}
-          avatarProps={{ size: 'sm' }}
-        />
-      }
+      title={<SessionLabel session={session} className="font-extrabold text-lg" />}
       transitionName="animation-move-down"
       styles={{
         content: {
@@ -135,18 +130,18 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   )
 }
 
-export default class AgentSettingsPopup {
-  static show(props: AgentSettingPopupShowParams) {
+export default class SessionSettingsPopup {
+  static show(props: SessionSettingPopupShowParams) {
     return new Promise<void>((resolve) => {
       TopView.show(
-        <AgentSettingPopupContainer
+        <SessionSettingPopupContainer
           {...props}
           resolve={() => {
             resolve()
-            TopView.hide('AgentSettingsPopup')
+            TopView.hide('SessionSettingsPopup')
           }}
         />,
-        'AgentSettingsPopup'
+        'SessionSettingsPopup'
       )
     })
   }

@@ -75,6 +75,7 @@ type Props = TriggerProps | StateProps
 
 /**
  * Modal component for creating or editing a Session.
+ * @deprecated may as a reference when migrating to v2
  *
  * Either trigger or isOpen and onClose is given.
  * @param agentId - The ID of agent which the session is related.

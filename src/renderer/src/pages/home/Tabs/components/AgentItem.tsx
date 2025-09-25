@@ -1,7 +1,7 @@
 import { Avatar, Button, cn } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { getAgentAvatar } from '@renderer/config/agent'
-import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings'
+import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
 import { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { FC, memo, useCallback } from 'react'

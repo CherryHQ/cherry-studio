@@ -1,7 +1,7 @@
 import { Avatar, AvatarProps, cn } from '@heroui/react'
 import { getAgentAvatar } from '@renderer/config/agent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { AgentType } from '@renderer/types'
+import { AgentSessionEntity, AgentType } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import React, { ReactNode } from 'react'
 import styled from 'styled-components'
@@ -38,6 +38,20 @@ export const AgentLabel: React.FC<AgentLabelProps> = ({ type, name, classNames, 
       <Avatar src={getAgentAvatar(type)} title={type} {...avatarProps} className={cn('h-5 w-5', classNames?.avatar)} />
       <span className={classNames?.name}>{name ?? getAgentTypeLabel(type)}</span>
     </div>
+  )
+}
+
+export type SessionLabelProps = {
+  session?: AgentSessionEntity
+  className?: string
+}
+
+export const SessionLabel: React.FC<SessionLabelProps> = ({ session, className }) => {
+  const displayName = session?.name ?? session?.id
+  return (
+    <>
+      <span className={cn('px-2 text-sm', className)}>{displayName}</span>
+    </>
   )
 }
 

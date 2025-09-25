@@ -2,9 +2,10 @@ import CodeEditor from '@renderer/components/CodeEditor'
 import { HSpaceBetweenStack } from '@renderer/components/Layout'
 import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { estimateTextTokens } from '@renderer/services/TokenService'
-import { AgentEntity, UpdateAgentForm } from '@renderer/types'
+import { AgentEntity, AgentSessionEntity, UpdateAgentBaseForm } from '@renderer/types'
 import { Button, Popover } from 'antd'
 import { Edit, HelpCircle, Save } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -14,15 +15,20 @@ import styled from 'styled-components'
 
 import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
-interface AgentPromptSettingsProps {
-  agent: AgentEntity | undefined | null
-  update: ReturnType<typeof useUpdateAgent>
-}
+type AgentPromptSettingsProps =
+  | {
+      agentBase: AgentEntity | undefined | null
+      update: ReturnType<typeof useUpdateAgent>
+    }
+  | {
+      agentBase: AgentSessionEntity | undefined | null
+      update: ReturnType<typeof useUpdateSession>
+    }
 
-const AgentPromptSettings: FC<AgentPromptSettingsProps> = ({ agent, update }) => {
+const PromptSettings: FC<AgentPromptSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
-  const [instructions, setInstructions] = useState<string>(agent?.instructions ?? '')
-  const [showPreview, setShowPreview] = useState<boolean>(!!agent?.instructions?.length)
+  const [instructions, setInstructions] = useState<string>(agentBase?.instructions ?? '')
+  const [showPreview, setShowPreview] = useState<boolean>(!!agentBase?.instructions?.length)
   const [tokenCount, setTokenCount] = useState(0)
 
   useEffect(() => {
@@ -37,18 +43,17 @@ const AgentPromptSettings: FC<AgentPromptSettingsProps> = ({ agent, update }) =>
 
   const processedPrompt = usePromptProcessor({
     prompt: instructions,
-    modelName: agent?.model
+    modelName: agentBase?.model
   })
 
-  const onUpdate = () => {
-    if (!agent) return
-    const _agent = { ...agent, type: undefined, instructions } satisfies UpdateAgentForm
-    update(_agent)
+  const updatePrompt = () => {
+    if (!agentBase) return
+    update({ id: agentBase.id, instructions } satisfies UpdateAgentBaseForm)
   }
 
   const promptVarsContent = <pre>{t('agents.add.prompt.variables.tip.content')}</pre>
 
-  if (!agent) return null
+  if (!agentBase) return null
 
   return (
     <SettingsContainer>
@@ -95,7 +100,7 @@ const AgentPromptSettings: FC<AgentPromptSettingsProps> = ({ agent, update }) =>
                 setShowPreview(false)
                 requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
               } else {
-                onUpdate()
+                updatePrompt()
                 requestAnimationFrame(() => {
                   setShowPreview(true)
                   requestAnimationFrame(() => editorRef.current?.setScrollTop?.(currentScrollTop))
@@ -154,4 +159,4 @@ const MarkdownContainer = styled.div.attrs({ className: 'markdown' })`
   overflow: auto;
 `
 
-export default AgentPromptSettings
+export default PromptSettings

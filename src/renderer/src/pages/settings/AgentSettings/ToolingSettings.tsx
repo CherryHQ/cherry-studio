@@ -6,9 +6,12 @@ import {
   AgentConfiguration,
   AgentConfigurationSchema,
   GetAgentResponse,
+  GetAgentSessionResponse,
   PermissionMode,
   Tool,
-  UpdateAgentForm
+  UpdateAgentBaseForm,
+  UpdateAgentForm,
+  UpdateSessionForm
 } from '@renderer/types'
 import { Modal } from 'antd'
 import { ShieldAlert, ShieldCheck, Wrench } from 'lucide-react'
@@ -18,10 +21,15 @@ import { mutate } from 'swr'
 
 import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
-interface AgentToolingSettingsProps {
-  agent: GetAgentResponse | undefined | null
-  updateAgent: (form: UpdateAgentForm) => Promise<void> | void
-}
+type AgentToolingSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: (form: UpdateAgentForm) => Promise<void> | void
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: (form: UpdateSessionForm) => Promise<void> | void
+    }
 
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
@@ -37,7 +45,7 @@ type PermissionModeCard = {
   unsupported?: boolean
 }
 
-const defaultConfiguration = AgentConfigurationSchema.parse({}) as AgentConfigurationState
+const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
 
 const permissionModeCards: PermissionModeCard[] = [
   {
@@ -105,7 +113,7 @@ const computeModeDefaults = (mode: PermissionMode, tools: Tool[]): string[] => {
 
 const unique = (values: string[]) => Array.from(new Set(values))
 
-export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, updateAgent }) => {
+export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, update }) => {
   const { containerRef, handleScroll } = useScrollPosition('AgentToolingSettings', 100)
   const { t } = useTranslation()
   const client = useAgentClient()
@@ -122,11 +130,11 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([])
   const [isUpdatingMcp, setIsUpdatingMcp] = useState(false)
 
-  const availableTools = useMemo(() => agent?.tools ?? [], [agent?.tools])
+  const availableTools = useMemo(() => agentBase?.tools ?? [], [agentBase?.tools])
   const availableServers = useMemo(() => allServers ?? [], [allServers])
 
   useEffect(() => {
-    if (!agent) {
+    if (!agentBase) {
       setConfiguration(defaultConfiguration)
       setSelectedMode(defaultConfiguration.permission_mode)
       setApprovedToolIds([])
@@ -134,13 +142,13 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
       setSelectedMcpIds([])
       return
     }
-    const parsed = AgentConfigurationSchema.parse(agent.configuration ?? {}) as AgentConfigurationState
+    const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
     setSelectedMode(parsed.permission_mode)
 
     const defaults = computeModeDefaults(parsed.permission_mode, availableTools)
     setAutoToolIds(defaults)
-    const allowed = agent.allowed_tools ?? []
+    const allowed = agentBase.allowed_tools ?? []
     setApprovedToolIds((prev) => {
       const sanitized = allowed.filter((id) => availableTools.some((tool) => tool.id === id))
       const isSame = sanitized.length === prev.length && sanitized.every((id) => prev.includes(id))
@@ -151,8 +159,8 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
       const merged = unique([...sanitized, ...defaults])
       return merged
     })
-    setSelectedMcpIds(agent.mcps ?? [])
-  }, [agent, availableTools])
+    setSelectedMcpIds(agentBase.mcps ?? [])
+  }, [agentBase, availableTools])
 
   const filteredTools = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -173,7 +181,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
 
   const handleSelectPermissionMode = useCallback(
     (nextMode: PermissionMode) => {
-      if (!agent || nextMode === selectedMode || isUpdatingMode) {
+      if (!agentBase || nextMode === selectedMode || isUpdatingMode) {
         return
       }
       const defaults = computeModeDefaults(nextMode, availableTools)
@@ -184,7 +192,11 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
         setIsUpdatingMode(true)
         try {
           const nextConfiguration = { ...configuration, permission_mode: nextMode } satisfies AgentConfigurationState
-          await updateAgent({ id: agent.id, configuration: nextConfiguration, allowed_tools: merged })
+          await update({
+            id: agentBase.id,
+            configuration: nextConfiguration,
+            allowed_tools: merged
+          } satisfies UpdateAgentBaseForm)
           setConfiguration(nextConfiguration)
           setSelectedMode(nextMode)
           setAutoToolIds(defaults)
@@ -236,14 +248,14 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
       }
     },
     [
-      agent,
+      agentBase,
       selectedMode,
       isUpdatingMode,
       availableTools,
       userAddedIds,
       autoToolIds,
       configuration,
-      updateAgent,
+      update,
       modal,
       t
     ]
@@ -251,7 +263,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
 
   const handleToggleTool = useCallback(
     (toolId: string, isApproved: boolean) => {
-      if (!agent || isUpdatingTools) {
+      if (!agentBase || isUpdatingTools) {
         return
       }
       startTransition(() => {
@@ -267,7 +279,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
           setIsUpdatingTools(true)
           void (async () => {
             try {
-              await updateAgent({ id: agent.id, allowed_tools: sanitized })
+              await update({ id: agentBase.id, allowed_tools: sanitized } satisfies UpdateAgentBaseForm)
             } finally {
               setIsUpdatingTools(false)
             }
@@ -276,7 +288,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
         })
       })
     },
-    [agent, isUpdatingTools, availableTools, autoToolIds, updateAgent]
+    [agentBase, isUpdatingTools, availableTools, autoToolIds, update]
   )
 
   const { agentSummary, autoCount, customCount } = useMemo(() => {
@@ -297,7 +309,7 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
 
   const handleToggleMcp = useCallback(
     (serverId: string, enabled: boolean) => {
-      if (!agent || isUpdatingMcp) {
+      if (!agentBase || isUpdatingMcp) {
         return
       }
       setSelectedMcpIds((prev) => {
@@ -309,9 +321,9 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
         setIsUpdatingMcp(true)
         void (async () => {
           try {
-            await updateAgent({ id: agent.id, mcps: next })
-            const refreshed = await client.getAgent(agent.id)
-            const key = client.agentPaths.withId(agent.id)
+            await update({ id: agentBase.id, mcps: next } satisfies UpdateAgentBaseForm)
+            const refreshed = await client.getAgent(agentBase.id)
+            const key = client.agentPaths.withId(agentBase.id)
             mutate(key, refreshed, false)
           } finally {
             setIsUpdatingMcp(false)
@@ -320,10 +332,10 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
         return next
       })
     },
-    [agent, isUpdatingMcp, client, updateAgent]
+    [agentBase, isUpdatingMcp, client, update]
   )
 
-  if (!agent) {
+  if (!agentBase) {
     return null
   }
 
@@ -571,4 +583,4 @@ export const AgentToolingSettings: FC<AgentToolingSettingsProps> = ({ agent, upd
   )
 }
 
-export default AgentToolingSettings
+export default ToolingSettings

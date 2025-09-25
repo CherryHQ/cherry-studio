@@ -78,6 +78,20 @@ export const AgentBaseSchema = z.object({
 
 export type AgentBase = z.infer<typeof AgentBaseSchema>
 
+export const isAgentBase = (value: unknown): value is AgentBase => {
+  return AgentBaseSchema.safeParse(value).success
+}
+
+export const AgentBaseWithIdSchema = AgentBaseSchema.extend({
+  id: z.string()
+})
+
+export type AgentBaseWithId = z.infer<typeof AgentBaseWithIdSchema>
+
+export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
+  return AgentBaseWithIdSchema.safeParse(value).success
+}
+
 // ------------------ Persistence entities ------------------
 
 // Agent entity representing an autonomous agent configuration
@@ -89,6 +103,10 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
 })
 
 export type AgentEntity = z.infer<typeof AgentEntitySchema>
+
+export const isAgentEntity = (value: unknown): value is AgentEntity => {
+  return AgentEntitySchema.safeParse(value).success
+}
 
 export interface ListOptions {
   limit?: number
@@ -107,6 +125,10 @@ export const AgentSessionEntitySchema = AgentBaseSchema.extend({
 })
 
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
+
+export const isAgentSessionEntity = (value: unknown): value is AgentSessionEntity => {
+  return AgentSessionEntitySchema.safeParse(value).success
+}
 
 // AgentSessionMessageEntity representing a message within a session
 export const AgentSessionMessageEntitySchema = z.object({
@@ -189,6 +211,8 @@ export type CreateSessionForm = BaseSessionForm & { id?: never }
 export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
 
 export type SessionForm = CreateSessionForm | UpdateSessionForm
+
+export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
 
 // ------------------ API data transfer objects ------------------
 export interface CreateAgentRequest extends AgentBase {

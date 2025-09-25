@@ -1,5 +1,13 @@
 import { Input, Tooltip } from '@heroui/react'
-import { AgentConfiguration, AgentConfigurationSchema, GetAgentResponse, UpdateAgentForm } from '@renderer/types'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
+import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
+import {
+  AgentConfiguration,
+  AgentConfigurationSchema,
+  GetAgentResponse,
+  GetAgentSessionResponse,
+  UpdateAgentBaseForm
+} from '@renderer/types'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,31 +16,36 @@ import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 
 type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 
-interface AgentAdvancedSettingsProps {
-  agent: GetAgentResponse | undefined | null
-  updateAgent: (form: UpdateAgentForm) => Promise<void> | void
-}
+type AdvancedSettingsProps =
+  | {
+      agentBase: GetAgentResponse | undefined | null
+      update: ReturnType<typeof useUpdateAgent>
+    }
+  | {
+      agentBase: GetAgentSessionResponse | undefined | null
+      update: ReturnType<typeof useUpdateSession>
+    }
 
-const defaultConfiguration = AgentConfigurationSchema.parse({}) as AgentConfigurationState
+const defaultConfiguration: AgentConfigurationState = AgentConfigurationSchema.parse({})
 
-export const AgentAdvancedSettings: React.FC<AgentAdvancedSettingsProps> = ({ agent, updateAgent }) => {
+export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ agentBase, update }) => {
   const { t } = useTranslation()
   const [configuration, setConfiguration] = useState<AgentConfigurationState>(defaultConfiguration)
   const [maxTurnsInput, setMaxTurnsInput] = useState<string>(String(defaultConfiguration.max_turns))
 
   useEffect(() => {
-    if (!agent) {
+    if (!agentBase) {
       setConfiguration(defaultConfiguration)
       setMaxTurnsInput(String(defaultConfiguration.max_turns))
       return
     }
-    const parsed = AgentConfigurationSchema.parse(agent.configuration ?? {}) as AgentConfigurationState
+    const parsed: AgentConfigurationState = AgentConfigurationSchema.parse(agentBase.configuration ?? {})
     setConfiguration(parsed)
     setMaxTurnsInput(String(parsed.max_turns))
-  }, [agent])
+  }, [agentBase])
 
   const commitMaxTurns = useCallback(() => {
-    if (!agent) return
+    if (!agentBase) return
     const parsedValue = Number.parseInt(maxTurnsInput, 10)
     if (!Number.isFinite(parsedValue)) {
       setMaxTurnsInput(String(configuration.max_turns))
@@ -43,13 +56,13 @@ export const AgentAdvancedSettings: React.FC<AgentAdvancedSettingsProps> = ({ ag
       setMaxTurnsInput(String(configuration.max_turns))
       return
     }
-    const next = { ...configuration, max_turns: sanitized } as AgentConfigurationState
+    const next: AgentConfigurationState = { ...configuration, max_turns: sanitized }
     setConfiguration(next)
     setMaxTurnsInput(String(sanitized))
-    updateAgent({ id: agent.id, configuration: next } satisfies UpdateAgentForm)
-  }, [agent, configuration, maxTurnsInput, updateAgent])
+    update({ id: agentBase.id, configuration: next } satisfies UpdateAgentBaseForm)
+  }, [agentBase, configuration, maxTurnsInput, update])
 
-  if (!agent) {
+  if (!agentBase) {
     return null
   }
 
@@ -85,4 +98,4 @@ export const AgentAdvancedSettings: React.FC<AgentAdvancedSettingsProps> = ({ ag
   )
 }
 
-export default AgentAdvancedSettings
+export default AdvancedSettings
