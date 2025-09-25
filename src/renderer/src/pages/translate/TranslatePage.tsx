@@ -335,7 +335,6 @@ const TranslatePage: FC = () => {
     setTargetLanguage(source)
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
-
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
   }, [setTranslatedContent, text])
