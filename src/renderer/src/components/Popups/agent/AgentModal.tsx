@@ -1,6 +1,5 @@
 import {
   Button,
-  Chip,
   cn,
   Form,
   Input,
@@ -11,7 +10,6 @@ import {
   ModalHeader,
   Select,
   SelectedItemProps,
-  SelectedItems,
   SelectItem,
   Textarea,
   useDisclosure
@@ -20,6 +18,7 @@ import { loggerService } from '@logger'
 import type { Selection } from '@react-types/shared'
 import ClaudeIcon from '@renderer/assets/images/models/claude.png'
 import { getModelLogo } from '@renderer/config/models'
+import { permissionModeCards } from '@renderer/constants/permissionModes'
 import { useAgents } from '@renderer/hooks/agents/useAgents'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
@@ -30,6 +29,7 @@ import {
   AgentType,
   BaseAgentForm,
   isAgentType,
+  PermissionMode,
   Tool,
   UpdateAgentForm
 } from '@renderer/types'
@@ -110,25 +110,41 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
     }
   }, [agent, isOpen])
 
-  const availableTools = useMemo(() => agent?.tools ?? [], [agent?.tools])
-  const selectedToolKeys = useMemo(() => new Set(form.allowed_tools), [form.allowed_tools])
+  const selectedPermissionMode = form.configuration?.permission_mode ?? 'default'
 
-  useEffect(() => {
-    if (!availableTools.length) {
+  const onPermissionModeChange = useCallback((keys: Selection) => {
+    if (keys === 'all') {
+      return
+    }
+
+    const [first] = Array.from(keys)
+    if (!first) {
       return
     }
 
     setForm((prev) => {
-      const validTools = prev.allowed_tools.filter((id) => availableTools.some((tool) => tool.id === id))
-      if (validTools.length === prev.allowed_tools.length) {
+      const parsedConfiguration = AgentConfigurationSchema.parse(prev.configuration ?? {})
+      const nextMode = first as PermissionMode
+
+      if (parsedConfiguration.permission_mode === nextMode) {
+        if (!prev.configuration) {
+          return {
+            ...prev,
+            configuration: parsedConfiguration
+          }
+        }
         return prev
       }
+
       return {
         ...prev,
-        allowed_tools: validTools
+        configuration: {
+          ...parsedConfiguration,
+          permission_mode: nextMode
+        }
       }
     })
-  }, [availableTools])
+  }, [])
 
   // add supported agents type here.
   const agentConfig = useMemo(
@@ -195,45 +211,6 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       ...prev,
       instructions
     }))
-  }, [])
-
-  const onAllowedToolsChange = useCallback(
-    (keys: Selection) => {
-      setForm((prev) => {
-        if (keys === 'all') {
-          return {
-            ...prev,
-            allowed_tools: availableTools.map((tool) => tool.id)
-          }
-        }
-
-        const next = Array.from(keys).map(String)
-        const filtered = availableTools.length
-          ? next.filter((id) => availableTools.some((tool) => tool.id === id))
-          : next
-
-        return {
-          ...prev,
-          allowed_tools: filtered
-        }
-      })
-    },
-    [availableTools]
-  )
-
-  const renderSelectedTools = useCallback((items: SelectedItems<Tool>) => {
-    if (!items.length) {
-      return null
-    }
-    return (
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <Chip key={item.key} size="sm" variant="flat" className="max-w-[160px] truncate">
-            {item.data?.name ?? item.textValue ?? item.key}
-          </Chip>
-        ))}
-      </div>
-    )
   }, [])
 
   const addAccessiblePath = useCallback(async () => {
@@ -433,25 +410,34 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     )}
                   </Select>
                   <Select
-                    selectionMode="multiple"
-                    selectedKeys={selectedToolKeys}
-                    onSelectionChange={onAllowedToolsChange}
-                    label={t('agent.session.allowed_tools.label')}
-                    placeholder={t('agent.session.allowed_tools.placeholder')}
-                    description={
-                      availableTools.length
-                        ? t('agent.session.allowed_tools.helper')
-                        : t('agent.session.allowed_tools.empty')
-                    }
-                    isDisabled={!availableTools.length}
-                    items={availableTools}
-                    renderValue={renderSelectedTools}>
-                    {(tool) => (
-                      <SelectItem key={tool.id} textValue={tool.name}>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-sm">{tool.name}</span>
-                          {tool.description ? (
-                            <span className="text-foreground-500 text-xs">{tool.description}</span>
+                    isRequired
+                    selectionMode="single"
+                    selectedKeys={[selectedPermissionMode]}
+                    onSelectionChange={onPermissionModeChange}
+                    label={t('agent.settings.tooling.permissionMode.title', 'Permission mode')}
+                    placeholder={t('agent.settings.tooling.permissionMode.placeholder', 'Select permission mode')}
+                    description={t(
+                      'agent.settings.tooling.permissionMode.helper',
+                      'Choose how the agent handles tool approvals.'
+                    )}
+                    items={permissionModeCards}>
+                    {(item) => (
+                      <SelectItem key={item.mode} textValue={t(item.titleKey, item.titleFallback)}>
+                        <div className="flex flex-col gap-1">
+                          <span className="font-medium text-sm">{t(item.titleKey, item.titleFallback)}</span>
+                          <span className="text-foreground-500 text-xs">
+                            {t(item.descriptionKey, item.descriptionFallback)}
+                          </span>
+                          <span className="text-foreground-400 text-xs">
+                            {t(item.behaviorKey, item.behaviorFallback)}
+                          </span>
+                          {item.caution ? (
+                            <span className="text-danger-500 text-xs">
+                              {t(
+                                'agent.settings.tooling.permissionMode.bypassPermissions.warning',
+                                'Use with caution — all tools will run without asking for approval.'
+                              )}
+                            </span>
                           ) : null}
                         </div>
                       </SelectItem>

@@ -132,7 +132,7 @@
           "plan": {
             "behavior": "Read-only defaults are pre-approved while execution remains disabled.",
             "description": "Shares the default read-only tool set but presents a plan before execution.",
-            "title": "Planning mode (coming soon)"
+            "title": "Planning mode"
           }
         },
         "preapproved": {

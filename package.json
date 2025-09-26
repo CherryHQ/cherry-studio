@@ -27,7 +27,6 @@
   "scripts": {
     "start": "electron-vite preview",
     "dev": "dotenv electron-vite dev",
-    "dev:main": "dotenv electron-vite dev --watch",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",
     "build:check": "yarn lint && yarn test",
