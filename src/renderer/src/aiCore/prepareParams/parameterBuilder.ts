@@ -134,9 +134,10 @@ export async function buildStreamTextParams(
     if (aiSdkProviderId === 'google-vertex') {
       tools.google_search = vertex.tools.googleSearch({}) as ProviderDefinedTool
     } else if (aiSdkProviderId === 'google-vertex-anthropic') {
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
       tools.web_search = vertexAnthropic.tools.webSearch_20250305({
         maxUses: webSearchConfig.maxResults,
-        blockedDomains: mapRegexToPatterns(webSearchConfig.excludeDomains)
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }) as ProviderDefinedTool
     }
   }
