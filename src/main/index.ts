@@ -13,6 +13,7 @@ import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electro
 
 import { isDev, isLinux, isWin } from './constant'
 import { registerIpc } from './ipc'
+import appService from './services/AppService'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
@@ -114,6 +115,10 @@ if (!app.requestSingleInstanceLock()) {
     if (isLaunchToTray) {
       app.dock?.hide()
     }
+
+    // Apply launch on boot settings from configuration
+    const isLaunchOnBoot = configManager.getLaunchOnBoot()
+    await appService.setAppLaunchOnBoot(isLaunchOnBoot)
 
     const mainWindow = windowService.createMainWindow()
     new TrayService()
