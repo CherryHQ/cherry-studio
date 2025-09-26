@@ -235,6 +235,9 @@ export enum IpcChannel {
   DownloadProgress = 'download-progress',
   UpdateDownloaded = 'update-downloaded',
   DownloadUpdate = 'download-update',
+  ShowUpdateDialog = 'show-update-dialog',
+  InstallUpdate = 'install-update',
+  CancelUpdateDownload = 'cancel-update-download',
 
   DirectoryProcessingPercent = 'directory-processing-percent',
 

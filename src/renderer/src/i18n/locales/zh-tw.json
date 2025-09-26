@@ -4351,6 +4351,7 @@
     "later": "稍後",
     "message": "新版本 {{version}} 已準備就緒，是否立即安裝？",
     "noReleaseNotes": "暫無更新日誌",
+    "releaseNotes": "[to be translated]:更新日志",
     "title": "更新提示"
   },
   "warning": {
