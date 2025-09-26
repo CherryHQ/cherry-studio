@@ -1,6 +1,7 @@
 import { GithubOutlined } from '@ant-design/icons'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { HStack } from '@renderer/components/Layout'
+import UpdateDialog from '@renderer/components/UpdateDialog'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMinappPopup } from '@renderer/hooks/useMinappPopup'
@@ -11,8 +12,10 @@ import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
+import { IpcChannel } from '@shared/IpcChannel'
 import { UpgradeChannel } from '@shared/config/constant'
 import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
+import { UpdateInfo } from 'builder-util-runtime'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -27,6 +30,8 @@ import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitl
 const AboutSettings: FC = () => {
   const [version, setVersion] = useState('')
   const [isPortable, setIsPortable] = useState(false)
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const { t } = useTranslation()
   const { autoCheckUpdate, setAutoCheckUpdate, testPlan, setTestPlan, testChannel, setTestChannel } = useSettings()
   const { theme } = useTheme()
@@ -40,9 +45,10 @@ const AboutSettings: FC = () => {
         return
       }
 
-      if (update.downloaded) {
+      if (update.downloaded && update.info) {
         await handleSaveData()
-        window.api.showUpdateDialog()
+        setUpdateInfo(update.info as UpdateInfo)
+        setUpdateDialogOpen(true)
         return
       }
 
@@ -171,6 +177,51 @@ const AboutSettings: FC = () => {
     setAutoCheckUpdate(autoCheckUpdate)
   }, [autoCheckUpdate, setAutoCheckUpdate])
 
+  // Listen for ShowUpdateDialog event from main process
+  useEffect(() => {
+    if (!window.electron) return
+
+    const handleShowDialog = (_event: any, info: UpdateInfo) => {
+      setUpdateInfo(info)
+      setUpdateDialogOpen(true)
+    }
+
+    const removeListener = window.electron?.ipcRenderer.on(IpcChannel.ShowUpdateDialog, handleShowDialog)
+    return () => removeListener?.()
+  }, [])
+
+  // Update local state when Redux state changes
+  useEffect(() => {
+    if (update.info) {
+      setUpdateInfo(update.info as UpdateInfo)
+    }
+  }, [update.info])
+
+  const handleInstallUpdate = async () => {
+    await window.api.installUpdate()
+    setUpdateDialogOpen(false)
+  }
+
+  const handleDownloadUpdate = async () => {
+    await window.api.downloadUpdate()
+  }
+
+  const handleCloseDialog = () => {
+    if (update.downloading) {
+      window.api.cancelUpdateDownload()
+    }
+    setUpdateDialogOpen(false)
+  }
+
+  const downloadProgress = update.downloading
+    ? {
+        bytesPerSecond: 0,
+        percent: update.downloadProgress || 0,
+        transferred: 0,
+        total: 0
+      }
+    : undefined
+
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
     window.api.openWebsite(
@@ -179,7 +230,8 @@ const AboutSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme}>
+    <>
+      <SettingContainer theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
           {t('settings.about.title')}
@@ -342,6 +394,17 @@ const AboutSettings: FC = () => {
         </SettingRow>
       </SettingGroup>
     </SettingContainer>
+    <UpdateDialog
+      isOpen={updateDialogOpen}
+      onClose={handleCloseDialog}
+      updateInfo={updateInfo}
+      onInstall={handleInstallUpdate}
+      onDownload={!update.downloaded ? handleDownloadUpdate : undefined}
+      downloadProgress={downloadProgress}
+      isDownloading={update.downloading || false}
+      isDownloaded={update.downloaded || false}
+    />
+    </>
   )
 }
 

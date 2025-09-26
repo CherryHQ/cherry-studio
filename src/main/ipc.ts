@@ -131,6 +131,9 @@ export function registerIpc(mainWindow: BrowserWindow, app: Electron.App) {
 
   // Update
   ipcMain.handle(IpcChannel.App_ShowUpdateDialog, () => appUpdater.showUpdateDialog(mainWindow))
+  ipcMain.handle(IpcChannel.InstallUpdate, () => appUpdater.installUpdate())
+  ipcMain.handle(IpcChannel.DownloadUpdate, () => appUpdater.downloadUpdate())
+  ipcMain.handle(IpcChannel.CancelUpdateDownload, () => appUpdater.cancelDownload())
 
   // language
   ipcMain.handle(IpcChannel.App_SetLanguage, (_, language) => {

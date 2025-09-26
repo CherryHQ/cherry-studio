@@ -333,6 +333,7 @@
       "new_topic": "Nuevo tema {{Command}}",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Enviar",
       "settings": "Configuración",
       "thinking": {
@@ -4346,10 +4347,17 @@
     "show_window": "Mostrar ventana"
   },
   "update": {
+    "download": "[to be translated]:下载",
+    "downloading": "[to be translated]:正在下载更新",
     "install": "Instalar",
     "later": "Más tarde",
     "message": "Nueva versión {{version}} disponible, ¿desea instalarla ahora?",
+    "newVersion": "[to be translated]:新版本",
     "noReleaseNotes": "Sin notas de la versión",
+    "releaseDate": "[to be translated]:发布日期",
+    "releaseNotes": "[to be translated]:更新日志",
+    "showLess": "[to be translated]:显示更少",
+    "showMore": "[to be translated]:显示更多",
     "title": "Actualización"
   },
   "warning": {

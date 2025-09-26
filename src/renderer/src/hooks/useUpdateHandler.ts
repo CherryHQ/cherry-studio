@@ -67,6 +67,8 @@ export default function useUpdateHandler() {
             downloaded: true
           })
         )
+        // The dialog will be shown by UpdateDialogProvider listening to ShowUpdateDialog event
+        window.api.showUpdateDialog()
       }),
       ipcRenderer.on(IpcChannel.UpdateError, (_, error) => {
         dispatch(

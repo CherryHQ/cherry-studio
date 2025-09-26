@@ -333,6 +333,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "送信",
       "settings": "設定",
       "thinking": {
@@ -4346,10 +4347,17 @@
     "show_window": "ウィンドウを表示"
   },
   "update": {
+    "download": "[to be translated]:下载",
+    "downloading": "[to be translated]:正在下载更新",
     "install": "今すぐインストール",
     "later": "後で",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
+    "newVersion": "[to be translated]:新版本",
     "noReleaseNotes": "暫無更新日誌",
+    "releaseDate": "[to be translated]:发布日期",
+    "releaseNotes": "[to be translated]:更新日志",
+    "showLess": "[to be translated]:显示更少",
+    "showMore": "[to be translated]:显示更多",
     "title": "更新"
   },
   "warning": {

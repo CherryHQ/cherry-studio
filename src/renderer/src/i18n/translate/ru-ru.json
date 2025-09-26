@@ -333,6 +333,7 @@
       "new_topic": "Новый топик {{Command}}",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Отправить",
       "settings": "Настройки",
       "thinking": {
@@ -4346,10 +4347,17 @@
     "show_window": "Показать окно"
   },
   "update": {
+    "download": "[to be translated]:下载",
+    "downloading": "[to be translated]:正在下载更新",
     "install": "Установить",
     "later": "Позже",
     "message": "Новая версия {{version}} готова, установить сейчас?",
+    "newVersion": "[to be translated]:新版本",
     "noReleaseNotes": "Нет заметок об обновлении",
+    "releaseDate": "[to be translated]:发布日期",
+    "releaseNotes": "[to be translated]:更新日志",
+    "showLess": "[to be translated]:显示更少",
+    "showMore": "[to be translated]:显示更多",
     "title": "Обновление"
   },
   "warning": {
