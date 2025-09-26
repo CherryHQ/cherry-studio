@@ -5,7 +5,7 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, message as antdMessage, Tooltip } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -105,30 +105,89 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-    // const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
+    const [displayTime, setDisplayTime] = useState(0)
+    const animationRef = useRef<NodeJS.Timeout | null>(null)
+    const targetTimeRef = useRef(0)
+    const currentTimeRef = useRef(0)
 
-    // FIXME: 这里统计的和请求处统计的有一定误差
-    // useEffect(() => {
-    //   let timer: NodeJS.Timeout | null = null
-    //   if (isThinking) {
-    //     timer = setInterval(() => {
-    //       setThinkingTime((prev) => prev + 100)
-    //     }, 100)
-    //   } else if (timer) {
-    //     // 立即清除计时器
-    //     clearInterval(timer)
-    //     timer = null
-    //   }
+    useEffect(() => {
+      // 更新目标时间
+      targetTimeRef.current = blockThinkingTime
+      // 如果不在思考状态，直接设置为目标时间
+      if (!isThinking) {
+        setDisplayTime(blockThinkingTime)
+        currentTimeRef.current = blockThinkingTime
+        if (animationRef.current) {
+          clearInterval(animationRef.current)
+          animationRef.current = null
+        }
+        return
+      }
 
-    //   return () => {
-    //     if (timer) {
-    //       clearInterval(timer)
-    //       timer = null
-    //     }
-    //   }
-    // }, [isThinking])
+      // 如果当前时间已经达到或超过目标时间，直接设置
+      if (currentTimeRef.current >= blockThinkingTime) {
+        setDisplayTime(blockThinkingTime)
+        currentTimeRef.current = blockThinkingTime
+        return
+      }
 
-    const thinkingTimeSeconds = useMemo(() => (blockThinkingTime / 1000).toFixed(1), [blockThinkingTime])
+      // 清除之前的动画
+      if (animationRef.current) {
+        clearInterval(animationRef.current)
+        animationRef.current = null
+      }
+
+      // 如果时间差很小，直接设置到目标时间
+      const timeDiff = blockThinkingTime - currentTimeRef.current
+      if (timeDiff <= 100) {
+        setDisplayTime(blockThinkingTime)
+        currentTimeRef.current = blockThinkingTime
+        return
+      }
+
+      // 立即执行一次更新，避免显示0
+      const firstIncrement = Math.min(100, blockThinkingTime - currentTimeRef.current)
+      currentTimeRef.current += firstIncrement
+
+      setDisplayTime(currentTimeRef.current)
+
+      // 如果已经达到目标，不需要启动定时器
+      if (currentTimeRef.current >= targetTimeRef.current) {
+        return
+      }
+
+      // 启动新的平滑动画
+      animationRef.current = setInterval(() => {
+        // 每次增加100ms（0.1秒）
+        const increment = 100
+        const newTime = Math.min(currentTimeRef.current + increment, targetTimeRef.current)
+
+        currentTimeRef.current = newTime
+        setDisplayTime(newTime)
+
+        // 如果达到目标时间，停止动画
+        if (newTime >= targetTimeRef.current) {
+          if (animationRef.current) {
+            clearInterval(animationRef.current)
+            animationRef.current = null
+          }
+        }
+      }, 100) // 每100ms更新一次
+
+      return () => {
+        // 清理时确保显示最终时间
+        if (animationRef.current) {
+          clearInterval(animationRef.current)
+          animationRef.current = null
+          // 如果在思考状态被中断，确保显示当前的目标时间
+          if (targetTimeRef.current > currentTimeRef.current) {
+            setDisplayTime(targetTimeRef.current)
+            currentTimeRef.current = targetTimeRef.current
+          }
+        }
+      }
+    }, [blockThinkingTime, isThinking])
+    const thinkingTimeSeconds = useMemo(() => (displayTime / 1000).toFixed(1), [displayTime])
 
     return isThinking
       ? t('chat.thinking', {

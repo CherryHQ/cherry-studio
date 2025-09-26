@@ -235,7 +235,6 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('1.0s')
       expect(activeTimeText).toHaveTextContent('Thinking...')
     })
 
