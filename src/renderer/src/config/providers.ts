@@ -27,6 +27,7 @@ import InfiniProviderLogo from '@renderer/assets/images/providers/infini.png'
 import JinaProviderLogo from '@renderer/assets/images/providers/jina.png'
 import LanyunProviderLogo from '@renderer/assets/images/providers/lanyun.png'
 import LMStudioProviderLogo from '@renderer/assets/images/providers/lmstudio.png'
+import LongCatProviderLogo from '@renderer/assets/images/providers/longcat.png'
 import MinimaxProviderLogo from '@renderer/assets/images/providers/minimax.png'
 import MistralProviderLogo from '@renderer/assets/images/providers/mistral.png'
 import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope.png'
@@ -622,6 +623,16 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     models: SYSTEM_MODELS['poe'],
     isSystem: true,
     enabled: false
+  },
+  longcat: {
+    id: 'longcat',
+    name: 'LongCat',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.longcat.chat/openai',
+    models: SYSTEM_MODELS.longcat,
+    isSystem: true,
+    enabled: false
   }
 } as const
 
@@ -684,7 +695,8 @@ export const PROVIDER_LOGO_MAP: AtLeast<SystemProviderId, string> = {
   'new-api': NewAPIProviderLogo,
   'aws-bedrock': AwsProviderLogo,
   poe: 'poe', // use svg icon component
-  aionly: AiOnlyProviderLogo
+  aionly: AiOnlyProviderLogo,
+  longcat: LongCatProviderLogo
 } as const
 
 export function getProviderLogo(providerId: string) {
@@ -1289,6 +1301,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://www.aiionly.com/keyApi',
       docs: 'https://www.aiionly.com/document',
       models: 'https://www.aiionly.com'
+    }
+  },
+  longcat: {
+    api: {
+      url: 'https://api.longcat.chat/openai'
+    },
+    websites: {
+      official: 'https://longcat.chat',
+      apiKey: 'https://longcat.chat/platform/api_keys',
+      docs: 'https://longcat.chat/platform/docs/zh/',
+      models: 'https://longcat.chat/platform/docs/zh/APIDocs.html'
     }
   }
 }
