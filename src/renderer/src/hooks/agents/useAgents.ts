@@ -1,9 +1,12 @@
+import { useAppDispatch } from '@renderer/store'
+import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
 import { AddAgentForm } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import useSWR from 'swr'
 
+import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
 
 export const useAgents = () => {
@@ -16,6 +19,9 @@ export const useAgents = () => {
     return result.data
   }, [client])
   const { data, error, isLoading, mutate } = useSWR(key, fetcher)
+  const { chat } = useRuntime()
+  const { activeAgentId } = chat
+  const dispatch = useAppDispatch()
 
   const addAgent = useCallback(
     async (form: AddAgentForm) => {
@@ -34,6 +40,15 @@ export const useAgents = () => {
     async (id: string) => {
       try {
         await client.deleteAgent(id)
+        dispatch(setActiveSessionIdAction({ agentId: id, sessionId: null }))
+        if (activeAgentId === id) {
+          const newId = data?.filter((a) => a.id !== id).find(() => true)?.id
+          if (newId) {
+            dispatch(setActiveAgentId(newId))
+          } else {
+            dispatch(setActiveAgentId(null))
+          }
+        }
         mutate((prev) => prev?.filter((a) => a.id !== id) ?? [])
         window.toast.success(t('common.delete_success'))
       } catch (error) {

@@ -18,7 +18,7 @@ import { classNames } from '@renderer/utils'
 import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
-import React, { FC, useMemo, useState } from 'react'
+import React, { FC, useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -172,6 +172,27 @@ const Chat: FC<Props> = (props) => {
     return () => <AgentSessionInputbar agentId={activeAgentId} sessionId={sessionId} />
   }, [activeAgentId, activeSessionId])
 
+  // TODO: more info
+  const AgentInvalid = useCallback(() => {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div>
+          <Alert color="warning" title="Select an agent" />
+        </div>
+      </div>
+    )
+  }, [])
+
+  // TODO: more info
+  const SessionInvalid = useCallback(() => {
+    return (
+      <div className="flex h-full w-full items-center justify-center">
+        <div>
+          <Alert color="warning" title="Create a session" />
+        </div>
+      </div>
+    )
+  }, [])
   return (
     <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
       {isTopNavbar && (
@@ -213,7 +234,11 @@ const Chat: FC<Props> = (props) => {
                 <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
               </>
             )}
-            {activeTopicOrSession === 'session' && (
+            {activeTopicOrSession === 'session' && !activeAgentId && <AgentInvalid />}
+            {activeTopicOrSession === 'session' && activeAgentId && !activeSessionId[activeAgentId] && (
+              <SessionInvalid />
+            )}
+            {activeTopicOrSession === 'session' && activeAgentId && activeSessionId[activeAgentId] && (
               <>
                 <SessionMessages />
                 <SessionInputBar />
