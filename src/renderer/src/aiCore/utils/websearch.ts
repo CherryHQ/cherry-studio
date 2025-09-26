@@ -61,9 +61,10 @@ export function buildProviderBuiltinWebSearchConfig(
       }
     }
     case 'anthropic': {
+      const blockedDomains = mapRegexToPatterns(webSearchConfig.excludeDomains)
       const anthropicSearchOptions: AnthropicSearchConfig = {
         maxUses: webSearchConfig.maxResults,
-        blockedDomains: mapRegexToPatterns(webSearchConfig.excludeDomains)
+        blockedDomains: blockedDomains.length > 0 ? blockedDomains : undefined
       }
       return {
         anthropic: anthropicSearchOptions
