@@ -210,12 +210,12 @@ const AgentSessionInputbar: FC<Props> = ({ agentId, sessionId }) => {
       logger.warn('Failed to send message:', error as Error)
     }
   }, [
+    agent?.model,
     agentId,
     dispatch,
     sendDisabled,
     session?.agent_id,
     session?.instructions,
-    session?.model,
     session?.name,
     sessionId,
     sessionTopicId,
