@@ -2497,6 +2497,7 @@
     "about": {
       "checkUpdate": {
         "available": "Обновить",
+        "install": "[to be translated]:立即安装",
         "label": "Проверить обновления"
       },
       "checkingUpdate": "Проверка обновлений...",

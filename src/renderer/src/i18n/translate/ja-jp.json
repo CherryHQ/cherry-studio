@@ -2497,6 +2497,7 @@
     "about": {
       "checkUpdate": {
         "available": "今すぐ更新",
+        "install": "[to be translated]:立即安装",
         "label": "更新を確認"
       },
       "checkingUpdate": "更新を確認中...",

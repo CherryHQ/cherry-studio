@@ -12,8 +12,8 @@ import { handleSaveData, useAppDispatch } from '@renderer/store'
 import { setUpdateState } from '@renderer/store/runtime'
 import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
-import { IpcChannel } from '@shared/IpcChannel'
 import { UpgradeChannel } from '@shared/config/constant'
+import { IpcChannel } from '@shared/IpcChannel'
 import { Avatar, Button, Progress, Radio, Row, Switch, Tag, Tooltip } from 'antd'
 import { UpdateInfo } from 'builder-util-runtime'
 import { debounce } from 'lodash'
@@ -232,180 +232,180 @@ const AboutSettings: FC = () => {
   return (
     <>
       <SettingContainer theme={theme}>
-      <SettingGroup theme={theme}>
-        <SettingTitle>
-          {t('settings.about.title')}
-          <HStack alignItems="center">
-            <Link to="https://github.com/CherryHQ/cherry-studio">
-              <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
-            </Link>
-          </HStack>
-        </SettingTitle>
-        <SettingDivider />
-        <AboutHeader>
-          <Row align="middle">
-            <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
-              {update.downloadProgress > 0 && (
-                <ProgressCircle
-                  type="circle"
-                  size={84}
-                  percent={update.downloadProgress}
-                  showInfo={false}
-                  strokeLinecap="butt"
-                  strokeColor="#67ad5b"
-                />
-              )}
-              <Avatar src={AppLogo} size={80} style={{ minHeight: 80 }} />
-            </AvatarWrapper>
-            <VersionWrapper>
-              <Title>{APP_NAME}</Title>
-              <Description>{t('settings.about.description')}</Description>
-              <Tag
-                onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
-                color="cyan"
-                style={{ marginTop: 8, cursor: 'pointer' }}>
-                v{version}
-              </Tag>
-            </VersionWrapper>
-          </Row>
-          {!isPortable && (
-            <CheckUpdateButton
-              onClick={onCheckUpdate}
-              loading={update.checking}
-              disabled={update.downloading || update.checking}>
-              {update.downloading
-                ? t('settings.about.downloading')
-                : update.downloaded
-                  ? t('settings.about.checkUpdate.install')  // Show "Install" when downloaded
-                  : update.available
-                    ? t('settings.about.checkUpdate.available')
-                    : t('settings.about.checkUpdate.label')}
-            </CheckUpdateButton>
-          )}
-        </AboutHeader>
-        {!isPortable && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
-              <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
-            </SettingRow>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
-                <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
-              </Tooltip>
-            </SettingRow>
-            {testPlan && (
-              <>
-                <SettingDivider />
-                <SettingRow>
-                  <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <Radio.Group
-                    size="small"
-                    buttonStyle="solid"
-                    value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}>
-                    {getAvailableTestChannels().map((option) => (
-                      <Tooltip key={option.value} title={option.tooltip}>
-                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
-                      </Tooltip>
-                    ))}
-                  </Radio.Group>
-                </SettingRow>
-              </>
+        <SettingGroup theme={theme}>
+          <SettingTitle>
+            {t('settings.about.title')}
+            <HStack alignItems="center">
+              <Link to="https://github.com/CherryHQ/cherry-studio">
+                <GithubOutlined style={{ marginRight: 4, color: 'var(--color-text)', fontSize: 20 }} />
+              </Link>
+            </HStack>
+          </SettingTitle>
+          <SettingDivider />
+          <AboutHeader>
+            <Row align="middle">
+              <AvatarWrapper onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}>
+                {update.downloadProgress > 0 && (
+                  <ProgressCircle
+                    type="circle"
+                    size={84}
+                    percent={update.downloadProgress}
+                    showInfo={false}
+                    strokeLinecap="butt"
+                    strokeColor="#67ad5b"
+                  />
+                )}
+                <Avatar src={AppLogo} size={80} style={{ minHeight: 80 }} />
+              </AvatarWrapper>
+              <VersionWrapper>
+                <Title>{APP_NAME}</Title>
+                <Description>{t('settings.about.description')}</Description>
+                <Tag
+                  onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
+                  color="cyan"
+                  style={{ marginTop: 8, cursor: 'pointer' }}>
+                  v{version}
+                </Tag>
+              </VersionWrapper>
+            </Row>
+            {!isPortable && (
+              <CheckUpdateButton
+                onClick={onCheckUpdate}
+                loading={update.checking}
+                disabled={update.downloading || update.checking}>
+                {update.downloading
+                  ? t('settings.about.downloading')
+                  : update.downloaded
+                    ? t('settings.about.checkUpdate.install') // Show "Install" when downloaded
+                    : update.available
+                      ? t('settings.about.checkUpdate.available')
+                      : t('settings.about.checkUpdate.label')}
+              </CheckUpdateButton>
             )}
-          </>
+          </AboutHeader>
+          {!isPortable && (
+            <>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.general.auto_check_update.title')}</SettingRowTitle>
+                <Switch value={autoCheckUpdate} onChange={(v) => setAutoCheckUpdate(v)} />
+              </SettingRow>
+              <SettingDivider />
+              <SettingRow>
+                <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
+                <Tooltip title={t('settings.general.test_plan.tooltip')} trigger={['hover', 'focus']}>
+                  <Switch value={testPlan} onChange={(v) => handleSetTestPlan(v)} />
+                </Tooltip>
+              </SettingRow>
+              {testPlan && (
+                <>
+                  <SettingDivider />
+                  <SettingRow>
+                    <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
+                    <Radio.Group
+                      size="small"
+                      buttonStyle="solid"
+                      value={getTestChannel()}
+                      onChange={(e) => handleTestChannelChange(e.target.value)}>
+                      {getAvailableTestChannels().map((option) => (
+                        <Tooltip key={option.value} title={option.tooltip}>
+                          <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                        </Tooltip>
+                      ))}
+                    </Radio.Group>
+                  </SettingRow>
+                </>
+              )}
+            </>
+          )}
+        </SettingGroup>
+        {update.info && update.available && (
+          <SettingGroup theme={theme}>
+            <SettingRow>
+              <SettingRowTitle>
+                {t('settings.about.updateAvailable', { version: update.info.version })}
+                <IndicatorLight color="green" />
+              </SettingRowTitle>
+            </SettingRow>
+            <UpdateNotesWrapper className="markdown">
+              <Markdown>
+                {typeof update.info.releaseNotes === 'string'
+                  ? update.info.releaseNotes.replace(/\n/g, '\n\n')
+                  : update.info.releaseNotes?.map((note) => note.note).join('\n')}
+              </Markdown>
+            </UpdateNotesWrapper>
+          </SettingGroup>
         )}
-      </SettingGroup>
-      {update.info && update.available && (
         <SettingGroup theme={theme}>
           <SettingRow>
             <SettingRowTitle>
-              {t('settings.about.updateAvailable', { version: update.info.version })}
-              <IndicatorLight color="green" />
+              <BadgeQuestionMark size={18} />
+              {t('docs.title')}
             </SettingRowTitle>
+            <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
           </SettingRow>
-          <UpdateNotesWrapper className="markdown">
-            <Markdown>
-              {typeof update.info.releaseNotes === 'string'
-                ? update.info.releaseNotes.replace(/\n/g, '\n\n')
-                : update.info.releaseNotes?.map((note) => note.note).join('\n')}
-            </Markdown>
-          </UpdateNotesWrapper>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <Rss size={18} />
+              {t('settings.about.releases.title')}
+            </SettingRowTitle>
+            <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <Globe size={18} />
+              {t('settings.about.website.title')}
+            </SettingRowTitle>
+            <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <GithubOutlined size={18} />
+              {t('settings.about.feedback.title')}
+            </SettingRowTitle>
+            <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
+              {t('settings.about.feedback.button')}
+            </Button>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <FileCheck size={18} />
+              {t('settings.about.license.title')}
+            </SettingRowTitle>
+            <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <Mail size={18} />
+              {t('settings.about.contact.title')}
+            </SettingRowTitle>
+            <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
+          </SettingRow>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <Bug size={18} />
+              {t('settings.about.debug.title')}
+            </SettingRowTitle>
+            <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
+          </SettingRow>
         </SettingGroup>
-      )}
-      <SettingGroup theme={theme}>
-        <SettingRow>
-          <SettingRowTitle>
-            <BadgeQuestionMark size={18} />
-            {t('docs.title')}
-          </SettingRowTitle>
-          <Button onClick={onOpenDocs}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Rss size={18} />
-            {t('settings.about.releases.title')}
-          </SettingRowTitle>
-          <Button onClick={showReleases}>{t('settings.about.releases.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Globe size={18} />
-            {t('settings.about.website.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://cherry-ai.com')}>{t('settings.about.website.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <GithubOutlined size={18} />
-            {t('settings.about.feedback.title')}
-          </SettingRowTitle>
-          <Button onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/issues/new/choose')}>
-            {t('settings.about.feedback.button')}
-          </Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <FileCheck size={18} />
-            {t('settings.about.license.title')}
-          </SettingRowTitle>
-          <Button onClick={showLicense}>{t('settings.about.license.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Mail size={18} />
-            {t('settings.about.contact.title')}
-          </SettingRowTitle>
-          <Button onClick={mailto}>{t('settings.about.contact.button')}</Button>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Bug size={18} />
-            {t('settings.about.debug.title')}
-          </SettingRowTitle>
-          <Button onClick={debug}>{t('settings.about.debug.open')}</Button>
-        </SettingRow>
-      </SettingGroup>
-    </SettingContainer>
-    <UpdateDialog
-      isOpen={updateDialogOpen}
-      onClose={handleCloseDialog}
-      updateInfo={updateInfo}
-      onInstall={handleInstallUpdate}
-      onDownload={!update.downloaded ? handleDownloadUpdate : undefined}
-      downloadProgress={downloadProgress}
-      isDownloading={update.downloading || false}
-      isDownloaded={update.downloaded || false}
-    />
+      </SettingContainer>
+      <UpdateDialog
+        isOpen={updateDialogOpen}
+        onClose={handleCloseDialog}
+        updateInfo={updateInfo}
+        onInstall={handleInstallUpdate}
+        onDownload={!update.downloaded ? handleDownloadUpdate : undefined}
+        downloadProgress={downloadProgress}
+        isDownloading={update.downloading || false}
+        isDownloaded={update.downloaded || false}
+      />
     </>
   )
 }

@@ -2497,8 +2497,8 @@
     "about": {
       "checkUpdate": {
         "available": "立即更新",
-        "label": "检查更新",
-        "install": "立即安装"
+        "install": "立即安装",
+        "label": "检查更新"
       },
       "checkingUpdate": "正在检查更新...",
       "contact": {

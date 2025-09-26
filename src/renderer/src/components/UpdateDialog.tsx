@@ -1,14 +1,5 @@
+import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader, Progress, ScrollShadow } from '@heroui/react'
 import { loggerService } from '@logger'
-import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Progress,
-  ScrollShadow
-} from '@heroui/react'
 import { UpdateInfo } from 'builder-util-runtime'
 import { Download } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
@@ -72,7 +63,7 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
     const k = 1024
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i]
   }
 
   const formatSpeed = (bytesPerSecond: number): string => {
@@ -98,8 +89,8 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
         {(onModalClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              <h3 className="text-lg font-semibold">{t('update.title')}</h3>
-              <p className="text-small text-default-500">
+              <h3 className="font-semibold text-lg">{t('update.title')}</h3>
+              <p className="text-default-500 text-small">
                 {t('update.message').replace('{{version}}', updateInfo?.version || '')}
               </p>
             </ModalHeader>
@@ -109,19 +100,13 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
                 {/* Version Info */}
                 <div className="flex flex-col gap-2 rounded-lg bg-default-100 p-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-small font-medium text-default-600">
-                      {t('update.newVersion')}
-                    </span>
-                    <span className="text-small font-semibold">{updateInfo?.version}</span>
+                    <span className="font-medium text-default-600 text-small">{t('update.newVersion')}</span>
+                    <span className="font-semibold text-small">{updateInfo?.version}</span>
                   </div>
                   {updateInfo?.releaseDate && (
                     <div className="flex items-center justify-between">
-                      <span className="text-small font-medium text-default-600">
-                        {t('update.releaseDate')}
-                      </span>
-                      <span className="text-small">
-                        {new Date(updateInfo.releaseDate).toLocaleDateString()}
-                      </span>
+                      <span className="font-medium text-default-600 text-small">{t('update.releaseDate')}</span>
+                      <span className="text-small">{new Date(updateInfo.releaseDate).toLocaleDateString()}</span>
                     </div>
                   )}
                 </div>
@@ -130,20 +115,11 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
                 {isDownloading && downloadProgress && (
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-small font-medium">
-                        {t('update.downloading')}
-                      </span>
-                      <span className="text-small text-default-500">
-                        {Math.round(downloadProgress.percent)}%
-                      </span>
+                      <span className="font-medium text-small">{t('update.downloading')}</span>
+                      <span className="text-default-500 text-small">{Math.round(downloadProgress.percent)}%</span>
                     </div>
-                    <Progress
-                      value={downloadProgress.percent}
-                      className="mb-1"
-                      size="sm"
-                      color="primary"
-                    />
-                    <div className="flex items-center justify-between text-tiny text-default-500">
+                    <Progress value={downloadProgress.percent} className="mb-1" size="sm" color="primary" />
+                    <div className="flex items-center justify-between text-default-500 text-tiny">
                       <span>
                         {formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}
                       </span>
@@ -154,12 +130,10 @@ const UpdateDialog: React.FC<UpdateDialogProps> = ({
 
                 {/* Release Notes */}
                 <div className="flex flex-col gap-2">
-                  <h4 className="text-small font-semibold">{t('update.releaseNotes')}</h4>
+                  <h4 className="font-semibold text-small">{t('update.releaseNotes')}</h4>
                   <ScrollShadow className="max-h-[300px]" hideScrollBar>
                     <div className="markdown rounded-lg bg-default-50 p-4">
-                      <Markdown>
-                        {displayNotes + (!showFullNotes && shouldShowMore ? '...' : '')}
-                      </Markdown>
+                      <Markdown>{displayNotes + (!showFullNotes && shouldShowMore ? '...' : '')}</Markdown>
                     </div>
                   </ScrollShadow>
                   {shouldShowMore && (

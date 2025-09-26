@@ -2497,8 +2497,8 @@
     "about": {
       "checkUpdate": {
         "available": "Update",
-        "label": "Check Update",
-        "install": "Install Now"
+        "install": "Install Now",
+        "label": "Check Update"
       },
       "checkingUpdate": "Checking for updates...",
       "contact": {

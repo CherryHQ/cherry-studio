@@ -335,7 +335,6 @@ export default class AppUpdater {
 
     return processedInfo
   }
-
 }
 interface GithubReleaseInfo {
   draft: boolean
