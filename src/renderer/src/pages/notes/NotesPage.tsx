@@ -492,10 +492,42 @@ const NotesPage: FC = () => {
 
         if (node && node.name !== newName) {
           const oldExternalPath = node.externalPath
+          let currentContent = ''
+
+          // Save current content before rename to prevent content loss
+          if (node.type === 'file' && activeFilePath === oldExternalPath) {
+            // Get content from editor or current cache
+            currentContent = editorRef.current?.getMarkdown() || lastContentRef.current || currentContent
+
+            // Save current content to the file before renaming
+            if (currentContent.trim()) {
+              try {
+                await saveCurrentNote(currentContent, oldExternalPath)
+              } catch (error) {
+                logger.warn('Failed to save content before rename:', error as Error)
+              }
+            }
+          }
+
           const renamedNode = await renameNode(nodeId, newName)
 
           if (renamedNode.type === 'file' && activeFilePath === oldExternalPath) {
+            // Restore content to the new file path if content was lost during rename
+            if (currentContent.trim()) {
+              try {
+                const newFileContent = await window.api.file.readExternal(renamedNode.externalPath)
+                if (!newFileContent || newFileContent.trim() === '') {
+                  await window.api.file.write(renamedNode.externalPath, currentContent)
+                  logger.info('Restored content to renamed file')
+                }
+              } catch (error) {
+                logger.error('Failed to restore content after rename:', error as Error)
+              }
+            }
+
             dispatch(setActiveFilePath(renamedNode.externalPath))
+            // Invalidate cache for the new path to ensure content is loaded correctly
+            invalidateFileContent(renamedNode.externalPath)
           } else if (
             renamedNode.type === 'folder' &&
             activeFilePath &&
@@ -504,6 +536,8 @@ const NotesPage: FC = () => {
             const relativePath = activeFilePath.substring(oldExternalPath.length)
             const newFilePath = renamedNode.externalPath + relativePath
             dispatch(setActiveFilePath(newFilePath))
+            // Invalidate cache for the new file path after folder rename
+            invalidateFileContent(newFilePath)
           }
           await sortAllLevels(sortType)
           if (renamedNode.name !== newName) {
@@ -518,7 +552,7 @@ const NotesPage: FC = () => {
         }, 500)
       }
     },
-    [activeFilePath, dispatch, findNodeById, sortType, t]
+    [activeFilePath, dispatch, findNodeById, sortType, t, invalidateFileContent, saveCurrentNote]
   )
 
   // 处理文件上传
