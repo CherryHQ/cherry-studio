@@ -2497,7 +2497,6 @@
     "about": {
       "checkUpdate": {
         "available": "Обновить",
-        "install": "[to be translated]:立即安装",
         "label": "Проверить обновления"
       },
       "checkingUpdate": "Проверка обновлений...",
@@ -4348,17 +4347,11 @@
     "show_window": "Показать окно"
   },
   "update": {
-    "download": "[to be translated]:下载",
-    "downloading": "[to be translated]:正在下载更新",
     "install": "Установить",
     "later": "Позже",
     "message": "Новая версия {{version}} готова, установить сейчас?",
-    "newVersion": "[to be translated]:新版本",
     "noReleaseNotes": "Нет заметок об обновлении",
-    "releaseDate": "[to be translated]:发布日期",
     "releaseNotes": "[to be translated]:更新日志",
-    "showLess": "[to be translated]:显示更少",
-    "showMore": "[to be translated]:显示更多",
     "title": "Обновление"
   },
   "warning": {

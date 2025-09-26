@@ -260,7 +260,7 @@ const AboutSettings: FC = () => {
                 {update.downloading
                   ? t('settings.about.downloading')
                   : update.downloaded
-                    ? t('settings.about.checkUpdate.install') // Show "Install" when downloaded
+                    ? t('settings.about.checkUpdate.available') // Show "Update" when downloaded
                     : update.available
                       ? t('settings.about.checkUpdate.available')
                       : t('settings.about.checkUpdate.label')}

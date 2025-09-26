@@ -2497,7 +2497,6 @@
     "about": {
       "checkUpdate": {
         "available": "今すぐ更新",
-        "install": "[to be translated]:立即安装",
         "label": "更新を確認"
       },
       "checkingUpdate": "更新を確認中...",
@@ -4348,17 +4347,11 @@
     "show_window": "ウィンドウを表示"
   },
   "update": {
-    "download": "[to be translated]:下载",
-    "downloading": "[to be translated]:正在下载更新",
     "install": "今すぐインストール",
     "later": "後で",
     "message": "新バージョン {{version}} が利用可能です。今すぐインストールしますか？",
-    "newVersion": "[to be translated]:新版本",
     "noReleaseNotes": "暫無更新日誌",
-    "releaseDate": "[to be translated]:发布日期",
     "releaseNotes": "[to be translated]:更新日志",
-    "showLess": "[to be translated]:显示更少",
-    "showMore": "[to be translated]:显示更多",
     "title": "更新"
   },
   "warning": {

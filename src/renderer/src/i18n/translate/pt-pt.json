@@ -2497,7 +2497,6 @@
     "about": {
       "checkUpdate": {
         "available": "Atualizar agora",
-        "install": "[to be translated]:立即安装",
         "label": "Verificar atualizações"
       },
       "checkingUpdate": "Verificando atualizações...",
@@ -4348,17 +4347,11 @@
     "show_window": "Exibir Janela"
   },
   "update": {
-    "download": "[to be translated]:下载",
-    "downloading": "[to be translated]:正在下载更新",
     "install": "Instalar",
     "later": "Mais tarde",
     "message": "Nova versão {{version}} disponível, deseja instalar agora?",
-    "newVersion": "[to be translated]:新版本",
     "noReleaseNotes": "Sem notas de versão",
-    "releaseDate": "[to be translated]:发布日期",
     "releaseNotes": "[to be translated]:更新日志",
-    "showLess": "[to be translated]:显示更少",
-    "showMore": "[to be translated]:显示更多",
     "title": "Atualização"
   },
   "warning": {

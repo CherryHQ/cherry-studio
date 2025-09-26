@@ -2497,7 +2497,6 @@
     "about": {
       "checkUpdate": {
         "available": "Update",
-        "install": "Install Now",
         "label": "Check Update"
       },
       "checkingUpdate": "Checking for updates...",
@@ -4348,17 +4347,11 @@
     "show_window": "Show Window"
   },
   "update": {
-    "download": "Download",
-    "downloading": "Downloading Update",
     "install": "Install",
     "later": "Later",
     "message": "New version {{version}} is ready, do you want to install it now?",
-    "newVersion": "New Version",
     "noReleaseNotes": "No release notes",
-    "releaseDate": "Release Date",
     "releaseNotes": "Release Notes",
-    "showLess": "Show Less",
-    "showMore": "Show More",
     "title": "Update"
   },
   "warning": {

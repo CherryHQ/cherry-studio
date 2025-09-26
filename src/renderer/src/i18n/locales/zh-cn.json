@@ -2497,7 +2497,6 @@
     "about": {
       "checkUpdate": {
         "available": "立即更新",
-        "install": "立即安装",
         "label": "检查更新"
       },
       "checkingUpdate": "正在检查更新...",
@@ -4348,17 +4347,11 @@
     "show_window": "显示窗口"
   },
   "update": {
-    "download": "下载",
-    "downloading": "正在下载更新",
     "install": "立即安装",
     "later": "稍后",
     "message": "发现新版本 {{version}}，是否立即安装？",
-    "newVersion": "新版本",
     "noReleaseNotes": "暂无更新日志",
-    "releaseDate": "发布日期",
     "releaseNotes": "更新日志",
-    "showLess": "显示更少",
-    "showMore": "显示更多",
     "title": "更新提示"
   },
   "warning": {
