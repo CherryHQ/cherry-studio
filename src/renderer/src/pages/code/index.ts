@@ -23,10 +23,16 @@ export const CLI_TOOLS = [
   { value: codeTools.iFlowCli, label: 'iFlow CLI' }
 ]
 
-export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api']
+export const GEMINI_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', 'cherryin']
 export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = ['deepseek', 'moonshot', 'zhipu', 'dashscope', 'modelscope']
-export const CLAUDE_SUPPORTED_PROVIDERS = ['aihubmix', 'dmxapi', 'new-api', ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS]
-export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api']
+export const CLAUDE_SUPPORTED_PROVIDERS = [
+  'aihubmix',
+  'dmxapi',
+  'new-api',
+  'cherryin',
+  ...CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS
+]
+export const OPENAI_CODEX_SUPPORTED_PROVIDERS = ['openai', 'openrouter', 'aihubmix', 'new-api', 'cherryin']
 
 // Provider 过滤映射
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {

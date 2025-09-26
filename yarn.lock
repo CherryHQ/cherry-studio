@@ -155,7 +155,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ai-sdk/google@npm:2.0.14, @ai-sdk/google@npm:^2.0.14":
+"@ai-sdk/google@npm:2.0.14":
   version: 2.0.14
   resolution: "@ai-sdk/google@npm:2.0.14"
   dependencies:
@@ -164,6 +164,18 @@ __metadata:
   peerDependencies:
     zod: ^3.25.76 || ^4
   checksum: 10c0/2c04839cf58c33514a54c9de8190c363b5cacfbfc8404fea5d2ec36ad0af5ced4fc571f978e7aa35876bd9afae138f4c700d2bc1f64a78a37d0401f6797bf8f3
+  languageName: node
+  linkType: hard
+
+"@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.14#~/.yarn/patches/@ai-sdk-google-npm-2.0.14-376d8b03cc.patch":
+  version: 2.0.14
+  resolution: "@ai-sdk/google@patch:@ai-sdk/google@npm%3A2.0.14#~/.yarn/patches/@ai-sdk-google-npm-2.0.14-376d8b03cc.patch::version=2.0.14&hash=a91bb2"
+  dependencies:
+    "@ai-sdk/provider": "npm:2.0.0"
+    "@ai-sdk/provider-utils": "npm:3.0.9"
+  peerDependencies:
+    zod: ^3.25.76 || ^4
+  checksum: 10c0/5ec33dc9898457b1f48ed14cb767817345032c539dd21b7e21985ed47bc21b0820922b581bf349bb3898136790b12da3a0a7c9903c333a28ead0c3c2cd5230f2
   languageName: node
   linkType: hard
 
@@ -2316,7 +2328,7 @@ __metadata:
     "@ai-sdk/anthropic": "npm:^2.0.17"
     "@ai-sdk/azure": "npm:^2.0.30"
     "@ai-sdk/deepseek": "npm:^1.0.17"
-    "@ai-sdk/google": "npm:^2.0.14"
+    "@ai-sdk/google": "patch:@ai-sdk/google@npm%3A2.0.14#~/.yarn/patches/@ai-sdk-google-npm-2.0.14-376d8b03cc.patch"
     "@ai-sdk/openai": "npm:^2.0.30"
     "@ai-sdk/openai-compatible": "npm:^1.0.17"
     "@ai-sdk/provider": "npm:^2.0.0"

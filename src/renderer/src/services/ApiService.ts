@@ -337,7 +337,7 @@ export async function fetchGenerate({
 
 export function hasApiKey(provider: Provider) {
   if (!provider) return false
-  if (['ollama', 'lmstudio', 'vertexai', 'cherryin'].includes(provider.id)) return true
+  if (['ollama', 'lmstudio', 'vertexai', 'cherryai'].includes(provider.id)) return true
   return !isEmpty(provider.apiKey)
 }
 

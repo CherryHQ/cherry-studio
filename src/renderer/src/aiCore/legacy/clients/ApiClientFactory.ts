@@ -1,11 +1,12 @@
 import { loggerService } from '@logger'
+import { isNewApiProvider } from '@renderer/config/providers'
 import { Provider } from '@renderer/types'
 
 import { AihubmixAPIClient } from './aihubmix/AihubmixAPIClient'
 import { AnthropicAPIClient } from './anthropic/AnthropicAPIClient'
 import { AwsBedrockAPIClient } from './aws/AwsBedrockAPIClient'
 import { BaseApiClient } from './BaseApiClient'
-import { CherryinAPIClient } from './cherryin/CherryinAPIClient'
+import { CherryAiAPIClient } from './cherryai/CherryAiAPIClient'
 import { GeminiAPIClient } from './gemini/GeminiAPIClient'
 import { VertexAPIClient } from './gemini/VertexAPIClient'
 import { NewAPIClient } from './newapi/NewAPIClient'
@@ -34,8 +35,8 @@ export class ApiClientFactory {
     let instance: BaseApiClient
 
     // 首先检查特殊的 Provider ID
-    if (provider.id === 'cherryin') {
-      instance = new CherryinAPIClient(provider) as BaseApiClient
+    if (provider.id === 'cherryai') {
+      instance = new CherryAiAPIClient(provider) as BaseApiClient
       return instance
     }
 
@@ -45,7 +46,7 @@ export class ApiClientFactory {
       return instance
     }
 
-    if (provider.id === 'new-api') {
+    if (isNewApiProvider(provider)) {
       logger.debug(`Creating NewAPIClient for provider: ${provider.id}`)
       instance = new NewAPIClient(provider) as BaseApiClient
       return instance

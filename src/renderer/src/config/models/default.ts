@@ -3,14 +3,14 @@ import { Model, SystemProviderId } from '@renderer/types'
 export const glm45FlashModel: Model = {
   id: 'glm-4.5-flash',
   name: 'GLM-4.5-Flash',
-  provider: 'cherryin',
+  provider: 'cherryai',
   group: 'GLM-4.5'
 }
 
 export const qwen38bModel: Model = {
   id: 'Qwen/Qwen3-8B',
   name: 'Qwen3-8B',
-  provider: 'cherryin',
+  provider: 'cherryai',
   group: 'Qwen'
 }
 
@@ -25,20 +25,7 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
     // Default quick assistant model
     glm45FlashModel
   ],
-  cherryin: [
-    {
-      id: 'glm-4.5-flash',
-      name: 'GLM-4.5-Flash',
-      provider: 'cherryin',
-      group: 'GLM-4.5'
-    },
-    {
-      id: 'Qwen/Qwen3-8B',
-      name: 'Qwen3-8B',
-      provider: 'cherryin',
-      group: 'Qwen'
-    }
-  ],
+  // cherryin: [],
   vertexai: [],
   '302ai': [
     {
@@ -1784,6 +1771,38 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       name: 'GPT-4o',
       provider: 'poe',
       group: 'poe'
+    }
+  ],
+  aionly: [
+    {
+      id: 'claude-opus-4.1',
+      name: 'claude-opus-4.1',
+      provider: 'aionly',
+      group: 'claude'
+    },
+    {
+      id: 'claude-sonnet4',
+      name: 'claude-sonnet4',
+      provider: 'aionly',
+      group: 'claude'
+    },
+    {
+      id: 'claude-3.5-sonnet-v2',
+      name: 'claude-3.5-sonnet-v2',
+      provider: 'aionly',
+      group: 'claude'
+    },
+    {
+      id: 'gpt-4.1',
+      name: 'gpt-4.1',
+      provider: 'aionly',
+      group: 'gpt'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      name: 'gemini-2.5-flash',
+      provider: 'aionly',
+      group: 'gemini'
     }
   ]
 }

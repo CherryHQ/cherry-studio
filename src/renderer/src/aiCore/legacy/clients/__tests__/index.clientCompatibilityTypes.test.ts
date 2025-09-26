@@ -35,12 +35,8 @@ vi.mock('@renderer/config/models', () => ({
   findTokenLimit: vi.fn().mockReturnValue(4096),
   isFunctionCallingModel: vi.fn().mockReturnValue(false),
   DEFAULT_MAX_TOKENS: 4096,
-  glm45FlashModel: {
-    id: 'glm-4.5-flash',
-    name: 'GLM-4.5-Flash',
-    provider: 'cherryin',
-    group: 'GLM-4.5'
-  }
+  qwen38bModel: {},
+  glm45FlashModel: {}
 }))
 
 vi.mock('@renderer/services/AssistantService', () => ({

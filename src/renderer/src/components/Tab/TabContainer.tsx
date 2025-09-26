@@ -1,4 +1,5 @@
 import { PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { Sortable, useDndReorder } from '@renderer/components/dnd'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { isMac } from '@renderer/config/constant'
@@ -12,9 +13,10 @@ import tabsService from '@renderer/services/TabsService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import type { Tab } from '@renderer/store/tabs'
 import { addTab, removeTab, setActiveTab, setTabs } from '@renderer/store/tabs'
-import { ThemeMode } from '@renderer/types'
+import { MinAppType, ThemeMode } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Tooltip } from 'antd'
+import { LRUCache } from 'lru-cache'
 import {
   FileSearch,
   Folder,
@@ -45,14 +47,40 @@ interface TabsContainerProps {
   children: React.ReactNode
 }
 
-const getTabIcon = (tabId: string, minapps: any[]): React.ReactNode | undefined => {
+const logger = loggerService.withContext('TabContainer')
+
+const getTabIcon = (
+  tabId: string,
+  minapps: MinAppType[],
+  minAppsCache?: LRUCache<string, MinAppType>
+): React.ReactNode | undefined => {
   // Check if it's a minapp tab (format: apps:appId)
   if (tabId.startsWith('apps:')) {
     const appId = tabId.replace('apps:', '')
-    const app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+    let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+
+    // If not found in permanent apps, search in temporary apps cache
+    // The cache stores apps opened via openSmartMinapp() for top navbar mode
+    // These are temporary MinApps that were opened but not yet saved to user's config
+    // The cache is LRU (Least Recently Used) with max size from settings
+    // Cache validity: Apps in cache are currently active/recently used, not outdated
+    if (!app && minAppsCache) {
+      app = minAppsCache.get(appId)
+
+      // Defensive programming: If app not found in cache but tab exists,
+      // the cache entry may have been evicted due to LRU policy
+      // Log warning for debugging potential sync issues
+      if (!app) {
+        logger.warn(`MinApp ${appId} not found in cache, using fallback icon`)
+      }
+    }
+
     if (app) {
       return <MinAppIcon size={14} app={app} />
     }
+
+    // Fallback: If no app found (cache evicted), show default icon
+    return <LayoutGrid size={14} />
   }
 
   switch (tabId) {
@@ -94,7 +122,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
   const activeTabId = useAppSelector((state) => state.tabs.activeTabId)
   const isFullscreen = useFullscreen()
   const { settedTheme, toggleTheme } = useTheme()
-  const { hideMinappPopup } = useMinappPopup()
+  const { hideMinappPopup, minAppsCache } = useMinappPopup()
   const { minapps } = useMinapps()
   const { t } = useTranslation()
 
@@ -112,8 +140,23 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
     // Check if it's a minapp tab
     if (tabId.startsWith('apps:')) {
       const appId = tabId.replace('apps:', '')
-      const app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
-      return app ? app.name : 'MinApp'
+      let app = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+
+      // If not found in permanent apps, search in temporary apps cache
+      // This ensures temporary MinApps display proper titles while being used
+      // The LRU cache automatically manages app lifecycle and prevents memory leaks
+      if (!app && minAppsCache) {
+        app = minAppsCache.get(appId)
+
+        // Defensive programming: If app not found in cache but tab exists,
+        // the cache entry may have been evicted due to LRU policy
+        if (!app) {
+          logger.warn(`MinApp ${appId} not found in cache, using fallback title`)
+        }
+      }
+
+      // Return app name if found, otherwise use fallback with appId
+      return app ? app.name : `MinApp-${appId}`
     }
     return getTitleLabel(tabId)
   }
@@ -196,7 +239,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
             renderItem={(tab) => (
               <Tab key={tab.id} active={tab.id === activeTabId} onClick={() => handleTabClick(tab)}>
                 <TabHeader>
-                  {tab.id && <TabIcon>{getTabIcon(tab.id, minapps)}</TabIcon>}
+                  {tab.id && <TabIcon>{getTabIcon(tab.id, minapps, minAppsCache)}</TabIcon>}
                   <TabTitle>{getTabTitle(tab.id)}</TabTitle>
                 </TabHeader>
                 {tab.id !== 'home' && (
@@ -259,7 +302,7 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-x)' : '15px')};
+  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'calc(env(titlebar-area-x) + 4px)' : '15px')};
   padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   min-height: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-height)' : '')};

@@ -410,7 +410,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
-      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={true}>
+      <CollapsibleSettingGroup title={t('settings.math.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.math.engine.label')}</SettingRowTitleSmall>
@@ -439,7 +439,7 @@ const SettingsTab: FC<Props> = (props) => {
           <SettingDivider />
         </SettingGroup>
       </CollapsibleSettingGroup>
-      <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={true}>
+      <CollapsibleSettingGroup title={t('chat.settings.code.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('message.message.code_style')}</SettingRowTitleSmall>
@@ -583,7 +583,7 @@ const SettingsTab: FC<Props> = (props) => {
         </SettingGroup>
         <SettingDivider />
       </CollapsibleSettingGroup>
-      <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={true}>
+      <CollapsibleSettingGroup title={t('settings.messages.input.title')} defaultExpanded={false}>
         <SettingGroup>
           <SettingRow>
             <SettingRowTitleSmall>{t('settings.messages.input.show_estimated_tokens')}</SettingRowTitleSmall>

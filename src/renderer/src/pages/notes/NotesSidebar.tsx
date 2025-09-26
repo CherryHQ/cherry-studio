@@ -111,7 +111,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
               const targetScrollTop = elementOffsetTop - (containerHeight - elementHeight) / 2
               scrollContainer.scrollTo({
                 top: Math.max(0, targetScrollTop),
-                behavior: 'smooth'
+                behavior: 'instant'
               })
             }
           }

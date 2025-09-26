@@ -68,7 +68,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
 
   const isAzureOpenAI = provider.id === 'azure-openai' || provider.type === 'azure-openai'
   const isDmxapi = provider.id === 'dmxapi'
-  const hideApiInput = ['vertexai', 'aws-bedrock', 'cherryin'].includes(provider.id)
+  const hideApiInput = ['vertexai', 'aws-bedrock'].includes(provider.id)
 
   const providerConfig = PROVIDER_URLS[provider.id]
   const officialWebsite = providerConfig?.websites?.official

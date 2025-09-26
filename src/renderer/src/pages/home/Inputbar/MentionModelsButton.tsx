@@ -89,7 +89,7 @@ const MentionModelsButton: FC<Props> = ({
           // 兜底：使用打开时的 position（若存在），按空白边界删除
           if (typeof fallbackPosition === 'number' && currentText[fallbackPosition] === '@') {
             let endPos = fallbackPosition + 1
-            while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
+            while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
               endPos++
             }
             return currentText.slice(0, fallbackPosition) + currentText.slice(endPos)
@@ -98,7 +98,7 @@ const MentionModelsButton: FC<Props> = ({
         }
 
         let endPos = start + 1
-        while (endPos < currentText.length && currentText[endPos] !== ' ' && currentText[endPos] !== '\n') {
+        while (endPos < currentText.length && !/\s/.test(currentText[endPos])) {
           endPos++
         }
         return currentText.slice(0, start) + currentText.slice(endPos)

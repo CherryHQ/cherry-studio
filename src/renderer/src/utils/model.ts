@@ -64,7 +64,7 @@ export const getModelTags = (models: Model[]): Record<ModelTag, boolean> => {
 }
 
 export function isFreeModel(model: Model) {
-  if (model.provider === 'cherryin') {
+  if (model.provider === 'cherryai') {
     return true
   }
 

@@ -44,11 +44,20 @@ const MinAppPage: FC = () => {
     }
   }, [isTopNavbar])
 
-  // Find the app from all available apps
+  // Find the app from all available apps (including cached ones)
   const app = useMemo(() => {
     if (!appId) return null
-    return [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
-  }, [appId, minapps])
+
+    // First try to find in default and custom mini-apps
+    let foundApp = [...DEFAULT_MIN_APPS, ...minapps].find((app) => app.id === appId)
+
+    // If not found and we have cache, try to find in cache (for temporary apps)
+    if (!foundApp && minAppsCache) {
+      foundApp = minAppsCache.get(appId)
+    }
+
+    return foundApp
+  }, [appId, minapps, minAppsCache])
 
   useEffect(() => {
     // If app not found, redirect to apps list

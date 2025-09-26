@@ -1,7 +1,7 @@
 import { Navbar, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { isLinux, isWin } from '@renderer/config/constant'
+import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -86,7 +86,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         )}
       </AnimatePresence>
       {!showAssistants && (
-        <NavbarLeft style={{ justifyContent: 'flex-start', borderRight: 'none', padding: '0 10px', minWidth: 'auto' }}>
+        <NavbarLeft
+          style={{
+            justifyContent: 'flex-start',
+            borderRight: 'none',
+            paddingLeft: 0,
+            paddingRight: 10,
+            minWidth: 'auto'
+          }}>
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
@@ -106,7 +113,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </AnimatePresence>
         </NavbarLeft>
       )}
-      <HStack alignItems="center" gap={6}>
+      <HStack alignItems="center" gap={6} ml={!isMac ? 16 : 0}>
         <SelectModelButton assistant={assistant} />
       </HStack>
       <NavbarRight
@@ -114,7 +121,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           justifyContent: 'flex-end',
           flex: 1,
           position: 'relative',
-          paddingRight: isWin || isLinux ? '144px' : '6px'
+          paddingRight: isWin || isLinux ? '144px' : '15px'
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
