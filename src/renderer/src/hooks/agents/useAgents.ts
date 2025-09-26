@@ -55,7 +55,7 @@ export const useAgents = () => {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [client, mutate, t]
+    [activeAgentId, client, data, dispatch, mutate, t]
   )
 
   const getAgent = useCallback(
