@@ -7,7 +7,7 @@ import VideoItem from './VideoItem'
 
 // Export shared components
 export { CopyButtonContainer, KnowledgeItemMetadata } from './components'
-export { useCopyText, useHighlightText, useKnowledgeItemMetadata } from './hooks'
+export { useCopyText, useHighlightText } from './hooks'
 
 interface Props {
   item: KnowledgeSearchResult & {
