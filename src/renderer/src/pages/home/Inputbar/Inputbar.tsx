@@ -21,6 +21,7 @@ import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useTranslate from '@renderer/hooks/useTranslate'
+import { InputbarToolsProvider, useInputbarTools } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { getDefaultTopic } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import FileManager from '@renderer/services/FileManager'
@@ -33,7 +34,7 @@ import WebSearchService from '@renderer/services/WebSearchService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setSearching } from '@renderer/store/runtime'
 import { sendMessage as _sendMessage } from '@renderer/store/thunk/messageThunk'
-import { Assistant, FileType, KnowledgeBase, Model, Topic } from '@renderer/types'
+import { Assistant, FileType, KnowledgeBase, Model, Topic, TopicType } from '@renderer/types'
 import type { MessageInputBaseParams } from '@renderer/types/newMessage'
 import { classNames, delay, filterSupportedFiles } from '@renderer/utils'
 import { formatQuotedText } from '@renderer/utils/formats'
@@ -55,11 +56,13 @@ import styled from 'styled-components'
 
 import NarrowLayout from '../Messages/NarrowLayout'
 import AttachmentPreview from './AttachmentPreview'
-import InputbarTools, { InputbarToolsRef } from './InputbarTools'
+import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
 import MentionModelsInput from './MentionModelsInput'
+import { getInputbarConfig } from './registry'
 import SendMessageButton from './SendMessageButton'
 import TokenCount from './TokenCount'
+import { InputbarScope } from './types'
 
 const logger = loggerService.withContext('Inputbar')
 
@@ -69,14 +72,81 @@ interface Props {
   topic: Topic
 }
 
-let _text = ''
-let _files: FileType[] = []
-let _mentionedModelsCache: Model[] = []
+type ProviderActionHandlers = {
+  resizeTextArea: () => void
+  addNewTopic: () => void
+  clearTopic: () => void
+  onNewContext: () => void
+}
 
-const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) => {
-  const [text, setText] = useState(_text)
+interface InputbarInnerProps extends Props {
+  actionsRef: React.MutableRefObject<ProviderActionHandlers>
+}
+
+const Inputbar: FC<Props> = ({ assistant: initialAssistant, setActiveTopic, topic }) => {
+  const actionsRef = useRef<ProviderActionHandlers>({
+    resizeTextArea: () => {},
+    addNewTopic: () => {},
+    clearTopic: () => {},
+    onNewContext: () => {}
+  })
+
+  const initialState = useMemo(
+    () => ({
+      files: [] as FileType[],
+      mentionedModels: [] as Model[],
+      selectedKnowledgeBases: initialAssistant.knowledge_bases ?? [],
+      text: '',
+      isExpanded: false,
+      couldAddImageFile: false,
+      extensions: [] as string[]
+    }),
+    [initialAssistant.knowledge_bases]
+  )
+
+  return (
+    <InputbarToolsProvider
+      initialState={initialState}
+      actions={{
+        resizeTextArea: () => actionsRef.current.resizeTextArea(),
+        addNewTopic: () => actionsRef.current.addNewTopic(),
+        clearTopic: () => actionsRef.current.clearTopic(),
+        onNewContext: () => actionsRef.current.onNewContext()
+      }}>
+      <InputbarInner
+        assistant={initialAssistant}
+        setActiveTopic={setActiveTopic}
+        topic={topic}
+        actionsRef={actionsRef}
+      />
+    </InputbarToolsProvider>
+  )
+}
+
+const InputbarInner: FC<InputbarInnerProps> = ({ assistant: initialAssistant, setActiveTopic, topic, actionsRef }) => {
+  const scope = useMemo<InputbarScope>(() => topic.type ?? TopicType.Chat, [topic.type])
+  const config = useMemo(() => getInputbarConfig(scope), [scope])
+  const features = config.features
+
+  const {
+    files,
+    setFiles,
+    mentionedModels,
+    setMentionedModels,
+    selectedKnowledgeBases,
+    setSelectedKnowledgeBases,
+    text,
+    setText,
+    isExpanded,
+    setIsExpanded,
+    setCouldAddImageFile,
+    setExtensions,
+    emitQuickPanelTrigger
+  } = useInputbarTools()
+
+  const showKnowledgeIcon = useSidebarIconShow('knowledge')
   const [inputFocus, setInputFocus] = useState(false)
-  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(_assistant.id)
+  const { assistant, addTopic, model, setModel, updateAssistant } = useAssistant(initialAssistant.id)
   const {
     targetLanguage,
     sendMessageShortcut,
@@ -88,25 +158,19 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     enableQuickPanelTriggers,
     enableSpellCheck
   } = useSettings()
-  const [expanded, setExpand] = useState(false)
   const [estimateTokenCount, setEstimateTokenCount] = useState(0)
   const [contextCount, setContextCount] = useState({ current: 0, max: 0 })
-  const textareaRef = useRef<TextAreaRef>(null)
-  const [files, setFiles] = useState<FileType[]>(_files)
+  const textareaRef = useRef<TextAreaRef | null>(null)
   const { t } = useTranslation()
   const { getLanguageByLangcode } = useTranslate()
-  const containerRef = useRef(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const { searching } = useRuntime()
   const { pauseMessages } = useMessageOperations(topic)
   const loading = useTopicLoading(topic)
   const dispatch = useAppDispatch()
   const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
+  const spaceClickTimer = useRef<NodeJS.Timeout | null>(null)
   const [isTranslating, setIsTranslating] = useState(false)
-  const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>([])
-  const [mentionedModels, setMentionedModels] = useState<Model[]>(_mentionedModelsCache)
-  const mentionedModelsRef = useRef(mentionedModels)
-  const [isDragging, setIsDragging] = useState(false)
   const [isFileDragging, setIsFileDragging] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState<number>()
   const startDragY = useRef<number>(0)
@@ -115,10 +179,7 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const isVisionAssistant = useMemo(() => isVisionModel(model), [model])
   const isGenerateImageAssistant = useMemo(() => isGenerateImageModel(model), [model])
   const { setTimeoutTimer } = useTimer()
-
-  useEffect(() => {
-    mentionedModelsRef.current = mentionedModels
-  }, [mentionedModels])
+  const quickPanel = useQuickPanel()
 
   const isVisionSupported = useMemo(
     () =>
@@ -134,56 +195,49 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     [mentionedModels, isGenerateImageAssistant]
   )
 
-  // 允许在支持视觉或生成图片时添加图片文件
-  const couldAddImageFile = useMemo(() => {
+  const canAddImageFile = useMemo(() => {
+    if (!features.enableAttachments) {
+      return false
+    }
     return isVisionSupported || isGenerateImageSupported
-  }, [isVisionSupported, isGenerateImageSupported])
+  }, [features.enableAttachments, isGenerateImageSupported, isVisionSupported])
 
-  const couldAddTextFile = useMemo(() => {
+  const canAddTextFile = useMemo(() => {
+    if (!features.enableAttachments) {
+      return false
+    }
     return isVisionSupported || (!isVisionSupported && !isGenerateImageSupported)
-  }, [isGenerateImageSupported, isVisionSupported])
+  }, [features.enableAttachments, isGenerateImageSupported, isVisionSupported])
 
   const supportedExts = useMemo(() => {
-    if (couldAddImageFile && couldAddTextFile) {
-      return [...imageExts, ...documentExts, ...textExts]
-    } else if (couldAddImageFile) {
-      return [...imageExts]
-    } else if (couldAddTextFile) {
-      return [...documentExts, ...textExts]
-    } else {
+    if (!features.enableAttachments) {
       return []
     }
-  }, [couldAddImageFile, couldAddTextFile])
 
-  const quickPanel = useQuickPanel()
+    if (canAddImageFile && canAddTextFile) {
+      return [...imageExts, ...documentExts, ...textExts]
+    }
 
-  const showKnowledgeIcon = useSidebarIconShow('knowledge')
+    if (canAddImageFile) {
+      return [...imageExts]
+    }
 
-  const [tokenCount, setTokenCount] = useState(0)
+    if (canAddTextFile) {
+      return [...documentExts, ...textExts]
+    }
 
-  const inputbarToolsRef = useRef<InputbarToolsRef>(null)
+    return []
+  }, [canAddImageFile, canAddTextFile, features.enableAttachments])
+
   const prevTextRef = useRef(text)
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const debouncedEstimate = useCallback(
-    debounce((newText) => {
-      if (showInputEstimatedTokens) {
-        const count = estimateTxtTokens(newText) || 0
-        setTokenCount(count)
-      }
-    }, 500),
-    [showInputEstimatedTokens]
-  )
-
   useEffect(() => {
-    debouncedEstimate(text)
-  }, [text, debouncedEstimate])
+    setCouldAddImageFile(canAddImageFile)
+  }, [canAddImageFile, setCouldAddImageFile])
 
   useEffect(() => {
     prevTextRef.current = text
   }, [text])
-
-  const inputTokenCount = showInputEstimatedTokens ? tokenCount : 0
 
   const placeholderText = enableQuickPanelTriggers
     ? t('chat.input.placeholder', { key: getSendMessageShortcutLabel(sendMessageShortcut) })
@@ -194,17 +248,20 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         })
       })
 
-  const inputEmpty = isEmpty(text.trim()) && files.length === 0
-
-  _text = text
-  _files = files
-
   useEffect(() => {
-    // 利用useEffect清理函数在卸载组件时更新状态缓存
-    return () => {
-      _mentionedModelsCache = mentionedModelsRef.current
-    }
-  }, [])
+    setExtensions(supportedExts)
+  }, [setExtensions, supportedExts])
+
+  const setInputText = useCallback<React.Dispatch<React.SetStateAction<string>>>(
+    (value) => {
+      if (typeof value === 'function') {
+        setText((prev) => value(prev))
+      } else {
+        setText(value)
+      }
+    },
+    [setText]
+  )
 
   const focusTextarea = useCallback(() => {
     textareaRef.current?.focus()
@@ -213,21 +270,26 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   const resizeTextArea = useCallback(
     (force: boolean = false) => {
       const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        // 如果已经手动设置了高度,则不自动调整
-        if (textareaHeight && !force) {
-          return
-        }
-        if (textArea?.scrollHeight) {
-          textArea.style.height = Math.min(textArea.scrollHeight, 400) + 'px'
-        }
+      if (!textArea) {
+        return
+      }
+
+      if (textareaHeight && !force) {
+        return
+      }
+
+      textArea.style.height = 'auto'
+      if (textArea.scrollHeight) {
+        textArea.style.height = Math.min(textArea.scrollHeight, 400) + 'px'
       }
     },
     [textareaHeight]
   )
 
+  const inputEmpty = useMemo(() => isEmpty(text.trim()) && files.length === 0, [files.length, text])
+
   const sendMessage = useCallback(async () => {
-    if (inputEmpty) {
+    if (!features.enableSendButton || inputEmpty) {
       return
     }
     if (checkRateLimit(assistant)) {
@@ -238,22 +300,18 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
     const parent = spanManagerService.startTrace(
       { topicId: topic.id, name: 'sendMessage', inputs: text },
-      mentionedModels && mentionedModels.length > 0 ? mentionedModels : [assistant.model]
+      mentionedModels.length > 0 ? mentionedModels : [assistant.model]
     )
     EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: topic.id, traceId: parent?.spanContext().traceId })
 
     try {
-      // Dispatch the sendMessage action with all options
       const uploadedFiles = await FileManager.uploadFiles(files)
 
       const baseUserMessage: MessageInputBaseParams = { assistant, topic, content: text }
-
-      // getUserMessage()
       if (uploadedFiles) {
         baseUserMessage.files = uploadedFiles
       }
-
-      if (mentionedModels) {
+      if (mentionedModels.length) {
         baseUserMessage.mentions = mentionedModels
       }
 
@@ -264,20 +322,33 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
 
       dispatch(_sendMessage(message, blocks, assistant, topic.id))
 
-      // Clear input
       setText('')
       setFiles([])
       setTimeoutTimer('sendMessage_1', () => setText(''), 500)
       setTimeoutTimer('sendMessage_2', () => resizeTextArea(true), 0)
-      setExpand(false)
+      setIsExpanded(false)
     } catch (error) {
       logger.warn('Failed to send message:', error as Error)
       parent?.recordException(error as Error)
     }
-  }, [assistant, dispatch, files, inputEmpty, mentionedModels, resizeTextArea, setTimeoutTimer, text, topic])
+  }, [
+    assistant,
+    dispatch,
+    features.enableSendButton,
+    files,
+    inputEmpty,
+    mentionedModels,
+    resizeTextArea,
+    setFiles,
+    setIsExpanded,
+    setText,
+    setTimeoutTimer,
+    text,
+    topic
+  ])
 
   const translate = useCallback(async () => {
-    if (isTranslating) {
+    if (isTranslating || !features.enableTranslate) {
       return
     }
 
@@ -291,166 +362,186 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     } finally {
       setIsTranslating(false)
     }
-  }, [isTranslating, text, getLanguageByLangcode, targetLanguage, setTimeoutTimer, resizeTextArea])
+  }, [
+    features.enableTranslate,
+    getLanguageByLangcode,
+    isTranslating,
+    resizeTextArea,
+    setText,
+    setTimeoutTimer,
+    targetLanguage,
+    text
+  ])
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // 按下Tab键，自动选中${xxx}
-    if (event.key === 'Tab' && inputFocus) {
-      event.preventDefault()
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (!textArea) return
-
-      const cursorPosition = textArea.selectionStart
-      const selectionLength = textArea.selectionEnd - textArea.selectionStart
-      const text = textArea.value
-
-      let match = text.slice(cursorPosition + selectionLength).match(/\$\{[^}]+\}/)
-      let startIndex: number
-
-      if (!match) {
-        match = text.match(/\$\{[^}]+\}/)
-        startIndex = match?.index ?? -1
-      } else {
-        startIndex = cursorPosition + selectionLength + match.index!
-      }
-
-      if (startIndex !== -1) {
-        const endIndex = startIndex + match![0].length
-        textArea.setSelectionRange(startIndex, endIndex)
-        return
-      }
+  const tokenCountProps = useMemo(() => {
+    if (!config.showTokenCount || estimateTokenCount === undefined || !showInputEstimatedTokens) {
+      return undefined
     }
 
-    if (autoTranslateWithSpace) {
-      if (event.key === ' ') {
-        setSpaceClickCount((prev) => prev + 1)
+    return {
+      estimateTokenCount,
+      inputTokenCount: estimateTokenCount,
+      contextCount
+    }
+  }, [config.showTokenCount, contextCount, estimateTokenCount, showInputEstimatedTokens])
 
+  // const quickPanelRootMenuItems = useMemo(() => {
+  //   if (!config.enableQuickPanel) {
+  //     return []
+  //   }
+
+  //   const baseMenu = [...quickPanelRootMenu]
+
+  //   if (features.enableTranslate) {
+  //     baseMenu.push({
+  //       label: t('translate.title'),
+  //       description: t('translate.menu.description'),
+  //       icon: <Languages size={16} />,
+  //       action: () => {
+  //         if (!text) return
+  //         translate()
+  //       }
+  //     })
+  //   }
+
+  //   return baseMenu
+  // }, [config.enableQuickPanel, features.enableTranslate, quickPanelRootMenu, t, text, translate])
+
+  const onToggleExpanded = useCallback(() => {
+    if (!features.enableExpand) {
+      return
+    }
+
+    const currentlyExpanded = isExpanded || !!textareaHeight
+    const shouldExpand = !currentlyExpanded
+    setIsExpanded(shouldExpand)
+
+    const textArea = textareaRef.current?.resizableTextArea?.textArea
+    if (!textArea) {
+      return
+    }
+
+    if (shouldExpand) {
+      textArea.style.height = '70vh'
+      setTextareaHeight(window.innerHeight * 0.7)
+    } else {
+      textArea.style.height = 'auto'
+      setTextareaHeight(undefined)
+      requestAnimationFrame(() => {
+        if (textArea) {
+          const contentHeight = textArea.scrollHeight
+          textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
+        }
+      })
+    }
+
+    focusTextarea()
+  }, [features.enableExpand, focusTextarea, isExpanded, setIsExpanded, textareaHeight])
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (autoTranslateWithSpace && event.key === ' ') {
+        setSpaceClickCount((prev) => prev + 1)
         if (spaceClickTimer.current) {
           clearTimeout(spaceClickTimer.current)
         }
-
         spaceClickTimer.current = setTimeout(() => {
           setSpaceClickCount(0)
         }, 200)
 
-        if (spaceClickCount === 2) {
+        if (spaceClickCount === 2 && features.enableTranslate) {
           logger.info('Triple space detected - trigger translation')
           setSpaceClickCount(0)
-          setIsTranslating(true)
           translate()
           return
         }
       }
-    }
 
-    if (expanded) {
-      if (event.key === 'Escape') {
+      if (features.enableExpand && (isExpanded || !!textareaHeight) && event.key === 'Escape') {
         event.stopPropagation()
-        return onToggleExpanded()
-      }
-    }
-
-    //to check if the SendMessage key is pressed
-    //other keys should be ignored
-    const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
-    if (isEnterPressed) {
-      // 1) 优先判断是否为“发送”（当前仅支持纯 Enter 发送；其余 Enter 组合键均换行）
-      if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
-        sendMessage()
-        return event.preventDefault()
-      }
-
-      // 2) 不再基于 quickPanel.isVisible 主动拦截。
-      //    纯 Enter 的处理权交由 QuickPanel 的全局捕获（其只在纯 Enter 时拦截），
-      //    其它带修饰键的 Enter 则由输入框处理为换行。
-
-      if (event.shiftKey) {
+        onToggleExpanded()
         return
       }
 
-      event.preventDefault()
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-      if (textArea) {
-        const start = textArea.selectionStart
-        const end = textArea.selectionEnd
-        const text = textArea.value
-        const newText = text.substring(0, start) + '\n' + text.substring(end)
+      const isEnterPressed = event.key === 'Enter' && !event.nativeEvent.isComposing
+      if (isEnterPressed) {
+        if (isSendMessageKeyPressed(event, sendMessageShortcut)) {
+          sendMessage()
+          event.preventDefault()
+          return
+        }
 
-        // update text by setState, not directly modify textarea.value
-        setText(newText)
+        if (event.shiftKey) {
+          return
+        }
 
-        // set cursor position in the next render cycle
-        setTimeoutTimer(
-          'handleKeyDown',
-          () => {
-            textArea.selectionStart = textArea.selectionEnd = start + 1
-            onInput() // trigger resizeTextArea
-          },
-          0
-        )
+        event.preventDefault()
+        const textArea = textareaRef.current?.resizableTextArea?.textArea
+        if (textArea) {
+          const start = textArea.selectionStart
+          const end = textArea.selectionEnd
+          const currentText = textArea.value
+          const newText = currentText.substring(0, start) + '\n' + currentText.substring(end)
+
+          setText(newText)
+
+          setTimeoutTimer(
+            'handleKeyDown',
+            () => {
+              textArea.selectionStart = textArea.selectionEnd = start + 1
+            },
+            0
+          )
+        }
       }
-    }
 
-    if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
-      setFiles((prev) => prev.slice(0, -1))
-      return event.preventDefault()
-    }
-  }
-
-  const addNewTopic = useCallback(async () => {
-    await modelGenerating()
-
-    const topic = getDefaultTopic(assistant.id)
-
-    await db.topics.add({ id: topic.id, messages: [] })
-
-    // Clear previous state
-    // Reset to assistant default model
-    assistant.defaultModel && setModel(assistant.defaultModel)
-
-    addTopic(topic)
-    setActiveTopic(topic)
-
-    setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
-  }, [addTopic, assistant.defaultModel, assistant.id, setActiveTopic, setModel, setTimeoutTimer])
-
-  const onQuote = useCallback(
-    (text: string) => {
-      const quotedText = formatQuotedText(text)
-      setText((prevText) => {
-        const newText = prevText ? `${prevText}\n${quotedText}\n` : `${quotedText}\n`
-        setTimeoutTimer('onQuote', () => resizeTextArea(), 0)
-        return newText
-      })
-      focusTextarea()
+      if (event.key === 'Backspace' && text.length === 0 && files.length > 0) {
+        setFiles((prev) => prev.slice(0, -1))
+        event.preventDefault()
+      }
     },
-    [focusTextarea, setTimeoutTimer, resizeTextArea]
+    [
+      autoTranslateWithSpace,
+      features.enableExpand,
+      features.enableTranslate,
+      files.length,
+      isExpanded,
+      onToggleExpanded,
+      sendMessage,
+      sendMessageShortcut,
+      setFiles,
+      setText,
+      setTimeoutTimer,
+      spaceClickCount,
+      text,
+      textareaHeight,
+      translate
+    ]
   )
 
-  const onPause = async () => {
-    await pauseMessages()
-  }
+  const handlePaste = useCallback(
+    async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const nativeEvent = event.nativeEvent
+      const handled = await PasteService.handlePaste(
+        nativeEvent,
+        supportedExts,
+        setFiles,
+        setText,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
+        text,
+        resizeTextArea,
+        t
+      )
 
-  const clearTopic = async () => {
-    if (loading) {
-      await onPause()
-      await delay(1)
-    }
-    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
-    focusTextarea()
-  }
+      if (handled) {
+        event.preventDefault()
+      }
+    },
+    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, setFiles, setText, supportedExts, t, text]
+  )
 
-  const onNewContext = () => {
-    if (loading) {
-      onPause()
-      return
-    }
-    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
-  }
-
-  const onInput = () => !expanded && resizeTextArea()
-
-  const onChange = useCallback(
+  const handleTextareaChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       const newText = e.target.value
       setText(newText)
@@ -465,69 +556,38 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
       const isCursorAtTextStart = cursorPosition <= 1
       const hasValidTriggerBoundary = previousChar === ' ' || isCursorAtTextStart
 
-      const openRootPanelAt = (position: number) => {
-        const quickPanelMenu =
-          inputbarToolsRef.current?.getQuickPanelMenu({
-            text: newText,
-            translate
-          }) || []
+      const textBeforeCursor = newText.slice(0, cursorPosition)
+      const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
+      const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
+      const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
 
-        quickPanel.open({
-          title: t('settings.quickPanel.title'),
-          list: quickPanelMenu,
-          symbol: QuickPanelReservedSymbol.Root,
-          triggerInfo: {
-            type: 'input',
-            position,
-            originalText: newText
-          }
-        })
-      }
+      if (lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
+        const triggerChar = newText[lastTriggerIndex]
+        const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
+        const hasBoundary = lastTriggerIndex === 0 || /\s/.test(boundaryChar)
+        const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
+        const hasSearchContent = searchSegment.trim().length > 0
 
-      const openMentionPanelAt = (position: number) => {
-        inputbarToolsRef.current?.openMentionModelsPanel({
-          type: 'input',
-          position,
-          originalText: newText
-        })
-      }
-
-      if (enableQuickPanelTriggers && !quickPanel.isVisible) {
-        const textBeforeCursor = newText.slice(0, cursorPosition)
-        const lastRootIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.Root)
-        const lastMentionIndex = textBeforeCursor.lastIndexOf(QuickPanelReservedSymbol.MentionModels)
-        const lastTriggerIndex = Math.max(lastRootIndex, lastMentionIndex)
-
-        if (lastTriggerIndex !== -1 && cursorPosition > lastTriggerIndex) {
-          const triggerChar = newText[lastTriggerIndex]
-          const boundaryChar = newText[lastTriggerIndex - 1] ?? ''
-          const hasBoundary = lastTriggerIndex === 0 || /\s/.test(boundaryChar)
-          const searchSegment = newText.slice(lastTriggerIndex + 1, cursorPosition)
-          const hasSearchContent = searchSegment.trim().length > 0
-
-          if (hasBoundary && (!hasSearchContent || isDeletion)) {
-            if (triggerChar === QuickPanelReservedSymbol.Root) {
-              openRootPanelAt(lastTriggerIndex)
-            } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
-              openMentionPanelAt(lastTriggerIndex)
-            }
+        if (hasBoundary && (!hasSearchContent || isDeletion)) {
+          if (triggerChar === QuickPanelReservedSymbol.Root) {
+            emitQuickPanelTrigger(QuickPanelReservedSymbol.Root, {
+              type: 'input',
+              position: lastTriggerIndex
+            })
+          } else if (triggerChar === QuickPanelReservedSymbol.MentionModels) {
+            emitQuickPanelTrigger(QuickPanelReservedSymbol.MentionModels, {
+              type: 'input',
+              position: lastTriggerIndex
+            })
           }
         }
       }
 
       // 触发符号为 '/'：若当前未打开或符号不同，则切换/打开
-      if (enableQuickPanelTriggers && lastSymbol === QuickPanelReservedSymbol.Root && hasValidTriggerBoundary) {
-        if (quickPanel.isVisible && quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
-          quickPanel.close('switch-symbol')
-        }
-        if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.Root) {
-          openRootPanelAt(cursorPosition - 1)
-        }
-      }
-
-      // 触发符号为 '@'：若当前未打开或符号不同，则切换/打开
       if (
         enableQuickPanelTriggers &&
+        config.enableQuickPanel &&
+        features.enableMentionModels &&
         lastSymbol === QuickPanelReservedSymbol.MentionModels &&
         hasValidTriggerBoundary
       ) {
@@ -535,68 +595,81 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
           quickPanel.close('switch-symbol')
         }
         if (!quickPanel.isVisible || quickPanel.symbol !== QuickPanelReservedSymbol.MentionModels) {
-          openMentionPanelAt(cursorPosition - 1)
+          emitQuickPanelTrigger(QuickPanelReservedSymbol.MentionModels, {
+            type: 'input',
+            position: cursorPosition - 1,
+            originalText: newText
+          })
         }
       }
 
       prevTextRef.current = newText
     },
-    [enableQuickPanelTriggers, quickPanel, t, translate]
+    [
+      config.enableQuickPanel,
+      emitQuickPanelTrigger,
+      enableQuickPanelTriggers,
+      features.enableMentionModels,
+      quickPanel,
+      setText
+    ]
   )
 
-  const onPaste = useCallback(
-    async (event: ClipboardEvent) => {
-      return await PasteService.handlePaste(
-        event,
-        supportedExts,
-        setFiles,
-        setText,
-        pasteLongTextAsFile,
-        pasteLongTextThreshold,
-        text,
-        resizeTextArea,
-        t
-      )
+  const handleDragOver = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!features.enableAttachments) {
+        return
+      }
+      setIsFileDragging(true)
     },
-    [pasteLongTextAsFile, pasteLongTextThreshold, resizeTextArea, supportedExts, t, text]
+    [features.enableAttachments]
   )
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsFileDragging(true)
-  }
+  const handleDragEnter = handleDragOver
 
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsFileDragging(true)
-  }
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsFileDragging(false)
-  }
+  const handleDragLeave = useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!features.enableAttachments) {
+        return
+      }
+      setIsFileDragging(false)
+    },
+    [features.enableAttachments]
+  )
 
   const handleDrop = useCallback(
-    async (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsFileDragging(false)
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
 
-      const data = await getTextFromDropEvent(e)
+      if (features.enableAttachments) {
+        setIsFileDragging(false)
+      }
 
-      setText(text + data)
+      const droppedText = await getTextFromDropEvent(event)
+      if (droppedText) {
+        setText((prev) => prev + droppedText)
+      }
 
-      const droppedFiles = await getFilesFromDropEvent(e).catch((err) => {
+      if (!features.enableAttachments) {
+        return
+      }
+
+      const droppedFiles = await getFilesFromDropEvent(event).catch((err) => {
         logger.error('handleDrop:', err)
         return null
       })
 
       if (droppedFiles) {
         const supportedFiles = await filterSupportedFiles(droppedFiles, supportedExts)
-        supportedFiles.length > 0 && setFiles((prevFiles) => [...prevFiles, ...supportedFiles])
+        if (supportedFiles.length > 0) {
+          setFiles((prevFiles) => [...prevFiles, ...supportedFiles])
+        }
+
         if (droppedFiles.length > 0 && supportedFiles.length !== droppedFiles.length) {
           window.toast.info(
             t('chat.input.file_not_supported_count', {
@@ -606,107 +679,178 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
         }
       }
     },
-    [supportedExts, t, text]
+    [features.enableAttachments, setFiles, setText, supportedExts, t]
   )
 
-  const onTranslated = (translatedText: string) => {
-    setText(translatedText)
-    setTimeoutTimer('onTranslated', () => resizeTextArea(), 0)
-  }
+  const onTranslated = useCallback(
+    (translatedText: string) => {
+      setText(translatedText)
+      setTimeoutTimer('onTranslated', () => resizeTextArea(), 0)
+    },
+    [resizeTextArea, setText, setTimeoutTimer]
+  )
 
-  const handleDragStart = (e: React.MouseEvent) => {
-    e.preventDefault()
-    setIsDragging(true)
-    startDragY.current = e.clientY
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (textArea) {
-      startHeight.current = textArea.offsetHeight
-    }
-  }
+  const handleDragStart = useCallback(
+    (event: React.MouseEvent) => {
+      if (!config.enableDragDrop) {
+        return
+      }
 
-  const handleDrag = useCallback(
-    (e: MouseEvent) => {
-      if (!isDragging) return
+      startDragY.current = event.clientY
+      startHeight.current = textareaRef.current?.resizableTextArea?.textArea?.offsetHeight || 0
 
-      const delta = startDragY.current - e.clientY // 改变计算方向
-      const viewportHeight = window.innerHeight
-      const maxHeightInPixels = viewportHeight * 0.7
-
-      const newHeight = Math.min(maxHeightInPixels, Math.max(startHeight.current + delta, 30))
-      const textArea = textareaRef.current?.resizableTextArea?.textArea
-
-      if (textArea) {
-        textArea.style.height = `${newHeight}px`
-        setExpand(newHeight == maxHeightInPixels)
+      const handleMouseMove = (e: MouseEvent) => {
+        const deltaY = startDragY.current - e.clientY
+        const newHeight = Math.max(40, Math.min(400, startHeight.current + deltaY))
         setTextareaHeight(newHeight)
       }
+
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
     },
-    [isDragging]
+    [config.enableDragDrop]
   )
 
-  const handleDragEnd = useCallback(() => {
-    setIsDragging(false)
-  }, [])
+  const onQuote = useCallback(
+    (quoted: string) => {
+      const formatted = formatQuotedText(quoted)
+      setText((prevText) => {
+        const next = prevText ? `${prevText}\n${formatted}\n` : `${formatted}\n`
+        setTimeoutTimer('onQuote', () => resizeTextArea(), 0)
+        return next
+      })
+      focusTextarea()
+    },
+    [focusTextarea, resizeTextArea, setText, setTimeoutTimer]
+  )
 
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleDrag)
-      document.addEventListener('mouseup', handleDragEnd)
+  const onPause = useCallback(async () => {
+    await pauseMessages()
+  }, [pauseMessages])
+
+  const clearTopic = useCallback(async () => {
+    if (!features.enableClearTopic) {
+      return
     }
-    return () => {
-      document.removeEventListener('mousemove', handleDrag)
-      document.removeEventListener('mouseup', handleDragEnd)
+
+    if (loading) {
+      await onPause()
+      await delay(1)
     }
-  }, [isDragging, handleDrag, handleDragEnd])
 
-  // 注册粘贴处理函数并初始化全局监听
-  useEffect(() => {
-    // 确保全局paste监听器仅初始化一次
-    PasteService.init()
-
-    // 注册当前组件的粘贴处理函数
-    PasteService.registerHandler('inputbar', onPaste)
-
-    // 卸载时取消注册
-    return () => {
-      PasteService.unregisterHandler('inputbar')
-    }
-  }, [onPaste])
-
-  useShortcut('new_topic', () => {
-    addNewTopic()
-    EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    EventEmitter.emit(EVENT_NAMES.CLEAR_MESSAGES, topic)
     focusTextarea()
-  })
+  }, [features.enableClearTopic, focusTextarea, loading, onPause, topic])
 
-  useShortcut('clear_topic', clearTopic)
+  const onNewContext = useCallback(() => {
+    if (!features.enableNewContext) {
+      return
+    }
+
+    if (loading) {
+      onPause()
+      return
+    }
+    EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
+  }, [features.enableNewContext, loading, onPause])
+
+  const addNewTopic = useCallback(async () => {
+    if (!features.enableNewTopic) {
+      return
+    }
+
+    await modelGenerating()
+
+    const newTopic = getDefaultTopic(assistant.id)
+
+    await db.topics.add({ id: newTopic.id, messages: [] })
+
+    if (assistant.defaultModel) {
+      setModel(assistant.defaultModel)
+    }
+
+    addTopic(newTopic)
+    setActiveTopic(newTopic)
+
+    setTimeoutTimer('addNewTopic', () => EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR), 0)
+  }, [
+    addTopic,
+    assistant.defaultModel,
+    assistant.id,
+    features.enableNewTopic,
+    setActiveTopic,
+    setModel,
+    setTimeoutTimer
+  ])
+
+  const handleRemoveModel = useCallback(
+    (modelToRemove: Model) => {
+      setMentionedModels(mentionedModels.filter((current) => current.id !== modelToRemove.id))
+    },
+    [mentionedModels, setMentionedModels]
+  )
+
+  const handleRemoveKnowledgeBase = useCallback(
+    (knowledgeBase: KnowledgeBase) => {
+      const nextKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
+      updateAssistant({ ...assistant, knowledge_bases: nextKnowledgeBases })
+      setSelectedKnowledgeBases(nextKnowledgeBases ?? [])
+    },
+    [assistant, setSelectedKnowledgeBases, updateAssistant]
+  )
+
+  useShortcut(
+    'new_topic',
+    () => {
+      addNewTopic()
+      EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+      focusTextarea()
+    },
+    { preventDefault: true, enableOnFormTags: true, enabled: features.enableNewTopic }
+  )
+
+  useShortcut('clear_topic', clearTopic, {
+    preventDefault: true,
+    enableOnFormTags: true,
+    enabled: features.enableClearTopic
+  })
 
   useEffect(() => {
     const _setEstimateTokenCount = debounce(setEstimateTokenCount, 100, { leading: false, trailing: true })
     const unsubscribes = [
-      // EventEmitter.on(EVENT_NAMES.EDIT_MESSAGE, (message: Message) => {
-      //   setText(message.content)
-      //   textareaRef.current?.focus()
-      //   setTimeout(() => resizeTextArea(), 0)
-      // }),
       EventEmitter.on(EVENT_NAMES.ESTIMATED_TOKEN_COUNT, ({ tokensCount, contextCount }) => {
         _setEstimateTokenCount(tokensCount)
-        setContextCount({ current: contextCount.current, max: contextCount.max }) // 现在contextCount是一个对象而不是单个数值
+        setContextCount({ current: contextCount.current, max: contextCount.max })
       }),
-      EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)
+      ...(features.enableNewTopic ? [EventEmitter.on(EVENT_NAMES.ADD_NEW_TOPIC, addNewTopic)] : [])
     ]
 
-    // 监听引用事件
-    const quoteFromAnywhereRemover = window.electron?.ipcRenderer.on(
-      IpcChannel.App_QuoteToMain,
-      (_, selectedText: string) => onQuote(selectedText)
+    const quoteListener = window.electron?.ipcRenderer.on(IpcChannel.App_QuoteToMain, (_, selectedText: string) =>
+      onQuote(selectedText)
     )
 
     return () => {
-      unsubscribes.forEach((unsub) => unsub())
-      quoteFromAnywhereRemover?.()
+      unsubscribes.forEach((unsubscribe) => unsubscribe())
+      quoteListener?.()
     }
-  }, [addNewTopic, onQuote])
+  }, [addNewTopic, features.enableNewTopic, onQuote])
+
+  useEffect(() => {
+    const debouncedEstimate = debounce((value: string) => {
+      if (showInputEstimatedTokens) {
+        const count = estimateTxtTokens(value) || 0
+        setEstimateTokenCount(count)
+      }
+    }, 500)
+
+    debouncedEstimate(text)
+    return () => debouncedEstimate.cancel()
+  }, [showInputEstimatedTokens, text])
 
   useEffect(() => {
     if (!document.querySelector('.topview-fullscreen-container')) {
@@ -725,8 +869,101 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
   useEffect(() => {
     const timerId = requestAnimationFrame(() => resizeTextArea())
     return () => cancelAnimationFrame(timerId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [resizeTextArea])
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (document.activeElement?.closest('.ant-modal')) {
+        return
+      }
+
+      const lastFocusedComponent = PasteService.getLastFocusedComponent()
+      if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
+        focusTextarea()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [focusTextarea])
+
+  useEffect(() => {
+    actionsRef.current = {
+      resizeTextArea,
+      addNewTopic,
+      clearTopic,
+      onNewContext
+    }
+  }, [actionsRef, addNewTopic, clearTopic, onNewContext, resizeTextArea])
+
+  useEffect(() => {
+    setSelectedKnowledgeBases(showKnowledgeIcon && features.enableKnowledge ? (assistant.knowledge_bases ?? []) : [])
+  }, [assistant.knowledge_bases, features.enableKnowledge, setSelectedKnowledgeBases, showKnowledgeIcon])
+
+  useEffect(() => {
+    if (!features.enableWebSearch && assistant.enableWebSearch) {
+      updateAssistant({ ...assistant, enableWebSearch: false })
+    } else if (features.enableWebSearch && !isWebSearchModel(model) && assistant.enableWebSearch) {
+      updateAssistant({ ...assistant, enableWebSearch: false })
+    }
+
+    if (
+      assistant.webSearchProviderId &&
+      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
+    ) {
+      updateAssistant({ ...assistant, webSearchProviderId: undefined })
+    }
+
+    if (!features.enableGenImage && assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: false })
+      return
+    }
+
+    if (isGenerateImageModel(model)) {
+      if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
+        updateAssistant({ ...assistant, enableGenerateImage: true })
+      }
+    } else if (assistant.enableGenerateImage) {
+      updateAssistant({ ...assistant, enableGenerateImage: false })
+    }
+  }, [assistant, features.enableGenImage, features.enableWebSearch, model, updateAssistant])
+
+  useEffect(() => {
+    if (!config.enableQuickPanel) {
+      quickPanel.close()
+      return
+    }
+
+    PasteService.init()
+    PasteService.registerHandler('inputbar', (event) =>
+      PasteService.handlePaste(
+        event,
+        supportedExts,
+        setFiles,
+        setText,
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
+        text,
+        resizeTextArea,
+        t
+      )
+    )
+
+    return () => {
+      PasteService.unregisterHandler('inputbar')
+    }
+  }, [
+    config.enableQuickPanel,
+    pasteLongTextAsFile,
+    pasteLongTextThreshold,
+    quickPanel,
+    resizeTextArea,
+    setFiles,
+    setText,
+    supportedExts,
+    t,
+    text
+  ])
 
   useEffect(() => {
     return () => {
@@ -736,187 +973,128 @@ const Inputbar: FC<Props> = ({ assistant: _assistant, setActiveTopic, topic }) =
     }
   }, [])
 
-  useEffect(() => {
-    const onFocus = () => {
-      if (document.activeElement?.closest('.ant-modal')) {
-        return
-      }
+  const rightSectionExtras = useMemo(() => {
+    const extras: React.ReactNode[] = []
 
-      const lastFocusedComponent = PasteService.getLastFocusedComponent()
-
-      if (!lastFocusedComponent || lastFocusedComponent === 'inputbar') {
-        focusTextarea()
-      }
-    }
-    window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
-  }, [focusTextarea])
-
-  useEffect(() => {
-    // if assistant knowledge bases are undefined return []
-    setSelectedKnowledgeBases(showKnowledgeIcon ? (assistant.knowledge_bases ?? []) : [])
-  }, [assistant.id, assistant.knowledge_bases, showKnowledgeIcon])
-
-  const handleRemoveModel = (model: Model) => {
-    setMentionedModels(mentionedModels.filter((m) => m.id !== model.id))
-  }
-
-  const handleRemoveKnowledgeBase = (knowledgeBase: KnowledgeBase) => {
-    const newKnowledgeBases = assistant.knowledge_bases?.filter((kb) => kb.id !== knowledgeBase.id)
-    updateAssistant({
-      ...assistant,
-      knowledge_bases: newKnowledgeBases
-    })
-    setSelectedKnowledgeBases(newKnowledgeBases ?? [])
-  }
-
-  useEffect(() => {
-    if (!isWebSearchModel(model) && assistant.enableWebSearch) {
-      updateAssistant({ ...assistant, enableWebSearch: false })
-    }
-    if (
-      assistant.webSearchProviderId &&
-      (!WebSearchService.isWebSearchEnabled(assistant.webSearchProviderId) || isMandatoryWebSearchModel(model))
-    ) {
-      updateAssistant({ ...assistant, webSearchProviderId: undefined })
-    }
-    if (isGenerateImageModel(model)) {
-      if (isAutoEnableImageGenerationModel(model) && !assistant.enableGenerateImage) {
-        updateAssistant({ ...assistant, enableGenerateImage: true })
-      }
-    } else if (assistant.enableGenerateImage) {
-      updateAssistant({ ...assistant, enableGenerateImage: false })
-    }
-  }, [assistant, model, updateAssistant])
-
-  const onToggleExpanded = () => {
-    const currentlyExpanded = expanded || !!textareaHeight
-    const shouldExpand = !currentlyExpanded
-    setExpand(shouldExpand)
-    const textArea = textareaRef.current?.resizableTextArea?.textArea
-    if (!textArea) return
-    if (shouldExpand) {
-      textArea.style.height = '70vh'
-      setTextareaHeight(window.innerHeight * 0.7)
-    } else {
-      textArea.style.height = 'auto'
-      setTextareaHeight(undefined)
-      requestAnimationFrame(() => {
-        if (textArea) {
-          const contentHeight = textArea.scrollHeight
-          textArea.style.height = contentHeight > 400 ? '400px' : `${contentHeight}px`
-        }
-      })
+    if (features.enableTranslate) {
+      extras.push(<TranslateButton key="translate" text={text} onTranslated={onTranslated} isLoading={isTranslating} />)
     }
 
-    focusTextarea()
-  }
+    if (features.enableAbortButton && loading) {
+      extras.push(
+        <Tooltip key="pause" placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
+          <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
+            <CirclePause size={20} color="var(--color-error)" />
+          </ActionIconButton>
+        </Tooltip>
+      )
+    }
 
-  const isExpanded = expanded || !!textareaHeight
+    if (extras.length === 0) {
+      return null
+    }
+
+    return <>{extras}</>
+  }, [features.enableAbortButton, features.enableTranslate, isTranslating, loading, onPause, onTranslated, t, text])
 
   if (isMultiSelectMode) {
     return null
   }
 
+  const composerExpanded = isExpanded || !!textareaHeight
+
   return (
     <NarrowLayout style={{ width: '100%' }}>
       <Container
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
+        ref={containerRef}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         className="inputbar">
-        <QuickPanelView setInputText={setText} />
         <InputBarContainer
           id="inputbar"
-          className={classNames('inputbar-container', inputFocus && 'focus', isFileDragging && 'file-dragging')}
-          ref={containerRef}>
-          {files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
-          {selectedKnowledgeBases.length > 0 && (
+          className={classNames(
+            'inputbar-container',
+            inputFocus && 'focus',
+            isFileDragging && 'file-dragging',
+            composerExpanded && 'expanded'
+          )}>
+          {features.enableAttachments && files.length > 0 && <AttachmentPreview files={files} setFiles={setFiles} />}
+
+          {features.enableKnowledge && selectedKnowledgeBases.length > 0 && (
             <KnowledgeBaseInput
               selectedKnowledgeBases={selectedKnowledgeBases}
               onRemoveKnowledgeBase={handleRemoveKnowledgeBase}
             />
           )}
-          {mentionedModels.length > 0 && (
+
+          {features.enableMentionModels && mentionedModels.length > 0 && (
             <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
           )}
+
           <Textarea
             value={text}
-            onChange={onChange}
             onKeyDown={handleKeyDown}
-            placeholder={isTranslating ? t('chat.input.translating') : placeholderText}
+            placeholder={isTranslating ? t('chat.input.translating') : config.placeholder || placeholderText}
             autoFocus
             variant="borderless"
             spellCheck={enableSpellCheck}
             rows={2}
             autoSize={textareaHeight ? false : { minRows: 2, maxRows: 20 }}
             ref={textareaRef}
-            style={{
-              fontSize,
-              minHeight: textareaHeight ? `${textareaHeight}px` : '30px'
-            }}
             styles={{ textarea: TextareaStyle }}
-            onFocus={(e: React.FocusEvent<HTMLTextAreaElement>) => {
+            onChange={handleTextareaChange}
+            onPaste={handlePaste}
+            onFocus={() => {
               setInputFocus(true)
-              // 记录当前聚焦的组件
+              dispatch(setSearching(false))
+              quickPanel.close()
               PasteService.setLastFocusedComponent('inputbar')
-              if (e.target.value.length === 0) {
-                e.target.setSelectionRange(0, 0)
-              }
             }}
             onBlur={() => setInputFocus(false)}
-            onInput={onInput}
-            disabled={searching}
-            onPaste={(e) => onPaste(e.nativeEvent)}
             onClick={() => {
-              searching && dispatch(setSearching(false))
+              if (searching) {
+                dispatch(setSearching(false))
+              }
               quickPanel.close()
             }}
+            style={{
+              fontSize,
+              height: textareaHeight,
+              minHeight: '30px'
+            }}
+            disabled={loading || searching}
           />
-          <DragHandle onMouseDown={handleDragStart}>
-            <HolderOutlined />
-          </DragHandle>
-          <Toolbar>
-            <InputbarTools
-              ref={inputbarToolsRef}
-              assistantId={assistant.id}
-              model={model}
-              files={files}
-              extensions={supportedExts}
-              setFiles={setFiles}
-              setText={setText}
-              resizeTextArea={resizeTextArea}
-              selectedKnowledgeBases={selectedKnowledgeBases}
-              setSelectedKnowledgeBases={setSelectedKnowledgeBases}
-              mentionedModels={mentionedModels}
-              setMentionedModels={setMentionedModels}
-              couldAddImageFile={couldAddImageFile}
-              isExpanded={isExpanded}
-              onToggleExpanded={onToggleExpanded}
-              addNewTopic={addNewTopic}
-              clearTopic={clearTopic}
-              onNewContext={onNewContext}
-            />
-            <ToolbarMenu>
-              <TokenCount
-                estimateTokenCount={estimateTokenCount}
-                inputTokenCount={inputTokenCount}
-                contextCount={contextCount}
-                onClick={onNewContext}
-              />
-              <TranslateButton text={text} onTranslated={onTranslated} isLoading={isTranslating} />
-              <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty} />
-              {loading && (
-                <Tooltip placement="top" title={t('chat.input.pause')} mouseLeaveDelay={0} arrow>
-                  <ActionIconButton onClick={onPause} style={{ marginRight: -2 }}>
-                    <CirclePause size={20} color="var(--color-error)" />
-                  </ActionIconButton>
-                </Tooltip>
+
+          {config.enableDragDrop && (
+            <DragHandle onMouseDown={handleDragStart}>
+              <HolderOutlined style={{ fontSize: 12 }} />
+            </DragHandle>
+          )}
+
+          <BottomBar>
+            <LeftSection>{config.showTools && <InputbarTools scope={scope} assistantId={assistant.id} />}</LeftSection>
+
+            <RightSection>
+              {tokenCountProps && (
+                <TokenCount
+                  estimateTokenCount={tokenCountProps.estimateTokenCount}
+                  inputTokenCount={tokenCountProps.inputTokenCount}
+                  contextCount={tokenCountProps.contextCount}
+                />
               )}
-            </ToolbarMenu>
-          </Toolbar>
+
+              {features.enableSendButton && (
+                <SendMessageButton sendMessage={sendMessage} disabled={inputEmpty || loading || searching} />
+              )}
+
+              {rightSectionExtras}
+            </RightSection>
+          </BottomBar>
         </InputBarContainer>
+
+        {config.enableQuickPanel && <QuickPanelView setInputText={setInputText} />}
       </Container>
     </NarrowLayout>
   )
@@ -964,7 +1142,7 @@ const InputBarContainer = styled.div`
   transition: all 0.2s ease;
   position: relative;
   border-radius: 17px;
-  padding-top: 8px; // 为拖动手柄留出空间
+  padding-top: 8px;
   background-color: var(--color-background-opacity);
 
   &.file-dragging {
@@ -1007,7 +1185,7 @@ const Textarea = styled(TextArea)`
   }
 `
 
-const Toolbar = styled.div`
+const BottomBar = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -1019,7 +1197,14 @@ const Toolbar = styled.div`
   flex-shrink: 0;
 `
 
-const ToolbarMenu = styled.div`
+const LeftSection = styled.div`
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+`
+
+const RightSection = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;

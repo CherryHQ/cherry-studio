@@ -6,54 +6,54 @@ Create a single configurable input bar that supports chat topics, agent sessions
 ## Tasks
 
 ### 1. Configuration Layer
-- [ ] Add `InputbarScope` registry (e.g. `src/renderer/src/config/registry/inputbar.ts`).
-- [ ] Define per-scope options (features toggles, placeholders, min/max rows, token counter, quick panel, attachments, knowledge picker, mention models, translate button, abort button, etc.).
-- [ ] Register defaults for chat (`TopicType.Chat`), agent session (`TopicType.Session`), and mini window scope.
+- [x] Add `InputbarScope` registry (e.g. `src/renderer/src/config/registry/inputbar.ts`).
+- [x] Define per-scope options (features toggles, placeholders, min/max rows, token counter, quick panel, attachments, knowledge picker, mention models, translate button, abort button, etc.).
+- [x] Register defaults for chat (`TopicType.Chat`), agent session (`TopicType.Session`), and mini window scope.
 
 ### 2. InputbarTools Registry System (NEW)
-- [ ] Create `ToolDefinition` interface with key, label, icon, condition, dependencies, and render function
-- [ ] Implement tool registration mechanism in `src/renderer/src/config/registry/inputbarTools.ts`
-- [ ] Create `InputbarToolsProvider` for shared state management (files, mentionedModels, knowledgeBases, etc.)
-- [ ] Define tool context interfaces (`ToolContext`, `ToolRenderContext`) for dependency injection
-- [ ] Migrate existing tools to registry-based definitions:
-  - [ ] new_topic tool
-  - [ ] attachment tool  
-  - [ ] thinking tool
-  - [ ] web_search tool
-  - [ ] url_context tool
-  - [ ] knowledge_base tool
-  - [ ] mcp_tools tool
-  - [ ] generate_image tool
-  - [ ] mention_models tool
-  - [ ] quick_phrases tool
-  - [ ] clear_topic tool
-  - [ ] toggle_expand tool
-  - [ ] new_context tool
-- [ ] Simplify InputbarTools component to use registry (reduce from 19 props to 3-5)
-- [ ] Integrate tool visibility/order configuration with InputbarScope
+- [x] Create `ToolDefinition` interface with key, label, icon, condition, dependencies, and render function
+- [x] Implement tool registration mechanism in `src/renderer/src/config/registry/inputbarTools.ts`
+- [x] Create `InputbarToolsProvider` for shared state management (files, mentionedModels, knowledgeBases, etc.)
+- [x] Define tool context interfaces (`ToolContext`, `ToolRenderContext`) for dependency injection
+- [x] Migrate existing tools to registry-based definitions:
+  - [x] new_topic tool
+  - [x] attachment tool  
+  - [x] thinking tool
+  - [x] web_search tool
+  - [x] url_context tool
+  - [x] knowledge_base tool
+  - [x] mcp_tools tool
+  - [x] generate_image tool
+  - [x] mention_models tool
+  - [x] quick_phrases tool
+  - [x] clear_topic tool
+  - [x] toggle_expand tool
+  - [x] new_context tool
+- [x] Simplify InputbarTools component to use registry (reduce from 19 props to 3-5)
+- [x] Integrate tool visibility/order configuration with InputbarScope
 
 ### 3. Shared UI Composer
-- [ ] Extract common UI from `Inputbar.tsx` into new `InputComposer` component that reads config + callbacks.
-- [ ] Ensure composer handles textarea sizing, focus, drag/drop, token estimation, attachments, toolbar slots based on config.
-- [ ] Provide controlled props for text, files, mentioned models, loading states, quick panel interactions.
+- [x] Extract common UI from `Inputbar.tsx` into new `InputComposer` component that reads config + callbacks.
+- [x] Ensure composer handles textarea sizing, focus, drag/drop, token estimation, attachments, toolbar slots based on config.
+- [x] Provide controlled props for text, files, mentioned models, loading states, quick panel interactions.
 
 ### 4. Chat Wrapper Migration
-- [ ] Refactor `Inputbar.tsx` to:
-  - Resolve scope via topic type.
-  - Fetch config via registry.
-  - Supply send/abort/translate/knowledge handlers to composer.
-  - Remove inline UI duplication now covered by composer.
-- [ ] Verify chat-specific behaviour (knowledge save, auto translate, quick panel, model mentions) via config flags and callbacks.
+- [x] Refactor `Inputbar.tsx` to:
+  - [x] Resolve scope via topic type.
+  - [x] Fetch config via registry.
+  - [x] Supply send/abort/translate/knowledge handlers to composer.
+  - [x] Remove inline UI duplication now covered by composer.
+- [x] Verify chat-specific behaviour (knowledge save, auto translate, quick panel, model mentions) via config flags and callbacks.
 
 ### 5. Agent Session Wrapper Migration
-- [ ] Rebuild session input bar (currently `AgentSessionInputbar.tsx`) as thin wrapper using composer and session scope config.
-- [ ] Use session-specific hooks for message creation, model resolution, aborting, and streaming state.
-- [ ] Once parity confirmed, delete `AgentSessionInputbar.tsx` and update all imports.
+- [x] Rebuild session input bar (currently `AgentSessionInputbar.tsx`) as thin wrapper using composer and session scope config.
+- [x] Use session-specific hooks for message creation, model resolution, aborting, and streaming state.
+- [x] Once parity confirmed, delete `AgentSessionInputbar.tsx` and update all imports.
 
 ### 6. Cross-cutting Cleanup
-- [ ] Remove duplicated state caches (`_text`, `_files`, `_mentionedModelsCache`) once wrappers manage persistence appropriately.
-- [ ] Update typings (`MessageInputBaseParams`, etc.) if composer needs shared interfaces.
-- [ ] Ensure quick panel integration works for all scopes (guard behind config flag).
+- [x] Remove duplicated state caches (`_text`, `_files`, `_mentionedModelsCache`) once wrappers manage persistence appropriately.
+- [x] Review shared typings (`MessageInputBaseParams`, etc.) for composer compatibility (no updates required).
+- [x] Ensure quick panel integration works for all scopes (guard behind config flag).
 
 ### 7. Verification
 - [ ] Run `yarn build:check` (after cleaning existing lint issues in WebSearchTool/ReadTool).

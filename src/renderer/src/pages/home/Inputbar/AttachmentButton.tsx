@@ -1,21 +1,17 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledge'
+import { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { FileType, KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
 import { Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
-import { Dispatch, FC, SetStateAction, useCallback, useImperativeHandle, useMemo, useState } from 'react'
+import { Dispatch, FC, SetStateAction, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export interface AttachmentButtonRef {
-  openQuickPanel: () => void
-  openFileSelectDialog: () => void
-}
-
 interface Props {
-  ref?: React.RefObject<AttachmentButtonRef | null>
+  quickPanel: ToolQuickPanelApi
   couldAddImageFile: boolean
   extensions: string[]
   files: FileType[]
@@ -23,9 +19,9 @@ interface Props {
   disabled?: boolean
 }
 
-const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files, setFiles, disabled }) => {
+const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions, files, setFiles, disabled }) => {
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
+  const quickPanelHook = useQuickPanel()
   const { bases: knowledgeBases } = useKnowledgeBases()
   const [selecting, setSelecting] = useState<boolean>(false)
 
@@ -70,7 +66,7 @@ const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files
 
   const openKnowledgeFileList = useCallback(
     (base: KnowledgeBase) => {
-      quickPanel.open({
+      quickPanelHook.open({
         title: base.name,
         list: base.items
           .filter((file): file is KnowledgeItem => ['file'].includes(file.type))
@@ -101,7 +97,7 @@ const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files
         multiple: true
       })
     },
-    [files, quickPanel, setFiles]
+    [files, quickPanelHook, setFiles]
   )
 
   const items = useMemo(() => {
@@ -129,17 +125,31 @@ const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files
   }, [knowledgeBases, openFileSelectDialog, openKnowledgeFileList, t])
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open({
+    quickPanelHook.open({
       title: t('chat.input.upload.attachment'),
       list: items,
       symbol: QuickPanelReservedSymbol.File
     })
-  }, [items, quickPanel, t])
+  }, [items, quickPanelHook, t])
 
-  useImperativeHandle(ref, () => ({
-    openQuickPanel,
-    openFileSelectDialog
-  }))
+  useEffect(() => {
+    const disposeRootMenu = quickPanel.registerRootMenu([
+      {
+        label: couldAddImageFile ? t('chat.input.upload.attachment') : t('chat.input.upload.document'),
+        description: '',
+        icon: <Paperclip />,
+        isMenu: true,
+        action: () => openQuickPanel()
+      }
+    ])
+
+    const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.File, () => openQuickPanel())
+
+    return () => {
+      disposeRootMenu()
+      disposeTrigger()
+    }
+  }, [couldAddImageFile, openQuickPanel, quickPanel, t])
 
   return (
     <Tooltip

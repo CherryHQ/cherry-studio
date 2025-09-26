@@ -7,31 +7,28 @@ import {
 import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import QuickPhraseService from '@renderer/services/QuickPhraseService'
 import { QuickPhrase } from '@renderer/types'
 import { Input, Modal, Radio, Space, Tooltip } from 'antd'
 import { BotMessageSquare, Plus, Zap } from 'lucide-react'
-import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-export interface QuickPhrasesButtonRef {
-  openQuickPanel: () => void
-}
-
 interface Props {
-  ref?: React.RefObject<QuickPhrasesButtonRef | null>
+  quickPanel: ToolQuickPanelApi
   setInputValue: React.Dispatch<React.SetStateAction<string>>
   resizeTextArea: () => void
   assistantId: string
 }
 
-const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }: Props) => {
+const QuickPhrasesButton = ({ quickPanel, setInputValue, resizeTextArea, assistantId }: Props) => {
   const [quickPhrasesList, setQuickPhrasesList] = useState<QuickPhrase[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formData, setFormData] = useState({ title: '', content: '', location: 'global' })
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
+  const quickPanelHook = useQuickPanel()
   const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
 
@@ -139,20 +136,35 @@ const QuickPhrasesButton = ({ ref, setInputValue, resizeTextArea, assistantId }:
   )
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open(quickPanelOpenOptions)
-  }, [quickPanel, quickPanelOpenOptions])
+    quickPanelHook.open(quickPanelOpenOptions)
+  }, [quickPanelHook, quickPanelOpenOptions])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.QuickPhrases) {
-      quickPanel.close()
+    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.QuickPhrases) {
+      quickPanelHook.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanel])
+  }, [openQuickPanel, quickPanelHook])
 
-  useImperativeHandle(ref, () => ({
-    openQuickPanel
-  }))
+  useEffect(() => {
+    const disposeRootMenu = quickPanel.registerRootMenu([
+      {
+        label: t('settings.quickPhrase.title'),
+        description: '',
+        icon: <Zap />,
+        isMenu: true,
+        action: () => openQuickPanel()
+      }
+    ])
+
+    const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.QuickPhrases, () => openQuickPanel())
+
+    return () => {
+      disposeRootMenu()
+      disposeTrigger()
+    }
+  }, [openQuickPanel, quickPanel, t])
 
   return (
     <>

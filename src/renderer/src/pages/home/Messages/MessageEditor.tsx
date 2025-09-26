@@ -6,6 +6,7 @@ import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import FileManager from '@renderer/services/FileManager'
 import PasteService from '@renderer/services/PasteService'
 import { useAppSelector } from '@renderer/store'
@@ -24,7 +25,7 @@ import { FC, memo, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import AttachmentButton, { AttachmentButtonRef } from '../Inputbar/AttachmentButton'
+import AttachmentButton from '../Inputbar/AttachmentButton'
 import { FileNameRender, getFileIcon } from '../Inputbar/AttachmentPreview'
 
 interface Props {
@@ -48,11 +49,19 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
   const { pasteLongTextThreshold, fontSize, sendMessageShortcut, enableSpellCheck } = useSettings()
   const { t } = useTranslation()
   const textareaRef = useRef<TextAreaRef>(null)
-  const attachmentButtonRef = useRef<AttachmentButtonRef>(null)
   const isUserMessage = message.role === 'user'
 
   const topicMessages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
   const { setTimeoutTimer } = useTimer()
+
+  const noopQuickPanel = useMemo<ToolQuickPanelApi>(
+    () => ({
+      registerRootMenu: () => () => {},
+      registerTrigger: () => () => {},
+      emitTrigger: () => {}
+    }),
+    []
+  )
 
   const couldAddImageFile = useMemo(() => {
     const relatedAssistantMessages = topicMessages.filter((m) => m.askId === message.id && m.role === 'assistant')
@@ -341,7 +350,7 @@ const MessageBlockEditor: FC<Props> = ({ message, topicId, onSave, onResend, onC
         <ActionBarLeft>
           {isUserMessage && (
             <AttachmentButton
-              ref={attachmentButtonRef}
+              quickPanel={noopQuickPanel}
               files={files}
               setFiles={setFiles}
               couldAddImageFile={couldAddImageFile}

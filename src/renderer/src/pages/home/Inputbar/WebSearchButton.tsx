@@ -13,6 +13,7 @@ import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearchProviders'
+import { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import WebSearchService from '@renderer/services/WebSearchService'
 import { WebSearchProvider, WebSearchProviderId } from '@renderer/types'
@@ -20,23 +21,19 @@ import { hasObjectKey } from '@renderer/utils'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Tooltip } from 'antd'
 import { Globe } from 'lucide-react'
-import { FC, memo, useCallback, useImperativeHandle, useMemo } from 'react'
+import { FC, memo, useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-export interface WebSearchButtonRef {
-  openQuickPanel: () => void
-}
-
 interface Props {
-  ref?: React.RefObject<WebSearchButtonRef | null>
+  quickPanel: ToolQuickPanelApi
   assistantId: string
 }
 
 const logger = loggerService.withContext('WebSearchButton')
 
-const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
+const WebSearchButton: FC<Props> = ({ quickPanel, assistantId }) => {
   const { t } = useTranslation()
-  const quickPanel = useQuickPanel()
+  const quickPanelHook = useQuickPanel()
   const { providers } = useWebSearchProviders()
   const { assistant, updateAssistant } = useAssistant(assistantId)
   const { setTimeoutTimer } = useTimer()
@@ -176,21 +173,40 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
   ])
 
   const openQuickPanel = useCallback(() => {
-    quickPanel.open({
+    quickPanelHook.open({
       title: t('chat.input.web_search.label'),
       list: providerItems,
       symbol: QuickPanelReservedSymbol.WebSearch,
       pageSize: 9
     })
-  }, [quickPanel, t, providerItems])
+  }, [quickPanelHook, t, providerItems])
 
   const handleOpenQuickPanel = useCallback(() => {
-    if (quickPanel.isVisible && quickPanel.symbol === QuickPanelReservedSymbol.WebSearch) {
-      quickPanel.close()
+    if (quickPanelHook.isVisible && quickPanelHook.symbol === QuickPanelReservedSymbol.WebSearch) {
+      quickPanelHook.close()
     } else {
       openQuickPanel()
     }
-  }, [openQuickPanel, quickPanel])
+  }, [openQuickPanel, quickPanelHook])
+
+  useEffect(() => {
+    const disposeMenu = quickPanel.registerRootMenu([
+      {
+        label: t('chat.input.web_search.label'),
+        description: '',
+        icon: <Globe size={18} />,
+        isMenu: true,
+        action: () => openQuickPanel()
+      }
+    ])
+
+    const disposeTrigger = quickPanel.registerTrigger(QuickPanelReservedSymbol.WebSearch, () => openQuickPanel())
+
+    return () => {
+      disposeMenu()
+      disposeTrigger()
+    }
+  }, [openQuickPanel, quickPanel, t])
 
   const onClick = useCallback(() => {
     if (enableWebSearch) {
@@ -199,10 +215,6 @@ const WebSearchButton: FC<Props> = ({ ref, assistantId }) => {
       handleOpenQuickPanel()
     }
   }, [enableWebSearch, handleOpenQuickPanel, updateWebSearchProvider])
-
-  useImperativeHandle(ref, () => ({
-    openQuickPanel
-  }))
 
   return (
     <Tooltip
