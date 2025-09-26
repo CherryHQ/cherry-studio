@@ -2545,6 +2545,15 @@ const migrateConfig = {
   },
   '158': (state: RootState) => {
     try {
+      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'cherryin')
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '159': (state: RootState) => {
+    try {
       // @ts-ignore
       if (state?.agents?.agents) {
         // @ts-ignore
