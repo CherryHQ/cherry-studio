@@ -202,25 +202,9 @@ const AboutSettings: FC = () => {
     setUpdateDialogOpen(false)
   }
 
-  const handleDownloadUpdate = async () => {
-    await window.api.downloadUpdate()
-  }
-
   const handleCloseDialog = () => {
-    if (update.downloading) {
-      window.api.cancelUpdateDownload()
-    }
     setUpdateDialogOpen(false)
   }
-
-  const downloadProgress = update.downloading
-    ? {
-        bytesPerSecond: 0,
-        percent: update.downloadProgress || 0,
-        transferred: 0,
-        total: 0
-      }
-    : undefined
 
   const onOpenDocs = () => {
     const isChinese = i18n.language.startsWith('zh')
@@ -401,10 +385,6 @@ const AboutSettings: FC = () => {
         onClose={handleCloseDialog}
         updateInfo={updateInfo}
         onInstall={handleInstallUpdate}
-        onDownload={!update.downloaded ? handleDownloadUpdate : undefined}
-        downloadProgress={downloadProgress}
-        isDownloading={update.downloading || false}
-        isDownloaded={update.downloaded || false}
       />
     </>
   )
