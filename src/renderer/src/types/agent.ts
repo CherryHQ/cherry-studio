@@ -47,7 +47,7 @@ export const AgentConfigurationSchema = z
   .object({
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().default(10) // Maximum number of interaction turns, default to 10
+    max_turns: z.number().default(100) // Maximum number of interaction turns, default to 100
   })
   .loose()
 
