@@ -1,4 +1,5 @@
 import { Alert, Button, Spinner } from '@heroui/react'
+import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
@@ -108,22 +109,25 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
         </Button>
       </motion.div>
       <AnimatePresence>
-        {sessions.map((session, index) => (
-          <motion.div
-            key={session.id}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}>
-            <SessionItem
-              session={session}
-              agentId={agentId}
-              isDisabled={sessionWaiting[session.id]}
-              isLoading={sessionWaiting[session.id]}
-              onDelete={() => handleDeleteSession(session.id)}
-              onPress={() => setActiveSessionId(agentId, session.id)}
-            />
-          </motion.div>
-        ))}
+        {/* h-9 */}
+        <DynamicVirtualList list={sessions} estimateSize={() => 9 * 4}>
+          {(session, index) => (
+            <motion.div
+              key={session.id}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}>
+              <SessionItem
+                session={session}
+                agentId={agentId}
+                isDisabled={sessionWaiting[session.id]}
+                isLoading={sessionWaiting[session.id]}
+                onDelete={() => handleDeleteSession(session.id)}
+                onPress={() => setActiveSessionId(agentId, session.id)}
+              />
+            </motion.div>
+          )}
+        </DynamicVirtualList>
       </AnimatePresence>
     </motion.div>
   )
