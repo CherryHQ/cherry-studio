@@ -29,17 +29,17 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
       if (importType === 'url') {
         if (!values.url) {
-          throw new Error(t('agents.import.error.url_required'))
+          throw new Error(t('assistants.presets.import.error.url_required'))
         }
         const response = await fetch(values.url)
         if (!response.ok) {
-          throw new Error(t('agents.import.error.fetch_failed'))
+          throw new Error(t('assistants.presets.import.error.fetch_failed'))
         }
         const data = await response.json()
         presets = Array.isArray(data) ? data : [data]
       } else {
         const result = await window.api.file.open({
-          filters: [{ name: t('agents.import.file_filter'), extensions: ['json'] }]
+          filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
 
         if (result) {
@@ -55,7 +55,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       // Validate and process agents
       for (const preset of presets) {
         if (!preset.name || !preset.prompt) {
-          throw new Error(t('agents.import.error.invalid_format'))
+          throw new Error(t('assistants.presets.import.error.invalid_format'))
         }
 
         const newPreset: AssistantPreset = {
@@ -93,7 +93,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   return (
     <Modal
-      title={t('agents.import.title')}
+      title={t('assistants.presets.import.title')}
       open={open}
       onCancel={onCancel}
       maskClosable={false}
@@ -101,7 +101,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         <Flex justify="end" gap={8}>
           <Button onClick={onCancel}>{t('common.cancel')}</Button>
           <Button type="primary" onClick={() => form.submit()} loading={loading}>
-            {t('agents.import.button')}
+            {t('assistants.presets.import.button')}
           </Button>
         </Flex>
       }
@@ -110,20 +110,22 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
       <Form form={form} onFinish={onFinish} layout="vertical">
         <Form.Item>
           <Radio.Group value={importType} onChange={(e) => setImportType(e.target.value)}>
-            <Radio.Button value="url">{t('agents.import.type.url')}</Radio.Button>
-            <Radio.Button value="file">{t('agents.import.type.file')}</Radio.Button>
+            <Radio.Button value="url">{t('assistants.presets.import.type.url')}</Radio.Button>
+            <Radio.Button value="file">{t('assistants.presets.import.type.file')}</Radio.Button>
           </Radio.Group>
         </Form.Item>
 
         {importType === 'url' && (
-          <Form.Item name="url" rules={[{ required: true, message: t('agents.import.error.url_required') }]}>
-            <Input placeholder={t('agents.import.url_placeholder')} />
+          <Form.Item
+            name="url"
+            rules={[{ required: true, message: t('assistants.presets.import.error.url_required') }]}>
+            <Input placeholder={t('assistants.presets.import.url_placeholder')} />
           </Form.Item>
         )}
 
         {importType === 'file' && (
           <Form.Item>
-            <Button onClick={() => form.submit()}>{t('agents.import.select_file')}</Button>
+            <Button onClick={() => form.submit()}>{t('assistants.presets.import.select_file')}</Button>
           </Form.Item>
         )}
       </Form>

@@ -86,7 +86,7 @@ const AssistantPresetsPage: FC = () => {
         maskClosable: true,
         centered: true,
         okButtonProps: { type: 'primary' },
-        okText: t('agents.add.button'),
+        okText: t('assistants.presets.add.button'),
         onOk: () => createAssistantFromAgent(preset)
       })
     },
@@ -178,7 +178,7 @@ const AssistantPresetsPage: FC = () => {
     <Container>
       <Navbar>
         <NavbarCenter style={{ borderRight: 'none', justifyContent: 'space-between' }}>
-          {t('agents.title')}
+          {t('assistants.presets.title')}
           <Input
             placeholder={t('common.search')}
             className="nodrag"
@@ -274,10 +274,10 @@ const AssistantPresetsPage: FC = () => {
                 )
               )}
               <Button type="text" onClick={handleImportAgent} icon={<ImportOutlined />}>
-                {t('agents.import.title')}
+                {t('assistants.presets.import.title')}
               </Button>
               <Button type="text" onClick={handleAddAgent} icon={<PlusOutlined />}>
-                {t('agents.add.title')}
+                {t('assistants.presets.add.title')}
               </Button>
             </Flex>
           </AgentsListHeader>
@@ -296,7 +296,7 @@ const AssistantPresetsPage: FC = () => {
             </AgentsList>
           ) : (
             <EmptyView>
-              <Empty description={t('agents.search.no_results')} />
+              <Empty description={t('assistants.presets.search.no_results')} />
             </EmptyView>
           )}
         </AgentsListContainer>

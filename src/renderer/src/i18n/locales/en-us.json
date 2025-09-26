@@ -194,83 +194,6 @@
       "enable_server": "Enable API Server to use agents."
     }
   },
-  "agents": {
-    "add": {
-      "button": "Add to Assistant",
-      "knowledge_base": {
-        "label": "Knowledge Base",
-        "placeholder": "Select Knowledge Base"
-      },
-      "name": {
-        "label": "Name",
-        "placeholder": "Enter name"
-      },
-      "prompt": {
-        "label": "Prompt",
-        "placeholder": "Enter prompt",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name\n{{username}}:\tUsername",
-            "title": "Available variables"
-          }
-        }
-      },
-      "title": "Create Agent",
-      "unsaved_changes_warning": "You have unsaved changes. Are you sure you want to close?"
-    },
-    "delete": {
-      "popup": {
-        "content": "Are you sure you want to delete this agent?"
-      }
-    },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "Select Model"
-        }
-      },
-      "title": "Edit Agent"
-    },
-    "export": {
-      "agent": "Export Agent"
-    },
-    "import": {
-      "button": "Import",
-      "error": {
-        "fetch_failed": "Failed to fetch from URL",
-        "invalid_format": "Invalid agent format: missing required fields",
-        "url_required": "Please enter a URL"
-      },
-      "file_filter": "JSON Files",
-      "select_file": "Select File",
-      "title": "Import from External",
-      "type": {
-        "file": "File",
-        "url": "URL"
-      },
-      "url_placeholder": "Enter JSON URL"
-    },
-    "manage": {
-      "title": "Manage Agents"
-    },
-    "my_agents": "My Agents",
-    "search": {
-      "no_results": "No results found"
-    },
-    "settings": {
-      "title": "Agent Setting"
-    },
-    "sorting": {
-      "title": "Sorting"
-    },
-    "tag": {
-      "agent": "Agent",
-      "default": "Default",
-      "new": "New",
-      "system": "System"
-    },
-    "title": "Agents"
-  },
   "apiServer": {
     "actions": {
       "copy": "Copy",
@@ -350,9 +273,86 @@
       "showByList": "List View",
       "showByTags": "Tag View"
     },
+    "presets": {
+      "add": {
+        "button": "Add to Assistant",
+        "knowledge_base": {
+          "label": "Knowledge Base",
+          "placeholder": "Select Knowledge Base"
+        },
+        "name": {
+          "label": "Name",
+          "placeholder": "Enter name"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Enter prompt",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\tDate\n{{time}}:\tTime\n{{datetime}}:\tDate and time\n{{system}}:\tOperating system\n{{arch}}:\tCPU architecture\n{{language}}:\tLanguage\n{{model_name}}:\tModel name\n{{username}}:\tUsername",
+              "title": "Available variables"
+            }
+          }
+        },
+        "title": "Create Assistant",
+        "unsaved_changes_warning": "You have unsaved changes. Are you sure you want to close?"
+      },
+      "delete": {
+        "popup": {
+          "content": "Are you sure you want to delete this assistant?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "Select Model"
+          }
+        },
+        "title": "Edit Assistant"
+      },
+      "export": {
+        "agent": "Export Assistant"
+      },
+      "import": {
+        "button": "Import",
+        "error": {
+          "fetch_failed": "Failed to fetch from URL",
+          "invalid_format": "Invalid assistant format: missing required fields",
+          "url_required": "Please enter a URL"
+        },
+        "file_filter": "JSON Files",
+        "select_file": "Select File",
+        "title": "Import from External",
+        "type": {
+          "file": "File",
+          "url": "URL"
+        },
+        "url_placeholder": "Enter JSON URL"
+      },
+      "manage": {
+        "title": "Manage Assistants"
+      },
+      "my_agents": "My Assistants",
+      "search": {
+        "no_results": "No results found"
+      },
+      "settings": {
+        "title": "Assistant Setting"
+      },
+      "sorting": {
+        "title": "Sorting"
+      },
+      "tag": {
+        "agent": "Assistant",
+        "default": "Default",
+        "new": "New",
+        "system": "System"
+      },
+      "title": "Assistants Library"
+    },
     "save": {
       "success": "Saved successfully",
-      "title": "Save to agent"
+      "title": "Save to assistant library"
     },
     "search": "Search assistants...",
     "settings": {
@@ -4398,7 +4398,6 @@
     }
   },
   "title": {
-    "agents": "Agents",
     "apps": "Apps",
     "code": "Code",
     "files": "Files",
@@ -4410,6 +4409,7 @@
     "notes": "Notes",
     "paintings": "Paintings",
     "settings": "Settings",
+    "store": "Assistant Library",
     "translate": "Translate"
   },
   "trace": {

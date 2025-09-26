@@ -86,7 +86,7 @@ const getTabIcon = (
   switch (tabId) {
     case 'home':
       return <Home size={14} />
-    case 'assistantPresets':
+    case 'store':
       return <Sparkle size={14} />
     case 'translate':
       return <Languages size={14} />

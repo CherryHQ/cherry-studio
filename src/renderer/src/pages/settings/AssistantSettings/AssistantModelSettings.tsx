@@ -221,7 +221,7 @@ const AssistantModelSettings: FC<Props> = ({ assistant, updateAssistant, updateA
           <ModelSelectButton
             icon={defaultModel ? <ModelAvatar model={defaultModel} size={20} /> : <PlusIcon size={18} />}
             onClick={onSelectModel}>
-            <ModelName>{defaultModel ? defaultModel.name : t('agents.edit.model.select.title')}</ModelName>
+            <ModelName>{defaultModel ? defaultModel.name : t('assistants.presets.edit.model.select.title')}</ModelName>
           </ModelSelectButton>
           {defaultModel && (
             <Button

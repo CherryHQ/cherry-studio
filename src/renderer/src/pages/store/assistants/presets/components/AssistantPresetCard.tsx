@@ -29,7 +29,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     (preset: AssistantPreset) => {
       window.modal.confirm({
         centered: true,
-        content: t('agents.delete.popup.content'),
+        content: t('assistants.presets.delete.popup.content'),
         onOk: () => removeAssistantPreset(preset.id)
       })
     },
@@ -52,14 +52,14 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     const resultStr = JSON.stringify(result, null, 2)
 
     await window.api.file.save(`${preset.name}.json`, new TextEncoder().encode(resultStr), {
-      filters: [{ name: t('agents.import.file_filter'), extensions: ['json'] }]
+      filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
     })
   }, [preset])
 
   const menuItems = [
     {
       key: 'edit',
-      label: t('agents.edit.title'),
+      label: t('assistants.presets.edit.title'),
       icon: <EditIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
@@ -68,7 +68,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     },
     {
       key: 'create',
-      label: t('agents.add.button'),
+      label: t('assistants.presets.add.button'),
       icon: <PlusIcon size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
@@ -77,7 +77,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     },
     {
       key: 'sort',
-      label: t('agents.sorting.title'),
+      label: t('assistants.presets.sorting.title'),
       icon: <ArrowDownAZ size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()
@@ -86,7 +86,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
     },
     {
       key: 'export',
-      label: t('agents.export.agent'),
+      label: t('assistants.presets.export.agent'),
       icon: <SquareArrowOutUpRight size={14} />,
       onClick: (e: any) => {
         e.domEvent.stopPropagation()

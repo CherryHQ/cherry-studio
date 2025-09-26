@@ -566,6 +566,7 @@ const migrateConfig = {
     try {
       state.assistants.defaultAssistant.type = 'assistant'
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         agent.type = 'agent'
         // @ts-ignore eslint-disable-next-line
@@ -1067,6 +1068,7 @@ const migrateConfig = {
         }
       })
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         const leadingEmoji = getLeadingEmoji(agent.name)
         if (leadingEmoji) {
@@ -2524,6 +2526,7 @@ const migrateConfig = {
         }
       })
 
+      // @ts-ignore
       state.agents.agents.forEach((agent) => {
         // @ts-ignore model is not defined in Agent
         if (agent.model?.provider === 'cherryin') {
@@ -2537,6 +2540,31 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 157 error', error as Error)
+      return state
+    }
+  },
+  '158': (state: RootState) => {
+    try {
+      // @ts-ignore
+      if (state?.agents?.agents) {
+        // @ts-ignore
+        state.assistants.presets = [...state.agents.agents]
+
+        // @ts-ignore
+        delete state.agents.agents
+
+        state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+        state.settings.sidebarIcons.disabled = state.settings.sidebarIcons.disabled.map((icon) => {
+          // @ts-ignore
+          return icon === 'agents' ? 'store' : icon
+        })
+      }
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
       return state
     }
   }
