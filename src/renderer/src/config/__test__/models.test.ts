@@ -1,11 +1,10 @@
 import {
-  isImageEnhancementModel,
-  isPureGenerateImageModel,
   isQwenReasoningModel,
   isSupportedThinkingTokenQwenModel,
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { isImageEnhancementModel, isPureGenerateImageModel } from '@renderer/config/models/vision'
 import { Model } from '@renderer/types'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 

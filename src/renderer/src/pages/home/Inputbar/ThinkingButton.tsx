@@ -11,10 +11,10 @@ import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/Qu
 import {
   getThinkModelType,
   isDoubaoThinkingAutoModel,
-  isGPT5SeriesReasoningModel,
   isOpenAIWebSearchModel,
   MODEL_SUPPORTED_OPTIONS
 } from '@renderer/config/models'
+import { isGPT5SeriesReasoningModel } from '@renderer/config/models/utils'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { getReasoningEffortOptionsLabel } from '@renderer/i18n/label'
 import { Model, ThinkingOption } from '@renderer/types'

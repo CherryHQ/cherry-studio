@@ -3,12 +3,8 @@ import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { BingLogo, BochaLogo, ExaLogo, SearXNGLogo, TavilyLogo, ZhipuLogo } from '@renderer/components/Icons'
 import { QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import {
-  isGeminiModel,
-  isGPT5SeriesReasoningModel,
-  isOpenAIWebSearchModel,
-  isWebSearchModel
-} from '@renderer/config/models'
+import { isGeminiModel, isOpenAIWebSearchModel, isWebSearchModel } from '@renderer/config/models'
+import { isGPT5SeriesReasoningModel } from '@renderer/config/models/utils'
 import { isGeminiWebSearchProvider } from '@renderer/config/providers'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
