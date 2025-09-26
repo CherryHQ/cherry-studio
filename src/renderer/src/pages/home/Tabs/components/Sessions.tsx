@@ -99,7 +99,7 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="agents-tab h-full w-full p-2">
+      className="sessions-tab flex h-full w-full flex-col p-2">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <Button
           onPress={handleCreateSession}
@@ -110,7 +110,14 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       </motion.div>
       <AnimatePresence>
         {/* h-9 */}
-        <DynamicVirtualList list={sessions} estimateSize={() => 9 * 4}>
+        <DynamicVirtualList
+          list={sessions}
+          estimateSize={() => 9 * 4}
+          scrollerStyle={{
+            // FIXME: This component only supports CSSProperties
+            overflowX: 'hidden'
+          }}
+          autoHideScrollbar>
           {(session, index) => (
             <motion.div
               key={session.id}
