@@ -275,9 +275,11 @@ const AboutSettings: FC = () => {
               disabled={update.downloading || update.checking}>
               {update.downloading
                 ? t('settings.about.downloading')
-                : update.available
-                  ? t('settings.about.checkUpdate.available')
-                  : t('settings.about.checkUpdate.label')}
+                : update.downloaded
+                  ? t('settings.about.checkUpdate.install')  // Show "Install" when downloaded
+                  : update.available
+                    ? t('settings.about.checkUpdate.available')
+                    : t('settings.about.checkUpdate.label')}
             </CheckUpdateButton>
           )}
         </AboutHeader>
