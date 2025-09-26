@@ -32,7 +32,7 @@ const SessionsTab: FC<SessionsTabProps> = () => {
         exit={{ width: 0, opacity: 0 }}
         transition={{ duration: 0.5, ease: 'easeInOut' }}
         className={cn(
-          'overflow-auto',
+          'overflow-y-auto overflow-x-hidden',
           topicPosition === 'right' && navbarPosition === 'top' ? 'rounded-l-2xl border-t border-b border-l' : undefined
         )}>
         {!activeAgentId ? (
