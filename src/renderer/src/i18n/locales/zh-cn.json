@@ -194,83 +194,6 @@
       "enable_server": "请启用 API 服务器以使用智能体功能"
     }
   },
-  "agents": {
-    "add": {
-      "button": "添加到助手",
-      "knowledge_base": {
-        "label": "知识库",
-        "placeholder": "选择知识库"
-      },
-      "name": {
-        "label": "名称",
-        "placeholder": "输入名称"
-      },
-      "prompt": {
-        "label": "提示词",
-        "placeholder": "输入提示词",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU 架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称\n{{username}}:\t用户名",
-            "title": "可用的变量"
-          }
-        }
-      },
-      "title": "创建智能体",
-      "unsaved_changes_warning": "你有未保存的内容，确定要关闭吗？"
-    },
-    "delete": {
-      "popup": {
-        "content": "确定要删除此智能体吗？"
-      }
-    },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "选择模型"
-        }
-      },
-      "title": "编辑智能体"
-    },
-    "export": {
-      "agent": "导出智能体"
-    },
-    "import": {
-      "button": "导入",
-      "error": {
-        "fetch_failed": "从 URL 获取数据失败",
-        "invalid_format": "无效的代理格式：缺少必填字段",
-        "url_required": "请输入 URL"
-      },
-      "file_filter": "JSON 文件",
-      "select_file": "选择文件",
-      "title": "从外部导入",
-      "type": {
-        "file": "文件",
-        "url": "URL"
-      },
-      "url_placeholder": "输入 JSON URL"
-    },
-    "manage": {
-      "title": "管理智能体"
-    },
-    "my_agents": "我的智能体",
-    "search": {
-      "no_results": "没有找到相关智能体"
-    },
-    "settings": {
-      "title": "智能体配置"
-    },
-    "sorting": {
-      "title": "排序"
-    },
-    "tag": {
-      "agent": "智能体",
-      "default": "默认",
-      "new": "新建",
-      "system": "系统"
-    },
-    "title": "智能体"
-  },
   "apiServer": {
     "actions": {
       "copy": "复制",
@@ -350,9 +273,86 @@
       "showByList": "列表展示",
       "showByTags": "标签展示"
     },
+    "presets": {
+      "add": {
+        "button": "添加到助手",
+        "knowledge_base": {
+          "label": "知识库",
+          "placeholder": "选择知识库"
+        },
+        "name": {
+          "label": "名称",
+          "placeholder": "输入名称"
+        },
+        "prompt": {
+          "label": "提示词",
+          "placeholder": "输入提示词",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\t日期\n{{time}}:\t时间\n{{datetime}}:\t日期和时间\n{{system}}:\t操作系统\n{{arch}}:\tCPU 架构\n{{language}}:\t语言\n{{model_name}}:\t模型名称\n{{username}}:\t用户名",
+              "title": "可用的变量"
+            }
+          }
+        },
+        "title": "创建助手",
+        "unsaved_changes_warning": "你有未保存的内容，确定要关闭吗？"
+      },
+      "delete": {
+        "popup": {
+          "content": "确定要删除此助手吗？"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "选择模型"
+          }
+        },
+        "title": "编辑助手"
+      },
+      "export": {
+        "agent": "导出助手"
+      },
+      "import": {
+        "button": "导入",
+        "error": {
+          "fetch_failed": "从 URL 获取数据失败",
+          "invalid_format": "无效的助手格式：缺少必填字段",
+          "url_required": "请输入 URL"
+        },
+        "file_filter": "JSON 文件",
+        "select_file": "选择文件",
+        "title": "从外部导入",
+        "type": {
+          "file": "文件",
+          "url": "URL"
+        },
+        "url_placeholder": "输入 JSON URL"
+      },
+      "manage": {
+        "title": "管理助手"
+      },
+      "my_agents": "我的助手",
+      "search": {
+        "no_results": "没有找到相关助手"
+      },
+      "settings": {
+        "title": "助手配置"
+      },
+      "sorting": {
+        "title": "排序"
+      },
+      "tag": {
+        "agent": "助手",
+        "default": "默认",
+        "new": "新建",
+        "system": "系统"
+      },
+      "title": "助手库"
+    },
     "save": {
       "success": "保存成功",
-      "title": "保存到智能体"
+      "title": "保存到助手库"
     },
     "search": "搜索助手",
     "settings": {
@@ -363,7 +363,7 @@
           "label": "调用知识库",
           "off": "强制检索",
           "on": "意图识别",
-          "tip": "智能体将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
+          "tip": "助手将调用大模型的意图识别能力，判断是否需要调用知识库进行回答，该功能将依赖模型的能力"
         }
       },
       "mcp": {
@@ -4398,7 +4398,6 @@
     }
   },
   "title": {
-    "agents": "智能体",
     "apps": "小程序",
     "code": "Code",
     "files": "文件",
@@ -4410,6 +4409,7 @@
     "notes": "笔记",
     "paintings": "绘画",
     "settings": "设置",
+    "store": "助手库",
     "translate": "翻译"
   },
   "trace": {

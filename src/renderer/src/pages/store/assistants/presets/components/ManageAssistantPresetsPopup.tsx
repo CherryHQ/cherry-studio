@@ -33,7 +33,7 @@ const PopupContainer: React.FC = () => {
 
   return (
     <Modal
-      title={t('agents.manage.title')}
+      title={t('assistants.presets.manage.title')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}

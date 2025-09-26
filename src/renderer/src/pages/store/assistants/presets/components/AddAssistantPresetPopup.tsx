@@ -100,7 +100,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     if (hasUnsavedChanges) {
       window.modal.confirm({
         title: t('common.confirm'),
-        content: t('agents.add.unsaved_changes_warning'),
+        content: t('assistants.presets.add.unsaved_changes_warning'),
         okText: t('common.confirm'),
         cancelText: t('common.cancel'),
         centered: true,
@@ -155,19 +155,23 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   }
 
   // Compute label width based on the longest label
-  const labelWidth = [t('agents.add.name.label'), t('agents.add.prompt.label'), t('agents.add.knowledge_base.label')]
+  const labelWidth = [
+    t('assistants.presets.add.name.label'),
+    t('assistants.presets.add.prompt.label'),
+    t('assistants.presets.add.knowledge_base.label')
+  ]
     .map((labelText) => stringWidth(labelText) * 8)
     .reduce((maxWidth, currentWidth) => Math.max(maxWidth, currentWidth), 80)
 
   return (
     <Modal
-      title={t('agents.add.title')}
+      title={t('assistants.presets.add.title')}
       open={open}
       onOk={() => formRef.current?.submit()}
       onCancel={handleCancel}
       maskClosable={false}
       afterClose={onClose}
-      okText={t('agents.add.title')}
+      okText={t('assistants.presets.add.title')}
       width={600}
       transitionName="animation-move-down"
       centered>
@@ -204,16 +208,16 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             <Button icon={emoji && <span style={{ fontSize: 20 }}>{emoji}</span>}>{t('common.select')}</Button>
           </Popover>
         </Form.Item>
-        <Form.Item name="name" label={t('agents.add.name.label')} rules={[{ required: true }]}>
-          <Input placeholder={t('agents.add.name.placeholder')} spellCheck={false} allowClear />
+        <Form.Item name="name" label={t('assistants.presets.add.name.label')} rules={[{ required: true }]}>
+          <Input placeholder={t('assistants.presets.add.name.placeholder')} spellCheck={false} allowClear />
         </Form.Item>
         <div style={{ position: 'relative' }}>
           <Form.Item
             name="prompt"
-            label={t('agents.add.prompt.label')}
+            label={t('assistants.presets.add.prompt.label')}
             rules={[{ required: true }]}
             style={{ position: 'relative' }}>
-            <TextArea placeholder={t('agents.add.prompt.placeholder')} spellCheck={false} rows={10} />
+            <TextArea placeholder={t('assistants.presets.add.prompt.placeholder')} spellCheck={false} rows={10} />
           </Form.Item>
           <TokenCount>Tokens: {tokenCount}</TokenCount>
           <Button
@@ -233,12 +237,12 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         {showKnowledgeIcon && (
           <Form.Item
             name="knowledge_base_ids"
-            label={t('agents.add.knowledge_base.label')}
+            label={t('assistants.presets.add.knowledge_base.label')}
             rules={[{ required: false }]}>
             <Select
               mode="multiple"
               allowClear
-              placeholder={t('agents.add.knowledge_base.placeholder')}
+              placeholder={t('assistants.presets.add.knowledge_base.placeholder')}
               menuItemSelectedIcon={<CheckOutlined />}
               options={knowledgeOptions}
               filterOption={(input, option) =>

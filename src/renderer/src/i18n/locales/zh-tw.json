@@ -194,83 +194,6 @@
       "enable_server": "啟用 API 伺服器以使用代理程式。"
     }
   },
-  "agents": {
-    "add": {
-      "button": "新增到助手",
-      "knowledge_base": {
-        "label": "知識庫",
-        "placeholder": "選擇知識庫"
-      },
-      "name": {
-        "label": "名稱",
-        "placeholder": "輸入名稱"
-      },
-      "prompt": {
-        "label": "提示詞",
-        "placeholder": "輸入提示詞",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU 架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱",
-            "title": "可用的變數"
-          }
-        }
-      },
-      "title": "建立智慧代理人",
-      "unsaved_changes_warning": "有未保存的變更，確定要關閉嗎？"
-    },
-    "delete": {
-      "popup": {
-        "content": "確定要刪除此智慧代理人嗎？"
-      }
-    },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "選擇模型"
-        }
-      },
-      "title": "編輯智慧代理人"
-    },
-    "export": {
-      "agent": "匯出智慧代理人"
-    },
-    "import": {
-      "button": "導入",
-      "error": {
-        "fetch_failed": "從 URL 獲取資料失敗",
-        "invalid_format": "無效的代理人格式：缺少必填欄位",
-        "url_required": "請輸入 URL"
-      },
-      "file_filter": "JSON 檔案",
-      "select_file": "選擇檔案",
-      "title": "從外部導入",
-      "type": {
-        "file": "檔案",
-        "url": "URL"
-      },
-      "url_placeholder": "輸入 JSON URL"
-    },
-    "manage": {
-      "title": "管理智慧代理人"
-    },
-    "my_agents": "我的智慧代理人",
-    "search": {
-      "no_results": "沒有找到相關智慧代理人"
-    },
-    "settings": {
-      "title": "智慧代理人設定"
-    },
-    "sorting": {
-      "title": "排序"
-    },
-    "tag": {
-      "agent": "智慧代理人",
-      "default": "預設",
-      "new": "新增",
-      "system": "系統"
-    },
-    "title": "智慧代理人"
-  },
   "apiServer": {
     "actions": {
       "copy": "複製",
@@ -350,9 +273,86 @@
       "showByList": "列表展示",
       "showByTags": "標籤展示"
     },
+    "presets": {
+      "add": {
+        "button": "新增到助手",
+        "knowledge_base": {
+          "label": "知識庫",
+          "placeholder": "選擇知識庫"
+        },
+        "name": {
+          "label": "名稱",
+          "placeholder": "輸入名稱"
+        },
+        "prompt": {
+          "label": "提示詞",
+          "placeholder": "輸入提示詞",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\t日期\n{{time}}:\t時間\n{{datetime}}:\t日期和時間\n{{system}}:\t作業系統\n{{arch}}:\tCPU 架構\n{{language}}:\t語言\n{{model_name}}:\t模型名稱\n{{username}}:\t使用者名稱",
+              "title": "可用的變數"
+            }
+          }
+        },
+        "title": "建立助手",
+        "unsaved_changes_warning": "有未保存的變更，確定要關閉嗎？"
+      },
+      "delete": {
+        "popup": {
+          "content": "確定要刪除此助手嗎？"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "選擇模型"
+          }
+        },
+        "title": "編輯助手"
+      },
+      "export": {
+        "agent": "匯出助手"
+      },
+      "import": {
+        "button": "導入",
+        "error": {
+          "fetch_failed": "從 URL 獲取資料失敗",
+          "invalid_format": "無效的助手格式：缺少必填欄位",
+          "url_required": "請輸入 URL"
+        },
+        "file_filter": "JSON 檔案",
+        "select_file": "選擇檔案",
+        "title": "從外部導入",
+        "type": {
+          "file": "檔案",
+          "url": "URL"
+        },
+        "url_placeholder": "輸入 JSON URL"
+      },
+      "manage": {
+        "title": "管理助手"
+      },
+      "my_agents": "我的助手",
+      "search": {
+        "no_results": "沒有找到相關助手"
+      },
+      "settings": {
+        "title": "助手配置"
+      },
+      "sorting": {
+        "title": "排序"
+      },
+      "tag": {
+        "agent": "助手",
+        "default": "預設",
+        "new": "新增",
+        "system": "系統"
+      },
+      "title": "助手庫"
+    },
     "save": {
       "success": "儲存成功",
-      "title": "儲存到智慧代理人"
+      "title": "儲存到助手庫"
     },
     "search": "搜尋助手...",
     "settings": {
@@ -363,7 +363,7 @@
           "label": "調用知識庫",
           "off": "強制檢索",
           "on": "意圖識別",
-          "tip": "智慧代理人將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力"
+          "tip": "助手將調用大語言模型的意圖識別能力，判斷是否需要調用知識庫進行回答，該功能將依賴模型的能力"
         }
       },
       "mcp": {
@@ -4398,7 +4398,6 @@
     }
   },
   "title": {
-    "agents": "智能體",
     "apps": "小程序",
     "code": "Code",
     "files": "文件",
@@ -4410,6 +4409,7 @@
     "notes": "筆記",
     "paintings": "繪畫",
     "settings": "設定",
+    "store": "助手庫",
     "translate": "翻譯"
   },
   "trace": {

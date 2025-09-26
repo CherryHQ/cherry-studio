@@ -133,7 +133,7 @@ export const getRestoreProgressLabel = (key: string): string => {
 
 const titleKeyMap = {
   // TODO: update i18n key
-  assistantPresets: 'title.agents',
+  store: 'title.store',
   apps: 'title.apps',
   code: 'title.code',
   files: 'title.files',

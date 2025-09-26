@@ -2,7 +2,7 @@ import { TopView } from '@renderer/components/TopView'
 import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useAssistantPresets } from '@renderer/hooks/useAssistantPresets'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { useSystemAssistantPresets } from '@renderer/pages/assistantPresets'
+import { useSystemAssistantPresets } from '@renderer/pages/store/assistants/presets'
 import { createAssistantFromAgent } from '@renderer/services/AssistantService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { Assistant, AssistantPreset } from '@renderer/types'
@@ -203,9 +203,9 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               <EmojiIcon emoji={preset.emoji || ''} />
               <span className="text-nowrap">{preset.name}</span>
             </HStack>
-            {preset.id === 'default' && <Tag color="green">{t('agents.tag.system')}</Tag>}
-            {preset.type === 'agent' && <Tag color="orange">{t('agents.tag.agent')}</Tag>}
-            {preset.id === 'new' && <Tag color="green">{t('agents.tag.new')}</Tag>}
+            {preset.id === 'default' && <Tag color="green">{t('assistants.presets.tag.system')}</Tag>}
+            {preset.type === 'agent' && <Tag color="orange">{t('assistants.presets.tag.agent')}</Tag>}
+            {preset.id === 'new' && <Tag color="green">{t('assistants.presets.tag.new')}</Tag>}
           </AgentItem>
         ))}
       </Container>
