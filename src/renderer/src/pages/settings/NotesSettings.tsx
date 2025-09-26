@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import { initWorkSpace } from '@renderer/services/NotesService'
 import { EditorView } from '@renderer/types'
 import { Button, Input, message, Slider, Switch } from 'antd'
 import { FolderOpen } from 'lucide-react'
@@ -70,7 +69,6 @@ const NotesSettings: FC = () => {
       }
 
       updateNotesPath(tempPath)
-      initWorkSpace(tempPath, 'sort_a2z')
       window.toast.success(t('notes.settings.data.path_updated'))
     } catch (error) {
       logger.error('Failed to apply notes path:', error as Error)
@@ -83,7 +81,6 @@ const NotesSettings: FC = () => {
       const info = await window.api.getAppInfo()
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
-      initWorkSpace(info.notesPath, 'sort_a2z')
       window.toast.success(t('notes.settings.data.reset_to_default'))
     } catch (error) {
       logger.error('Failed to reset to default:', error as Error)

@@ -20,6 +20,8 @@ export interface NoteState {
   settings: NotesSettings
   notesPath: string
   sortType: NotesSortType
+  starredPaths: string[]
+  expandedPaths: string[]
 }
 
 export const initialState: NoteState = {
@@ -36,7 +38,9 @@ export const initialState: NoteState = {
     showWorkspace: true
   },
   notesPath: '',
-  sortType: 'sort_a2z'
+  sortType: 'sort_a2z',
+  starredPaths: [],
+  expandedPaths: []
 }
 
 const noteSlice = createSlice({
@@ -57,16 +61,32 @@ const noteSlice = createSlice({
     },
     setSortType: (state, action: PayloadAction<NotesSortType>) => {
       state.sortType = action.payload
+    },
+    setStarredPaths: (state, action: PayloadAction<string[]>) => {
+      state.starredPaths = action.payload ?? []
+    },
+    setExpandedPaths: (state, action: PayloadAction<string[]>) => {
+      state.expandedPaths = action.payload ?? []
     }
   }
 })
 
-export const { setActiveNodeId, setActiveFilePath, updateNotesSettings, setNotesPath, setSortType } = noteSlice.actions
+export const {
+  setActiveNodeId,
+  setActiveFilePath,
+  updateNotesSettings,
+  setNotesPath,
+  setSortType,
+  setStarredPaths,
+  setExpandedPaths
+} = noteSlice.actions
 
 export const selectActiveNodeId = (state: RootState) => state.note.activeNodeId
 export const selectActiveFilePath = (state: RootState) => state.note.activeFilePath
 export const selectNotesSettings = (state: RootState) => state.note.settings
 export const selectNotesPath = (state: RootState) => state.note.notesPath
 export const selectSortType = (state: RootState) => state.note.sortType
+export const selectStarredPaths = (state: RootState) => state.note.starredPaths ?? []
+export const selectExpandedPaths = (state: RootState) => state.note.expandedPaths ?? []
 
 export default noteSlice.reducer
