@@ -18,7 +18,7 @@ import { SettingsContainer, SettingsItem, SettingsTitle } from './shared'
 type AgentPromptSettingsProps =
   | {
       agentBase: AgentEntity | undefined | null
-      update: ReturnType<typeof useUpdateAgent>
+      update: ReturnType<typeof useUpdateAgent>['updateAgent']
     }
   | {
       agentBase: AgentSessionEntity | undefined | null

@@ -2,7 +2,7 @@ import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useApiModel } from '@renderer/hooks/agents/useModel'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { modelGenerating, useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings'
@@ -11,12 +11,12 @@ import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
-import { Assistant, Topic } from '@renderer/types'
+import { ApiModel, Assistant, Topic } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { FC } from 'react'
+import { FC, useCallback } from 'react'
 import styled from 'styled-components'
 
 import AssistantsDrawer from './components/AssistantsDrawer'
@@ -41,8 +41,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
   const { chat } = useRuntime()
   const { activeTopicOrSession, activeAgentId } = chat
   const { agent } = useAgent(activeAgentId)
-  // TODO: filter is temporally for agent since it cannot get all models once
-  const agentModel = useApiModel({ id: agent?.model, filter: { providerType: 'anthropic' } })
+  const { updateModel } = useUpdateAgent()
 
   useShortcut('toggle_show_assistants', toggleShowAssistants)
 
@@ -71,6 +70,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
       setActiveTopic
     })
   }
+
+  const handleUpdateModel = useCallback(
+    async (model: ApiModel) => {
+      if (!agent) return
+      return updateModel(agent.id, model.id, { showSuccessToast: false })
+    },
+    [agent, updateModel]
+  )
 
   return (
     <NavbarHeader className="home-navbar">
@@ -103,8 +110,8 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           )}
         </AnimatePresence>
         {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
-        {activeTopicOrSession === 'session' && agent && agentModel && (
-          <SelectAgentModelButton agent={agent} model={agentModel} />
+        {activeTopicOrSession === 'session' && agent && (
+          <SelectAgentModelButton agent={agent} onSelect={handleUpdateModel} />
         )}
       </div>
       <HStack alignItems="center" gap={8}>

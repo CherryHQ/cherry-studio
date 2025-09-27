@@ -28,7 +28,7 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
   const [menu, setMenu] = useState<AgentSettingPopupTab>(tab || 'essential')
 
   const { agent, isLoading, error } = useAgent(agentId)
-  const updateAgent = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
 
   const onOk = () => {
     setOpen(false)

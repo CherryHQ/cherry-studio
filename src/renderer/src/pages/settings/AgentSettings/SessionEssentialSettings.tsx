@@ -12,7 +12,7 @@ import { SettingsContainer } from './shared'
 
 interface SessionEssentialSettingsProps {
   session: GetAgentSessionResponse | undefined | null
-  update: ReturnType<typeof useUpdateAgent>
+  update: ReturnType<typeof useUpdateAgent>['updateAgent']
 }
 
 const SessionEssentialSettings: FC<SessionEssentialSettingsProps> = ({ session, update }) => {

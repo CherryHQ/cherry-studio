@@ -98,7 +98,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
   const loadingRef = useRef(false)
   // const { setTimeoutTimer } = useTimer()
   const { addAgent } = useAgents()
-  const updateAgent = useUpdateAgent()
+  const { updateAgent } = useUpdateAgent()
   // hard-coded. We only support anthropic for now.
   const { models } = useApiModels({ providerType: 'anthropic' })
   const isEditing = (agent?: AgentWithTools) => agent !== undefined

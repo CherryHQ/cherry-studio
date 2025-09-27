@@ -13,7 +13,7 @@ import { AgentLabel, SettingsContainer, SettingsItem, SettingsTitle } from './sh
 
 interface AgentEssentialSettingsProps {
   agent: GetAgentResponse | undefined | null
-  update: ReturnType<typeof useUpdateAgent>
+  update: ReturnType<typeof useUpdateAgent>['updateAgent']
 }
 
 const AgentEssentialSettings: FC<AgentEssentialSettingsProps> = ({ agent, update }) => {

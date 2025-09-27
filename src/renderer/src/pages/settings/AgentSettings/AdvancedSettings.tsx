@@ -19,7 +19,7 @@ type AgentConfigurationState = AgentConfiguration & Record<string, unknown>
 type AdvancedSettingsProps =
   | {
       agentBase: GetAgentResponse | undefined | null
-      update: ReturnType<typeof useUpdateAgent>
+      update: ReturnType<typeof useUpdateAgent>['updateAgent']
     }
   | {
       agentBase: GetAgentSessionResponse | undefined | null

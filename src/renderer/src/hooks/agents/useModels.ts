@@ -1,4 +1,4 @@
-import { ApiModelsFilter } from '@renderer/types'
+import { ApiModel, ApiModelsFilter } from '@renderer/types'
 import { merge } from 'lodash'
 import { useCallback } from 'react'
 import useSWR from 'swr'
@@ -11,8 +11,20 @@ export const useApiModels = (filter?: ApiModelsFilter) => {
   const defaultFilter = {} satisfies ApiModelsFilter
   const finalFilter = merge(filter, defaultFilter)
   const path = client.getModelsPath(finalFilter)
-  const fetcher = useCallback(() => {
-    return client.getModels(finalFilter)
+  const fetcher = useCallback(async () => {
+    const limit = finalFilter.limit || 100
+    let offset = finalFilter.offset || 0
+    const allModels: ApiModel[] = []
+    let total = Infinity
+
+    while (offset < total) {
+      const pageFilter = { ...finalFilter, limit, offset }
+      const res = await client.getModels(pageFilter)
+      allModels.push(...(res.data || []))
+      total = res.total ?? 0
+      offset += limit
+    }
+    return { data: allModels, total }
   }, [client, finalFilter])
   const { data, error, isLoading } = useSWR(path, fetcher)
   return {

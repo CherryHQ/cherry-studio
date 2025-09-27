@@ -1,8 +1,9 @@
 import { Button } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectApiModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { AgentEntity, ApiModel } from '@renderer/types'
+import { useApiModel } from '@renderer/hooks/agents/useModel'
+import { getProviderNameById } from '@renderer/services/ProviderService'
+import { AgentBaseWithId, ApiModel, isAgentEntity } from '@renderer/types'
 import { getModelFilterByAgentType } from '@renderer/utils/agentSession'
 import { apiModelAdapter } from '@renderer/utils/model'
 import { ChevronsUpDown } from 'lucide-react'
@@ -10,31 +11,37 @@ import { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface Props {
-  agent: AgentEntity
-  model: ApiModel
+  agent: AgentBaseWithId
+  onSelect: (model: ApiModel) => Promise<void>
+  isDisabled?: boolean
 }
 
-const SelectAgentModelButton: FC<Props> = ({ agent, model }) => {
+const SelectAgentModelButton: FC<Props> = ({ agent, onSelect, isDisabled }) => {
   const { t } = useTranslation()
-  const update = useUpdateAgent()
+  const model = useApiModel({ id: agent?.model })
 
-  const modelFilter = getModelFilterByAgentType(agent.type)
+  const modelFilter = isAgentEntity(agent) ? getModelFilterByAgentType(agent.type) : undefined
 
   if (!agent) return null
 
   const onSelectModel = async () => {
     const selectedModel = await SelectApiModelPopup.show({ model, filter: modelFilter })
     if (selectedModel && selectedModel.id !== agent.model) {
-      update({ id: agent.id, model: selectedModel.id })
+      onSelect(selectedModel)
     }
   }
 
-  const providerName = model.provider_name
+  const providerName = model?.provider ? getProviderNameById(model.provider) : model?.provider_name
 
   return (
-    <Button size="sm" variant="light" className="nodrag rounded-2xl px-1 py-3" onPress={onSelectModel}>
+    <Button
+      size="sm"
+      variant="light"
+      className="nodrag rounded-2xl px-1 py-3"
+      onPress={onSelectModel}
+      isDisabled={isDisabled}>
       <div className="flex items-center gap-1.5">
-        <ModelAvatar model={apiModelAdapter(model)} size={20} />
+        <ModelAvatar model={model ? apiModelAdapter(model) : undefined} size={20} />
         <span className="-mr-0.5 font-medium">
           {model ? model.name : t('button.select_model')} {providerName ? ' | ' + providerName : ''}
         </span>
