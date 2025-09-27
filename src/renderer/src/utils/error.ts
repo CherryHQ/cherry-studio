@@ -68,8 +68,16 @@ export function formatErrorMessage(error: unknown): string {
   return `Error Details:\n${formattedJson}`
 }
 
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  } else {
+    return t('error.unknown')
+  }
+}
+
 export function formatErrorMessageWithPrefix(error: unknown, prefix: string): string {
-  const msg = formatErrorMessage(error)
+  const msg = getErrorMessage(error)
   return `${prefix}: ${msg}`
 }
 

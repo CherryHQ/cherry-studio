@@ -1,6 +1,6 @@
 import { useAppDispatch } from '@renderer/store'
 import { setActiveAgentId, setActiveSessionIdAction } from '@renderer/store/runtime'
-import { AddAgentForm } from '@renderer/types'
+import { AddAgentForm, CreateAgentResponse } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -8,6 +8,16 @@ import useSWR from 'swr'
 
 import { useRuntime } from '../useRuntime'
 import { useAgentClient } from './useAgentClient'
+
+type Result<T> =
+  | {
+      success: true
+      data: T
+    }
+  | {
+      success: false
+      error: Error
+    }
 
 export const useAgents = () => {
   const { t } = useTranslation()
@@ -24,13 +34,20 @@ export const useAgents = () => {
   const dispatch = useAppDispatch()
 
   const addAgent = useCallback(
-    async (form: AddAgentForm) => {
+    async (form: AddAgentForm): Promise<Result<CreateAgentResponse>> => {
       try {
         const result = await client.createAgent(form)
         mutate((prev) => [...(prev ?? []), result])
         window.toast.success(t('common.add_success'))
+        return { success: true, data: result }
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed')))
+        const errorMessage = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
+        window.toast.error(errorMessage)
+        if (error instanceof Error) {
+          return { success: false, error }
+        } else {
+          return { success: false, error: new Error(formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))) }
+        }
       }
     },
     [client, mutate, t]

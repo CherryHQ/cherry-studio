@@ -291,6 +291,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
 
       if (isEditing(agent)) {
         if (!agent) {
+          loadingRef.current = false
           throw new Error('Agent is required for editing mode')
         }
 
@@ -318,8 +319,11 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
           allowed_tools: [...form.allowed_tools],
           configuration: form.configuration ? { ...form.configuration } : undefined
         } satisfies AddAgentForm
-        addAgent(newAgent)
-        logger.debug('Added agent', newAgent)
+        const result = await addAgent(newAgent)
+        if (!result.success) {
+          loadingRef.current = false
+          throw result.error
+        }
       }
 
       loadingRef.current = false
@@ -382,6 +386,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                       isDisabled={isEditing(agent)}
                       selectionMode="single"
                       selectedKeys={[form.type]}
+                      disallowEmptySelection
                       onChange={onAgentTypeChange}
                       items={agentOptions}
                       label={t('agent.type.label')}
@@ -399,6 +404,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                     isRequired
                     selectionMode="single"
                     selectedKeys={form.model ? [form.model] : []}
+                    disallowEmptySelection
                     onChange={onModelChange}
                     items={modelOptions}
                     label={t('common.model')}
