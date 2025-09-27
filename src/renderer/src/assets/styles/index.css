@@ -19,6 +19,10 @@
     /* margin: 0; */
     font-weight: normal;
   }
+
+  .lucide:not(.lucide-custom) {
+  color: var(--color-icon);
+}
 }
 
 *:focus {
@@ -169,10 +173,6 @@ ul {
 
 .bubble:not(.multi-select-mode) .markdown {
   display: flow-root;
-}
-
-.lucide:not(.lucide-custom) {
-  color: var(--color-icon);
 }
 
 ::highlight(search-matches) {

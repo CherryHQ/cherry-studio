@@ -33,6 +33,7 @@ import {
   Tool,
   UpdateAgentForm
 } from '@renderer/types'
+import { AlertTriangleIcon } from 'lucide-react'
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -432,7 +433,8 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
                             {t(item.behaviorKey, item.behaviorFallback)}
                           </span>
                           {item.caution ? (
-                            <span className="text-danger-500 text-xs">
+                            <span className="flex items-center gap-1 text-danger-500 text-xs">
+                              <AlertTriangleIcon size={12} className="text-danger" />
                               {t(
                                 'agent.settings.tooling.permissionMode.bypassPermissions.warning',
                                 'Use with caution — all tools will run without asking for approval.'
