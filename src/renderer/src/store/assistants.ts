@@ -28,6 +28,7 @@ const assistantsSlice = createSlice({
   initialState,
   reducers: {
     updateDefaultAssistant: (state, action: PayloadAction<{ assistant: Assistant }>) => {
+      // @ts-ignore ts2589
       state.defaultAssistant = action.payload.assistant
     },
     updateAssistants: (state, action: PayloadAction<Assistant[]>) => {
@@ -50,6 +51,7 @@ const assistantsSlice = createSlice({
     },
     updateAssistant: (state, action: PayloadAction<Partial<Assistant> & { id: string }>) => {
       const { id, ...update } = action.payload
+      // @ts-ignore ts2589
       state.assistants = state.assistants.map((c) => (c.id === id ? { ...c, ...update } : c))
     },
     updateAssistantSettings: (
