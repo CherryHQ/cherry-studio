@@ -70,10 +70,15 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
       }
     })
   }
+  const baseURL =
+    provider.type === 'anthropic'
+      ? provider.apiHost
+      : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
+
   return new Anthropic({
     apiKey: provider.apiKey,
     authToken: provider.apiKey,
-    baseURL: provider.apiHost,
+    baseURL,
     dangerouslyAllowBrowser: true,
     defaultHeaders: {
       'anthropic-beta': 'output-128k-2025-02-19',
