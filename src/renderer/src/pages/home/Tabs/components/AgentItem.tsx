@@ -44,7 +44,7 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
                   variant="bordered"
                   size="sm"
                   radius="full"
-                  className="aspect-square h-5 w-5 items-center justify-center border-[0.5px] text-[10px]">
+                  className="aspect-square h-5 w-5 items-center justify-center border-[0.5px] bg-background text-[10px]">
                   {sessions.length}
                 </Chip>
               )}
