@@ -10,7 +10,9 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { TextBlockParam } from '@anthropic-ai/sdk/resources'
+import { loggerService } from '@logger'
 import { Provider } from '@types'
+const logger = loggerService.withContext('anthropic-sdk')
 
 /**
  * Creates and configures an Anthropic SDK client based on the provider configuration.
@@ -75,6 +77,7 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
       ? provider.apiHost
       : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
 
+  logger.debug('Anthropic API baseURL', { baseURL })
   return new Anthropic({
     apiKey: provider.apiKey,
     authToken: provider.apiKey,

@@ -47,9 +47,11 @@ export async function getAvailableProviders(): Promise<Provider[]> {
   }
 }
 
-export async function listAllAvailableModels(): Promise<Model[]> {
+export async function listAllAvailableModels(providers?: Provider[]): Promise<Model[]> {
   try {
-    const providers = await getAvailableProviders()
+    if (!providers) {
+      providers = await getAvailableProviders()
+    }
     return providers.map((p: Provider) => p.models || []).flat()
   } catch (error: any) {
     logger.error('Failed to list available models', { error })
@@ -107,9 +109,12 @@ export interface ModelValidationError {
   code: string
 }
 
-export async function validateModelId(
-  model: string
-): Promise<{ valid: boolean; error?: ModelValidationError; provider?: Provider; modelId?: string }> {
+export async function validateModelId(model: string): Promise<{
+  valid: boolean
+  error?: ModelValidationError
+  provider?: Provider
+  modelId?: string
+}> {
   try {
     if (!model || typeof model !== 'string') {
       return {
@@ -192,8 +197,7 @@ export async function validateModelId(
   }
 }
 
-export function transformModelToOpenAI(model: Model, providers: Provider[]): ApiModel {
-  const provider = providers.find((p) => p.id === model.provider)
+export function transformModelToOpenAI(model: Model, provider?: Provider): ApiModel {
   const providerDisplayName = provider?.name
   return {
     id: `${model.provider}:${model.id}`,
@@ -268,7 +272,10 @@ export function validateProvider(provider: Provider): boolean {
 
     return true
   } catch (error: any) {
-    logger.error('Error validating provider', { error, providerId: provider?.id })
+    logger.error('Error validating provider', {
+      error,
+      providerId: provider?.id
+    })
     return false
   }
 }

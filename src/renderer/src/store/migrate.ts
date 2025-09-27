@@ -2618,6 +2618,7 @@ const migrateConfig = {
             break
           case 'aihubmix':
             provider.anthropicApiHost = 'https://aihubmix.com/anthropic'
+            provider.isAnthropicModel = (m: Model) => m.id.includes('claude')
             break
         }
       })

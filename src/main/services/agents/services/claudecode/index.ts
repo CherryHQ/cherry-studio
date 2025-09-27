@@ -60,7 +60,15 @@ class ClaudeCodeService implements AgentServiceInterface {
       })
       return aiStream
     }
-    if (modelInfo.provider?.type !== 'anthropic' || modelInfo.provider.apiKey === '') {
+    if (
+      (modelInfo.provider?.type !== 'anthropic' &&
+        (modelInfo.provider?.anthropicApiHost === undefined || modelInfo.provider.anthropicApiHost.trim() === '')) ||
+      modelInfo.provider.apiKey === ''
+    ) {
+      logger.error('Anthropic provider configuration is missing', {
+        modelInfo
+      })
+
       aiStream.emit('data', {
         type: 'error',
         error: new Error(`Invalid provider type '${modelInfo.provider?.type}'. Expected 'anthropic' provider type.`)

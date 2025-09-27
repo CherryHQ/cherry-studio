@@ -2,7 +2,7 @@ import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import { ModelValidationError, validateModelId } from '@main/apiServer/utils'
-import { AgentType, MCPTool, objectKeys, Provider, SlashCommand, Tool } from '@types'
+import { AgentType, MCPTool, objectKeys, SlashCommand, Tool } from '@types'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -305,23 +305,6 @@ export abstract class BaseService {
             code: 'provider_api_key_missing'
           }
         )
-      }
-
-      // different agent types may have different provider requirements
-      const agentTypeProviderRequirements: Record<AgentType, Provider['type']> = {
-        'claude-code': 'anthropic'
-      }
-      for (const [ak, pk] of Object.entries(agentTypeProviderRequirements)) {
-        if (agentType === ak && validation.provider.type !== pk) {
-          throw new AgentModelValidationError(
-            { agentType, field, model: modelValue },
-            {
-              type: 'unsupported_provider_type',
-              message: `Provider type '${validation.provider.type}' is not supported for agent type '${agentType}'. Expected '${pk}'`,
-              code: 'unsupported_provider_type'
-            }
-          )
-        }
       }
     }
   }

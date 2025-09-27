@@ -253,6 +253,7 @@ export type Provider = {
   apiKey: string
   apiHost: string
   anthropicApiHost?: string
+  isAnthropicModel?: (m: Model) => boolean
   apiVersion?: string
   models: Model[]
   enabled?: boolean
