@@ -52,12 +52,12 @@ export type SlashCommand = z.infer<typeof SlashCommandSchema>
 // ------------------ Agent configuration & base schema ------------------
 export const AgentConfigurationSchema = z
   .object({
-    avatar: z.string().optional(), // URL or path to avatar image
+    avatar: z.string().optional(), // agent type as mark of default avatar; single emoji; URL or path to avatar image.
     slash_commands: z.array(z.string()).optional(), // Array of slash commands to trigger the agent, this is from agent init response
 
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
-    permission_mode: PermissionModeSchema.default('default'), // Permission mode, default to 'default'
-    max_turns: z.number().default(100) // Maximum number of interaction turns, default to 100
+    permission_mode: PermissionModeSchema.optional().default('default'), // Permission mode, default to 'default'
+    max_turns: z.number().optional().default(100) // Maximum number of interaction turns, default to 100
   })
   .loose()
 

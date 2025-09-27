@@ -1,7 +1,8 @@
 import { Avatar, AvatarProps, cn } from '@heroui/react'
-import { getAgentAvatar } from '@renderer/config/agent'
+import EmojiIcon from '@renderer/components/EmojiIcon'
+import { getAgentDefaultAvatar } from '@renderer/config/agent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
-import { AgentSessionEntity, AgentType } from '@renderer/types'
+import { AgentEntity, AgentSessionEntity, isAgentType } from '@renderer/types'
 import { Menu, Modal } from 'antd'
 import React, { ReactNode } from 'react'
 import styled from 'styled-components'
@@ -22,8 +23,7 @@ export const SettingsTitle: React.FC<SettingsTitleProps> = ({ children, actions 
 }
 
 export type AgentLabelProps = {
-  type: AgentType
-  name?: string
+  agent: AgentEntity | undefined | null
   classNames?: {
     container?: string
     avatar?: string
@@ -32,11 +32,16 @@ export type AgentLabelProps = {
   avatarProps?: AvatarProps
 }
 
-export const AgentLabel: React.FC<AgentLabelProps> = ({ type, name, classNames, avatarProps }) => {
+export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames, avatarProps }) => {
+  const isDefault = isAgentType(agent?.configuration?.avatar)
+  const src = isDefault ? getAgentDefaultAvatar(agent.type) : undefined
+  const emoji = isDefault ? undefined : agent?.configuration?.avatar
+
   return (
     <div className={cn('flex items-center gap-2', classNames?.container)}>
-      <Avatar src={getAgentAvatar(type)} title={type} {...avatarProps} className={cn('h-5 w-5', classNames?.avatar)} />
-      <span className={classNames?.name}>{name ?? getAgentTypeLabel(type)}</span>
+      {isDefault && <Avatar src={src} {...avatarProps} className={cn('h-6 w-6 text-lg', classNames?.avatar)} />}
+      {!isDefault && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />}
+      <span className={classNames?.name}>{(agent?.name ?? agent?.type) ? getAgentTypeLabel(agent.type) : ''}</span>
     </div>
   )
 }
@@ -83,7 +88,7 @@ export const SettingsItem: React.FC<SettingsItemProps> = ({
 
 export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'>> = ({ children, className, ...props }) => {
   return (
-    <div className={cn('flex flex-1 flex-col overflow-auto pr-2', className)} {...props}>
+    <div className={cn('flex flex-1 flex-col overflow-y-auto overflow-x-hidden pr-2', className)} {...props}>
       {children}
     </div>
   )

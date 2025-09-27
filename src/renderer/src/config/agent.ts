@@ -11,7 +11,7 @@ export const DEFAULT_CLAUDE_CODE_CONFIG: Omit<AgentBase, 'model'> = {
   ...DEFAULT_AGENT_CONFIG
 } as const
 
-export const getAgentAvatar = (type: AgentType): string => {
+export const getAgentDefaultAvatar = (type: AgentType): string => {
   switch (type) {
     case 'claude-code':
       return ClaudeAvatar

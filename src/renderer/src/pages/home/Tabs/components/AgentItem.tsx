@@ -1,11 +1,11 @@
-import { Avatar, Button, Chip, cn } from '@heroui/react'
+import { Button, Chip, cn } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import { getAgentAvatar } from '@renderer/config/agent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import AgentSettingsPopup from '@renderer/pages/settings/AgentSettings/AgentSettingsPopup'
+import { AgentLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { AgentEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
-import { FC, memo, useCallback } from 'react'
+import { FC, memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // const logger = loggerService.withContext('AgentItem')
@@ -21,24 +21,13 @@ const AgentItem: FC<AgentItemProps> = ({ agent, isActive, onDelete, onPress }) =
   const { t } = useTranslation()
   const { sessions } = useSessions(agent.id)
 
-  const AgentLabel = useCallback(() => {
-    const displayName = agent.name ?? agent.id
-    const avatar = getAgentAvatar(agent.type)
-    return (
-      <div className="flex items-center gap-2">
-        <Avatar className="h-6 w-6" src={avatar} name={displayName} />
-        <span className="text-sm">{displayName}</span>
-      </div>
-    )
-  }, [agent.id, agent.name, agent.type])
-
   return (
     <>
       <ContextMenu modal={false}>
         <ContextMenuTrigger>
           <ButtonContainer onPress={onPress} className={isActive ? 'active' : ''}>
             <AssistantNameRow className="name flex w-full justify-between" title={agent.name ?? agent.id}>
-              <AgentLabel />
+              <AgentLabel agent={agent} />
               {isActive && (
                 <Chip
                   variant="bordered"
