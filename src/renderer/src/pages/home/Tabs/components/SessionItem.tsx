@@ -8,11 +8,15 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import { AgentSessionEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { XIcon } from 'lucide-react'
-import React, { FC, memo, startTransition, useState } from 'react'
+import React, { FC, memo, startTransition, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 // const logger = loggerService.withContext('AgentItem')
 
@@ -33,6 +37,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
   const activeSessionId = chat.activeSessionId[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
+  const dispatch = useAppDispatch()
 
   const { isEditing, isSaving, editValue, inputRef, startEdit, handleKeyDown, handleValueChange } = useInPlaceEdit({
     onSave: async (value) => {
@@ -86,6 +91,11 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
   }
 
   const isActive = activeSessionId === session.id
+  const topicLoadingQuery = useAppSelector((state) => state.messages.loadingByTopic)
+  const topicFulfilledQuery = useAppSelector((state) => state.messages.fulfilledByTopic)
+  const sessionTopicId = buildAgentSessionTopicId(session.id)
+  const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
+  const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
 
   return (
     <>
@@ -94,11 +104,16 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
           <ButtonContainer
             isDisabled={isDisabled}
             isLoading={isLoading}
-            onPress={onPress}
+            onPress={() => {
+              dispatch(newMessagesActions.setTopicFulfilled({ topicId: sessionTopicId, fulfilled: false }))
+              onPress()
+            }}
             isActive={isActive}
             onDoubleClick={() => startEdit(session.name ?? '')}
             className="group">
-            <SessionLabelContainer className="name h-full w-full" title={session.name ?? session.id}>
+            <SessionLabelContainer className="name h-full w-full pl-1" title={session.name ?? session.id}>
+              {isPending && !isActive && <PendingIndicator />}
+              {isFulfilled && !isActive && <FulfilledIndicator />}
               {isEditing && (
                 <Input
                   ref={inputRef}
@@ -183,5 +198,31 @@ const SessionLabelContainer: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
     className={cn('text-[13px] text-[var(--color-text)]', 'flex flex-row items-center gap-2', className)}
   />
 )
+
+const PendingIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-status-warning);
+`
+
+const FulfilledIndicator = styled.div.attrs({
+  className: 'animation-pulse'
+})`
+  --pulse-size: 5px;
+  width: 5px;
+  height: 5px;
+  position: absolute;
+  left: 3px;
+  top: 15px;
+  border-radius: 50%;
+  background-color: var(--color-status-success);
+`
 
 export default memo(SessionItem)

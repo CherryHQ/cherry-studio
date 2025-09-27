@@ -55,7 +55,6 @@ export const loadTopicMessagesThunkV2 =
       // Could dispatch an error action here if needed
     } finally {
       dispatch(newMessagesActions.setTopicLoading({ topicId, loading: false }))
-      dispatch(newMessagesActions.setTopicFulfilled({ topicId, fulfilled: true }))
     }
   }
 
