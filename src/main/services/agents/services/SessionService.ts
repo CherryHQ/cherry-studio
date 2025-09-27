@@ -110,6 +110,7 @@ export class SessionService extends BaseService {
 
     const session = this.deserializeJsonFields(result[0]) as GetAgentSessionResponse
     session.tools = await this.listMcpTools(session.agent_type, session.mcps)
+    session.slash_commands = await this.listSlashCommands(session.agent_type)
     return session
   }
 

@@ -2,7 +2,7 @@ import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import { ModelValidationError, validateModelId } from '@main/apiServer/utils'
-import { AgentType, MCPTool, objectKeys, Provider, Tool } from '@types'
+import { AgentType, MCPTool, objectKeys, Provider, SlashCommand, Tool } from '@types'
 import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 import fs from 'fs'
 import path from 'path'
@@ -11,6 +11,7 @@ import { MigrationService } from './database/MigrationService'
 import * as schema from './database/schema'
 import { dbPath } from './drizzle.config'
 import { AgentModelField, AgentModelValidationError } from './errors'
+import { builtinSlashCommands } from './services/claudecode/commands'
 import { builtinTools } from './services/claudecode/tools'
 
 const logger = loggerService.withContext('BaseService')
@@ -74,6 +75,13 @@ export abstract class BaseService {
     }
 
     return tools
+  }
+
+  public async listSlashCommands(agentType: AgentType): Promise<SlashCommand[]> {
+    if (agentType === 'claude-code') {
+      return builtinSlashCommands
+    }
+    return []
   }
 
   private static async performInitialization(): Promise<void> {

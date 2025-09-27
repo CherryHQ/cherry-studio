@@ -42,11 +42,18 @@ export const ToolSchema = z.object({
 
 export type Tool = z.infer<typeof ToolSchema>
 
+export const SlashCommandSchema = z.object({
+  command: z.string(), // e.g. '/status'
+  description: z.string().optional() // e.g. 'Show help information'
+})
+
+export type SlashCommand = z.infer<typeof SlashCommandSchema>
+
 // ------------------ Agent configuration & base schema ------------------
 export const AgentConfigurationSchema = z
   .object({
     avatar: z.string().optional(), // URL or path to avatar image
-    slash_commands: z.array(z.string()).optional(), // Array of slash commands to trigger the agent
+    slash_commands: z.array(z.string()).optional(), // Array of slash commands to trigger the agent, this is from agent init response
 
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.default('default'), // Permission mode, default to 'default'
@@ -255,7 +262,8 @@ export interface UpdateSessionRequest extends Partial<AgentBase> {}
 
 export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
   tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
-  messages: z.array(AgentSessionMessageEntitySchema).optional() // Messages in the session
+  messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
+  slash_commands: z.array(SlashCommandSchema).optional() // Array of slash commands to trigger the agent
 })
 
 export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
