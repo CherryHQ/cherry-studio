@@ -1,9 +1,10 @@
 import { Button } from '@heroui/react'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { SelectApiModelPopup } from '@renderer/components/Popups/SelectModelPopup'
+import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { useApiModel } from '@renderer/hooks/agents/useModel'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { AgentBaseWithId, ApiModel, isAgentEntity } from '@renderer/types'
+import { AgentBaseWithId, ApiModel, isAgentEntity, Model } from '@renderer/types'
 import { getModelFilterByAgentType } from '@renderer/utils/agentSession'
 import { apiModelAdapter } from '@renderer/utils/model'
 import { ChevronsUpDown } from 'lucide-react'
@@ -20,12 +21,13 @@ const SelectAgentModelButton: FC<Props> = ({ agent, onSelect, isDisabled }) => {
   const { t } = useTranslation()
   const model = useApiModel({ id: agent?.model })
 
-  const modelFilter = isAgentEntity(agent) ? getModelFilterByAgentType(agent.type) : undefined
+  const apiFilter = isAgentEntity(agent) ? getModelFilterByAgentType(agent.type) : undefined
+  const modelFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model) && !isTextToImageModel(model)
 
   if (!agent) return null
 
   const onSelectModel = async () => {
-    const selectedModel = await SelectApiModelPopup.show({ model, filter: modelFilter })
+    const selectedModel = await SelectApiModelPopup.show({ model, apiFilter: apiFilter, modelFilter })
     if (selectedModel && selectedModel.id !== agent.model) {
       onSelect(selectedModel)
     }

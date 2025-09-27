@@ -7,7 +7,7 @@ import { getModelLogo } from '@renderer/config/models'
 import { useApiModels } from '@renderer/hooks/agents/useModels'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { getProviderNameById } from '@renderer/services/ProviderService'
-import { AdaptedApiModel, ApiModel, ApiModelsFilter, ModelType, objectEntries } from '@renderer/types'
+import { AdaptedApiModel, ApiModel, ApiModelsFilter, Model, ModelType, objectEntries } from '@renderer/types'
 import { classNames, filterModelsByKeywords } from '@renderer/utils'
 import { apiModelAdapter, getModelTags } from '@renderer/utils/model'
 import { Avatar, Divider, Empty, Modal } from 'antd'
@@ -34,8 +34,10 @@ const ITEM_HEIGHT = 36
 
 interface PopupParams {
   model?: ApiModel
-  /** Api model filter */
-  filter?: ApiModelsFilter
+  /** Api models filter */
+  apiFilter?: ApiModelsFilter
+  /** model filter */
+  modelFilter?: (model: Model) => boolean
   /** Show tag filter section */
   showTagFilter?: boolean
 }
@@ -48,12 +50,12 @@ export type FilterType = Exclude<ModelType, 'text'> | 'free'
 
 // const logger = loggerService.withContext('SelectModelPopup')
 
-const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFilter = true, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTagFilter = true, resolve }) => {
   const [open, setOpen] = useState(true)
   const listRef = useRef<DynamicVirtualListRef>(null)
   const [_searchText, setSearchText] = useState('')
   const searchText = useDeferredValue(_searchText)
-  const { models, isLoading } = useApiModels(baseFilter)
+  const { models, isLoading } = useApiModels(apiFilter)
   const adaptedModels = models.map((model) => apiModelAdapter(model))
 
   // 当前选中的模型ID
@@ -128,7 +130,8 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
     const items: FlatListApiItem[] = []
     const finalModelFilter = (model: AdaptedApiModel) => {
       const _tagFilter = !showTagFilter || tagFilter(model)
-      return _tagFilter
+      const _modelFilter = modelFilter === undefined || modelFilter(model)
+      return _tagFilter && _modelFilter
     }
 
     // 筛选模型
