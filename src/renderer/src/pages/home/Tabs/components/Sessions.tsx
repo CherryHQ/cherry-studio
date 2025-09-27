@@ -118,12 +118,12 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
             overflowX: 'hidden'
           }}
           autoHideScrollbar>
-          {(session, index) => (
+          {(session) => (
             <motion.div
               key={session.id}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.05 }}>
+              transition={{ duration: 0.3 }}>
               <SessionItem
                 session={session}
                 agentId={agentId}
