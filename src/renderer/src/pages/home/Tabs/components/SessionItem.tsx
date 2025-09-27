@@ -1,4 +1,4 @@
-import { Button, cn, Input, PressEvent, Tooltip } from '@heroui/react'
+import { Button, cn, Input, Tooltip } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
@@ -11,7 +11,7 @@ import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { AgentSessionEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { XIcon } from 'lucide-react'
-import { FC, memo, startTransition, useState } from 'react'
+import React, { FC, memo, startTransition, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 // const logger = loggerService.withContext('AgentItem')
@@ -41,6 +41,49 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
       }
     }
   })
+
+  const DeleteButton = () => {
+    return (
+      <Tooltip
+        content={t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
+        classNames={{ content: 'text-xs' }}>
+        <div
+          role="button"
+          className={cn(
+            'mr-2 flex aspect-square h-6 w-6 items-center justify-center rounded-2xl',
+            isConfirmingDeletion ? 'hover:bg-danger-100' : 'hover:bg-foreground-300'
+          )}
+          onClick={(e: React.MouseEvent) => {
+            if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
+              onDelete()
+            } else {
+              startTransition(() => {
+                setIsConfirmingDeletion(true)
+                setTimeoutTimer(
+                  'confirmDeletion',
+                  () => {
+                    setIsConfirmingDeletion(false)
+                  },
+                  3000
+                )
+              })
+            }
+          }}>
+          {isConfirmingDeletion ? (
+            <DeleteIcon
+              size={14}
+              className="opacity-0 transition-colors-opacity group-hover:text-danger group-hover:opacity-100"
+            />
+          ) : (
+            <XIcon
+              size={14}
+              className={cn(isActive ? 'opacity-100' : 'opacity-0', 'group-hover:opacity-100', 'transition-opacity')}
+            />
+          )}
+        </div>
+      </Tooltip>
+    )
+  }
 
   const isActive = activeSessionId === session.id
 
@@ -75,48 +118,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
               {!isEditing && (
                 <div className="flex w-full items-center justify-between">
                   <SessionLabel session={session} />
-                  <Tooltip
-                    content={t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-                    classNames={{ content: 'text-xs' }}>
-                    <Button
-                      className="mr-2 aspect-square h-6 w-6 min-w-6"
-                      variant="light"
-                      startContent={
-                        isConfirmingDeletion ? (
-                          <DeleteIcon
-                            size={14}
-                            className="opacity-0 transition-colors-opacity group-hover:text-danger group-hover:opacity-100"
-                          />
-                        ) : (
-                          <XIcon
-                            size={14}
-                            className={cn(
-                              isActive ? 'opacity-100' : 'opacity-0',
-                              'group-hover:opacity-100',
-                              'transition-opacity'
-                            )}
-                          />
-                        )
-                      }
-                      onPress={(e: PressEvent) => {
-                        if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
-                          onDelete()
-                        } else {
-                          startTransition(() => {
-                            setIsConfirmingDeletion(true)
-                            setTimeoutTimer(
-                              'confirmDeletion',
-                              () => {
-                                setIsConfirmingDeletion(false)
-                              },
-                              3000
-                            )
-                          })
-                        }
-                      }}
-                      isIconOnly
-                    />
-                  </Tooltip>
+                  <DeleteButton />
                 </div>
               )}
             </SessionLabelContainer>
