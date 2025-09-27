@@ -153,7 +153,7 @@ const PopupContainer: React.FC<Props> = ({ model, apiFilter, modelFilter, showTa
     // 获取可选择的模型项（过滤掉分组标题）
     const modelItems = items.filter((item) => item.type === 'model')
     return { listItems: items, modelItems }
-  }, [searchFilter, adaptedModels, showTagFilter, tagFilter, createModelItem])
+  }, [searchFilter, adaptedModels, showTagFilter, tagFilter, createModelItem, modelFilter])
 
   const listHeight = useMemo(() => {
     return Math.min(PAGE_SIZE, listItems.length) * ITEM_HEIGHT

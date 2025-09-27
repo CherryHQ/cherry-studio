@@ -21,8 +21,8 @@
   }
 
   .lucide:not(.lucide-custom) {
-  color: var(--color-icon);
-}
+    color: var(--color-icon);
+  }
 }
 
 *:focus {
