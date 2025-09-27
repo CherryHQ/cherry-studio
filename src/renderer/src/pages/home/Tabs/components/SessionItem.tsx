@@ -59,6 +59,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
             isConfirmingDeletion ? 'hover:bg-danger-100' : 'hover:bg-foreground-300'
           )}
           onClick={(e: React.MouseEvent) => {
+            e.stopPropagation()
             if (isConfirmingDeletion || e.ctrlKey || e.metaKey) {
               onDelete()
             } else {
