@@ -18,11 +18,11 @@ export const hasModel = (m?: Model) => {
 }
 
 export function getModelName(model?: Model) {
-  const provider = getStoreProviders().find((p) => p.id === model?.provider)
   const modelName = model?.name || model?.id || ''
+  const provider = getStoreProviders().find((p) => p.id === model?.provider)
 
   if (provider) {
-    const providerName = getProviderName(model)
+    const providerName = getProviderName(model as Model)
     return `${modelName} | ${providerName}`
   }
 

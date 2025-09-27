@@ -10,9 +10,13 @@ import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { app } from 'electron'
 import installExtension, { REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS } from 'electron-devtools-installer'
-
 import { isDev, isLinux, isWin } from './constant'
+
+import process from 'node:process'
+
 import { registerIpc } from './ipc'
+import { agentService } from './services/agents'
+import { apiServerService } from './services/ApiServerService'
 import { configManager } from './services/ConfigManager'
 import mcpService from './services/MCPService'
 import { nodeTraceService } from './services/NodeTraceService'
@@ -26,8 +30,6 @@ import selectionService, { initSelectionService } from './services/SelectionServ
 import { registerShortcuts } from './services/ShortcutService'
 import { TrayService } from './services/TrayService'
 import { windowService } from './services/WindowService'
-import process from 'node:process'
-import { apiServerService } from './services/ApiServerService'
 
 const logger = loggerService.withContext('MainEntry')
 
@@ -146,6 +148,14 @@ if (!app.requestSingleInstanceLock()) {
 
     //start selection assistant service
     initSelectionService()
+
+    // Initialize Agent Service
+    try {
+      await agentService.initialize()
+      logger.info('Agent service initialized successfully')
+    } catch (error: any) {
+      logger.error('Failed to initialize Agent service:', error)
+    }
 
     // Start API server if enabled
     try {

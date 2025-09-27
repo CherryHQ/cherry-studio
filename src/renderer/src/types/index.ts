@@ -13,12 +13,16 @@ import type { FileMetadata } from './file'
 import { KnowledgeBase, KnowledgeReference } from './knowledge'
 import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
+import type { ServiceTier } from './provider'
 import type { BaseTool, MCPTool } from './tool'
 
+export * from './agent'
+export * from './apiModels'
 export * from './knowledge'
 export * from './mcp'
 export * from './notification'
 export * from './ocr'
+export * from './provider'
 
 export type Assistant = {
   id: string
@@ -131,7 +135,7 @@ export type AssistantSettings = {
   toolUseMode: 'function' | 'prompt'
 }
 
-export type Agent = Omit<Assistant, 'model'> & {
+export type AssistantPreset = Omit<Assistant, 'model'> & {
   group?: string[]
 }
 
@@ -195,8 +199,14 @@ export type Metrics = {
   time_thinking_millsec?: number
 }
 
+export enum TopicType {
+  Chat = 'chat',
+  Session = 'session'
+}
+
 export type Topic = {
   id: string
+  type?: TopicType
   assistantId: string
   name: string
   createdAt: string
@@ -242,6 +252,8 @@ export type Provider = {
   name: string
   apiKey: string
   apiHost: string
+  anthropicApiHost?: string
+  isAnthropicModel?: (m: Model) => boolean
   apiVersion?: string
   models: Model[]
   enabled?: boolean
@@ -669,7 +681,7 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 
 export type SidebarIcon =
   | 'assistants'
-  | 'agents'
+  | 'store'
   | 'paintings'
   | 'translate'
   | 'minapp'
@@ -880,7 +892,7 @@ export type MCPToolResponseStatus = 'pending' | 'cancelled' | 'invoking' | 'done
 interface BaseToolResponse {
   id: string // unique id
   tool: BaseTool | MCPTool
-  arguments: Record<string, unknown> | undefined
+  arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
   status: MCPToolResponseStatus
   response?: any
 }
@@ -974,39 +986,6 @@ export interface StoreSyncAction {
 export type OpenAIVerbosity = 'high' | 'medium' | 'low'
 
 export type OpenAISummaryText = 'auto' | 'concise' | 'detailed' | 'off'
-
-export const OpenAIServiceTiers = {
-  auto: 'auto',
-  default: 'default',
-  flex: 'flex',
-  priority: 'priority'
-} as const
-
-export type OpenAIServiceTier = keyof typeof OpenAIServiceTiers
-
-export function isOpenAIServiceTier(tier: string): tier is OpenAIServiceTier {
-  return Object.hasOwn(OpenAIServiceTiers, tier)
-}
-
-export const GroqServiceTiers = {
-  auto: 'auto',
-  on_demand: 'on_demand',
-  flex: 'flex',
-  performance: 'performance'
-} as const
-
-// 从 GroqServiceTiers 对象中提取类型
-export type GroqServiceTier = keyof typeof GroqServiceTiers
-
-export function isGroqServiceTier(tier: string): tier is GroqServiceTier {
-  return Object.hasOwn(GroqServiceTiers, tier)
-}
-
-export type ServiceTier = OpenAIServiceTier | GroqServiceTier
-
-export function isServiceTier(tier: string): tier is ServiceTier {
-  return isGroqServiceTier(tier) || isOpenAIServiceTier(tier)
-}
 
 export type S3Config = {
   endpoint: string

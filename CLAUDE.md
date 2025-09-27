@@ -1,127 +1,57 @@
-# CLAUDE.md
+# AI Assistant Guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding assistants when working with code in this repository. Adherence to these guidelines is crucial for maintaining code quality and consistency.
+
+## Guiding Principles
+
+- **Clarity and Simplicity**: Write code that is easy to understand and maintain.
+- **Consistency**: Follow existing patterns and conventions in the codebase.
+- **Correctness**: Ensure code is correct, well-tested, and robust.
+- **Efficiency**: Write performant code and use resources judiciously.
+
+## MUST Follow Rules
+
+1.  **Code Search**: Use `ast-grep` for semantic code pattern searches when available. Fallback to `rg` (ripgrep) or `grep` for text-based searches.
+2.  **UI Framework**: Exclusively use **HeroUI** for all new UI components. The use of `antd` or `styled-components` is strictly **PROHIBITED**.
+3.  **Quality Assurance**: **Always** run `yarn build:check` before finalizing your work or making any commits. This ensures code quality (linting, testing, and type checking).
+4.  **Centralized Logging**: Use the `loggerService` exclusively for all application logging (info, warn, error levels) with proper context. Do not use `console.log`.
+5.  **External Research**: Leverage `subagent` for gathering external information, including latest documentation, API references, news, or web-based research. This keeps the main conversation focused on the task at hand.
+6.  **Code Reviews**: Always seek a code review from a human developer before merging significant changes. This ensures adherence to project standards and catches potential issues.
+7.  **Documentation**: Update or create documentation for any new features, modules, or significant changes to existing functionality.
 
 ## Development Commands
 
-### Environment Setup
+- **Install**: `yarn install` - Install all project dependencies
+- **Development**: `yarn dev` - Runs Electron app in development mode with hot reload
+- **Debug**: `yarn debug` - Starts with debugging enabled, use `chrome://inspect` to attach debugger
+- **Build Check**: `yarn build:check` - **REQUIRED** before commits (lint + test + typecheck)
+  - If having i18n sort issues, run `yarn i18n:sync` first to sync template
+  - If having formatting issues, run `yarn format` first
+- **Test**: `yarn test` - Run all tests (Vitest) across main and renderer processes
+- **Single Test**:
+  - `yarn test:main` - Run tests for main process only
+  - `yarn test:renderer` - Run tests for renderer process only
+- **Lint**: `yarn lint` - Fix linting issues and run TypeScript type checking
+- **Format**: `yarn format` - Auto-format code using Biome
 
-- **Prerequisites**: Node.js v22.x.x or higher, Yarn 4.9.1
-- **Setup Yarn**: `corepack enable && corepack prepare yarn@4.9.1 --activate`
-- **Install Dependencies**: `yarn install`
-- **Add New Dependencies**: `yarn add -D` for renderer-specific dependencies, `yarn add` for others.
+## Project Architecture
 
-### Development
+### Electron Structure
+- **Main Process** (`src/main/`): Node.js backend with services (MCP, Knowledge, Storage, etc.)
+- **Renderer Process** (`src/renderer/`): React UI with Redux state management
+- **Preload Scripts** (`src/preload/`): Secure IPC bridge
 
-- **Start Development**: `yarn dev` - Runs Electron app in development mode
-- **Debug Mode**: `yarn debug` - Starts with debugging enabled, use chrome://inspect
+### Key Components
+- **AI Core** (`src/renderer/src/aiCore/`): Middleware pipeline for multiple AI providers.
+- **Services** (`src/main/services/`): MCPService, KnowledgeService, WindowService, etc.
+- **Build System**: Electron-Vite with experimental rolldown-vite, yarn workspaces.
+- **State Management**: Redux Toolkit (`src/renderer/src/store/`) for predictable state.
+- **UI Components**: HeroUI (`@heroui/*`) for all new UI elements.
 
-### Testing & Quality
-
-- **Run Tests**: `yarn test` - Runs all tests (Vitest)
-- **Run E2E Tests**: `yarn test:e2e` - Playwright end-to-end tests
-- **Type Check**: `yarn typecheck` - Checks TypeScript for both node and web
-- **Lint**: `yarn lint` - ESLint with auto-fix
-- **Format**: `yarn format` - Biome formatting
-
-### Build & Release
-
-- **Build**: `yarn build` - Builds for production (includes typecheck)
-- **Platform-specific builds**:
-  - Windows: `yarn build:win`
-  - macOS: `yarn build:mac`
-  - Linux: `yarn build:linux`
-
-## Architecture Overview
-
-### Electron Multi-Process Architecture
-
-- **Main Process** (`src/main/`): Node.js backend handling system integration, file operations, and services
-- **Renderer Process** (`src/renderer/`): React-based UI running in Chromium
-- **Preload Scripts** (`src/preload/`): Secure bridge between main and renderer processes
-
-### Key Architectural Components
-
-#### Main Process Services (`src/main/services/`)
-
-- **MCPService**: Model Context Protocol server management
-- **KnowledgeService**: Document processing and knowledge base management
-- **FileStorage/S3Storage/WebDav**: Multiple storage backends
-- **WindowService**: Multi-window management (main, mini, selection windows)
-- **ProxyManager**: Network proxy handling
-- **SearchService**: Full-text search capabilities
-
-#### AI Core (`src/renderer/src/aiCore/`)
-
-- **Middleware System**: Composable pipeline for AI request processing
-- **Client Factory**: Supports multiple AI providers (OpenAI, Anthropic, Gemini, etc.)
-- **Stream Processing**: Real-time response handling
-
-#### State Management (`src/renderer/src/store/`)
-
-- **Redux Toolkit**: Centralized state management
-- **Persistent Storage**: Redux-persist for data persistence
-- **Thunks**: Async actions for complex operations
-
-#### Knowledge Management
-
-- **Embeddings**: Vector search with multiple providers (OpenAI, Voyage, etc.)
-- **OCR**: Document text extraction (system OCR, Doc2x, Mineru)
-- **Preprocessing**: Document preparation pipeline
-- **Loaders**: Support for various file formats (PDF, DOCX, EPUB, etc.)
-
-### Build System
-
-- **Electron-Vite**: Development and build tooling (v4.0.0)
-- **Rolldown-Vite**: Using experimental rolldown-vite instead of standard vite
-- **Workspaces**: Monorepo structure with `packages/` directory
-- **Multiple Entry Points**: Main app, mini window, selection toolbar
-- **Styled Components**: CSS-in-JS styling with SWC optimization
-
-### Testing Strategy
-
-- **Vitest**: Unit and integration testing
-- **Playwright**: End-to-end testing
-- **Component Testing**: React Testing Library
-- **Coverage**: Available via `yarn test:coverage`
-
-### Key Patterns
-
-- **IPC Communication**: Secure main-renderer communication via preload scripts
-- **Service Layer**: Clear separation between UI and business logic
-- **Plugin Architecture**: Extensible via MCP servers and middleware
-- **Multi-language Support**: i18n with dynamic loading
-- **Theme System**: Light/dark themes with custom CSS variables
-
-### UI Design
-
-The project is in the process of migrating from antd & styled-components to HeroUI. Please use HeroUI to build UI components. The use of antd and styled-components is prohibited.
-
-HeroUI Docs: https://www.heroui.com/docs/guide/introduction
-
-## Logging Standards
-
-### Usage
-
+### Logging
 ```typescript
-// Main process
 import { loggerService } from '@logger'
 const logger = loggerService.withContext('moduleName')
-
-// Renderer process (set window source first)
-loggerService.initWindowSource('windowName')
-const logger = loggerService.withContext('moduleName')
-
-// Logging
+// Renderer: loggerService.initWindowSource('windowName') first
 logger.info('message', CONTEXT)
-logger.error('message', new Error('error'), CONTEXT)
 ```
-
-### Log Levels (highest to lowest)
-
-- `error` - Critical errors causing crash/unusable functionality
-- `warn` - Potential issues that don't affect core functionality
-- `info` - Application lifecycle and key user actions
-- `verbose` - Detailed flow information for feature tracing
-- `debug` - Development diagnostic info (not for production)
-- `silly` - Extreme debugging, low-level information

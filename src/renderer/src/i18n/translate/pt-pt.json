@@ -1,4 +1,200 @@
 {
+  "agent": {
+    "add": {
+      "error": {
+        "failed": "Falha ao adicionar agente",
+        "invalid_agent": "Agent inválido"
+      },
+      "title": "Adicionar Agente",
+      "type": {
+        "placeholder": "Selecionar tipo de Agente"
+      }
+    },
+    "delete": {
+      "content": "Excluir este Agente forçará a terminação e exclusão de todas as sessões sob ele. Tem certeza?",
+      "error": {
+        "failed": "Falha ao excluir o agente"
+      },
+      "title": "删除代理"
+    },
+    "edit": {
+      "title": "Agent Editor"
+    },
+    "get": {
+      "error": {
+        "failed": "Falha ao obter o agente."
+      }
+    },
+    "list": {
+      "error": {
+        "failed": "Falha ao listar agentes."
+      }
+    },
+    "session": {
+      "accessible_paths": {
+        "add": "Adicionar diretório",
+        "duplicate": "Este diretório já está incluído.",
+        "empty": "Selecione pelo menos um diretório ao qual o agente possa acessar.",
+        "error": {
+          "at_least_one": "Por favor, selecione pelo menos um diretório acessível."
+        },
+        "label": "Diretórios acessíveis",
+        "select_failed": "Falha ao selecionar o diretório."
+      },
+      "add": {
+        "title": "Adicionar uma sessão"
+      },
+      "allowed_tools": {
+        "empty": "Não há ferramentas disponíveis para este agente.",
+        "helper": "Escolha quais ferramentas ficam pré-autorizadas. As não selecionadas exigirão aprovação antes do uso.",
+        "label": "Ferramentas pré-aprovadas",
+        "placeholder": "Selecionar ferramentas pré-aprovadas"
+      },
+      "create": {
+        "error": {
+          "failed": "Falha ao adicionar uma sessão"
+        }
+      },
+      "delete": {
+        "content": "Tem certeza de que deseja excluir esta sessão?",
+        "error": {
+          "failed": "Falha ao excluir a sessão",
+          "last": "Pelo menos uma sessão deve ser mantida"
+        },
+        "title": "Excluir sessão"
+      },
+      "edit": {
+        "title": "Sessão de edição"
+      },
+      "get": {
+        "error": {
+          "failed": "Falha ao obter a sessão"
+        }
+      },
+      "label_one": "Sessão",
+      "label_other": "Sessões",
+      "update": {
+        "error": {
+          "failed": "Falha ao atualizar a sessão"
+        }
+      }
+    },
+    "settings": {
+      "advance": {
+        "maxTurns": {
+          "description": "Defina o número de ciclos de solicitação/resposta executados automaticamente pelo agente.",
+          "helper": "Quanto maior o valor, mais tempo pode funcionar de forma autônoma; quanto menor o valor, mais fácil de controlar.",
+          "label": "Limite máximo de turnos de conversação"
+        },
+        "permissionMode": {
+          "description": "Como o agente de controle lida com situações que exigem autorização.",
+          "label": "Modo de permissão",
+          "options": {
+            "acceptEdits": "Aceitar edições automaticamente",
+            "bypassPermissions": "忽略检查 de permissão",
+            "default": "Padrão (perguntar antes de continuar)",
+            "plan": "Modo de planejamento (plano sujeito a aprovação)"
+          },
+          "placeholder": "Selecionar modo de permissão"
+        },
+        "title": "Configurações avançadas"
+      },
+      "essential": "Configurações Essenciais",
+      "mcps": "Servidor MCP",
+      "prompt": "Configurações de Prompt",
+      "tooling": {
+        "mcp": {
+          "description": "Conecte servidores MCP para desbloquear ferramentas adicionais que você pode aprovar acima.",
+          "empty": "Nenhum servidor MCP detectado. Adicione um na página de configurações do MCP.",
+          "manageHint": "Precisa de configuração avançada? Visite Configurações → Servidores MCP.",
+          "toggle": "Alternar {{name}}"
+        },
+        "permissionMode": {
+          "acceptEdits": {
+            "behavior": "Pré-aplica ferramentas confiáveis do sistema de arquivos para que as edições sejam executadas imediatamente.",
+            "description": "As edições de arquivos e operações do sistema de arquivos são aprovadas automaticamente.",
+            "title": "Aceitar automaticamente edições de arquivos"
+          },
+          "bypassPermissions": {
+            "behavior": "Cada ferramenta é pré-aprovada automaticamente.",
+            "description": "Todos os pedidos de permissão são ignorados — use com cautela.",
+            "title": "Ignorar verificações de permissão",
+            "warning": "Use com cautela — todas as ferramentas serão executadas sem solicitar aprovação."
+          },
+          "confirmChange": {
+            "description": "Alternar modos atualiza as ferramentas aprovadas automaticamente.",
+            "title": "Alterar modo de permissão?"
+          },
+          "default": {
+            "behavior": "Nenhuma ferramenta é pré-aprovada automaticamente.",
+            "description": "Verificações normais de permissão aplicam-se.",
+            "title": "Padrão (perguntar antes de continuar)"
+          },
+          "plan": {
+            "behavior": "Ferramentas somente leitura. A execução está desabilitada.",
+            "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
+            "title": "Modo de planejamento (em breve)"
+          }
+        },
+        "preapproved": {
+          "autoBadge": "Adicionado por modo",
+          "autoDescription": "Esta ferramenta é aprovada automaticamente pelo modo de permissão atual.",
+          "empty": "Nenhuma ferramenta corresponde aos seus filtros.",
+          "mcpBadge": "Ferramenta MCP",
+          "requiresApproval": "Requer aprovação quando desativado",
+          "search": "Ferramentas de pesquisa",
+          "toggle": "Alternar {{name}}",
+          "warning": {
+            "description": "Ative apenas ferramentas em que confie. As configurações padrão do modo são destacadas automaticamente.",
+            "title": "Ferramentas pré-aprovadas são executadas sem revisão manual."
+          }
+        },
+        "review": {
+          "autoTools": "Auto: {{count}}",
+          "customTools": "Personalizado: {{count}}",
+          "helper": "As alterações são salvas automaticamente. Ajuste as etapas acima a qualquer momento para refinar as permissões.",
+          "mcp": "MCP: {{count}}",
+          "mode": "Modo: {{mode}}"
+        },
+        "steps": {
+          "mcp": {
+            "title": "Servidores MCP"
+          },
+          "permissionMode": {
+            "title": "Passo 1 · Modo de permissão"
+          },
+          "preapproved": {
+            "title": "Passo 2 · Ferramentas pré-aprovadas"
+          },
+          "review": {
+            "title": "Passo 3 · Revisão"
+          }
+        },
+        "tab": "Ferramentas e permissões"
+      },
+      "tools": {
+        "approved": "aprovado",
+        "caution": "Ferramentas pré-aprovadas ignoram a revisão humana. Ative apenas ferramentas confiáveis.",
+        "description": "Escolha quais ferramentas podem ser executadas sem aprovação manual.",
+        "requiresPermission": "Requer permissão quando não pré-aprovado.",
+        "tab": "Ferramentas pré-aprovadas",
+        "title": "Ferramentas pré-aprovadas",
+        "toggle": "{{defaultValue}}"
+      }
+    },
+    "type": {
+      "label": "Tipo de Agente",
+      "unknown": "Tipo Desconhecido"
+    },
+    "update": {
+      "error": {
+        "failed": "Falha ao atualizar o agente"
+      }
+    },
+    "warning": {
+      "enable_server": "Ativar o Servidor de API para usar agentes."
+    }
+  },
   "agents": {
     "add": {
       "button": "Adicionar ao Assistente",
@@ -744,9 +940,14 @@
   },
   "common": {
     "add": "Adicionar",
+    "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
+    "agent_one": "Agente",
+    "agent_other": "Agentes",
     "and": "e",
     "assistant": "Agente Inteligente",
+    "assistant_one": "assistente",
+    "assistant_other": "assistente",
     "avatar": "Avatar",
     "back": "Voltar",
     "browse": "Navegar",
@@ -763,6 +964,8 @@
     "default": "Padrão",
     "delete": "Excluir",
     "delete_confirm": "Tem certeza de que deseja excluir?",
+    "delete_failed": "Falha ao excluir",
+    "delete_success": "Excluído com sucesso",
     "description": "Descrição",
     "detail": "detalhes",
     "disabled": "Desativado",
@@ -772,6 +975,10 @@
     "edit": "Editar",
     "enabled": "Ativado",
     "error": "错误",
+    "errors": {
+      "create_message": "Falha ao criar mensagem",
+      "validation": "Falha na verificação"
+    },
     "expand": "Expandir",
     "file": {
       "not_supported": "Tipo de arquivo não suportado {{type}}"
@@ -782,6 +989,7 @@
     "go_to_settings": "Ir para configurações",
     "i_know": "Entendi",
     "inspect": "Verificar",
+    "invalid_value": "Valor inválido",
     "knowledge_base": "Base de Conhecimento",
     "language": "Língua",
     "loading": "Carregando...",
@@ -793,6 +1001,11 @@
     "none": "Nenhum",
     "open": "Abrir",
     "paste": "Colar",
+    "placeholders": {
+      "select": {
+        "model": "Selecionar modelo"
+      }
+    },
     "preview": "Pré-visualização",
     "prompt": "Prompt",
     "provider": "Fornecedor",
@@ -819,6 +1032,7 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
+    "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",
     "you": "Você"
@@ -891,6 +1105,7 @@
     "modelType": "Tipo de modelo",
     "name": "Nome do erro",
     "no_api_key": "A chave da API não foi configurada",
+    "no_response": "Sem resposta",
     "originalError": "Erro original",
     "originalMessage": "Mensagem original",
     "parameter": "parâmetro",

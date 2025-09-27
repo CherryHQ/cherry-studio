@@ -9,8 +9,9 @@ import * as path from 'path'
 
 const localesDir = path.join(__dirname, '../src/renderer/src/i18n/locales')
 const translateDir = path.join(__dirname, '../src/renderer/src/i18n/translate')
-const baseLocale = 'zh-cn'
+const baseLocale = process.env.BASE_LOCALE ?? 'zh-cn'
 const baseFileName = `${baseLocale}.json`
+const baseLocalePath = path.join(__dirname, '../src/renderer/src/i18n/locales', baseFileName)
 
 type I18NValue = string | { [key: string]: I18NValue }
 type I18N = { [key: string]: I18NValue }
@@ -105,6 +106,9 @@ const translateRecursively = async (originObj: I18N, systemPrompt: string): Prom
 }
 
 const main = async () => {
+  if (!fs.existsSync(baseLocalePath)) {
+    throw new Error(`${baseLocalePath} not found.`)
+  }
   const localeFiles = fs
     .readdirSync(localesDir)
     .filter((file) => file.endsWith('.json') && file !== baseFileName)

@@ -4,6 +4,7 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useMCPServers } from '@renderer/hooks/useMCPServers'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { MCPToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
 import { cancelToolAction, confirmToolAction } from '@renderer/utils/userConfirmation'
@@ -59,7 +60,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
 
   const toolResponse = block.metadata?.rawMcpToolResponse
 
-  const { id, tool, status, response } = toolResponse!
+  const { id, tool, status, response } = toolResponse as MCPToolResponse
   const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
