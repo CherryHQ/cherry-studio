@@ -2,7 +2,8 @@ import { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import express, { Request, Response } from 'express'
 
-import { messagesService } from '../services/messages'
+import { Provider } from '../../../renderer/src/types/provider'
+import { MessagesService, messagesService } from '../services/messages'
 import { getProviderById, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
@@ -33,9 +34,8 @@ async function validateRequestBody(req: Request): Promise<{ valid: boolean; erro
 async function handleStreamingResponse(
   res: Response,
   request: MessageCreateParams,
-  provider: any,
-  messagesService: any,
-  logger: any
+  provider: Provider,
+  messagesService: MessagesService
 ): Promise<void> {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
   res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -80,7 +80,7 @@ async function handleStreamingResponse(
   }
 }
 
-function handleErrorResponse(res: Response, error: any, logger: any): Response {
+function handleErrorResponse(res: Response, error: any): Response {
   logger.error('Message processing error', { error })
 
   let statusCode = 500
@@ -133,7 +133,7 @@ function handleErrorResponse(res: Response, error: any, logger: any): Response {
 async function processMessageRequest(
   req: Request,
   res: Response,
-  provider: any,
+  provider: Provider,
   modelId?: string
 ): Promise<Response | void> {
   try {
@@ -142,17 +142,6 @@ async function processMessageRequest(
     // Use provided modelId or keep original model
     if (modelId) {
       request.model = modelId
-    }
-
-    // Ensure provider is Anthropic type
-    if (provider.type !== 'anthropic') {
-      return res.status(400).json({
-        type: 'error',
-        error: {
-          type: 'invalid_request_error',
-          message: `Invalid provider type '${provider.type}' for messages endpoint. Expected 'anthropic' provider.`
-        }
-      })
     }
 
     // Validate request
@@ -167,9 +156,14 @@ async function processMessageRequest(
       })
     }
 
+    logger.silly('Processing message request', {
+      request,
+      provider: provider.id
+    })
+
     // Handle streaming
     if (request.stream) {
-      await handleStreamingResponse(res, request, provider, messagesService, logger)
+      await handleStreamingResponse(res, request, provider, messagesService)
       return
     }
 
@@ -177,7 +171,7 @@ async function processMessageRequest(
     const response = await messagesService.processMessage(request, provider)
     return res.json(response)
   } catch (error: any) {
-    return handleErrorResponse(res, error, logger)
+    return handleErrorResponse(res, error)
   }
 }
 
@@ -337,7 +331,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Use shared processing function
     return await processMessageRequest(req, res, provider, modelId)
   } catch (error: any) {
-    return handleErrorResponse(res, error, logger)
+    return handleErrorResponse(res, error)
   }
 })
 
@@ -492,7 +486,7 @@ providerRouter.post('/', async (req: Request, res: Response) => {
     // Use shared processing function (no modelId override needed)
     return await processMessageRequest(req, res, provider)
   } catch (error: any) {
-    return handleErrorResponse(res, error, logger)
+    return handleErrorResponse(res, error)
   }
 })
 

@@ -3995,6 +3995,12 @@
         }
       },
       "api_host": "API 地址",
+      "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
+      "api_host_preview": "预览：{{url}}",
+      "anthropic_api_host": "Anthropic API 地址",
+      "anthropic_api_host_tooltip": "仅当服务商提供 Claude 兼容的基础地址时填写。",
+      "anthropic_api_host_preview": "Anthropic 预览：{{url}}",
+      "anthropic_api_host_tip": "仅在服务商提供兼容 Anthropic 的地址时填写。以 / 结尾会忽略自动追加的 v1，以 # 结尾则强制使用原始地址。",
       "api_key": {
         "label": "API 密钥",
         "tip": "多个密钥使用逗号或空格分隔"

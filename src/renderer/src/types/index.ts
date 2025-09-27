@@ -13,6 +13,7 @@ import type { FileMetadata } from './file'
 import { KnowledgeBase, KnowledgeReference } from './knowledge'
 import { MCPConfigSample, McpServerType } from './mcp'
 import type { Message } from './newMessage'
+import type { ServiceTier } from './provider'
 import type { BaseTool, MCPTool } from './tool'
 
 export * from './agent'
@@ -251,6 +252,8 @@ export type Provider = {
   name: string
   apiKey: string
   apiHost: string
+  anthropicApiHost?: string
+  isAnthropicModel?: (m: Model) => boolean
   apiVersion?: string
   models: Model[]
   enabled?: boolean

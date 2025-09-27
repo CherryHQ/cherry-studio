@@ -20,7 +20,7 @@ export const ApiModelLabel: React.FC<ModelLabelProps> = ({ model, className, cla
       <Avatar src={model ? getModelLogo(model.id) : undefined} className={cn('h-4 w-4', classNames?.avatar)} />
       <span className={classNames?.modelName}>{model?.name}</span>
       <span className={classNames?.divider}> | </span>
-      <span className={classNames?.providerName}>{model?.provider_name}</span>
+      <span className={classNames?.providerName}>{model?.provider}</span>
     </div>
   )
 }

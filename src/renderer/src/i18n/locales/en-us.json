@@ -3995,6 +3995,12 @@
         }
       },
       "api_host": "API Host",
+      "api_host_tooltip": "Override only when your provider requires a custom OpenAI-compatible endpoint.",
+      "api_host_preview": "Preview: {{url}}",
+      "anthropic_api_host": "Anthropic API Host",
+      "anthropic_api_host_tooltip": "Use only when the provider offers a Claude-compatible base URL.",
+      "anthropic_api_host_preview": "Anthropic preview: {{url}}",
+      "anthropic_api_host_tip": "Only configure this when your provider exposes an Anthropic-compatible endpoint. Ending with / ignores v1, ending with # forces use of input address.",
       "api_key": {
         "label": "API Key",
         "tip": "Multiple keys separated by commas or spaces"

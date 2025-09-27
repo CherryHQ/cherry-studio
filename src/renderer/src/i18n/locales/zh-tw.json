@@ -3995,6 +3995,12 @@
         }
       },
       "api_host": "API 主機地址",
+      "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
+      "api_host_preview": "預覽：{{url}}",
+      "anthropic_api_host": "Anthropic API 主機地址",
+      "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
+      "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
+      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
       "api_key": {
         "label": "API 金鑰",
         "tip": "多個金鑰使用逗號或空格分隔"

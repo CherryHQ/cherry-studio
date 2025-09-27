@@ -13,14 +13,24 @@ export class ModelsService {
     try {
       logger.debug('Getting available models from providers', { filter })
 
-      const models = await listAllAvailableModels()
-      const providers = await getAvailableProviders()
+      let providers = await getAvailableProviders()
 
+      if (filter.providerType === 'anthropic') {
+        providers = providers.filter(
+          (p) => p.type === 'anthropic' || (p.anthropicApiHost !== undefined && p.anthropicApiHost.trim() !== '')
+        )
+      }
+
+      const models = await listAllAvailableModels(providers)
       // Use Map to deduplicate models by their full ID (provider:model_id)
       const uniqueModels = new Map<string, ApiModel>()
 
       for (const model of models) {
-        const openAIModel = transformModelToOpenAI(model, providers)
+        const provider = providers.find((p) => p.id === model.provider)
+        if (!provider || (provider.isAnthropicModel && !provider.isAnthropicModel(model))) {
+          continue
+        }
+        const openAIModel = transformModelToOpenAI(model, provider)
         const fullModelId = openAIModel.id // This is already in format "provider:model_id"
 
         // Only add if not already present (first occurrence wins)
@@ -32,16 +42,6 @@ export class ModelsService {
       }
 
       let modelData = Array.from(uniqueModels.values())
-      if (filter.providerType) {
-        // Apply filters
-        const providerType = filter.providerType
-        modelData = modelData.filter((model) => {
-          // Find the provider for this model and check its type
-          return model.provider_type === providerType
-        })
-        logger.debug(`Filtered by provider type '${providerType}': ${modelData.length} models`)
-      }
-
       const total = modelData.length
 
       // Apply pagination
