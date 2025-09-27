@@ -45,13 +45,14 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
     if (!agent) return
     const session = {
       ...agent,
-      id: undefined
+      id: undefined,
+      name: t('common.unnamed')
     } satisfies CreateSessionForm
     const created = await createSession(session)
     if (created) {
       dispatch(setActiveSessionIdAction({ agentId, sessionId: created.id }))
     }
-  }, [agent, agentId, createSession, dispatch])
+  }, [agent, agentId, createSession, dispatch, t])
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
