@@ -45,6 +45,9 @@ export type Tool = z.infer<typeof ToolSchema>
 // ------------------ Agent configuration & base schema ------------------
 export const AgentConfigurationSchema = z
   .object({
+    avatar: z.string().optional(), // URL or path to avatar image
+    slash_commands: z.array(z.string()).optional(), // Array of slash commands to trigger the agent
+
     // https://docs.claude.com/en/docs/claude-code/sdk/sdk-permissions#mode-specific-behaviors
     permission_mode: PermissionModeSchema.default('default'), // Permission mode, default to 'default'
     max_turns: z.number().default(100) // Maximum number of interaction turns, default to 100
