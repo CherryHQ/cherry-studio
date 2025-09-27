@@ -284,7 +284,7 @@ export const AgentModal: React.FC<Props> = ({ agent, trigger, isOpen: _isOpen, o
       }
 
       if (form.accessible_paths.length === 0) {
-        window.toast.error(t('agent.session.accessible_paths.required'))
+        window.toast.error(t('agent.session.accessible_paths.error.at_least_one'))
         loadingRef.current = false
         return
       }
