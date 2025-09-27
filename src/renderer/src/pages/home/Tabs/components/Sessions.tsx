@@ -4,12 +4,14 @@ import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSessions } from '@renderer/hooks/agents/useSessions'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useAppDispatch } from '@renderer/store'
+import { newMessagesActions } from '@renderer/store/newMessage'
 import {
   setActiveSessionIdAction,
   setActiveTopicOrSessionAction,
   setSessionWaitingAction
 } from '@renderer/store/runtime'
 import { CreateSessionForm } from '@renderer/types'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Plus } from 'lucide-react'
 import { memo, useCallback, useEffect } from 'react'
@@ -79,6 +81,17 @@ const Sessions: React.FC<SessionsProps> = ({ agentId }) => {
       setActiveSessionId(agentId, sessions[0].id)
     }
   }, [isLoading, sessions, currentActiveSessionId, agentId, setActiveSessionId])
+
+  useEffect(() => {
+    if (currentActiveSessionId) {
+      dispatch(
+        newMessagesActions.setTopicFulfilled({
+          topicId: buildAgentSessionTopicId(currentActiveSessionId),
+          fulfilled: false
+        })
+      )
+    }
+  }, [currentActiveSessionId, dispatch])
 
   if (isLoading) {
     return (

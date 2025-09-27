@@ -14,7 +14,7 @@ import { AgentSessionEntity } from '@renderer/types'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@renderer/ui/context-menu'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { XIcon } from 'lucide-react'
-import React, { FC, memo, startTransition, useMemo, useState } from 'react'
+import React, { FC, memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -97,6 +97,12 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
   const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
   const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
 
+  useEffect(() => {
+    if (isFulfilled && activeSessionId === session.id) {
+      dispatch(newMessagesActions.setTopicFulfilled({ topicId: sessionTopicId, fulfilled: false }))
+    }
+  }, [activeSessionId, dispatch, isFulfilled, session.id, sessionTopicId])
+
   return (
     <>
       <ContextMenu modal={false}>
@@ -104,10 +110,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
           <ButtonContainer
             isDisabled={isDisabled}
             isLoading={isLoading}
-            onPress={() => {
-              dispatch(newMessagesActions.setTopicFulfilled({ topicId: sessionTopicId, fulfilled: false }))
-              onPress()
-            }}
+            onPress={onPress}
             isActive={isActive}
             onDoubleClick={() => startEdit(session.name ?? '')}
             className="group">
