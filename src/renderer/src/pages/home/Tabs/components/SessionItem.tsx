@@ -3,6 +3,7 @@ import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useRuntime } from '@renderer/hooks/useRuntime'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
 import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
 import { AgentSessionEntity } from '@renderer/types'
@@ -46,7 +47,7 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
             isDisabled={isDisabled}
             isLoading={isLoading}
             onPress={onPress}
-            className={cn(isActive ? 'active' : '')}
+            isActive={isActive}
             onDoubleClick={() => startEdit(session.name ?? '')}>
             <SessionLabelContainer className="name h-full w-full" title={session.name ?? session.id}>
               {isEditing && (
@@ -96,22 +97,31 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
   )
 }
 
-const ButtonContainer: React.FC<React.ComponentProps<typeof Button>> = ({ className, children, ...props }) => (
-  <Button
-    {...props}
-    variant="light"
-    className={cn(
-      'relative mb-2 flex h-9 flex-row justify-between p-0',
-      'rounded-[var(--list-item-border-radius)]',
-      'border-[0.5px] border-transparent',
-      'w-[calc(var(--assistants-width)_-_20px)]',
-      'cursor-pointer',
-      className?.includes('active') && 'bg-foreground-100 shadow-sm',
-      className
-    )}>
-    {children}
-  </Button>
-)
+const ButtonContainer: React.FC<React.ComponentProps<typeof Button> & { isActive?: boolean }> = ({
+  isActive,
+  className,
+  children,
+  ...props
+}) => {
+  const { topicPosition } = useSettings()
+  const activeBg = topicPosition === 'left' ? 'bg-[var(--color-list-item)]' : 'bg-foreground-100'
+  return (
+    <Button
+      {...props}
+      variant="light"
+      className={cn(
+        'relative mb-2 flex h-9 flex-row justify-between p-0',
+        'rounded-[var(--list-item-border-radius)]',
+        'border-[0.5px] border-transparent',
+        'w-[calc(var(--assistants-width)_-_20px)]',
+        'cursor-pointer',
+        isActive ? cn(activeBg, 'shadow-sm') : undefined,
+        className
+      )}>
+      {children}
+    </Button>
+  )
+}
 
 const SessionLabelContainer: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({ className, ...props }) => (
   <div
