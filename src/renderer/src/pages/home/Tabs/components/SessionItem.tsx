@@ -51,7 +51,9 @@ const SessionItem: FC<SessionItemProps> = ({ session, agentId, isDisabled, isLoa
     return (
       <Tooltip
         content={t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
-        classNames={{ content: 'text-xs' }}>
+        classNames={{ content: 'text-xs' }}
+        delay={500}
+        closeDelay={0}>
         <div
           role="button"
           className={cn(
