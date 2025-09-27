@@ -129,11 +129,14 @@
             "description": "只读工具会自动预先授权，其它操作仍需权限。",
             "title": "默认（继续前询问）"
           },
+          "helper": "指定智能体如何处理工具使用授权",
+          "placeholder": "选择权限模式",
           "plan": {
             "behavior": "默认的只读工具会自动预先授权，但执行仍被禁用。",
             "description": "继承默认的只读工具集，并会在执行前先呈现计划。",
             "title": "规划模式"
-          }
+          },
+          "title": "权限模式"
         },
         "preapproved": {
           "autoBadge": "模式自动添加",
@@ -3948,6 +3951,10 @@
         "start_auth": "开始授权",
         "submit_code": "完成登录"
       },
+      "anthropic_api_host": "Anthropic API 地址",
+      "anthropic_api_host_preview": "Anthropic 预览：{{url}}",
+      "anthropic_api_host_tip": "仅在服务商提供兼容 Anthropic 的地址时填写。以 / 结尾会忽略自动追加的 v1，以 # 结尾则强制使用原始地址。",
+      "anthropic_api_host_tooltip": "仅当服务商提供 Claude 兼容的基础地址时填写。",
       "api": {
         "key": {
           "check": {
@@ -3995,12 +4002,8 @@
         }
       },
       "api_host": "API 地址",
-      "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
       "api_host_preview": "预览：{{url}}",
-      "anthropic_api_host": "Anthropic API 地址",
-      "anthropic_api_host_tooltip": "仅当服务商提供 Claude 兼容的基础地址时填写。",
-      "anthropic_api_host_preview": "Anthropic 预览：{{url}}",
-      "anthropic_api_host_tip": "仅在服务商提供兼容 Anthropic 的地址时填写。以 / 结尾会忽略自动追加的 v1，以 # 结尾则强制使用原始地址。",
+      "api_host_tooltip": "仅在服务商需要自定义的 OpenAI 兼容地址时覆盖。",
       "api_key": {
         "label": "API 密钥",
         "tip": "多个密钥使用逗号或空格分隔"
