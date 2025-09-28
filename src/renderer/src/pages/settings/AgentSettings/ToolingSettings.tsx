@@ -500,7 +500,7 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                   mode: selectedMode
                 })}
               </Chip>
-              <Chip variant="flat" color="secondary">
+              <Chip variant="flat" color="default">
                 {t('agent.settings.tooling.review.autoTools', {
                   defaultValue: `Auto: ${autoCount}`,
                   count: autoCount
