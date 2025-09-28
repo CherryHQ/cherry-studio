@@ -1,3 +1,4 @@
+import { cn } from '@heroui/react'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -152,8 +153,9 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 }
 
 const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agentId, sessionId }) => {
+  const { agent } = useAgent(agentId)
   const { session } = useSession(agentId, sessionId)
-  if (!session) {
+  if (!session || !agent) {
     return null
   }
 
@@ -166,27 +168,24 @@ const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agen
 
   const infoItems: ReactNode[] = []
 
-  if (firstAccessiblePath) {
-    infoItems.push(
-      <div
-        key="path"
-        className="rounded-medium border border-default-200 px-2 py-1 text-foreground-500 text-xs dark:text-foreground-400"
-        title={firstAccessiblePath}
-        style={{ maxWidth: 240 }}>
-        <span className="block truncate">{firstAccessiblePath}</span>
-      </div>
-    )
-  }
-
-  infoItems.push(
+  const InfoTag: FC<{ text: string; className?: string }> = ({ text, className }) => (
     <div
-      key="permission-mode"
-      className="rounded-medium border border-default-200 px-2 py-1 text-foreground-500 text-xs dark:text-foreground-400"
-      title={permissionModeLabel}
-      style={{ maxWidth: 200 }}>
-      <span className="block truncate">{permissionModeLabel}</span>
+      className={cn(
+        'rounded-medium border border-default-200 px-2 py-1 text-foreground-500 text-xs dark:text-foreground-400',
+        className
+      )}
+      title={text}>
+      <span className="block truncate">{text}</span>
     </div>
   )
+
+  infoItems.push(<InfoTag key="name" text={agent.name ?? ''} />)
+
+  if (firstAccessiblePath) {
+    infoItems.push(<InfoTag key="path" text={firstAccessiblePath} className="max-w-60" />)
+  }
+
+  infoItems.push(<InfoTag key="permission-mode" text={permissionModeLabel} className="max-w-50" />)
 
   if (infoItems.length === 0) {
     return null
