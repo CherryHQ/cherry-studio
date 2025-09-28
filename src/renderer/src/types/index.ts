@@ -322,7 +322,8 @@ export const SystemProviderIds = {
   voyageai: 'voyageai',
   'aws-bedrock': 'aws-bedrock',
   poe: 'poe',
-  aionly: 'aionly'
+  aionly: 'aionly',
+  longcat: 'longcat'
 } as const
 
 export type SystemProviderId = keyof typeof SystemProviderIds
