@@ -1,6 +1,7 @@
 import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import { openai } from '@ai-sdk/openai'
+import { InferToolInput, InferToolOutput } from 'ai'
 
 import { ProviderOptionsMap } from '../../../options/types'
 import { OpenRouterSearchConfig } from './openrouter'
@@ -58,24 +59,31 @@ export const DEFAULT_WEB_SEARCH_CONFIG: WebSearchPluginConfig = {
 
 export type WebSearchToolOutputSchema = {
   // Anthropic 工具 - 手动定义
-  anthropicWebSearch: Array<{
-    url: string
-    title: string
-    pageAge: string | null
-    encryptedContent: string
-    type: string
-  }>
+  anthropic: InferToolOutput<ReturnType<typeof anthropic.tools.webSearch_20250305>>
 
   // OpenAI 工具 - 基于实际输出
-  openaiWebSearch: {
+  // TODO: 上游定义不规范,是unknown
+  // openai: InferToolOutput<ReturnType<typeof openai.tools.webSearch>>
+  openai: {
     status: 'completed' | 'failed'
   }
-
+  'openai-chat': {
+    status: 'completed' | 'failed'
+  }
   // Google 工具
-  googleSearch: {
+  // TODO: 上游定义不规范,是unknown
+  // google: InferToolOutput<ReturnType<typeof google.tools.googleSearch>>
+  google: {
     webSearchQueries?: string[]
     groundingChunks?: Array<{
       web?: { uri: string; title: string }
     }>
   }
+}
+
+export type WebSearchToolInputSchema = {
+  anthropic: InferToolInput<ReturnType<typeof anthropic.tools.webSearch_20250305>>
+  openai: InferToolInput<ReturnType<typeof openai.tools.webSearch>>
+  google: InferToolInput<ReturnType<typeof google.tools.googleSearch>>
+  'openai-chat': InferToolInput<ReturnType<typeof openai.tools.webSearchPreview>>
 }

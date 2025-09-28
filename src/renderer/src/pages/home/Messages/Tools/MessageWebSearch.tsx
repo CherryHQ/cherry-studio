@@ -1,6 +1,6 @@
 import { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
-import { MCPToolResponse } from '@renderer/types'
+import { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -8,7 +8,7 @@ import styled from 'styled-components'
 
 const { Text } = Typography
 
-export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: MCPToolResponse }) => {
+export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
   const toolInput = toolResponse.arguments as WebSearchToolInput
   const toolOutput = toolResponse.response as WebSearchToolOutput
