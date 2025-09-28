@@ -41,8 +41,6 @@ export class ToolExecutor {
     for (const toolUse of toolUses) {
       try {
         const tool = tools[toolUse.toolName]
-        console.log('tool', tool)
-        console.log('toolUse', toolUse)
         if (!tool || typeof tool.execute !== 'function') {
           throw new Error(`Tool "${toolUse.toolName}" has no execute method`)
         }
