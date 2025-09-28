@@ -1021,6 +1021,7 @@
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
+    "selected": "Sélectionné",
     "selectedItems": "{{count}} éléments sélectionnés",
     "selectedMessages": "{{count}} messages sélectionnés",
     "settings": "Paramètres",

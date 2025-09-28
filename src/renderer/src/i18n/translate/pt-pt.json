@@ -1021,6 +1021,7 @@
     "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
+    "selected": "Selecionado",
     "selectedItems": "{{count}} itens selecionados",
     "selectedMessages": "{{count}} mensagens selecionadas",
     "settings": "Configurações",

@@ -1021,6 +1021,7 @@
     "saved": "已保存",
     "search": "搜索",
     "select": "选择",
+    "selected": "已选择",
     "selectedItems": "已选择 {{count}} 项",
     "selectedMessages": "选中 {{count}} 条消息",
     "settings": "设置",

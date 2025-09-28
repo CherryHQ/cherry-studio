@@ -1021,6 +1021,7 @@
     "saved": "Saved",
     "search": "Search",
     "select": "Select",
+    "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
     "settings": "Settings",

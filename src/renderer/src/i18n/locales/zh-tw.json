@@ -1021,6 +1021,7 @@
     "saved": "已儲存",
     "search": "搜尋",
     "select": "選擇",
+    "selected": "已選擇",
     "selectedItems": "已選擇 {{count}} 項",
     "selectedMessages": "選中 {{count}} 條訊息",
     "settings": "設定",

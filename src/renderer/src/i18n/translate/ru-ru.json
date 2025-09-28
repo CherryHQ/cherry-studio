@@ -1021,6 +1021,7 @@
     "saved": "Сохранено",
     "search": "Поиск",
     "select": "Выбрать",
+    "selected": "Выбрано",
     "selectedItems": "Выбрано {{count}} элементов",
     "selectedMessages": "Выбрано {{count}} сообщений",
     "settings": "Настройки",
