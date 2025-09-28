@@ -10,39 +10,48 @@ interface Props {
   block: ToolMessageBlock
 }
 const prefix = 'builtin_'
+const agentPrefix = 'mcp__'
+const agentTools = [
+  'Read',
+  'Task',
+  'Bash',
+  'Search',
+  'Glob',
+  'TodoWrite',
+  'WebSearch',
+  'Grep',
+  'Write',
+  'WebFetch',
+  'Edit',
+  'MultiEdit',
+  'BashOutput',
+  'NotebookEdit',
+  'ExitPlanMode'
+]
+const isAgentTool = (toolName: string) => {
+  if (agentTools.includes(toolName) || toolName.startsWith(agentPrefix)) {
+    return true
+  }
+  return false
+}
 
 const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null => {
   let toolName = toolResponse.tool.name
   if (toolName.startsWith(prefix)) {
     toolName = toolName.slice(prefix.length)
-  }
-
-  switch (toolName) {
-    case 'web_search':
-    case 'web_search_preview':
-      return <MessageWebSearchToolTitle toolResponse={toolResponse} />
-    case 'knowledge_search':
-      return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
-    case 'memory_search':
-      return <MessageMemorySearchToolTitle toolResponse={toolResponse} />
-    case 'Read':
-    case 'Task':
-    case 'Bash':
-    case 'Search':
-    case 'Glob':
-    case 'TodoWrite':
-    case 'WebSearch':
-    case 'Grep':
-    case 'Write':
-    case 'WebFetch':
-    case 'Edit':
-    case 'MultiEdit':
-    case 'BashOutput':
-    case 'NotebookEdit':
-    case 'ExitPlanMode':
-      return <MessageAgentTools toolResponse={toolResponse} />
-    default:
-      return null
+    switch (toolName) {
+      case 'web_search':
+      case 'web_search_preview':
+        return <MessageWebSearchToolTitle toolResponse={toolResponse} />
+      case 'knowledge_search':
+        return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
+      case 'memory_search':
+        return <MessageMemorySearchToolTitle toolResponse={toolResponse} />
+      default:
+        return null
+    }
+  } else if (isAgentTool(toolName)) {
+    return <MessageAgentTools toolResponse={toolResponse} />
   }
 }
 
