@@ -191,6 +191,7 @@ const ContentContainer = styled.div`
   flex: 1;
   flex-direction: row;
   height: calc(100vh - var(--navbar-height));
+  padding: 1px 0;
 `
 
 const SettingMenus = styled(Scrollbar)`
