@@ -1,5 +1,6 @@
-import { cn } from '@heroui/react'
+import { BreadcrumbItem, Breadcrumbs, Chip, cn } from '@heroui/react'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
+import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import { HStack } from '@renderer/components/Layout'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { permissionModeCards } from '@renderer/constants/permissionModes'
@@ -22,6 +23,8 @@ import { AnimatePresence, motion } from 'motion/react'
 import { FC, ReactNode, useCallback } from 'react'
 import styled from 'styled-components'
 
+import { AgentSettingsPopup } from '../settings/AgentSettings'
+import { AgentLabel } from '../settings/AgentSettings/shared'
 import AssistantsDrawer from './components/AssistantsDrawer'
 import SelectAgentModelButton from './components/SelectAgentModelButton'
 import SelectModelButton from './components/SelectModelButton'
@@ -85,7 +88,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
 
   return (
     <NavbarHeader className="home-navbar">
-      <div className="flex flex-1 items-center">
+      <div className="flex min-w-0 flex-1 shrink items-center overflow-auto">
         {showAssistants && (
           <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
             <NavbarIcon onClick={toggleShowAssistants}>
@@ -115,10 +118,32 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         </AnimatePresence>
         {activeTopicOrSession === 'topic' && <SelectModelButton assistant={assistant} />}
         {activeTopicOrSession === 'session' && agent && (
-          <>
-            <SelectAgentModelButton agent={agent} onSelect={handleUpdateModel} />
-            {activeAgentId && sessionId && <SessionWorkspaceMeta agentId={activeAgentId} sessionId={sessionId} />}
-          </>
+          <HorizontalScrollContainer>
+            <Breadcrumbs
+              classNames={{
+                base: 'flex',
+                list: 'flex-nowrap'
+              }}>
+              <BreadcrumbItem
+                onPress={() => AgentSettingsPopup.show({ agentId: agent.id })}
+                classNames={{
+                  base: 'self-stretch',
+                  item: 'h-full'
+                }}>
+                <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
+                  <AgentLabel agent={agent} classNames={{ name: 'max-w-50 font-bold text-xs' }} />
+                </Chip>
+              </BreadcrumbItem>
+              <BreadcrumbItem>
+                <SelectAgentModelButton agent={agent} onSelect={handleUpdateModel} />
+              </BreadcrumbItem>
+              {activeAgentId && sessionId && (
+                <BreadcrumbItem>
+                  <SessionWorkspaceMeta agentId={activeAgentId} sessionId={sessionId} />
+                </BreadcrumbItem>
+              )}
+            </Breadcrumbs>
+          </HorizontalScrollContainer>
         )}
       </div>
       <HStack alignItems="center" gap={8}>
@@ -179,7 +204,7 @@ const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agen
     </div>
   )
 
-  infoItems.push(<InfoTag key="name" text={agent.name ?? ''} className="max-w-60" />)
+  // infoItems.push(<InfoTag key="name" text={agent.name ?? ''} className="max-w-60" />)
 
   if (firstAccessiblePath) {
     infoItems.push(<InfoTag key="path" text={firstAccessiblePath} className="max-w-60" />)
