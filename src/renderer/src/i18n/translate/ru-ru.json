@@ -333,6 +333,7 @@
       "new_topic": "Новый топик {{Command}}",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Отправить",
       "settings": "Настройки",
       "thinking": {
@@ -4350,6 +4351,7 @@
     "later": "Позже",
     "message": "Новая версия {{version}} готова, установить сейчас?",
     "noReleaseNotes": "Нет заметок об обновлении",
+    "releaseNotes": "[to be translated]:更新日志",
     "title": "Обновление"
   },
   "warning": {

@@ -4351,6 +4351,7 @@
     "later": "Later",
     "message": "New version {{version}} is ready, do you want to install it now?",
     "noReleaseNotes": "No release notes",
+    "releaseNotes": "Release Notes",
     "title": "Update"
   },
   "warning": {

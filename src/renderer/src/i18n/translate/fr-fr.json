@@ -333,6 +333,7 @@
       "new_topic": "Nouveau sujet {{Command}}",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
+      "placeholder_without_triggers": "[to be translated]:在这里输入消息，按 {{key}} 发送",
       "send": "Envoyer",
       "settings": "Paramètres",
       "thinking": {
@@ -4350,6 +4351,7 @@
     "later": "Plus tard",
     "message": "Nouvelle version {{version}} disponible, voulez-vous l'installer maintenant ?",
     "noReleaseNotes": "Aucune note de version",
+    "releaseNotes": "[to be translated]:更新日志",
     "title": "Mise à jour"
   },
   "warning": {
