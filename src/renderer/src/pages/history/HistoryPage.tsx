@@ -3,7 +3,7 @@ import { useAppDispatch } from '@renderer/store'
 import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
-import { Divider, Input, InputRef } from 'antd'
+import { Divider, Input, InputRef, Segmented } from 'antd' // 导入 Segmented
 import { last } from 'lodash'
 import { ChevronLeft, CornerDownLeft, Search } from 'lucide-react'
 import { FC, useEffect, useRef, useState } from 'react'
@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 import SearchMessage from './components/SearchMessage'
-import SearchResults from './components/SearchResults'
+import SearchResults, { MatchStrategy } from './components/SearchResults' // 导入 MatchStrategy
 import TopicMessages from './components/TopicMessages'
 import TopicsHistory from './components/TopicsHistory'
 
@@ -21,6 +21,7 @@ let _search = ''
 let _stack: Route[] = ['topics']
 let _topic: Topic | undefined
 let _message: Message | undefined
+let _matchStrategy: MatchStrategy = 'AND' // 新增状态变量
 
 const TopicsPage: FC = () => {
   const { t } = useTranslation()
@@ -29,6 +30,7 @@ const TopicsPage: FC = () => {
   const [stack, setStack] = useState<Route[]>(_stack)
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
   const [message, setMessage] = useState<Message | undefined>(_message)
+  const [matchStrategy, setMatchStrategy] = useState<MatchStrategy>(_matchStrategy) // 新增状态
   const inputRef = useRef<InputRef>(null)
   const dispatch = useAppDispatch()
 
@@ -36,6 +38,7 @@ const TopicsPage: FC = () => {
   _stack = stack
   _topic = topic
   _message = message
+  _matchStrategy = matchStrategy // 更新全局变量
 
   const goBack = () => {
     const _stack = [...stack]
@@ -99,6 +102,15 @@ const TopicsPage: FC = () => {
           size="middle"
           onPressEnter={onSearch}
         />
+        <Segmented
+          options={[
+            { label: t('search.match.all'), value: 'AND' },
+            { label: t('search.match.any'), value: 'OR' }
+          ]}
+          value={matchStrategy}
+          onChange={(value) => setMatchStrategy(value as MatchStrategy)}
+          style={{ marginLeft: 10 }}
+        />
       </HStack>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
@@ -113,6 +125,7 @@ const TopicsPage: FC = () => {
         keywords={isShow('search') ? searchKeywords : ''}
         onMessageClick={onMessageClick}
         onTopicClick={onTopicClick}
+        matchStrategy={matchStrategy} // 传递 matchStrategy
         style={{ display: isShow('search') }}
       />
       <SearchMessage message={message} style={{ display: isShow('message') }} />

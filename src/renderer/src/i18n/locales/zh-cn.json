@@ -574,6 +574,10 @@
       "search.topics.empty": "没有找到相关话题，点击回车键搜索所有消息",
       "title": "话题搜索"
     },
+    "search": {
+      "match.all": "所有关键词",
+      "match.any": "任意关键词"
+    },
     "knowledge": {
       "add": {
         "title": "添加知识库"

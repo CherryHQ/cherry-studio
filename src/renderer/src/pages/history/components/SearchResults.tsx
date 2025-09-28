@@ -4,19 +4,23 @@ import { getTopicById } from '@renderer/hooks/useTopic'
 import { Topic } from '@renderer/types'
 import { type Message, MessageBlockType } from '@renderer/types/newMessage'
 import { List, Typography } from 'antd'
+import dayjs from 'dayjs' // 导入 dayjs
 import { useLiveQuery } from 'dexie-react-hooks'
 import { FC, memo, useCallback, useEffect, useState } from 'react'
 import styled from 'styled-components'
 
 const { Text, Title } = Typography
 
+export type MatchStrategy = 'AND' | 'OR'
+
 interface Props extends React.HTMLAttributes<HTMLDivElement> {
   keywords: string
   onMessageClick: (message: Message) => void
   onTopicClick: (topic: Topic) => void
+  matchStrategy: MatchStrategy // 新增匹配策略 prop
 }
 
-const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...props }) => {
+const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, matchStrategy, ...props }) => {
   const { handleScroll, containerRef } = useScrollPosition('SearchResults')
 
   const [searchTerms, setSearchTerms] = useState<string[]>(
@@ -59,18 +63,53 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       .filter((term) => term.length > 0)
 
     const blocksArray = await db.message_blocks.toArray()
-    const blocks = blocksArray
+    const messagesInTopics = topics?.map((topic) => topic.messages).flat() || []
+
+    const filteredBlocks = blocksArray
       .filter((block) => block.type === MessageBlockType.MAIN_TEXT)
-      .filter((block) => newSearchTerms.some((term) => block.content.toLowerCase().includes(term)))
+      .filter((block) => {
+        const content = block.content.toLowerCase()
+        if (matchStrategy === 'AND') {
+          return newSearchTerms.every((term) => content.includes(term))
+        } else {
+          // Default to OR strategy
+          return newSearchTerms.some((term) => content.includes(term))
+        }
+      })
 
-    const messages = topics?.map((topic) => topic.messages).flat()
-
-    for (const block of blocks) {
-      const message = messages?.find((message) => message.id === block.messageId)
+    for (const block of filteredBlocks) {
+      const message = messagesInTopics.find((message) => message.id === block.messageId)
       if (message) {
         results.push({ message, topic: await getTopicById(message.topicId)!, content: block.content })
       }
     }
+
+    // 排序逻辑
+    results.sort((a, b) => {
+      const countA = newSearchTerms.filter((term) => a.content.toLowerCase().includes(term)).length
+      const countB = newSearchTerms.filter((term) => b.content.toLowerCase().includes(term)).length
+
+      // 优先按关键词数量降序
+      if (countA !== countB) {
+        return countB - countA
+      }
+
+      // 其次按关键词出现总次数降序
+      const totalOccurrencesA = newSearchTerms.reduce(
+        (sum, term) => sum + (a.content.toLowerCase().split(term).length - 1),
+        0
+      )
+      const totalOccurrencesB = newSearchTerms.reduce(
+        (sum, term) => sum + (b.content.toLowerCase().split(term).length - 1),
+        0
+      )
+      if (totalOccurrencesA !== totalOccurrencesB) {
+        return totalOccurrencesB - totalOccurrencesA
+      }
+
+      // 最后按创建时间降序 (最新的消息优先)
+      return dayjs(b.message.createdAt).valueOf() - dayjs(a.message.createdAt).valueOf()
+    })
 
     const endTime = performance.now()
     setSearchResults(results)
@@ -79,16 +118,18 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
       time: (endTime - startTime) / 1000
     })
     setSearchTerms(newSearchTerms)
-  }, [keywords, topics])
+  }, [keywords, topics, matchStrategy])
 
   const highlightText = (text: string) => {
     let highlightedText = removeMarkdown(text)
+    // 对每个搜索词进行高亮
     searchTerms.forEach((term) => {
       try {
-        const regex = new RegExp(term, 'gi')
+        const regex = new RegExp(term, 'gi') // 全局、不区分大小写匹配
         highlightedText = highlightedText.replace(regex, (match) => `<mark>${match}</mark>`)
       } catch (error) {
-        //
+        // 如果正则表达式无效，则忽略该词的高亮
+        console.warn(`Invalid regex term: ${term}, error: ${error}`)
       }
     })
     return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />

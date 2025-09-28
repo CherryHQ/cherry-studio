@@ -574,6 +574,10 @@
       "search.topics.empty": "トピックが見つかりませんでした。Enterキーを押してすべてのメッセージを検索",
       "title": "トピック検索"
     },
+    "search": {
+      "match.all": "すべてのキーワード",
+      "match.any": "任意のキーワード"
+    },
     "knowledge": {
       "add": {
         "title": "ナレッジベースを追加"

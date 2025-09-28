@@ -574,6 +574,10 @@
       "search.topics.empty": "沒有找到相關話題，按 Enter 鍵搜尋所有訊息",
       "title": "搜尋話題"
     },
+    "search": {
+      "match.all": "所有關鍵詞",
+      "match.any": "任意關鍵詞"
+    },
     "knowledge": {
       "add": {
         "title": "新增知識庫"

@@ -574,6 +574,10 @@
       "search.topics.empty": "No topics found, press Enter to search all messages",
       "title": "Topics Search"
     },
+    "search": {
+      "match.all": "All keywords",
+      "match.any": "Any keyword"
+    },
     "knowledge": {
       "add": {
         "title": "Add Knowledge Base"
