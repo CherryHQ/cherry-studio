@@ -85,6 +85,15 @@ function addProvider(state: RootState, id: string) {
   }
 }
 
+// Fix missing provider
+function fixMissingProvider(state: RootState) {
+  SYSTEM_PROVIDERS.forEach((p) => {
+    if (!state.llm.providers.find((p) => p.id === p.id)) {
+      state.llm.providers.push(p)
+    }
+  })
+}
+
 // add ocr provider
 function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
   if (!state.ocr.providers.find((p) => p.id === provider.id)) {
@@ -2547,6 +2556,15 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 158 error', error as Error)
+      return state
+    }
+  },
+  '159': (state: RootState) => {
+    try {
+      fixMissingProvider(state)
+      return state
+    } catch (error) {
+      logger.error('migrate 159 error', error as Error)
       return state
     }
   }
