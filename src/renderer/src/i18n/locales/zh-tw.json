@@ -129,11 +129,14 @@
             "description": "唯讀工具會自動預先授權，其它操作仍需核准。",
             "title": "預設（繼續前先詢問）"
           },
+          "helper": "指定助手如何處理工具使用授權",
+          "placeholder": "選擇權限模式",
           "plan": {
             "behavior": "預設的唯讀工具會自動預先授權，但執行仍被停用。",
             "description": "沿用預設的唯讀工具集，並會在執行前先呈現計畫。",
             "title": "規劃模式"
-          }
+          },
+          "title": "權限模式"
         },
         "preapproved": {
           "autoBadge": "模式自動添加",
@@ -1032,6 +1035,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "話題",
+    "unnamed": "未命名",
     "update_success": "更新成功",
     "upload_files": "上傳檔案",
     "warning": "警告",
@@ -3948,6 +3952,10 @@
         "start_auth": "開始授權",
         "submit_code": "完成登錄"
       },
+      "anthropic_api_host": "Anthropic API 主機地址",
+      "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
+      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
+      "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
       "api": {
         "key": {
           "check": {
@@ -3995,12 +4003,8 @@
         }
       },
       "api_host": "API 主機地址",
-      "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_host_preview": "預覽：{{url}}",
-      "anthropic_api_host": "Anthropic API 主機地址",
-      "anthropic_api_host_tooltip": "僅在服務商提供 Claude 相容的基礎網址時設定。",
-      "anthropic_api_host_preview": "Anthropic 預覽：{{url}}",
-      "anthropic_api_host_tip": "僅在服務商提供與 Anthropic 相容的網址時設定。以 / 結尾會忽略自動附加的 v1，以 # 結尾則強制使用原始地址。",
+      "api_host_tooltip": "僅在服務商需要自訂的 OpenAI 相容端點時才覆蓋。",
       "api_key": {
         "label": "API 金鑰",
         "tip": "多個金鑰使用逗號或空格分隔"

@@ -100,7 +100,6 @@
         "title": "高級設定"
       },
       "essential": "必須設定",
-      "mcps": "MCPサーバー",
       "prompt": "プロンプト設定",
       "tooling": {
         "mcp": {
@@ -130,11 +129,14 @@
             "description": "通常の権限チェックが適用されます。",
             "title": "デフォルト（続行する前に確認）"
           },
+          "helper": "エージェントがツール使用の承認を処理する方法を指定",
+          "placeholder": "権限モードを選択",
           "plan": {
             "behavior": "読み取り専用ツールのみ。実行は無効です。",
             "description": "Claudeは読み取り専用ツールのみを使用し、実行前に計画を提示します。",
             "title": "計画モード（近日公開）"
-          }
+          },
+          "title": "権限モード"
         },
         "preapproved": {
           "autoBadge": "モードによって追加されました",
@@ -194,83 +196,6 @@
     "warning": {
       "enable_server": "APIサーバーがエージェントを使用できるようにする。"
     }
-  },
-  "agents": {
-    "add": {
-      "button": "アシスタントに追加",
-      "knowledge_base": {
-        "label": "ナレッジベース",
-        "placeholder": "ナレッジベースを選択"
-      },
-      "name": {
-        "label": "名前",
-        "placeholder": "名前を入力"
-      },
-      "prompt": {
-        "label": "プロンプト",
-        "placeholder": "プロンプトを入力",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名\n{{username}}:\tユーザー名",
-            "title": "利用可能な変数"
-          }
-        }
-      },
-      "title": "エージェントを作成",
-      "unsaved_changes_warning": "未保存の変更があります。続行しますか？"
-    },
-    "delete": {
-      "popup": {
-        "content": "このエージェントを削除してもよろしいですか？"
-      }
-    },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "モデルを選択"
-        }
-      },
-      "title": "エージェントを編集"
-    },
-    "export": {
-      "agent": "エージェントをエクスポート"
-    },
-    "import": {
-      "button": "インポート",
-      "error": {
-        "fetch_failed": "URLからのデータ取得に失敗しました",
-        "invalid_format": "無効なエージェント形式：必須フィールドが不足しています",
-        "url_required": "URLを入力してください"
-      },
-      "file_filter": "JSONファイル",
-      "select_file": "ファイルを選択",
-      "title": "外部からインポート",
-      "type": {
-        "file": "ファイル",
-        "url": "URL"
-      },
-      "url_placeholder": "JSON URLを入力"
-    },
-    "manage": {
-      "title": "エージェントを管理"
-    },
-    "my_agents": "マイエージェント",
-    "search": {
-      "no_results": "結果が見つかりません"
-    },
-    "settings": {
-      "title": "エージェント設定"
-    },
-    "sorting": {
-      "title": "並び替え"
-    },
-    "tag": {
-      "agent": "エージェント",
-      "default": "デフォルト",
-      "new": "新規",
-      "system": "システム"
-    },
-    "title": "エージェント"
   },
   "apiServer": {
     "actions": {
@@ -350,6 +275,83 @@
     "list": {
       "showByList": "リスト表示",
       "showByTags": "タグ表示"
+    },
+    "presets": {
+      "add": {
+        "button": "アシスタントに追加",
+        "knowledge_base": {
+          "label": "ナレッジベース",
+          "placeholder": "ナレッジベースを選択"
+        },
+        "name": {
+          "label": "名前",
+          "placeholder": "名前を入力"
+        },
+        "prompt": {
+          "label": "プロンプト",
+          "placeholder": "プロンプトを入力",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\t日付\n{{time}}:\t時間\n{{datetime}}:\t日付と時間\n{{system}}:\tオペレーティングシステム\n{{arch}}:\tCPUアーキテクチャ\n{{language}}:\t言語\n{{model_name}}:\tモデル名\n{{username}}:\tユーザー名",
+              "title": "利用可能な変数"
+            }
+          }
+        },
+        "title": "アシスタントを作成",
+        "unsaved_changes_warning": "未保存の変更があります。閉じてもよろしいですか？"
+      },
+      "delete": {
+        "popup": {
+          "content": "このアシスタントを削除してもよろしいですか？"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "モデルを選択"
+          }
+        },
+        "title": "アシスタントを編集"
+      },
+      "export": {
+        "agent": "アシスタントをエクスポート"
+      },
+      "import": {
+        "button": "インポート",
+        "error": {
+          "fetch_failed": "URLからのデータ取得に失敗しました",
+          "invalid_format": "無効なアシスタント形式：必須フィールドが不足しています",
+          "url_required": "URLを入力してください"
+        },
+        "file_filter": "JSONファイル",
+        "select_file": "ファイルを選択",
+        "title": "外部からインポート",
+        "type": {
+          "file": "ファイル",
+          "url": "URL"
+        },
+        "url_placeholder": "JSON URLを入力"
+      },
+      "manage": {
+        "title": "アシスタントを管理"
+      },
+      "my_agents": "マイアシスタント",
+      "search": {
+        "no_results": "関連するアシスタントが見つかりません"
+      },
+      "settings": {
+        "title": "アシスタント設定"
+      },
+      "sorting": {
+        "title": "並び替え"
+      },
+      "tag": {
+        "agent": "アシスタント",
+        "default": "デフォルト",
+        "new": "新規",
+        "system": "システム"
+      },
+      "title": "アシスタントライブラリ"
     },
     "save": {
       "success": "保存に成功しました",
@@ -529,6 +531,7 @@
       "new_topic": "新しいトピック {{Command}}",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "send": "送信",
       "settings": "設定",
       "thinking": {
@@ -1032,6 +1035,7 @@
     "success": "成功",
     "swap": "交換",
     "topics": "トピック",
+    "unnamed": "無題",
     "update_success": "更新成功",
     "upload_files": "ファイルをアップロードする",
     "warning": "警告",
@@ -3948,6 +3952,10 @@
         "start_auth": "開始承認",
         "submit_code": "ログインを完了する"
       },
+      "anthropic_api_host": "Anthropic APIアドレス",
+      "anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
+      "anthropic_api_host_tip": "サービスプロバイダーがAnthropic互換のアドレスを提供する場合のみ入力してください。/で終わる場合は自動追加されるv1を無視し、#で終わる場合は元のアドレスを強制的に使用します。",
+      "anthropic_api_host_tooltip": "サービスプロバイダーがClaude互換のベースアドレスを提供する場合のみ入力してください。",
       "api": {
         "key": {
           "check": {
@@ -3995,6 +4003,8 @@
         }
       },
       "api_host": "APIホスト",
+      "api_host_preview": "プレビュー：{{url}}",
+      "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
         "label": "APIキー",
         "tip": "複数のキーはカンマまたはスペースで区切ります"
@@ -4398,7 +4408,6 @@
     }
   },
   "title": {
-    "agents": "エージェント",
     "apps": "アプリ",
     "code": "Code",
     "files": "ファイル",
@@ -4410,6 +4419,7 @@
     "notes": "ノート",
     "paintings": "ペインティング",
     "settings": "設定",
+    "store": "アシスタントライブラリ",
     "translate": "翻訳"
   },
   "trace": {

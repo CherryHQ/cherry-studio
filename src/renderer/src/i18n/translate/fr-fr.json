@@ -100,7 +100,6 @@
         "title": "Paramètres avancés"
       },
       "essential": "Paramètres essentiels",
-      "mcps": "Serveur MCP",
       "prompt": "Paramètres de l'invite",
       "tooling": {
         "mcp": {
@@ -130,11 +129,14 @@
             "description": "Les vérifications d'autorisation normales s'appliquent.",
             "title": "Par défaut (demander avant de continuer)"
           },
+          "helper": "Spécifie comment l'agent gère l'autorisation d'utilisation des outils",
+          "placeholder": "Sélectionner le mode de permission",
           "plan": {
             "behavior": "Outils en lecture seule uniquement. L'exécution est désactivée.",
             "description": "Claude ne peut utiliser que des outils en lecture seule et présente un plan avant l'exécution.",
             "title": "Mode de planification (à venir)"
-          }
+          },
+          "title": "Mode de permission"
         },
         "preapproved": {
           "autoBadge": "Ajouté par mode",
@@ -194,83 +196,6 @@
     "warning": {
       "enable_server": "Permettre au serveur API d'utiliser des agents."
     }
-  },
-  "agents": {
-    "add": {
-      "button": "Ajouter à l'assistant",
-      "knowledge_base": {
-        "label": "Base de connaissances",
-        "placeholder": "Sélectionner une base de connaissances"
-      },
-      "name": {
-        "label": "Nom",
-        "placeholder": "Entrer le nom"
-      },
-      "prompt": {
-        "label": "Mot-clé",
-        "placeholder": "Entrer le mot-clé",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\tDate\n{{time}}:\tHeure\n{{datetime}}:\tDate et heure\n{{system}}:\tSystème d'exploitation\n{{arch}}:\tArchitecture du processeur\n{{language}}:\tLangue\n{{model_name}}:\tNom du modèle\n{{username}}:\tNom d'utilisateur",
-            "title": "Variables disponibles"
-          }
-        }
-      },
-      "title": "Créer un agent intelligent",
-      "unsaved_changes_warning": "Vous avez des modifications non enregistrées, êtes-vous sûr de vouloir fermer ?"
-    },
-    "delete": {
-      "popup": {
-        "content": "Êtes-vous sûr de vouloir supprimer cet agent intelligent ?"
-      }
-    },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "Sélectionner un modèle"
-        }
-      },
-      "title": "Modifier l'agent intelligent"
-    },
-    "export": {
-      "agent": "Экспортировать агента"
-    },
-    "import": {
-      "button": "Импортировать",
-      "error": {
-        "fetch_failed": "Échec de la récupération des données depuis l'URL",
-        "invalid_format": "Format de proxy invalide : champs obligatoires manquants",
-        "url_required": "Veuillez entrer l'URL"
-      },
-      "file_filter": "Файлы JSON",
-      "select_file": "Выбрать файл",
-      "title": "Импорт из внешнего источника",
-      "type": {
-        "file": "Fichier",
-        "url": "URL"
-      },
-      "url_placeholder": "Введите URL JSON"
-    },
-    "manage": {
-      "title": "Gérer les agents intelligents"
-    },
-    "my_agents": "Mes agents intelligents",
-    "search": {
-      "no_results": "Aucun agent intelligent correspondant trouvé"
-    },
-    "settings": {
-      "title": "Configuration de l'agent intelligent"
-    },
-    "sorting": {
-      "title": "Trier"
-    },
-    "tag": {
-      "agent": "Agent intelligent",
-      "default": "Par défaut",
-      "new": "Nouveau",
-      "system": "Système"
-    },
-    "title": "Agent intelligent"
   },
   "apiServer": {
     "actions": {
@@ -350,6 +275,83 @@
     "list": {
       "showByList": "Affichage sous forme de liste",
       "showByTags": "Affichage par balises"
+    },
+    "presets": {
+      "add": {
+        "button": "Ajouter à l'assistant",
+        "knowledge_base": {
+          "label": "Base de connaissances",
+          "placeholder": "Sélectionner une base de connaissances"
+        },
+        "name": {
+          "label": "Nom",
+          "placeholder": "Saisir le nom"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Saisir le prompt",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\tDate\n{{time}}:\tHeure\n{{datetime}}:\tDate et heure\n{{system}}:\tSystème d'exploitation\n{{arch}}:\tArchitecture CPU\n{{language}}:\tLangue\n{{model_name}}:\tNom du modèle\n{{username}}:\tNom d'utilisateur",
+              "title": "Variables disponibles"
+            }
+          }
+        },
+        "title": "Créer un assistant",
+        "unsaved_changes_warning": "Vous avez des modifications non sauvegardées. Êtes-vous sûr de vouloir fermer ?"
+      },
+      "delete": {
+        "popup": {
+          "content": "Êtes-vous sûr de vouloir supprimer cet assistant ?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "Sélectionner un modèle"
+          }
+        },
+        "title": "Modifier l'assistant"
+      },
+      "export": {
+        "agent": "Exporter l'assistant"
+      },
+      "import": {
+        "button": "Importer",
+        "error": {
+          "fetch_failed": "Échec de la récupération des données depuis l'URL",
+          "invalid_format": "Format d'assistant invalide : champs obligatoires manquants",
+          "url_required": "Veuillez saisir une URL"
+        },
+        "file_filter": "Fichiers JSON",
+        "select_file": "Sélectionner un fichier",
+        "title": "Importer depuis l'extérieur",
+        "type": {
+          "file": "Fichier",
+          "url": "URL"
+        },
+        "url_placeholder": "Saisir l'URL JSON"
+      },
+      "manage": {
+        "title": "Gérer les assistants"
+      },
+      "my_agents": "Mes assistants",
+      "search": {
+        "no_results": "Aucun assistant correspondant trouvé"
+      },
+      "settings": {
+        "title": "Configuration des assistants"
+      },
+      "sorting": {
+        "title": "Tri"
+      },
+      "tag": {
+        "agent": "Assistant",
+        "default": "Par défaut",
+        "new": "Nouveau",
+        "system": "Système"
+      },
+      "title": "Bibliothèque d'assistants"
     },
     "save": {
       "success": "Sauvegarde réussie",
@@ -529,6 +531,7 @@
       "new_topic": "Nouveau sujet {{Command}}",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
+      "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "send": "Envoyer",
       "settings": "Paramètres",
       "thinking": {
@@ -1032,6 +1035,7 @@
     "success": "Succès",
     "swap": "Échanger",
     "topics": "Sujets",
+    "unnamed": "Sans nom",
     "update_success": "Mise à jour réussie",
     "upload_files": "Uploader des fichiers",
     "warning": "Avertissement",
@@ -3948,6 +3952,10 @@
         "start_auth": "Commencer l'autorisation",
         "submit_code": "Terminer la connexion"
       },
+      "anthropic_api_host": "Adresse API Anthropic",
+      "anthropic_api_host_preview": "Aperçu Anthropic : {{url}}",
+      "anthropic_api_host_tip": "Remplir seulement si le fournisseur propose une adresse compatible Anthropic. Se terminant par / ignore le v1 ajouté automatiquement, se terminant par # force l'utilisation de l'adresse originale.",
+      "anthropic_api_host_tooltip": "Remplir seulement lorsque le fournisseur propose une adresse de base compatible Claude.",
       "api": {
         "key": {
           "check": {
@@ -3995,6 +4003,8 @@
         }
       },
       "api_host": "Adresse API",
+      "api_host_preview": "Aperçu : {{url}}",
+      "api_host_tooltip": "Remplacer seulement lorsque le fournisseur nécessite une adresse compatible OpenAI personnalisée.",
       "api_key": {
         "label": "Clé API",
         "tip": "Séparer les clés multiples par des virgules"
@@ -4398,7 +4408,6 @@
     }
   },
   "title": {
-    "agents": "Agent intelligent",
     "apps": "Mini-programmes",
     "code": "Code",
     "files": "Fichiers",
@@ -4410,6 +4419,7 @@
     "notes": "notes",
     "paintings": "Peintures",
     "settings": "Paramètres",
+    "store": "Bibliothèque d'assistants",
     "translate": "Traduire"
   },
   "trace": {

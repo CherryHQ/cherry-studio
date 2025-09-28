@@ -100,7 +100,6 @@
         "title": "Configurações avançadas"
       },
       "essential": "Configurações Essenciais",
-      "mcps": "Servidor MCP",
       "prompt": "Configurações de Prompt",
       "tooling": {
         "mcp": {
@@ -130,11 +129,14 @@
             "description": "Verificações normais de permissão aplicam-se.",
             "title": "Padrão (perguntar antes de continuar)"
           },
+          "helper": "Especifica como o agente lida com a autorização de uso de ferramentas",
+          "placeholder": "Selecionar modo de permissões",
           "plan": {
             "behavior": "Ferramentas somente leitura. A execução está desabilitada.",
             "description": "Claude só pode usar ferramentas de leitura e apresenta um plano antes da execução.",
             "title": "Modo de planejamento (em breve)"
-          }
+          },
+          "title": "Modo de permissões"
         },
         "preapproved": {
           "autoBadge": "Adicionado por modo",
@@ -194,83 +196,6 @@
     "warning": {
       "enable_server": "Ativar o Servidor de API para usar agentes."
     }
-  },
-  "agents": {
-    "add": {
-      "button": "Adicionar ao Assistente",
-      "knowledge_base": {
-        "label": "Base de Conhecimento",
-        "placeholder": "Selecione a Base de Conhecimento"
-      },
-      "name": {
-        "label": "Nome",
-        "placeholder": "Digite o Nome"
-      },
-      "prompt": {
-        "label": "Prompt",
-        "placeholder": "Digite o Prompt",
-        "variables": {
-          "tip": {
-            "content": "{{date}}:\tData\n{{time}}:\tHora\n{{datetime}}:\tData e hora\n{{system}}:\tSistema operativo\n{{arch}}:\tArquitetura da CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNome do modelo\n{{username}}:\tNome de utilizador",
-            "title": "Variáveis disponíveis"
-          }
-        }
-      },
-      "title": "Criar Agente Inteligente",
-      "unsaved_changes_warning": "Você tem alterações não salvas, tem certeza de que deseja fechar?"
-    },
-    "delete": {
-      "popup": {
-        "content": "Tem certeza de que deseja excluir este agente inteligente?"
-      }
-    },
-    "edit": {
-      "model": {
-        "select": {
-          "title": "Selecionar Modelo"
-        }
-      },
-      "title": "Editar Agente Inteligente"
-    },
-    "export": {
-      "agent": "Exportar Agente"
-    },
-    "import": {
-      "button": "Importar",
-      "error": {
-        "fetch_failed": "Falha ao buscar dados da URL",
-        "invalid_format": "Formato de proxy inválido: campos obrigatórios ausentes",
-        "url_required": "Por favor, insira a URL"
-      },
-      "file_filter": "Arquivo JSON",
-      "select_file": "Selecionar arquivo",
-      "title": "Importar do exterior",
-      "type": {
-        "file": "Arquivo",
-        "url": "URL"
-      },
-      "url_placeholder": "Insira o URL JSON"
-    },
-    "manage": {
-      "title": "Gerenciar Agentes Inteligentes"
-    },
-    "my_agents": "Meus Agentes Inteligentes",
-    "search": {
-      "no_results": "Nenhum agente inteligente encontrado"
-    },
-    "settings": {
-      "title": "Configuração do Agente"
-    },
-    "sorting": {
-      "title": "Ordenação"
-    },
-    "tag": {
-      "agent": "Agente",
-      "default": "Padrão",
-      "new": "Novo",
-      "system": "Sistema"
-    },
-    "title": "Agente"
   },
   "apiServer": {
     "actions": {
@@ -350,6 +275,83 @@
     "list": {
       "showByList": "Exibição em Lista",
       "showByTags": "Exibição por Etiquetas"
+    },
+    "presets": {
+      "add": {
+        "button": "Adicionar ao assistente",
+        "knowledge_base": {
+          "label": "Base de conhecimento",
+          "placeholder": "Selecionar base de conhecimento"
+        },
+        "name": {
+          "label": "Nome",
+          "placeholder": "Inserir nome"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "placeholder": "Inserir prompt",
+          "variables": {
+            "tip": {
+              "content": "{{date}}:\tData\n{{time}}:\tHora\n{{datetime}}:\tData e hora\n{{system}}:\tSistema operacional\n{{arch}}:\tArquitetura CPU\n{{language}}:\tIdioma\n{{model_name}}:\tNome do modelo\n{{username}}:\tNome de utilizador",
+              "title": "Variáveis disponíveis"
+            }
+          }
+        },
+        "title": "Criar assistente",
+        "unsaved_changes_warning": "Tens alterações não guardadas. Tens a certeza de que queres fechar?"
+      },
+      "delete": {
+        "popup": {
+          "content": "Tens a certeza de que queres eliminar este assistente?"
+        }
+      },
+      "edit": {
+        "model": {
+          "select": {
+            "title": "Selecionar modelo"
+          }
+        },
+        "title": "Editar assistente"
+      },
+      "export": {
+        "agent": "Exportar assistente"
+      },
+      "import": {
+        "button": "Importar",
+        "error": {
+          "fetch_failed": "Falha ao obter dados do URL",
+          "invalid_format": "Formato de assistente inválido: campos obrigatórios em falta",
+          "url_required": "Por favor insere um URL"
+        },
+        "file_filter": "Ficheiros JSON",
+        "select_file": "Selecionar ficheiro",
+        "title": "Importar do exterior",
+        "type": {
+          "file": "Ficheiro",
+          "url": "URL"
+        },
+        "url_placeholder": "Inserir URL JSON"
+      },
+      "manage": {
+        "title": "Gerir assistentes"
+      },
+      "my_agents": "Os meus assistentes",
+      "search": {
+        "no_results": "Não foram encontrados assistentes relacionados"
+      },
+      "settings": {
+        "title": "Configuração de assistentes"
+      },
+      "sorting": {
+        "title": "Ordenar"
+      },
+      "tag": {
+        "agent": "Assistente",
+        "default": "Padrão",
+        "new": "Novo",
+        "system": "Sistema"
+      },
+      "title": "Biblioteca de assistentes"
     },
     "save": {
       "success": "Salvo com Sucesso",
@@ -529,6 +531,7 @@
       "new_topic": "Novo tópico {{Command}}",
       "pause": "Pausar",
       "placeholder": "Digite sua mensagem aqui...",
+      "placeholder_without_triggers": "Escreve a tua mensagem aqui, pressiona {{key}} para enviar",
       "send": "Enviar",
       "settings": "Configurações",
       "thinking": {
@@ -1032,6 +1035,7 @@
     "success": "Sucesso",
     "swap": "Trocar",
     "topics": "Tópicos",
+    "unnamed": "Sem nome",
     "update_success": "Atualização bem-sucedida",
     "upload_files": "Carregar arquivo",
     "warning": "Aviso",
@@ -3948,6 +3952,10 @@
         "start_auth": "Iniciar autorização",
         "submit_code": "Concluir login"
       },
+      "anthropic_api_host": "Endereço da API Anthropic",
+      "anthropic_api_host_preview": "Pré-visualização Anthropic: {{url}}",
+      "anthropic_api_host_tip": "Preencher apenas se o fornecedor oferecer um endereço compatível com Anthropic. Terminar com / ignora o v1 adicionado automaticamente, terminar com # força o uso do endereço original.",
+      "anthropic_api_host_tooltip": "Preencher apenas quando o fornecedor fornece um endereço base compatível com Claude.",
       "api": {
         "key": {
           "check": {
@@ -3995,6 +4003,8 @@
         }
       },
       "api_host": "Endereço API",
+      "api_host_preview": "Pré-visualização: {{url}}",
+      "api_host_tooltip": "Substituir apenas quando o fornecedor necessita de um endereço compatível com OpenAI personalizado.",
       "api_key": {
         "label": "Chave API",
         "tip": "Use vírgula para separar várias chaves"
@@ -4398,7 +4408,6 @@
     }
   },
   "title": {
-    "agents": "Agentes",
     "apps": "Miniaplicativos",
     "code": "Código",
     "files": "Arquivos",
@@ -4410,6 +4419,7 @@
     "notes": "Notas",
     "paintings": "Pinturas",
     "settings": "Configurações",
+    "store": "Biblioteca de assistentes",
     "translate": "Traduzir"
   },
   "trace": {
