@@ -331,7 +331,7 @@ export const ToolingSettings: FC<AgentToolingSettingsProps> = ({ agentBase, upda
                   <span className="text-foreground-600">{t(card.behaviorKey, card.behaviorFallback)}</span>
                   {showCaution ? (
                     <div className="flex items-center gap-1">
-                      <ShieldAlert size={24} />
+                      <ShieldAlert className="text-danger-600" size={24} />
                       <span className="text-danger-600">
                         {t(
                           'agent.settings.tooling.permissionMode.bypassPermissions.warning',
