@@ -251,11 +251,7 @@ const MentionModelsButton: FC<Props> = ({
           if (action === 'esc') {
             // 只有在输入触发且有模型选择动作时才删除@字符和搜索文本
             const triggerInfo = ctx?.triggerInfo ?? triggerInfoRef.current
-            if (
-              hasModelActionRef.current &&
-              triggerInfo?.type === 'input' &&
-              triggerInfo?.position !== undefined
-            ) {
+            if (hasModelActionRef.current && triggerInfo?.type === 'input' && triggerInfo?.position !== undefined) {
               // 基于当前光标 + 搜索词精确定位并删除，position 仅作兜底
               setText((currentText) => {
                 const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
