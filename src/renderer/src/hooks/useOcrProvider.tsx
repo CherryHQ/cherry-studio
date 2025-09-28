@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import IntelLogo from '@renderer/assets/images/providers/intel.png'
 import PaddleocrLogo from '@renderer/assets/images/providers/paddleocr.png'
 import TesseractLogo from '@renderer/assets/images/providers/Tesseract.js.png'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
@@ -20,9 +21,11 @@ import { useTranslation } from 'react-i18next'
 import { useDispatch } from 'react-redux'
 
 const logger = loggerService.withContext('useOcrProvider')
+const validProviders = await window.api.ocr.providers()
+logger.debug(`Valid OCR providers: ${validProviders.join(', ')}`)
 
 export const useOcrProviders = () => {
-  const providers = useAppSelector((state) => state.ocr.providers)
+  const providers = useAppSelector((state) => state.ocr.providers).filter((p) => validProviders.includes(p.id))
   const imageProviders = providers.filter(isImageOcrProvider)
   const imageProviderId = useAppSelector((state) => state.ocr.imageProviderId)
   const [imageProvider, setImageProvider] = useState<ImageOcrProvider>(DEFAULT_OCR_PROVIDER.image)
@@ -83,6 +86,8 @@ export const useOcrProviders = () => {
           return <MonitorIcon size={size} />
         case 'paddleocr':
           return <Avatar size={size} src={PaddleocrLogo} />
+        case 'ovocr':
+          return <Avatar size={size} src={IntelLogo} />
       }
     }
     return <FileQuestionMarkIcon size={size} />

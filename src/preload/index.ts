@@ -476,7 +476,8 @@ const api = {
   },
   ocr: {
     ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider)
+      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
+    providers: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_listProviders)
   },
   cherryai: {
     generateSignature: (params: { method: string; path: string; query: string; body: Record<string, any> }) =>
