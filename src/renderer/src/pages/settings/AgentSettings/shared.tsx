@@ -1,4 +1,5 @@
 import { Avatar, AvatarProps, cn } from '@heroui/react'
+import Ellipsis from '@renderer/components/Ellipsis'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { getAgentDefaultAvatar } from '@renderer/config/agent'
 import { getAgentTypeLabel } from '@renderer/i18n/label'
@@ -38,10 +39,12 @@ export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames, avata
   const emoji = isDefault ? undefined : agent?.configuration?.avatar
 
   return (
-    <div className={cn('flex items-center gap-2', classNames?.container)}>
+    <div className={cn('flex w-full items-center gap-2', classNames?.container)}>
       {isDefault && <Avatar src={src} {...avatarProps} className={cn('h-6 w-6 text-lg', classNames?.avatar)} />}
       {!isDefault && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />}
-      <span className={classNames?.name}>{agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}</span>
+      <Ellipsis className={classNames?.name}>
+        {agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}
+      </Ellipsis>
     </div>
   )
 }

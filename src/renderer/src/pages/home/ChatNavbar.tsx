@@ -179,7 +179,7 @@ const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agen
     </div>
   )
 
-  infoItems.push(<InfoTag key="name" text={agent.name ?? ''} />)
+  infoItems.push(<InfoTag key="name" text={agent.name ?? ''} className="max-w-60" />)
 
   if (firstAccessiblePath) {
     infoItems.push(<InfoTag key="path" text={firstAccessiblePath} className="max-w-60" />)

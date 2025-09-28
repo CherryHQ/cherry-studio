@@ -114,7 +114,13 @@ const AgentSettingPopupContainer: React.FC<AgentSettingPopupParams> = ({ tab, ag
           display: 'flex',
           flexDirection: 'column'
         },
-        header: { padding: '10px 15px', borderBottom: '0.5px solid var(--color-border)', margin: 0, borderRadius: 0 },
+        header: {
+          padding: '10px 15px',
+          paddingRight: '32px',
+          borderBottom: '0.5px solid var(--color-border)',
+          margin: 0,
+          borderRadius: 0
+        },
         body: {
           padding: 0,
           display: 'flex',
