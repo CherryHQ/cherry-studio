@@ -5,7 +5,7 @@ import { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { EditorView } from '@renderer/types'
-import { Empty, Spin } from 'antd'
+import { Empty } from 'antd'
 import { FC, memo, RefObject, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -14,13 +14,12 @@ interface NotesEditorProps {
   activeNodeId?: string
   currentContent: string
   tokenCount: number
-  isLoading: boolean
   editorRef: RefObject<RichEditorRef | null>
   onMarkdownChange: (content: string) => void
 }
 
 const NotesEditor: FC<NotesEditorProps> = memo(
-  ({ activeNodeId, currentContent, tokenCount, isLoading, onMarkdownChange, editorRef }) => {
+  ({ activeNodeId, currentContent, tokenCount, onMarkdownChange, editorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
     const currentViewMode = useMemo(() => {
@@ -44,14 +43,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
         <EmptyContainer>
           <Empty description={t('notes.empty')} image={Empty.PRESENTED_IMAGE_SIMPLE} />
         </EmptyContainer>
-      )
-    }
-
-    if (isLoading) {
-      return (
-        <LoadingContainer>
-          <Spin tip={t('common.loading')} />
-        </LoadingContainer>
       )
     }
 
@@ -121,14 +112,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 )
 
 NotesEditor.displayName = 'NotesEditor'
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-`
 
 const EmptyContainer = styled.div`
   display: flex;
