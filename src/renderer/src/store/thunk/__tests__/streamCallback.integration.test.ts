@@ -425,7 +425,10 @@ describe('streamCallback Integration Tests', () => {
     expect(thinkingBlock).toBeDefined()
     expect(thinkingBlock?.content).toBe('Final thoughts')
     expect(thinkingBlock?.status).toBe(MessageBlockStatus.SUCCESS)
-    expect((thinkingBlock as any)?.thinking_millsec).toBe(3000)
+    // thinking_millsec 现在是本地计算的，只验证它存在且是一个合理的数字
+    expect((thinkingBlock as any)?.thinking_millsec).toBeDefined()
+    expect(typeof (thinkingBlock as any)?.thinking_millsec).toBe('number')
+    expect((thinkingBlock as any)?.thinking_millsec).toBeGreaterThanOrEqual(0)
   })
 
   it('should handle tool call flow', async () => {

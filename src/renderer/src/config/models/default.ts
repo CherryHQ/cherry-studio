@@ -1804,5 +1804,19 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'aionly',
       group: 'gemini'
     }
+  ],
+  longcat: [
+    {
+      id: 'LongCat-Flash-Chat',
+      name: 'LongCat Flash Chat',
+      provider: 'longcat',
+      group: 'LongCat'
+    },
+    {
+      id: 'LongCat-Flash-Thinking',
+      name: 'LongCat Flash Thinking',
+      provider: 'longcat',
+      group: 'LongCat'
+    }
   ]
 }

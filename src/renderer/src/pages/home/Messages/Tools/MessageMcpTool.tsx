@@ -58,7 +58,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   const [progress, setProgress] = useState<number>(0)
   const { setTimeoutTimer } = useTimer()
 
-  const toolResponse = block.metadata?.rawMcpToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
 
   const { id, tool, status, response } = toolResponse as MCPToolResponse
   const isPending = status === 'pending'
