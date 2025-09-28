@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { useFiles } from '@renderer/hooks/useFiles'
@@ -10,12 +11,11 @@ import type { FileMetadata, FileTypes, KnowledgeBase, KnowledgeItem } from '@ren
 import { isKnowledgeFileItem } from '@renderer/types'
 import { formatFileSize, uuid } from '@renderer/utils'
 import { bookExts, documentExts, textExts, thirdPartyApplicationExts } from '@shared/config/constant'
-import { Button, Tooltip, Upload } from 'antd'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import type { DragEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeFiles')
 
@@ -30,11 +30,8 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
-  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
-
-const { Dragger } = Upload
 
 interface KnowledgeContentProps {
   selectedBase: KnowledgeBase
@@ -52,6 +49,8 @@ const getDisplayTime = (item: KnowledgeItem) => {
 const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, preprocessMap }) => {
   const { t } = useTranslation()
   const [windowHeight, setWindowHeight] = useState(window.innerHeight)
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false)
+  const dragCounterRef = useRef(0)
   const { onSelectFile, selecting } = useFiles({ extensions: fileTypes })
 
   const { base, fileItems, addFiles, refreshItem, removeItem, getProcessingStatus } = useKnowledge(
@@ -120,6 +119,46 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
     }
   }
 
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    dragCounterRef.current += 1
+    if (!disabled) {
+      setIsDraggingFiles(true)
+    }
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
+    if (dragCounterRef.current === 0) {
+      setIsDraggingFiles(false)
+    }
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'
+  }
+
+  const handleDropEvent = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    dragCounterRef.current = 0
+    setIsDraggingFiles(false)
+
+    if (disabled) {
+      return
+    }
+
+    const files = Array.from(event.dataTransfer.files)
+    if (files.length) {
+      void handleDrop(files)
+    }
+  }
+
   const processFiles = async (files: FileMetadata[]) => {
     logger.debug('processFiles', files)
     if (files.length > 0) {
@@ -141,35 +180,45 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
+        <Button
+          size="sm"
+          color="primary"
+          startContent={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddFile()
           }}
-          disabled={disabled}>
+          isDisabled={disabled}>
           {t('knowledge.add_file')}
-        </ResponsiveButton>
+        </Button>
       </ItemHeader>
 
-      <ItemFlexColumn>
+      <div className="flex flex-col px-4 py-5 gap-2.5">
         <div
+          role="button"
+          tabIndex={0}
+          className={`flex flex-col items-center justify-center gap-2 p-6 border border-dashed border-[var(--color-border)] rounded-xl text-center cursor-pointer transition-colors duration-200 ease-in-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--color-primary)] focus-visible:outline-offset-4 hover:bg-[var(--color-fill-tertiary)] ${
+            isDraggingFiles ? 'bg-[var(--color-fill-tertiary)]' : 'bg-transparent'
+          }`}
           onClick={(e) => {
             e.stopPropagation()
             handleAddFile()
-          }}>
-          <Dragger
-            showUploadList={false}
-            customRequest={({ file }) => handleDrop([file as File])}
-            multiple={true}
-            accept={fileTypes.join(',')}
-            openFileDialogOnClick={false}>
-            <p className="ant-upload-text">{t('knowledge.drag_file')}</p>
-            <p className="ant-upload-hint">
-              {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
-            </p>
-          </Dragger>
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              event.stopPropagation()
+              handleAddFile()
+            }
+          }}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDropEvent}>
+          <p className="font-semibold text-[var(--color-text)] m-0">{t('knowledge.drag_file')}</p>
+          <p className="text-xs text-[var(--color-text-2)] m-0">
+            {t('knowledge.file_hint', { file_types: 'TXT, MD, HTML, PDF, DOCX, PPTX, XLSX, EPUB...' })}
+          </p>
         </div>
         {fileItems.length === 0 ? (
           <KnowledgeEmptyView />
@@ -193,7 +242,7 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(file)}>
                           <Ellipsis>
-                            <Tooltip title={file.origin_name}>{file.origin_name}</Tooltip>
+                            {file.origin_name}
                           </Ellipsis>
                         </ClickableSpan>
                       ),
@@ -202,7 +251,14 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            <Button
+                              size="sm"
+                              isIconOnly
+                              variant="light"
+                              onClick={() => refreshItem(item)}
+                              aria-label="Refresh file">
+                              <RefreshIcon />
+                            </Button>
                           )}
                           {showPreprocessIcon(item) && (
                             <StatusIconWrapper>
@@ -225,11 +281,14 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
                             />
                           </StatusIconWrapper>
                           <Button
-                            type="text"
-                            danger
+                            size="sm"
+                            isIconOnly
+                            variant="light"
+                            color="danger"
                             onClick={() => removeItem(item)}
-                            icon={<DeleteIcon size={14} className="lucide-custom" />}
-                          />
+                            aria-label="Delete file">
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
                         </FlexAlignCenter>
                       )
                     }}
@@ -239,16 +298,9 @@ const KnowledgeFiles: FC<KnowledgeContentProps> = ({ selectedBase, progressMap, 
             }}
           </DynamicVirtualList>
         )}
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-  padding: 20px 16px;
-  gap: 10px;
-`
 
 export default KnowledgeFiles

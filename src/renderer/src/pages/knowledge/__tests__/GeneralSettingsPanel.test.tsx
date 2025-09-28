@@ -1,6 +1,7 @@
 import type { KnowledgeBase, Model, PreprocessProvider } from '@renderer/types'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
+import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import GeneralSettingsPanel from '../components/KnowledgeSettings/GeneralSettingsPanel'
@@ -116,46 +117,57 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: mocks.t })
 }))
 
-// Mock antd components
-vi.mock('antd', () => ({
-  Input: ({ value, onChange, placeholder }: any) => (
-    <input data-testid="name-input" value={value} onChange={onChange} placeholder={placeholder} />
+// Mock HeroUI components used in the panel
+vi.mock('@heroui/react', () => ({
+  Input: ({ value, onChange, placeholder, type = 'text', 'data-testid': dataTestId }: any) => (
+    <input data-testid={dataTestId ?? 'name-input'} value={value} onChange={onChange} placeholder={placeholder} type={type} />
   ),
-  Select: ({ value, onChange, placeholder, options, allowClear, children }: any) => (
-    <select
-      data-testid="preprocess-select"
-      value={value || ''}
-      onChange={(e) => onChange?.(e.target.value)}
-      data-placeholder={placeholder}
-      data-allow-clear={allowClear}>
-      <option value="">Select option</option>
-      {options?.map((option: any) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-      {children}
-    </select>
-  ),
-  Slider: ({ value, onChange, min, max, step, marks, style }: any) => {
-    // Determine test ID based on slider characteristics
-    const isWeightSlider = min === 0 && max === 1 && step === 0.1
-    const testId = isWeightSlider ? 'weight-slider' : 'document-count-slider'
-
+  Select: ({ selectedKeys, onSelectionChange, children, className, placeholder, 'data-testid': dataTestId }: any) => {
+    const value: string = (() => {
+      if (!selectedKeys) return ''
+      if (selectedKeys instanceof Set) return Array.from(selectedKeys)[0] || ''
+      return ''
+    })()
     return (
-      <input
-        data-testid={testId}
-        type="range"
+      <select
+        data-testid={dataTestId ?? 'preprocess-select'}
         value={value}
-        onChange={(e) => onChange?.(Number(e.target.value))}
-        min={min}
-        max={max}
-        step={step}
-        style={style}
-        data-marks={JSON.stringify(marks)}
-      />
+        className={className}
+        data-placeholder={placeholder}
+        onChange={(e) => {
+          const newValue = e.target.value
+          const keys = newValue ? new Set([newValue]) : new Set()
+          onSelectionChange?.(keys)
+        }}
+      >
+        <option value="">Select option</option>
+        {React.Children.map(children, (child: any) => {
+          if (!child) return null
+          const optionValue = child.key ?? child.props.value
+          if (optionValue == null) return null
+          return (
+            <option key={optionValue} value={optionValue}>
+              {child.props.children}
+            </option>
+          )
+        })}
+      </select>
     )
-  }
+  },
+  SelectItem: () => null,
+  Slider: ({ value, onChange, minValue, maxValue, step, marks, 'data-testid': dataTestId, className }: any) => (
+    <input
+      data-testid={dataTestId ?? 'document-count-slider'}
+      type="range"
+      value={value}
+      onChange={(e) => onChange?.(Number(e.target.value))}
+      min={minValue}
+      max={maxValue}
+      step={step}
+      data-marks={JSON.stringify(marks)}
+      className={className}
+    />
+  )
 }))
 
 /**

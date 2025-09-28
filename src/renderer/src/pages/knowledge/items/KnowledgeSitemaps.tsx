@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -7,13 +8,11 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
 import {
@@ -23,7 +22,6 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
-  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -87,18 +85,19 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
+        <Button
+          size='sm'
+          color="primary"
+          startContent={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddSitemap()
           }}
-          disabled={disabled}>
+          isDisabled={disabled}>
           {t('knowledge.add_sitemap')}
-        </ResponsiveButton>
+        </Button>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="px-4 py-5 h-[calc(100vh-135px)]">
         {sitemapItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -113,20 +112,27 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               fileInfo={{
                 name: (
                   <ClickableSpan>
-                    <Tooltip title={item.content as string}>
-                      <Ellipsis>
-                        <a href={item.content as string} target="_blank" rel="noopener noreferrer">
-                          {item.content as string}
-                        </a>
-                      </Ellipsis>
-                    </Tooltip>
+                    <Ellipsis>
+                      <a href={item.content as string} target="_blank" rel="noopener noreferrer">
+                        {item.content as string}
+                      </a>
+                    </Ellipsis>
                   </ClickableSpan>
                 ),
                 ext: '.sitemap',
                 extra: getDisplayTime(item),
                 actions: (
                   <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    {item.uniqueId && (
+                      <Button
+                        size='sm'
+                        isIconOnly
+                        variant="light"
+                        onClick={() => refreshItem(item)}
+                        aria-label="Refresh sitemap">
+                        <RefreshIcon />
+                      </Button>
+                    )}
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={item.id}
@@ -136,25 +142,23 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       />
                     </StatusIconWrapper>
                     <Button
-                      type="text"
-                      danger
+                      size='sm'
+                      isIconOnly
+                      variant="light"
+                      color="danger"
                       onClick={() => removeItem(item)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                      aria-label="Delete sitemap">
+                      <DeleteIcon size={14} className="lucide-custom" />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}
             />
           )}
         </DynamicVirtualList>
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeSitemaps

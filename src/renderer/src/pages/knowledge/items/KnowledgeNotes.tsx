@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import RichEditPopup from '@renderer/components/Popups/RichEditPopup'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
@@ -6,13 +7,11 @@ import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { isMarkdownContent, markdownToPreviewText } from '@renderer/utils/markdownConverter'
-import { Button } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
 import {
@@ -20,7 +19,6 @@ import {
   ItemContainer,
   ItemHeader,
   KnowledgeEmptyView,
-  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -81,18 +79,19 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
+        <Button
+          size='sm'
+          color="primary"
+          startContent={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddNote()
           }}
-          disabled={disabled}>
+          isDisabled={disabled}>
           {t('knowledge.add_note')}
-        </ResponsiveButton>
+        </Button>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="px-4 py-5 h-[calc(100vh-135px)]">
         {noteItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -106,15 +105,24 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               key={note.id}
               fileInfo={{
                 name: (
-                  <NotePreview onClick={() => handleEditNote(note)}>
+                  <span
+                    className="cursor-pointer text-[var(--color-text-1)] hover:text-[var(--color-primary)] hover:underline"
+                    onClick={() => handleEditNote(note)}>
                     {markdownToPreviewText(note.content as string, 50)}
-                  </NotePreview>
+                  </span>
                 ),
                 ext: isMarkdownContent(note.content as string) ? '.md' : '.txt',
                 extra: getDisplayTime(note),
                 actions: (
                   <FlexAlignCenter>
-                    <Button type="text" onClick={() => handleEditNote(note)} icon={<EditIcon size={14} />} />
+                    <Button
+                      size='sm'
+                      isIconOnly
+                      variant="light"
+                      onClick={() => handleEditNote(note)}
+                      aria-label="Edit note">
+                      <EditIcon size={14} />
+                    </Button>
                     <StatusIconWrapper>
                       <StatusIcon
                         sourceId={note.id}
@@ -124,35 +132,25 @@ const KnowledgeNotes: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       />
                     </StatusIconWrapper>
                     <Button
-                      type="text"
-                      danger
+                      size='sm'
+                      isIconOnly
+                      variant="light"
+                      color="danger"
                       onClick={() => removeItem(note)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                      aria-label="Delete note">
+                      <DeleteIcon size={14} className="lucide-custom" />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}
             />
           )}
         </DynamicVirtualList>
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
 
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
-const NotePreview = styled.span`
-  cursor: pointer;
-  color: var(--color-text-1);
-
-  &:hover {
-    color: var(--color-primary);
-    text-decoration: underline;
-  }
-`
 
 export default KnowledgeNotes

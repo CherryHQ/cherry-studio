@@ -1,20 +1,18 @@
-import { DeleteOutlined } from '@ant-design/icons'
+import { Button, Tooltip } from '@heroui/react'
 import { loggerService } from '@logger'
 import Ellipsis from '@renderer/components/Ellipsis'
+import { DeleteIcon } from '@renderer/components/Icons'
 import VideoPopup from '@renderer/components/Popups/VideoPopup'
-import Scrollbar from '@renderer/components/Scrollbar'
 import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
 import { FileTypes, isKnowledgeVideoItem } from '@renderer/types'
-import { Button, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { Plus } from 'lucide-react'
 import VirtualList from 'rc-virtual-list'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 const logger = loggerService.withContext('KnowledgeVideos')
 
@@ -29,7 +27,6 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
-  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -86,18 +83,19 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<Plus size={16} />}
+        <Button
+          size='sm'
+          color="primary"
+          startContent={<Plus size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddVideo()
           }}
-          disabled={disabled}>
+          isDisabled={disabled}>
           {t('knowledge.add_video')}
-        </ResponsiveButton>
+        </Button>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="flex flex-col gap-2.5 px-4 py-5 h-[calc(100vh-135px)]">
         {videoItems.length === 0 ? (
           <KnowledgeEmptyView />
         ) : (
@@ -130,7 +128,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(videoFile)}>
                           <Ellipsis>
-                            <Tooltip title={videoFile.origin_name}>{videoFile.origin_name}</Tooltip>
+                            <Tooltip content={videoFile.origin_name}>{videoFile.origin_name}</Tooltip>
                           </Ellipsis>
                         </ClickableSpan>
                       ),
@@ -139,7 +137,14 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       actions: (
                         <FlexAlignCenter>
                           {item.uniqueId && (
-                            <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />
+                            <Button
+                              size='sm'
+                              isIconOnly
+                              variant="light"
+                              onClick={() => refreshItem(item)}
+                              aria-label="Refresh video">
+                              <RefreshIcon />
+                            </Button>
                           )}
 
                           <StatusIconWrapper>
@@ -150,7 +155,15 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                               type="file"
                             />
                           </StatusIconWrapper>
-                          <Button type="text" danger onClick={() => removeItem(item)} icon={<DeleteOutlined />} />
+                          <Button
+                            size='sm'
+                            isIconOnly
+                            variant="light"
+                            color="danger"
+                            onClick={() => removeItem(item)}
+                            aria-label="Delete video">
+                            <DeleteIcon size={14} className="lucide-custom" />
+                          </Button>
                         </FlexAlignCenter>
                       )
                     }}
@@ -160,17 +173,9 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             }}
           </VirtualList>
         )}
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeVideos

@@ -1,3 +1,4 @@
+import { Button, Dropdown, DropdownItem, DropdownMenu, DropdownTrigger } from '@heroui/react'
 import Ellipsis from '@renderer/components/Ellipsis'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
@@ -6,13 +7,11 @@ import { useKnowledge } from '@renderer/hooks/useKnowledge'
 import FileItem from '@renderer/pages/files/FileItem'
 import { getProviderName } from '@renderer/services/ProviderService'
 import type { KnowledgeBase, KnowledgeItem } from '@renderer/types'
-import { Button, Dropdown, Tooltip } from 'antd'
 import dayjs from 'dayjs'
 import { PlusIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 import StatusIcon from '../components/StatusIcon'
 import {
@@ -22,7 +21,6 @@ import {
   ItemHeader,
   KnowledgeEmptyView,
   RefreshIcon,
-  ResponsiveButton,
   StatusIconWrapper
 } from '../KnowledgeContent'
 
@@ -115,18 +113,19 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
   return (
     <ItemContainer>
       <ItemHeader>
-        <ResponsiveButton
-          type="primary"
-          icon={<PlusIcon size={16} />}
+        <Button
+          size='sm'
+          color="primary"
+          startContent={<PlusIcon size={16} />}
           onClick={(e) => {
             e.stopPropagation()
             handleAddUrl()
           }}
-          disabled={disabled}>
+          isDisabled={disabled}>
           {t('knowledge.add_url')}
-        </ResponsiveButton>
+        </Button>
       </ItemHeader>
-      <ItemFlexColumn>
+      <div className="px-4 py-5 h-[calc(100vh-135px)]">
         {urlItems.length === 0 && <KnowledgeEmptyView />}
         <DynamicVirtualList
           list={reversedItems}
@@ -140,66 +139,74 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               key={item.id}
               fileInfo={{
                 name: (
-                  <Dropdown
-                    menu={{
-                      items: [
-                        {
-                          key: 'edit',
-                          icon: <EditIcon size={14} />,
-                          label: t('knowledge.edit_remark'),
-                          onClick: () => handleEditRemark(item)
-                        },
-                        {
-                          key: 'copy',
-                          icon: <CopyIcon size={14} />,
-                          label: t('common.copy'),
-                          onClick: () => {
-                            navigator.clipboard.writeText(item.content as string)
-                            window.toast.success(t('message.copied'))
-                          }
-                        }
-                      ]
-                    }}
-                    trigger={['contextMenu']}>
-                    <ClickableSpan>
-                      <Tooltip title={item.content as string}>
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <ClickableSpan>
                         <Ellipsis>
                           <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                             {item.remark || (item.content as string)}
                           </a>
                         </Ellipsis>
-                      </Tooltip>
-                    </ClickableSpan>
+                      </ClickableSpan>
+                    </DropdownTrigger>
+                    <DropdownMenu
+                      aria-label="URL actions"
+                      onAction={(key) => {
+                        if (key === 'edit') {
+                          handleEditRemark(item)
+                        } else if (key === 'copy') {
+                          navigator.clipboard.writeText(item.content as string)
+                          window.toast.success(t('message.copied'))
+                        }
+                      }}>
+                      <DropdownItem
+                        key="edit"
+                        startContent={<EditIcon size={14} />}>
+                        {t('knowledge.edit_remark')}
+                      </DropdownItem>
+                      <DropdownItem
+                        key="copy"
+                        startContent={<CopyIcon size={14} />}>
+                        {t('common.copy')}
+                      </DropdownItem>
+                    </DropdownMenu>
                   </Dropdown>
                 ),
                 ext: '.url',
                 extra: getDisplayTime(item),
                 actions: (
                   <FlexAlignCenter>
-                    {item.uniqueId && <Button type="text" icon={<RefreshIcon />} onClick={() => refreshItem(item)} />}
+                    {item.uniqueId && (
+                      <Button
+                        size='sm'
+                        isIconOnly
+                        variant="light"
+                        onClick={() => refreshItem(item)}
+                        aria-label="Refresh URL">
+                        <RefreshIcon />
+                      </Button>
+                    )}
                     <StatusIconWrapper>
                       <StatusIcon sourceId={item.id} base={base} getProcessingStatus={getProcessingStatus} type="url" />
                     </StatusIconWrapper>
                     <Button
-                      type="text"
-                      danger
+                      size='sm'
+                      isIconOnly
+                      variant="light"
+                      color="danger"
                       onClick={() => removeItem(item)}
-                      icon={<DeleteIcon size={14} className="lucide-custom" />}
-                    />
+                      aria-label="Delete URL">
+                      <DeleteIcon size={14} className="lucide-custom" />
+                    </Button>
                   </FlexAlignCenter>
                 )
               }}
             />
           )}
         </DynamicVirtualList>
-      </ItemFlexColumn>
+      </div>
     </ItemContainer>
   )
 }
-
-const ItemFlexColumn = styled.div`
-  padding: 20px 16px;
-  height: calc(100vh - 135px);
-`
 
 export default KnowledgeUrls

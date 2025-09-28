@@ -1,3 +1,4 @@
+import { Input, Select, SelectItem, Slider } from '@heroui/react'
 import InputEmbeddingDimension from '@renderer/components/InputEmbeddingDimension'
 import ModelSelector from '@renderer/components/ModelSelector'
 import { InfoTooltip } from '@renderer/components/TooltipIcons'
@@ -6,17 +7,20 @@ import { isEmbeddingModel, isRerankModel } from '@renderer/config/models'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { KnowledgeBase, PreprocessProvider } from '@renderer/types'
-import type { SelectProps } from 'antd'
-import { Input, Select, Slider } from 'antd'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsItem, SettingsPanel } from './styles'
+
+type DocPreprocessSelectOption = {
+  value: string
+  label: string
+}
 
 interface GeneralSettingsPanelProps {
   newBase: KnowledgeBase
   setNewBase: React.Dispatch<React.SetStateAction<KnowledgeBase>>
   selectedDocPreprocessProvider?: PreprocessProvider
-  docPreprocessSelectOptions: SelectProps['options']
+  docPreprocessSelectOptions: DocPreprocessSelectOption[]
   handlers: {
     handleEmbeddingModelChange: (value: string) => void
     handleDimensionChange: (value: number | null) => void
@@ -42,6 +46,10 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
       <SettingsItem>
         <div className="settings-label">{t('common.name')}</div>
         <Input
+          data-testid="name-input"
+          size='sm'
+          type='text'
+          variant='bordered'
           placeholder={t('common.name')}
           value={newBase.name}
           onChange={(e) => setNewBase((prev) => ({ ...prev, name: e.target.value }))}
@@ -54,13 +62,28 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           <InfoTooltip title={t('settings.tool.preprocess.tooltip')} placement="right" />
         </div>
         <Select
-          value={selectedDocPreprocessProvider?.id}
-          style={{ width: '100%' }}
-          onChange={handleDocPreprocessChange}
+          data-testid="preprocess-select"
+          className="w-full"
+          variant="bordered"
+          size="sm"
           placeholder={t('settings.tool.preprocess.provider_placeholder')}
-          options={docPreprocessSelectOptions}
-          allowClear
-        />
+          selectedKeys={selectedDocPreprocessProvider ? new Set([selectedDocPreprocessProvider.id]) : new Set()}
+          isClearable
+          onSelectionChange={(keys) => {
+            if (keys === 'all') {
+              handleDocPreprocessChange('')
+              return
+            }
+            const [key] = Array.from(keys)
+            handleDocPreprocessChange((key as string) || '')
+          }}
+        >
+          {docPreprocessSelectOptions.map((option) => (
+            <SelectItem key={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </Select>
       </SettingsItem>
 
       <SettingsItem>
@@ -113,13 +136,21 @@ const GeneralSettingsPanel: React.FC<GeneralSettingsPanelProps> = ({
           <InfoTooltip title={t('knowledge.document_count_help')} placement="right" />
         </div>
         <Slider
-          style={{ width: '100%' }}
-          min={1}
-          max={50}
+          data-testid="document-count-slider"
+          size="sm"
+          className="w-full"
+          minValue={1}
+          maxValue={50}
           step={1}
           value={newBase.documentCount || DEFAULT_KNOWLEDGE_DOCUMENT_COUNT}
-          marks={{ 1: '1', 6: t('knowledge.document_count_default'), 30: '30', 50: '50' }}
-          onChange={(value) => setNewBase((prev) => ({ ...prev, documentCount: value }))}
+          marks={[
+            { value: 1, label: '1' },
+            { value: 6, label: t('knowledge.document_count_default') },
+            { value: 30, label: '30' },
+            { value: 50, label: '50' }
+          ]}
+          showTooltip={true}
+          onChange={(value) => setNewBase((prev) => ({ ...prev, documentCount: Array.isArray(value) ? value[0] : value }))}
         />
       </SettingsItem>
     </SettingsPanel>

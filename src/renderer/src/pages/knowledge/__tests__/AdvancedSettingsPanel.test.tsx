@@ -39,19 +39,33 @@ vi.mock('lucide-react', () => ({
   TriangleAlert: () => <span>warning</span>
 }))
 
-vi.mock('antd', () => ({
-  Alert: ({ message }: { message: string }) => <div role="alert">{message}</div>,
-  InputNumber: ({ ref, value, onChange, placeholder, disabled, style, 'aria-label': ariaLabel }: any) => (
+vi.mock('@heroui/react', () => ({
+  Alert: ({ title, description, icon, color }: any) => (
+    <div role="alert" data-color={color}>
+      {icon}
+      {title && <strong>{title}</strong>}
+      {description && <p>{description}</p>}
+    </div>
+  ),
+  NumberInput: ({ value, onValueChange, placeholder, 'aria-label': ariaLabel, minValue, maxValue, step }: any) => (
     <input
-      ref={ref}
       type="number"
-      data-testid="input-number"
+      data-testid="number-input"
       aria-label={ariaLabel}
       placeholder={placeholder}
       value={value ?? ''}
-      onChange={(e) => onChange(e.target.valueAsNumber)}
-      disabled={disabled}
-      style={style}
+      min={minValue}
+      max={maxValue}
+      step={step}
+      onChange={(e) => {
+        const inputValue = e.target.value
+        if (!inputValue.length) {
+          onValueChange?.(undefined)
+          return
+        }
+
+        onValueChange?.(e.target.valueAsNumber)
+      }}
     />
   )
 }))

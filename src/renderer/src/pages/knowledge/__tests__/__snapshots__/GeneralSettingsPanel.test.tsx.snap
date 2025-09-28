@@ -31,6 +31,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
     <input
       data-testid="name-input"
       placeholder="common.name"
+      type="text"
       value="Test Knowledge Base"
     />
   </div>
@@ -50,7 +51,7 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       </span>
     </div>
     <select
-      data-allow-clear="true"
+      class="w-full"
       data-placeholder="settings.tool.preprocess.provider_placeholder"
       data-testid="preprocess-select"
     >
@@ -186,12 +187,12 @@ exports[`GeneralSettingsPanel > basic rendering > should match snapshot 1`] = `
       </span>
     </div>
     <input
-      data-marks="{"1":"1","6":"knowledge.document_count_default","30":"30","50":"50"}"
+      class="w-full"
+      data-marks="[{"value":1,"label":"1"},{"value":6,"label":"knowledge.document_count_default"},{"value":30,"label":"30"},{"value":50,"label":"50"}]"
       data-testid="document-count-slider"
       max="50"
       min="1"
       step="1"
-      style="width: 100%;"
       type="range"
       value="6"
     />

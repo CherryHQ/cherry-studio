@@ -33,9 +33,9 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
     </div>
     <input
       aria-label="分块大小"
-      data-testid="input-number"
+      data-testid="number-input"
+      min="100"
       placeholder="knowledge.chunk_size_placeholder"
-      style="width: 100%;"
       type="number"
       value="500"
     />
@@ -53,9 +53,9 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
     </div>
     <input
       aria-label="分块重叠"
-      data-testid="input-number"
+      data-testid="number-input"
+      min="0"
       placeholder="knowledge.chunk_overlap_placeholder"
-      style="width: 100%;"
       type="number"
       value="200"
     />
@@ -73,17 +73,25 @@ exports[`AdvancedSettingsPanel > basic rendering > should match snapshot 1`] = `
     </div>
     <input
       aria-label="检索相似度阈值"
-      data-testid="input-number"
+      data-testid="number-input"
+      max="1"
+      min="0"
       placeholder="knowledge.threshold_placeholder"
-      style="width: 100%;"
+      step="0.1"
       type="number"
       value="0.5"
     />
   </div>
   <div
+    data-color="warning"
     role="alert"
   >
-    避免修改这个高级设置。
+    <span>
+      warning
+    </span>
+    <strong>
+      避免修改这个高级设置。
+    </strong>
   </div>
 </div>
 `;
