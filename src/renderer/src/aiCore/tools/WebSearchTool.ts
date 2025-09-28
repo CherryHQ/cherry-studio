@@ -24,7 +24,7 @@ export const webSearchToolWithPreExtractedKeywords = (
     description: `Web search tool for finding current information, news, and real-time data from the internet.
 
 This tool has been configured with search parameters based on the conversation context:
-- Prepared queries: ${extractedKeywords.question.map(q => `"${q}"`).join(', ')}${
+- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}${
       extractedKeywords.links?.length
         ? `
 - Relevant URLs: ${extractedKeywords.links.join(', ')}`

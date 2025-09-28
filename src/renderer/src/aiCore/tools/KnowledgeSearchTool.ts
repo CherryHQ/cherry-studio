@@ -21,7 +21,7 @@ export const knowledgeSearchTool = (
     description: `Knowledge base search tool for retrieving information from user's private knowledge base. This searches your local collection of documents, web content, notes, and other materials you have stored.
 
 This tool has been configured with search parameters based on the conversation context:
-- Prepared queries: ${extractedKeywords.question.map(q => `"${q}"`).join(', ')}
+- Prepared queries: ${extractedKeywords.question.map((q) => `"${q}"`).join(', ')}
 - Query rewrite: "${extractedKeywords.rewrite}"
 
 You can use this tool as-is, or provide additionalContext to refine the search focus within the knowledge base.`,
