@@ -53,6 +53,7 @@ const ChooseTool = (toolResponse: NormalToolResponse): React.ReactNode | null =>
   } else if (isAgentTool(toolName)) {
     return <MessageAgentTools toolResponse={toolResponse} />
   }
+  return null
 }
 
 export default function MessageTool({ block }: Props) {
