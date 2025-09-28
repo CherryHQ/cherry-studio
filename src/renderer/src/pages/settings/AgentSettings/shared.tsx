@@ -41,7 +41,7 @@ export const AgentLabel: React.FC<AgentLabelProps> = ({ agent, classNames, avata
     <div className={cn('flex items-center gap-2', classNames?.container)}>
       {isDefault && <Avatar src={src} {...avatarProps} className={cn('h-6 w-6 text-lg', classNames?.avatar)} />}
       {!isDefault && <EmojiIcon emoji={emoji || '⭐️'} className={classNames?.avatar} />}
-      <span className={classNames?.name}>{(agent?.name ?? agent?.type) ? getAgentTypeLabel(agent.type) : ''}</span>
+      <span className={classNames?.name}>{agent?.name ?? (agent?.type ? getAgentTypeLabel(agent.type) : '')}</span>
     </div>
   )
 }
