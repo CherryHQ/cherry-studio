@@ -9,6 +9,7 @@ import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { useAppSelector } from '@renderer/store'
 import { selectSortType } from '@renderer/store/note'
 import { NotesSortType, NotesTreeNode } from '@renderer/types/note'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Dropdown, Input, InputRef, MenuProps } from 'antd'
 import {
   ChevronDown,
@@ -22,7 +23,7 @@ import {
   Star,
   StarOff
 } from 'lucide-react'
-import { FC, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FC, memo, Ref, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -42,6 +43,157 @@ interface NotesSidebarProps {
 }
 
 const logger = loggerService.withContext('NotesSidebar')
+
+interface TreeNodeProps {
+  node: NotesTreeNode
+  depth: number
+  selectedFolderId?: string | null
+  activeNodeId?: string
+  editingNodeId: string | null
+  draggedNodeId: string | null
+  dragOverNodeId: string | null
+  dragPosition: 'before' | 'inside' | 'after'
+  inPlaceEdit: any
+  getMenuItems: (node: NotesTreeNode) => any[]
+  onSelectNode: (node: NotesTreeNode) => void
+  onToggleExpanded: (nodeId: string) => void
+  onDragStart: (e: React.DragEvent, node: NotesTreeNode) => void
+  onDragOver: (e: React.DragEvent, node: NotesTreeNode) => void
+  onDragLeave: () => void
+  onDrop: (e: React.DragEvent, node: NotesTreeNode) => void
+  onDragEnd: () => void
+  renderChildren?: boolean // 控制是否渲染子节点
+}
+
+const TreeNode = memo<TreeNodeProps>(
+  ({
+    node,
+    depth,
+    selectedFolderId,
+    activeNodeId,
+    editingNodeId,
+    draggedNodeId,
+    dragOverNodeId,
+    dragPosition,
+    inPlaceEdit,
+    getMenuItems,
+    onSelectNode,
+    onToggleExpanded,
+    onDragStart,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    onDragEnd,
+    renderChildren = true
+  }) => {
+    const { t } = useTranslation()
+
+    const isActive = selectedFolderId
+      ? node.type === 'folder' && node.id === selectedFolderId
+      : node.id === activeNodeId
+    const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
+    const hasChildren = node.children && node.children.length > 0
+    const isDragging = draggedNodeId === node.id
+    const isDragOver = dragOverNodeId === node.id
+    const isDragBefore = isDragOver && dragPosition === 'before'
+    const isDragInside = isDragOver && dragPosition === 'inside'
+    const isDragAfter = isDragOver && dragPosition === 'after'
+
+    return (
+      <div key={node.id}>
+        <Dropdown menu={{ items: getMenuItems(node) }} trigger={['contextMenu']}>
+          <div>
+            <TreeNodeContainer
+              active={isActive}
+              depth={depth}
+              isDragging={isDragging}
+              isDragOver={isDragOver}
+              isDragBefore={isDragBefore}
+              isDragInside={isDragInside}
+              isDragAfter={isDragAfter}
+              draggable={!isEditing}
+              data-node-id={node.id}
+              onDragStart={(e) => onDragStart(e, node)}
+              onDragOver={(e) => onDragOver(e, node)}
+              onDragLeave={onDragLeave}
+              onDrop={(e) => onDrop(e, node)}
+              onDragEnd={onDragEnd}>
+              <TreeNodeContent onClick={() => onSelectNode(node)}>
+                <NodeIndent depth={depth} />
+
+                {node.type === 'folder' && (
+                  <ExpandIcon
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onToggleExpanded(node.id)
+                    }}
+                    title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
+                    {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </ExpandIcon>
+                )}
+
+                <NodeIcon>
+                  {node.type === 'folder' ? (
+                    node.expanded ? (
+                      <FolderOpen size={16} />
+                    ) : (
+                      <Folder size={16} />
+                    )
+                  ) : (
+                    <File size={16} />
+                  )}
+                </NodeIcon>
+
+                {isEditing ? (
+                  <EditInput
+                    ref={inPlaceEdit.inputRef as Ref<InputRef>}
+                    value={inPlaceEdit.editValue}
+                    onChange={inPlaceEdit.handleInputChange}
+                    onBlur={inPlaceEdit.saveEdit}
+                    onKeyDown={inPlaceEdit.handleKeyDown}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    size="small"
+                  />
+                ) : (
+                  <NodeName>{node.name}</NodeName>
+                )}
+              </TreeNodeContent>
+            </TreeNodeContainer>
+          </div>
+        </Dropdown>
+
+        {renderChildren && node.type === 'folder' && node.expanded && hasChildren && (
+          <div>
+            {node.children!.map((child) => (
+              <TreeNode
+                key={child.id}
+                node={child}
+                depth={depth + 1}
+                selectedFolderId={selectedFolderId}
+                activeNodeId={activeNodeId}
+                editingNodeId={editingNodeId}
+                draggedNodeId={draggedNodeId}
+                dragOverNodeId={dragOverNodeId}
+                dragPosition={dragPosition}
+                inPlaceEdit={inPlaceEdit}
+                getMenuItems={getMenuItems}
+                onSelectNode={onSelectNode}
+                onToggleExpanded={onToggleExpanded}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                onDragEnd={onDragEnd}
+                renderChildren={renderChildren}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+)
 
 const NotesSidebar: FC<NotesSidebarProps> = ({
   onCreateFolder,
@@ -268,9 +420,26 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
     setIsShowSearch(!isShowSearch)
   }, [isShowSearch])
 
-  const filteredTree = useMemo(() => {
-    if (!isShowStarred && !isShowSearch) return notesTree
-    const flattenNodes = (nodes: NotesTreeNode[]): NotesTreeNode[] => {
+  // Flatten tree nodes for virtualization and filtering
+  const flattenedNodes = useMemo(() => {
+    const flattenForVirtualization = (
+      nodes: NotesTreeNode[],
+      depth: number = 0
+    ): Array<{ node: NotesTreeNode; depth: number }> => {
+      let result: Array<{ node: NotesTreeNode; depth: number }> = []
+
+      for (const node of nodes) {
+        result.push({ node, depth })
+
+        // Include children only if the folder is expanded
+        if (node.type === 'folder' && node.expanded && node.children && node.children.length > 0) {
+          result = [...result, ...flattenForVirtualization(node.children, depth + 1)]
+        }
+      }
+      return result
+    }
+
+    const flattenForFiltering = (nodes: NotesTreeNode[]): NotesTreeNode[] => {
       let result: NotesTreeNode[] = []
 
       for (const node of nodes) {
@@ -284,14 +453,40 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
           }
         }
         if (node.children && node.children.length > 0) {
-          result = [...result, ...flattenNodes(node.children)]
+          result = [...result, ...flattenForFiltering(node.children)]
         }
       }
       return result
     }
 
-    return flattenNodes(notesTree)
+    if (isShowStarred || isShowSearch) {
+      // For filtered views, return flat list without virtualization for simplicity
+      const filteredNodes = flattenForFiltering(notesTree)
+      return filteredNodes.map((node) => ({ node, depth: 0 }))
+    }
+
+    // For normal tree view, use hierarchical flattening for virtualization
+    return flattenForVirtualization(notesTree)
   }, [notesTree, isShowStarred, isShowSearch, searchKeyword])
+
+  // Use virtualization only for normal tree view with many items
+  const shouldUseVirtualization = !isShowStarred && !isShowSearch && flattenedNodes.length > 100
+
+  const parentRef = useRef<HTMLDivElement>(null)
+
+  const virtualizer = useVirtualizer({
+    count: flattenedNodes.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 28, // Estimated height of each tree item
+    overscan: 10
+  })
+
+  const filteredTree = useMemo(() => {
+    if (isShowStarred || isShowSearch) {
+      return flattenedNodes.map(({ node }) => node)
+    }
+    return notesTree
+  }, [flattenedNodes, isShowStarred, isShowSearch, notesTree])
 
   const getMenuItems = useCallback(
     (node: NotesTreeNode) => {
@@ -349,115 +544,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       return baseMenuItems
     },
     [t, handleStartEdit, onToggleStar, handleExportKnowledge, handleDeleteNode]
-  )
-
-  const renderTreeNode = useCallback(
-    (node: NotesTreeNode, depth: number = 0) => {
-      const isActive = selectedFolderId
-        ? node.type === 'folder' && node.id === selectedFolderId
-        : node.id === activeNode?.id
-      const isEditing = editingNodeId === node.id && inPlaceEdit.isEditing
-      const hasChildren = node.children && node.children.length > 0
-      const isDragging = draggedNodeId === node.id
-      const isDragOver = dragOverNodeId === node.id
-      const isDragBefore = isDragOver && dragPosition === 'before'
-      const isDragInside = isDragOver && dragPosition === 'inside'
-      const isDragAfter = isDragOver && dragPosition === 'after'
-
-      return (
-        <div key={node.id}>
-          <Dropdown menu={{ items: getMenuItems(node) }} trigger={['contextMenu']}>
-            <div>
-              <TreeNodeContainer
-                active={isActive}
-                depth={depth}
-                isDragging={isDragging}
-                isDragOver={isDragOver}
-                isDragBefore={isDragBefore}
-                isDragInside={isDragInside}
-                isDragAfter={isDragAfter}
-                draggable={!isEditing}
-                data-node-id={node.id}
-                onDragStart={(e) => handleDragStart(e, node)}
-                onDragOver={(e) => handleDragOver(e, node)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, node)}
-                onDragEnd={handleDragEnd}>
-                <TreeNodeContent onClick={() => onSelectNode(node)}>
-                  <NodeIndent depth={depth} />
-
-                  {node.type === 'folder' && (
-                    <ExpandIcon
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onToggleExpanded(node.id)
-                      }}
-                      title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
-                      {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                    </ExpandIcon>
-                  )}
-
-                  <NodeIcon>
-                    {node.type === 'folder' ? (
-                      node.expanded ? (
-                        <FolderOpen size={16} />
-                      ) : (
-                        <Folder size={16} />
-                      )
-                    ) : (
-                      <File size={16} />
-                    )}
-                  </NodeIcon>
-
-                  {isEditing ? (
-                    <EditInput
-                      ref={inPlaceEdit.inputRef as Ref<InputRef>}
-                      value={inPlaceEdit.editValue}
-                      onChange={inPlaceEdit.handleInputChange}
-                      onPressEnter={inPlaceEdit.saveEdit}
-                      onBlur={inPlaceEdit.saveEdit}
-                      onKeyDown={inPlaceEdit.handleKeyDown}
-                      onClick={(e) => e.stopPropagation()}
-                      autoFocus
-                      size="small"
-                    />
-                  ) : (
-                    <NodeName>{node.name}</NodeName>
-                  )}
-                </TreeNodeContent>
-              </TreeNodeContainer>
-            </div>
-          </Dropdown>
-
-          {node.type === 'folder' && node.expanded && hasChildren && (
-            <div>{node.children!.map((child) => renderTreeNode(child, depth + 1))}</div>
-          )}
-        </div>
-      )
-    },
-    [
-      selectedFolderId,
-      activeNode?.id,
-      editingNodeId,
-      inPlaceEdit.isEditing,
-      inPlaceEdit.inputRef,
-      inPlaceEdit.editValue,
-      inPlaceEdit.handleInputChange,
-      inPlaceEdit.saveEdit,
-      inPlaceEdit.handleKeyDown,
-      draggedNodeId,
-      dragOverNodeId,
-      dragPosition,
-      getMenuItems,
-      handleDragLeave,
-      handleDragEnd,
-      t,
-      handleDragStart,
-      handleDragOver,
-      handleDrop,
-      onSelectNode,
-      onToggleExpanded
-    ]
   )
 
   const handleDropFiles = useCallback(
@@ -565,9 +651,54 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
       />
 
       <NotesTreeContainer>
-        <StyledScrollbar ref={scrollbarRef}>
-          <TreeContent>
-            {filteredTree.map((node) => renderTreeNode(node))}
+        {shouldUseVirtualization ? (
+          <VirtualizedTreeContainer ref={parentRef}>
+            <div
+              style={{
+                height: `${virtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative'
+              }}>
+              {virtualizer.getVirtualItems().map((virtualItem) => {
+                const { node, depth } = flattenedNodes[virtualItem.index]
+                return (
+                  <div
+                    key={virtualItem.key}
+                    data-index={virtualItem.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualItem.start}px)`
+                    }}>
+                    <div style={{ padding: '0 8px' }}>
+                      <TreeNode
+                        node={node}
+                        depth={depth}
+                        selectedFolderId={selectedFolderId}
+                        activeNodeId={activeNode?.id}
+                        editingNodeId={editingNodeId}
+                        draggedNodeId={draggedNodeId}
+                        dragOverNodeId={dragOverNodeId}
+                        dragPosition={dragPosition}
+                        inPlaceEdit={inPlaceEdit}
+                        getMenuItems={getMenuItems}
+                        onSelectNode={onSelectNode}
+                        onToggleExpanded={onToggleExpanded}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onDragEnd={handleDragEnd}
+                        renderChildren={false}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
             {!isShowStarred && !isShowSearch && (
               <DropHintNode>
                 <TreeNodeContainer active={false} depth={0}>
@@ -580,8 +711,70 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 </TreeNodeContainer>
               </DropHintNode>
             )}
-          </TreeContent>
-        </StyledScrollbar>
+          </VirtualizedTreeContainer>
+        ) : (
+          <StyledScrollbar ref={scrollbarRef}>
+            <TreeContent>
+              {isShowStarred || isShowSearch
+                ? filteredTree.map((node) => (
+                    <TreeNode
+                      key={node.id}
+                      node={node}
+                      depth={0}
+                      selectedFolderId={selectedFolderId}
+                      activeNodeId={activeNode?.id}
+                      editingNodeId={editingNodeId}
+                      draggedNodeId={draggedNodeId}
+                      dragOverNodeId={dragOverNodeId}
+                      dragPosition={dragPosition}
+                      inPlaceEdit={inPlaceEdit}
+                      getMenuItems={getMenuItems}
+                      onSelectNode={onSelectNode}
+                      onToggleExpanded={onToggleExpanded}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                    />
+                  ))
+                : notesTree.map((node) => (
+                    <TreeNode
+                      key={node.id}
+                      node={node}
+                      depth={0}
+                      selectedFolderId={selectedFolderId}
+                      activeNodeId={activeNode?.id}
+                      editingNodeId={editingNodeId}
+                      draggedNodeId={draggedNodeId}
+                      dragOverNodeId={dragOverNodeId}
+                      dragPosition={dragPosition}
+                      inPlaceEdit={inPlaceEdit}
+                      getMenuItems={getMenuItems}
+                      onSelectNode={onSelectNode}
+                      onToggleExpanded={onToggleExpanded}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                    />
+                  ))}
+              {!isShowStarred && !isShowSearch && (
+                <DropHintNode>
+                  <TreeNodeContainer active={false} depth={0}>
+                    <TreeNodeContent>
+                      <NodeIcon>
+                        <FilePlus size={16} />
+                      </NodeIcon>
+                      <DropHintText onClick={handleClickToSelectFiles}>{t('notes.drop_markdown_hint')}</DropHintText>
+                    </TreeNodeContent>
+                  </TreeNodeContainer>
+                </DropHintNode>
+              )}
+            </TreeContent>
+          </StyledScrollbar>
+        )}
       </NotesTreeContainer>
 
       {isDragOverSidebar && <DragOverIndicator />}
@@ -592,7 +785,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 const SidebarContainer = styled.div`
   width: 250px;
   min-width: 250px;
-  height: 100vh;
+  height: calc(100vh - var(--navbar-height));
   background-color: var(--color-background);
   border-right: 0.5px solid var(--color-border);
   border-top-left-radius: 10px;
@@ -606,7 +799,15 @@ const NotesTreeContainer = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 45px);
+  height: calc(100vh - var(--navbar-height) - 45px);
+`
+
+const VirtualizedTreeContainer = styled.div`
+  flex: 1;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+  padding-top: 10px;
 `
 
 const StyledScrollbar = styled(Scrollbar)`
@@ -752,7 +953,8 @@ const DragOverIndicator = styled.div`
 `
 
 const DropHintNode = styled.div`
-  margin-top: 8px;
+  margin: 8px;
+  margin-bottom: 20px;
 
   ${TreeNodeContainer} {
     background-color: transparent;
@@ -773,4 +975,4 @@ const DropHintText = styled.div`
   font-style: italic;
 `
 
-export default NotesSidebar
+export default memo(NotesSidebar)

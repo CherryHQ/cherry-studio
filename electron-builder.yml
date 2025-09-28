@@ -125,59 +125,7 @@ afterSign: scripts/notarize.js
 artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
-    <!--LANG:en-->
-    🚀 New Features:
-    - Refactored AI core engine for more efficient and stable content generation
-    - Added support for multiple AI model providers: CherryIN, AiOnly
-    - Added API server functionality for external application integration
-    - Added PaddleOCR document recognition for enhanced document processing
-    - Added Anthropic OAuth authentication support
-    - Added data storage space limit notifications
-    - Added font settings for global and code fonts customization
-    - Added auto-copy feature after translation completion
-    - Added keyboard shortcuts: rename topic, edit last message, etc.
-    - Added text attachment preview for viewing file contents in messages
-    - Added custom window control buttons (minimize, maximize, close)
-    - Support for Qwen long-text (qwen-long) and document analysis (qwen-doc) models with native file uploads
-    - Support for Qwen image recognition models (Qwen-Image)
-    - Added iFlow CLI support
-    - Converted knowledge base and web search to tool-calling approach for better flexibility
-
-    🎨 UI Improvements & Bug Fixes:
-    - Integrated HeroUI and Tailwind CSS framework
-    - Optimized message notification styles with unified toast component
-    - Moved free models to bottom with fixed position for easier access
-    - Refactored quick panel and input bar tools for smoother operation
-    - Optimized responsive design for navbar and sidebar
-    - Improved scrollbar component with horizontal scrolling support
-    - Fixed multiple translation issues: paste handling, file processing, state management
-    - Various UI optimizations and bug fixes
-    <!--LANG:zh-CN-->
-    🚀 新功能：
-    - 重构 AI 核心引擎，提供更高效稳定的内容生成
-    - 新增多个 AI 模型提供商支持：CherryIN、AiOnly
-    - 新增 API 服务器功能，支持外部应用集成
-    - 新增 PaddleOCR 文档识别，增强文档处理能力
-    - 新增 Anthropic OAuth 认证支持
-    - 新增数据存储空间限制提醒
-    - 新增字体设置，支持全局字体和代码字体自定义
-    - 新增翻译完成后自动复制功能
-    - 新增键盘快捷键：重命名主题、编辑最后一条消息等
-    - 新增文本附件预览，可查看消息中的文件内容
-    - 新增自定义窗口控制按钮（最小化、最大化、关闭）
-    - 支持通义千问长文本（qwen-long）和文档分析（qwen-doc）模型，原生文件上传
-    - 支持通义千问图像识别模型（Qwen-Image）
-    - 新增 iFlow CLI 支持
-    - 知识库和网页搜索转换为工具调用方式，提升灵活性
-
-    🎨 界面改进与问题修复：
-    - 集成 HeroUI 和 Tailwind CSS 框架
-    - 优化消息通知样式，统一 toast 组件
-    - 免费模型移至底部固定位置，便于访问
-    - 重构快捷面板和输入栏工具，操作更流畅
-    - 优化导航栏和侧边栏响应式设计
-    - 改进滚动条组件，支持水平滚动
-    - 修复多个翻译问题：粘贴处理、文件处理、状态管理
-    - 各种界面优化和问题修复
-    <!--LANG:END-->
-
+    Optimized note-taking feature, now able to quickly rename by modifying the title
+    Fixed issue where CherryAI free model could not be used
+    Fixed issue where VertexAI proxy address could not be called normally
+    Fixed issue where built-in tools from service providers could not be called normally
