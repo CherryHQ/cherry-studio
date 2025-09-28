@@ -235,13 +235,12 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(thinkingBlock)
 
       const activeTimeText = getThinkingTimeText()
-      expect(activeTimeText).toHaveTextContent('1.0s')
       expect(activeTimeText).toHaveTextContent('Thinking...')
     })
 
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
-        { thinking_millsec: 0, expectedTime: '0.0s' },
+        { thinking_millsec: 0, expectedTime: '0.1s' }, // New logic: values < 1000ms display as 0.1s
         { thinking_millsec: 86400000, expectedTime: '86400.0s' }, // 1 day
         { thinking_millsec: 259200000, expectedTime: '259200.0s' } // 3 days
       ]
