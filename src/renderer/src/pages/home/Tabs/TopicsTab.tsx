@@ -267,7 +267,7 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
         label: t('chat.topics.prompt.label'),
         key: 'topic-prompt',
         icon: <PackagePlus size={14} />,
-        extra: <HelpTooltip title={t('chat.topics.prompt.tips')} iconSize={14} />,
+        extra: <HelpTooltip content={t('chat.topics.prompt.tips')} iconSize={14} />,
         async onClick() {
           const prompt = await PromptPopup.show({
             title: t('chat.topics.prompt.edit.title'),

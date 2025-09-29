@@ -107,7 +107,7 @@ const TranslateSettings: FC<{
           <div style={{ marginBottom: 8, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
             {t('translate.detect.method.label')}
             <HelpTooltip
-              title={t('translate.detect.method.tip')}
+              content={t('translate.detect.method.tip')}
               iconSize={14}
               iconColor="var(--color-text-3)"
               iconStyle={{ marginLeft: 4 }}
@@ -141,7 +141,7 @@ const TranslateSettings: FC<{
               <RowFlex className="items-center gap-[5px]">
                 {t('translate.settings.bidirectional')}
                 <HelpTooltip
-                  title={t('translate.settings.bidirectional_tip')}
+                  content={t('translate.settings.bidirectional_tip')}
                   iconSize={14}
                   iconColor="var(--color-text-3)"
                 />

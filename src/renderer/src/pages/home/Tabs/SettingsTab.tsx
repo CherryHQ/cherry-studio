@@ -196,7 +196,7 @@ const SettingsTab: FC<Props> = (props) => {
               }}>
               <SettingRowTitleSmall>
                 {t('chat.settings.temperature.label')}
-                <HelpTooltip title={t('chat.settings.temperature.tip')} />
+                <HelpTooltip content={t('chat.settings.temperature.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </Row>
@@ -219,7 +219,7 @@ const SettingsTab: FC<Props> = (props) => {
           <Row align="middle">
             <SettingRowTitleSmall>
               {t('chat.settings.context_count.label')}
-              <HelpTooltip title={t('chat.settings.context_count.tip')} />
+              <HelpTooltip content={t('chat.settings.context_count.tip')} />
             </SettingRowTitleSmall>
           </Row>
           <Row align="middle" gutter={10}>
@@ -267,7 +267,7 @@ const SettingsTab: FC<Props> = (props) => {
               }}>
               <SettingRowTitleSmall>
                 {t('chat.settings.max_tokens.label')}
-                <HelpTooltip title={t('chat.settings.max_tokens.tip')} />
+                <HelpTooltip content={t('chat.settings.max_tokens.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </SettingRow>
@@ -325,7 +325,7 @@ const SettingsTab: FC<Props> = (props) => {
             <DescriptionSwitch isSelected={thoughtAutoCollapse} onValueChange={setThoughtAutoCollapse}>
               <SettingRowTitleSmall>
                 {t('chat.settings.thought_auto_collapse.label')}
-                <HelpTooltip title={t('chat.settings.thought_auto_collapse.tip')} />
+                <HelpTooltip content={t('chat.settings.thought_auto_collapse.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </SettingRow>
@@ -429,7 +429,7 @@ const SettingsTab: FC<Props> = (props) => {
             <DescriptionSwitch size="sm" isSelected={mathEnableSingleDollar} onValueChange={setMathEnableSingleDollar}>
               <SettingRowTitleSmall>
                 {t('settings.math.single_dollar.label')}
-                <HelpTooltip title={t('settings.math.single_dollar.tip')} />
+                <HelpTooltip content={t('settings.math.single_dollar.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </SettingRow>
@@ -460,7 +460,7 @@ const SettingsTab: FC<Props> = (props) => {
             <DescriptionSwitch size="sm" isSelected={codeFancyBlock} onValueChange={setCodeFancyBlock}>
               <SettingRowTitleSmall>
                 {t('chat.settings.code_fancy_block.label')}
-                <HelpTooltip title={t('chat.settings.code_fancy_block.tip')} />
+                <HelpTooltip content={t('chat.settings.code_fancy_block.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </SettingRow>
@@ -476,7 +476,7 @@ const SettingsTab: FC<Props> = (props) => {
               onValueChange={(checked) => setCodeExecution({ enabled: checked })}>
               <SettingRowTitleSmall>
                 {t('chat.settings.code_execution.title')}
-                <HelpTooltip title={t('chat.settings.code_execution.tip')} />
+                <HelpTooltip content={t('chat.settings.code_execution.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </SettingRow>
@@ -486,7 +486,7 @@ const SettingsTab: FC<Props> = (props) => {
               <SettingRow style={{ paddingLeft: 8 }}>
                 <SettingRowTitleSmall>
                   {t('chat.settings.code_execution.timeout_minutes.label')}
-                  <HelpTooltip title={t('chat.settings.code_execution.timeout_minutes.tip')} />
+                  <HelpTooltip content={t('chat.settings.code_execution.timeout_minutes.tip')} />
                 </SettingRowTitleSmall>
                 <EditableNumber
                   size="small"
@@ -524,7 +524,7 @@ const SettingsTab: FC<Props> = (props) => {
                   onValueChange={(checked) => setCodeEditor({ highlightActiveLine: checked })}>
                   <SettingRowTitleSmall>
                     {t('chat.settings.code_editor.highlight_active_line')}
-                    <HelpTooltip title={t('chat.settings.code_editor.highlight_active_line.tip')} />
+                    <HelpTooltip content={t('chat.settings.code_editor.highlight_active_line.tip')} />
                   </SettingRowTitleSmall>
                 </DescriptionSwitch>
               </SettingRow>
@@ -583,7 +583,7 @@ const SettingsTab: FC<Props> = (props) => {
             <DescriptionSwitch size="sm" isSelected={codeImageTools} onValueChange={setCodeImageTools}>
               <SettingRowTitleSmall>
                 {t('chat.settings.code_image_tools.label')}
-                <HelpTooltip title={t('chat.settings.code_image_tools.tip')} />
+                <HelpTooltip content={t('chat.settings.code_image_tools.tip')} />
               </SettingRowTitleSmall>
             </DescriptionSwitch>
           </SettingRow>

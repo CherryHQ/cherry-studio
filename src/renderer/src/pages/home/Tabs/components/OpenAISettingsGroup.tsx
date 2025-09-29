@@ -165,7 +165,8 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
           <>
             <SettingRow>
               <SettingRowTitleSmall>
-                {t('settings.openai.service_tier.title')} <HelpTooltip title={t('settings.openai.service_tier.tip')} />
+                {t('settings.openai.service_tier.title')}{' '}
+                <HelpTooltip content={t('settings.openai.service_tier.tip')} />
               </SettingRowTitleSmall>
               <Selector
                 value={serviceTierMode}
@@ -184,7 +185,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
             <SettingRow>
               <SettingRowTitleSmall>
                 {t('settings.openai.summary_text_mode.title')}{' '}
-                <HelpTooltip title={t('settings.openai.summary_text_mode.tip')} />
+                <HelpTooltip content={t('settings.openai.summary_text_mode.tip')} />
               </SettingRowTitleSmall>
               <Selector
                 value={summaryText}
@@ -200,7 +201,7 @@ const OpenAISettingsGroup: FC<Props> = ({ model, providerId, SettingGroup, Setti
         {isSupportVerbosity && (
           <SettingRow>
             <SettingRowTitleSmall>
-              {t('settings.openai.verbosity.title')} <HelpTooltip title={t('settings.openai.verbosity.tip')} />
+              {t('settings.openai.verbosity.title')} <HelpTooltip content={t('settings.openai.verbosity.tip')} />
             </SettingRowTitleSmall>
             <Selector
               value={verbosity}

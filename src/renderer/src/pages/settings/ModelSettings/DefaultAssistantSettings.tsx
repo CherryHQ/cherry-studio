@@ -165,7 +165,7 @@ const AssistantSettings: FC = () => {
         <RowFlex className="items-center">
           <Label>{t('chat.settings.temperature.label')}</Label>
           <HelpTooltip
-            title={t('chat.settings.temperature.tip')}
+            content={t('chat.settings.temperature.tip')}
             iconSize={14}
             iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
           />
@@ -208,7 +208,7 @@ const AssistantSettings: FC = () => {
         <RowFlex className="items-center">
           <Label>{t('chat.settings.top_p.label')}</Label>
           <HelpTooltip
-            title={t('chat.settings.top_p.tip')}
+            content={t('chat.settings.top_p.tip')}
             iconSize={14}
             iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
           />
@@ -243,7 +243,7 @@ const AssistantSettings: FC = () => {
       <Row align="middle">
         <Label>{t('chat.settings.context_count.label')}</Label>
         <HelpTooltip
-          title={t('chat.settings.context_count.tip')}
+          content={t('chat.settings.context_count.tip')}
           iconSize={14}
           iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
         />
@@ -275,7 +275,7 @@ const AssistantSettings: FC = () => {
         <RowFlex className="items-center">
           <Label>{t('chat.settings.max_tokens.label')}</Label>
           <HelpTooltip
-            title={t('chat.settings.max_tokens.tip')}
+            content={t('chat.settings.max_tokens.tip')}
             iconSize={14}
             iconStyle={{ cursor: 'pointer', color: 'var(--color-text-3)' }}
           />
