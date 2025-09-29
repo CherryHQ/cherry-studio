@@ -459,8 +459,8 @@ const InputbarTools = ({
           <Tooltip
             placement="top"
             content={t('chat.input.clear.label', { Command: clearTopicShortcut })}
-            mouseLeaveDelay={0}
-            arrow>
+            closeDelay={0}
+            showArrow>
             <ActionIconButton onPress={clearTopic} icon={<PaintbrushVertical size={18} />} />
           </Tooltip>
         )
@@ -472,8 +472,8 @@ const InputbarTools = ({
           <Tooltip
             placement="top"
             content={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
-            mouseLeaveDelay={0}
-            arrow>
+            closeDelay={0}
+            showArrow>
             <ActionIconButton
               onPress={onToggleExpended}
               icon={isExpended ? <Minimize size={18} /> : <Maximize size={18} />}
@@ -655,7 +655,7 @@ const InputbarTools = ({
           <Tooltip
             placement="top"
             content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
-            arrow>
+            showArrow>
             <ActionIconButton
               onPress={() => dispatch(setIsCollapsed(!isCollapse))}
               icon={

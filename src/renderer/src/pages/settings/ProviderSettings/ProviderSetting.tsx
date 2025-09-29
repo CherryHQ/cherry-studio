@@ -314,7 +314,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
-              <Tooltip placement="top" content={t('settings.provider.api.key.list.open')} mouseEnterDelay={0.5}>
+              <Tooltip placement="top" content={t('settings.provider.api.key.list.open')} delay={500}>
                 <Button variant="light" onPress={openApiKeyList} startContent={<Settings2 size={16} />} isIconOnly />
               </Tooltip>
             )}

@@ -680,7 +680,7 @@ const MessageMenubar: FC<Props> = (props) => {
             <Tooltip
               content={t('common.delete')}
               placement="top"
-              open={showDeleteTooltip}
+              isOpen={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
               <DeleteIcon size={15} />
             </Tooltip>

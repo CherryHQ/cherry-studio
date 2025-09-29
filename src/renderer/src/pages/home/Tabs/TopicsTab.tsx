@@ -572,8 +572,8 @@ const Topics: FC<Props> = ({ assistant: _assistant, activeTopic, setActiveTopic,
                 {!topic.pinned && (
                   <Tooltip
                     placement="bottom"
-                    mouseEnterDelay={0.7}
-                    mouseLeaveDelay={0}
+                    delay={700}
+                    closeDelay={0}
                     content={
                       <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
                         {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}

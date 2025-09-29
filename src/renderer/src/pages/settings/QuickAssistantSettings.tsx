@@ -110,7 +110,7 @@ const QuickAssistantSettings: FC = () => {
               {t('settings.models.quick_assistant_model')}
               <InfoTooltip
                 content={t('selection.settings.user_modal.model.tooltip')}
-                arrow
+                showArrow
                 iconStyle={{ cursor: 'pointer' }}
               />
               <Spacer />

@@ -96,13 +96,9 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
 
   return (
     <Tooltip
-      styles={{
-        body: {
-          padding: 5
-        }
+      classNames={{
+        content: 'p-1'
       }}
-      fresh
-      placement="top"
       content={
         <ColFlex className="items-center gap-0.5">
           {isImage(file.ext) && (

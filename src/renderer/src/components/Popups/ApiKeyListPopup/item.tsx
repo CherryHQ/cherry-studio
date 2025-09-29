@@ -136,10 +136,8 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   {keyStatus.key}
                 </Typography.Text>
               }
-              mouseEnterDelay={0.5}
-              placement="top"
-              // 确保不留下明文
-              destroyOnHidden>
+              delay={500}
+              placement="top">
               <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
             </Tooltip>
 
@@ -148,7 +146,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
               <Flex className="items-center gap-0">
                 {showHealthCheck && (
-                  <Tooltip content={t('settings.provider.check')} mouseLeaveDelay={0}>
+                  <Tooltip content={t('settings.provider.check')} closeDelay={0}>
                     <Button
                       variant="light"
                       startContent={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
@@ -158,7 +156,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                     />
                   </Tooltip>
                 )}
-                <Tooltip content={t('common.edit')} mouseLeaveDelay={0}>
+                <Tooltip content={t('common.edit')} closeDelay={0}>
                   <Button
                     variant="light"
                     startContent={<EditIcon size={16} />}
@@ -174,7 +172,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   okText={t('common.confirm')}
                   cancelText={t('common.cancel')}
                   okButtonProps={{ color: 'danger' }}>
-                  <Tooltip content={t('common.delete')} mouseLeaveDelay={0}>
+                  <Tooltip content={t('common.delete')} closeDelay={0}>
                     <Button variant="light" startContent={<Minus size={16} />} isDisabled={disabled} isIconOnly />
                   </Tooltip>
                 </Popconfirm>
