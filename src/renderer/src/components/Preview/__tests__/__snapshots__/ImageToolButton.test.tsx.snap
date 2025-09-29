@@ -2,21 +2,17 @@
 
 exports[`ImageToolButton > should match snapshot 1`] = `
 <DocumentFragment>
-    <button
-      aria-label="Test tooltip"
-      data-testid="custom-button"
-      icon="[object Object]"
-      role="button"
-      shape="circle"
-      type="button"
+  <button
+    aria-label="Test tooltip"
+    data-testid="button"
+    radius="full"
+    type="button"
+  >
+    <span
+      data-testid="test-icon"
     >
-      <span
-        aria-hidden="true"
-        data-testid="test-icon"
-        focusable="false"
-      >
-        Icon
-      </span>
-    </button>
+      Icon
+    </span>
+  </button>
 </DocumentFragment>
 `;

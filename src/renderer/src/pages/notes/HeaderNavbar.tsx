@@ -5,8 +5,8 @@ import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/ap
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
-import { findNodeByPath } from '@renderer/services/NotesTreeService'
-import { Dropdown } from 'antd'
+import { findNode } from "@renderer/services/NotesTreeService";
+import { Dropdown, Input } from "antd";
 import { t } from 'i18next'
 import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'

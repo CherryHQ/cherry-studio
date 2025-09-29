@@ -370,7 +370,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                       icon={
                         <User size={18} style={{ color: includeUser ? 'var(--color-link)' : 'var(--color-icon)' }} />
                       }
-                    />                  </Tooltip>
+                    />{' '}
+                  </Tooltip>
                 )}
                 <Tooltip placement="bottom" title={t('button.case_sensitive')}>
                   <ActionIconButton
@@ -381,7 +382,8 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                         style={{ color: isCaseSensitive ? 'var(--color-link)' : 'var(--color-icon)' }}
                       />
                     }
-                  />                </Tooltip>
+                  />{' '}
+                </Tooltip>
                 <Tooltip placement="bottom" title={t('button.whole_word')}>
                   <ActionIconButton
                     onPress={wholeWordButtonOnClick}

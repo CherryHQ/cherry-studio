@@ -195,7 +195,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
                 onPress={handleResetTypes}
                 variant="light"
                 isIconOnly
-              /> onClick={handleResetTypes} type="text" />
+              />
             </Tooltip>
           )}
         </TypeTitle>

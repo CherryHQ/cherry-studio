@@ -1,5 +1,4 @@
-import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector, Switch } from '@cherrystudio/ui'
-import {  } from '@cherrystudio/ui'
+import { Button, DescriptionSwitch, HelpTooltip, RowFlex, Selector } from '@cherrystudio/ui'
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import EditableNumber from '@renderer/components/EditableNumber'
 import Scrollbar from '@renderer/components/Scrollbar'
