@@ -22,14 +22,14 @@ const SettingsActionsListHeader = memo(({ customItemsCount, maxCustomItems, onRe
     <Row>
       <SettingTitle>{t('selection.settings.actions.title')}</SettingTitle>
       <Spacer />
-      <Tooltip placement="top" title={t('selection.settings.actions.reset.tooltip')}>
+      <Tooltip placement="top" content={t('selection.settings.actions.reset.tooltip')}>
         <ResetButton variant="light" onPress={onReset}>
           {t('selection.settings.actions.reset.button')}
         </ResetButton>
       </Tooltip>
       <Tooltip
         placement="top"
-        title={
+        content={
           isCustomItemLimitReached
             ? t('selection.settings.actions.add_tooltip.disabled', { max: maxCustomItems })
             : t('selection.settings.actions.add_tooltip.enabled')

@@ -12,7 +12,7 @@ interface CodeToolButtonProps {
 const CodeToolButton = ({ tool }: CodeToolButtonProps) => {
   const mainTool = useMemo(
     () => (
-      <Tooltip key={tool.id} title={tool.tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+      <Tooltip key={tool.id} content={tool.tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
         <ToolWrapper onClick={tool.onClick}>{tool.icon}</ToolWrapper>
       </Tooltip>
     ),

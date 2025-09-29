@@ -21,7 +21,7 @@ const ModelIdWithTags = ({
   return (
     <ListItemName ref={ref} $fontSize={fontSize} style={style}>
       <Tooltip
-        title={
+        content={
           <Typography.Text style={{ color: 'white' }} copyable={{ text: model.id }}>
             {model.id}
           </Typography.Text>

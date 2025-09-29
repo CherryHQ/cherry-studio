@@ -108,7 +108,9 @@ const MessageGroupMenuBar: FC<Props> = ({
             <Tooltip
               key={layout}
               placement="top"
-              title={t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]}>
+              content={
+                t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]
+              }>
               <LayoutOption
                 $active={multiModelMessageStyle === layout}
                 onClick={() => setMultiModelMessageStyle(layout)}>
@@ -135,7 +137,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </RowFlex>
       {hasFailedMessages && (
-        <Tooltip placement="top" title={t('message.group.retry_failed')}>
+        <Tooltip placement="top" content={t('message.group.retry_failed')}>
           <Button
             variant="light"
             size="sm"

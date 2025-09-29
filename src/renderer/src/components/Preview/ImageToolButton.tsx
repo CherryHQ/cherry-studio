@@ -9,7 +9,7 @@ interface ImageToolButtonProps {
 
 const ImageToolButton = ({ tooltip, icon, onPress }: ImageToolButtonProps) => {
   return (
-    <Tooltip placement="top" title={tooltip}>
+    <Tooltip placement="top" content={tooltip}>
       <Button radius="full" startContent={icon} onPress={onPress} isIconOnly aria-label={tooltip} />
     </Tooltip>
   )

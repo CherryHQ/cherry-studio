@@ -51,7 +51,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
   return (
     <Flex className="gap-2">
       <Select value={currentUser} onChange={onUserSwitch} style={{ width: 200 }} options={options} />
-      <Tooltip placement="top" title={t('memory.add_new_user')}>
+      <Tooltip placement="top" content={t('memory.add_new_user')}>
         <Button size="sm" variant="solid" onPress={onAddUser} startContent={<UserRoundPlus size={16} />} isIconOnly />
       </Tooltip>
     </Flex>

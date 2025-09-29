@@ -130,7 +130,7 @@ const ModelSettings: FC = () => {
             onPress={() => TranslateSettingsPopup.show()}
           />
           {translateModelPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip placement="top" title={t('common.reset')}>
+            <Tooltip placement="top" content={t('common.reset')}>
               <Button startContent={<RedoOutlined />} className="ml-2" onPress={onResetTranslatePrompt} isIconOnly />
             </Tooltip>
           )}

@@ -33,7 +33,7 @@ const HelpTooltip = ({
   ...rest
 }: HelpTooltipProps) => {
   return (
-    <Tooltip placement={placement} title={title} {...rest}>
+    <Tooltip placement={placement} content={title} {...rest}>
       <HelpCircle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Help" />
     </Tooltip>
   )

@@ -83,7 +83,7 @@ const AssistantMemorySettings: React.FC<Props> = ({ assistant, updateAssistant, 
         <Space>
           <Button variant="light" isIconOnly startContent={<Settings2 size={15} />} onPress={handleNavigateToMemory} />
           <Tooltip
-            title={
+            content={
               !globalMemoryEnabled
                 ? t('memory.enable_global_memory_first')
                 : !isMemoryConfigured

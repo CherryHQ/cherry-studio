@@ -82,7 +82,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                 fontSize
               }}>
               {!isThinking && (
-                <Tooltip placement="top" title={t('common.copy')}>
+                <Tooltip placement="top" content={t('common.copy')}>
                   <ActionButton
                     className="message-action-button"
                     onClick={(e) => {

@@ -491,7 +491,7 @@ const MessageMenubar: FC<Props> = (props) => {
               okButtonProps={{ danger: true }}
               onConfirm={() => handleResendUserMessage()}
               onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-              <Tooltip placement="top" title={t('common.regenerate')}>
+              <Tooltip placement="top" content={t('common.regenerate')}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => e.stopPropagation()}
@@ -501,7 +501,7 @@ const MessageMenubar: FC<Props> = (props) => {
               </Tooltip>
             </Popconfirm>
           ) : (
-            <Tooltip placement="top" title={t('common.regenerate')}>
+            <Tooltip placement="top" content={t('common.regenerate')}>
               <ActionButton
                 className="message-action-button"
                 onClick={() => handleResendUserMessage()}
@@ -511,13 +511,13 @@ const MessageMenubar: FC<Props> = (props) => {
             </Tooltip>
           ))}
         {message.role === 'user' && (
-          <Tooltip placement="top" title={t('common.edit')}>
+          <Tooltip placement="top" content={t('common.edit')}>
             <ActionButton className="message-action-button" onClick={onEdit} $softHoverBg={softHoverBg}>
               <EditIcon size={15} />
             </ActionButton>
           </Tooltip>
         )}
-        <Tooltip placement="top" title={t('common.copy')}>
+        <Tooltip placement="top" content={t('common.copy')}>
           <ActionButton className="message-action-button" onClick={onCopy} $softHoverBg={softHoverBg}>
             {!copied && <CopyIcon size={15} />}
             {copied && <Check size={15} color="var(--color-primary)" />}
@@ -530,7 +530,7 @@ const MessageMenubar: FC<Props> = (props) => {
               okButtonProps={{ danger: true }}
               onConfirm={onRegenerate}
               onOpenChange={(open) => open && setShowDeleteTooltip(false)}>
-              <Tooltip placement="top" title={t('common.regenerate')}>
+              <Tooltip placement="top" content={t('common.regenerate')}>
                 <ActionButton
                   className="message-action-button"
                   onClick={(e) => e.stopPropagation()}
@@ -540,14 +540,14 @@ const MessageMenubar: FC<Props> = (props) => {
               </Tooltip>
             </Popconfirm>
           ) : (
-            <Tooltip placement="top" title={t('common.regenerate')}>
+            <Tooltip placement="top" content={t('common.regenerate')}>
               <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
                 <RefreshIcon size={15} />
               </ActionButton>
             </Tooltip>
           ))}
         {isAssistantMessage && (
-          <Tooltip placement="top" title={t('message.mention.title')}>
+          <Tooltip placement="top" content={t('message.mention.title')}>
             <ActionButton className="message-action-button" onClick={onMentionModel} $softHoverBg={softHoverBg}>
               <AtSign size={15} />
             </ActionButton>
@@ -618,7 +618,7 @@ const MessageMenubar: FC<Props> = (props) => {
             trigger={['click']}
             placement="top"
             arrow>
-            <Tooltip placement="top" title={t('chat.translate')}>
+            <Tooltip placement="top" content={t('chat.translate')}>
               <ActionButton
                 className="message-action-button"
                 onClick={(e) => e.stopPropagation()}
@@ -629,7 +629,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Dropdown>
         )}
         {isAssistantMessage && isGrouped && (
-          <Tooltip placement="top" title={t('chat.message.useful.label')}>
+          <Tooltip placement="top" content={t('chat.message.useful.label')}>
             <ActionButton className="message-action-button" onClick={onUseful} $softHoverBg={softHoverBg}>
               {message.useful ? (
                 <ThumbsUp size={17.5} fill="var(--color-primary)" strokeWidth={0} />
@@ -640,7 +640,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </Tooltip>
         )}
         {isAssistantMessage && (
-          <Tooltip placement="top" title={t('notes.save')}>
+          <Tooltip placement="top" content={t('notes.save')}>
             <ActionButton
               className="message-action-button"
               onClick={async (e) => {
@@ -664,7 +664,7 @@ const MessageMenubar: FC<Props> = (props) => {
               className="message-action-button"
               onClick={(e) => e.stopPropagation()}
               $softHoverBg={softHoverBg}>
-              <Tooltip title={t('common.delete')} placement="top">
+              <Tooltip content={t('common.delete')} placement="top">
                 <DeleteIcon size={15} />
               </Tooltip>
             </ActionButton>
@@ -678,7 +678,7 @@ const MessageMenubar: FC<Props> = (props) => {
             }}
             $softHoverBg={softHoverBg}>
             <Tooltip
-              title={t('common.delete')}
+              content={t('common.delete')}
               placement="top"
               open={showDeleteTooltip}
               onOpenChange={setShowDeleteTooltip}>
@@ -687,7 +687,7 @@ const MessageMenubar: FC<Props> = (props) => {
           </ActionButton>
         )}
         {enableDeveloperMode && message.traceId && (
-          <Tooltip placement="top" title={t('trace.label')}>
+          <Tooltip placement="top" content={t('trace.label')}>
             <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
               <TraceIcon size={16} className={'lucide lucide-trash'} />
             </ActionButton>

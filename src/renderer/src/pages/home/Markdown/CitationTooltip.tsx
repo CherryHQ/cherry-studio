@@ -56,7 +56,7 @@ const CitationTooltip: React.FC<CitationTooltipProps> = ({ children, citation })
   )
 
   return (
-    <Tooltip title={tooltipContent} placement="top">
+    <Tooltip content={tooltipContent} placement="top">
       {children}
     </Tooltip>
   )

@@ -82,7 +82,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 color="danger"
                 variant="light"
                 startContent={
-                  <Tooltip placement="top" title={t('error.boundary.details')}>
+                  <Tooltip placement="top" content={t('error.boundary.details')}>
                     <CircleXIcon size={16} />
                   </Tooltip>
                 }
@@ -94,7 +94,7 @@ const McpServerCard: FC<McpServerCardProps> = ({
                 color="danger"
                 variant="light"
                 startContent={
-                  <Tooltip placement="top" title={t('common.delete')}>
+                  <Tooltip placement="top" content={t('common.delete')}>
                     <DeleteIcon size={16} />
                   </Tooltip>
                 }

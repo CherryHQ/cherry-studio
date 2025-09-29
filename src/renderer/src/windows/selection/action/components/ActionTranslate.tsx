@@ -185,11 +185,11 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
     <>
       <Container>
         <MenuContainer>
-          <Tooltip placement="bottom" title={t('translate.any.language')}>
+          <Tooltip placement="bottom" content={t('translate.any.language')}>
             <Globe size={16} style={{ flexShrink: 0 }} />
           </Tooltip>
           <ArrowRightToLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.target_language')}>
+          <Tooltip placement="bottom" content={t('translate.target_language')}>
             <LanguageSelect
               value={targetLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -201,7 +201,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
             />
           </Tooltip>
           <ArrowRightFromLine size={16} color="var(--color-text-3)" style={{ margin: '0 2px' }} />
-          <Tooltip placement="bottom" title={t('translate.alter_language')}>
+          <Tooltip placement="bottom" content={t('translate.alter_language')}>
             <LanguageSelect
               value={alterLanguage.langCode}
               style={{ minWidth: 80, maxWidth: 200, flex: 'auto' }}
@@ -212,7 +212,7 @@ const ActionTranslate: FC<Props> = ({ action, scrollToBottom }) => {
               disabled={isLoading}
             />
           </Tooltip>
-          <Tooltip placement="bottom" title={t('selection.action.translate.smart_translate_tips')}>
+          <Tooltip placement="bottom" content={t('selection.action.translate.smart_translate_tips')}>
             <QuestionIcon size={14} style={{ marginLeft: 4 }} />
           </Tooltip>
           <Spacer />

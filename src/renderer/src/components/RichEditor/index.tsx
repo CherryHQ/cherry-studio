@@ -402,12 +402,12 @@ const RichEditor = ({
       <Scrollbar ref={scrollContainerRef} style={{ flex: 1, display: 'flex' }}>
         <StyledEditorContent>
           <PlusButton editor={editor} onElementClick={handlePlusButtonClick}>
-            <Tooltip placement="top" title={t('richEditor.plusButton')}>
+            <Tooltip placement="top" content={t('richEditor.plusButton')}>
               <Plus />
             </Tooltip>
           </PlusButton>
           <DragHandle editor={editor} onElementDragEnd={handleDragEnd}>
-            <Tooltip placement="top" title={t('richEditor.dragHandle')}>
+            <Tooltip placement="top" content={t('richEditor.dragHandle')}>
               <GripVertical />
             </Tooltip>
           </DragHandle>

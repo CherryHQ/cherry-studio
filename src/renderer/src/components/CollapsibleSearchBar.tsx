@@ -94,7 +94,7 @@ const CollapsibleSearchBar = ({
         }}
         style={{ cursor: 'pointer', display: 'flex' }}
         onClick={() => setSearchVisible(true)}>
-        <Tooltip placement="top" title={tooltip}>
+        <Tooltip placement="top" content={tooltip}>
           {icon}
         </Tooltip>
       </motion.div>

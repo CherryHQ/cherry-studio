@@ -83,17 +83,17 @@ const WindowControls: React.FC = () => {
 
   return (
     <WindowControlsContainer>
-      <Tooltip placement="bottom" title={t('navbar.window.minimize')}>
+      <Tooltip placement="bottom" content={t('navbar.window.minimize')}>
         <ControlButton onClick={handleMinimize} aria-label="Minimize">
           <Minus size={14} />
         </ControlButton>
       </Tooltip>
-      <Tooltip placement="bottom" title={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}>
+      <Tooltip placement="bottom" content={isMaximized ? t('navbar.window.restore') : t('navbar.window.maximize')}>
         <ControlButton onClick={handleMaximize} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
           {isMaximized ? <WindowRestoreIcon size={14} /> : <Square size={14} />}
         </ControlButton>
       </Tooltip>
-      <Tooltip placement="bottom" title={t('navbar.window.close')}>
+      <Tooltip placement="bottom" content={t('navbar.window.close')}>
         <ControlButton $isClose onClick={handleClose} aria-label="Close">
           <X size={17} />
         </ControlButton>

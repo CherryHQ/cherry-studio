@@ -135,7 +135,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
   return (
     <Tooltip
       placement="top"
-      title={
+      content={
         <TooltipContent>
           <TooltipTitle>{title}</TooltipTitle>
           <TooltipBody>{data.content}</TooltipBody>

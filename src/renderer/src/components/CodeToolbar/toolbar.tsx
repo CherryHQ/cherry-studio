@@ -39,7 +39,7 @@ const CodeToolbar = ({ tools }: { tools: ActionTool[] }) => {
         {/* 有多个快捷工具时通过 more 按钮展示 */}
         {quickToolButtons}
         {quickTools.length > 1 && (
-          <Tooltip placement="top" title={t('code_block.more')}>
+          <Tooltip placement="top" content={t('code_block.more')}>
             <ToolWrapper onClick={() => setShowQuickTools(!showQuickTools)} className={showQuickTools ? 'active' : ''}>
               <EllipsisVertical className="tool-icon" />
             </ToolWrapper>

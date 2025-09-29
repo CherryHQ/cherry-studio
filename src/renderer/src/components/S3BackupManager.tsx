@@ -207,7 +207,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="top-start" title={fileName}>
+        <Tooltip placement="top-start" content={fileName}>
           {fileName}
         </Tooltip>
       )

@@ -303,7 +303,7 @@ const MentionModelsButton: FC<Props> = ({
   }))
 
   return (
-    <Tooltip placement="top" title={t('agents.edit.model.select.title')}>
+    <Tooltip placement="top" content={t('agents.edit.model.select.title')}>
       <ActionIconButton
         onPress={handleOpenQuickPanel}
         active={mentionedModels.length > 0}

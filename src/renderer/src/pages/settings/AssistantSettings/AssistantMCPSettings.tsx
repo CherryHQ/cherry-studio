@@ -81,7 +81,7 @@ const AssistantMCPSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
                   {server.baseUrl && <ServerUrl>{server.baseUrl}</ServerUrl>}
                 </ServerInfo>
                 <Tooltip
-                  title={
+                  content={
                     !server.isActive
                       ? t('assistants.settings.mcp.enableFirst', 'Enable this server in MCP settings first')
                       : undefined

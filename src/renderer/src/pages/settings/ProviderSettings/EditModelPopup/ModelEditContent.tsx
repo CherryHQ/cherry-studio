@@ -188,7 +188,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
           </Flex>
 
           {hasUserModified && (
-            <Tooltip placement="top" title={t('common.reset')}>
+            <Tooltip placement="top" content={t('common.reset')}>
               <Button
                 size="sm"
                 startContent={<RotateCcw size={14} />}

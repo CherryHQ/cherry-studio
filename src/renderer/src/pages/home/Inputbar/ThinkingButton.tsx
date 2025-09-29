@@ -133,7 +133,7 @@ const ThinkingButton: FC<Props> = ({ ref, model, assistantId }): ReactElement =>
   return (
     <Tooltip
       placement="top"
-      title={
+      content={
         isThinkingEnabled && supportedOptions.includes('off')
           ? t('common.close')
           : t('assistants.settings.reasoning_effort.label')

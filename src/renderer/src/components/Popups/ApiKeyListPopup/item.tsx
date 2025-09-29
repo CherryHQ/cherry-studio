@@ -107,7 +107,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
               disabled={disabled}
             />
             <Flex className="items-center gap-0">
-              <Tooltip title={t('common.save')}>
+              <Tooltip content={t('common.save')}>
                 <Button
                   color={hasUnsavedChanges ? 'primary' : 'default'}
                   variant={hasUnsavedChanges ? 'solid' : 'light'}
@@ -117,7 +117,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   isIconOnly
                 />
               </Tooltip>
-              <Tooltip title={t('common.cancel')}>
+              <Tooltip content={t('common.cancel')}>
                 <Button
                   variant="light"
                   startContent={<X size={16} />}
@@ -131,7 +131,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
         ) : (
           <>
             <Tooltip
-              title={
+              content={
                 <Typography.Text style={{ color: 'white' }} copyable={{ text: keyStatus.key }}>
                   {keyStatus.key}
                 </Typography.Text>
@@ -148,7 +148,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
 
               <Flex className="items-center gap-0">
                 {showHealthCheck && (
-                  <Tooltip title={t('settings.provider.check')} mouseLeaveDelay={0}>
+                  <Tooltip content={t('settings.provider.check')} mouseLeaveDelay={0}>
                     <Button
                       variant="light"
                       startContent={<StreamlineGoodHealthAndWellBeing size={18} isActive={keyStatus.checking} />}
@@ -158,7 +158,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                     />
                   </Tooltip>
                 )}
-                <Tooltip title={t('common.edit')} mouseLeaveDelay={0}>
+                <Tooltip content={t('common.edit')} mouseLeaveDelay={0}>
                   <Button
                     variant="light"
                     startContent={<EditIcon size={16} />}
@@ -174,7 +174,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   okText={t('common.confirm')}
                   cancelText={t('common.cancel')}
                   okButtonProps={{ color: 'danger' }}>
-                  <Tooltip title={t('common.delete')} mouseLeaveDelay={0}>
+                  <Tooltip content={t('common.delete')} mouseLeaveDelay={0}>
                     <Button variant="light" startContent={<Minus size={16} />} isDisabled={disabled} isIconOnly />
                   </Tooltip>
                 </Popconfirm>

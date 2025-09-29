@@ -59,7 +59,7 @@ const AssistantKnowledgeBaseSettings: React.FC<Props> = ({ assistant, updateAssi
               label: (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   {t('assistants.settings.knowledge_base.recognition.on')}
-                  <Tooltip placement="top" title={t('assistants.settings.knowledge_base.recognition.tip')}>
+                  <Tooltip placement="top" content={t('assistants.settings.knowledge_base.recognition.tip')}>
                     <QuestionIcon size={15} />
                   </Tooltip>
                 </div>

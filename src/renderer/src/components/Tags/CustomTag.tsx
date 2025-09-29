@@ -61,7 +61,7 @@ const CustomTag: FC<CustomTagProps> = ({
   )
 
   return tooltip ? (
-    <Tooltip placement="top" title={tooltip}>
+    <Tooltip placement="top" content={tooltip}>
       {tagContent}
     </Tooltip>
   ) : (

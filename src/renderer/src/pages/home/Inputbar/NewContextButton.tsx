@@ -15,7 +15,7 @@ const NewContextButton: FC<Props> = ({ onNewContext }) => {
   useShortcut('toggle_new_context', onNewContext)
 
   return (
-    <Tooltip placement="top" title={t('chat.input.new.context', { Command: newContextShortcut })}>
+    <Tooltip placement="top" content={t('chat.input.new.context', { Command: newContextShortcut })}>
       <ActionIconButton onPress={onNewContext} icon={<Eraser size={18} />} />
     </Tooltip>
   )

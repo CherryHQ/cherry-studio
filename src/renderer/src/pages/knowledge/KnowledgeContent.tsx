@@ -155,7 +155,7 @@ const KnowledgeContent: FC<KnowledgeContentProps> = ({ selectedBase }) => {
             <div className="label-column">
               <label>{t('models.embedding_model')}</label>
             </div>
-            <Tooltip placement="bottom" title={providerName}>
+            <Tooltip placement="bottom" content={providerName}>
               <div className="tag-column">
                 <Tag style={{ borderRadius: 20, margin: 0 }}>{base.model.name}</Tag>
               </div>

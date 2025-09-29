@@ -262,7 +262,7 @@ const TabsContainer: React.FC<TabsContainerProps> = ({ children }) => {
           </AddTabButton>
         </HorizontalScrollContainer>
         <RightButtonsContainer>
-          <Tooltip placement="bottom" title={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}>
+          <Tooltip placement="bottom" content={t('settings.theme.title') + ': ' + getThemeModeLabel(settedTheme)}>
             <ThemeButton onClick={toggleTheme}>
               {settedTheme === ThemeMode.dark ? (
                 <Moon size={16} />

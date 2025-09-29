@@ -65,7 +65,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
               <Flex className="gap-1">
                 <Typography.Text strong>{key}</Typography.Text>
                 {tool.inputSchema.required?.includes(key) && (
-                  <Tooltip placement="top" title="Required field">
+                  <Tooltip placement="top" content="Required field">
                     <span style={{ color: '#f5222d' }}>*</span>
                   </Tooltip>
                 )}
@@ -161,7 +161,7 @@ const MCPToolsSection = ({ tools, server, onToggleTool, onToggleAutoApprove }: M
       align: 'center',
       render: (_, tool) => (
         <Tooltip
-          title={
+          content={
             !isToolEnabled(tool)
               ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
               : isToolAutoApproved(tool, server)

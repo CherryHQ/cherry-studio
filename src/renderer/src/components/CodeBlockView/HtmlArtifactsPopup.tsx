@@ -126,7 +126,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               }
             ]
           }}>
-          <Tooltip placement="top" title={t('html_artifacts.capture.label')}>
+          <Tooltip placement="top" content={t('html_artifacts.capture.label')}>
             <Button variant="light" startContent={<Camera size={16} />} isIconOnly className="nodrag" />
           </Tooltip>
         </Dropdown>
@@ -164,7 +164,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
           }}
         />
         <ToolbarWrapper>
-          <Tooltip placement="top" title={t('code_block.edit.save.label')}>
+          <Tooltip placement="top" content={t('code_block.edit.save.label')}>
             <ToolbarButton radius="full" size="lg" isIconOnly onPress={handleSave}>
               {saved ? (
                 <Check size={16} color="var(--color-status-success)" />

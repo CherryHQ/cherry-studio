@@ -33,7 +33,7 @@ const InfoTooltip = ({
   ...rest
 }: InfoTooltipProps) => {
   return (
-    <Tooltip placement={placement} title={title} {...rest}>
+    <Tooltip placement={placement} content={title} {...rest}>
       <Info size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
     </Tooltip>
   )

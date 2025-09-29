@@ -109,7 +109,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
 
       return (
         <Tooltip
-          title={
+          content={
             isAllInProvider
               ? t('settings.models.manage.remove_whole_group')
               : t('settings.models.manage.add_whole_group')

@@ -161,7 +161,7 @@ const KnowledgeUrls: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                     }}
                     trigger={['contextMenu']}>
                     <ClickableSpan>
-                      <Tooltip placement="top" title={item.content as string}>
+                      <Tooltip placement="top" content={item.content as string}>
                         <Ellipsis>
                           <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                             {item.remark || (item.content as string)}

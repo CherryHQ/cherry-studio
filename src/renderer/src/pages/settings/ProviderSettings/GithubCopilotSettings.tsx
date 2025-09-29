@@ -289,7 +289,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                     </div>
                   </StepHeader>
                   <Tooltip
-                    title={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
+                    content={!verificationPageOpened ? t('settings.provider.copilot.open_verification_first') : ''}>
                     <Button
                       color="primary"
                       isLoading={loading}

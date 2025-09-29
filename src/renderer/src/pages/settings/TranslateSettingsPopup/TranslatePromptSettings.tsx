@@ -29,7 +29,7 @@ const TranslatePromptSettings = () => {
         <RowFlex className="h-[30px] items-center gap-2.5">
           {t('settings.translate.prompt')}
           {localPrompt !== TRANSLATE_PROMPT && (
-            <Tooltip placement="top" title={t('common.reset')}>
+            <Tooltip placement="top" content={t('common.reset')}>
               <ResetButton type="reset" onClick={onResetTranslatePrompt}>
                 <RedoOutlined size={16} />
               </ResetButton>

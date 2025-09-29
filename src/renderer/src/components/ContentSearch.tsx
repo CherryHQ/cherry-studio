@@ -363,7 +363,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
               />
               <ToolBar>
                 {showUserToggle && (
-                  <Tooltip placement="bottom" title={t('button.includes_user_questions')}>
+                  <Tooltip placement="bottom" content={t('button.includes_user_questions')}>
                     <ActionIconButton
                       onPress={userOutlinedButtonOnClick}
                       isIconOnly
@@ -373,7 +373,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                     />{' '}
                   </Tooltip>
                 )}
-                <Tooltip placement="bottom" title={t('button.case_sensitive')}>
+                <Tooltip placement="bottom" content={t('button.case_sensitive')}>
                   <ActionIconButton
                     onPress={caseSensitiveButtonOnClick}
                     icon={
@@ -384,7 +384,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
                     }
                   />{' '}
                 </Tooltip>
-                <Tooltip placement="bottom" title={t('button.whole_word')}>
+                <Tooltip placement="bottom" content={t('button.whole_word')}>
                   <ActionIconButton
                     onPress={wholeWordButtonOnClick}
                     icon={

@@ -337,7 +337,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     <>
       <NavigationContainer $isVisible={isVisible} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
         <ButtonGroup>
-          <Tooltip placement="left" title={t('chat.navigation.close')}>
+          <Tooltip placement="left" content={t('chat.navigation.close')}>
             <NavigationButton
               variant="light"
               startContent={<CloseOutlined />}
@@ -346,7 +346,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip placement="left" title={t('chat.navigation.top')}>
+          <Tooltip placement="left" content={t('chat.navigation.top')}>
             <NavigationButton
               variant="light"
               startContent={<VerticalAlignTopOutlined />}
@@ -355,7 +355,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip placement="left" title={t('chat.navigation.prev')}>
+          <Tooltip placement="left" content={t('chat.navigation.prev')}>
             <NavigationButton
               variant="light"
               startContent={<ArrowUpOutlined />}
@@ -364,7 +364,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip placement="left" title={t('chat.navigation.next')}>
+          <Tooltip placement="left" content={t('chat.navigation.next')}>
             <NavigationButton
               variant="light"
               startContent={<ArrowDownOutlined />}
@@ -373,7 +373,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip placement="left" title={t('chat.navigation.bottom')}>
+          <Tooltip placement="left" content={t('chat.navigation.bottom')}>
             <NavigationButton
               variant="light"
               startContent={<VerticalAlignBottomOutlined />}
@@ -382,7 +382,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
             />
           </Tooltip>
           <Divider />
-          <Tooltip placement="left" title={t('chat.navigation.history')}>
+          <Tooltip placement="left" content={t('chat.navigation.history')}>
             <NavigationButton
               variant="light"
               startContent={<HistoryOutlined />}

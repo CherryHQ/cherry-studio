@@ -459,7 +459,7 @@ const CodeToolsPage: FC = () => {
                     selectedTerminal !== terminalApps.windowsTerminal && (
                       <Tooltip
                         placement="top"
-                        title={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
+                        content={terminalCustomPaths[selectedTerminal] || t('code.set_custom_path')}>
                         <Button
                           startContent={<FolderOpen size={16} />}
                           isIconOnly

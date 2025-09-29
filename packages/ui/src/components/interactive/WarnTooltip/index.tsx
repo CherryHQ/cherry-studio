@@ -33,7 +33,7 @@ const WarnTooltip = ({
   ...rest
 }: WarnTooltipProps) => {
   return (
-    <Tooltip placement={placement} title={title} {...rest}>
+    <Tooltip placement={placement} content={title} {...rest}>
       <AlertTriangle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
     </Tooltip>
   )

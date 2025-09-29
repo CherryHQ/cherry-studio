@@ -440,7 +440,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               <Select.OptGroup key={provider} label={provider}>
                 {providerModels.map((model) => (
                   <Select.Option key={model.id} value={model.id}>
-                    <Tooltip placement="right" title={model.description}>
+                    <Tooltip placement="right" content={model.description}>
                       <ModelOptionContainer>
                         <ModelName>{model.name}</ModelName>
                       </ModelOptionContainer>

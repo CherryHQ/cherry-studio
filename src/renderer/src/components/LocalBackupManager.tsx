@@ -168,7 +168,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
         showTitle: false
       },
       render: (fileName: string) => (
-        <Tooltip placement="top" title={fileName}>
+        <Tooltip placement="top" content={fileName}>
           {fileName}
         </Tooltip>
       )

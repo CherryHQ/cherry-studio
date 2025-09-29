@@ -74,7 +74,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
             <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
-              <Tooltip placement="bottom" title={t('navbar.hide_sidebar')}>
+              <Tooltip placement="bottom" content={t('navbar.hide_sidebar')}>
                 <NavbarIcon onClick={toggleShowAssistants}>
                   <PanelLeftClose size={18} />
                 </NavbarIcon>
@@ -92,7 +92,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             paddingRight: 10,
             minWidth: 'auto'
           }}>
-          <Tooltip placement="bottom" title={t('navbar.show_sidebar')}>
+          <Tooltip placement="bottom" content={t('navbar.show_sidebar')}>
             <NavbarIcon onClick={() => toggleShowAssistants()}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -123,26 +123,26 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
         }}
         className="home-navbar-right">
         <RowFlex className="items-center gap-1.5">
-          <Tooltip placement="bottom" title={t('chat.assistant.search.placeholder')}>
+          <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
             </NarrowIcon>
           </Tooltip>
-          <Tooltip placement="bottom" title={t('navbar.expand')}>
+          <Tooltip placement="bottom" content={t('navbar.expand')}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
           <UpdateAppButton />
           {topicPosition === 'right' && !showTopics && (
-            <Tooltip placement="bottom" title={t('navbar.show_sidebar')}>
+            <Tooltip placement="bottom" content={t('navbar.show_sidebar')}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelLeftClose size={18} />
               </NavbarIcon>
             </Tooltip>
           )}
           {topicPosition === 'right' && showTopics && (
-            <Tooltip placement="bottom" title={t('navbar.hide_sidebar')}>
+            <Tooltip placement="bottom" content={t('navbar.hide_sidebar')}>
               <NavbarIcon onClick={toggleShowTopics}>
                 <PanelRightClose size={18} />
               </NavbarIcon>

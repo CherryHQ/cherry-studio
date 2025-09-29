@@ -49,7 +49,7 @@ const ModelSelectButton = ({ model, onSelectModel, modelFilter, noTooltip, toolt
     return button
   } else {
     return (
-      <Tooltip placement={tooltipPlacement} title={model.name}>
+      <Tooltip placement={tooltipPlacement} content={model.name}>
         {button}
       </Tooltip>
     )

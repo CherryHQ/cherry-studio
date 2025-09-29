@@ -145,7 +145,7 @@ const AttachmentButton: FC<Props> = ({ ref, couldAddImageFile, extensions, files
   return (
     <Tooltip
       placement="top"
-      title={couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')}>
+      content={couldAddImageFile ? t('chat.input.upload.image_or_document') : t('chat.input.upload.document')}>
       <ActionIconButton
         onPress={openFileSelectDialog}
         active={files.length > 0}

@@ -370,7 +370,7 @@ const ShortcutSettings: FC = () => {
       width: '70px',
       render: (record: Shortcut) => (
         <RowFlex className="items-center justify-end gap-2">
-          <Tooltip placement="top" title={t('settings.shortcuts.reset_to_default')}>
+          <Tooltip placement="top" content={t('settings.shortcuts.reset_to_default')}>
             <Button
               startContent={<UndoOutlined />}
               size="sm"
@@ -379,7 +379,7 @@ const ShortcutSettings: FC = () => {
               isDisabled={!isShortcutModified(record)}
             />
           </Tooltip>
-          <Tooltip placement="top" title={t('settings.shortcuts.clear_shortcut')}>
+          <Tooltip placement="top" content={t('settings.shortcuts.clear_shortcut')}>
             <Button
               startContent={<ClearOutlined />}
               size="sm"
