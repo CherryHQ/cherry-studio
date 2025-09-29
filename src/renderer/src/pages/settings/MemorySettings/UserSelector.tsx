@@ -1,5 +1,5 @@
-import { Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
-import { Avatar, Select } from 'antd'
+import { Avatar, Button, Flex, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Select } from 'antd'
 import { UserRoundPlus } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -24,7 +24,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
     (userId: string, userName: string) => {
       return (
         <RowFlex className="items-center gap-2.5">
-          <Avatar size={20} style={{ background: 'var(--color-primary)' }}>
+          <Avatar className="h-5 w-5 bg-primary">
             {getUserAvatar(userId)}
           </Avatar>
           <span>{userName}</span>

@@ -1,14 +1,14 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@renderer/types'
 import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage'
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import type { MultiModelFoldDisplayMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Segmented as AntdSegmented } from 'antd'
+import { Segmented as AntdSegmented } from 'antd'
 import { motion } from 'motion/react'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
@@ -82,7 +82,26 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
       <ModelsContainer $displayMode={foldDisplayMode}>
         {isCompact ? (
           /* Compact style display */
-          <Avatar.Group className="avatar-group">{messages.map((message) => renderLabel(message))}</Avatar.Group>
+          <AvatarGroup className="p-2" isBordered>
+            {messages.map((message) => {
+              const modelTip = message.model?.name
+              const isSelected = message.id === selectMessageId
+
+              return (
+                <Tooltip key={message.id} title={modelTip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+                  <Avatar
+                    src={getModelLogo(message.model?.id || '')}
+                    name={first(message.model?.name)}
+                    size="xs"
+                    isBordered={isSelected}
+                    color={isSelected ? 'primary' : 'default'}
+                    onClick={() => setSelectedMessage(message)}
+                    className="shadow-lg"
+                  />
+                </Tooltip>
+              )
+            })}
+          </AvatarGroup>
         ) : (
           /* Expanded style display */
           <Segmented

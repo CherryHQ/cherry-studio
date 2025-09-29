@@ -1,6 +1,5 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import { isMac } from '@renderer/config/constant'
 import { UserAvatar } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -14,7 +13,6 @@ import { useSettings } from '@renderer/hooks/useSettings'
 import { getSidebarIconLabel, getThemeModeLabel } from '@renderer/i18n/label'
 import { isEmoji } from '@renderer/utils'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar } from 'antd'
 import {
   Code,
   FileSearch,

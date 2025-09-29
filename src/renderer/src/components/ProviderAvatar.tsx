@@ -1,10 +1,9 @@
+import { Avatar, cn } from '@cherrystudio/ui'
 import { PoeLogo } from '@renderer/components/Icons'
 import { getProviderLogo } from '@renderer/config/providers'
 import type { Provider } from '@renderer/types'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
-import { Avatar } from 'antd'
 import React from 'react'
-import styled from 'styled-components'
 
 interface ProviderAvatarPrimitiveProps {
   providerId: string
@@ -23,28 +22,6 @@ interface ProviderAvatarProps {
   style?: React.CSSProperties
 }
 
-const ProviderSvgLogo = styled.div`
-  width: 100%;
-  height: 100%;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0.5px solid var(--color-border);
-  border-radius: 100%;
-
-  & > svg {
-    width: 80%;
-    height: 80%;
-  }
-`
-
-const ProviderLogo = styled(Avatar)`
-  width: 100%;
-  height: 100%;
-  border: 0.5px solid var(--color-border);
-`
-
 export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = ({
   providerId,
   providerName,
@@ -53,35 +30,51 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   className,
   style
 }) => {
+  // Special handling for Poe provider
   if (providerId === 'poe') {
     return (
-      <ProviderSvgLogo className={className} style={style}>
-        <PoeLogo fontSize={size} />
-      </ProviderSvgLogo>
+      <div
+        className={cn(
+          'flex items-center justify-center rounded-full',
+          'border-[0.5px] border-[var(--color-border)]',
+          className
+        )}
+        style={{ width: size, height: size, ...style }}>
+        <PoeLogo fontSize={size ? size * 0.8 : undefined} />
+      </div>
     )
   }
 
+  // If logo source is provided, render image avatar
   if (logoSrc) {
     return (
-      <ProviderLogo draggable="false" shape="circle" src={logoSrc} className={className} style={style} size={size} />
+      <Avatar
+        src={logoSrc}
+        radius="full"
+        className={cn('border-[0.5px] border-[var(--color-border)]', className)}
+        style={{ width: size, height: size, ...style }}
+        imgProps={{ draggable: false }}
+      />
     )
   }
 
+  // Default: generate avatar with first character and background color
   const backgroundColor = generateColorFromChar(providerName)
   const color = providerName ? getForegroundColor(backgroundColor) : 'white'
 
   return (
-    <ProviderLogo
-      size={size}
-      shape="circle"
-      className={className}
+    <Avatar
+      radius="full"
+      className={cn('border-[0.5px] border-[var(--color-border)]', className)}
       style={{
+        width: size,
+        height: size,
         backgroundColor,
         color,
         ...style
       }}>
       {getFirstCharacter(providerName)}
-    </ProviderLogo>
+    </Avatar>
   )
 }
 

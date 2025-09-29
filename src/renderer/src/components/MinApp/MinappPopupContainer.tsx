@@ -25,7 +25,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { Alert, Avatar, Drawer } from 'antd'
+import { Alert, Tooltip } from 'antd'
 import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -542,7 +542,7 @@ const MinappPopupContainer: React.FC = () => {
         <EmptyView>
           <Avatar
             src={currentAppInfo?.logo}
-            size={80}
+            className="h-20 w-20"
             style={{ border: '1px solid var(--color-border)', marginTop: -150 }}
           />
           <BeatLoader color="var(--color-text-2)" size={10} style={{ marginTop: 15 }} />

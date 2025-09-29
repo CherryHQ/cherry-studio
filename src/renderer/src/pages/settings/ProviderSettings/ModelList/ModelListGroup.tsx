@@ -62,6 +62,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
           indicator: (
             <Tooltip placement="top" title={t('settings.models.manage.remove_whole_group')}>
               <Button
+                as="span"
                 variant="light"
                 className="toolbar-item"
                 startContent={<Minus size={14} />}

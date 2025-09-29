@@ -1,5 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { Avatar, Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -20,7 +20,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { Avatar, Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
+import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -833,10 +833,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
-              <ProviderLogo
-                shape="square"
+              <Avatar
+                radius="md"
                 src={getProviderLogo(aihubmixProvider.id)}
-                size={16}
+                className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
                 style={{ marginLeft: 5 }}
               />
             </SettingHelpLink>
@@ -846,7 +846,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <SelectOptionContainer>
-                  <ProviderLogo shape="square" src={getProviderLogo(provider.value || '')} size={16} />
+                  <Avatar
+                    radius="md"
+                    src={getProviderLogo(provider.value || '')}
+                    className="h-4 w-4 border-[0.5px] border-[var(--color-border)]"
+                  />
                   {provider.label}
                 </SelectOptionContainer>
               </Select.Option>
@@ -1000,10 +1004,6 @@ const SliderContainer = styled.div`
 
 const StyledInputNumber = styled(InputNumber)`
   width: 70px;
-`
-
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
 `
 
 // 添加新的样式组件

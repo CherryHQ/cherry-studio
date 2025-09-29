@@ -1,4 +1,4 @@
-import { Button, Flex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, Button, Flex, Tooltip } from '@cherrystudio/ui'
 import ExpandableText from '@renderer/components/ExpandableText'
 import ModelIdWithTags from '@renderer/components/ModelIdWithTags'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -8,7 +8,6 @@ import { isNewApiProvider } from '@renderer/config/providers'
 import FileItem from '@renderer/pages/files/FileItem'
 import NewApiBatchAddModelPopup from '@renderer/pages/settings/ProviderSettings/ModelList/NewApiBatchAddModelPopup'
 import type { Model, Provider } from '@renderer/types'
-import { Avatar } from 'antd'
 import { ChevronRight, Minus, Plus } from 'lucide-react'
 import React, { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -198,7 +197,11 @@ const ModelListItem: React.FC<ModelListItemProps> = memo(({ model, provider, onA
           boxShadow: 'none'
         }}
         fileInfo={{
-          icon: <Avatar src={getModelLogo(model.id)}>{model?.name?.[0]?.toUpperCase()}</Avatar>,
+          icon: (
+            <Avatar src={getModelLogo(model.id)} size="sm">
+              {model?.name?.[0]?.toUpperCase()}
+            </Avatar>
+          ),
           name: <ModelIdWithTags model={model} />,
           extra: model.description && <ExpandableText text={model.description} />,
           ext: '.model',

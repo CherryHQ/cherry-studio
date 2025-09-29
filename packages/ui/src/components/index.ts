@@ -1,4 +1,5 @@
 // Base Components
+export { Avatar, AvatarGroup, type AvatarProps,EmojiAvatar } from './base/Avatar'
 export { default as Button, type ButtonProps } from './base/Button'
 export { default as CopyButton } from './base/CopyButton'
 export { default as CustomCollapse } from './base/CustomCollapse'
@@ -18,11 +19,9 @@ export { default as Tooltip } from './base/Tooltip'
 
 // Display Components
 export { default as Ellipsis } from './display/Ellipsis'
-export { default as EmojiAvatar } from './display/EmojiAvatar'
 export { default as ExpandableText } from './display/ExpandableText'
 export { default as ListItem } from './display/ListItem'
 export { default as MaxContextCount } from './display/MaxContextCount'
-export { ProviderAvatar } from './display/ProviderAvatar'
 export { default as ThinkingEffect } from './display/ThinkingEffect'
 
 // Layout Components

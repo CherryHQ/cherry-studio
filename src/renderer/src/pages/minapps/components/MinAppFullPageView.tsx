@@ -1,9 +1,9 @@
+import { Avatar } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import WebviewContainer from '@renderer/components/MinApp/WebviewContainer'
 import { useSettings } from '@renderer/hooks/useSettings'
 import type { MinAppType } from '@renderer/types'
 import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { Avatar } from 'antd'
 import type { WebviewTag } from 'electron'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -110,7 +110,7 @@ const MinAppFullPageView: FC<Props> = ({ app }) => {
         {!isReady && (
           <LoadingMask>
             <LoadingOverlay>
-              <Avatar src={app.logo} size={60} style={{ border: '1px solid var(--color-border)' }} />
+              <Avatar src={app.logo} className="h-[60px] w-[60px] border border-border" />
               <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
             </LoadingOverlay>
           </LoadingMask>

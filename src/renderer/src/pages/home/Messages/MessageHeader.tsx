@@ -1,7 +1,6 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { Tooltip } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { APP_NAME, AppLogo, isLocalAi } from '@renderer/config/env'
 import { getModelLogo } from '@renderer/config/models'
@@ -16,7 +15,7 @@ import { getModelName } from '@renderer/services/ModelService'
 import type { Assistant, Model, Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { firstLetter, isEmoji, removeLeadingEmoji } from '@renderer/utils'
-import { Avatar, Checkbox } from 'antd'
+import { Checkbox } from 'antd'
 import dayjs from 'dayjs'
 import { Sparkle } from 'lucide-react'
 import type { FC } from 'react'
@@ -87,7 +86,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
       {isAssistantMessage ? (
         <Avatar
           src={avatarSource}
-          size={35}
+          className="h-[35px] w-[35px]"
           style={{
             borderRadius: '25%',
             cursor: showMinappIcon ? 'pointer' : 'default',
@@ -106,7 +105,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           ) : (
             <Avatar
               src={avatar}
-              size={35}
+              className="h-[35px] w-[35px]"
               style={{ borderRadius: '25%', cursor: 'pointer' }}
               onClick={() => UserPopup.show()}
             />

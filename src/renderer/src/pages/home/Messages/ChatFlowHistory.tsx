@@ -1,9 +1,8 @@
 import '@xyflow/react/dist/style.css'
 
 import { RobotOutlined, UserOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { Avatar, EmojiAvatar, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import EmojiAvatar from '@renderer/components/Avatar/EmojiAvatar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { getModelLogo } from '@renderer/config/models'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -18,7 +17,7 @@ import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import type { Edge, Node, NodeTypes } from '@xyflow/react'
 import { Controls, Handle, MiniMap, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { Position, useEdgesState, useNodesState } from '@xyflow/react'
-import { Avatar, Spin } from 'antd'
+import { Spin } from 'antd'
 import { isEqual } from 'lodash'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
@@ -78,7 +77,7 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         avatar = <Avatar src={data.userAvatar} alt={title} />
       }
     } else {
-      avatar = <Avatar icon={<UserOutlined />} style={{ backgroundColor: 'var(--color-info)' }} />
+      avatar = <Avatar icon={<UserOutlined />} className="bg-info" />
     }
   } else if (nodeType === 'assistant') {
     borderColor = 'var(--color-primary)'
@@ -95,11 +94,11 @@ const CustomNode: FC<{ data: any }> = ({ data }) => {
         <Avatar
           src={modelLogo}
           icon={!modelLogo ? <RobotOutlined /> : undefined}
-          style={{ backgroundColor: 'var(--color-primary)' }}
+          className="bg-primary"
         />
       )
     } else {
-      avatar = <Avatar icon={<RobotOutlined />} style={{ backgroundColor: 'var(--color-primary)' }} />
+      avatar = <Avatar icon={<RobotOutlined />} className="bg-primary" />
     }
   }
 

@@ -1,7 +1,7 @@
 import { GithubOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Radio, RadioGroup } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -16,7 +16,7 @@ import { handleSaveData } from '@renderer/store'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Progress, Row, Tag } from 'antd'
+import { Progress, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -209,7 +209,7 @@ const AboutSettings: FC = () => {
                   strokeColor="#67ad5b"
                 />
               )}
-              <Avatar src={AppLogo} size={80} style={{ minHeight: 80 }} />
+              <Avatar src={AppLogo} className="h-20 min-h-[80px] w-20" />
             </AvatarWrapper>
             <VersionWrapper>
               <Title>{APP_NAME}</Title>

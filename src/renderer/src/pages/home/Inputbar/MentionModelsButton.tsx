@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Avatar, Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import ModelTagsWithLabel from '@renderer/components/ModelTagsWithLabel'
 import { type QuickPanelListItem, QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -8,7 +8,6 @@ import { useProviders } from '@renderer/hooks/useProvider'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import type { FileType, Model } from '@renderer/types'
 import { getFancyProviderName } from '@renderer/utils'
-import { Avatar } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { first, sortBy } from 'lodash'
 import { AtSign, CircleX, Plus } from 'lucide-react'
@@ -136,7 +135,7 @@ const MentionModelsButton: FC<Props> = ({
             ),
             description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
             icon: (
-              <Avatar src={getModelLogo(m.id)} size={20}>
+              <Avatar src={getModelLogo(m.id)} className="w-5 h-5">
                 {first(m.name)}
               </Avatar>
             ),
@@ -172,7 +171,7 @@ const MentionModelsButton: FC<Props> = ({
         ),
         description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
         icon: (
-          <Avatar src={getModelLogo(m.id)} size={20}>
+          <Avatar src={getModelLogo(m.id)} className="w-5 h-5">
             {first(m.name)}
           </Avatar>
         ),
