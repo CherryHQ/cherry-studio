@@ -69,7 +69,7 @@
     "react-dom": "^19.0.0",
     "storybook": "^9.1.6",
     "styled-components": "^6.1.15",
-    "tsdown": "^0.12.9",
+    "tsdown": "^0.15.5",
     "tsx": "^4.20.5",
     "typescript": "^5.6.2",
     "vitest": "^3.2.4"

@@ -3,6 +3,7 @@ import { RowFlex } from '@cherrystudio/ui'
 import { Switch } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { Radio, RadioGroup } from '@heroui/react'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import { APP_NAME, AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -15,7 +16,7 @@ import { handleSaveData } from '@renderer/store'
 import { runAsyncFunction } from '@renderer/utils'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Avatar, Progress, Radio, Row, Tag } from 'antd'
+import { Avatar, Progress, Row, Tag } from 'antd'
 import { debounce } from 'lodash'
 import { Bug, FileCheck, Globe, Mail, Rss } from 'lucide-react'
 import { BadgeQuestionMark } from 'lucide-react'
@@ -253,17 +254,17 @@ const AboutSettings: FC = () => {
                 <SettingDivider />
                 <SettingRow>
                   <SettingRowTitle>{t('settings.general.test_plan.version_options')}</SettingRowTitle>
-                  <Radio.Group
-                    size="small"
-                    buttonStyle="solid"
+                  <RadioGroup
+                    size="sm"
+                    orientation="horizontal"
                     value={getTestChannel()}
-                    onChange={(e) => handleTestChannelChange(e.target.value)}>
+                    onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
                     {getAvailableTestChannels().map((option) => (
                       <Tooltip placement="top" key={option.value} title={option.tooltip}>
-                        <Radio.Button value={option.value}>{option.label}</Radio.Button>
+                        <Radio value={option.value}>{option.label}</Radio>
                       </Tooltip>
                     ))}
-                  </Radio.Group>
+                  </RadioGroup>
                 </SettingRow>
               </>
             )}

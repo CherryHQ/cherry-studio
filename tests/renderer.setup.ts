@@ -76,28 +76,26 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   return {
     Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }) =>
-      React.createElement('button', { ...props, onClick: onPress, disabled: disabled || isDisabled }, startContent, children),
-    Tooltip: ({ children, title, ...props }) =>
-      React.createElement('div', { ...props, title }, children),
+      React.createElement(
+        'button',
+        { ...props, onClick: onPress, disabled: disabled || isDisabled },
+        startContent,
+        children
+      ),
+    Tooltip: ({ children, title, ...props }) => React.createElement('div', { ...props, title }, children),
     CodeEditor: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'code-editor' }, children),
-    Flex: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'flex' }, children),
+    Flex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'flex' }, children),
     ExpandableText: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'expandable-text' }, children),
     // Add other commonly used UI components
-    Box: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'box' }, children),
-    Center: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'center' }, children),
-    ColFlex: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'col-flex' }, children),
-    RowFlex: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'row-flex' }, children),
+    Box: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'box' }, children),
+    Center: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'center' }, children),
+    ColFlex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'col-flex' }, children),
+    RowFlex: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'row-flex' }, children),
     SpaceBetweenRowFlex: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'space-between-row-flex' }, children),
-    Ellipsis: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'ellipsis' }, children),
+    Ellipsis: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'ellipsis' }, children),
     TextBadge: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'text-badge' }, children),
     HelpTooltip: ({ children, ...props }) =>
@@ -105,7 +103,7 @@ vi.mock('@cherrystudio/ui', () => {
     InfoTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'info-tooltip' }, children),
     Scrollbar: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
+      React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children)
     // Add any other components that are commonly imported
   }
 })

@@ -1,11 +1,12 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { Radio, RadioGroup } from '@heroui/react'
 import { isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { Radio, Row, Slider } from 'antd'
+import { Row, Slider } from 'antd'
 import { CircleHelp, Edit2 } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
@@ -128,16 +129,17 @@ const SelectionAssistantSettings: FC = () => {
                 </SettingRowTitle>
                 <SettingDescription>{t('selection.settings.toolbar.trigger_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Radio.Group
+              <RadioGroup
+                size="sm"
+                orientation="horizontal"
                 value={triggerMode}
-                onChange={(e) => setTriggerMode(e.target.value as SelectionTriggerMode)}
-                buttonStyle="solid">
+                onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}>
                 <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.selected_note')}>
-                  <Radio.Button value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio.Button>
+                  <Radio value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio>
                 </Tooltip>
                 {isWin && (
                   <Tooltip placement="top" title={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')}>
-                    <Radio.Button value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio.Button>
+                    <Radio value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio>
                   </Tooltip>
                 )}
                 <Tooltip
@@ -150,9 +152,9 @@ const SelectionAssistantSettings: FC = () => {
                       </Link>
                     </div>
                   }>
-                  <Radio.Button value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio.Button>
+                  <Radio value="shortcut">{t('selection.settings.toolbar.trigger_mode.shortcut')}</Radio>
                 </Tooltip>
-              </Radio.Group>
+              </RadioGroup>
             </SettingRow>
             <SettingDivider />
             <SettingRow>
@@ -228,14 +230,15 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>{t('selection.settings.advanced.filter_mode.title')}</SettingRowTitle>
                 <SettingDescription>{t('selection.settings.advanced.filter_mode.description')}</SettingDescription>
               </SettingLabel>
-              <Radio.Group
+              <RadioGroup
+                size="sm"
+                orientation="horizontal"
                 value={filterMode ?? 'default'}
-                onChange={(e) => setFilterMode(e.target.value as SelectionFilterMode)}
-                buttonStyle="solid">
-                <Radio.Button value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio.Button>
-                <Radio.Button value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio.Button>
-                <Radio.Button value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio.Button>
-              </Radio.Group>
+                onValueChange={(value) => setFilterMode(value as SelectionFilterMode)}>
+                <Radio value="default">{t('selection.settings.advanced.filter_mode.default')}</Radio>
+                <Radio value="whitelist">{t('selection.settings.advanced.filter_mode.whitelist')}</Radio>
+                <Radio value="blacklist">{t('selection.settings.advanced.filter_mode.blacklist')}</Radio>
+              </RadioGroup>
             </SettingRow>
 
             {filterMode && filterMode !== 'default' && (

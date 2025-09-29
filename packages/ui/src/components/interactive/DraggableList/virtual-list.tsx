@@ -1,4 +1,3 @@
-import { Scrollbar } from '@cherrystudio/ui'
 import type {
   DroppableProps,
   DropResult,
@@ -10,6 +9,7 @@ import { DragDropContext, Draggable, Droppable } from '@hello-pangea/dnd'
 import { type ScrollToOptions, useVirtualizer, type VirtualItem } from '@tanstack/react-virtual'
 import { type Key, memo, useCallback, useImperativeHandle, useRef } from 'react'
 
+import Scrollbar from '../../layout/Scrollbar'
 import { droppableReorder } from './sort'
 
 export interface DraggableVirtualListRef {

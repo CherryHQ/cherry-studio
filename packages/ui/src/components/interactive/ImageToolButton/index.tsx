@@ -1,7 +1,7 @@
 // Original path: src/renderer/src/components/Preview/ImageToolButton.tsx
-import { Button } from '@cherrystudio/ui'
 import { memo } from 'react'
 
+import Button from '../../base/Button'
 import Tooltip from '../../base/Tooltip'
 
 interface ImageToolButtonProps {
