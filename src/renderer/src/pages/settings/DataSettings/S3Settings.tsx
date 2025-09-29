@@ -65,7 +65,7 @@ const S3Settings: FC = () => {
         {s3Sync?.syncing && <SyncOutlined spin />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
-            title={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
+            content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
             iconColor="red"
           />
         )}

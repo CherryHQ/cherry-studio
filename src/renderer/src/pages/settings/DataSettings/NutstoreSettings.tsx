@@ -177,7 +177,7 @@ const NutstoreSettings: FC = () => {
         {nutstoreSyncState.syncing && <SyncOutlined spin />}
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
-            title={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
+            content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
             iconColor="red"
           />
         )}

@@ -184,7 +184,7 @@ const ModelEditContent: FC<ModelEditContentProps & ModalProps> = ({ provider, mo
         <TypeTitle>
           <Flex className="h-6 items-center gap-1">
             {t('models.type.select')}
-            <WarnTooltip title={t('settings.moresetting.check.warn')} />
+            <WarnTooltip content={t('settings.moresetting.check.warn')} />
           </Flex>
 
           {hasUserModified && (

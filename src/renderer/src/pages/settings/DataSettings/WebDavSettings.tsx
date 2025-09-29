@@ -70,7 +70,10 @@ const WebDavSettings: FC = () => {
       <RowFlex className="items-center gap-[5px]">
         {webdavSync.syncing && <SyncOutlined spin />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
-          <WarnTooltip title={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`} iconColor="red" />
+          <WarnTooltip
+            content={`${t('settings.data.webdav.syncError')}: ${webdavSync.lastSyncError}`}
+            iconColor="red"
+          />
         )}
         {webdavSync.lastSyncTime && (
           <span style={{ color: 'var(--text-secondary)' }}>
