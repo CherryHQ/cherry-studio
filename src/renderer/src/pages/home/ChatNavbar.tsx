@@ -132,7 +132,10 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
                   item: 'h-full'
                 }}>
                 <Chip size="md" variant="light" className="h-full transition-background hover:bg-foreground-100">
-                  <AgentLabel agent={agent} classNames={{ name: 'max-w-50 font-bold text-xs' }} />
+                  <AgentLabel
+                    agent={agent}
+                    classNames={{ name: 'max-w-50 font-bold text-xs', avatar: 'h-4.5 w-4.5', container: 'gap-1.5' }}
+                  />
                 </Chip>
               </BreadcrumbItem>
               <BreadcrumbItem>
