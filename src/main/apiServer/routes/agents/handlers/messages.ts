@@ -2,6 +2,8 @@ import { loggerService } from '@logger'
 import { Request, Response } from 'express'
 
 import { agentService, sessionMessageService, sessionService } from '../../../../services/agents'
+import { MESSAGE_STREAM_TIMEOUT_MS } from '../../../config/timeouts'
+import { createStreamAbortController, STREAM_TIMEOUT_REASON } from '../../../utils/createStreamAbortController'
 
 const logger = loggerService.withContext('ApiServerMessagesHandlers')
 
@@ -25,6 +27,8 @@ const verifyAgentAndSession = async (agentId: string, sessionId: string) => {
 }
 
 export const createMessage = async (req: Request, res: Response): Promise<void> => {
+  let clearAbortTimeout: (() => void) | undefined
+
   try {
     const { agentId, sessionId } = req.params
 
@@ -42,7 +46,14 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control')
 
-    const abortController = new AbortController()
+    const {
+      abortController,
+      registerAbortHandler,
+      clearAbortTimeout: helperClearAbortTimeout
+    } = createStreamAbortController({
+      timeoutMs: MESSAGE_STREAM_TIMEOUT_MS
+    })
+    clearAbortTimeout = helperClearAbortTimeout
     const { stream, completion } = await sessionMessageService.createSessionMessage(
       session,
       messageData,
@@ -54,6 +65,10 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
     let responseEnded = false
     let streamFinished = false
 
+    const cleanupAbortTimeout = () => {
+      clearAbortTimeout?.()
+    }
+
     const finalizeResponse = () => {
       if (responseEnded) {
         return
@@ -64,6 +79,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
       }
 
       responseEnded = true
+      cleanupAbortTimeout()
       try {
         // res.write('data: {"type":"finish"}\n\n')
         res.write('data: [DONE]\n\n')
@@ -92,12 +108,51 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
      * - Clean up event listeners to prevent memory leaks
      * - Mark the response as ended to prevent further writes
      */
-    const handleDisconnect = () => {
+    registerAbortHandler((abortReason) => {
+      cleanupAbortTimeout()
+
       if (responseEnded) return
-      logger.info('Streaming client disconnected', { agentId, sessionId })
+
       responseEnded = true
+
+      if (abortReason === STREAM_TIMEOUT_REASON) {
+        logger.error('Streaming message timeout', { agentId, sessionId })
+        try {
+          res.write(
+            `data: ${JSON.stringify({
+              type: 'error',
+              error: {
+                message: 'Stream timeout',
+                type: 'timeout_error',
+                code: 'stream_timeout'
+              }
+            })}\n\n`
+          )
+        } catch (writeError) {
+          logger.error('Error writing timeout to SSE stream', { error: writeError })
+        }
+      } else if (abortReason === 'Client disconnected') {
+        logger.info('Streaming client disconnected', { agentId, sessionId })
+      } else {
+        logger.warn('Streaming aborted', { agentId, sessionId, reason: abortReason })
+      }
+
+      reader.cancel(abortReason ?? 'stream aborted').catch(() => {})
+
+      if (!res.headersSent) {
+        res.setHeader('Content-Type', 'text/event-stream')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.setHeader('Connection', 'keep-alive')
+      }
+
+      if (!res.writableEnded) {
+        res.end()
+      }
+    })
+
+    const handleDisconnect = () => {
+      if (abortController.signal.aborted) return
       abortController.abort('Client disconnected')
-      reader.cancel('Client disconnected').catch(() => {})
     }
 
     req.on('close', handleDisconnect)
@@ -135,6 +190,7 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
           logger.error('Error writing stream error to SSE', { error: writeError })
         }
         responseEnded = true
+        cleanupAbortTimeout()
         res.end()
       }
     }
@@ -166,41 +222,14 @@ export const createMessage = async (req: Request, res: Response): Promise<void> 
           logger.error('Error writing completion error to SSE stream', { error: writeError })
         }
         responseEnded = true
+        cleanupAbortTimeout()
         res.end()
       })
-
-    // Set a timeout to prevent hanging indefinitely
-    const timeout = setTimeout(
-      () => {
-        if (!responseEnded) {
-          logger.error('Streaming message timeout', { agentId, sessionId })
-          try {
-            res.write(
-              `data: ${JSON.stringify({
-                type: 'error',
-                error: {
-                  message: 'Stream timeout',
-                  type: 'timeout_error',
-                  code: 'stream_timeout'
-                }
-              })}\n\n`
-            )
-          } catch (writeError) {
-            logger.error('Error writing timeout to SSE stream', { error: writeError })
-          }
-          abortController.abort('stream timeout')
-          reader.cancel('stream timeout').catch(() => {})
-          responseEnded = true
-          res.end()
-        }
-      },
-      10 * 60 * 1000
-    ) // 10 minutes timeout
-
     // Clear timeout when response ends
-    res.on('close', () => clearTimeout(timeout))
-    res.on('finish', () => clearTimeout(timeout))
+    res.on('close', cleanupAbortTimeout)
+    res.on('finish', cleanupAbortTimeout)
   } catch (error: any) {
+    clearAbortTimeout?.()
     logger.error('Error in streaming message handler', {
       error,
       agentId: req.params.agentId,

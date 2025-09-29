@@ -3,6 +3,7 @@ import cors from 'cors'
 import express from 'express'
 import { v4 as uuidv4 } from 'uuid'
 
+import { LONG_POLL_TIMEOUT_MS } from './config/timeouts'
 import { authMiddleware } from './middleware/auth'
 import { errorHandler } from './middleware/error'
 import { setupOpenAPIDocumentation } from './middleware/openapi'
@@ -14,7 +15,6 @@ import { modelsRoutes } from './routes/models'
 
 const logger = loggerService.withContext('ApiServer')
 
-const LONG_POLL_TIMEOUT_MS = 120 * 60_000 // 120 minutes
 const extendMessagesTimeout: express.RequestHandler = (req, res, next) => {
   req.setTimeout(LONG_POLL_TIMEOUT_MS)
   res.setTimeout(LONG_POLL_TIMEOUT_MS)
