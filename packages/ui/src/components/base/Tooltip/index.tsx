@@ -1,21 +1,15 @@
 import type { TooltipProps as HeroUITooltipProps } from '@heroui/react'
-import { Tooltip as HeroUITooltip } from '@heroui/react'
+import { cn, Tooltip as HeroUITooltip } from '@heroui/react'
 
-interface TooltipProps {
-  content: React.ReactNode
-  children: React.ReactNode
-  placement?: HeroUITooltipProps['placement']
-  [key: string]: any
-}
+export interface TooltipProps extends HeroUITooltipProps {}
 
-const Tooltip = ({ content, placement, children, ...rest }: TooltipProps) => {
+export const Tooltip = ({ children, classNames, ...rest }: TooltipProps) => {
   return (
     <HeroUITooltip
       classNames={{
-        content: 'max-w-[240px]'
+        ...classNames,
+        content: cn('max-w-60', classNames?.content)
       }}
-      content={content}
-      placement={placement}
       showArrow={true}
       closeDelay={0}
       delay={500}
@@ -24,5 +18,3 @@ const Tooltip = ({ content, placement, children, ...rest }: TooltipProps) => {
     </HeroUITooltip>
   )
 }
-
-export default Tooltip
