@@ -2618,7 +2618,7 @@ const migrateConfig = {
             provider.anthropicApiHost = 'https://api-inference.modelscope.cn'
             break
           case 'aihubmix':
-            provider.anthropicApiHost = "https://aihubmix.com";
+            provider.anthropicApiHost = 'https://aihubmix.com'
             provider.isAnthropicModel = (m: Model) => m.id.includes('claude')
             break
         }

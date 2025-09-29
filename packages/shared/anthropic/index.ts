@@ -77,19 +77,19 @@ export function getSdkClient(provider: Provider, oauthToken?: string | null): An
       ? provider.apiHost
       : (provider.anthropicApiHost && provider.anthropicApiHost.trim()) || provider.apiHost
 
-  logger.debug("Anthropic API baseURL", { baseURL, providerId: provider.id });
+  logger.debug('Anthropic API baseURL', { baseURL, providerId: provider.id })
 
-  if (provider.id === "aihubmix") {
+  if (provider.id === 'aihubmix') {
     return new Anthropic({
       apiKey: provider.apiKey,
       baseURL,
       dangerouslyAllowBrowser: true,
       defaultHeaders: {
-        "anthropic-beta": "output-128k-2025-02-19",
-        "APP-Code": "MLTG2087",
-        ...provider.extra_headers,
-      },
-    });
+        'anthropic-beta': 'output-128k-2025-02-19',
+        'APP-Code': 'MLTG2087',
+        ...provider.extra_headers
+      }
+    })
   }
 
   return new Anthropic({
