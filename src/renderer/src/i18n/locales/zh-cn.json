@@ -1178,7 +1178,7 @@
     "document": "文档",
     "edit": "编辑",
     "error": {
-      "open_path": "打开路径失败"
+      "open_path": "无法打开路径: {{path}}"
     },
     "file": "文件",
     "image": "图片",
