@@ -16,6 +16,7 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { useAppDispatch } from '@renderer/store'
 import { setNarrowMode } from '@renderer/store/settings'
 import { ApiModel, Assistant, PermissionMode, Topic } from '@renderer/types'
+import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
@@ -223,7 +224,15 @@ const SessionWorkspaceMeta: FC<{ agentId: string; sessionId: string }> = ({ agen
         key="path"
         text={firstAccessiblePath}
         className="max-w-60 transition-colors hover:border-primary hover:text-primary"
-        onClick={() => window.api.file.openPath(firstAccessiblePath)}
+        onClick={() => {
+          window.api.file
+            .openPath(firstAccessiblePath)
+            .catch((e) =>
+              window.toast.error(
+                formatErrorMessageWithPrefix(e, t('files.error.open_path', { path: firstAccessiblePath }))
+              )
+            )
+        }}
       />
     )
   }

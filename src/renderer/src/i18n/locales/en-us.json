@@ -1177,6 +1177,9 @@
     },
     "document": "Document",
     "edit": "Edit",
+    "error": {
+      "open_path": "Failed to open path {{path}}"
+    },
     "file": "File",
     "image": "Image",
     "name": "Name",

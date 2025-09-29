@@ -1177,6 +1177,9 @@
     },
     "document": "文档",
     "edit": "编辑",
+    "error": {
+      "open_path": "打开路径失败"
+    },
     "file": "文件",
     "image": "图片",
     "name": "文件名",
