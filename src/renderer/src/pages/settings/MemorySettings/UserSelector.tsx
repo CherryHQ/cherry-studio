@@ -24,9 +24,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({ currentUser, uniqueUsers, o
     (userId: string, userName: string) => {
       return (
         <RowFlex className="items-center gap-2.5">
-          <Avatar className="h-5 w-5 bg-primary">
-            {getUserAvatar(userId)}
-          </Avatar>
+          <Avatar className="h-5 w-5 bg-primary">{getUserAvatar(userId)}</Avatar>
           <span>{userName}</span>
         </RowFlex>
       )

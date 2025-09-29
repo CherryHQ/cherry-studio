@@ -1,5 +1,5 @@
 // Base Components
-export { Avatar, AvatarGroup, type AvatarProps,EmojiAvatar } from './base/Avatar'
+export { Avatar, AvatarGroup, type AvatarProps, EmojiAvatar } from './base/Avatar'
 export { default as Button, type ButtonProps } from './base/Button'
 export { default as CopyButton } from './base/CopyButton'
 export { default as CustomCollapse } from './base/CustomCollapse'

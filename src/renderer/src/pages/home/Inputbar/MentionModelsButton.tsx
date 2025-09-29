@@ -135,7 +135,7 @@ const MentionModelsButton: FC<Props> = ({
             ),
             description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
             icon: (
-              <Avatar src={getModelLogo(m.id)} className="w-5 h-5">
+              <Avatar src={getModelLogo(m.id)} className="h-5 w-5">
                 {first(m.name)}
               </Avatar>
             ),
@@ -171,7 +171,7 @@ const MentionModelsButton: FC<Props> = ({
         ),
         description: <ModelTagsWithLabel model={m} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
         icon: (
-          <Avatar src={getModelLogo(m.id)} className="w-5 h-5">
+          <Avatar src={getModelLogo(m.id)} className="h-5 w-5">
             {first(m.name)}
           </Avatar>
         ),

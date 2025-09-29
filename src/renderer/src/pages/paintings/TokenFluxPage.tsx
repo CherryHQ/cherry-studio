@@ -753,10 +753,6 @@ const ToolbarMenu = styled.div`
   gap: 6px;
 `
 
-const ProviderLogo = styled(Avatar)`
-  border: 0.5px solid var(--color-border);
-`
-
 const ProviderTitleContainer = styled.div`
   display: flex;
   justify-content: space-between;

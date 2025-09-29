@@ -54,7 +54,12 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
         {filteredProviders.map(({ id, name, logo }) => (
           <Tooltip key={id} title={name} placement="top" mouseLeaveDelay={0}>
             <LogoItem onClick={(e) => handleProviderClick(e, id)}>
-              <ProviderAvatarPrimitive providerId={id} style={{ width: '52px', height: '52px' }} providerName={name} logoSrc={logo} />
+              <ProviderAvatarPrimitive
+                providerId={id}
+                style={{ width: '52px', height: '52px' }}
+                providerName={name}
+                logoSrc={logo}
+              />
             </LogoItem>
           </Tooltip>
         ))}

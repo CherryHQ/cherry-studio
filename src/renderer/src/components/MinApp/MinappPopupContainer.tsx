@@ -10,7 +10,7 @@ import {
   PushpinOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Avatar, Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import WindowControls from '@renderer/components/WindowControls'
@@ -25,7 +25,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { MinAppType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { Alert, Tooltip } from 'antd'
+import { Alert, Drawer } from "antd";
 import type { WebviewTag } from 'electron'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'

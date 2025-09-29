@@ -9,6 +9,7 @@ import { AssistantMessageStatus, type Message } from '@renderer/types/newMessage
 import { lightbulbSoftVariants } from '@renderer/utils/motionVariants'
 import type { MultiModelFoldDisplayMode } from '@shared/data/preference/preferenceTypes'
 import { Segmented as AntdSegmented } from 'antd'
+import { first } from "lodash";
 import { motion } from 'motion/react'
 import type { FC } from 'react'
 import { memo, useCallback } from 'react'
