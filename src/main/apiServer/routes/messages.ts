@@ -65,7 +65,13 @@ async function handleStreamingResponse(
     res.write('data: [DONE]\n\n')
     flushStream()
   } catch (streamError: any) {
-    logger.error('Stream error', { error: streamError })
+    logger.error('Stream error', {
+      error: streamError,
+      provider: provider.id,
+      model: request.model,
+      apiHost: provider.apiHost,
+      anthropicApiHost: provider.anthropicApiHost
+    })
     res.write(
       `data: ${JSON.stringify({
         type: 'error',
@@ -156,9 +162,13 @@ async function processMessageRequest(
       })
     }
 
-    logger.silly('Processing message request', {
-      request,
-      provider: provider.id
+    logger.info('Processing anthropic messages request', {
+      provider: provider.id,
+      apiHost: provider.apiHost,
+      anthropicApiHost: provider.anthropicApiHost,
+      model: request.model,
+      stream: request.stream,
+      thinking: request.thinking
     })
 
     // Handle streaming

@@ -85,7 +85,10 @@ class ClaudeCodeService implements AgentServiceInterface {
     const env = {
       ...loginShellEnvWithoutProxies,
       ANTHROPIC_API_KEY: apiConfig.apiKey,
+      ANTHROPIC_AUTH_TOKEN: apiConfig.apiKey,
       ANTHROPIC_BASE_URL: `http://${apiConfig.host}:${apiConfig.port}/${modelInfo.provider.id}`,
+      ANTHROPIC_MODEL: modelInfo.modelId,
+      ANTHROPIC_SMALL_FAST_MODEL: modelInfo.modelId,
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1'
     }
@@ -97,7 +100,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       abortController,
       cwd,
       env,
-      model: modelInfo.modelId,
+      // model: modelInfo.modelId,
       pathToClaudeCodeExecutable: this.claudeExecutablePath,
       stderr: (chunk: string) => {
         logger.warn('claude stderr', { chunk })

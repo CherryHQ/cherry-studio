@@ -27,9 +27,27 @@ export class ModelsService {
 
       for (const model of models) {
         const provider = providers.find((p) => p.id === model.provider)
-        if (!provider || (provider.isAnthropicModel && !provider.isAnthropicModel(model))) {
-          continue
+        logger.debug(
+          `Processing model ${model.id} from provider ${model.provider}`,
+          { isAnthropicModel: provider?.isAnthropicModel }
+        );
+        if (
+          !provider ||
+          (filter.providerType === "anthropic" &&
+            provider.isAnthropicModel &&
+            !provider.isAnthropicModel(model))
+        ) {
+          continue;
         }
+        // Special case: For "aihubmix", it should be covered by above condition, but just in case
+        if (
+          provider.id === "aihubmix" &&
+          filter.providerType === "anthropic" &&
+          !model.id.includes("claude")
+        ) {
+          continue;
+        }
+
         const openAIModel = transformModelToOpenAI(model, provider)
         const fullModelId = openAIModel.id // This is already in format "provider:model_id"
 
