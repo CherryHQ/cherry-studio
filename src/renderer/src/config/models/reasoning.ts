@@ -22,6 +22,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT: ReasoningEffortConfig = {
   default: ['low', 'medium', 'high'] as const,
   o: ['low', 'medium', 'high'] as const,
   gpt5: ['minimal', 'low', 'medium', 'high'] as const,
+  gpt5_codex: ['low', 'medium', 'high'] as const,
   grok: ['low', 'high'] as const,
   gemini: ['low', 'medium', 'high', 'auto'] as const,
   gemini_pro: ['low', 'medium', 'high', 'auto'] as const,
@@ -40,6 +41,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   default: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.default] as const,
   o: MODEL_SUPPORTED_REASONING_EFFORT.o,
   gpt5: [...MODEL_SUPPORTED_REASONING_EFFORT.gpt5] as const,
+  gpt5_codex: MODEL_SUPPORTED_REASONING_EFFORT.gpt5_codex,
   grok: MODEL_SUPPORTED_REASONING_EFFORT.grok,
   gemini: ['off', ...MODEL_SUPPORTED_REASONING_EFFORT.gemini] as const,
   gemini_pro: MODEL_SUPPORTED_REASONING_EFFORT.gemini_pro,
@@ -55,8 +57,13 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
 
 export const getThinkModelType = (model: Model): ThinkingModelType => {
   let thinkingModelType: ThinkingModelType = 'default'
+  const modelId = getLowerBaseModelName(model.id)
   if (isGPT5SeriesModel(model)) {
-    thinkingModelType = 'gpt5'
+    if (modelId.includes('codex')) {
+      thinkingModelType = 'gpt5_codex'
+    } else {
+      thinkingModelType = 'gpt5'
+    }
   } else if (isSupportedReasoningEffortOpenAIModel(model)) {
     thinkingModelType = 'o'
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
