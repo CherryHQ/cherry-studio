@@ -14,7 +14,7 @@ import { loggerService } from '@renderer/services/LoggerService'
 import { getModelUniqId } from '@renderer/services/ModelService'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { setIsBunInstalled } from '@renderer/store/mcp'
-import type { Model } from '@renderer/types'
+import type { EndpointType, Model } from '@renderer/types'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeTools, terminalApps } from '@shared/config/constant'
 import { Alert, Avatar, Checkbox, Input, Popover, Select, Space, Tooltip } from 'antd'
@@ -73,18 +73,43 @@ const CodeToolsPage: FC = () => {
       if (isEmbeddingModel(m) || isRerankModel(m) || isTextToImageModel(m)) {
         return false
       }
+
       if (m.provider === 'cherryai') {
         return false
       }
+
       if (selectedCliTool === codeTools.claudeCode) {
+        if (m.supported_endpoint_types) {
+          return m.supported_endpoint_types.includes('anthropic')
+        }
         return m.id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.provider)
       }
+
       if (selectedCliTool === codeTools.geminiCli) {
+        if (m.supported_endpoint_types) {
+          return m.supported_endpoint_types.includes('gemini')
+        }
         return m.id.includes('gemini')
       }
+
       if (selectedCliTool === codeTools.openaiCodex) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
         return m.id.includes('openai') || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(m.provider)
       }
+
+      if (selectedCliTool === codeTools.qwenCode || selectedCliTool === codeTools.iFlowCli) {
+        if (m.supported_endpoint_types) {
+          return ['openai', 'openai-response'].some((type) =>
+            m.supported_endpoint_types?.includes(type as EndpointType)
+          )
+        }
+        return true
+      }
+
       return true
     },
     [selectedCliTool]

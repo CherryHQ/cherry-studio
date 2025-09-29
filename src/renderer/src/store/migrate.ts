@@ -2543,6 +2543,16 @@ const migrateConfig = {
       logger.error('migrate 157 error', error as Error)
       return state
     }
+  },
+  '158': (state: RootState) => {
+    try {
+      state.llm.providers = state.llm.providers.filter((provider) => provider.id !== 'cherryin')
+      addProvider(state, 'longcat')
+      return state
+    } catch (error) {
+      logger.error('migrate 158 error', error as Error)
+      return state
+    }
   }
 }
 

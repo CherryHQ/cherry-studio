@@ -665,7 +665,7 @@ class CodeToolsService {
         const command = envPrefix ? `${envPrefix} && ${baseCommand}` : baseCommand
 
         // Combine directory change with the main command to ensure they execute in the same shell session
-        const fullCommand = `cd '${directory.replace(/'/g, "\\'")}' && clear && ${command}`
+        const fullCommand = `cd "${directory.replace(/"/g, '\\"')}" && clear && ${command}`
 
         const terminalConfig = await this.getTerminalConfig(options.terminal)
         logger.info(`Using terminal: ${terminalConfig.name} (${terminalConfig.id})`)

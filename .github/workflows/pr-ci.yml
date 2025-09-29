@@ -10,12 +10,14 @@ on:
       - main
       - develop
       - v2
+    types: [ready_for_review, synchronize, opened]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
       PRCI: true
+    if: github.event.pull_request.draft == false
 
     steps:
       - name: Check out Git repository

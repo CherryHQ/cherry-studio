@@ -340,12 +340,6 @@ const TranslatePage: FC = () => {
     setTargetLanguage(source)
   }, [couldExchangeAuto, detectedLanguage, sourceLanguage, t, targetLanguage])
 
-  // Clear translation content when component mounts
-  useEffect(() => {
-    setText('')
-    setTranslatedContent('')
-  }, [setText, setTranslatedContent])
-
   useEffect(() => {
     isEmpty(text) && setTranslatedContent('')
   }, [setTranslatedContent, text])

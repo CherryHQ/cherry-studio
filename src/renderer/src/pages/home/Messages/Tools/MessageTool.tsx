@@ -1,4 +1,4 @@
-import type { MCPToolResponse } from '@renderer/types'
+import type { NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { Collapse } from 'antd'
 
@@ -11,8 +11,9 @@ interface Props {
 }
 const prefix = 'builtin_'
 
-const ChooseTool = (toolResponse: MCPToolResponse): { label: React.ReactNode; body: React.ReactNode } | null => {
+const ChooseTool = (toolResponse: NormalToolResponse): { label: React.ReactNode; body: React.ReactNode } | null => {
   let toolName = toolResponse.tool.name
+  const toolType = toolResponse.tool.type
   if (toolName.startsWith(prefix)) {
     toolName = toolName.slice(prefix.length)
   }
@@ -20,10 +21,12 @@ const ChooseTool = (toolResponse: MCPToolResponse): { label: React.ReactNode; bo
   switch (toolName) {
     case 'web_search':
     case 'web_search_preview':
-      return {
-        label: <MessageWebSearchToolTitle toolResponse={toolResponse} />,
-        body: null
-      }
+      return toolType === 'provider'
+        ? null
+        : {
+            label: <MessageWebSearchToolTitle toolResponse={toolResponse} />,
+            body: null
+          }
     case 'knowledge_search':
       return {
         label: <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />,
@@ -41,7 +44,7 @@ const ChooseTool = (toolResponse: MCPToolResponse): { label: React.ReactNode; bo
 
 export default function MessageTool({ block }: Props) {
   // FIXME: 语义错误，这里已经不是 MCP tool 了,更改rawMcpToolResponse需要改用户数据, 所以暂时保留
-  const toolResponse = block.metadata?.rawMcpToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse as NormalToolResponse
 
   if (!toolResponse) return null
 

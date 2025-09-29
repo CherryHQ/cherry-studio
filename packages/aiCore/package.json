@@ -39,7 +39,6 @@
     "@ai-sdk/anthropic": "^2.0.17",
     "@ai-sdk/azure": "^2.0.30",
     "@ai-sdk/deepseek": "^1.0.17",
-    "@ai-sdk/google": "^2.0.14",
     "@ai-sdk/openai": "^2.0.30",
     "@ai-sdk/openai-compatible": "^1.0.17",
     "@ai-sdk/provider": "^2.0.0",

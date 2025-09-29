@@ -5,7 +5,7 @@ import ThinkingEffect from '@renderer/components/ThinkingEffect'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
 import { Collapse, Tooltip } from 'antd'
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -107,30 +107,37 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
-    // const [thinkingTime, setThinkingTime] = useState(blockThinkingTime || 0)
+    const [displayTime, setDisplayTime] = useState(blockThinkingTime)
 
-    // FIXME: 这里统计的和请求处统计的有一定误差
-    // useEffect(() => {
-    //   let timer: NodeJS.Timeout | null = null
-    //   if (isThinking) {
-    //     timer = setInterval(() => {
-    //       setThinkingTime((prev) => prev + 100)
-    //     }, 100)
-    //   } else if (timer) {
-    //     // 立即清除计时器
-    //     clearInterval(timer)
-    //     timer = null
-    //   }
+    const timer = useRef<NodeJS.Timeout | null>(null)
 
-    //   return () => {
-    //     if (timer) {
-    //       clearInterval(timer)
-    //       timer = null
-    //     }
-    //   }
-    // }, [isThinking])
+    useEffect(() => {
+      if (isThinking) {
+        if (!timer.current) {
+          timer.current = setInterval(() => {
+            setDisplayTime((prev) => prev + 100)
+          }, 100)
+        }
+      } else {
+        if (timer.current) {
+          clearInterval(timer.current)
+          timer.current = null
+        }
+        setDisplayTime(blockThinkingTime)
+      }
 
-    const thinkingTimeSeconds = useMemo(() => (blockThinkingTime / 1000).toFixed(1), [blockThinkingTime])
+      return () => {
+        if (timer.current) {
+          clearInterval(timer.current)
+          timer.current = null
+        }
+      }
+    }, [isThinking, blockThinkingTime])
+
+    const thinkingTimeSeconds = useMemo(
+      () => ((displayTime < 1000 ? 100 : displayTime) / 1000).toFixed(1),
+      [displayTime]
+    )
 
     return isThinking
       ? t('chat.thinking', {
