@@ -113,7 +113,7 @@ const ModelList: React.FC<ModelListProps> = ({ providerId }) => {
             />
           </RowFlex>
           <RowFlex>
-            <Tooltip placement="top" content={t('settings.models.check.button_caption')}>
+            <Tooltip content={t('settings.models.check.button_caption')}>
               <Button
                 variant="light"
                 onPress={runHealthCheck}

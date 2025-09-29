@@ -136,8 +136,7 @@ const ApiKeyItem: FC<ApiKeyItemProps> = ({
                   {keyStatus.key}
                 </Typography.Text>
               }
-              delay={500}
-              placement="top">
+              delay={500}>
               <span style={{ cursor: 'help' }}>{maskApiKey(keyStatus.key)}</span>
             </Tooltip>
 

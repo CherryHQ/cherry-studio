@@ -31,7 +31,7 @@ const BasicSettings: FC = () => {
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
               <InfoTooltip
-                placement="top"
+               
                 content={t('settings.tool.websearch.search_max_result.tooltip')}
                 iconSize={16}
                 iconColor="var(--color-icon)"

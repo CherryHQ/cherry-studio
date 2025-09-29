@@ -27,7 +27,7 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
                 <Flex className="gap-1">
                   <Typography.Text strong>{arg.name}</Typography.Text>
                   {arg.required && (
-                    <Tooltip placement="top" content="Required field">
+                    <Tooltip content="Required field">
                       <span style={{ color: '#f5222d' }}>*</span>
                     </Tooltip>
                   )}

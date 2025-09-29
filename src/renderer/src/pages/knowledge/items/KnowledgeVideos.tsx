@@ -128,7 +128,7 @@ const KnowledgeVideos: FC<KnowledgeContentProps> = ({ selectedBase }) => {
                       name: (
                         <ClickableSpan onClick={() => window.api.file.openFileWithRelativePath(videoFile)}>
                           <Ellipsis>
-                            <Tooltip placement="top" content={videoFile.origin_name}>
+                            <Tooltip content={videoFile.origin_name}>
                               {videoFile.origin_name}
                             </Tooltip>
                           </Ellipsis>

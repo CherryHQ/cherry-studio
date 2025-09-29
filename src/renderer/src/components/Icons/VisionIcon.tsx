@@ -10,7 +10,7 @@ const VisionIcon: FC<React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, 
 
   return (
     <Container>
-      <Tooltip placement="top" content={t('models.type.vision')}>
+      <Tooltip content={t('models.type.vision')}>
         <Icon size={15} {...(props as any)} />
       </Tooltip>
     </Container>

@@ -74,7 +74,7 @@ const InputEmbeddingDimension = ({
         onChange={onChange}
         disabled={disabled}
       />
-      <Tooltip placement="top" content={t('knowledge.dimensions_auto_set')}>
+      <Tooltip content={t('knowledge.dimensions_auto_set')}>
         <Button
           role="button"
           aria-label="Get embedding dimension"

@@ -107,7 +107,7 @@ const MiniAppSettings: FC = () => {
         </SettingLabelGroup>
         <CacheSettingControls>
           <SliderWithResetContainer>
-            <Tooltip placement="top" content={t('settings.miniapps.reset_tooltip')}>
+            <Tooltip content={t('settings.miniapps.reset_tooltip')}>
               <ResetButton onClick={handleResetCacheLimit}>
                 <UndoOutlined />
               </ResetButton>

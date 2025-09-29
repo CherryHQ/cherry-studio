@@ -94,7 +94,7 @@ const Assistants: FC<AssistantsTabProps> = ({
             <TagsContainer key={group.tag}>
               {group.tag !== t('assistants.tags.untagged') && (
                 <GroupTitle onClick={() => toggleTagCollapse(group.tag)}>
-                  <Tooltip placement="top" content={group.tag}>
+                  <Tooltip content={group.tag}>
                     <GroupTitleName>
                       {collapsedTags[group.tag] ? (
                         <RightOutlined style={{ fontSize: '10px', marginRight: '5px' }} />

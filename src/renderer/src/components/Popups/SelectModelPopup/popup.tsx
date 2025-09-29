@@ -184,7 +184,7 @@ const PopupContainer: React.FC<Props> = ({ model, filter: baseFilter, showTagFil
         type: 'group',
         name: getFancyProviderName(p),
         actions: p.id !== 'cherryai' && (
-          <Tooltip placement="top" content={t('navigate.provider_settings')}>
+          <Tooltip content={t('navigate.provider_settings')}>
             <Settings2
               size={12}
               color="var(--color-text)"

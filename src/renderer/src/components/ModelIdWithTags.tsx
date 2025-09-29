@@ -26,7 +26,7 @@ const ModelIdWithTags = ({
             {model.id}
           </Typography.Text>
         }
-        placement="top">
+       >
         <NameSpan>{model.name}</NameSpan>
       </Tooltip>
       <ModelTagsWithLabel model={model} size={11} style={{ flexShrink: 0 }} />

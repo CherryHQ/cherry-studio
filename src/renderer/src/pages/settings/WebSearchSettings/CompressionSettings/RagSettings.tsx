@@ -106,7 +106,7 @@ const RagSettings = () => {
           {t('settings.tool.websearch.compression.rag.document_count.label')}
           <InfoTooltip
             content={t('settings.tool.websearch.compression.rag.document_count.tooltip')}
-            placement="top"
+           
             iconSize={16}
             iconColor="var(--color-icon)"
             iconStyle={{ marginLeft: 5, cursor: 'pointer' }}

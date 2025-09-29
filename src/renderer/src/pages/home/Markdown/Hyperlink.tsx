@@ -26,7 +26,7 @@ const Hyperlink: React.FC<HyperLinkProps> = ({ children, href }) => {
       open={open}
       onOpenChange={setOpen}
       content={<OGCard link={link} show={open} />}
-      placement="top"
+     
       styles={{
         body: {
           padding: 0,

@@ -117,7 +117,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.icon.label')}</ModalSectionTitleLabel>
-                <Tooltip placement="top" content={t('selection.settings.user_modal.icon.tooltip')}>
+                <Tooltip content={t('selection.settings.user_modal.icon.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
                 <Spacer />
@@ -128,7 +128,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                   style={{ fontSize: '12px', color: 'var(--color-primary)' }}>
                   {t('selection.settings.user_modal.icon.view_all')}
                 </a>
-                <Tooltip placement="top" content={t('selection.settings.user_modal.icon.random')}>
+                <Tooltip content={t('selection.settings.user_modal.icon.random')}>
                   <DiceButton
                     onClick={() => {
                       const randomIcon = iconNames[Math.floor(Math.random() * iconNames.length)]
@@ -164,7 +164,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
             <Col flex="auto" style={{ paddingRight: '16px' }}>
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.model.label')}</ModalSectionTitleLabel>
-                <Tooltip placement="top" content={t('selection.settings.user_modal.model.tooltip')}>
+                <Tooltip content={t('selection.settings.user_modal.model.tooltip')}>
                   <QuestionIcon size={14} />
                 </Tooltip>
               </ModalSectionTitle>
@@ -216,7 +216,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
         <ModalSection>
           <ModalSectionTitle>
             <ModalSectionTitleLabel>{t('selection.settings.user_modal.prompt.label')}</ModalSectionTitleLabel>
-            <Tooltip placement="top" content={t('selection.settings.user_modal.prompt.tooltip')}>
+            <Tooltip content={t('selection.settings.user_modal.prompt.tooltip')}>
               <QuestionIcon size={14} />
             </Tooltip>
             <Spacer />

@@ -175,14 +175,14 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip placement="top" content={t('navbar.hide_sidebar')}>
+          <Tooltip content={t('navbar.hide_sidebar')}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip placement="top" content={t('navbar.show_sidebar')}>
+          <Tooltip content={t('navbar.show_sidebar')}>
             <NavbarIcon onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </NavbarIcon>
@@ -231,7 +231,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
       </NavbarCenter>
       <NavbarRight style={{ paddingRight: 0 }}>
         {canShowStarButton && (
-          <Tooltip placement="top" content={activeNode.isStarred ? t('notes.unstar') : t('notes.star')}>
+          <Tooltip content={activeNode.isStarred ? t('notes.unstar') : t('notes.star')}>
             <StarButton onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
                 <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
@@ -241,7 +241,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
             </StarButton>
           </Tooltip>
         )}
-        <Tooltip placement="top" content={t('notes.settings.title')}>
+        <Tooltip content={t('notes.settings.title')}>
           <TooltipTriggerWrapper>
             <Dropdown
               menu={{ items: menuItems.map(buildMenuItem) }}

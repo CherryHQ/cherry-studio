@@ -142,7 +142,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
                 okText={t('common.confirm')}
                 cancelText={t('common.cancel')}
                 okButtonProps={{ color: 'danger' }}>
-                <Tooltip placement="top" content={t('settings.provider.remove_invalid_keys')}>
+                <Tooltip content={t('settings.provider.remove_invalid_keys')}>
                   <Button
                     variant="light"
                     startContent={<DeleteIcon size={16} className="lucide-custom" />}
@@ -154,7 +154,7 @@ export const ApiKeyList: FC<ApiKeyListProps> = ({ provider, updateProvider, show
               </Popconfirm>
 
               {/* 批量检查 */}
-              <Tooltip placement="top" content={t('settings.provider.check_all_keys')}>
+              <Tooltip content={t('settings.provider.check_all_keys')}>
                 <Button
                   variant="light"
                   startContent={<StreamlineGoodHealthAndWellBeing size={'1.2em'} />}

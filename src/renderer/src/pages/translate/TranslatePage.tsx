@@ -716,7 +716,7 @@ const TranslatePage: FC = () => {
                 }
               ]}
             />
-            <Tooltip placement="top" content={t('translate.exchange.label')}>
+            <Tooltip content={t('translate.exchange.label')}>
               <Button
                 variant="light"
                 startContent={<SwapOutlined />}
@@ -981,7 +981,7 @@ const TranslateButton = ({
   const { t } = useTranslation()
   return (
     <Tooltip
-      placement="top"
+     
       content={
         <div style={{ textAlign: 'center' }}>
           Enter: {t('translate.button.translate')}

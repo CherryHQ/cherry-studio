@@ -245,7 +245,7 @@ const AboutSettings: FC = () => {
             <SettingDivider />
             <SettingRow>
               <SettingRowTitle>{t('settings.general.test_plan.title')}</SettingRowTitle>
-              <Tooltip placement="top" content={t('settings.general.test_plan.tooltip')}>
+              <Tooltip content={t('settings.general.test_plan.tooltip')}>
                 <Switch isSelected={testPlan} onValueChange={(v) => handleSetTestPlan(v)} />
               </Tooltip>
             </SettingRow>
@@ -260,7 +260,7 @@ const AboutSettings: FC = () => {
                     value={getTestChannel()}
                     onValueChange={(value) => handleTestChannelChange(value as UpgradeChannel)}>
                     {getAvailableTestChannels().map((option) => (
-                      <Tooltip placement="top" key={option.value} content={option.tooltip}>
+                      <Tooltip key={option.value} content={option.tooltip}>
                         <Radio value={option.value}>{option.label}</Radio>
                       </Tooltip>
                     ))}

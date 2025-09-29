@@ -66,7 +66,7 @@ const CodeBlockNodeView: FC<ReactNodeViewProps> = (props) => {
           options={languageOptions.map((lang) => ({ value: lang, label: lang }))}
           style={{ minWidth: 90 }}
         />
-        <Tooltip placement="top" content="Copy">
+        <Tooltip content="Copy">
           <Button
             size="sm"
             variant="light"

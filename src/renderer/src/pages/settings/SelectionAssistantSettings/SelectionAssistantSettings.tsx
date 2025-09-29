@@ -123,7 +123,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
                   {/* FIXME: 没有考虑Linux？ */}
-                  <Tooltip placement="top" content={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')}>
+                  <Tooltip content={getSelectionDescriptionLabel(isWin ? 'windows' : 'mac')}>
                     <QuestionIcon size={14} />
                   </Tooltip>
                 </SettingRowTitle>
@@ -134,16 +134,16 @@ const SelectionAssistantSettings: FC = () => {
                 orientation="horizontal"
                 value={triggerMode}
                 onValueChange={(value) => setTriggerMode(value as SelectionTriggerMode)}>
-                <Tooltip placement="top" content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
+                <Tooltip content={t('selection.settings.toolbar.trigger_mode.selected_note')}>
                   <Radio value="selected">{t('selection.settings.toolbar.trigger_mode.selected')}</Radio>
                 </Tooltip>
                 {isWin && (
-                  <Tooltip placement="top" content={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')}>
+                  <Tooltip content={t('selection.settings.toolbar.trigger_mode.ctrlkey_note')}>
                     <Radio value="ctrlkey">{t('selection.settings.toolbar.trigger_mode.ctrlkey')}</Radio>
                   </Tooltip>
                 )}
                 <Tooltip
-                  placement="top"
+                 
                   content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}

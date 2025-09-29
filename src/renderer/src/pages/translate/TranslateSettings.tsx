@@ -122,13 +122,13 @@ const TranslateSettings: FC<{
               onChange={(e) => {
                 setAutoDetectionMethod(e.target.value)
               }}>
-              <Tooltip placement="top" content={t('translate.detect.method.auto.tip')}>
+              <Tooltip content={t('translate.detect.method.auto.tip')}>
                 <Radio.Button value="auto">{t('translate.detect.method.auto.label')}</Radio.Button>
               </Tooltip>
-              <Tooltip placement="top" content={t('translate.detect.method.algo.tip')}>
+              <Tooltip content={t('translate.detect.method.algo.tip')}>
                 <Radio.Button value="franc">{t('translate.detect.method.algo.label')}</Radio.Button>
               </Tooltip>
-              <Tooltip placement="top" content={t('translate.detect.method.llm.tip')}>
+              <Tooltip content={t('translate.detect.method.llm.tip')}>
                 <Radio.Button value="llm">LLM</Radio.Button>
               </Tooltip>
             </Radio.Group>

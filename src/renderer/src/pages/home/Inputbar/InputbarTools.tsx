@@ -355,7 +355,7 @@ const InputbarTools = ({
         key: 'new_topic',
         label: t('chat.input.new_topic', { Command: '' }),
         component: (
-          <Tooltip placement="top" content={t('chat.input.new_topic', { Command: newTopicShortcut })}>
+          <Tooltip content={t('chat.input.new_topic', { Command: newTopicShortcut })}>
             <ActionIconButton onPress={addNewTopic} icon={<MessageSquareDiff size={19} />} />
           </Tooltip>
         )
@@ -457,7 +457,6 @@ const InputbarTools = ({
         label: t('chat.input.clear.label', { Command: '' }),
         component: (
           <Tooltip
-            placement="top"
             content={t('chat.input.clear.label', { Command: clearTopicShortcut })}
             closeDelay={0}
             showArrow>
@@ -470,7 +469,6 @@ const InputbarTools = ({
         label: isExpended ? t('chat.input.collapse') : t('chat.input.expand'),
         component: (
           <Tooltip
-            placement="top"
             content={isExpended ? t('chat.input.collapse') : t('chat.input.expand')}
             closeDelay={0}
             showArrow>
@@ -653,7 +651,6 @@ const InputbarTools = ({
 
         {showCollapseButton && (
           <Tooltip
-            placement="top"
             content={isCollapse ? t('chat.input.tools.expand') : t('chat.input.tools.collapse')}
             showArrow>
             <ActionIconButton

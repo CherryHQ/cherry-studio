@@ -107,7 +107,7 @@ const MessageGroupMenuBar: FC<Props> = ({
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
               key={layout}
-              placement="top"
+             
               content={
                 t('message.message.multi_model_style.label') + ': ' + multiModelMessageStyleTextByLayout[layout]
               }>
@@ -137,7 +137,7 @@ const MessageGroupMenuBar: FC<Props> = ({
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
       </RowFlex>
       {hasFailedMessages && (
-        <Tooltip placement="top" content={t('message.group.retry_failed')}>
+        <Tooltip content={t('message.group.retry_failed')}>
           <Button
             variant="light"
             size="sm"

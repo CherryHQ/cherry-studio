@@ -148,7 +148,7 @@ const ApiServerSettings: FC = () => {
 
         <ControlSection>
           {apiServerRunning && (
-            <Tooltip placement="top" content={t('apiServer.actions.restart.tooltip')}>
+            <Tooltip content={t('apiServer.actions.restart.tooltip')}>
               <RestartButton
                 $loading={apiServerLoading}
                 onClick={apiServerLoading ? undefined : handleApiServerRestart}>
@@ -172,7 +172,7 @@ const ApiServerSettings: FC = () => {
           )}
 
           <Tooltip
-            placement="top"
+           
             content={apiServerRunning ? t('apiServer.actions.stop') : t('apiServer.actions.start')}>
             {apiServerRunning ? (
               <StopButton
@@ -208,7 +208,7 @@ const ApiServerSettings: FC = () => {
                   {t('apiServer.actions.regenerate')}
                 </Button>
               )}
-              <Tooltip placement="top" content={t('apiServer.fields.apiKey.copyTooltip')}>
+              <Tooltip content={t('apiServer.fields.apiKey.copyTooltip')}>
                 <Button
                   variant="light"
                   isIconOnly

@@ -111,7 +111,7 @@ const KnowledgeSitemaps: FC<KnowledgeContentProps> = ({ selectedBase }) => {
               fileInfo={{
                 name: (
                   <ClickableSpan>
-                    <Tooltip placement="top" content={item.content as string}>
+                    <Tooltip content={item.content as string}>
                       <Ellipsis>
                         <a href={item.content as string} target="_blank" rel="noopener noreferrer">
                           {item.content as string}

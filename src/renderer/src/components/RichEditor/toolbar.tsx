@@ -177,7 +177,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
         )
 
         return (
-          <Tooltip key={item.id} content={tooltipText} placement="top">
+          <Tooltip key={item.id} content={tooltipText}>
             {buttonElement}
           </Tooltip>
         )

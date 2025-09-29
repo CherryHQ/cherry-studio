@@ -114,7 +114,7 @@ const ManageModelsList: React.FC<ManageModelsListProps> = ({ modelGroups, provid
               ? t('settings.models.manage.remove_whole_group')
               : t('settings.models.manage.add_whole_group')
           }
-          placement="top">
+         >
           <Button
             variant="light"
             startContent={isAllInProvider ? <Minus size={16} /> : <Plus size={16} />}

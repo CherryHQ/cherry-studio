@@ -45,7 +45,7 @@ export const CopyButtonContainer: React.FC<CopyButtonContainerProps> = ({ textTo
 
   return (
     <TagContainer>
-      <Tooltip placement="top" content={tooltipTitle}>
+      <Tooltip content={tooltipTitle}>
         <CopyButton onClick={() => handleCopy(textToCopy)}>
           <CopyOutlined />
         </CopyButton>

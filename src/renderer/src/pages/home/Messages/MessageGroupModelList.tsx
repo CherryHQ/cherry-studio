@@ -41,7 +41,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
 
       if (isCompact) {
         return (
-          <Tooltip key={message.id} placement="top" content={modelTip}>
+          <Tooltip key={message.id} content={modelTip}>
             <AvatarWrapper
               className="avatar-wrapper"
               $isSelected={message.id === selectMessageId}
@@ -68,7 +68,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   return (
     <Container>
       <Tooltip
-        placement="top"
+       
         content={
           isCompact
             ? t('message.message.multi_model_style.fold.expand')

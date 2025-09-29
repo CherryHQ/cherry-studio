@@ -35,7 +35,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
       <ActionBar>
         <SelectionCount>{t('common.selectedMessages', { count: selectedMessageIds.length })}</SelectionCount>
         <ActionButtons>
-          <Tooltip placement="top" content={t('common.save')}>
+          <Tooltip content={t('common.save')}>
             <Button
               radius="full"
               variant="light"
@@ -45,7 +45,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               isIconOnly
             />
           </Tooltip>
-          <Tooltip placement="top" content={t('common.copy')}>
+          <Tooltip content={t('common.copy')}>
             <Button
               radius="full"
               variant="light"
@@ -55,7 +55,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
               isIconOnly
             />
           </Tooltip>
-          <Tooltip placement="top" content={t('common.delete')}>
+          <Tooltip content={t('common.delete')}>
             <Button
               radius="full"
               color="danger"
@@ -66,7 +66,7 @@ const MultiSelectActionPopup: FC<Props> = ({ topic }) => {
             />
           </Tooltip>
         </ActionButtons>
-        <Tooltip placement="top" content={t('chat.navigation.close')}>
+        <Tooltip content={t('chat.navigation.close')}>
           <Button radius="full" variant="light" startContent={<X size={16} />} onPress={handleClose} isIconOnly />
         </Tooltip>
       </ActionBar>

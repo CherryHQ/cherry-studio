@@ -98,7 +98,7 @@ const PreprocessProviderSettings: FC<Props> = ({ provider: _provider }) => {
               justifyContent: 'space-between'
             }}>
             {t('settings.provider.api_key.label')}
-            <Tooltip placement="top" content={t('settings.provider.api.key.list.open')}>
+            <Tooltip content={t('settings.provider.api.key.list.open')}>
               <Button variant="light" size="sm" onPress={openApiKeyList} startContent={<List size={14} />} isIconOnly />
             </Tooltip>
           </SettingSubtitle>

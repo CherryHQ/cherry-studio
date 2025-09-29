@@ -88,7 +88,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     return (
       <MessageMetadata className="message-tokens" onClick={locateMessage}>
         {hasMetrics ? (
-          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+          <Popover content={metrixs} trigger="hover" styles={{ root: { fontSize: 11 } }}>
             {tokensInfo}
           </Popover>
         ) : (

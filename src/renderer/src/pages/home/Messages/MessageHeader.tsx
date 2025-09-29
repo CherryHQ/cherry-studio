@@ -118,7 +118,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             {username}
           </UserName>
           {isGroupContextMessage && (
-            <Tooltip placement="top" content={t('chat.message.useful.tip')}>
+            <Tooltip content={t('chat.message.useful.tip')}>
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}

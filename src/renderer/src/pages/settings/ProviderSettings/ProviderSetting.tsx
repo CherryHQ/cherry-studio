@@ -262,7 +262,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             </Link>
           )}
           {!isSystemProvider(provider) && (
-            <Tooltip placement="top" content={t('settings.provider.api.options.label')}>
+            <Tooltip content={t('settings.provider.api.options.label')}>
               <Button
                 variant="light"
                 startContent={<Bolt size={14} />}
@@ -314,7 +314,7 @@ const ProviderSetting: FC<Props> = ({ providerId }) => {
             }}>
             {t('settings.provider.api_key.label')}
             {provider.id !== 'copilot' && (
-              <Tooltip placement="top" content={t('settings.provider.api.key.list.open')} delay={500}>
+              <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
                 <Button variant="light" onPress={openApiKeyList} startContent={<Settings2 size={16} />} isIconOnly />
               </Tooltip>
             )}
