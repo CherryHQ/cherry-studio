@@ -63,11 +63,9 @@ export { default as CollapsibleSearchBar } from './interactive/CollapsibleSearch
 export { DraggableList, useDraggableReorder } from './interactive/DraggableList'
 export type { EditableNumberProps } from './interactive/EditableNumber'
 export { default as EditableNumber } from './interactive/EditableNumber'
-export { default as HelpTooltip } from './interactive/HelpTooltip'
+export { HelpTooltip, type IconTooltipProps, InfoTooltip, WarnTooltip } from './interactive/IconTooltips'
 export { default as ImageToolButton } from './interactive/ImageToolButton'
-export { default as InfoTooltip } from './interactive/InfoTooltip'
 export { Sortable } from './interactive/Sortable'
-export { default as WarnTooltip } from './interactive/WarnTooltip'
 
 // Composite Components (复合组件)
 // 暂无复合组件

@@ -1,9 +1,9 @@
-// Original path: src/renderer/src/components/TooltipIcons/WarnTooltip.tsx
-import { AlertTriangle } from 'lucide-react'
+// Original: src/renderer/src/components/TooltipIcons/InfoTooltip.tsx
+import { Info } from 'lucide-react'
 
-import Tooltip from '../../base/Tooltip'
+import { Tooltip } from '../../base/Tooltip'
 
-interface WarnTooltipProps {
+interface InfoTooltipProps {
   title: React.ReactNode
   placement?:
     | 'top'
@@ -24,19 +24,17 @@ interface WarnTooltipProps {
   [key: string]: any
 }
 
-const WarnTooltip = ({
+export const InfoTooltip = ({
   title,
   placement = 'top',
-  iconColor = 'var(--color-status-warning)',
+  iconColor = 'var(--color-text-2)',
   iconSize = 14,
   iconStyle,
   ...rest
-}: WarnTooltipProps) => {
+}: InfoTooltipProps) => {
   return (
     <Tooltip placement={placement} content={title} {...rest}>
-      <AlertTriangle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
+      <Info size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
     </Tooltip>
   )
 }
-
-export default WarnTooltip
