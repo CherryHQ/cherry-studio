@@ -88,7 +88,7 @@ exports.default = async function (context) {
   const excludeClaudeCodeJBPlutins = ['!node_modules/' + claudeCodeVenderPath + '/' + 'claude-code-jetbrains-plugin']
 
   const includeClaudeCodeFilters = [
-    '!node_modules/' + claudeCodeVenderPath + '/' + `${archType}-${platformToArch[platform]}/**`
+    '!node_modules/' + claudeCodeVenderPath + '/ripgrep/' + `${archType}-${platformToArch[platform]}/**`
   ]
 
   if (arch === Arch.arm64) {
