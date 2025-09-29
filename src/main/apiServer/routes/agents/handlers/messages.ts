@@ -1,9 +1,8 @@
 import { loggerService } from '@logger'
+import { MESSAGE_STREAM_TIMEOUT_MS } from '@main/apiServer/config/timeouts'
+import { createStreamAbortController, STREAM_TIMEOUT_REASON } from '@main/apiServer/utils/createStreamAbortController'
+import { agentService, sessionMessageService, sessionService } from '@main/services/agents'
 import { Request, Response } from 'express'
-
-import { agentService, sessionMessageService, sessionService } from '../../../../services/agents'
-import { MESSAGE_STREAM_TIMEOUT_MS } from '../../../config/timeouts'
-import { createStreamAbortController, STREAM_TIMEOUT_REASON } from '../../../utils/createStreamAbortController'
 
 const logger = loggerService.withContext('ApiServerMessagesHandlers')
 
