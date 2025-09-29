@@ -1229,6 +1229,19 @@ class FileStorage {
       return false
     }
   }
+
+  public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
+    if (!fs.existsSync(path)) {
+      const msg = `File or folder does not exist: ${path}`
+      logger.error(msg)
+      throw new Error(msg)
+    }
+    try {
+      shell.showItemInFolder(path)
+    } catch (error) {
+      logger.error('Failed to show item in folder:', error as Error)
+    }
+  }
 }
 
 export const fileStorage = new FileStorage()

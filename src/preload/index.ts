@@ -199,7 +199,8 @@ const api = {
       }
       ipcRenderer.on('file-change', listener)
       return () => ipcRenderer.off('file-change', listener)
-    }
+    },
+    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path)
   },
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),

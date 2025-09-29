@@ -187,6 +187,7 @@ export enum IpcChannel {
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_StartWatcher = 'file:startWatcher',
   File_StopWatcher = 'file:stopWatcher',
+  File_ShowInFolder = 'file:showInFolder',
 
   // file service
   FileService_Upload = 'file-service:upload',
